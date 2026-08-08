@@ -1,0 +1,27 @@
+{
+  "SchemaVersion": 1,
+  "Entries": [
+    {
+      "FoundationLineage": "Aura.Foundation.V1",
+      "ModelId": "aura-combat-policy-value-639216369649009911",
+      "ArtifactSha256": "3E0693E41F3C9EE2D151A1492EEAA1E2EC610BC7CBE96BB35524C520BCEE38F8",
+      "WeightsSha256": "",
+      "FeatureSchemaVersion": 26,
+      "ContentSetHash": "68281d76979876df4d64a7a03a9675c4eca4bbd43999f32719924ab959900b36",
+      "RulesetHash": "17e714e3d08f1514",
+      "NativeProgramPackageHash": "C0B2A9B9A957EAF2B198BE712C7AD865C6C37A3ACC8D76822320841A7AE62C25",
+      "RequiredStartGateCapability": "ReadyToStartGate.V1"
+    },
+    {
+      "FoundationLineage": "Aura.Foundation.V2",
+      "ModelId": "aura-combat-policy-value-639217761031707074-epoch-1",
+      "ArtifactSha256": "DF6BADAF187BA5855DB898C9E3BBA5ADFE0F6D636227C9718B1D087C63F55B8F",
+      "WeightsSha256": "",
+      "FeatureSchemaVersion": 26,
+      "ContentSetHash": "68281d76979876df4d64a7a03a9675c4eca4bbd43999f32719924ab959900b36",
+      "RulesetHash": "17e714e3d08f1514",
+      "NativeProgramPackageHash": "C0B2A9B9A957EAF2B198BE712C7AD865C6C37A3ACC8D76822320841A7AE62C25",
+      "RequiredStartGateCapability": "ReadyToStartGate.V1"
+    }
+  ]
+}

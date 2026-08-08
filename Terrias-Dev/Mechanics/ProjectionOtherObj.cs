@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -13,6 +15,7 @@ namespace Terrias.Dll.Mechanics;
 public sealed class ProjectionOtherObj : OtherObj
 {
     private CompanionBattleState? battleState;
+    private readonly Dictionary<string, ObjectCard> actionCatalog = new(StringComparer.Ordinal);
     public string RoleId { get; private set; } = "";
 
     public string OwnerStatusId { get; private set; } = "";
@@ -156,12 +159,84 @@ public sealed class ProjectionOtherObj : OtherObj
 
     public override void AddCardList()
     {
-        RebuildProjectionAction(TerriasIds.ProjectionActionStaffTapCardId, 1);
+        EnsureActionCatalog();
+        SelectProjectionAction(TerriasIds.ProjectionActionStaffTapCardId, 1);
     }
 
     private void RebuildProjectionAction(string cardId, int priority)
     {
-        FightAction = new ObjectAction(this);
+        EnsureActionCatalog();
+        SelectProjectionAction(cardId, priority);
+    }
+
+    private void EnsureActionCatalog()
+    {
+        if (FightAction == null)
+        {
+            FightAction = new ObjectAction(this);
+        }
+        if (actionCatalog.Count > 0)
+        {
+            return;
+        }
+
+        var cardIds = CompanionIntentRegistry.AllIntents()
+            .Select(intent => intent.EnemyCardId)
+            .Concat(new[]
+            {
+                TerriasIds.ProjectionActionWaitCardId,
+                TerriasIds.ProjectionActionStaffTapCardId
+            })
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal);
+        foreach (var cardId in cardIds)
+        {
+            var objectCard = CreateProjectionActionCard(cardId, 1);
+            if (objectCard == null)
+            {
+                continue;
+            }
+
+            objectCard.nowCD = 1;
+            actionCatalog[cardId] = objectCard;
+            FightAction.AddCard(objectCard);
+        }
+
+        TerriasLog.Info("[Projection] stable action catalog built: status="
+            + InstanceId
+            + ", cards="
+            + actionCatalog.Count
+            + ", registry="
+            + CompanionIntentRegistry.RegistryHash);
+    }
+
+    private void SelectProjectionAction(string cardId, int priority)
+    {
+        var selectedId = string.IsNullOrWhiteSpace(cardId)
+            ? TerriasIds.ProjectionActionWaitCardId
+            : cardId.Trim();
+        if (!actionCatalog.TryGetValue(selectedId, out var selected))
+        {
+            selectedId = TerriasIds.ProjectionActionWaitCardId;
+            if (!actionCatalog.TryGetValue(selectedId, out selected))
+            {
+                selected = actionCatalog.Values.FirstOrDefault();
+            }
+        }
+
+        foreach (var card in actionCatalog.Values)
+        {
+            card.nowCD = ReferenceEquals(card, selected) ? 0 : 1;
+        }
+        if (selected != null)
+        {
+            NormalizeProjectionActionConfig(selected.dataConfig, priority);
+        }
+    }
+
+    private ObjectCard? CreateProjectionActionCard(string cardId, int priority)
+    {
         var objectCard = new ObjectCard
         {
             status = Status as StatusManager
@@ -169,12 +244,13 @@ public sealed class ProjectionOtherObj : OtherObj
         var actionConfig = AuraGameDataHostApi.Materialize(DataType.EnemyCard, cardId).Instance as DataConfig;
         if (actionConfig == null)
         {
-            return;
+            TerriasLog.Warn("[Projection] action catalog card is unavailable: " + cardId);
+            return null;
         }
         NormalizeProjectionActionConfig(actionConfig, priority);
         objectCard.Init(actionConfig);
         NormalizeProjectionActionConfig(objectCard.dataConfig, priority);
-        FightAction.AddCard(objectCard);
+        return objectCard;
     }
 
     private static void NormalizeProjectionActionConfig(DataConfig? config, int priority)

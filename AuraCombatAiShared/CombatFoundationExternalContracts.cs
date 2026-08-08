@@ -281,6 +281,11 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherFinalEpochs { get; set; } = 12;
 
+    public int TransformerTeacherIncrementalReplayFrames { get; set; } = 1024;
+
+    public int TransformerTeacherMaximumIncrementalTrainingFrames { get; set; } =
+        4096;
+
     public int TransformerTeacherCpuThreads { get; set; }
 
     public int TransformerTeacherCpuInteropThreads { get; set; }
@@ -293,7 +298,10 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool TransformerTeacherEnableShardedDataset { get; set; } = true;
 
-    public int TransformerTeacherDatasetShardFrames { get; set; } = 64;
+    public int TransformerTeacherDatasetShardFrames { get; set; } = 512;
+
+    public int TransformerTeacherResidentDatasetMaximumFrames { get; set; } =
+        4096;
 
     public long TransformerTeacherMemoryReserveBytes { get; set; } =
         CombatFoundationParallelismProtocol.DefaultTeacherReserveBytes;
@@ -301,6 +309,9 @@ public sealed class CombatFoundationTrainingParameters
     public bool TransformerTeacherEnablePinnedMemory { get; set; } = true;
 
     public bool TransformerTeacherEnableMixedPrecision { get; set; } = true;
+
+    public bool TransformerTeacherEnableDeterministicTraining { get; set; } =
+        true;
 
     public double TransformerDistillationWeight { get; set; } = 0.35d;
 
@@ -629,6 +640,10 @@ public sealed class CombatFoundationTrainingParameters
                 TransformerTeacherMaximumHeadRegression,
             IncrementalEpochs = TransformerTeacherIncrementalEpochs,
             FinalEpochs = TransformerTeacherFinalEpochs,
+            IncrementalReplayFrames =
+                TransformerTeacherIncrementalReplayFrames,
+            MaximumIncrementalTrainingFrames =
+                TransformerTeacherMaximumIncrementalTrainingFrames,
             CpuThreads = TransformerTeacherCpuThreads,
             CpuInteropThreads = TransformerTeacherCpuInteropThreads,
             MicroBatchSize = TransformerTeacherMicroBatchSize,
@@ -637,9 +652,13 @@ public sealed class CombatFoundationTrainingParameters
             EnableShardedDataset =
                 TransformerTeacherEnableShardedDataset,
             DatasetShardFrames = TransformerTeacherDatasetShardFrames,
+            ResidentDatasetMaximumFrames =
+                TransformerTeacherResidentDatasetMaximumFrames,
             MemoryReserveBytes = TransformerTeacherMemoryReserveBytes,
             EnablePinnedMemory = TransformerTeacherEnablePinnedMemory,
             EnableMixedPrecision = TransformerTeacherEnableMixedPrecision,
+            EnableDeterministicTraining =
+                TransformerTeacherEnableDeterministicTraining,
             DistillationWeight = TransformerDistillationWeight
         }.Normalized();
         TransformerTeacherBackend = transformer.Backend;
@@ -672,6 +691,10 @@ public sealed class CombatFoundationTrainingParameters
             transformer.MaximumHeadRegression;
         TransformerTeacherIncrementalEpochs = transformer.IncrementalEpochs;
         TransformerTeacherFinalEpochs = transformer.FinalEpochs;
+        TransformerTeacherIncrementalReplayFrames =
+            transformer.IncrementalReplayFrames;
+        TransformerTeacherMaximumIncrementalTrainingFrames =
+            transformer.MaximumIncrementalTrainingFrames;
         TransformerTeacherCpuThreads = transformer.CpuThreads;
         TransformerTeacherCpuInteropThreads = transformer.CpuInteropThreads;
         TransformerTeacherMicroBatchSize = transformer.MicroBatchSize;
@@ -680,9 +703,13 @@ public sealed class CombatFoundationTrainingParameters
         TransformerTeacherEnableShardedDataset =
             transformer.EnableShardedDataset;
         TransformerTeacherDatasetShardFrames = transformer.DatasetShardFrames;
+        TransformerTeacherResidentDatasetMaximumFrames =
+            transformer.ResidentDatasetMaximumFrames;
         TransformerTeacherMemoryReserveBytes = transformer.MemoryReserveBytes;
         TransformerTeacherEnablePinnedMemory = transformer.EnablePinnedMemory;
         TransformerTeacherEnableMixedPrecision = transformer.EnableMixedPrecision;
+        TransformerTeacherEnableDeterministicTraining =
+            transformer.EnableDeterministicTraining;
         TransformerDistillationWeight = transformer.DistillationWeight;
         ModelFeatureEncodingMode = "partitioned-v3";
         MinimumEpisodes = Math.Max(
@@ -1109,6 +1136,10 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.TransformerTeacherIncrementalEpochs,
                     FinalEpochs =
                         parameters.TransformerTeacherFinalEpochs,
+                    IncrementalReplayFrames = parameters
+                        .TransformerTeacherIncrementalReplayFrames,
+                    MaximumIncrementalTrainingFrames = parameters
+                        .TransformerTeacherMaximumIncrementalTrainingFrames,
                     CpuThreads = parameters.TransformerTeacherCpuThreads,
                     CpuInteropThreads =
                         parameters.TransformerTeacherCpuInteropThreads,
@@ -1122,12 +1153,16 @@ public static class CombatFoundationWorkerJobFactory
                         .TransformerTeacherEnableShardedDataset,
                     DatasetShardFrames = parameters
                         .TransformerTeacherDatasetShardFrames,
+                    ResidentDatasetMaximumFrames = parameters
+                        .TransformerTeacherResidentDatasetMaximumFrames,
                     MemoryReserveBytes = parameters
                         .TransformerTeacherMemoryReserveBytes,
                     EnablePinnedMemory =
                         parameters.TransformerTeacherEnablePinnedMemory,
                     EnableMixedPrecision =
                         parameters.TransformerTeacherEnableMixedPrecision,
+                    EnableDeterministicTraining = parameters
+                        .TransformerTeacherEnableDeterministicTraining,
                     DistillationWeight =
                         parameters.TransformerDistillationWeight,
                     RandomSeed = unchecked((int)parameters.RunSeed)
@@ -1186,6 +1221,10 @@ public static class CombatFoundationModelPackageProtocol
     public const string PreviousModelVersion = "4.0.0";
 
     public const string LegacyModelVersion = "3.0.0";
+
+    public const string CurrentFoundationLineage = "Aura.Foundation.V2";
+
+    public const string PreviousFoundationLineage = "Aura.Foundation.V1";
 
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
@@ -1248,6 +1287,7 @@ public static class CombatFoundationModelPackageProtocol
                           + " 外部底模 "
                           + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
             ModelVersion = CurrentModelVersion,
+            FoundationLineage = CurrentFoundationLineage,
             Profile = model.DecisionProfile,
             RoleId = player.RoleId ?? "",
             PartnerId = player.PartnerId ?? "",
@@ -1297,6 +1337,16 @@ public static class CombatFoundationModelPackageProtocol
                 StringComparison.Ordinal))
         {
             diagnostic = "底模包协议不兼容";
+            return false;
+        }
+        if (!legacy
+            && !previous
+            && !string.Equals(
+                package.FoundationLineage,
+                CurrentFoundationLineage,
+                StringComparison.Ordinal))
+        {
+            diagnostic = "底模包缺少当前底模族标识";
             return false;
         }
         if (string.IsNullOrWhiteSpace(package.PackageId)
@@ -1503,6 +1553,21 @@ public static class CombatFoundationModelPackageProtocol
         }
         diagnostic = "";
         return true;
+    }
+
+    public static string ResolveFoundationLineage(CombatFoundationModelPackage? package)
+    {
+        if (package == null)
+        {
+            return "";
+        }
+
+        return package.SchemaVersion == LegacySchemaVersion
+            || package.SchemaVersion == PreviousSchemaVersion
+            ? PreviousFoundationLineage
+            : string.IsNullOrWhiteSpace(package.FoundationLineage)
+                ? CurrentFoundationLineage
+                : package.FoundationLineage.Trim();
     }
 
     public static CombatFoundationModelAcceptance NormalizeAcceptance(
@@ -1758,6 +1823,9 @@ public sealed class CombatFoundationModelPackage
     public string DisplayName { get; set; } = "";
 
     public string ModelVersion { get; set; } = "";
+
+    public string FoundationLineage { get; set; } =
+        CombatFoundationModelPackageProtocol.CurrentFoundationLineage;
 
     public string ModelPurpose { get; set; } = "foundation";
 

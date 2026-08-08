@@ -89,6 +89,17 @@ public static class CompanionIntentRegistry
         }
     }
 
+    public static IReadOnlyList<CompanionIntentDefinition> AllIntents()
+    {
+        lock (SyncRoot)
+        {
+            return document.Intents
+                .Where(intent => intent != null && !string.IsNullOrWhiteSpace(intent.EnemyCardId))
+                .OrderBy(intent => intent.EnemyCardId, StringComparer.Ordinal)
+                .ToArray();
+        }
+    }
+
     public static CompanionIntentType IntentType(CompanionIntentDefinition? intent)
     {
         return Enum.TryParse(intent?.Type ?? "", ignoreCase: true, out CompanionIntentType type)

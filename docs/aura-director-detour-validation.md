@@ -17,22 +17,37 @@ The backend lives in `AuraDirectorDetour-Dev` and pins Lib.Harmony 2.4.2.
 source, session, compiler, and presentation contracts without referencing
 Harmony or the optional backend assembly.
 
-## Verified Builds
+## Verified Capability
 
 - target assembly: `Managed/Witch.dll`;
-- game reference `v1.0.23816797`: `8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A`;
-- game reference `v1.0.24591395`: `88613CF3E1F0F4A493FE722FBFB63E36A6C97CBF098F9F406F6AC2A28C136F60`;
+- current game reference: `v1.0.24605918` (assembly evidence SHA-256
+  `C8D9B8B0E3B553B01464F6F3909A3C360C19B83BDD7AC0488F18B29631872B68`);
+- capability profile: `ReadyToStartGate.V1`;
+- verified method-body SHA-256:
+  `5BC8DA8FF9659712B6CA63AC833CF23F00414265BC880444849881B097CE9CB6`;
 - target shape: public instance `void ReadyToStart()` with no arguments;
 - patch owner: `AuraDirector.Shared.ReadyToStart.Harmony.v1`.
 
-An unknown assembly hash is rejected as `detour-target-build-unverified`.
-Installation failure leaves the original method enabled.
+The assembly hash is retained only as audit evidence. Compatibility is decided
+by the target method shape and method-body capability fingerprint, so an
+unrelated game assembly change does not revoke a valid capability. An unknown
+method body is rejected as `detour-target-capability-unverified`. Installation
+failure leaves the original method enabled.
+
+## Foundation Model Trust
+
+Foundation-model trust is independent from the game build and hook capability.
+The shipped catalog `AuraToolsExp/Config/aura-director.foundation-model-allowlist.json`
+authorizes a model lineage (`Aura.Foundation.V1` or `Aura.Foundation.V2`) by
+artifact or weight SHA-256 plus its feature schema, content set, ruleset, native
+program package, and required start-gate capability. A trusted hash with a
+mismatched compatibility tuple is rejected.
 
 ## Verified Behavior
 
-The automated gate verifies the known-build catalog, suppression and one-shot re-entry, duplicate hold
+The automated gate verifies the method-capability catalog, suppression and one-shot re-entry, duplicate hold
 and release handling, sink failure-open behavior, teardown release, patch owner
-installation/removal for an allowlisted build, target fingerprint fail-closed
+installation/removal for an allowlisted capability, target fingerprint fail-closed
 behavior, and Terrias-only binary packaging. It does not preserve UI layout,
 private method order, or input implementation as source-string snapshots;
 runtime presentation changes require the focused Terrias behavior checks and

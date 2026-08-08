@@ -52,6 +52,8 @@ TestDamageMeterHookRegistrationSet();
 TestDamageMeterHudPresenter();
 TestStarterDeckCardClassification();
 TestStarterDeckDeckBuilder();
+TestBundledFoundationRegistrationPlanner();
+TestBundledFoundationModelLayout();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
 return;

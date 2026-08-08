@@ -667,6 +667,8 @@ internal static class CombatAiPolicyValueBehaviorTests
             policyValueModel,
             4,
             TimeSpan.FromMilliseconds(50));
+        var concurrentDiagnosticsBefore =
+            CombatPolicyValueBatchDiagnostics.Capture();
         var concurrentPredictions = new CombatPolicyValuePrediction?[4];
         var concurrentErrors = new Exception?[4];
         using (var concurrentBarrier = new Barrier(4))
@@ -695,14 +697,18 @@ internal static class CombatAiPolicyValueBehaviorTests
                 thread.Join();
             }
         }
+        var concurrentDiagnostics = CombatPolicyValueBatchDiagnostics.Capture()
+            .DeltaFrom(concurrentDiagnosticsBefore);
         Assert(concurrentErrors.All(error => error == null)
                && concurrentPredictions.All(prediction =>
                    prediction != null
                    && Math.Abs(
                        prediction.ExpectedReturn
                        - policyValuePrediction.ExpectedReturn) < 0.000000001d)
-               && concurrentBatchModel.BatchedInputCount == 4
-               && concurrentBatchModel.BatchEvaluationCount == 1,
+                && concurrentBatchModel.BatchedInputCount == 4
+                && concurrentBatchModel.BatchEvaluationCount == 1
+                && concurrentDiagnostics.Requests == 4
+                && concurrentDiagnostics.BatchedInputs == 4,
             "parallel campaign inference coalesces synchronous calls into one true model batch");
         var shardedBatchModel = new ShardedBatchedCombatPolicyValueModel(
             policyValueModel,
@@ -744,9 +750,11 @@ internal static class CombatAiPolicyValueBehaviorTests
                    && Math.Abs(
                        prediction.ExpectedReturn
                        - policyValuePrediction.ExpectedReturn) < 0.000000001d)
-               && shardedBatchModel.BatchedInputCount == 8
-               && shardedBatchModel.BatchEvaluationCount is >= 2 and <= 8,
-            "high campaign parallelism uses independent inference lanes without changing predictions");
+                && shardedBatchModel.BatchedInputCount == 8
+                && shardedBatchModel.BatchEvaluationCount is >= 2 and <= 8
+                && shardedBatchModel.CaptureLaneBatchEvaluationCounts()
+                    .All(count => count > 0),
+            "high campaign parallelism balances stable worker lanes without changing predictions");
         var adaptiveBatchModel = new ConcurrentBatchedCombatPolicyValueModel(
             NullCombatPolicyValueModel.Instance,
             maximumBatchSize: 4,

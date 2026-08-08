@@ -411,6 +411,18 @@ $publishedTeacher = Join-Path `
 if (-not (Test-Path -LiteralPath $publishedTeacher -PathType Leaf)) {
     throw "Published Transformer teacher is missing: $publishedTeacher"
 }
+$sourceTeacher = Join-Path $transformerTeacherSource "train_teacher.py"
+$sourceTeacherSha256 = (Get-FileHash `
+    -LiteralPath $sourceTeacher `
+    -Algorithm SHA256).Hash
+$publishedTeacherSha256 = (Get-FileHash `
+    -LiteralPath $publishedTeacher `
+    -Algorithm SHA256).Hash
+if ($sourceTeacherSha256 -ne $publishedTeacherSha256) {
+    throw (
+        "Published Transformer teacher SHA256 does not match its source: " `
+        + "source=$sourceTeacherSha256, published=$publishedTeacherSha256")
+}
 $publishedInstaller = Join-Path $resolvedOutput "Install-AuraPyTorch.cmd"
 if (-not (Test-Path -LiteralPath $publishedInstaller -PathType Leaf)) {
     throw "Published PyTorch installer is missing: $publishedInstaller"

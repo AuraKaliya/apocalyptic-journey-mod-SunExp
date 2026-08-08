@@ -412,6 +412,9 @@ public sealed class CombatPolicyValueBatchDiagnosticsSnapshot
 
 public static class CombatPolicyValueBatchDiagnostics
 {
+    [ThreadStatic]
+    private static int queuedEvaluationDepth;
+
     private static long requests;
     private static long batchEvaluations;
     private static long batchedInputs;
@@ -422,6 +425,7 @@ public static class CombatPolicyValueBatchDiagnostics
     private static long adaptiveFallbackActivations;
     private static long directEvaluations;
     private static long directInputs;
+    private static long unwrappedDirectInputs;
     private static long directStopwatchTicks;
     private static long directAllocatedBytes;
     private static long sparseInputs;
@@ -435,7 +439,7 @@ public static class CombatPolicyValueBatchDiagnostics
         return new CombatPolicyValueBatchDiagnosticsSnapshot
         {
             Requests = Interlocked.Read(ref requests)
-                       + Interlocked.Read(ref directInputs),
+                       + Interlocked.Read(ref unwrappedDirectInputs),
             BatchEvaluations = Interlocked.Read(ref batchEvaluations),
             BatchedInputs = Interlocked.Read(ref batchedInputs),
             FullBatchEvaluations = Interlocked.Read(ref fullBatchEvaluations),
@@ -465,6 +469,22 @@ public static class CombatPolicyValueBatchDiagnostics
     {
         Interlocked.Increment(ref requests);
         Interlocked.Add(ref waitStopwatchTicks, Math.Max(0L, waitTicks));
+    }
+
+    internal static void RequestsCompleted(int count, long waitTicks)
+    {
+        Interlocked.Add(ref requests, Math.Max(0, count));
+        Interlocked.Add(ref waitStopwatchTicks, Math.Max(0L, waitTicks));
+    }
+
+    internal static void BeginQueuedEvaluation()
+    {
+        queuedEvaluationDepth++;
+    }
+
+    internal static void EndQueuedEvaluation()
+    {
+        queuedEvaluationDepth = Math.Max(0, queuedEvaluationDepth - 1);
     }
 
     internal static void BatchCompleted(
@@ -500,6 +520,10 @@ public static class CombatPolicyValueBatchDiagnostics
     {
         Interlocked.Increment(ref directEvaluations);
         Interlocked.Add(ref directInputs, Math.Max(0, count));
+        if (queuedEvaluationDepth == 0)
+        {
+            Interlocked.Add(ref unwrappedDirectInputs, Math.Max(0, count));
+        }
         Interlocked.Add(
             ref directStopwatchTicks,
             Math.Max(0L, elapsedTicks));
@@ -605,7 +629,16 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
         if (AdaptiveFallbackActive)
         {
             var directStarted = Stopwatch.GetTimestamp();
-            var directResult = inner.Evaluate(input);
+            CombatPolicyValueBatchDiagnostics.BeginQueuedEvaluation();
+            CombatPolicyValuePrediction directResult;
+            try
+            {
+                directResult = inner.Evaluate(input);
+            }
+            finally
+            {
+                CombatPolicyValueBatchDiagnostics.EndQueuedEvaluation();
+            }
             CombatPolicyValueBatchDiagnostics.DirectFallbackCompleted(
                 Stopwatch.GetTimestamp() - directStarted);
             return directResult;
@@ -689,11 +722,20 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
         }
         Interlocked.Increment(ref batchEvaluationCount);
         Interlocked.Add(ref batchedInputCount, count);
+        CombatPolicyValueBatchDiagnostics.RequestsCompleted(count, 0L);
         CombatPolicyValueBatchDiagnostics.BatchCompleted(
             count,
             maximumBatchSize,
             timeoutFlush: false);
-        return inner.EvaluateBatch(inputs);
+        CombatPolicyValueBatchDiagnostics.BeginQueuedEvaluation();
+        try
+        {
+            return inner.EvaluateBatch(inputs);
+        }
+        finally
+        {
+            CombatPolicyValueBatchDiagnostics.EndQueuedEvaluation();
+        }
     }
 
     private BatchRequest RentRequest()
@@ -737,12 +779,14 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
                     batch[i].Input ?? new CombatPolicyValueInput());
             }
             IReadOnlyList<CombatPolicyValuePrediction> results;
+            CombatPolicyValueBatchDiagnostics.BeginQueuedEvaluation();
             try
             {
                 results = inner.EvaluateBatch(inputs);
             }
             finally
             {
+                CombatPolicyValueBatchDiagnostics.EndQueuedEvaluation();
                 inputs.Clear();
             }
             if (results.Count != batch.Count)
@@ -834,6 +878,8 @@ public sealed class ShardedBatchedCombatPolicyValueModel :
     ICombatPolicyValueModel
 {
     private readonly ConcurrentBatchedCombatPolicyValueModel[] lanes;
+    private readonly ThreadLocal<int> currentLaneIndex;
+    private int nextLaneIndex = -1;
 
     public ShardedBatchedCombatPolicyValueModel(
         ICombatPolicyValueModel inner,
@@ -851,6 +897,9 @@ public sealed class ShardedBatchedCombatPolicyValueModel :
                 maximumBatchSizePerLane,
                 coalescingWindow))
             .ToArray();
+        currentLaneIndex = new ThreadLocal<int>(() =>
+            (Interlocked.Increment(ref nextLaneIndex) & int.MaxValue)
+            % lanes.Length);
     }
 
     public string ModelId => lanes[0].ModelId;
@@ -877,8 +926,12 @@ public sealed class ShardedBatchedCombatPolicyValueModel :
 
     private ConcurrentBatchedCombatPolicyValueModel CurrentLane()
     {
-        var threadId = Thread.CurrentThread.ManagedThreadId & int.MaxValue;
-        return lanes[threadId % lanes.Length];
+        return lanes[currentLaneIndex.Value];
+    }
+
+    internal long[] CaptureLaneBatchEvaluationCounts()
+    {
+        return lanes.Select(lane => lane.BatchEvaluationCount).ToArray();
     }
 }
 

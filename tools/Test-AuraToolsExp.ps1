@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "AuraToolsExp-Dev.Tests\AuraToolsExp-Dev.Tests.csproj"
 $skinModule = Join-Path $repoRoot "tools\modules\SkinPackageValidation.psm1"
+$bundledModelIntegration = Join-Path $repoRoot (
+    "tools\Test-AuraToolsBundledModelRegistrationIntegration.ps1")
 
 if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
     throw "AuraToolsExp behavior test project is missing: $project"
@@ -14,6 +16,18 @@ if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
 & dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "AuraToolsExp behavior tests failed with exit code $LASTEXITCODE."
+}
+
+if (-not (Test-Path -LiteralPath $bundledModelIntegration -PathType Leaf)) {
+    throw "AuraToolsExp bundled-model integration test is missing: $bundledModelIntegration"
+}
+& powershell `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File $bundledModelIntegration `
+    -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) {
+    throw "AuraToolsExp bundled-model integration failed with exit code $LASTEXITCODE."
 }
 
 Import-Module $skinModule -Force

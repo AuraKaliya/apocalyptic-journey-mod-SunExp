@@ -54,6 +54,7 @@
     <Compile Include="..\AuraDirectorShared\AuraDirectorPortraitLayout.cs" Link="Director\AuraDirectorPortraitLayout.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorSessionState.cs" Link="Director\AuraDirectorSessionState.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorStartGateContracts.cs" Link="Director\AuraDirectorStartGateContracts.cs" />
+    <Compile Include="..\AuraDirectorShared\AuraDirectorFoundationTrust.cs" Link="Director\AuraDirectorFoundationTrust.cs" />
   </ItemGroup>
 
   <ItemGroup>

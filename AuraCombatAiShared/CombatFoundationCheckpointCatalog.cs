@@ -136,6 +136,12 @@ public sealed class CombatFoundationCheckpointCatalog
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
+    public long Generation { get; set; }
+
+    public int ChecksumVersion { get; set; }
+
+    public string ContentChecksumSha256 { get; set; } = "";
+
     public string SelectionAnchorPath { get; set; } = "";
 
     public string SelectionAnchorIdentity { get; set; } = "";
@@ -178,7 +184,11 @@ public sealed class CombatFoundationCheckpointCatalogEntry
 
     public string CheckpointPath { get; set; } = "";
 
+    public string CheckpointContentSha256 { get; set; } = "";
+
     public string EpisodeSnapshotPath { get; set; } = "";
+
+    public string EpisodeSnapshotContentSha256 { get; set; } = "";
 
     public string ReplayIdentity { get; set; } = "";
 

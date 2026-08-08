@@ -16,8 +16,12 @@ public static class CombatFoundationWorkerProtocol
     public const string TrainingAnalysisFileName =
         "foundation-training-analysis-v1.json";
     public const string CheckpointFileName =
-        "foundation-training-checkpoint-v11.json";
+        "foundation-training-checkpoint-v12.json.gz";
     public const string CheckpointEpisodesFileName =
+        "foundation-training-checkpoint-episodes-v12.afes";
+    public const string LegacyCheckpointFileName =
+        "foundation-training-checkpoint-v11.json";
+    public const string LegacyCheckpointEpisodesFileName =
         "foundation-training-checkpoint-episodes-v11.jsonl";
 
     public static bool TryValidateJob(

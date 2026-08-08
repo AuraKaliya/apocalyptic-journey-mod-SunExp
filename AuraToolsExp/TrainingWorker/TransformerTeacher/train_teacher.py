@@ -20,6 +20,11 @@ import threading
 import time
 from pathlib import Path
 
+# CUDA deterministic GEMM requires this to be present before the first CUDA
+# context is initialized. The value is intentionally fixed for repeatable
+# continuation runs and does not depend on host-local tuning.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 try:
     import torch
     from torch import nn
@@ -53,16 +58,23 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--loader-workers", type=int, default=0)
     parser.add_argument("--prefetch-batches", type=int, default=2)
     parser.add_argument(
-        "--dataset-storage", choices=("resident", "sharded"), default="sharded"
+        "--dataset-storage",
+        choices=("auto", "resident", "sharded"),
+        default="auto",
     )
-    parser.add_argument("--dataset-shard-frames", type=int, default=64)
+    parser.add_argument("--dataset-shard-frames", type=int, default=512)
+    parser.add_argument("--corpus-frames", type=int, default=0)
+    parser.add_argument("--resident-dataset-maximum-frames", type=int, default=4096)
     parser.add_argument("--pin-memory", type=int, choices=(0, 1), default=1)
     parser.add_argument("--mixed-precision", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--deterministic", type=int, choices=(0, 1), default=1)
     parser.add_argument("--runtime-cache", default="")
     parser.add_argument("--anchor", default="")
     parser.add_argument("--fixed-anchor", type=int, choices=(0, 1), default=1)
     parser.add_argument("--maximum-head-regression", type=float, default=0.05)
     parser.add_argument("--resume-model", default="")
+    parser.add_argument("--training-selection", default="")
+    parser.add_argument("--annotation-selection", default="")
     parser.add_argument("--training-enabled", type=int, choices=(0, 1), default=1)
     parser.add_argument("--seed", type=int, default=1701)
     parser.add_argument("--self-test", action="store_true")
@@ -70,6 +82,72 @@ def arguments() -> argparse.Namespace:
 
 
 PROGRESS_PREFIX = "AURA_TEACHER_PROGRESS "
+NUMPY_LEGACY_SEED_MASK = (1 << 32) - 1
+
+
+class CudaTrainingOutOfMemory(RuntimeError):
+    """Raised after every safe CUDA micro-batch backoff is exhausted."""
+
+
+def is_cuda_out_of_memory(error: BaseException) -> bool:
+    return isinstance(error, torch.cuda.OutOfMemoryError) or (
+        isinstance(error, RuntimeError)
+        and "out of memory" in str(error).lower()
+    )
+
+
+def numpy_legacy_seed(seed: int) -> int:
+    """Map a signed host seed into NumPy's legacy uint32 seed domain."""
+    return int(seed) & NUMPY_LEGACY_SEED_MASK
+
+
+def reseed(seed: int) -> None:
+    """Reset every training RNG after host-local runtime calibration."""
+    random.seed(seed)
+    try:
+        __import__("numpy").random.seed(numpy_legacy_seed(seed))
+    except ImportError:
+        pass
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def verify_reseed_compatibility() -> None:
+    """Verify signed host seeds remain deterministic across RNG backends."""
+    numpy = __import__("numpy")
+    signed_seed_cases = (
+        -2_147_483_648,
+        -1_465_117_897,
+        -1,
+        0,
+        1,
+        1701,
+        2_147_483_647,
+    )
+    expected_numpy_seeds = (
+        2_147_483_648,
+        2_829_849_399,
+        4_294_967_295,
+        0,
+        1,
+        1701,
+        2_147_483_647,
+    )
+    for seed, expected_numpy_seed in zip(
+        signed_seed_cases, expected_numpy_seeds
+    ):
+        assert numpy_legacy_seed(seed) == expected_numpy_seed
+
+        reseed(seed)
+        expected_python = [random.random() for _ in range(8)]
+        expected_numpy = numpy.random.random_sample(8).tolist()
+        expected_torch = torch.rand(8)
+
+        reseed(seed)
+        assert expected_python == [random.random() for _ in range(8)]
+        assert expected_numpy == numpy.random.random_sample(8).tolist()
+        assert torch.equal(expected_torch, torch.rand(8))
 
 
 def working_set_bytes() -> int:
@@ -97,21 +175,55 @@ def working_set_bytes() -> int:
             ]
 
         counters = ProcessMemoryCounters()
-        counters.cb = ctypes.sizeof(counters)
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         psapi = ctypes.WinDLL("psapi", use_last_error=True)
         kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.OpenProcess.argtypes = (
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_ulong,
+        )
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        kernel32.CloseHandle.restype = ctypes.c_int
         psapi.GetProcessMemoryInfo.argtypes = (
             ctypes.c_void_p,
             ctypes.POINTER(ProcessMemoryCounters),
             ctypes.c_ulong,
         )
         psapi.GetProcessMemoryInfo.restype = ctypes.c_int
-        handle = kernel32.GetCurrentProcess()
-        if psapi.GetProcessMemoryInfo(
-            handle, ctypes.byref(counters), counters.cb
-        ):
-            return int(counters.WorkingSetSize)
+        process_ids = {os.getpid()}
+        try:
+            import multiprocessing
+
+            process_ids.update(
+                int(child.pid)
+                for child in multiprocessing.active_children()
+                if child.pid is not None
+            )
+        except (ImportError, OSError, RuntimeError):
+            pass
+        total = 0
+        for process_id in process_ids:
+            owned_handle = process_id != os.getpid()
+            handle = (
+                kernel32.OpenProcess(0x1000 | 0x0010, 0, process_id)
+                if owned_handle
+                else kernel32.GetCurrentProcess()
+            )
+            if not handle:
+                continue
+            try:
+                counters = ProcessMemoryCounters()
+                counters.cb = ctypes.sizeof(counters)
+                if psapi.GetProcessMemoryInfo(
+                    handle, ctypes.byref(counters), counters.cb
+                ):
+                    total += int(counters.WorkingSetSize)
+            finally:
+                if owned_handle:
+                    kernel32.CloseHandle(handle)
+        return total
     except (AttributeError, OSError, ValueError):
         pass
     return 0
@@ -224,10 +336,7 @@ def choose_device(backend: str) -> torch.device:
 
 
 def configure_runtime(args: argparse.Namespace) -> tuple[torch.device, dict]:
-    random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
+    reseed(args.seed)
     default_threads = max(1, min(64, torch.get_num_threads()))
     threads = max(1, min(64, args.cpu_threads)) if args.cpu_threads > 0 else default_threads
     torch.set_num_threads(threads)
@@ -241,6 +350,11 @@ def configure_runtime(args: argparse.Namespace) -> tuple[torch.device, dict]:
     except RuntimeError:
         interop = torch.get_num_interop_threads()
     device = choose_device(args.backend)
+    deterministic = bool(args.deterministic)
+    torch.use_deterministic_algorithms(deterministic)
+    if hasattr(torch.backends, "cudnn"):
+        torch.backends.cudnn.deterministic = deterministic
+        torch.backends.cudnn.benchmark = False
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
     return device, {
@@ -248,6 +362,7 @@ def configure_runtime(args: argparse.Namespace) -> tuple[torch.device, dict]:
         "cpu_interop_threads": interop,
         "default_cpu_threads": default_threads,
         "logical_processors": max(1, os.cpu_count() or 1),
+        "deterministic": deterministic,
     }
 
 
@@ -259,21 +374,115 @@ def normalized(values: list[float]) -> list[float]:
     return [value / total for value in finite]
 
 
+def dense_feature_tensor(
+    payload,
+    dtype: torch.dtype,
+    expected_dimensions: int | None = None,
+) -> torch.Tensor:
+    """Decode sparse-v1 index/value objects and legacy dense arrays."""
+    if isinstance(payload, dict):
+        dimensions = int(payload.get("D", 0))
+        indices = payload.get("I", [])
+        values = payload.get("V", [])
+        if dimensions <= 0 or dimensions > 16384:
+            raise ValueError(f"invalid sparse feature dimension: {dimensions}")
+        if expected_dimensions is not None and dimensions != expected_dimensions:
+            raise ValueError(
+                "sparse feature dimensions do not match: "
+                f"expected={expected_dimensions}, actual={dimensions}"
+            )
+        if len(indices) != len(values):
+            raise ValueError("sparse feature index/value lengths do not match")
+        result = torch.zeros(dimensions, dtype=dtype)
+        if indices:
+            index_tensor = torch.as_tensor(indices, dtype=torch.long)
+            if bool((index_tensor < 0).any()) or bool(
+                (index_tensor >= dimensions).any()
+            ):
+                raise ValueError("sparse feature index is outside its dimension")
+            if int(torch.unique(index_tensor).numel()) != len(indices):
+                raise ValueError("sparse feature indices must be unique")
+            value_tensor = torch.as_tensor(values, dtype=dtype)
+            if not bool(torch.isfinite(value_tensor).all()):
+                raise ValueError("sparse feature values must be finite")
+            result.index_copy_(0, index_tensor, value_tensor)
+        return result
+    result = torch.as_tensor(payload or [], dtype=dtype)
+    if result.ndim != 1:
+        raise ValueError("dense feature payload must be one-dimensional")
+    if expected_dimensions is not None and result.numel() != expected_dimensions:
+        raise ValueError(
+            "dense feature dimensions do not match: "
+            f"expected={expected_dimensions}, actual={result.numel()}"
+        )
+    if not bool(torch.isfinite(result).all()):
+        raise ValueError("dense feature values must be finite")
+    return result
+
+
+def feature_matrix(
+    payloads,
+    dtype: torch.dtype,
+    dimensions: int,
+) -> torch.Tensor:
+    values = list(payloads or [])
+    if not values:
+        return torch.empty(0, dimensions, dtype=dtype)
+    return torch.stack(
+        [dense_feature_tensor(value, dtype, dimensions) for value in values]
+    )
+
+
+def sparse_feature_payload(tensor: torch.Tensor) -> dict:
+    flattened = tensor.detach().float().reshape(-1)
+    indices = torch.nonzero(flattened, as_tuple=False).reshape(-1)
+    return {
+        "D": int(flattened.numel()),
+        "I": [int(value) for value in indices.tolist()],
+        "V": [float(value) for value in flattened[indices].tolist()],
+    }
+
+
+def sparse_feature_matrix_payload(tensor: torch.Tensor) -> list[dict]:
+    return [sparse_feature_payload(row) for row in tensor]
+
+
+def read_row_selection(path: str) -> set[int] | None:
+    if not path:
+        return None
+    source = Path(path)
+    if not source.exists():
+        raise RuntimeError(f"row selection is missing: {source}")
+    selected: set[int] = set()
+    with source.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            value = line.strip()
+            if value:
+                selected.add(int(value))
+    return selected
+
+
 def load_rows(
-    path: Path, history_length: int, progress: ProgressReporter | None = None
+    path: Path,
+    history_length: int,
+    progress: ProgressReporter | None = None,
+    selected_rows: set[int] | None = None,
 ) -> list[dict]:
     rows: list[dict] = []
     started = time.perf_counter()
     with path.open("r", encoding="utf-8") as stream:
+        source_row_index = 0
         for line in stream:
             if not line.strip():
                 continue
+            if selected_rows is not None and source_row_index not in selected_rows:
+                source_row_index += 1
+                continue
             row = json.loads(line)
+            source_row_index += 1
             if len(row.get("A", [])) < 1:
                 continue
             row["P"] = normalized(row.get("P", []))
-            if not row.get("O"):
-                row["O"] = [row["S"]]
             row["_history"] = []
             tensorize_row(row)
             rows.append(row)
@@ -285,9 +494,10 @@ def load_rows(
                     FramesPerSecond=len(rows) / elapsed,
                     Message=f"正在读取并张量化数据 {len(rows):,} 帧",
                 )
-    by_episode: dict[int, list[dict]] = {}
+    by_episode: dict[str, list[dict]] = {}
     for row in rows:
-        by_episode.setdefault(int(row["E"]), []).append(row)
+        key = run_key(row) + f"|battle:{int(row.get('B', -1))}"
+        by_episode.setdefault(key, []).append(row)
     for episode_rows in by_episode.values():
         episode_rows.sort(key=lambda row: (int(row["T"]), int(row["Q"]), int(row["F"])))
         for index, row in enumerate(episode_rows):
@@ -364,18 +574,43 @@ def tensorize_row(row: dict) -> None:
     # storage uses fp16 until collation. This halves the resident replay tensor
     # footprint without changing fp32 targets or the exported model format.
     storage_dtype = torch.float16
-    state = torch.as_tensor(row["S"], dtype=storage_dtype)
-    actions = torch.as_tensor(row["A"], dtype=storage_dtype)
-    objects = torch.as_tensor(
-        row.get("O") or [row["S"]], dtype=storage_dtype
+    sparse_encoding = isinstance(row.get("S"), dict)
+    state = dense_feature_tensor(row["S"], storage_dtype)
+    state_dimensions = int(state.numel())
+    actions = feature_matrix(row["A"], storage_dtype, int(
+        row["A"][0].get("D", 0)
+        if isinstance(row["A"][0], dict)
+        else len(row["A"][0])
+    ))
+    objects = feature_matrix(
+        row.get("O", []), storage_dtype, state_dimensions
     )
     policy = torch.as_tensor(row["P"], dtype=torch.float32)
-    next_state = torch.as_tensor(row.get("N", []), dtype=torch.float32)
+    next_payload = row.get("N", [])
+    next_state = dense_feature_tensor(
+        next_payload,
+        torch.float32,
+        state_dimensions if next_payload else None,
+    )
     row["_state_tensor"] = state
     row["_action_tensor"] = actions
     row["_object_tensor"] = objects
     row["_policy_tensor"] = policy
     row["_next_state_tensor"] = next_state
+    row["_dataset_sparse"] = sparse_encoding
+    row["_state_nonzero"] = int(torch.count_nonzero(state))
+    row["_action_nonzero"] = int(torch.count_nonzero(actions))
+    row["_object_nonzero"] = int(torch.count_nonzero(objects))
+    row["_object_count"] = int(objects.shape[0])
+    row["_dense_feature_slots"] = int(
+        state.numel() + actions.numel() + objects.numel() + next_state.numel()
+    )
+    row["_nonzero_feature_values"] = int(
+        torch.count_nonzero(state)
+        + torch.count_nonzero(actions)
+        + torch.count_nonzero(objects)
+        + torch.count_nonzero(next_state)
+    )
     row["_sampling_repeats"] = max(
         1, min(3, int(round(float(row.get("K", 1.0)))))
     )
@@ -392,7 +627,7 @@ def tensorize_row(row: dict) -> None:
 
 def attach_history_tensors(
     rows: list[dict],
-    by_episode: dict[int, list[dict]],
+    by_episode: dict[str, list[dict]],
     history_length: int,
     progress: ProgressReporter | None = None,
 ) -> None:
@@ -456,9 +691,10 @@ def tensorize_rows(rows: list[dict]) -> None:
         return
     for row in rows:
         tensorize_row(row)
-    by_episode: dict[int, list[dict]] = {}
+    by_episode: dict[str, list[dict]] = {}
     for row in rows:
-        by_episode.setdefault(int(row["E"]), []).append(row)
+        key = run_key(row) + f"|battle:{int(row.get('B', -1))}"
+        by_episode.setdefault(key, []).append(row)
     history_length = max(
         (len(row.get("_history", [])) for row in rows), default=0
     )
@@ -500,6 +736,7 @@ class ShardedTeacherDataset(Dataset):
         history_length: int,
         shard_frames: int,
         progress: ProgressReporter | None = None,
+        selected_rows: set[int] | None = None,
     ) -> "ShardedTeacherDataset":
         owner = tempfile.TemporaryDirectory(prefix="aura-teacher-shards-")
         root = Path(owner.name)
@@ -509,7 +746,7 @@ class ShardedTeacherDataset(Dataset):
         shard: list[dict] = []
         histories: OrderedDict[str, deque] = OrderedDict()
         started = time.perf_counter()
-        limit = max(16, min(512, int(shard_frames)))
+        limit = max(256, min(4096, int(shard_frames)))
 
         def flush() -> None:
             if not shard:
@@ -522,15 +759,21 @@ class ShardedTeacherDataset(Dataset):
 
         try:
             with path.open("r", encoding="utf-8") as stream:
+                source_row_index = 0
                 for line in stream:
                     if not line.strip():
                         continue
+                    if (
+                        selected_rows is not None
+                        and source_row_index not in selected_rows
+                    ):
+                        source_row_index += 1
+                        continue
                     row = json.loads(line)
+                    source_row_index += 1
                     if len(row.get("A", [])) < 1:
                         continue
                     row["P"] = normalized(row.get("P", []))
-                    if not row.get("O"):
-                        row["O"] = [row["S"]]
                     tensorize_row(row)
                     key = str(
                         row.get("Y")
@@ -580,6 +823,7 @@ class ShardedTeacherDataset(Dataset):
                     locations.append((shard_index, len(shard)))
                     metadata.append(
                         {
+                            "I": int(row.get("I", len(metadata))),
                             "Y": row.get("Y"),
                             "E": int(row.get("E", 0)),
                             "C": row.get("C", "normal"),
@@ -590,6 +834,23 @@ class ShardedTeacherDataset(Dataset):
                                 row.get("_sampling_repeats", 1)
                             ),
                             "_bucket_cost": int(row["_bucket_cost"]),
+                            "_action_count": int(
+                                row["_action_tensor"].shape[0]
+                            ),
+                            "_history_count": int(
+                                row["_history_state_tensor"].shape[0]
+                            ),
+                            "_dataset_sparse": bool(row["_dataset_sparse"]),
+                            "_state_nonzero": int(row["_state_nonzero"]),
+                            "_action_nonzero": int(row["_action_nonzero"]),
+                            "_object_nonzero": int(row["_object_nonzero"]),
+                            "_object_count": int(row["_object_count"]),
+                            "_dense_feature_slots": int(
+                                row["_dense_feature_slots"]
+                            ),
+                            "_nonzero_feature_values": int(
+                                row["_nonzero_feature_values"]
+                            ),
                         }
                     )
                     shard.append(row)
@@ -629,7 +890,10 @@ class ShardedTeacherDataset(Dataset):
                     self.shard_paths[shard_index], map_location="cpu"
                 )
         self.cache[shard_index] = rows
-        while len(self.cache) > 2:
+        # Each persistent DataLoader worker owns a dataset copy. Keeping one
+        # shard per copy bounds Windows spawn-mode memory while sequential
+        # access still reuses the active 512-frame shard.
+        while len(self.cache) > 1:
             self.cache.popitem(last=False)
         return rows[local_index]
 
@@ -651,16 +915,83 @@ class ShardedTeacherDataset(Dataset):
 
 
 class ShardedDatasetView(Dataset):
-    def __init__(self, source: ShardedTeacherDataset, indices: list[int]):
+    def __init__(self, source: Dataset, indices: list[int]):
         self.source = source
         self.indices = indices
-        self.rows = [source.rows[index] for index in indices]
+        metadata = dataset_metadata(source)
+        self.rows = [metadata[index] for index in indices]
 
     def __len__(self) -> int:
         return len(self.indices)
 
     def __getitem__(self, index: int) -> dict:
         return self.source[self.indices[index]]
+
+
+def dataset_metadata(rows) -> list[dict]:
+    return getattr(rows, "rows", rows)
+
+
+def base_sharded_dataset(rows) -> ShardedTeacherDataset | None:
+    current = rows
+    while isinstance(current, ShardedDatasetView):
+        current = current.source
+    return current if isinstance(current, ShardedTeacherDataset) else None
+
+
+def subset_for_row_ids(rows, selected_rows: set[int] | None):
+    if selected_rows is None:
+        return rows
+    metadata = dataset_metadata(rows)
+    indices = [
+        index
+        for index, row in enumerate(metadata)
+        if int(row.get("I", -1)) in selected_rows
+    ]
+    if base_sharded_dataset(rows) is not None:
+        return ShardedDatasetView(rows, indices)
+    return [rows[index] for index in indices]
+
+
+def audit_dataset(rows) -> dict:
+    metadata = dataset_metadata(rows)
+    frame_count = len(metadata)
+    dense_slots = sum(int(row.get("_dense_feature_slots", 0)) for row in metadata)
+    nonzero_values = sum(
+        int(row.get("_nonzero_feature_values", 0)) for row in metadata
+    )
+    sparse_frames = sum(bool(row.get("_dataset_sparse")) for row in metadata)
+    object_frames = sum(int(row.get("_object_count", 0)) > 0 for row in metadata)
+    empty_object_frames = max(0, frame_count - object_frames)
+    warnings: list[str] = []
+    if frame_count > 0 and object_frames == 0:
+        warnings.append(
+            "all loaded frames have zero public object tokens; "
+            "state tokens remain usable but object-aware supervision is absent"
+        )
+    elif empty_object_frames > 0:
+        warnings.append(
+            f"{empty_object_frames} loaded frames have zero public object tokens"
+        )
+    if sparse_frames == frame_count and frame_count > 0:
+        encoding = "aura.combat-transformer-dataset.sparse-index-value.v1"
+    elif sparse_frames > 0:
+        encoding = "mixed-sparse-and-legacy-dense"
+        warnings.append("the loaded dataset mixes sparse-v1 and legacy dense rows")
+    else:
+        encoding = "legacy-dense-json"
+    return {
+        "encoding": encoding,
+        "loaded_frames": frame_count,
+        "dense_slots": dense_slots,
+        "nonzero_values": nonzero_values,
+        "density": nonzero_values / max(1, dense_slots),
+        "object_frames": object_frames,
+        "empty_object_frames": empty_object_frames,
+        "object_coverage": object_frames / max(1, frame_count),
+        "object_audit_passed": frame_count == 0 or object_frames > 0,
+        "warnings": warnings,
+    }
 
 
 class LengthBucketBatchSampler(Sampler[list[int]]):
@@ -710,6 +1041,8 @@ def validation_run_ids(
     rows: list[dict], seed: int, initial_ids: set[str] | None = None
 ) -> set[str]:
     episodes = sorted({run_key(row) for row in rows})
+    if len(episodes) < 2:
+        return set(episodes)
     validation_ids = set(initial_ids or ()).intersection(episodes)
     if not validation_ids:
         validation_ids = {
@@ -758,12 +1091,18 @@ def validation_run_ids(
 
 
 def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
+    if len({run_key(row) for row in rows}) < 2:
+        raise RuntimeError(
+            "at least two independent Journey runs are required for "
+            "run-isolated training and validation"
+        )
     validation_ids = validation_run_ids(rows, seed)
     training = [row for row in rows if run_key(row) not in validation_ids]
     validation = [row for row in rows if run_key(row) in validation_ids]
-    if not training:
-        training = rows[:-1]
-        validation = rows[-1:]
+    if not training or not validation:
+        raise RuntimeError(
+            "run-isolated training/validation split produced an empty side"
+        )
     return training, validation
 
 
@@ -773,49 +1112,60 @@ def write_anchor_rows(path: Path, rows: list[dict]) -> None:
     with temporary.open("w", encoding="utf-8") as stream:
         for row in rows:
             payload = {key: value for key, value in row.items() if not key.startswith("_")}
-            payload["S"] = row["_state_tensor"].float().tolist()
-            payload["A"] = row["_action_tensor"].float().tolist()
-            payload["O"] = row["_object_tensor"].float().tolist()
+            payload["S"] = sparse_feature_payload(row["_state_tensor"])
+            payload["A"] = sparse_feature_matrix_payload(row["_action_tensor"])
+            payload["O"] = sparse_feature_matrix_payload(row["_object_tensor"])
             payload["P"] = row["_policy_tensor"].float().tolist()
-            payload["N"] = row["_next_state_tensor"].float().tolist()
+            next_state = row["_next_state_tensor"]
+            if next_state.numel() == 0:
+                next_state = torch.zeros_like(row["_state_tensor"])
+            payload["N"] = sparse_feature_payload(next_state)
             stream.write(json.dumps(payload, separators=(",", ":"), ensure_ascii=True))
             stream.write("\n")
     temporary.replace(path)
 
 
 def training_and_anchor_rows(
-    rows: list[dict], args: argparse.Namespace
-) -> tuple[list[dict], list[dict], bool]:
-    if isinstance(rows, ShardedTeacherDataset):
+    rows, args: argparse.Namespace
+):
+    if args.fixed_anchor and args.anchor and Path(args.anchor).exists():
+        validation = load_rows(Path(args.anchor), args.history)
+        tensorize_rows(validation)
+        anchor_keys = {run_key(row) for row in validation}
+        if base_sharded_dataset(rows) is not None:
+            metadata = dataset_metadata(rows)
+            training_indices = [
+                index
+                for index, row in enumerate(metadata)
+                if run_key(row) not in anchor_keys
+            ]
+            if training_indices and validation:
+                return ShardedDatasetView(rows, training_indices), validation, False
+            raise RuntimeError(
+                "incremental selection contains no run outside the fixed anchor"
+            )
+        else:
+            training = [row for row in rows if run_key(row) not in anchor_keys]
+            if training and validation:
+                return training, validation, False
+            raise RuntimeError(
+                "incremental selection contains no run outside the fixed anchor"
+            )
+    if base_sharded_dataset(rows) is not None:
         return sharded_training_and_anchor_rows(rows, args)
     if not args.fixed_anchor or not args.anchor:
         training, validation = split_rows(rows, args.seed)
         return training, validation, False
     anchor_path = Path(args.anchor)
-    if anchor_path.exists():
-        validation = load_rows(anchor_path, args.history)
-        tensorize_rows(validation)
-        anchor_keys = {run_key(row) for row in validation}
-        expanded_keys = validation_run_ids(rows, args.seed, anchor_keys)
-        added_keys = expanded_keys.difference(anchor_keys)
-        if added_keys:
-            validation.extend(
-                row for row in rows if run_key(row) in added_keys
-            )
-            anchor_keys.update(added_keys)
-            write_anchor_rows(anchor_path, validation)
-        training = [row for row in rows if run_key(row) not in anchor_keys]
-        if training and validation:
-            return training, validation, False
     training, validation = split_rows(rows, args.seed)
     write_anchor_rows(anchor_path, validation)
     return training, validation, True
 
 
 def sharded_training_and_anchor_rows(
-    rows: ShardedTeacherDataset, args: argparse.Namespace
+    rows, args: argparse.Namespace
 ) -> tuple[ShardedDatasetView, ShardedDatasetView, bool]:
-    metadata = rows.rows
+    metadata = dataset_metadata(rows)
     anchor_created = False
     initial_ids: set[str] = set()
     anchor_path = Path(args.anchor) if args.anchor else None
@@ -827,13 +1177,6 @@ def sharded_training_and_anchor_rows(
                 payload = json.loads(line)
                 initial_ids.add(run_key(payload))
     validation_ids = validation_run_ids(metadata, args.seed, initial_ids)
-    if args.fixed_anchor and anchor_path is not None:
-        if not initial_ids:
-            anchor_created = True
-        if anchor_created or validation_ids.difference(initial_ids):
-            write_anchor_from_source(
-                rows.source_path, anchor_path, validation_ids
-            )
     training_indices = [
         index
         for index, row in enumerate(metadata)
@@ -844,9 +1187,21 @@ def sharded_training_and_anchor_rows(
         for index, row in enumerate(metadata)
         if run_key(row) in validation_ids
     ]
-    if not training_indices:
-        training_indices = list(range(max(0, len(metadata) - 1)))
-        validation_indices = [max(0, len(metadata) - 1)]
+    if not training_indices or not validation_indices:
+        raise RuntimeError(
+            "at least two independent Journey runs are required for "
+            "run-isolated sharded training and validation"
+        )
+    if args.fixed_anchor and anchor_path is not None:
+        if not initial_ids:
+            anchor_created = True
+        if anchor_created or validation_ids.difference(initial_ids):
+            base = base_sharded_dataset(rows)
+            if base is None:
+                raise RuntimeError("sharded anchor source is unavailable")
+            write_anchor_from_source(
+                base.source_path, anchor_path, validation_ids
+            )
     return (
         ShardedDatasetView(rows, training_indices),
         ShardedDatasetView(rows, validation_indices),
@@ -1084,8 +1439,7 @@ def loader_options(plan: dict, device: torch.device) -> dict:
 def runtime_cache_key(
     args: argparse.Namespace,
     device: torch.device,
-    state_dimensions: int,
-    action_dimensions: int,
+    sample_raw: dict[str, torch.Tensor],
 ) -> str:
     device_name = (
         torch.cuda.get_device_name(device)
@@ -1095,7 +1449,7 @@ def runtime_cache_key(
     payload = "|".join(
         str(value)
         for value in (
-            "transformer-runtime-auto-tune-v2-backprop",
+            "transformer-runtime-auto-tune-v4-shape-envelope",
             platform.system(),
             platform.machine(),
             platform.processor(),
@@ -1103,14 +1457,21 @@ def runtime_cache_key(
             torch.__version__,
             device.type,
             device_name,
-            state_dimensions,
-            action_dimensions,
+            int(sample_raw["states"].shape[1]),
+            int(sample_raw["actions"].shape[1]),
+            int(sample_raw["actions"].shape[2]),
+            int(sample_raw["object_tokens"].shape[1]),
+            int(sample_raw["history_states"].shape[1]),
             args.hidden,
             args.layers,
             args.heads,
             args.ffn,
             args.history,
             args.batch_size,
+            args.dataset_storage,
+            int(args.mixed_precision),
+            int(args.deterministic),
+            int(args.pin_memory),
         )
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -1140,13 +1501,14 @@ def save_runtime_cache(path: str, key: str, plan: dict) -> None:
         "cpu_threads": int(plan["cpu_threads"]),
         "cpu_interop_threads": int(plan["cpu_interop_threads"]),
         "micro_batch_size": int(plan["micro_batch_size"]),
+        "effective_batch_size": int(plan["effective_batch_size"]),
         "loader_workers": int(plan["loader_workers"]),
         "prefetch_batches": int(plan["prefetch_batches"]),
         "pinned_memory": bool(plan["pinned_memory"]),
         "precision": str(plan["precision"]),
         "measured_utc": time.time(),
     }
-    payload["protocol"] = "transformer-runtime-auto-tune-v2-backprop"
+    payload["protocol"] = "transformer-runtime-auto-tune-v4-shape-envelope"
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -1191,24 +1553,27 @@ def benchmark_cpu_threads(
     )
     best_threads = int(runtime["cpu_threads"])
     best_rate = -1.0
-    model.train()
-    for threads in candidates:
-        torch.set_num_threads(threads)
-        model.zero_grad(set_to_none=True)
-        warmup, _ = loss_for(model, sample)
-        warmup.backward()
-        model.zero_grad(set_to_none=True)
-        started = time.perf_counter()
-        repeats = 2
-        for _ in range(repeats):
-            total, _ = loss_for(model, sample)
-            total.backward()
+    was_training = model.training
+    with torch.random.fork_rng(devices=[]):
+        model.train()
+        for threads in candidates:
+            torch.set_num_threads(threads)
             model.zero_grad(set_to_none=True)
-        elapsed = max(1.0e-6, time.perf_counter() - started)
-        rate = sample_size * repeats / elapsed
-        if rate > best_rate:
-            best_rate = rate
-            best_threads = threads
+            warmup, _ = loss_for(model, sample)
+            warmup.backward()
+            model.zero_grad(set_to_none=True)
+            started = time.perf_counter()
+            repeats = 2
+            for _ in range(repeats):
+                total, _ = loss_for(model, sample)
+                total.backward()
+                model.zero_grad(set_to_none=True)
+            elapsed = max(1.0e-6, time.perf_counter() - started)
+            rate = sample_size * repeats / elapsed
+            if rate > best_rate:
+                best_rate = rate
+                best_threads = threads
+    model.train(was_training)
     torch.set_num_threads(best_threads)
     return best_threads
 
@@ -1221,23 +1586,44 @@ def choose_gpu_micro_batch(
     maximum: int,
 ) -> int:
     candidate = max(1, min(maximum, raw["states"].shape[0]))
-    while candidate >= 1:
-        try:
-            sample = move(slice_batch(raw, 0, candidate), device)
-            model.zero_grad(set_to_none=True)
-            with precision_context(device, precision):
-                total, _ = loss_for(model, sample)
-            total.backward()
-            model.zero_grad(set_to_none=True)
-            torch.cuda.synchronize(device)
-            return candidate
-        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
-            if not isinstance(error, torch.cuda.OutOfMemoryError) and "out of memory" not in str(error).lower():
-                raise
-            model.zero_grad(set_to_none=True)
-            torch.cuda.empty_cache()
-            candidate //= 2
-    raise RuntimeError("Transformer teacher cannot fit a single frame in GPU memory")
+    was_training = model.training
+    fork_devices = [
+        device.index if device.index is not None else torch.cuda.current_device()
+    ]
+    with torch.random.fork_rng(devices=fork_devices):
+        model.train()
+        while candidate >= 1:
+            optimizer = None
+            sample = None
+            total = None
+            try:
+                sample = move(slice_batch(raw, 0, candidate), device)
+                optimizer = torch.optim.AdamW(
+                    model.parameters(), lr=0.0, weight_decay=0.0
+                )
+                optimizer.zero_grad(set_to_none=True)
+                with precision_context(device, precision):
+                    total, _ = loss_for(model, sample)
+                total.backward()
+                # Adam moments are lazily allocated at the first step; include
+                # them in the probe before choosing a conservative batch.
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                torch.cuda.synchronize(device)
+                model.train(was_training)
+                return max(1, candidate // 2)
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+                if not is_cuda_out_of_memory(error):
+                    raise
+                model.zero_grad(set_to_none=True)
+                del optimizer, sample, total
+                gc.collect()
+                torch.cuda.empty_cache()
+                candidate //= 2
+    model.train(was_training)
+    raise CudaTrainingOutOfMemory(
+        "Transformer teacher cannot fit a single worst-shape frame in GPU memory"
+    )
 
 
 def resolve_runtime_plan(
@@ -1248,9 +1634,7 @@ def resolve_runtime_plan(
     runtime: dict,
 ) -> dict:
     started = time.perf_counter()
-    state_dimensions = sample_raw["states"].shape[1]
-    action_dimensions = sample_raw["actions"].shape[2]
-    key = runtime_cache_key(args, device, state_dimensions, action_dimensions)
+    key = runtime_cache_key(args, device, sample_raw)
     cached = load_runtime_cache(args.runtime_cache, key)
     precision = "float32"
     if device.type == "cuda" and args.mixed_precision:
@@ -1258,16 +1642,25 @@ def resolve_runtime_plan(
     plan = {
         **runtime,
         "micro_batch_size": args.micro_batch_size or args.batch_size,
+        "effective_batch_size": args.batch_size,
         "loader_workers": (
-            args.loader_workers
+            0
+            if args.dataset_storage == "resident"
+            else args.loader_workers
             if args.loader_workers > 0
-            else (min(2, max(1, (os.cpu_count() or 1) // 4)) if device.type == "cuda" else 0)
+            else (
+                min(2, max(1, (os.cpu_count() or 1) // 4))
+                if device.type == "cuda"
+                and args.dataset_storage == "sharded"
+                else 0
+            )
         ),
         "prefetch_batches": max(1, min(8, args.prefetch_batches)),
         "pinned_memory": bool(args.pin_memory and device.type == "cuda"),
         "precision": precision,
         "auto_tuned": False,
         "cache_hit": cached is not None,
+        "runtime_cache_key": key,
     }
     if cached is not None:
         used_cache = False
@@ -1278,6 +1671,9 @@ def resolve_runtime_plan(
         if args.micro_batch_size <= 0:
             plan["micro_batch_size"] = int(
                 cached.get("micro_batch_size", plan["micro_batch_size"])
+            )
+            plan["effective_batch_size"] = int(
+                cached.get("effective_batch_size", args.batch_size)
             )
             used_cache = True
         if args.loader_workers <= 0:
@@ -1297,20 +1693,155 @@ def resolve_runtime_plan(
                 sample_raw,
                 device,
                 precision,
-                args.batch_size,
+                min(512, int(sample_raw["states"].shape[0])),
             )
             plan["auto_tuned"] = True
-        save_runtime_cache(args.runtime_cache, key, plan)
     plan["micro_batch_size"] = max(
-        1, min(args.batch_size, int(plan["micro_batch_size"]))
+        1, min(512, int(plan["micro_batch_size"]))
     )
+    if device.type == "cuda" and args.micro_batch_size <= 0:
+        plan["effective_batch_size"] = max(
+            args.batch_size,
+            min(512, max(
+                int(plan["effective_batch_size"]),
+                int(plan["micro_batch_size"]) * 2,
+            )),
+        )
+    else:
+        plan["effective_batch_size"] = args.batch_size
+    if args.dataset_storage == "resident":
+        # Windows DataLoader workers spawn and duplicate a resident tensor
+        # corpus. Keep resident batching in the training process even when an
+        # older UI setting or runtime-cache entry requested workers.
+        plan["loader_workers"] = 0
     plan["prefetch_batches"] = (
         max(1, int(plan["prefetch_batches"]))
         if int(plan["loader_workers"]) > 0
         else 0
     )
     plan["calibration_seconds"] = time.perf_counter() - started
+    if cached is None and not args.self_test:
+        save_runtime_cache(args.runtime_cache, key, plan)
     return plan
+
+
+def evaluation_and_anchor_rows(rows, args: argparse.Namespace):
+    """Choose evaluation rows without creating a train/validation leakage path."""
+    if args.fixed_anchor and args.anchor and Path(args.anchor).exists():
+        validation = load_rows(Path(args.anchor), args.history)
+        tensorize_rows(validation)
+        if not validation:
+            raise RuntimeError("fixed anchor contains no usable frames")
+        return rows, validation, False
+
+    metadata = dataset_metadata(rows)
+    run_ids = {run_key(row) for row in metadata}
+    anchor_created = False
+    if len(run_ids) < 2:
+        # Reusing an existing model does not train on these rows, so evaluating
+        # the sole run is safe. Do not freeze it as the future anchor.
+        return rows, rows, False
+    validation_ids = validation_run_ids(metadata, args.seed)
+    indices = [
+        index
+        for index, row in enumerate(metadata)
+        if run_key(row) in validation_ids
+    ]
+    validation = (
+        ShardedDatasetView(rows, indices)
+        if base_sharded_dataset(rows) is not None
+        else [rows[index] for index in indices]
+    )
+    if args.fixed_anchor and args.anchor:
+        anchor_path = Path(args.anchor)
+        if base_sharded_dataset(rows) is not None:
+            base = base_sharded_dataset(rows)
+            if base is None:
+                raise RuntimeError("sharded anchor source is unavailable")
+            write_anchor_from_source(base.source_path, anchor_path, validation_ids)
+        else:
+            write_anchor_rows(anchor_path, validation)
+        anchor_created = True
+    return rows, validation, anchor_created
+
+
+def calibration_batch(rows, requested_size: int) -> dict[str, torch.Tensor]:
+    """Build a bounded batch that contains the dataset's shape envelope."""
+    metadata = dataset_metadata(rows)
+    if not metadata:
+        raise RuntimeError("Transformer calibration dataset is empty")
+    maximum = min(len(metadata), max(1, requested_size))
+    def action_count(row: dict) -> int:
+        return int(
+            row["_action_count"]
+            if "_action_count" in row
+            else row["_action_tensor"].shape[0]
+        )
+
+    def object_count(row: dict) -> int:
+        return int(
+            row["_object_count"]
+            if "_object_count" in row
+            else row["_object_tensor"].shape[0]
+        )
+
+    def history_count(row: dict) -> int:
+        return int(
+            row["_history_count"]
+            if "_history_count" in row
+            else row["_history_state_tensor"].shape[0]
+        )
+
+    shape_functions = (
+        action_count,
+        object_count,
+        history_count,
+        lambda row: int(row.get("_bucket_cost", 0)),
+    )
+    indices: list[int] = []
+    for shape in shape_functions:
+        index = max(range(len(metadata)), key=lambda item: (shape(metadata[item]), -item))
+        if index not in indices:
+            indices.append(index)
+    for index in sorted(
+        range(len(metadata)),
+        key=lambda item: (
+            -int(metadata[item].get("_bucket_cost", 0)),
+            item,
+        ),
+    ):
+        if len(indices) >= maximum:
+            break
+        if index not in indices:
+            indices.append(index)
+    return collate([rows[index] for index in indices[:maximum]])
+
+
+def lower_cuda_micro_batch(
+    plan: dict,
+    args: argparse.Namespace,
+    device: torch.device,
+    phase: str,
+) -> int:
+    current = max(1, int(plan["micro_batch_size"]))
+    if device.type != "cuda" or current <= 1:
+        raise CudaTrainingOutOfMemory(
+            f"CUDA ran out of memory during {phase} at micro-batch {current}"
+        )
+    reduced = max(1, current // 2)
+    plan["micro_batch_size"] = reduced
+    plan["effective_batch_size"] = max(
+        reduced, min(512, int(plan["effective_batch_size"]))
+    )
+    plan["auto_tuned"] = True
+    save_runtime_cache(
+        args.runtime_cache,
+        str(plan.get("runtime_cache_key", "")),
+        plan,
+    )
+    gc.collect()
+    torch.cuda.empty_cache()
+    return reduced
 
 
 def loss_for(
@@ -1524,6 +2055,42 @@ def evaluate(
     }
 
 
+def evaluate_with_cuda_backoff(
+    model: StrategyTransformer,
+    validation_rows,
+    args: argparse.Namespace,
+    device: torch.device,
+    plan: dict,
+    loader: DataLoader | None = None,
+) -> tuple[dict[str, float], DataLoader]:
+    while True:
+        expected_batch = max(1, int(plan["micro_batch_size"]))
+        if loader is None or int(loader.batch_size or 0) != expected_batch:
+            if loader is not None:
+                del loader
+                gc.collect()
+            loader = DataLoader(
+                validation_rows
+                if isinstance(validation_rows, Dataset)
+                else TeacherDataset(validation_rows),
+                batch_size=expected_batch,
+                shuffle=False,
+                collate_fn=collate,
+                **loader_options(
+                    {**plan, "loader_workers": 0, "prefetch_batches": 0},
+                    device,
+                ),
+            )
+        try:
+            return evaluate(model, loader, device, plan["precision"]), loader
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            if not is_cuda_out_of_memory(error):
+                raise
+            model.zero_grad(set_to_none=True)
+            loader = None
+            lower_cuda_micro_batch(plan, args, device, "validation")
+
+
 def load_warm_start(
     model: StrategyTransformer,
     path: str,
@@ -1557,7 +2124,51 @@ def load_warm_start(
             + ", ".join(incompatible)
         )
     model.load_state_dict(checkpoint["state_dict"], strict=True)
-    return True, max(0, int(checkpoint.get("teacher_generation", 0)))
+    teacher_generation = max(
+        0, int(checkpoint.get("teacher_generation", 0))
+    )
+    # Compatible legacy/external weights may initialize a training run, but
+    # they are not a stable warm teacher until an accepted generation proves
+    # that they passed this pipeline's quality gate.
+    return teacher_generation > 0, teacher_generation
+
+
+def initialize_optimizer_state(
+    optimizer: torch.optim.Optimizer,
+    model: nn.Module,
+    device: torch.device,
+) -> None:
+    """Allocate lazy Adam state before batches can partially mutate weights."""
+    learning_rates = [float(group["lr"]) for group in optimizer.param_groups]
+    try:
+        for group in optimizer.param_groups:
+            group["lr"] = 0.0
+        for parameter in model.parameters():
+            if parameter.requires_grad:
+                parameter.grad = torch.zeros_like(parameter)
+        optimizer.step()
+        for state in optimizer.state.values():
+            step = state.get("step")
+            if isinstance(step, torch.Tensor):
+                step.zero_()
+            elif step is not None:
+                state["step"] = 0
+        optimizer.zero_grad(set_to_none=True)
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+    except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+        optimizer.zero_grad(set_to_none=True)
+        if is_cuda_out_of_memory(error):
+            gc.collect()
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
+            raise CudaTrainingOutOfMemory(
+                "CUDA cannot allocate the Transformer optimizer state"
+            ) from error
+        raise
+    finally:
+        for group, learning_rate in zip(optimizer.param_groups, learning_rates):
+            group["lr"] = learning_rate
 
 
 def composite_score(metrics: dict[str, float]) -> float:
@@ -1590,10 +2201,16 @@ def train(
     device: torch.device,
     runtime: dict,
     progress: ProgressReporter,
+    calibration_rows=None,
 ) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict, dict]:
-    training_rows, validation_rows, anchor_created = training_and_anchor_rows(
-        rows, args
-    )
+    if args.training_enabled:
+        training_rows, validation_rows, anchor_created = training_and_anchor_rows(
+            rows, args
+        )
+    else:
+        training_rows, validation_rows, anchor_created = evaluation_and_anchor_rows(
+            rows, args
+        )
     model = StrategyTransformer(
         rows[0]["_state_tensor"].shape[0],
         rows[0]["_action_tensor"].shape[1],
@@ -1615,71 +2232,50 @@ def train(
     )
     training_metadata = getattr(training_rows, "rows", training_rows)
     validation_metadata = getattr(validation_rows, "rows", validation_rows)
-    sample_raw = collate(
-        [
-            training_rows[index]
-            for index in range(min(args.batch_size, len(training_rows)))
-        ]
+    calibration_source = calibration_rows if calibration_rows is not None else rows
+    calibration_batch_size = min(
+        len(calibration_source),
+        max(args.batch_size, 512 if device.type == "cuda" else args.batch_size),
     )
+    sample_raw = calibration_batch(calibration_source, calibration_batch_size)
     plan = resolve_runtime_plan(model, sample_raw, args, device, runtime)
+    # Calibration may run dropout-bearing train-mode probes and may take a
+    # different path on cache hits. Reset all RNGs so host-local tuning cannot
+    # alter model initialization-to-training reproducibility.
+    reseed(args.seed)
     worker_options = loader_options(plan, device)
-    if isinstance(rows, ShardedTeacherDataset):
-        rows.clear_cache()
-    training_dataset = (
-        training_rows
-        if isinstance(training_rows, Dataset)
-        else TeacherDataset(training_rows)
-    )
-    training_loader = DataLoader(
-        training_dataset,
-        batch_sampler=LengthBucketBatchSampler(
-            training_metadata, args.batch_size, args.seed
+    base_dataset = base_sharded_dataset(rows)
+    if base_dataset is not None:
+        base_dataset.clear_cache()
+    validation_loader = None
+    progress.update(
+        Stage="evaluating",
+        TotalEpochs=max(0, args.epochs) if args.training_enabled else 0,
+        TotalFrames=len(validation_metadata),
+        Message=(
+            "正在评估固定锚点基线"
+            if args.training_enabled
+            else "正在评估复用的 Transformer 教师"
         ),
-        collate_fn=collate,
-        **worker_options,
     )
-    validation_loader = DataLoader(
-        validation_rows
-        if isinstance(validation_rows, Dataset)
-        else TeacherDataset(validation_rows),
-        batch_size=plan["micro_batch_size"],
-        shuffle=False,
-        collate_fn=collate,
-        **worker_options,
-    )
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3.0e-4, weight_decay=1.0e-3)
-    use_scaler = device.type == "cuda" and plan["precision"] == "float16"
-    try:
-        scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
-    except (AttributeError, TypeError):
-        scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
-    best_state = copy.deepcopy(model.state_dict())
     evaluation_started = time.perf_counter()
-    best_metrics = evaluate(model, validation_loader, device, plan["precision"])
+    best_metrics, validation_loader = evaluate_with_cuda_backoff(
+        model,
+        validation_rows,
+        args,
+        device,
+        plan,
+        validation_loader,
+    )
     baseline_metrics = dict(best_metrics)
     evaluation_seconds = time.perf_counter() - evaluation_started
     best_loss = composite_score(best_metrics)
-    update_accepted = False
-    head_gate_passed = True
-    stale = 0
-    executed = 0
-    processed_frames = 0
-    training_started = time.perf_counter()
-    total_frame_work = sum(
-        int(row.get("_sampling_repeats", 1)) for row in training_metadata
-    ) * max(0, args.epochs)
     if not args.training_enabled:
-        progress.update(
-            Stage="evaluating",
-            TotalEpochs=0,
-            TotalFrames=len(validation_metadata),
-            Message="正在评估复用的 Transformer 教师",
-        )
         return (
             model,
             best_metrics,
             0,
-            len(training_metadata),
+            0,
             len(validation_metadata),
             plan,
             0.0,
@@ -1699,6 +2295,38 @@ def train(
                 "anchor_created": anchor_created,
             },
         )
+    training_dataset = (
+        training_rows
+        if isinstance(training_rows, Dataset)
+        else TeacherDataset(training_rows)
+    )
+    training_loader = DataLoader(
+        training_dataset,
+        batch_sampler=LengthBucketBatchSampler(
+            training_metadata, plan["effective_batch_size"], args.seed
+        ),
+        collate_fn=collate,
+        **worker_options,
+    )
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=3.0e-4, weight_decay=1.0e-3
+    )
+    initialize_optimizer_state(optimizer, model, device)
+    use_scaler = device.type == "cuda" and plan["precision"] == "float16"
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
+    best_state = copy.deepcopy(model.state_dict())
+    update_accepted = False
+    head_gate_passed = True
+    stale = 0
+    executed = 0
+    processed_frames = 0
+    training_started = time.perf_counter()
+    total_frame_work = sum(
+        int(row.get("_sampling_repeats", 1)) for row in training_metadata
+    ) * max(0, args.epochs)
     training_seconds = 0.0
     for epoch in range(1, args.epochs + 1):
         progress.update(
@@ -1712,7 +2340,6 @@ def train(
         model.train()
         epoch_training_started = time.perf_counter()
         for raw in training_loader:
-            optimizer.zero_grad(set_to_none=True)
             batch_count = raw["states"].shape[0]
             effective_counts = {
                 "samples": batch_count,
@@ -1720,18 +2347,38 @@ def train(
                 "strategies": int((raw["strategies"] >= 0).sum()),
                 "transitions": int(raw["transition_mask"].sum()),
             }
-            micro_batch = max(1, int(plan["micro_batch_size"]))
-            for start in range(0, batch_count, micro_batch):
-                end = min(batch_count, start + micro_batch)
-                batch = move(slice_batch(raw, start, end), device)
-                with precision_context(device, plan["precision"]):
-                    total, _ = loss_for(model, batch, effective_counts)
-                scaler.scale(total).backward()
-            if use_scaler:
-                scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
+            python_rng = random.getstate()
+            torch_rng = torch.random.get_rng_state()
+            cuda_rng = (
+                torch.cuda.get_rng_state_all() if device.type == "cuda" else None
+            )
+            while True:
+                optimizer.zero_grad(set_to_none=True)
+                micro_batch = max(1, int(plan["micro_batch_size"]))
+                try:
+                    for start in range(0, batch_count, micro_batch):
+                        end = min(batch_count, start + micro_batch)
+                        batch = move(slice_batch(raw, start, end), device)
+                        with precision_context(device, plan["precision"]):
+                            total, _ = loss_for(model, batch, effective_counts)
+                        scaler.scale(total).backward()
+                    if use_scaler:
+                        scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    scaler.step(optimizer)
+                    scaler.update()
+                    break
+                except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+                    if not is_cuda_out_of_memory(error):
+                        raise
+                    optimizer.zero_grad(set_to_none=True)
+                    batch = None
+                    total = None
+                    random.setstate(python_rng)
+                    torch.random.set_rng_state(torch_rng)
+                    if cuda_rng is not None:
+                        torch.cuda.set_rng_state_all(cuda_rng)
+                    lower_cuda_micro_batch(plan, args, device, "training")
             processed_frames += batch_count
             elapsed = max(1.0e-6, time.perf_counter() - training_started)
             rate = processed_frames / elapsed
@@ -1751,7 +2398,14 @@ def train(
             Message=f"正在评估 Epoch {epoch}/{args.epochs}",
         )
         evaluation_started = time.perf_counter()
-        metrics = evaluate(model, validation_loader, device, plan["precision"])
+        metrics, validation_loader = evaluate_with_cuda_backoff(
+            model,
+            validation_rows,
+            args,
+            device,
+            plan,
+            validation_loader,
+        )
         evaluation_seconds += time.perf_counter() - evaluation_started
         score = composite_score(metrics)
         epoch_head_gate = (
@@ -1818,7 +2472,7 @@ def train(
 
 
 @torch.no_grad()
-def annotate(
+def annotate_once(
     model: StrategyTransformer,
     rows,
     plan: dict,
@@ -1875,6 +2529,34 @@ def annotate(
     return elapsed, completed / elapsed
 
 
+def annotate(
+    model: StrategyTransformer,
+    rows,
+    plan: dict,
+    args: argparse.Namespace,
+    device: torch.device,
+    path: Path,
+    progress: ProgressReporter,
+) -> tuple[float, float]:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    while True:
+        try:
+            result = annotate_once(
+                model, rows, plan, device, temporary, progress
+            )
+            temporary.replace(path)
+            return result
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+            if not is_cuda_out_of_memory(error):
+                raise
+            model.zero_grad(set_to_none=True)
+            lower_cuda_micro_batch(plan, args, device, "annotation")
+
+
 def write_report(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
 
@@ -1892,6 +2574,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     progress.update(Stage="configuring", Message="正在配置 PyTorch 执行环境")
     device, runtime = configure_runtime(args)
     if args.self_test:
+        verify_reseed_compatibility()
+        reseed(args.seed)
         args.epochs = min(args.epochs, 2)
         args.batch_size = min(args.batch_size, 16)
         args.hidden = min(args.hidden, 64)
@@ -1903,6 +2587,41 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         rows[-1]["A"] = rows[-1]["A"][:1]
         rows[-1]["P"] = [1.0]
         rows[-1]["X"] = 0
+        representative_state = [0.0] * 1024
+        representative_action = [0.0] * 1024
+        for index in range(85):
+            representative_state[(index * 11) % 1024] = (index + 1) / 85.0
+        for index in range(24):
+            representative_action[(index * 37) % 1024] = (index + 1) / 24.0
+        dense_benchmark = json.dumps(
+            {"S": representative_state, "A": [representative_action] * 4},
+            separators=(",", ":"),
+        )
+        sparse_benchmark = json.dumps(
+            {
+                "S": sparse_feature_payload(torch.tensor(representative_state)),
+                "A": [
+                    sparse_feature_payload(torch.tensor(representative_action))
+                    for _ in range(4)
+                ],
+            },
+            separators=(",", ":"),
+        )
+        sparse_reduction = 1.0 - len(sparse_benchmark) / len(dense_benchmark)
+        assert sparse_reduction > 0.70
+        assert torch.equal(
+            dense_feature_tensor(
+                json.loads(sparse_benchmark)["S"], torch.float32
+            ),
+            torch.tensor(representative_state, dtype=torch.float32),
+        )
+        empty_object_row = copy.deepcopy(rows[0])
+        empty_object_row["O"] = []
+        tensorize_row(empty_object_row)
+        assert empty_object_row["_object_tensor"].shape == (0, 32)
+        empty_object_audit = audit_dataset([empty_object_row])
+        assert not empty_object_audit["object_audit_passed"]
+        assert empty_object_audit["warnings"]
         with tempfile.TemporaryDirectory(
             prefix="aura-teacher-sharded-self-test-"
         ) as sharded_root:
@@ -1914,6 +2633,21 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                         for key, value in row.items()
                         if not key.startswith("_")
                     }
+                    if int(payload["I"]) % 2 == 0:
+                        payload["S"] = sparse_feature_payload(
+                            torch.tensor(payload["S"])
+                        )
+                        payload["A"] = [
+                            sparse_feature_payload(torch.tensor(action))
+                            for action in payload["A"]
+                        ]
+                        payload["O"] = [
+                            sparse_feature_payload(torch.tensor(token))
+                            for token in payload["O"]
+                        ]
+                        payload["N"] = sparse_feature_payload(
+                            torch.tensor(payload["N"])
+                        )
                     stream.write(json.dumps(payload, separators=(",", ":")))
                     stream.write("\n")
             sharded = ShardedTeacherDataset.build(
@@ -1921,6 +2655,30 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             )
             assert len(sharded) == len(rows)
             assert collate([sharded[0]])["states"].shape[0] == 1
+            first_view = ShardedDatasetView(sharded, list(range(16)))
+            nested_view = subset_for_row_ids(
+                first_view, {int(row["I"]) for row in first_view.rows[::2]}
+            )
+            assert isinstance(nested_view, ShardedDatasetView)
+            assert nested_view.source is first_view
+            assert base_sharded_dataset(nested_view) is sharded
+            assert audit_dataset(sharded)["encoding"] == (
+                "mixed-sparse-and-legacy-dense"
+            )
+            selected_sharded = ShardedTeacherDataset.build(
+                sharded_input,
+                args.history,
+                512,
+                progress,
+                set(range(0, 32)),
+            )
+            try:
+                assert len(selected_sharded) == 32
+                assert {int(row["I"]) for row in selected_sharded.rows} == set(
+                    range(0, 32)
+                )
+            finally:
+                selected_sharded.close()
             prior_anchor = args.anchor
             prior_fixed_anchor = args.fixed_anchor
             try:
@@ -1949,6 +2707,108 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 args.fixed_anchor = prior_fixed_anchor
                 sharded.close()
         tensorize_rows(rows)
+        single_run_rows = rows[:8]
+        try:
+            split_rows(single_run_rows, args.seed)
+            raise AssertionError("single-run training split must be rejected")
+        except RuntimeError as error:
+            assert "two independent Journey runs" in str(error)
+        evaluated_rows, single_run_validation, single_anchor_created = (
+            evaluation_and_anchor_rows(single_run_rows, args)
+        )
+        assert evaluated_rows is single_run_rows
+        assert single_run_validation is single_run_rows
+        assert not single_anchor_created
+        sample_shape = collate(rows[:8])
+        wider_shape = dict(sample_shape)
+        wider_shape["actions"] = torch.zeros(
+            sample_shape["actions"].shape[0],
+            sample_shape["actions"].shape[1] + 1,
+            sample_shape["actions"].shape[2],
+        )
+        assert runtime_cache_key(args, device, sample_shape) != runtime_cache_key(
+            args, device, wider_shape
+        )
+        previous_mixed_precision = args.mixed_precision
+        try:
+            baseline_precision_key = runtime_cache_key(args, device, sample_shape)
+            args.mixed_precision = 0 if args.mixed_precision else 1
+            assert baseline_precision_key != runtime_cache_key(
+                args, device, sample_shape
+            )
+        finally:
+            args.mixed_precision = previous_mixed_precision
+        reseed(args.seed)
+        expected_random = torch.rand(16)
+        reseed(args.seed)
+        _ = torch.rand(128)
+        reseed(args.seed)
+        assert torch.equal(expected_random, torch.rand(16))
+        with tempfile.TemporaryDirectory(
+            prefix="aura-runtime-cache-self-test-"
+        ) as cache_root:
+            previous_self_test = args.self_test
+            previous_runtime_cache = args.runtime_cache
+            previous_micro_batch = args.micro_batch_size
+            previous_cpu_threads = args.cpu_threads
+            previous_dataset_storage = args.dataset_storage
+            previous_loader_workers = args.loader_workers
+            try:
+                args.self_test = False
+                args.runtime_cache = str(Path(cache_root) / "runtime-v4.json")
+                args.micro_batch_size = 0
+                args.cpu_threads = 0
+                args.dataset_storage = "resident"
+                args.loader_workers = 2
+                reseed(args.seed)
+                probe_model = StrategyTransformer(
+                    rows[0]["_state_tensor"].shape[0],
+                    rows[0]["_action_tensor"].shape[1],
+                    args.hidden,
+                    args.layers,
+                    args.heads,
+                    args.ffn,
+                    args.history,
+                ).to(device)
+                cpu_rng_before = torch.random.get_rng_state().clone()
+                cuda_rng_before = (
+                    [state.clone() for state in torch.cuda.get_rng_state_all()]
+                    if device.type == "cuda"
+                    else []
+                )
+                cold_plan = resolve_runtime_plan(
+                    probe_model, sample_shape, args, device, runtime
+                )
+                assert not cold_plan["cache_hit"]
+                assert cold_plan["loader_workers"] == 0
+                assert torch.equal(cpu_rng_before, torch.random.get_rng_state())
+                if device.type == "cuda":
+                    assert all(
+                        torch.equal(before, after)
+                        for before, after in zip(
+                            cuda_rng_before, torch.cuda.get_rng_state_all()
+                        )
+                    )
+                hot_plan = resolve_runtime_plan(
+                    probe_model, sample_shape, args, device, runtime
+                )
+                assert hot_plan["cache_hit"]
+                assert hot_plan["loader_workers"] == 0
+                assert hot_plan["micro_batch_size"] == cold_plan[
+                    "micro_batch_size"
+                ]
+                assert hot_plan["effective_batch_size"] == cold_plan[
+                    "effective_batch_size"
+                ]
+            finally:
+                args.self_test = previous_self_test
+                args.runtime_cache = previous_runtime_cache
+                args.micro_batch_size = previous_micro_batch
+                args.cpu_threads = previous_cpu_threads
+                args.dataset_storage = previous_dataset_storage
+                args.loader_workers = previous_loader_workers
+                torch.set_num_threads(int(runtime["cpu_threads"]))
+                reseed(args.seed)
         coverage_rows = [
             {"Y": f"coverage:{index // 20}", "E": index // 20}
             for index in range(400)
@@ -1991,20 +2851,28 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         )
         with tempfile.TemporaryDirectory(prefix="aura-teacher-self-test-") as root:
             checkpoint_path = Path(root) / "warm.pt"
+            legacy_checkpoint_path = Path(root) / "legacy.pt"
+            checkpoint_payload = {
+                "protocol": "aura.combat-transformer-world-model.v2",
+                "state_dimensions": rows[0]["_state_tensor"].shape[0],
+                "action_dimensions": rows[0]["_action_tensor"].shape[1],
+                "hidden_dimensions": args.hidden,
+                "layers": args.layers,
+                "heads": args.heads,
+                "feedforward_dimensions": args.ffn,
+                "history_length": args.history,
+                "state_dict": model.state_dict(),
+            }
             torch.save(
-                {
-                    "protocol": "aura.combat-transformer-world-model.v2",
-                    "state_dimensions": rows[0]["_state_tensor"].shape[0],
-                    "action_dimensions": rows[0]["_action_tensor"].shape[1],
-                    "hidden_dimensions": args.hidden,
-                    "layers": args.layers,
-                    "heads": args.heads,
-                    "feedforward_dimensions": args.ffn,
-                    "history_length": args.history,
-                    "state_dict": model.state_dict(),
-                },
-                checkpoint_path,
+                checkpoint_payload,
+                legacy_checkpoint_path,
             )
+            legacy_usable, legacy_generation = load_warm_start(
+                model, str(legacy_checkpoint_path), args, device
+            )
+            assert not legacy_usable and legacy_generation == 0
+            checkpoint_payload["teacher_generation"] = 1
+            torch.save(checkpoint_payload, checkpoint_path)
             prior_resume = args.resume_model
             prior_training_enabled = args.training_enabled
             prior_epochs = args.epochs
@@ -2033,6 +2901,29 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 assert warm_gate["anchor_created"]
                 assert Path(args.anchor).exists()
                 assert math.isfinite(warm_metrics["policy_ce"])
+                args.anchor = ""
+                (
+                    _,
+                    single_metrics,
+                    single_executed,
+                    single_training_count,
+                    single_validation_count,
+                    _,
+                    _,
+                    single_warm_started,
+                    _,
+                    _,
+                ) = train(
+                    single_run_rows,
+                    args,
+                    device,
+                    runtime,
+                    progress,
+                )
+                assert single_warm_started and single_executed == 0
+                assert single_training_count == 0
+                assert single_validation_count == len(single_run_rows)
+                assert math.isfinite(single_metrics["policy_ce"])
             finally:
                 args.resume_model = prior_resume
                 args.training_enabled = prior_training_enabled
@@ -2041,6 +2932,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 args.fixed_anchor = prior_fixed_anchor
         if os.name == "nt":
             assert working_set_bytes() > 0
+        assert plan["loader_workers"] == 0
         print(
             json.dumps(
                 {
@@ -2053,6 +2945,9 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                     "outcomeMAE": metrics["outcome_mae"],
                     "cpuThreads": plan["cpu_threads"],
                     "microBatch": plan["micro_batch_size"],
+                    "effectiveBatch": plan["effective_batch_size"],
+                    "loaderWorkers": plan["loader_workers"],
+                    "sparsePayloadReduction": sparse_reduction,
                     "throughput": throughput,
                 }
             )
@@ -2065,15 +2960,44 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     cpu_started = time.process_time()
     progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
     loading_started = time.perf_counter()
-    if args.dataset_storage == "sharded":
+    training_selection = read_row_selection(args.training_selection)
+    annotation_selection = read_row_selection(args.annotation_selection)
+    if args.training_enabled:
+        loaded_selection = (
+            None
+            if training_selection is None
+            else training_selection.union(annotation_selection or set())
+        )
+    else:
+        loaded_selection = annotation_selection
+    selected_frame_count = (
+        max(0, int(args.corpus_frames))
+        if loaded_selection is None
+        else len(loaded_selection)
+    )
+    dataset_storage = args.dataset_storage
+    if dataset_storage == "auto":
+        dataset_storage = (
+            "resident"
+            if selected_frame_count
+            <= max(256, int(args.resident_dataset_maximum_frames))
+            else "sharded"
+        )
+    # Runtime cache keys and worker selection must describe the resolved
+    # storage mode, not the user-facing "auto" token.
+    args.dataset_storage = dataset_storage
+    if dataset_storage == "sharded":
         rows = ShardedTeacherDataset.build(
             Path(args.input),
             args.history,
             args.dataset_shard_frames,
             progress,
+            loaded_selection,
         )
     else:
-        rows = load_rows(Path(args.input), args.history, progress)
+        rows = load_rows(
+            Path(args.input), args.history, progress, loaded_selection
+        )
     loading_seconds = time.perf_counter() - loading_started
     if not rows:
         raise RuntimeError("Transformer teacher dataset contains no usable frames")
@@ -2086,23 +3010,95 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     if not isinstance(rows, ShardedTeacherDataset):
         tensorize_rows(rows)
     preparation_seconds = time.perf_counter() - preparation_started
-    (
-        model,
-        metrics,
-        executed,
-        training_count,
-        validation_count,
-        plan,
-        throughput,
-        warm_started,
-        training_timings,
-        training_gate,
-    ) = train(
-        rows, args, device, runtime, progress
-    )
-    annotation_seconds, annotation_throughput = annotate(
-        model, rows, plan, device, Path(args.annotations), progress
-    )
+    data_audit = audit_dataset(rows)
+    training_rows = subset_for_row_ids(rows, training_selection)
+    annotation_rows = subset_for_row_ids(rows, annotation_selection)
+    if len(training_rows) == 0:
+        raise RuntimeError("Transformer incremental training selection is empty")
+    if len(annotation_rows) == 0:
+        raise RuntimeError("Transformer annotation selection is empty")
+    cuda_fallback_reason = ""
+    attempted_cuda_peak = 0
+    try:
+        (
+            model,
+            metrics,
+            executed,
+            training_count,
+            validation_count,
+            plan,
+            throughput,
+            warm_started,
+            training_timings,
+            training_gate,
+        ) = train(
+            training_rows,
+            args,
+            device,
+            runtime,
+            progress,
+            calibration_rows=rows,
+        )
+        annotation_seconds, annotation_throughput = annotate(
+            model,
+            annotation_rows,
+            plan,
+            args,
+            device,
+            Path(args.annotations),
+            progress,
+        )
+    except (CudaTrainingOutOfMemory, torch.cuda.OutOfMemoryError, RuntimeError) as error:
+        if (
+            device.type != "cuda"
+            or args.backend != "auto"
+            or (
+                not isinstance(error, CudaTrainingOutOfMemory)
+                and not is_cuda_out_of_memory(error)
+            )
+        ):
+            raise
+        attempted_cuda_peak = int(torch.cuda.max_memory_allocated(device))
+        cuda_fallback_reason = str(error)
+        if "model" in locals():
+            del model
+        gc.collect()
+        torch.cuda.empty_cache()
+        device = torch.device("cpu")
+        torch.set_num_threads(max(1, int(runtime["cpu_threads"])))
+        reseed(args.seed)
+        progress.update(
+            Stage="calibrating",
+            Message="CUDA 内存不足，正在以 CPU 安全回退重新训练",
+        )
+        (
+            model,
+            metrics,
+            executed,
+            training_count,
+            validation_count,
+            plan,
+            throughput,
+            warm_started,
+            training_timings,
+            training_gate,
+        ) = train(
+            training_rows,
+            args,
+            device,
+            runtime,
+            progress,
+            calibration_rows=rows,
+        )
+        annotation_seconds, annotation_throughput = annotate(
+            model,
+            annotation_rows,
+            plan,
+            args,
+            device,
+            Path(args.annotations),
+            progress,
+        )
     progress.update(Stage="saving", Message="正在写入模型和教师报告")
     saving_started = time.perf_counter()
     checkpoint = {
@@ -2144,14 +3140,17 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "NumpyVersion": __import__("numpy").__version__,
         "RuntimeAutoTuned": bool(plan["auto_tuned"]),
         "RuntimeAutoTuneCacheHit": bool(plan["cache_hit"]),
+        "CudaFallbackTriggered": bool(cuda_fallback_reason),
+        "CudaFallbackReason": cuda_fallback_reason,
         "EffectiveCpuThreads": int(plan["cpu_threads"]),
         "EffectiveCpuInteropThreads": int(plan["cpu_interop_threads"]),
-        "EffectiveBatchSize": int(args.batch_size),
+        "EffectiveBatchSize": int(plan["effective_batch_size"]),
         "EffectiveMicroBatchSize": int(plan["micro_batch_size"]),
         "EffectiveDataLoaderWorkers": int(plan["loader_workers"]),
         "EffectivePrefetchBatches": int(plan["prefetch_batches"]),
         "PinnedMemoryEnabled": bool(plan["pinned_memory"]),
         "NumericPrecision": str(plan["precision"]),
+        "DeterministicTrainingEnabled": bool(runtime["deterministic"]),
         "ParameterCount": sum(parameter.numel() for parameter in model.parameters()),
         "HiddenDimensions": args.hidden,
         "Layers": args.layers,
@@ -2195,14 +3194,35 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             progress.peak_working_set_bytes, working_set_bytes()
         ),
         "DatasetStorageMode": (
-            "sharded-disk-v1"
-            if isinstance(rows, ShardedTeacherDataset)
+            "sharded-disk-v2"
+            if base_sharded_dataset(rows) is not None
             else "resident"
         ),
         "DatasetShardFrames": (
-            max(16, min(512, int(args.dataset_shard_frames)))
-            if isinstance(rows, ShardedTeacherDataset)
+            max(256, min(4096, int(args.dataset_shard_frames)))
+            if base_sharded_dataset(rows) is not None
             else 0
+        ),
+        "DatasetEncoding": data_audit["encoding"],
+        "LoadedDatasetFrames": int(data_audit["loaded_frames"]),
+        "IncrementalTrainingSelection": training_selection is not None,
+        "IncrementalTrainingFrames": (
+            len(training_rows) if args.training_enabled else 0
+        ),
+        "AnnotationSelectionFrames": len(annotation_rows),
+        "DenseFeatureSlots": int(data_audit["dense_slots"]),
+        "NonZeroFeatureValues": int(data_audit["nonzero_values"]),
+        "SparseFeatureDensity": float(data_audit["density"]),
+        "ObjectTokenFrames": int(data_audit["object_frames"]),
+        "EmptyObjectTokenFrames": int(data_audit["empty_object_frames"]),
+        "ObjectTokenFrameCoverage": float(data_audit["object_coverage"]),
+        "ObjectTokenAuditPassed": bool(data_audit["object_audit_passed"]),
+        "ObjectTokenAuditAdvisoryOnly": True,
+        "DataQualityWarnings": list(data_audit["warnings"])
+        + (
+            ["CUDA auto backend fell back to CPU: " + cuda_fallback_reason]
+            if cuda_fallback_reason
+            else []
         ),
         "DataLoadingSeconds": loading_seconds,
         "DataPreparationSeconds": preparation_seconds,
@@ -2215,9 +3235,19 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "TrainingFramesPerSecond": throughput,
         "AnnotationFramesPerSecond": annotation_throughput,
         "PeakDeviceMemoryBytes": (
-            int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
+            max(
+                attempted_cuda_peak,
+                int(torch.cuda.max_memory_allocated(device))
+                if device.type == "cuda"
+                else 0,
+            )
         ),
-        "Message": "Transformer teacher training completed.",
+        "Message": (
+            "Transformer teacher training completed."
+            if not data_audit["warnings"]
+            else "Transformer teacher training completed with data-quality "
+            "warnings: " + "; ".join(data_audit["warnings"])
+        ),
     }
     write_report(Path(args.report), report)
     progress.update(
@@ -2229,8 +3259,9 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         TrainingEnabled=bool(args.training_enabled),
         Message="Transformer 教师已完成",
     )
-    if isinstance(rows, ShardedTeacherDataset):
-        rows.close()
+    base_dataset = base_sharded_dataset(rows)
+    if base_dataset is not None:
+        base_dataset.close()
     return 0
 
 

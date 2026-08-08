@@ -232,6 +232,64 @@ internal static partial class CoreTestSuite
         Assert(typeof(IAuraDirectorStartGateProvider).GetMethod(nameof(IAuraDirectorStartGateProvider.Install)) != null
                && typeof(IAuraDirectorRequestSource).GetMethod(nameof(IAuraDirectorRequestSource.BuildRequest)) != null,
             "director exposes provider and local request-source contracts");
+
+        var trustedHash = new string('A', 64);
+        var trustedWeights = new string('B', 64);
+        var trustEntry = new AuraDirectorFoundationTrustEntry
+        {
+            FoundationLineage = AuraDirectorFoundationTrustProtocol.CurrentFoundationLineage,
+            ModelId = "foundation-v2",
+            ArtifactSha256 = trustedHash,
+            WeightsSha256 = trustedWeights,
+            FeatureSchemaVersion = 26,
+            ContentSetHash = "content-v2",
+            RulesetHash = "rules-v2",
+            NativeProgramPackageHash = "programs-v2",
+            RequiredStartGateCapability = AuraDirectorFoundationTrustProtocol.ReadyToStartCapabilityV1
+        };
+        var trustCatalog = new AuraDirectorFoundationTrustCatalog
+        {
+            Entries = new List<AuraDirectorFoundationTrustEntry> { trustEntry }
+        };
+        var candidate = new AuraDirectorFoundationCandidate
+        {
+            FoundationLineage = trustEntry.FoundationLineage,
+            ModelId = trustEntry.ModelId,
+            ArtifactSha256 = trustedHash,
+            WeightsSha256 = "",
+            FeatureSchemaVersion = trustEntry.FeatureSchemaVersion,
+            ContentSetHash = trustEntry.ContentSetHash,
+            RulesetHash = trustEntry.RulesetHash,
+            NativeProgramPackageHash = trustEntry.NativeProgramPackageHash,
+            AvailableStartGateCapability = trustEntry.RequiredStartGateCapability
+        };
+        Assert(AuraDirectorFoundationTrustPolicy.TryAuthorize(
+                   trustCatalog,
+                   candidate,
+                   out var artifactMatch,
+                   out var artifactDiagnostic)
+               && ReferenceEquals(artifactMatch, trustEntry)
+               && artifactDiagnostic.Contains("artifact SHA-256", StringComparison.Ordinal),
+            "director trusts an exact foundation artifact hash and compatibility tuple");
+
+        candidate.ArtifactSha256 = new string('C', 64);
+        candidate.WeightsSha256 = trustedWeights;
+        Assert(AuraDirectorFoundationTrustPolicy.TryAuthorize(
+                   trustCatalog,
+                   candidate,
+                   out _,
+                   out var weightsDiagnostic)
+               && weightsDiagnostic.Contains("weights SHA-256", StringComparison.Ordinal),
+            "director permits repackaged artifacts only when their trained weights remain allowlisted");
+
+        candidate.RulesetHash = "rules-incompatible";
+        Assert(!AuraDirectorFoundationTrustPolicy.TryAuthorize(trustCatalog, candidate, out _, out _),
+            "director rejects a trusted model hash when its compatibility tuple changes");
+
+        candidate.RulesetHash = trustEntry.RulesetHash;
+        candidate.WeightsSha256 = new string('D', 64);
+        Assert(!AuraDirectorFoundationTrustPolicy.TryAuthorize(trustCatalog, candidate, out _, out _),
+            "director rejects unknown foundation artifact and weight hashes");
     
         var layout = AuraDirectorPortraitLayout.Calculate(
             1080d,

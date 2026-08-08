@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -14,15 +13,14 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
 {
     public const string BackendId = "AuraDirector.ReadyToStart.Harmony.v1";
     public const string HarmonyId = "AuraDirector.Shared.ReadyToStart.Harmony.v1";
-    public const string VerifiedWitchSha256 = "8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A";
-    public const string VerifiedWitchSha256V24591395 = "88613CF3E1F0F4A493FE722FBFB63E36A6C97CBF098F9F406F6AC2A28C136F60";
+    public const string ReadyToStartCapabilityV1 = "ReadyToStartGate.V1";
+    public const string VerifiedReadyToStartBodySha256V1 = "5BC8DA8FF9659712B6CA63AC833CF23F00414265BC880444849881B097CE9CB6";
 
-    public static IReadOnlyDictionary<string, string> VerifiedWitchBuilds { get; } =
+    public static IReadOnlyDictionary<string, string> VerifiedMethodCapabilities { get; } =
         new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [VerifiedWitchSha256] = "1.0.23816797",
-                [VerifiedWitchSha256V24591395] = "1.0.24591395"
+                [VerifiedReadyToStartBodySha256V1] = ReadyToStartCapabilityV1
             });
 
     private static readonly object ActiveGate = new();
@@ -88,23 +86,31 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
             return Unsupported("detour-target-shape-mismatch", "FightManager.ReadyToStart must be a public instance void method with no arguments.");
         }
 
-        var location = method.DeclaringType?.Assembly.Location ?? "";
-        if (string.IsNullOrWhiteSpace(location) || !File.Exists(location))
+        var body = method.GetMethodBody()?.GetILAsByteArray();
+        if (body == null || body.Length == 0)
         {
-            return Unsupported("detour-target-location-unavailable", "The Witch assembly location is unavailable for fingerprint validation.");
+            return Unsupported("detour-target-body-unavailable", "FightManager.ReadyToStart has no readable IL body for capability validation.");
         }
 
-        var hash = ComputeSha256(location);
-        if (!VerifiedWitchBuilds.TryGetValue(hash, out var verifiedBuild))
+        var hash = ComputeSha256(body);
+        if (!VerifiedMethodCapabilities.TryGetValue(hash, out var capabilityProfile))
         {
-            return Unsupported("detour-target-build-unverified", "Witch.dll SHA-256 is not in the verified build allowlist: " + hash);
+            return Unsupported(
+                "detour-target-capability-unverified",
+                "FightManager.ReadyToStart method-body SHA-256 is not in the verified capability allowlist: " + hash);
         }
 
         return new AuraDirectorCapabilityProbeResult
         {
             Supported = true,
             Code = "detour-compatible",
-            Detail = "Verified public ReadyToStart target on Witch.dll " + hash + " (game " + verifiedBuild + ")"
+            Detail = "Verified public ReadyToStart target capability " + capabilityProfile + " (method body " + hash + ")",
+            Details = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["capabilityProfile"] = capabilityProfile,
+                ["methodBodySha256"] = hash,
+                ["assemblyLocation"] = method.DeclaringType?.Assembly.Location ?? ""
+            }
         };
     }
 
@@ -263,10 +269,9 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
         };
     }
 
-    private static string ComputeSha256(string path)
+    private static string ComputeSha256(byte[] bytes)
     {
-        using var stream = File.OpenRead(path);
         using var sha256 = SHA256.Create();
-        return BitConverter.ToString(sha256.ComputeHash(stream)).Replace("-", "");
+        return BitConverter.ToString(sha256.ComputeHash(bytes)).Replace("-", "");
     }
 }

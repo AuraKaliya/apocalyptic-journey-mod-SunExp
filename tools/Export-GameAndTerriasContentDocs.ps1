@@ -33,6 +33,12 @@ $tables = $catalog.Tables
 $gameBuild = ([string]$catalog.GameBuild).TrimStart("v")
 $exportName = Split-Path -Leaf $TableExport
 $exportDate = ([DateTime]$catalog.ExportedAtUtc).ToString("yyyy-MM-dd")
+$exportSource = if ([string]$catalog.ExportSource -eq "installed-addressables+previous-runtime-derived-keywords") {
+    "安装目录 Addressables 表重建（派生关键词沿用上一份运行时导出模板）"
+}
+else {
+    "运行时表导出"
+}
 $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "Terrias\ModConfig.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 
 function Format-MarkdownText {
@@ -189,7 +195,7 @@ foreach ($bless in $tables.Bless) {
 $gameLines = [System.Collections.Generic.List[string]]::new()
 $gameLines.Add("# 游戏主体角色技能与使魔祝福总表")
 $gameLines.Add("")
-$gameLines.Add("- 口径：游戏构建 ``$gameBuild``；源数据为运行时表导出 ``$exportName``（$exportDate）。")
+$gameLines.Add("- 口径：游戏构建 ``$gameBuild``；源数据为$exportSource ``$exportName``（$exportDate）。")
 $gameLines.Add("- 主体与 MOD 通过完整运行时 ID 分离：角色仅收录 ``career_*``，使魔仅收录 ``Partner_*``，不包含 ``Terrias_*`` 等扩展内容。")
 $gameLines.Add("- 共归纳 $($selectableCareers.Count) 名可选角色、$($transformationCareers.Count) 个战斗形态与 $($basePartners.Count) 只主体使魔。角色技能说明保留当前游戏显示口径；动态计算仍以实战脚本为准。")
 $gameLines.Add("- ``career_4`` 是奈奈的【灾厄化身】，不是独立可选角色；技能牌 ID 中的 ``*`` 表示内部技能牌，不代表该角色技能不可用。")

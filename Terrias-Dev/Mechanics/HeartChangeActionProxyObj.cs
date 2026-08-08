@@ -20,7 +20,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
 
     public int IntentCount => proxyIntentCount;
 
-    public void Configure(Enemy source)
+    public void Configure(Enemy source, int authoritativeIntentCount = 0)
     {
         if (source == null)
         {
@@ -35,7 +35,9 @@ public sealed class HeartChangeActionProxyObj : OtherObj
         Defend = source.Defend;
         MaxHp = source.MaxHp;
         CurHp = source.CurHp;
-        proxyIntentCount = ResolveIntentCount(source);
+        proxyIntentCount = authoritativeIntentCount > 0
+            ? authoritativeIntentCount
+            : ResolveIntentCount(source);
         proxyActionsResolved = false;
         MaxActionCount = proxyIntentCount;
         ActionCount = proxyIntentCount;
@@ -256,7 +258,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
         return actionCard;
     }
 
-    private static int ResolveIntentCount(Enemy source)
+    public static int ResolveIntentCount(Enemy source)
     {
         var count = source.ActionCards?.Count ?? 0;
         if (count <= 0)

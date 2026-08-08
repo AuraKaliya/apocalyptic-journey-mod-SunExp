@@ -7,15 +7,26 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationAutoTuneProtocol
 {
     public const string Version =
-        "foundation-auto-tune-v11-adaptive-exact-capacity";
+        "foundation-auto-tune-v12-signed-microbenchmark";
 
-    public const string CacheFileName = "foundation-auto-tune-v11.json";
+    public const string CacheFileName = "foundation-auto-tune-v12.json";
 
     public const string CampaignKernelVersion =
         "campaign-kernel-v7-adaptive-parallelism";
 
     public const string InferenceKernelVersion =
-        "managed-fp32-sparse-transposed-v5";
+        "managed-fp32-sparse-transposed-v6-balanced-lanes";
+
+    public const string InferenceCalibrationKind =
+        "inference-microbenchmark-v1";
+
+    public const int MinimumInferenceMicrobenchmarkSamples = 64;
+
+    public const int MaximumInferenceMicrobenchmarkSamples = 512;
+
+    public const int InferenceHealthCooldownMinutes = 120;
+
+    public const int MaximumInferenceHealthCooldownMinutes = 24 * 60;
 
     public const int MinimumCampaignWaves = 2;
 
@@ -116,6 +127,20 @@ public sealed class CombatFoundationAutoTuneResult
     public int SelectedParallelism { get; set; }
 
     public bool InferenceCalibrated { get; set; }
+
+    public DateTime InferenceMeasuredUtc { get; set; }
+
+    public string InferenceCalibrationKind { get; set; } = "";
+
+    public int InferenceCalibrationSamples { get; set; }
+
+    public bool InferenceFallbackActive { get; set; }
+
+    public int InferenceHealthFailureCount { get; set; }
+
+    public string LastInferenceHealthFailureReason { get; set; } = "";
+
+    public DateTime InferenceRecalibrationNotBeforeUtc { get; set; }
 
     public string SelectedInferenceMode { get; set; } =
         CombatFoundationExecutionProfileNames.DirectInference;
@@ -332,9 +357,12 @@ public static class CombatFoundationAutoTuneSelector
     private static double InferenceTimeoutRate(
         CombatFoundationAutoTuneMeasurement item)
     {
-        return item.InferenceRequests <= 0L
+        var batches = item.InferenceBatchEvaluations > 0L
+            ? item.InferenceBatchEvaluations
+            : item.InferenceRequests;
+        return batches <= 0L
             ? 0d
-            : item.InferenceTimeoutFlushes / (double)item.InferenceRequests;
+            : item.InferenceTimeoutFlushes / (double)batches;
     }
 
     private static double SelectionScore(

@@ -53,6 +53,7 @@ public sealed class ProjectionCompanionSnapshot
     public CompanionIntentPlan? IntentPlan { get; set; }
 
     public string RejectionReason { get; set; } = "";
+
 }
 
 [Serializable]
@@ -165,6 +166,8 @@ public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServe
 [Serializable]
 public sealed class RpcHeartChangeControlState : RpcCommandBase
 {
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+
     public string TargetStatusId { get; set; } = "";
 
     public string Token { get; set; } = "";
@@ -177,11 +180,20 @@ public sealed class RpcHeartChangeControlState : RpcCommandBase
 
     public string RejectionReason { get; set; } = "";
 
+    public int IntentCount { get; set; }
+
     public RpcHeartChangeControlState()
     {
     }
 
-    public RpcHeartChangeControlState(string targetStatusId, string token, int slotIndex, bool active, bool accepted, string rejectionReason = "")
+    public RpcHeartChangeControlState(
+        string targetStatusId,
+        string token,
+        int slotIndex,
+        bool active,
+        bool accepted,
+        string rejectionReason = "",
+        int intentCount = 0)
     {
         TargetStatusId = targetStatusId ?? "";
         Token = token ?? "";
@@ -189,6 +201,7 @@ public sealed class RpcHeartChangeControlState : RpcCommandBase
         Active = active;
         Accepted = accepted;
         RejectionReason = rejectionReason ?? "";
+        IntentCount = Math.Max(0, intentCount);
     }
 
     public override void RpcExecute()

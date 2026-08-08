@@ -123,6 +123,18 @@
       "passConfiguration": true
     },
     {
+      "id": "foundation-storage-protocol",
+      "kind": "script",
+      "path": "tools/Test-AuraFoundationTrainerStorage.ps1",
+      "owner": "AuraFoundationTrainer",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["foundation", "storage", "checkpoint", "replay"],
+      "profiles": ["foundation", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "foundation-worker-smoke",
       "kind": "script",
       "path": "tools/Test-AuraFoundationTrainer.ps1",

@@ -43,6 +43,17 @@ try
         throw new InvalidOperationException(jobDiagnostic);
     }
     job = job ?? throw new InvalidOperationException("底模训练任务为空");
+    PrepareCheckpointStoragePaths(job);
+    if (!CombatFoundationCheckpointCatalogStore.TryGetResetBoundary(
+            job,
+            out _,
+            out _,
+            out var checkpointBoundaryDiagnostic))
+    {
+        throw new InvalidOperationException(
+            "Checkpoint storage boundary is invalid: "
+            + checkpointBoundaryDiagnostic);
+    }
     if (!roundChild
         && string.IsNullOrWhiteSpace(replaySeedArgument)
         && job.Request.EnableIterationProcessIsolation
@@ -92,37 +103,14 @@ try
             CombatFoundationWorkerProtocol.TrainingAnalysisFileName);
     }
     job.Request.IncludeMetricHistoryInTelemetry = false;
-    if (string.IsNullOrWhiteSpace(job.CheckpointPath))
-    {
-        job.CheckpointPath = Path.Combine(
-            job.ResultDirectory,
-            CombatFoundationWorkerProtocol.CheckpointFileName);
-    }
-    if (string.IsNullOrWhiteSpace(job.CheckpointEpisodesPath))
-    {
-        job.CheckpointEpisodesPath = Path.Combine(
-            job.ResultDirectory,
-            CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
-    }
-    var checkpointDirectory = Path.GetDirectoryName(
-        CombatFoundationPathRuntime.Normalize(job.CheckpointPath))
-        ?? job.ResultDirectory;
-    if (string.IsNullOrWhiteSpace(job.CheckpointCatalogPath))
-    {
-        job.CheckpointCatalogPath = Path.Combine(
-            checkpointDirectory,
-            CombatFoundationCheckpointCatalogProtocol.CatalogFileName);
-    }
-    if (string.IsNullOrWhiteSpace(job.ModelSelectionAnchorPath))
-    {
-        job.ModelSelectionAnchorPath = Path.Combine(
-            checkpointDirectory,
-            CombatFoundationCheckpointCatalogProtocol.SelectionAnchorFileName);
-    }
-    job.ResumeMode = CombatFoundationCheckpointResumeModes.Normalize(
-        job.ResumeMode);
-    LoadModelSelectionAnchor(job);
     using var trainingLease = AcquireTrainingLease(job);
+    var shouldResetCheckpoint =
+        CombatFoundationCheckpointCatalogStore.HasPendingReset(job)
+        || !job.ResumeFromCheckpoint && job.ResetCheckpointOnFreshStart;
+    if (shouldResetCheckpoint)
+    {
+        ResetActiveCheckpoint(job);
+    }
     var build = CombatSimulationRegistry.BuildRuleset(job.Ruleset);
     if (!build.Success)
     {
@@ -214,10 +202,6 @@ try
                 requestedWorkers + 2,
                 job.Request.ThreadPoolMinimumWorkerThreads)),
         minimumIo);
-    if (!job.ResumeFromCheckpoint && job.ResetCheckpointOnFreshStart)
-    {
-        ResetActiveCheckpoint(job);
-    }
     // Learned archive residuals must be applied before both Worker and Trainer
     // compute identity. CampaignFingerprint normalizes those learned values,
     // so structural compatibility remains stable across training rounds.
@@ -305,6 +289,7 @@ try
             "Foundation checkpoint was incompatible and has been discarded: "
             + resumeDiagnostic);
     }
+    CombatFoundationModelSelectionAnchorStore.Load(job);
     var effectiveStartMode = resumedFromCheckpoint
         ? checkpointSnapshot == null
             ? "historical-working"
@@ -312,24 +297,48 @@ try
                 ? "checkpoint-model-branch"
                 : "checkpoint-exact"
         : "fresh";
-    CombatFoundationCheckpointStorage.CleanupArtifacts(
-        job.CheckpointPath,
-        job.CheckpointEpisodesPath,
-        (ReadCheckpointCatalog(job.CheckpointCatalogPath)?.Entries
-             .Select(item => item.EpisodeSnapshotPath)
-             .Where(path => !string.IsNullOrWhiteSpace(path))
-         ?? Array.Empty<string>())
-            .Concat(checkpointSnapshot == null
-                ? Array.Empty<string>()
-                : new[] { checkpointSnapshot.Path })
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray());
+    var checkpointCatalogRead = CombatFoundationCheckpointCatalogStore.Read(
+        job.CheckpointCatalogPath);
+    var checkpointRetention = CombatFoundationCheckpointCatalogStore
+        .ReadArtifactRetention(job.CheckpointCatalogPath);
+    if (checkpointCatalogRead.RecoveryUncertain)
+    {
+        Console.Error.WriteLine(
+            "Checkpoint catalog recovery is uncertain; artifact cleanup is "
+            + "disabled to preserve immutable history: "
+            + checkpointCatalogRead.Diagnostic);
+    }
+    CombatFoundationCheckpointCatalogStore.ExecuteCleanupIfCertain(
+        checkpointCatalogRead,
+        () =>
+        {
+        CombatFoundationCheckpointStorage.CleanupArtifacts(
+            job.CheckpointPath,
+            job.CheckpointEpisodesPath,
+            (checkpointCatalogRead.Catalog?.Entries
+                 .Select(item => item.EpisodeSnapshotPath)
+                 .Where(path => !string.IsNullOrWhiteSpace(path))
+             ?? Array.Empty<string>())
+                .Concat(checkpointRetention.SnapshotPaths)
+                .Concat(checkpointSnapshot == null
+                    ? Array.Empty<string>()
+                    : new[] { checkpointSnapshot.Path })
+                .Concat(CombatFoundationCheckpointCatalogStore
+                    .ReadActiveSnapshotRetentionPaths(
+                        job.CheckpointPath,
+                        job.CheckpointEpisodesPath))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+        });
+    var checkpointArtifactDirectory = Path.GetDirectoryName(
+        CombatFoundationPathRuntime.Normalize(job.CheckpointPath))
+        ?? job.ResultDirectory;
     CombatFoundationReplayWarehouse? replayWarehouse = null;
     if (job.Request.EnableReplayWarehouse)
     {
         replayWarehouse = new CombatFoundationReplayWarehouse(
             Path.Combine(
-                checkpointDirectory,
+                checkpointArtifactDirectory,
                 "foundation-replay-warehouse-v1"));
     }
     var metricGate = new object();
@@ -493,6 +502,11 @@ try
             var checkpointStarted = Stopwatch.StartNew();
             try
             {
+                var catalogReadBeforeArtifacts =
+                    CombatFoundationCheckpointCatalogStore.Read(
+                        job.CheckpointCatalogPath);
+                CombatFoundationCheckpointCatalogStore
+                    .EnsureWritableBaseline(catalogReadBeforeArtifacts);
                 var sourceReplayIdentity = ReplayIdentity(state.Replay);
                 var nextSnapshot = checkpointSnapshot;
                 if (nextSnapshot == null
@@ -586,14 +600,18 @@ try
                     UpdatedUtc = DateTime.UtcNow,
                     Resume = WithoutReplay(state)
                 };
-                CombatFoundationCheckpointStorage.WriteAtomicText(
+                WriteAtomicJson(
                     job.CheckpointPath,
-                    Serialize(checkpoint));
+                    checkpoint,
+                    Formatting.None,
+                    retainBackup: true,
+                    compress: true);
                 var catalogSnapshots = WriteCheckpointCatalogEntry(
                     job,
                     checkpoint,
                     requestFingerprint,
-                    build.Ruleset.RulesetHash);
+                    build.Ruleset.RulesetHash,
+                    catalogReadBeforeArtifacts);
                 checkpointSnapshot = nextSnapshot;
                 checkpointSourceReplayIdentity = sourceReplayIdentity;
                 checkpointWarning = "";
@@ -602,6 +620,10 @@ try
                     job.CheckpointEpisodesPath,
                     catalogSnapshots
                         .Append(nextSnapshot.Path)
+                        .Concat(CombatFoundationCheckpointCatalogStore
+                            .ReadActiveSnapshotRetentionPaths(
+                                job.CheckpointPath,
+                                job.CheckpointEpisodesPath))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToArray());
                 if (checkpointSerializationAutomatic
@@ -755,14 +777,15 @@ try
     var autoTuneCachePath = Path.Combine(
         job.SuccessArchiveDirectory,
         CombatFoundationAutoTuneProtocol.CacheFileName);
+    var autoTuneCachePolicy = new CombatFoundationAutoTuneCachePolicy(
+        job.Request.ReuseAutoTuneCache);
     job.Request.AutoTuneHardwareKey = AutoTuneHardwareKey();
     if (string.Equals(
             job.Request.ParallelismProfile,
             CombatFoundationExecutionProfileNames.Auto,
             StringComparison.OrdinalIgnoreCase))
     {
-        if (job.Request.ReuseAutoTuneCache
-            && File.Exists(autoTuneCachePath))
+        if (autoTuneCachePolicy.ShouldLoad(autoTuneCachePath))
         {
             try
             {
@@ -777,15 +800,21 @@ try
                     "Auto-tune cache ignored: " + ex.Message);
             }
         }
-        job.Request.AutoTuneCompleted = result =>
+        job.Request.AutoTuneCompleted = autoTuneCachePolicy.ReuseEnabled
+            ? result =>
         {
-            if (result == null || result.LowConfidence)
+            if (!autoTuneCachePolicy.ShouldPersist(result))
             {
                 return;
             }
             Directory.CreateDirectory(job.SuccessArchiveDirectory);
-            WriteAtomicJson(autoTuneCachePath, result);
-        };
+            WriteAtomicJson(autoTuneCachePath, result!);
+        }
+            : null;
+        if (!autoTuneCachePolicy.ReuseEnabled)
+        {
+            job.Request.AutoTuneCache = null;
+        }
     }
 
     if (replayWarehouse != null)
@@ -820,7 +849,7 @@ try
             ResolveTransformerTeacherScript(),
             Path.Combine(
                 job.SuccessArchiveDirectory,
-                "transformer-runtime-auto-tune-v2.json"),
+                "transformer-runtime-auto-tune-v4.json"),
             Path.Combine(
                 SuccessArchiveRoot(job),
                 "transformer-teacher-corpus"));
@@ -940,12 +969,18 @@ try
     trainingAnalysis.RoleStrategyGateFailureReason =
         roleStrategyGateFailureReason;
     var resumableEpisodesPath = "";
+    var resumableEpisodeCount = 0;
     var resumable = !job.Request.PreflightOnly
                     && !training.AcceptancePassed
                     && roleStrategyGatePassed
                     && TryGetResumableCheckpoint(
                         job,
-                        out resumableEpisodesPath);
+                        out resumableEpisodesPath,
+                        out resumableEpisodeCount);
+    if (resumable)
+    {
+        training.PersistedReplayEpisodes = resumableEpisodeCount;
+    }
     var episodesPath = resumable
         ? resumableEpisodesPath
         : resultEpisodesPath;
@@ -1120,7 +1155,8 @@ catch (OperationCanceledException)
     {
         var resumable = TryGetResumableCheckpoint(
             job,
-            out var resumableEpisodesPath);
+            out var resumableEpisodesPath,
+            out var resumableEpisodeCount);
         WriteAtomicJson(
             job.ResultPath,
             new CombatFoundationWorkerResult
@@ -1136,6 +1172,9 @@ catch (OperationCanceledException)
                     job.Request.MaximumDegreeOfParallelism),
                 RulesetHash = job.ExpectedRulesetHash,
                 EpisodesPath = resumable ? resumableEpisodesPath : "",
+                PersistedReplayEpisodes = resumable
+                    ? resumableEpisodeCount
+                    : 0,
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
@@ -1166,7 +1205,8 @@ catch (Exception ex)
     {
         var resumable = TryGetResumableCheckpoint(
             job,
-            out var resumableEpisodesPath);
+            out var resumableEpisodesPath,
+            out var resumableEpisodeCount);
         WriteAtomicJson(
             job.ResultPath,
             new CombatFoundationWorkerResult
@@ -1181,6 +1221,9 @@ catch (Exception ex)
                     job.Request.MaximumDegreeOfParallelism),
                 RulesetHash = job.ExpectedRulesetHash,
                 EpisodesPath = resumable ? resumableEpisodesPath : "",
+                PersistedReplayEpisodes = resumable
+                    ? resumableEpisodeCount
+                    : 0,
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
@@ -1334,29 +1377,57 @@ static string ResolveReplayCheckpoint(
 {
     if (!string.IsNullOrWhiteSpace(requestedPath))
     {
-        if (!CombatFoundationPathRuntime.FileExists(requestedPath))
+        if (!CombatFoundationCheckpointCatalogStore.TrySelectResumeCandidate(
+                requestedPath,
+                explicitlySelected: true,
+                out var selectedPath,
+                out _,
+                out _,
+                out var diagnostic))
         {
-            throw new FileNotFoundException(
-                "Replay checkpoint does not exist.",
-                requestedPath);
+            throw new InvalidDataException(
+                "Replay checkpoint is invalid: " + diagnostic);
         }
-        return requestedPath;
+        return selectedPath;
     }
-    if (!string.IsNullOrWhiteSpace(job.CheckpointPath)
-        && CombatFoundationPathRuntime.FileExists(job.CheckpointPath))
+    if (!string.IsNullOrWhiteSpace(job.CheckpointPath))
     {
-        return job.CheckpointPath;
+        if (CombatFoundationCheckpointCatalogStore.TrySelectResumeCandidate(
+                job.CheckpointPath,
+                explicitlySelected: false,
+                out var activeCandidate,
+                out _,
+                out _,
+                out _))
+        {
+            return activeCandidate;
+        }
     }
     var jobDirectory = Path.GetDirectoryName(Path.GetFullPath(jobPath)) ?? ".";
     var resultsDirectory = Directory.GetParent(jobDirectory)?.FullName
                            ?? jobDirectory;
-    return Directory.EnumerateFiles(
+    foreach (var candidate in new[]
+             {
+                 CombatFoundationWorkerProtocol.CheckpointFileName,
+                 CombatFoundationWorkerProtocol.LegacyCheckpointFileName
+             }
+        .SelectMany(pattern => Directory.EnumerateFiles(
             resultsDirectory,
-            CombatFoundationWorkerProtocol.CheckpointFileName,
-            SearchOption.AllDirectories)
+            pattern,
+            SearchOption.AllDirectories))
         .OrderByDescending(File.GetLastWriteTimeUtc)
-        .FirstOrDefault()
-        ?? "";
+        .Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        if (CombatFoundationCheckpointCatalogStore.TryReadResumeCandidate(
+                candidate,
+                out _,
+                out _,
+                out _))
+        {
+            return candidate;
+        }
+    }
+    return "";
 }
 
 static FileStream AcquireTrainingLease(CombatFoundationWorkerJob job)
@@ -1521,13 +1592,12 @@ static bool TryLoadCheckpoint(
     var requestedPath = string.IsNullOrWhiteSpace(job.ResumeCheckpointPath)
         ? job.CheckpointPath
         : job.ResumeCheckpointPath;
-    var candidates = string.IsNullOrWhiteSpace(job.ResumeCheckpointPath)
-        ? new[]
-        {
-            requestedPath,
-            CombatFoundationCheckpointStorage.BackupPath(requestedPath)
-        }
-        : new[] { requestedPath };
+    var legacyPath = CombatFoundationCheckpointCatalogStore
+        .LegacyCheckpointPath(requestedPath);
+    var candidates = CombatFoundationCheckpointCatalogStore.ResumeCandidates(
+        requestedPath,
+        explicitlySelected: !string.IsNullOrWhiteSpace(
+            job.ResumeCheckpointPath));
     foreach (var checkpointPath in candidates
                  .Distinct(StringComparer.OrdinalIgnoreCase))
     {
@@ -1547,6 +1617,15 @@ static bool TryLoadCheckpoint(
             {
                 throw new InvalidDataException(
                     "checkpoint protocol is incompatible");
+            }
+            if (!CombatFoundationCheckpointCatalogStore
+                    .TryValidateSelectedImmutableCheckpoint(
+                        job.CheckpointCatalogPath,
+                        checkpointPath,
+                        checkpoint,
+                        out var artifactDiagnostic))
+            {
+                throw new InvalidDataException(artifactDiagnostic);
             }
             if (!CheckpointIdentityCompatible(
                     job,
@@ -1608,6 +1687,13 @@ static bool TryLoadCheckpoint(
             episodeSnapshot = snapshot;
             diagnostic = !string.IsNullOrWhiteSpace(job.ResumeCheckpointPath)
                 ? "已加载所选不可变检查点 " + Path.GetFileName(checkpointPath)
+                : checkpointPath.Equals(
+                    legacyPath,
+                    StringComparison.OrdinalIgnoreCase)
+                  || checkpointPath.Equals(
+                      CombatFoundationCheckpointStorage.BackupPath(legacyPath),
+                      StringComparison.OrdinalIgnoreCase)
+                    ? "已从 v11 活动检查点兼容恢复；下一次提交将升级为 v12"
                 : checkpointPath.Equals(
                     job.CheckpointPath,
                     StringComparison.OrdinalIgnoreCase)
@@ -2189,41 +2275,12 @@ static void WriteEpisodes(
         episodes.Select(SerializeCompact));
 }
 
-static void LoadModelSelectionAnchor(CombatFoundationWorkerJob job)
-{
-    job.Request.ModelSelectionAnchorEpisodes = new List<CombatEpisode>();
-    if (CombatFoundationPathRuntime.FileExists(job.ModelSelectionAnchorPath))
-    {
-        foreach (var line in File.ReadLines(
-                     CombatFoundationPathRuntime.ForFileSystem(
-                         job.ModelSelectionAnchorPath)))
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-            var episode = Deserialize<CombatEpisode>(line);
-            if (episode != null)
-            {
-                job.Request.ModelSelectionAnchorEpisodes.Add(episode);
-            }
-        }
-    }
-    job.Request.ModelSelectionAnchorCreated = episodes =>
-    {
-        if (CombatFoundationPathRuntime.FileExists(job.ModelSelectionAnchorPath))
-        {
-            return;
-        }
-        WriteEpisodes(job.ModelSelectionAnchorPath, episodes);
-    };
-}
-
 static IReadOnlyList<string> WriteCheckpointCatalogEntry(
     CombatFoundationWorkerJob job,
     CombatFoundationWorkerCheckpoint checkpoint,
     string requestFingerprint,
-    string rulesetHash)
+    string rulesetHash,
+    CombatFoundationCheckpointCatalogReadResult catalogRead)
 {
     var state = checkpoint.Resume;
     var modelTraining = state.ModelTraining;
@@ -2235,6 +2292,23 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
               item.Iteration == state.NextIteration)
           ?? state.Iterations?.LastOrDefault()
         : null;
+    var completedModelEpochs = modelTraining?.CompletedEpochs ?? 0;
+    var bestModelEpoch = (modelTraining?.BestValidationEpoch ?? 0) > 0
+        ? modelTraining!.BestValidationEpoch
+        : modelTraining?.BestEpoch ?? 0;
+    CombatFoundationCheckpointCatalogStore.EnsureWritableBaseline(catalogRead);
+    var catalog = catalogRead.Catalog
+                  ?? new CombatFoundationCheckpointCatalog();
+    var bestModelAlreadyCataloged = catalog.Entries.Any(item =>
+        string.Equals(
+            item.Stage,
+            "model-training",
+            StringComparison.Ordinal)
+        && item.NextIteration == state.NextIteration
+        && (item.BestValidationEpoch > 0
+                ? item.BestValidationEpoch
+                : item.BestEpoch)
+           == bestModelEpoch);
     var shouldCatalog = string.Equals(
                             state.Stage,
                             "iteration-complete",
@@ -2243,15 +2317,34 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
                             state.Stage,
                             "model-training",
                             StringComparison.Ordinal)
-                        && (modelTraining?.CompletedEpochs ?? 0) > 0;
-    var catalog = ReadCheckpointCatalog(job.CheckpointCatalogPath)
-                  ?? new CombatFoundationCheckpointCatalog();
+                        && completedModelEpochs > 0
+                        && bestModelEpoch > 0
+                        && !bestModelAlreadyCataloged;
     if (!shouldCatalog)
     {
-        return catalog.Entries
-            .Select(item => item.EpisodeSnapshotPath)
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .ToArray();
+        if (catalogRead.Catalog == null
+            || catalogRead.RecoveryUncertain && catalogRead.CanRewriteSafely)
+        {
+            CombatFoundationCheckpointCatalogStore.PrepareForWrite(
+                catalog,
+                job.CheckpointCatalogPath);
+            CombatFoundationCheckpointCatalogStore.WriteCatalogAtomic(
+                job.CheckpointCatalogPath,
+                Serialize(catalog),
+                catalogRead);
+        }
+        var existingRetention = CombatFoundationCheckpointCatalogStore
+            .ReadArtifactRetention(job.CheckpointCatalogPath);
+        if (existingRetention.ValidGenerationCount > 0)
+        {
+            return existingRetention.SnapshotPaths;
+        }
+        if (catalog.Entries.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Checkpoint catalog retention generations are unavailable; cleanup was refused.");
+        }
+        return Array.Empty<string>();
     }
     var bestValidationEpoch = iteration == null
         ? modelTraining?.BestValidationEpoch > 0
@@ -2305,12 +2398,14 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
     CombatFoundationPathRuntime.CreateDirectory(immutableDirectory);
     var immutablePath = Path.Combine(
         immutableDirectory,
-        "foundation-checkpoint-" + id + ".json");
+        "foundation-checkpoint-"
+        + id
+        + ".json.gz");
     if (!CombatFoundationPathRuntime.FileExists(immutablePath))
     {
-        CombatFoundationCheckpointStorage.WriteAtomicText(
+        CombatFoundationCheckpointStorage.CopyAtomicFile(
+            job.CheckpointPath,
             immutablePath,
-            Serialize(checkpoint),
             retainBackup: false);
     }
     var risk = CombatFoundationCheckpointCatalogProtocol.Risk(
@@ -2394,62 +2489,66 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
             catalog.RecommendedCheckpointId,
             StringComparison.Ordinal);
     }
-    CombatFoundationCheckpointStorage.WriteAtomicText(
+    CombatFoundationCheckpointCatalogStore.PrepareForWrite(
+        catalog,
         job.CheckpointCatalogPath,
-        Serialize(catalog));
-    return catalog.Entries
-        .Select(item => item.EpisodeSnapshotPath)
-        .Where(path => !string.IsNullOrWhiteSpace(path))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+        entry.Id);
+    CombatFoundationCheckpointCatalogStore.WriteCatalogAtomic(
+        job.CheckpointCatalogPath,
+        Serialize(catalog),
+        catalogRead);
+    var retention = CombatFoundationCheckpointCatalogStore
+        .ReadArtifactRetention(job.CheckpointCatalogPath);
+    if (retention.ValidGenerationCount == 0)
+    {
+        throw new InvalidDataException(
+            "Committed checkpoint catalog could not be reread; cleanup was refused.");
+    }
+    CombatFoundationCheckpointCatalogStore.ExecuteCleanupIfCertain(
+        catalogRead,
+        () => CombatFoundationCheckpointStorage.CleanupImmutableFiles(
+            immutableDirectory,
+            "foundation-checkpoint-*",
+            retention.CheckpointPaths));
+    return retention.SnapshotPaths;
 }
 
-static CombatFoundationCheckpointCatalog? ReadCheckpointCatalog(string path)
+static void PrepareCheckpointStoragePaths(CombatFoundationWorkerJob job)
 {
-    if (!CombatFoundationPathRuntime.FileExists(path))
+    if (string.IsNullOrWhiteSpace(job.CheckpointPath))
     {
-        return null;
+        job.CheckpointPath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationWorkerProtocol.CheckpointFileName);
     }
-    try
+    if (string.IsNullOrWhiteSpace(job.CheckpointEpisodesPath))
     {
-        var catalog = Deserialize<CombatFoundationCheckpointCatalog>(
-            CombatFoundationCheckpointStorage.ReadAllTextShared(path));
-        return string.Equals(
-            catalog?.Protocol,
-            CombatFoundationCheckpointCatalogProtocol.Version,
-            StringComparison.Ordinal)
-            ? catalog
-            : null;
+        job.CheckpointEpisodesPath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
     }
-    catch
+    var checkpointDirectory = Path.GetDirectoryName(
+        CombatFoundationPathRuntime.Normalize(job.CheckpointPath))
+        ?? job.ResultDirectory;
+    if (string.IsNullOrWhiteSpace(job.CheckpointCatalogPath))
     {
-        return null;
+        job.CheckpointCatalogPath = Path.Combine(
+            checkpointDirectory,
+            CombatFoundationCheckpointCatalogProtocol.CatalogFileName);
     }
+    if (string.IsNullOrWhiteSpace(job.ModelSelectionAnchorPath))
+    {
+        job.ModelSelectionAnchorPath = Path.Combine(
+            checkpointDirectory,
+            CombatFoundationCheckpointCatalogProtocol.SelectionAnchorFileName);
+    }
+    job.ResumeMode = CombatFoundationCheckpointResumeModes.Normalize(
+        job.ResumeMode);
 }
 
 static void ResetActiveCheckpoint(CombatFoundationWorkerJob job)
 {
-    CombatFoundationCheckpointStorage.DeleteCheckpointArtifacts(
-        job.CheckpointPath,
-        job.CheckpointEpisodesPath);
-    CombatFoundationPathRuntime.DeleteFile(job.CheckpointCatalogPath);
-    CombatFoundationPathRuntime.DeleteFile(
-        CombatFoundationCheckpointStorage.BackupPath(job.CheckpointCatalogPath));
-    CombatFoundationPathRuntime.DeleteFile(job.ModelSelectionAnchorPath);
-    var checkpointDirectory = Path.GetDirectoryName(
-        CombatFoundationPathRuntime.Normalize(job.CheckpointCatalogPath));
-    var immutableDirectory = string.IsNullOrWhiteSpace(checkpointDirectory)
-        ? ""
-        : Path.Combine(
-            checkpointDirectory,
-            CombatFoundationCheckpointCatalogProtocol.ImmutableDirectoryName);
-    if (!string.IsNullOrWhiteSpace(immutableDirectory)
-        && CombatFoundationPathRuntime.DirectoryExists(immutableDirectory))
-    {
-        Directory.Delete(
-            CombatFoundationPathRuntime.ForFileSystem(immutableDirectory),
-            recursive: true);
-    }
+    CombatFoundationCheckpointCatalogStore.ResetCheckpointArtifacts(job);
 }
 
 static string SuccessArchiveRoot(CombatFoundationWorkerJob job)
@@ -3290,6 +3389,7 @@ static int RunIterationSupervisor(
             sourceJob.RequestedStartMode,
             "resume-required",
             StringComparison.Ordinal)
+        && !CombatFoundationCheckpointCatalogStore.HasPendingReset(sourceJob)
         && CombatFoundationPathRuntime.FileExists(sourceJob.CheckpointPath)
             ? ReadCheckpointRequestFingerprint(sourceJob.CheckpointPath)
             : "";
@@ -3321,11 +3421,11 @@ static int RunIterationSupervisor(
                 childJob.ResumeMode =
                     CombatFoundationCheckpointResumeModes.Exact;
                 childJob.Request.AdditionalIterationsOnResume = 0;
-                // The first isolated segment establishes fresh measurements.
-                // Later segments share the same hardware and model shape, so
-                // reusing that validated cache avoids minutes of low-CPU
-                // inference calibration on every process boundary.
-                childJob.Request.ReuseAutoTuneCache = true;
+                // Preserve the explicit request across process boundaries.
+                // When reuse is enabled, the first segment's signed cache is
+                // shared; when disabled, no segment may silently opt back in.
+                childJob.Request.ReuseAutoTuneCache =
+                    sourceJob.Request.ReuseAutoTuneCache;
                 childJob.Request.PreflightCampaignsPerDifficulty = 0;
                 childJob.Request.Iterations = resolvedIterationLimit;
                 childJob.InitialChampion = null;
@@ -3388,6 +3488,12 @@ static int RunIterationSupervisor(
                     + " next=" + nextIteration
                     + ", limit=" + resolvedIterationLimit);
             }
+            if (CombatFoundationCheckpointCatalogStore.HasPendingReset(
+                    sourceJob))
+            {
+                throw new InvalidOperationException(
+                    "Checkpoint reset remained pending after an isolated iteration.");
+            }
             requiredCheckpointFingerprint =
                 ReadCheckpointRequestFingerprint(sourceJob.CheckpointPath);
         }
@@ -3412,12 +3518,22 @@ static string ReadCheckpointRequestFingerprint(string checkpointPath)
         FileShare.ReadWrite | FileShare.Delete,
         64 * 1024,
         FileOptions.SequentialScan);
+    var first = stream.ReadByte();
+    var second = stream.ReadByte();
+    stream.Position = 0L;
+    using var gzip = first == 0x1f && second == 0x8b
+        ? new GZipStream(
+            stream,
+            CompressionMode.Decompress,
+            leaveOpen: true)
+        : null;
+    Stream payload = gzip == null ? stream : gzip;
     using var textReader = new StreamReader(
-        stream,
+        payload,
         Encoding.UTF8,
         detectEncodingFromByteOrderMarks: true,
         64 * 1024,
-        leaveOpen: false);
+        leaveOpen: true);
     using var jsonReader = new JsonTextReader(textReader);
     while (jsonReader.Read())
     {
@@ -3625,43 +3741,30 @@ static string ReplayIdentity(IReadOnlyList<CombatEpisode> episodes)
 
 static bool TryGetResumableCheckpoint(
     CombatFoundationWorkerJob job,
-    out string episodesPath)
+    out string episodesPath,
+    out int episodeCount)
 {
     episodesPath = "";
-    foreach (var checkpointPath in new[]
-             {
-                 job.CheckpointPath,
-                 CombatFoundationCheckpointStorage.BackupPath(
-                     job.CheckpointPath)
-             }.Distinct(StringComparer.OrdinalIgnoreCase))
+    episodeCount = 0;
+    if (!CombatFoundationCheckpointCatalogStore.TrySelectResumeCandidate(
+            job.CheckpointPath,
+            explicitlySelected: false,
+            out _,
+            out var checkpoint,
+            out var snapshot,
+            out _)
+        || checkpoint == null
+        || snapshot == null)
     {
-        try
-        {
-            if (!File.Exists(checkpointPath))
-            {
-                continue;
-            }
-            var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
-                CombatFoundationCheckpointStorage.ReadAllTextShared(
-                    checkpointPath));
-            var candidate = checkpoint?.EpisodeSnapshot?.Path
-                            ?? checkpoint?.EpisodesPath
-                            ?? "";
-            if (checkpoint?.SchemaVersion
-                    == CombatFoundationWorkerProtocol.SchemaVersion
-                && !string.IsNullOrWhiteSpace(candidate)
-                && File.Exists(candidate))
-            {
-                episodesPath = candidate;
-                return true;
-            }
-        }
-        catch
-        {
-            // The backup pointer is checked next.
-        }
+        return false;
     }
-    return false;
+    episodesPath = snapshot.Path;
+    episodeCount = Math.Max(
+        0,
+        snapshot.EpisodeCount >= 0
+            ? snapshot.EpisodeCount
+            : checkpoint.Resume?.Replay?.Count ?? 0);
+    return true;
 }
 
 static void TryWriteAuxiliary(string path, string contents)
@@ -3711,32 +3814,53 @@ static void WriteAtomicCompressed(string path, string contents)
 static void WriteAtomicJson(
     string path,
     object value,
-    Formatting formatting = Formatting.Indented)
+    Formatting formatting = Formatting.Indented,
+    bool retainBackup = false,
+    bool compress = false)
 {
     CombatFoundationCheckpointStorage.WriteAtomicStream(
         path,
         stream =>
         {
-            using var textWriter = new StreamWriter(
-                stream,
-                new UTF8Encoding(false),
-                64 * 1024,
-                leaveOpen: true);
-            using var jsonWriter = new JsonTextWriter(textWriter)
+            GZipStream? gzip = null;
+            try
             {
-                CloseOutput = false,
-                Formatting = formatting
-            };
-            var serializer = JsonSerializer.Create(
-                new JsonSerializerSettings
+                Stream payload = stream;
+                if (compress || path.EndsWith(
+                        ".gz",
+                        StringComparison.OrdinalIgnoreCase))
                 {
-                    NullValueHandling = NullValueHandling.Ignore
-                });
-            serializer.Serialize(jsonWriter, value);
-            jsonWriter.Flush();
-            textWriter.Flush();
+                    gzip = new GZipStream(
+                        stream,
+                        CompressionLevel.Fastest,
+                        leaveOpen: true);
+                    payload = gzip;
+                }
+                using var textWriter = new StreamWriter(
+                    payload,
+                    new UTF8Encoding(false),
+                    64 * 1024,
+                    leaveOpen: true);
+                using var jsonWriter = new JsonTextWriter(textWriter)
+                {
+                    CloseOutput = false,
+                    Formatting = formatting
+                };
+                var serializer = JsonSerializer.Create(
+                    new JsonSerializerSettings
+                    {
+                        NullValueHandling = NullValueHandling.Ignore
+                    });
+                serializer.Serialize(jsonWriter, value);
+                jsonWriter.Flush();
+                textWriter.Flush();
+            }
+            finally
+            {
+                gzip?.Dispose();
+            }
         },
-        retainBackup: false);
+        retainBackup);
 }
 
 static CombatFoundationTrainingAnalysis BuildTrainingAnalysis(

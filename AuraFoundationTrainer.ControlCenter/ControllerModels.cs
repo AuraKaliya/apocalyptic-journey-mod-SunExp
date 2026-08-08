@@ -6,7 +6,9 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public const int CurrentSchemaVersion = 16;
+    public const int PreviousSchemaVersion = 16;
+
+    public const int CurrentSchemaVersion = 17;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -24,6 +26,25 @@ internal sealed class ControllerSettings
 
     public CombatFoundationTrainingParameters Parameters { get; set; } =
         CreateDefaultParameters();
+
+    internal bool MigrateFromPreviousSchema()
+    {
+        if (SchemaVersion != PreviousSchemaVersion)
+        {
+            return false;
+        }
+        // v16 unconditionally forced this value to false, so that persisted
+        // value cannot represent an intentional user choice. Upgrade only the
+        // affected defaults; all unrelated training parameters remain intact.
+        Parameters ??= new CombatFoundationTrainingParameters();
+        Parameters.ReuseAutoTuneCache = true;
+        if (Parameters.TransformerTeacherDatasetShardFrames <= 64)
+        {
+            Parameters.TransformerTeacherDatasetShardFrames = 512;
+        }
+        SchemaVersion = CurrentSchemaVersion;
+        return true;
+    }
 
     private static CombatFoundationTrainingParameters CreateDefaultParameters()
     {
@@ -53,7 +74,7 @@ internal sealed class ControllerSettings
             InferenceParallelism = 0,
             InferenceLaneCount = 0,
             InferenceBatchSize = 0,
-            ReuseAutoTuneCache = false,
+            ReuseAutoTuneCache = true,
             EnableOfflineTuningGate = true,
             EnableSequentialArenaStop = true,
             ArenaEvaluationBatchSize = 16,
@@ -99,15 +120,21 @@ internal sealed class ControllerSettings
             TransformerTeacherMaximumHeadRegression = 0.05d,
             TransformerTeacherIncrementalEpochs = 4,
             TransformerTeacherFinalEpochs = 12,
+            TransformerTeacherIncrementalReplayFrames = 1024,
+            TransformerTeacherMaximumIncrementalTrainingFrames = 4096,
             TransformerTeacherCpuThreads = 0,
             TransformerTeacherCpuInteropThreads = 0,
             TransformerTeacherMicroBatchSize = 0,
             TransformerTeacherDataLoaderWorkers = 2,
             TransformerTeacherPrefetchBatches = 2,
+            TransformerTeacherEnableShardedDataset = true,
+            TransformerTeacherDatasetShardFrames = 512,
+            TransformerTeacherResidentDatasetMaximumFrames = 4096,
             TransformerTeacherMemoryReserveBytes =
                 CombatFoundationParallelismProtocol.DefaultTeacherReserveBytes,
             TransformerTeacherEnablePinnedMemory = true,
             TransformerTeacherEnableMixedPrecision = true,
+            TransformerTeacherEnableDeterministicTraining = true,
             TransformerDistillationWeight = 0.35d,
             HardEncounterWeights = new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase)

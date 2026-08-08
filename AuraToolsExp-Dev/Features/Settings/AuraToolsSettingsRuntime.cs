@@ -2724,7 +2724,15 @@ public static class AuraToolsSettingsRuntime
             AuraToolsBundledFoundationModelRuntime.SnapshotStatus();
         var bundledStatusText = AuraToolsUi.AddText(
             parent,
-            "内置底模：" + bundledStatus.Message,
+            "Model 批量导入：" + bundledStatus.Message,
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddText(
+            parent,
+            "按 Model/角色名 [RoleId]/模型发布/ 批量注册到 ModsData；注册后不会自动选择或启用。",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
@@ -2733,26 +2741,29 @@ public static class AuraToolsSettingsRuntime
         var bundledRow = CreateInlineRow(
             parent,
             "AutoBattleBundledFoundationActions");
-        AuraToolsUi.AddButton(
+        var bundledImportButton = AuraToolsUi.AddButton(
             bundledRow.transform,
-            "重新扫描内置底模",
+            "导入底模",
             () =>
             {
                 if (AuraToolsBundledFoundationModelRuntime.TryQueueRescan(
                         out var scanMessage))
                 {
-                    bundledStatusText.text = "内置底模：" + scanMessage;
+                    bundledStatusText.text = "Model 批量导入：" + scanMessage;
                     AuraToolsLog.Info(
                         "[AutoBattle][BundledModels] " + scanMessage);
                 }
                 else
                 {
-                    bundledStatusText.text = "内置底模：" + scanMessage;
+                    bundledStatusText.text = "Model 批量导入：" + scanMessage;
                     AuraToolsLog.Warn(
                         "[AutoBattle][BundledModels] " + scanMessage);
                 }
             },
-            154f);
+            104f);
+        bundledStatusText.gameObject
+            .AddComponent<AuraToolsBundledFoundationImportStatusView>()
+            .Configure(bundledStatusText, bundledImportButton);
 
         var externalEntry =
             AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();
@@ -2771,7 +2782,7 @@ public static class AuraToolsSettingsRuntime
             "AutoBattleExternalFoundationValidationActions");
         var selectExternalButton = AuraToolsUi.AddButton(
             externalRow.transform,
-            "导入底模",
+            "导入外部待验包",
             () =>
             {
                 OptionalFileDialog.PickFileAsync(
@@ -2823,7 +2834,7 @@ public static class AuraToolsSettingsRuntime
                         }
                     });
             },
-            104f);
+            142f);
         var promoteExternalButton = AuraToolsUi.AddButton(
             externalRow.transform,
             "加入模型库",
@@ -3506,6 +3517,48 @@ internal sealed class AuraToolsAutoBattleJourneyStatusView : MonoBehaviour
         if (text != null)
         {
             text.text = AuraToolsAutoBattleJourneyRuntime.DescribeCurrentCapture();
+        }
+    }
+}
+
+internal sealed class AuraToolsBundledFoundationImportStatusView : MonoBehaviour
+{
+    private Text? statusText;
+    private Button? importButton;
+    private float nextRefreshAt;
+
+    public void Configure(Text text, Button button)
+    {
+        statusText = text;
+        importButton = button;
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.2f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var current = AuraToolsBundledFoundationModelRuntime.SnapshotStatus();
+        if (statusText != null)
+        {
+            statusText.text = "Model 批量导入：" + current.Message;
+            statusText.color = current.Stage == BundledFoundationImportStage.Failed
+                ? AuraToolsUi.WarningText
+                : current.Stage == BundledFoundationImportStage.Completed
+                    ? AuraToolsUi.SuccessText
+                    : AuraToolsUi.MutedText;
+        }
+        if (importButton != null)
+        {
+            importButton.interactable = !current.Busy;
         }
     }
 }

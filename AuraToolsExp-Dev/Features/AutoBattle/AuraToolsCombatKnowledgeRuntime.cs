@@ -359,13 +359,13 @@ internal static class AuraToolsCombatKnowledgeRuntime
     private static CombatKnowledgePackage BuildVerifiedBasePackage()
     {
         const string provenance =
-            "Witch 1.0.24591395 decompile: AllScripts.cs + current Managed contract";
+            "Witch 1.0.24605918 decompile: AllScripts.cs + current Managed contract";
         return new CombatKnowledgePackage
         {
             OwnerId = "witch.base-game",
             PackageId = "verified-core-rules",
-            GameBuild = "1.0.24591395",
-            SourceHash = "witch-1.0.24591395-verified-core-v2",
+            GameBuild = "1.0.24605918",
+            SourceHash = "witch-1.0.24605918-verified-core-v3",
             GeneratedAtUtc = new DateTime(2026, 8, 7, 0, 0, 0, DateTimeKind.Utc),
             Inventory = new CombatKnowledgeInventory
             {

@@ -245,7 +245,11 @@ public static class SkinUiRuntime
             image.preserveAspect = true;
         }
 
-        ApplyImage(root, "RoleBack", career, "CareerImage", false, "", fallbackToDefault);
+        // The native career-detail path sizes RoleBack from the sprite it assigns.
+        // A selected skin replaces that sprite after the native method returns, so
+        // mirror the host contract for the replacement instead of retaining the
+        // dimensions of the native career image.
+        ApplyImage(root, "RoleBack", career, "CareerImage", true, "", fallbackToDefault);
     }
 
     private static void ApplyImage(

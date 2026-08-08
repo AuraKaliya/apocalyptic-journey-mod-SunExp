@@ -18,7 +18,7 @@ internal static class Program
 
         try
         {
-            TestVerifiedBuildCatalog();
+            TestVerifiedCapabilityCatalog();
             TestHarmonyHoldAndResume();
             TestImmediateReleaseReentry();
             TestRejectedAndFailedSinksRunOriginal();
@@ -34,24 +34,18 @@ internal static class Program
         }
     }
 
-    private static void TestVerifiedBuildCatalog()
+    private static void TestVerifiedCapabilityCatalog()
     {
         Assert(
-            AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.TryGetValue(
-                AuraDirectorReadyToStartDetourBackend.VerifiedWitchSha256,
-                out var legacyBuild)
-            && legacyBuild == "1.0.23816797",
-            "the previous verified Witch build remains allowlisted");
+            AuraDirectorReadyToStartDetourBackend.VerifiedMethodCapabilities.TryGetValue(
+                AuraDirectorReadyToStartDetourBackend.VerifiedReadyToStartBodySha256V1,
+                out var capability)
+            && capability == AuraDirectorReadyToStartDetourBackend.ReadyToStartCapabilityV1,
+            "the ReadyToStart V1 method capability is allowlisted independently of a game build");
         Assert(
-            AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.TryGetValue(
-                AuraDirectorReadyToStartDetourBackend.VerifiedWitchSha256V24591395,
-                out var currentBuild)
-            && currentBuild == "1.0.24591395",
-            "the current Witch build is allowlisted");
-        Assert(
-            !AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.ContainsKey(
+            !AuraDirectorReadyToStartDetourBackend.VerifiedMethodCapabilities.ContainsKey(
                 new string('0', 64)),
-            "unknown Witch hashes remain outside the allowlist");
+            "unknown method-body hashes remain outside the capability allowlist");
     }
 
     private static Assembly? ResolveManagedAssembly(string managedPath, ResolveEventArgs eventArgs)
@@ -167,20 +161,22 @@ internal static class Program
         using var backend = new AuraDirectorReadyToStartDetourBackend();
         if (!probe.Supported)
         {
-            Assert(probe.Code == "detour-target-build-unverified",
-                "unknown Witch.dll builds fail closed at the capability probe");
+            Assert(probe.Code == "detour-target-capability-unverified",
+                "unknown ReadyToStart method bodies fail closed at the capability probe");
             var rejected = backend.Install(new RejectingSink());
             Assert(!rejected.Supported
-                   && rejected.Code == "detour-target-build-unverified"
+                   && rejected.Code == "detour-target-capability-unverified"
                    && !backend.IsInstalled,
-                "unverified game builds cannot install the detour backend");
+                "unverified method capabilities cannot install the detour backend");
             Assert(!AuraDirectorReadyToStartDetourBackend.IsOwnedPrefixInstalled(),
                 "an unverified target never receives the Harmony prefix");
             return;
         }
 
-        Assert(probe.Code == "detour-compatible", "allowlisted Witch.dll builds pass the capability probe");
-        Assert(probe.Detail.Contains("1.0.24591395"), "the current capability probe reports its verified game build");
+        Assert(probe.Code == "detour-compatible", "allowlisted ReadyToStart capabilities pass the probe");
+        Assert(probe.Details.TryGetValue("capabilityProfile", out var profile)
+               && profile == AuraDirectorReadyToStartDetourBackend.ReadyToStartCapabilityV1,
+            "the current capability probe reports the method capability profile");
         var installed = backend.Install(new RejectingSink());
         Assert(installed.Supported && installed.Code == "detour-installed" && backend.IsInstalled,
             "Harmony prefix installs on the current ReadyToStart method");

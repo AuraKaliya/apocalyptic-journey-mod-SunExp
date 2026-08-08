@@ -145,6 +145,14 @@ public static class ProjectionTurnCoordinator
 
         if (anchor != null)
         {
+            if (manager?.statuses != null)
+            {
+                manager.statuses.Remove(anchor.InstanceId);
+            }
+            if (manager?.statusData != null)
+            {
+                manager.statusData.Remove(anchor.InstanceId);
+            }
             UnityEngine.Object.Destroy(anchor.gameObject);
             anchor = null;
         }
@@ -172,11 +180,6 @@ public static class ProjectionTurnCoordinator
 
     private static void EnsureAnchor(string source)
     {
-        if (!CompanionAuthorityService.IsAuthoritative())
-        {
-            return;
-        }
-
         var manager = FightManager.Instance;
         if (manager?.ActionQueue == null)
         {
@@ -234,6 +237,22 @@ public static class ProjectionTurnCoordinator
 
             manager.ActionQueue.RemoveAll(item => item == null
                 || ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ClassifyQueueItem(item)));
+            if (created.Status is not StatusManager createdStatus)
+            {
+                TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
+                TerriasLog.Warn("[ProjectionTurn] anchor status is unavailable from " + source + ".");
+                return;
+            }
+
+            // Witch 1.0.24605918 synchronizes every queued OtherObj by status id
+            // before a client may consume the action round. The anchor therefore
+            // has to exist in the same queue and status catalog on every peer,
+            // even though only the authoritative peer executes companion logic.
+            manager.statuses[created.InstanceId] = createdStatus;
+            if (manager.netIdentity != null && manager.isServer)
+            {
+                manager.statusData[created.InstanceId] = new StatusDataTransfer(createdStatus);
+            }
             manager.ActionQueue.Add(created);
             anchor = created;
             pendingRoot = null;

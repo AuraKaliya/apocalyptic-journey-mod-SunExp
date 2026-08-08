@@ -11,5 +11,14 @@
     <Compile Include="..\AuraDecisionShared\*.cs" Link="Decision\%(Filename)%(Extension)" />
     <Compile Include="..\AuraCombatSimulationShared\*.cs" Link="Simulation\%(Filename)%(Extension)" />
     <Compile Include="..\AuraCombatAiShared\*.cs" Link="Combat\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraFoundationTrainer.ControlCenter\ControllerModels.cs"
+             Link="ControlCenter\ControllerModels.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
+using AuraDirector.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -20,6 +21,7 @@ internal enum BundledFoundationImportStage
     Idle,
     Queued,
     Scanning,
+    Registering,
     Completed,
     Failed
 }
@@ -28,7 +30,7 @@ internal sealed class BundledFoundationImportStatus
 {
     public BundledFoundationImportStage Stage { get; set; }
 
-    public string Message { get; set; } = "内置底模尚未扫描";
+    public string Message { get; set; } = "Model 底模尚未批量扫描";
 
     public int Scanned { get; set; }
 
@@ -43,7 +45,8 @@ internal sealed class BundledFoundationImportStatus
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
     public bool Busy => Stage == BundledFoundationImportStage.Queued
-                        || Stage == BundledFoundationImportStage.Scanning;
+                        || Stage == BundledFoundationImportStage.Scanning
+                        || Stage == BundledFoundationImportStage.Registering;
 
     public BundledFoundationImportStatus Clone()
     {
@@ -84,10 +87,11 @@ internal sealed class BundledFoundationRegistrationSummary
 internal static class AuraToolsBundledFoundationModelRuntime
 {
     private const string WorkKey = "AutoBattle.BundledFoundationModels";
-    private const long MaximumPackageBytes = 64L * 1024L * 1024L;
     private const string ModelRelativeDirectory = "ModResource/Model";
     private const string SubjectCatalogRelativePath =
         "Config/combat-simulation/witch-game-subjects-v1.catalog.json";
+    private const string FoundationTrustCatalogRelativePath =
+        "Config/aura-director.foundation-model-allowlist.json";
     private static readonly Regex ModelVersionPattern = new(
         @"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$",
         RegexOptions.CultureInvariant);
@@ -145,34 +149,49 @@ internal static class AuraToolsBundledFoundationModelRuntime
             return false;
         }
 
-        SetStatus(BundledFoundationImportStage.Queued, "内置底模扫描已排队");
+        lock (Gate)
+        {
+            if (status.Busy)
+            {
+                message = "Model 底模批量导入正在进行";
+                return false;
+            }
+            status.Stage = BundledFoundationImportStage.Queued;
+            status.Message = "Model 底模批量扫描已排队";
+            status.UpdatedUtc = DateTime.UtcNow;
+        }
         var rootSnapshot = modRoot;
+        var runtimeContextSnapshot = AuraToolsAutoBattleModelRuntime
+            .SnapshotModelRuntimeContext();
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
-            new AuraSharedBackgroundWorkRequest<BundledFoundationScanResult>
+            new AuraSharedBackgroundWorkRequest<BundledFoundationImportResult>
             {
                 OwnerId = AuraToolsIds.ModId,
                 Key = WorkKey,
                 Source = "AutoBattle.BundledFoundationModels." + source,
                 Kind = AuraSharedBackgroundWorkKind.Io,
-                Work = cancellation => Scan(rootSnapshot, cancellation),
+                Work = cancellation => Import(
+                    rootSnapshot,
+                    runtimeContextSnapshot,
+                    cancellation),
                 ApplyOnMainThread = Apply,
                 OnFailedOnMainThread = ex =>
                 {
                     SetStatus(
                         BundledFoundationImportStage.Failed,
-                        "内置底模扫描失败：" + ex.Message);
+                        "Model 底模批量扫描失败：" + ex.Message);
                     AuraToolsLog.Warn(
                         "[AutoBattle][BundledModels] scan failed: " + ex);
                 }
             });
         if (!queued)
         {
-            message = "内置底模扫描任务未能提交";
+            message = "Model 底模批量扫描任务未能提交";
             SetStatus(BundledFoundationImportStage.Failed, message);
             return false;
         }
 
-        message = "内置底模扫描已提交";
+        message = "Model 底模批量扫描已提交";
         return true;
     }
 
@@ -180,7 +199,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
         string root,
         CancellationToken cancellation)
     {
-        SetStatus(BundledFoundationImportStage.Scanning, "正在扫描内置底模");
+        SetStatus(BundledFoundationImportStage.Scanning, "正在批量扫描 Model 底模");
         var result = new BundledFoundationScanResult();
         var directory = Path.Combine(
             root,
@@ -192,39 +211,127 @@ internal static class AuraToolsBundledFoundationModelRuntime
             return result;
         }
 
+        var discovery = AuraToolsBundledFoundationModelLayout.Discover(
+            directory,
+            cancellation);
+        result.Failed += discovery.Rejected;
+        result.Diagnostics.AddRange(discovery.Diagnostics);
+        if (discovery.Sources.Count == 0)
+        {
+            return result;
+        }
+
         var catalog = LoadSubjectCatalog(root);
-        foreach (var path in Directory.EnumerateFiles(
-                     directory,
-                     "*.json",
-                     SearchOption.TopDirectoryOnly)
-                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        var trustCatalog = LoadFoundationTrustCatalog(root);
+        var seenPackageHashes = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+        long aggregateBytes = 0;
+        foreach (var source in discovery.Sources)
         {
             cancellation.ThrowIfCancellationRequested();
             result.Scanned++;
             try
             {
-                var info = new FileInfo(path);
-                if (info.Length <= 0 || info.Length > MaximumPackageBytes)
+                var info = new FileInfo(source.ManifestPath);
+                if (info.Length <= 0
+                    || info.Length
+                    > AuraToolsBundledFoundationModelLayout.MaximumManifestBytes)
                 {
                     throw new InvalidDataException("文件大小必须在 1 字节至 64MB 之间");
                 }
-
-                var bytes = File.ReadAllBytes(path);
-                var json = new UTF8Encoding(false, true).GetString(bytes);
-                var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(json);
-                if (!CombatFoundationModelPackageProtocol.TryValidate(
-                        package,
+                if (!AuraToolsBundledFoundationModelLayout.TryReserveBytes(
+                        ref aggregateBytes,
+                        info.Length,
                         out var diagnostic))
                 {
                     throw new InvalidDataException(diagnostic);
                 }
-                if (package!.ModelArtifact != null
-                    && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
-                        directory,
-                        package.ModelArtifact,
+
+                var bytes = File.ReadAllBytes(source.ManifestPath);
+                var sourceSha256 = Hash(bytes);
+                var json = new UTF8Encoding(false, true).GetString(bytes);
+                var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(json);
+                if (!CombatFoundationModelPackageProtocol.TryValidate(
+                        package,
                         out diagnostic))
                 {
                     throw new InvalidDataException(diagnostic);
+                }
+                if (!AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
+                        source,
+                        package!.RoleId,
+                        sourceSha256,
+                        out diagnostic))
+                {
+                    throw new InvalidDataException(diagnostic);
+                }
+                if (package.ModelArtifact != null)
+                {
+                    if (!AuraToolsBundledFoundationModelLayout.TryResolveWeightsPath(
+                            source,
+                            package.ModelArtifact.WeightsFile,
+                            out var weightsPath,
+                            out diagnostic))
+                    {
+                        throw new InvalidDataException(diagnostic);
+                    }
+                    if (!AuraToolsBundledFoundationModelLayout.TryReserveBytes(
+                            ref aggregateBytes,
+                            new FileInfo(weightsPath).Length,
+                            out diagnostic))
+                    {
+                        throw new InvalidDataException(diagnostic);
+                    }
+                    if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                            source.ManifestDirectory,
+                            package.ModelArtifact,
+                            out diagnostic))
+                    {
+                        throw new InvalidDataException(diagnostic);
+                    }
+                }
+
+                var modelId = package.ModelArtifact?.ModelId
+                    ?? package.Model?.ModelId
+                    ?? "";
+                var featureSchemaVersion = package.ModelArtifact?.FeatureSchemaVersion
+                    ?? package.Model?.FeatureSchemaVersion
+                    ?? 0;
+                var trustCandidate = new AuraDirectorFoundationCandidate
+                {
+                    FoundationLineage = CombatFoundationModelPackageProtocol.ResolveFoundationLineage(package),
+                    ModelId = modelId,
+                    ArtifactSha256 = sourceSha256,
+                    WeightsSha256 = package.ModelArtifact?.WeightsSha256 ?? "",
+                    FeatureSchemaVersion = featureSchemaVersion,
+                    ContentSetHash = package.ContentSetHash,
+                    RulesetHash = package.RulesetHash,
+                    NativeProgramPackageHash = package.Compatibility?.NativeProgramPackageHash ?? "",
+                    AvailableStartGateCapability = AuraDirectorFoundationTrustProtocol.ReadyToStartCapabilityV1
+                };
+                var exactArtifactTrustCatalog = new AuraDirectorFoundationTrustCatalog
+                {
+                    SchemaVersion = trustCatalog.SchemaVersion,
+                    Entries = (trustCatalog.Entries
+                               ?? new List<AuraDirectorFoundationTrustEntry>())
+                        .Where(entry => entry != null
+                                        && string.IsNullOrWhiteSpace(
+                                            entry.WeightsSha256)
+                                        && string.Equals(
+                                            entry.ArtifactSha256,
+                                            sourceSha256,
+                                            StringComparison.OrdinalIgnoreCase))
+                        .ToList()
+                };
+                if (!AuraDirectorFoundationTrustPolicy.TryAuthorize(
+                        exactArtifactTrustCatalog,
+                        trustCandidate,
+                        out _,
+                        out diagnostic))
+                {
+                    throw new InvalidDataException(
+                        "AuraDirector exact artifact trust rejected the bundled model: "
+                        + diagnostic);
                 }
 
                 var version = NormalizeVersion(package!.ModelVersion);
@@ -239,14 +346,19 @@ internal static class AuraToolsBundledFoundationModelRuntime
                     throw new InvalidDataException(
                         "内置底模必须声明语义版本 ModelVersion，例如 1.0.0");
                 }
+                if (!seenPackageHashes.Add(sourceSha256))
+                {
+                    result.Deduplicated++;
+                    continue;
+                }
 
                 result.Candidates.Add(new BundledFoundationPackageCandidate
                 {
                     Package = package,
-                    SourceFileName = Path.GetFileName(path),
-                    SourceSha256 = Hash(bytes),
+                    SourceFileName = source.RelativeManifestPath,
+                    SourceSha256 = sourceSha256,
                     ModelVersion = version,
-                    SourceDirectory = directory,
+                    SourceDirectory = source.ManifestDirectory,
                     DisplayName = BuildCanonicalDisplayName(
                         catalog,
                         package.RoleId,
@@ -259,24 +371,46 @@ internal static class AuraToolsBundledFoundationModelRuntime
             {
                 result.Failed++;
                 result.Diagnostics.Add(
-                    Path.GetFileName(path) + "：" + ex.Message);
+                    source.RelativeManifestPath + "：" + ex.Message);
             }
         }
 
         return result;
     }
 
-    private static void Apply(BundledFoundationScanResult scan)
+    private static BundledFoundationImportResult Import(
+        string root,
+        CombatModelRuntimeContext runtimeContext,
+        CancellationToken cancellation)
     {
+        var scan = Scan(root, cancellation);
+        cancellation.ThrowIfCancellationRequested();
+        SetStatus(
+            BundledFoundationImportStage.Registering,
+            "正在批量注册 Model 底模到共享模型库");
         var registration = AuraToolsAutoBattleModelRuntime
-            .RegisterBundledFoundationPackages(scan.Candidates);
+            .RegisterBundledFoundationPackages(
+                scan.Candidates,
+                runtimeContext);
+        return new BundledFoundationImportResult
+        {
+            Scan = scan,
+            Registration = registration
+        };
+    }
+
+    private static void Apply(BundledFoundationImportResult result)
+    {
+        var scan = result.Scan;
+        var registration = result.Registration;
         var failed = scan.Failed + registration.Failed;
-        var message = "内置底模扫描完成：扫描 "
+        var deduplicated = scan.Deduplicated + registration.Deduplicated;
+        var message = "Model 底模批量导入完成：扫描 "
                       + scan.Scanned
                       + "，新增 "
                       + registration.Installed
                       + "，已存在 "
-                      + registration.Deduplicated
+                      + deduplicated
                       + "，冲突 "
                       + registration.Conflicts
                       + "，失败 "
@@ -291,7 +425,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 Message = message,
                 Scanned = scan.Scanned,
                 Installed = registration.Installed,
-                Deduplicated = registration.Deduplicated,
+                Deduplicated = deduplicated,
                 Conflicts = registration.Conflicts,
                 Failed = failed,
                 UpdatedUtc = DateTime.UtcNow
@@ -333,6 +467,21 @@ internal static class AuraToolsBundledFoundationModelRuntime
         {
             return new CombatGameSubjectCatalog();
         }
+    }
+
+    private static AuraDirectorFoundationTrustCatalog LoadFoundationTrustCatalog(string root)
+    {
+        var path = Path.Combine(
+            root,
+            FoundationTrustCatalogRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("AuraDirector foundation trust catalog is missing.", path);
+        }
+
+        var json = new UTF8Encoding(false, true).GetString(File.ReadAllBytes(path));
+        return AuraSharedJson.Deserialize<AuraDirectorFoundationTrustCatalog>(json)
+            ?? throw new InvalidDataException("AuraDirector foundation trust catalog is empty.");
     }
 
     private static string ResolveRoleName(
@@ -411,10 +560,20 @@ internal static class AuraToolsBundledFoundationModelRuntime
 
         public int Failed { get; set; }
 
+        public int Deduplicated { get; set; }
+
         public List<BundledFoundationPackageCandidate> Candidates { get; } = new();
 
         public List<string> Diagnostics { get; } = new();
 
+    }
+
+    private sealed class BundledFoundationImportResult
+    {
+        public BundledFoundationScanResult Scan { get; set; } = new();
+
+        public BundledFoundationRegistrationSummary Registration { get; set; } =
+            new();
     }
 
 }

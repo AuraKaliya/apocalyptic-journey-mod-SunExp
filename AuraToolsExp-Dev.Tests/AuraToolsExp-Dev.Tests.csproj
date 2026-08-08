@@ -38,6 +38,10 @@
              Link="StarterDeck\StarterDeckCardClassification.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\StarterDeck\StarterDeckDeckBuilder.cs"
              Link="StarterDeck\StarterDeckDeckBuilder.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsBundledFoundationModelLayout.cs"
+             Link="AutoBattle\AuraToolsBundledFoundationModelLayout.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsBundledFoundationRegistrationPlanner.cs"
+             Link="AutoBattle\AuraToolsBundledFoundationRegistrationPlanner.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageMeterModels.cs"
              Link="DamageMeter\DamageMeterModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\DamageLedger.cs"

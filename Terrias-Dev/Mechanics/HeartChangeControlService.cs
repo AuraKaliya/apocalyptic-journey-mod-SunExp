@@ -65,6 +65,17 @@ public static class HeartChangeControlService
     public static void Apply(ScriptExecutor? executor)
     {
         var status = executor?.Self;
+        if (IsControlled(status))
+        {
+            return;
+        }
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
+        {
+            // The authoritative control snapshot carries the server-selected
+            // action count. A client-side buff callback must not create a
+            // competing proxy before that snapshot arrives.
+            return;
+        }
         if (!TryCreateState(status, out var state, out var reason))
         {
             ShowFailureCaption(reason);
@@ -159,7 +170,13 @@ public static class HeartChangeControlService
             if (!IsControlled(target))
             {
                 ApplyNetworkState(
-                    new RpcHeartChangeControlState(targetStatusId, token, slotIndex.Value, active: true, accepted: true),
+                    new RpcHeartChangeControlState(
+                        targetStatusId,
+                        token,
+                        slotIndex.Value,
+                        active: true,
+                        accepted: true,
+                        intentCount: HeartChangeActionProxyObj.ResolveIntentCount(target!.fatherObject as Enemy ?? throw new InvalidOperationException("Heart-change target enemy is unavailable."))),
                     "HeartChangeControlService.ResolveNetworkControl.AfterBuff");
                 var state = Snapshot(target);
                 if (state != null)
@@ -172,7 +189,15 @@ public static class HeartChangeControlService
         {
             TerriasLog.Warn("[HeartChange] network add buff failed: " + ex.Message);
             ApplyNetworkState(
-                new RpcHeartChangeControlState(targetStatusId, token, slotIndex.Value, active: true, accepted: true),
+                new RpcHeartChangeControlState(
+                    targetStatusId,
+                    token,
+                    slotIndex.Value,
+                    active: true,
+                    accepted: true,
+                    intentCount: target?.fatherObject is Enemy targetEnemy
+                        ? HeartChangeActionProxyObj.ResolveIntentCount(targetEnemy)
+                        : 1),
                 "HeartChangeControlService.ResolveNetworkControl.Fallback");
         }
     }
@@ -181,6 +206,16 @@ public static class HeartChangeControlService
     {
         if (command == null)
         {
+            return;
+        }
+        if (command.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
+        {
+            TerriasLog.Warn("[HeartChange] network state protocol mismatch from "
+                + source
+                + ": remote="
+                + command.ProtocolVersion
+                + ", local="
+                + CompanionAuthorityService.ProjectionProtocolVersion);
             return;
         }
 
@@ -211,12 +246,13 @@ public static class HeartChangeControlService
 
         if (IsControlled(status))
         {
+            RefreshNetworkIntentCount(status, command.IntentCount, source + ".Duplicate");
             TerriasPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
             return;
         }
 
         ReserveSlot(command.TargetStatusId, command.SlotIndex);
-        ApplyWithReservedSlot(status, source);
+        ApplyWithReservedSlot(status, source, command.IntentCount);
     }
 
     public static void BeginEnemyAction(Enemy? enemy, int actionIndex, bool isSingle)
@@ -444,7 +480,7 @@ public static class HeartChangeControlService
         return true;
     }
 
-    private static void ApplyWithReservedSlot(IStatusManager status, string source)
+    private static void ApplyWithReservedSlot(IStatusManager status, string source, int authoritativeIntentCount)
     {
         if (IsControlled(status))
         {
@@ -473,7 +509,7 @@ public static class HeartChangeControlService
             CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
             ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
-            QueueProxyAction(state, source);
+            QueueProxyAction(state, source, authoritativeIntentCount);
             TerriasPerformanceCounters.Record("HeartChange.Controlled.Network");
         }
         catch (Exception ex)
@@ -626,7 +662,7 @@ public static class HeartChangeControlService
         }
     }
 
-    private static void QueueProxyAction(HeartChangeState state, string source)
+    private static void QueueProxyAction(HeartChangeState state, string source, int authoritativeIntentCount = 0)
     {
         try
         {
@@ -639,18 +675,29 @@ public static class HeartChangeControlService
             var proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
                 ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
             state.Proxy = proxy;
-            proxy.Configure(state.Enemy);
+            proxy.Configure(state.Enemy, authoritativeIntentCount);
+            state.IntentCount = proxy.IntentCount;
 
-            var removed = manager.ActionQueue.RemoveAll(obj => IsNativeOrProxyAction(state, obj));
-            manager.ActionQueue.Add(proxy);
-            if (removed > 0)
+            // Keep the native Enemy as the synchronized queue identity. The
+            // proxy resolves from the Enemy action hooks, so Witch's intent
+            // batch always targets the same fatherObject/allCards on every
+            // peer instead of resolving this proxy through the Enemy status id.
+            manager.ActionQueue.RemoveAll(obj => obj == null
+                || ReferenceEquals(obj, proxy)
+                || obj is HeartChangeActionProxyObj heartProxy
+                    && string.Equals(heartProxy.InstanceId, state.StatusId, StringComparison.Ordinal));
+            var enemyQueued = manager.ActionQueue.Any(obj => ReferenceEquals(obj, state.Enemy)
+                || obj is Enemy enemy && string.Equals(enemy.InstanceId, state.StatusId, StringComparison.Ordinal));
+            if (!enemyQueued)
             {
-                TerriasLog.Info("[HeartChange] queued controlled enemy proxy action: status="
-                    + state.StatusId
-                    + ", intentCount="
-                    + proxy.IntentCount);
-                TerriasPerformanceCounters.Record("HeartChange.QueueMoved");
+                manager.ActionQueue.Add(state.Enemy);
             }
+            TerriasLog.Info("[HeartChange] prepared controlled enemy proxy action: status="
+                + state.StatusId
+                + ", intentCount="
+                + proxy.IntentCount
+                + ", queueIdentity=Enemy");
+            TerriasPerformanceCounters.Record("HeartChange.QueueIdentityPreserved");
         }
         catch (Exception ex)
         {
@@ -667,7 +714,7 @@ public static class HeartChangeControlService
             {
                 proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
                     ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
-                proxy.Configure(state.Enemy);
+                proxy.Configure(state.Enemy, state.IntentCount);
                 state.Proxy = proxy;
             }
 
@@ -1203,8 +1250,30 @@ public static class HeartChangeControlService
         }
 
         TerriasNetworkRuntime.Send(
-            new RpcHeartChangeControlState(state.StatusId, token, state.SlotIndex, active, accepted),
+            new RpcHeartChangeControlState(
+                state.StatusId,
+                token,
+                state.SlotIndex,
+                active,
+                accepted,
+                intentCount: state.IntentCount),
             "HeartChangeControlService.BroadcastState");
+    }
+
+    private static void RefreshNetworkIntentCount(IStatusManager? status, int intentCount, string source)
+    {
+        if (intentCount <= 0)
+        {
+            return;
+        }
+
+        var state = Snapshot(status);
+        if (state?.Enemy == null || state.IntentCount == intentCount)
+        {
+            return;
+        }
+
+        QueueProxyAction(state, source, intentCount);
     }
 
     private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
@@ -1389,6 +1458,8 @@ public static class HeartChangeControlService
         public bool IsActing { get; set; }
 
         public HeartChangeActionProxyObj? Proxy { get; set; }
+
+        public int IntentCount { get; set; } = 1;
 
         public bool NativeActionSuppressed { get; set; }
 

@@ -290,6 +290,31 @@ internal sealed class AutoBattleTrainingSnapshotFile
 internal static class AuraToolsAutoBattleModelRuntime
 {
     private const string SystemId = "AuraCombatAI";
+    private const string ModelLibraryWriteLockKey =
+        "Data/Owners/AuraToolsExp/FoundationModels/Registration";
+    private const long MaximumBundledFoundationPackageBytes =
+        64L * 1024L * 1024L;
+
+    private sealed class PreparedBundledFoundationCandidate
+    {
+        public BundledFoundationPackageCandidate Candidate { get; set; } = new();
+
+        public BundledFoundationRegistrationPlanIdentity Identity { get; set; } =
+            new();
+
+        public string SourceReference { get; set; } = "";
+    }
+
+    private sealed class PendingBundledFoundationRegistration
+    {
+        public bool InstallsNewModel { get; set; }
+
+        public List<string> SourceReferences { get; set; } = new();
+
+        public BundledFoundationFileTransaction FileTransaction { get; set; } =
+            new();
+    }
+
     public static string CurrentRoleId
     {
         get
@@ -1269,22 +1294,31 @@ internal static class AuraToolsAutoBattleModelRuntime
             message = "模型名称不能超过 40 个字符";
             return false;
         }
+        var outcome = "";
+        var renamed = false;
         lock (LibraryGate)
         {
-            var library = ReadLibrary();
-            var entry = library.Models.FirstOrDefault(item =>
-                string.Equals(item.ModelId, id, StringComparison.Ordinal));
-            if (entry == null)
+            ExecuteModelLibraryWrite(storage =>
             {
-                message = "模型库中不存在该模型";
-                return false;
-            }
-            entry.DisplayName = name;
-            entry.DisplayNameMode = "user";
-            WriteLibrary(library);
+                EnsureModelLibraryMigratedNoLock(storage);
+                var library = ReadLibraryNoMigration();
+                var entry = library.Models.FirstOrDefault(item =>
+                    string.Equals(item.ModelId, id, StringComparison.Ordinal));
+                if (entry == null)
+                {
+                    outcome = "模型库中不存在该模型";
+                    return false;
+                }
+                entry.DisplayName = name;
+                entry.DisplayNameMode = "user";
+                WriteLibraryNoLock(library, storage);
+                renamed = true;
+                outcome = "模型已改名为“" + name + "”";
+                return true;
+            });
         }
-        message = "模型已改名为“" + name + "”";
-        return true;
+        message = outcome;
+        return renamed;
     }
 
     public static bool TryRestoreGeneratedLibraryModelName(
@@ -1298,45 +1332,56 @@ internal static class AuraToolsAutoBattleModelRuntime
             return false;
         }
 
+        var outcome = "";
+        var restored = false;
         lock (LibraryGate)
         {
-            var library = ReadLibrary();
-            var entry = library.Models.FirstOrDefault(item =>
-                string.Equals(item.ModelId, id, StringComparison.Ordinal));
-            if (entry == null)
+            ExecuteModelLibraryWrite(storage =>
             {
-                message = "模型库中不存在该模型";
-                return false;
-            }
-            if (!string.Equals(
-                    entry.ModelPurpose,
-                    "foundation",
-                    StringComparison.Ordinal))
-            {
-                message = "只有底模支持恢复规范自动命名";
-                return false;
-            }
+                EnsureModelLibraryMigratedNoLock(storage);
+                var library = ReadLibraryNoMigration();
+                var entry = library.Models.FirstOrDefault(item =>
+                    string.Equals(item.ModelId, id, StringComparison.Ordinal));
+                if (entry == null)
+                {
+                    outcome = "模型库中不存在该模型";
+                    return false;
+                }
+                if (!string.Equals(
+                        entry.ModelPurpose,
+                        "foundation",
+                        StringComparison.Ordinal))
+                {
+                    outcome = "只有底模支持恢复规范自动命名";
+                    return false;
+                }
 
-            var generatedName = string.IsNullOrWhiteSpace(entry.GeneratedDisplayName)
-                ? AuraToolsBundledFoundationModelRuntime.BuildCanonicalDisplayName(
-                    entry.RoleId,
-                    entry.PartnerId,
-                    entry.EnabledRewardCardPackIds,
-                    entry.ModelVersion)
-                : entry.GeneratedDisplayName.Trim();
-            if (string.IsNullOrWhiteSpace(generatedName))
-            {
-                message = "当前模型缺少自动命名所需的主体或版本信息";
-                return false;
-            }
+                var generatedName = string.IsNullOrWhiteSpace(
+                    entry.GeneratedDisplayName)
+                    ? AuraToolsBundledFoundationModelRuntime
+                        .BuildCanonicalDisplayName(
+                            entry.RoleId,
+                            entry.PartnerId,
+                            entry.EnabledRewardCardPackIds,
+                            entry.ModelVersion)
+                    : entry.GeneratedDisplayName.Trim();
+                if (string.IsNullOrWhiteSpace(generatedName))
+                {
+                    outcome = "当前模型缺少自动命名所需的主体或版本信息";
+                    return false;
+                }
 
-            entry.GeneratedDisplayName = generatedName;
-            entry.DisplayName = generatedName;
-            entry.DisplayNameMode = "generated";
-            WriteLibrary(library);
-            message = "模型已恢复自动命名：“" + generatedName + "”";
-            return true;
+                entry.GeneratedDisplayName = generatedName;
+                entry.DisplayName = generatedName;
+                entry.DisplayNameMode = "generated";
+                WriteLibraryNoLock(library, storage);
+                restored = true;
+                outcome = "模型已恢复自动命名：“" + generatedName + "”";
+                return true;
+            });
         }
+        message = outcome;
+        return restored;
     }
 
     public static bool CandidateMeetsValidationGate(
@@ -2966,89 +3011,99 @@ internal static class AuraToolsAutoBattleModelRuntime
         AutoBattleCandidateBundle bundle,
         string modelId)
     {
+        var modelChanged = false;
         lock (LibraryGate)
         {
-            Directory.CreateDirectory(ModelLibraryDirectory());
-            var fileName = ModelBundleFileName(modelId);
-            var bundlePath = Path.Combine(ModelLibraryDirectory(), fileName);
-            var library = ReadLibrary();
-            var existing = library.Models.FirstOrDefault(item =>
-                string.Equals(item.ModelId, modelId, StringComparison.Ordinal));
-            var generatedName = string.Equals(
-                bundle.ModelPurpose,
-                "foundation",
-                StringComparison.Ordinal)
-                ? FoundationDisplayName(bundle)
-                : "";
-            if (existing != null
-                && ShouldPreserveBundledRegistration(existing, bundle))
+            ExecuteModelLibraryWrite(storage =>
             {
-                ApplyFoundationDisplayName(existing, generatedName);
-                WriteLibrary(library);
-                return;
-            }
+                EnsureModelLibraryMigratedNoLock(storage);
+                Directory.CreateDirectory(ModelLibraryDirectory());
+                var fileName = ModelBundleFileName(modelId);
+                var bundlePath = Path.Combine(ModelLibraryDirectory(), fileName);
+                var library = ReadLibraryNoMigration();
+                var existing = library.Models.FirstOrDefault(item =>
+                    string.Equals(item.ModelId, modelId, StringComparison.Ordinal));
+                var generatedName = string.Equals(
+                    bundle.ModelPurpose,
+                    "foundation",
+                    StringComparison.Ordinal)
+                    ? FoundationDisplayName(bundle)
+                    : "";
+                if (existing != null
+                    && ShouldPreserveBundledRegistration(existing, bundle))
+                {
+                    ApplyFoundationDisplayName(existing, generatedName);
+                    WriteLibraryNoLock(library, storage);
+                    return false;
+                }
 
-            using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
-            {
                 storage.WriteTextAtomic(
                     bundlePath,
                     AuraSharedJson.Serialize(bundle),
                     createBackup: true);
-            }
-            if (existing == null)
-            {
-                existing = new AutoBattleModelLibraryEntry
+                if (existing == null)
                 {
-                    ModelId = modelId,
-                    DisplayName = string.Equals(
+                    existing = new AutoBattleModelLibraryEntry
+                    {
+                        ModelId = modelId,
+                        DisplayName = string.Equals(
+                            bundle.ModelPurpose,
+                            "foundation",
+                            StringComparison.Ordinal)
+                            ? generatedName
+                            : bundle.RoleId + " 战斗模型 "
+                                      + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+                        DisplayNameMode = string.Equals(
+                            bundle.ModelPurpose,
+                            "foundation",
+                            StringComparison.Ordinal)
+                            ? "generated"
+                            : "user",
+                        GeneratedDisplayName = generatedName,
+                        CreatedUtc = DateTime.UtcNow
+                    };
+                    library.Models.Add(existing);
+                }
+                existing.Profile = NormalizeProfile(bundle.Profile);
+                existing.RoleId = bundle.RoleId;
+                existing.CardPoolScope = bundle.CardPoolScope;
+                existing.PartnerId = bundle.PartnerId;
+                existing.EnabledRewardCardPackIds =
+                    bundle.EnabledRewardCardPackIds.ToList();
+                existing.PreferredDeckSizeMinimum =
+                    bundle.PreferredDeckSizeMinimum;
+                existing.PreferredDeckSizeMaximum =
+                    bundle.PreferredDeckSizeMaximum;
+                var coverage = AssessBundleCoverage(bundle);
+                existing.CoverageLevel = coverage?.Level ?? "exact-local";
+                existing.CoverageSummary = coverage?.Summary
+                                           ?? "当前角色与卡池专属模型";
+                existing.ModelPurpose = bundle.ModelPurpose;
+                existing.ProjectionNormalWinRate = bundle.ProjectionNormalWinRate;
+                existing.ProjectionAdvancedWinRate =
+                    bundle.ProjectionAdvancedWinRate;
+                existing.BundleFile = fileName;
+                existing.ModelVersion = bundle.FoundationModelVersion;
+                existing.AcceptanceKind = bundle.FoundationAcceptanceKind;
+                existing.DistributionOrigin = bundle.FoundationDistributionOrigin;
+                existing.SourcePackageSha256 =
+                    bundle.FoundationSourcePackageSha256;
+                existing.SourcePackageFile = bundle.FoundationSourcePackageFile;
+                if (string.Equals(
                         bundle.ModelPurpose,
                         "foundation",
-                        StringComparison.Ordinal)
-                        ? generatedName
-                        : bundle.RoleId + " 战斗模型 "
-                                  + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
-                    DisplayNameMode = string.Equals(
-                        bundle.ModelPurpose,
-                        "foundation",
-                        StringComparison.Ordinal)
-                        ? "generated"
-                        : "user",
-                    GeneratedDisplayName = generatedName,
-                    CreatedUtc = DateTime.UtcNow
-                };
-                library.Models.Add(existing);
-            }
-            existing.Profile = NormalizeProfile(bundle.Profile);
-            existing.RoleId = bundle.RoleId;
-            existing.CardPoolScope = bundle.CardPoolScope;
-            existing.PartnerId = bundle.PartnerId;
-            existing.EnabledRewardCardPackIds =
-                bundle.EnabledRewardCardPackIds.ToList();
-            existing.PreferredDeckSizeMinimum =
-                bundle.PreferredDeckSizeMinimum;
-            existing.PreferredDeckSizeMaximum =
-                bundle.PreferredDeckSizeMaximum;
-            var coverage = AssessBundleCoverage(bundle);
-            existing.CoverageLevel = coverage?.Level ?? "exact-local";
-            existing.CoverageSummary = coverage?.Summary
-                                       ?? "当前角色与卡池专属模型";
-            existing.ModelPurpose = bundle.ModelPurpose;
-            existing.ProjectionNormalWinRate = bundle.ProjectionNormalWinRate;
-            existing.ProjectionAdvancedWinRate = bundle.ProjectionAdvancedWinRate;
-            existing.BundleFile = fileName;
-            existing.ModelVersion = bundle.FoundationModelVersion;
-            existing.AcceptanceKind = bundle.FoundationAcceptanceKind;
-            existing.DistributionOrigin = bundle.FoundationDistributionOrigin;
-            existing.SourcePackageSha256 = bundle.FoundationSourcePackageSha256;
-            existing.SourcePackageFile = bundle.FoundationSourcePackageFile;
-            if (string.Equals(
-                    bundle.ModelPurpose,
-                    "foundation",
-                    StringComparison.Ordinal))
-            {
-                ApplyFoundationDisplayName(existing, generatedName);
-            }
-            WriteLibrary(library);
+                        StringComparison.Ordinal))
+                {
+                    ApplyFoundationDisplayName(existing, generatedName);
+                }
+                WriteLibraryNoLock(library, storage);
+                modelChanged = true;
+                return true;
+            });
+        }
+        if (!modelChanged)
+        {
+            return;
         }
         UnloadResidentModels();
         AuraToolsAutoBattleRuntime.NotifyModelLibraryChanged();
@@ -3161,186 +3216,301 @@ internal static class AuraToolsAutoBattleModelRuntime
 
     internal static BundledFoundationRegistrationSummary
         RegisterBundledFoundationPackages(
-            IReadOnlyList<BundledFoundationPackageCandidate> candidates)
+            IReadOnlyList<BundledFoundationPackageCandidate> candidates,
+            CombatModelRuntimeContext runtimeContext)
     {
+        if (runtimeContext == null)
+        {
+            throw new ArgumentNullException(nameof(runtimeContext));
+        }
         var summary = new BundledFoundationRegistrationSummary();
         lock (LibraryGate)
         {
-            Directory.CreateDirectory(ModelLibraryDirectory());
-            var library = ReadLibrary();
-            var libraryTouched = false;
-            using var storage = new AuraSharedStorageCoordinator(
-                AuraSharedPaths.RootDirectory);
-            foreach (var candidate in candidates
+            var prepared = new List<PreparedBundledFoundationCandidate>();
+            foreach (var candidate in (candidates
                          ?? Array.Empty<BundledFoundationPackageCandidate>())
+                     .Where(item => item != null)
+                     .OrderBy(
+                         BundledCandidateSourceLabel,
+                         StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(
+                         BundledCandidateSourceLabel,
+                         StringComparer.Ordinal))
             {
-                try
-                {
-                    var package = candidate.Package;
-                    if (!CombatFoundationModelPackageProtocol.TryValidate(
-                            package,
-                            out var validationDiagnostic))
-                    {
-                        summary.Failed++;
-                        summary.Diagnostics.Add(
-                            candidate.SourceFileName
-                            + "：入库前复验失败："
-                            + validationDiagnostic);
-                        continue;
-                    }
-
-                    var modelId = package.Model?.ModelId
-                                  ?? package.ModelArtifact?.ModelId
-                                  ?? "";
-                    if (string.IsNullOrWhiteSpace(modelId))
-                    {
-                        summary.Failed++;
-                        summary.Diagnostics.Add(
-                            candidate.SourceFileName + "：模型 ID 为空");
-                        continue;
-                    }
-                    var existing = library.Models.FirstOrDefault(item =>
-                        string.Equals(
-                            item.ModelId,
-                            modelId,
-                            StringComparison.Ordinal));
-                    var existingBundle = existing == null
-                        ? null
-                        : ReadLibraryBundleFile(existing.BundleFile);
-                    var existingHash = !string.IsNullOrWhiteSpace(
-                        existing?.SourcePackageSha256)
-                        ? existing!.SourcePackageSha256
-                        : existingBundle?.FoundationSourcePackageSha256 ?? "";
-                    if (existing != null
-                        && existingBundle == null
-                        && string.IsNullOrWhiteSpace(existingHash))
-                    {
-                        summary.Conflicts++;
-                        summary.Diagnostics.Add(
-                            candidate.SourceFileName
-                            + "：同模型 ID 的既有模型包缺失，无法验证来源哈希，已拒绝自动覆盖："
-                            + modelId);
-                        continue;
-                    }
-                    if (existing != null
-                        && ((!string.IsNullOrWhiteSpace(existingHash)
-                             && !string.Equals(
-                                 existingHash,
-                                 candidate.SourceSha256,
-                                 StringComparison.OrdinalIgnoreCase))
-                            || (string.IsNullOrWhiteSpace(existingHash)
-                                && existingBundle != null
-                                && !string.Equals(
-                                    existingBundle.FoundationPackageId,
-                                    package.PackageId,
-                                    StringComparison.Ordinal))))
-                    {
-                        summary.Conflicts++;
-                        summary.Diagnostics.Add(
-                            candidate.SourceFileName
-                            + "：模型 ID 已存在但来源哈希不同，已拒绝覆盖："
-                            + modelId);
-                        continue;
-                    }
-
-                    var semanticConflict = library.Models.FirstOrDefault(item =>
-                        !string.Equals(
-                            item.ModelId,
-                            modelId,
-                            StringComparison.Ordinal)
-                        && SameFoundationRelease(
-                            item,
-                            package,
-                            candidate.ModelVersion));
-                    if (semanticConflict != null)
-                    {
-                        summary.Conflicts++;
-                        summary.Diagnostics.Add(
-                            candidate.SourceFileName
-                            + "：相同角色、使魔、卡池与版本已由另一模型 ID 占用；请提升 ModelVersion："
-                            + semanticConflict.ModelId);
-                        continue;
-                    }
-
-                    var bundle = CreateBundledFoundationBundle(candidate);
-                    bundle.PolicyValueArtifact = InstallPolicyValueArtifact(
+                if (TryPrepareBundledFoundationCandidate(
                         candidate,
-                        modelId);
-                    bundle.PolicyValue = null;
-                    var fileName = ModelBundleFileName(modelId);
-                    var bundlePath = Path.Combine(
-                        ModelLibraryDirectory(),
-                        fileName);
-                    var provenanceMissing = existing != null
-                                            && string.IsNullOrWhiteSpace(
-                                                existingHash);
-                    var bundledMetadataStale = existing != null
-                                               && (!string.Equals(
-                                                       existing.DistributionOrigin,
-                                                       "bundled",
-                                                       StringComparison.OrdinalIgnoreCase)
-                                                   || existingBundle == null
-                                                   || existingBundle.SchemaVersion < 5
-                                                   || existingBundle.PolicyValueArtifact == null
-                                                   || !string.Equals(
-                                                       existingBundle.FoundationDistributionOrigin,
-                                                       "bundled",
-                                                       StringComparison.OrdinalIgnoreCase)
-                                                   || !string.Equals(
-                                                       existing.SourcePackageFile,
-                                                       candidate.SourceFileName,
-                                                       StringComparison.OrdinalIgnoreCase));
-                    if (existing == null
-                        || !File.Exists(bundlePath)
-                        || provenanceMissing
-                        || bundledMetadataStale)
-                    {
-                        storage.WriteTextAtomic(
-                            bundlePath,
-                            AuraSharedJson.Serialize(bundle),
-                            createBackup: existing != null);
-                    }
-
-                    if (existing == null)
-                    {
-                        existing = new AutoBattleModelLibraryEntry
-                        {
-                            ModelId = modelId,
-                            DisplayName = candidate.DisplayName,
-                            DisplayNameMode = "generated",
-                            GeneratedDisplayName = candidate.DisplayName,
-                            CreatedUtc = package.CreatedUtc == default
-                                ? DateTime.UtcNow
-                                : package.CreatedUtc
-                        };
-                        library.Models.Add(existing);
-                        summary.Installed++;
-                    }
-                    else
-                    {
-                        summary.Deduplicated++;
-                    }
-
-                    UpdateLibraryEntry(existing, bundle, fileName);
-                    ApplyFoundationDisplayName(
-                        existing,
-                        candidate.DisplayName,
-                        package.DisplayName);
-                    libraryTouched = true;
+                        out var preparedCandidate,
+                        out var diagnostic))
+                {
+                    prepared.Add(preparedCandidate);
                 }
-                catch (Exception ex)
+                else
                 {
                     summary.Failed++;
                     summary.Diagnostics.Add(
-                        candidate.SourceFileName + "：入库失败：" + ex.Message);
+                        BundledCandidateSourceLabel(candidate)
+                        + "：入库前复验失败："
+                        + diagnostic);
                 }
             }
 
-            if (libraryTouched)
+            if (prepared.Count == 0)
             {
-                WriteLibrary(library);
+                return summary;
             }
-            summary.LibraryChanged = libraryTouched;
+
+            try
+            {
+                var transactionSummary =
+                    new BundledFoundationRegistrationSummary();
+                using var storage = new AuraSharedStorageCoordinator(
+                    AuraSharedPaths.RootDirectory);
+                storage.ExecuteWrite(
+                    ModelLibraryWriteLockKey,
+                    () =>
+                    {
+                        var transactionPrepared =
+                            new List<PreparedBundledFoundationCandidate>();
+                        foreach (var preparedCandidate in prepared)
+                        {
+                            if (BundledPreparedSourceIsStable(
+                                    preparedCandidate,
+                                    out var stabilityDiagnostic))
+                            {
+                                transactionPrepared.Add(preparedCandidate);
+                            }
+                            else
+                            {
+                                RecordBundledRegistrationFailure(
+                                    transactionSummary,
+                                    new[] { preparedCandidate.SourceReference },
+                                    "提交前复验失败：" + stabilityDiagnostic);
+                            }
+                        }
+                        if (transactionPrepared.Count == 0)
+                        {
+                            return true;
+                        }
+
+                        EnsureModelLibraryMigratedNoLock(storage);
+                        var library = ReadLibraryNoMigration();
+                        var existingIdentities = library.Models
+                            .Select(BundledRegistrationIdentity)
+                            .ToList();
+                        var decisions =
+                            AuraToolsBundledFoundationRegistrationPlanner.Plan(
+                                    transactionPrepared
+                                        .Select(item => item.Identity)
+                                        .ToList(),
+                                    existingIdentities)
+                                .ToList();
+                        var preparedByIdentity = transactionPrepared
+                            .ToDictionary(item => item.Identity);
+
+                        foreach (var decision in decisions.Where(item =>
+                                     item.Disposition
+                                     == BundledFoundationRegistrationPlanDisposition
+                                         .Conflict))
+                        {
+                            transactionSummary.Conflicts++;
+                            transactionSummary.Diagnostics.Add(
+                                decision.Candidate.SourceReference
+                                + "："
+                                + decision.Diagnostic);
+                        }
+
+                        var pending =
+                            new List<PendingBundledFoundationRegistration>();
+                        var libraryTouched = false;
+                        var indexCommitted = false;
+                        try
+                        {
+                        foreach (var group in decisions
+                             .Where(item => item.Disposition
+                                 == BundledFoundationRegistrationPlanDisposition
+                                     .DeduplicateExisting)
+                             .GroupBy(
+                                 item => item.Candidate.ModelId,
+                                 StringComparer.Ordinal)
+                             .OrderBy(group => group.Key, StringComparer.Ordinal))
+                {
+                    var members = group.ToList();
+                    var canonicalDecision = members
+                        .OrderBy(
+                            item => item.Candidate.SourceReference,
+                            StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(
+                            item => item.Candidate.SourceReference,
+                            StringComparer.Ordinal)
+                        .First();
+                    var preparedCandidate =
+                        preparedByIdentity[canonicalDecision.Candidate];
+                    var existingMatches = library.Models.Where(item =>
+                            string.Equals(
+                                item.ModelId,
+                                group.Key,
+                                StringComparison.Ordinal))
+                        .ToList();
+                    if (existingMatches.Count != 1)
+                    {
+                        RecordBundledRegistrationFailure(
+                            transactionSummary,
+                            members.Select(item => item.Candidate.SourceReference),
+                            "既有模型 ID 在提交前不再唯一");
+                        continue;
+                    }
+
+                    var existing = existingMatches[0];
+                    if (BundledFoundationRegistrationIsCurrent(
+                            existing,
+                            preparedCandidate))
+                    {
+                        transactionSummary.Deduplicated += members.Count;
+                        continue;
+                    }
+
+                    try
+                    {
+                        var fileTransaction = StageBundledFoundationRegistration(
+                            library,
+                            preparedCandidate,
+                            existing,
+                            storage,
+                            runtimeContext);
+                        libraryTouched = true;
+                        pending.Add(new PendingBundledFoundationRegistration
+                        {
+                            InstallsNewModel = false,
+                            SourceReferences = members
+                                .Select(item => item.Candidate.SourceReference)
+                                .ToList(),
+                            FileTransaction = fileTransaction
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        RecordBundledRegistrationFailure(
+                            transactionSummary,
+                            members.Select(item => item.Candidate.SourceReference),
+                            "修复既有注册失败：" + ex.Message);
+                    }
+                }
+
+                foreach (var installDecision in decisions
+                             .Where(item => item.Disposition
+                                 == BundledFoundationRegistrationPlanDisposition
+                                     .Install)
+                             .OrderBy(
+                                 item => item.Candidate.SourceReference,
+                                 StringComparer.OrdinalIgnoreCase)
+                             .ThenBy(
+                                 item => item.Candidate.SourceReference,
+                                 StringComparer.Ordinal))
+                {
+                    var members = decisions.Where(item =>
+                            ReferenceEquals(
+                                item.CanonicalCandidate,
+                                installDecision.Candidate))
+                        .ToList();
+                    if (members.Count == 0)
+                    {
+                        members.Add(installDecision);
+                    }
+                    var preparedCandidate =
+                        preparedByIdentity[installDecision.Candidate];
+                    try
+                    {
+                        var fileTransaction = StageBundledFoundationRegistration(
+                            library,
+                            preparedCandidate,
+                            existing: null,
+                            storage,
+                            runtimeContext);
+                        libraryTouched = true;
+                        pending.Add(new PendingBundledFoundationRegistration
+                        {
+                            InstallsNewModel = true,
+                            SourceReferences = members
+                                .Select(item => item.Candidate.SourceReference)
+                                .ToList(),
+                            FileTransaction = fileTransaction
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        RecordBundledRegistrationFailure(
+                            transactionSummary,
+                            members.Select(item => item.Candidate.SourceReference),
+                            "安装失败：" + ex.Message);
+                    }
+                }
+
+                if (libraryTouched)
+                {
+                    library.SchemaVersion = Math.Max(5, library.SchemaVersion);
+                    if (BundledFoundationFileTransaction.TryCommitIndex(
+                            pending.Select(outcome => outcome.FileTransaction)
+                                .ToList(),
+                            () => storage.WriteTextAtomic(
+                                ModelLibraryManifestPath(),
+                                AuraSharedJson.Serialize(library),
+                                createBackup: true),
+                            out var commitFailure,
+                            out var rollbackDiagnostic))
+                    {
+                        indexCommitted = true;
+                        transactionSummary.LibraryChanged = true;
+                        foreach (var outcome in pending)
+                        {
+                            if (outcome.InstallsNewModel)
+                            {
+                                transactionSummary.Installed++;
+                                transactionSummary.Deduplicated += Math.Max(
+                                    0,
+                                    outcome.SourceReferences.Count - 1);
+                            }
+                            else
+                            {
+                                transactionSummary.Deduplicated +=
+                                    outcome.SourceReferences.Count;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        foreach (var outcome in pending)
+                        {
+                            RecordBundledRegistrationFailure(
+                                transactionSummary,
+                                outcome.SourceReferences,
+                                "模型库索引原子提交失败："
+                                + (commitFailure?.Message ?? "未知错误")
+                                + (string.IsNullOrWhiteSpace(rollbackDiagnostic)
+                                    ? ""
+                                    : "；发布文件回滚失败："
+                                      + rollbackDiagnostic));
+                        }
+                    }
+                }
+                        }
+                        finally
+                        {
+                            if (!indexCommitted)
+                            {
+                                RollbackBundledFoundationRegistrations(pending);
+                            }
+                        }
+                        return true;
+                    });
+                MergeBundledRegistrationSummary(summary, transactionSummary);
+            }
+            catch (Exception ex)
+            {
+                RecordBundledRegistrationFailure(
+                    summary,
+                    prepared.Select(item => item.SourceReference),
+                    "共享模型库事务失败：" + ex.Message);
+            }
         }
         if (summary.LibraryChanged)
         {
@@ -3349,8 +3519,500 @@ internal static class AuraToolsAutoBattleModelRuntime
         return summary;
     }
 
-    private static AutoBattleCandidateBundle CreateBundledFoundationBundle(
+    private static bool TryPrepareBundledFoundationCandidate(
+        BundledFoundationPackageCandidate candidate,
+        out PreparedBundledFoundationCandidate prepared,
+        out string diagnostic)
+    {
+        prepared = new PreparedBundledFoundationCandidate();
+        try
+        {
+            var sourceDirectory = (candidate.SourceDirectory ?? "").Trim();
+            var sourceFile = (candidate.SourceFileName ?? "").Trim();
+            if (!AuraToolsBundledFoundationRegistrationPlanner
+                    .TryResolveSourceManifest(
+                        sourceDirectory,
+                        sourceFile,
+                        out var sourcePath,
+                        out var sourceReference,
+                        out diagnostic))
+            {
+                return false;
+            }
+            var sourceInfo = new FileInfo(sourcePath);
+            if (!sourceInfo.Exists
+                || sourceInfo.Length <= 0
+                || sourceInfo.Length > MaximumBundledFoundationPackageBytes)
+            {
+                diagnostic = "来源清单缺失或大小不合法";
+                return false;
+            }
+
+            var sourceBytes = File.ReadAllBytes(sourcePath);
+            var sourceSha256 = HashBytes(sourceBytes);
+            if (!CanonicalSha256(candidate.SourceSha256)
+                || !string.Equals(
+                    sourceSha256,
+                    candidate.SourceSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostic = "来源清单在扫描后发生变化，SHA-256 不匹配";
+                return false;
+            }
+            var json = new UTF8Encoding(false, true).GetString(sourceBytes);
+            var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
+                json);
+            if (!CombatFoundationModelPackageProtocol.TryValidate(
+                    package,
+                    out diagnostic))
+            {
+                return false;
+            }
+            var packageDirectory = Path.GetDirectoryName(sourcePath) ?? "";
+            if (package!.ModelArtifact != null
+                && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                    packageDirectory,
+                    package.ModelArtifact,
+                    out diagnostic))
+            {
+                return false;
+            }
+
+            var modelId = (package.Model?.ModelId
+                           ?? package.ModelArtifact?.ModelId
+                           ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                diagnostic = "模型 ID 为空";
+                return false;
+            }
+            var modelVersion = (package.ModelVersion ?? "")
+                .Trim()
+                .TrimStart('v', 'V');
+            var scannedVersion = (candidate.ModelVersion ?? "")
+                .Trim()
+                .TrimStart('v', 'V');
+            if (!string.IsNullOrWhiteSpace(scannedVersion)
+                && !string.Equals(
+                    modelVersion,
+                    scannedVersion,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostic = "来源清单的 ModelVersion 在扫描后发生变化";
+                return false;
+            }
+
+            var normalizedCandidate = new BundledFoundationPackageCandidate
+            {
+                Package = package,
+                SourceFileName = Path.GetFileName(sourcePath),
+                SourceDirectory = packageDirectory,
+                SourceSha256 = sourceSha256,
+                ModelVersion = modelVersion,
+                DisplayName = candidate.DisplayName
+            };
+            prepared = new PreparedBundledFoundationCandidate
+            {
+                Candidate = normalizedCandidate,
+                SourceReference = sourceReference,
+                Identity = new BundledFoundationRegistrationPlanIdentity
+                {
+                    SourceReference = sourceReference,
+                    ModelId = modelId,
+                    SourceSha256 = sourceSha256,
+                    RoleId = package.RoleId,
+                    PartnerId = package.PartnerId,
+                    EnabledRewardCardPackIds =
+                        package.EnabledRewardCardPackIds.ToList(),
+                    ModelVersion = modelVersion
+                }
+            };
+            diagnostic = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            diagnostic = "读取来源清单失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool BundledPreparedSourceIsStable(
+        PreparedBundledFoundationCandidate prepared,
+        out string diagnostic)
+    {
+        try
+        {
+            if (!AuraToolsBundledFoundationRegistrationPlanner
+                    .TryResolveSourceManifest(
+                        prepared.Candidate.SourceDirectory,
+                        prepared.SourceReference,
+                        out var sourcePath,
+                        out _,
+                        out diagnostic))
+            {
+                return false;
+            }
+            if (!File.Exists(sourcePath)
+                || !string.Equals(
+                    HashFile(sourcePath),
+                    prepared.Identity.SourceSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                diagnostic = "来源清单 SHA-256 在规划后发生变化";
+                return false;
+            }
+            var artifact = prepared.Candidate.Package.ModelArtifact;
+            if (artifact != null
+                && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                    prepared.Candidate.SourceDirectory,
+                    artifact,
+                    out diagnostic))
+            {
+                return false;
+            }
+            diagnostic = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            diagnostic = "复验来源失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    private static BundledFoundationRegistrationPlanIdentity
+        BundledRegistrationIdentity(AutoBattleModelLibraryEntry entry)
+    {
+        var bundle = ReadLibraryBundleFile(entry.BundleFile);
+        return new BundledFoundationRegistrationPlanIdentity
+        {
+            SourceReference = string.IsNullOrWhiteSpace(entry.SourcePackageFile)
+                ? bundle?.FoundationSourcePackageFile ?? entry.BundleFile
+                : entry.SourcePackageFile,
+            ModelId = entry.ModelId,
+            SourceSha256 = string.IsNullOrWhiteSpace(entry.SourcePackageSha256)
+                ? bundle?.FoundationSourcePackageSha256 ?? ""
+                : entry.SourcePackageSha256,
+            RoleId = string.IsNullOrWhiteSpace(entry.RoleId)
+                ? bundle?.RoleId ?? ""
+                : entry.RoleId,
+            PartnerId = string.IsNullOrWhiteSpace(entry.PartnerId)
+                ? bundle?.PartnerId ?? ""
+                : entry.PartnerId,
+            EnabledRewardCardPackIds =
+                (entry.EnabledRewardCardPackIds != null
+                 && entry.EnabledRewardCardPackIds.Count > 0
+                    ? entry.EnabledRewardCardPackIds
+                    : bundle?.EnabledRewardCardPackIds
+                      ?? new List<string>()).ToList(),
+            ModelVersion = string.IsNullOrWhiteSpace(entry.ModelVersion)
+                ? bundle?.FoundationModelVersion ?? ""
+                : entry.ModelVersion
+        };
+    }
+
+    internal static CombatModelRuntimeContext SnapshotModelRuntimeContext()
+    {
+        return CurrentRuntimeContext();
+    }
+
+    private static string BundledCandidateSourceLabel(
         BundledFoundationPackageCandidate candidate)
+    {
+        var source = (candidate?.SourceFileName ?? "")
+            .Trim()
+            .Replace(Path.DirectorySeparatorChar, '/');
+        if (Path.AltDirectorySeparatorChar != Path.DirectorySeparatorChar)
+        {
+            source = source.Replace(Path.AltDirectorySeparatorChar, '/');
+        }
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "<unknown-bundled-foundation-package>";
+        }
+        return Path.IsPathRooted(source)
+            ? Path.GetFileName(source)
+            : source.TrimStart('/');
+    }
+
+    private static bool BundledFoundationRegistrationIsCurrent(
+        AutoBattleModelLibraryEntry entry,
+        PreparedBundledFoundationCandidate prepared)
+    {
+        var candidate = prepared.Candidate;
+        var package = candidate.Package;
+        var modelId = prepared.Identity.ModelId;
+        var expectedBundleFile = ModelBundleFileName(modelId);
+        var bundle = ReadLibraryBundleFile(entry.BundleFile);
+        var acceptance = CombatFoundationModelPackageProtocol
+            .NormalizeAcceptance(package);
+        if (!string.Equals(entry.ModelId, modelId, StringComparison.Ordinal)
+            || !string.Equals(
+                entry.Profile,
+                NormalizeProfile(package.Profile),
+                StringComparison.Ordinal)
+            || !string.Equals(
+                entry.RoleId,
+                package.RoleId,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                entry.PartnerId,
+                package.PartnerId,
+                StringComparison.OrdinalIgnoreCase)
+            || !SameIds(
+                entry.EnabledRewardCardPackIds,
+                package.EnabledRewardCardPackIds)
+            || !string.Equals(
+                entry.CardPoolScope,
+                package.CardPoolScope,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                entry.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal)
+            || !string.Equals(
+                entry.BundleFile,
+                expectedBundleFile,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                (entry.ModelVersion ?? "").Trim().TrimStart('v', 'V'),
+                prepared.Identity.ModelVersion,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                entry.AcceptanceKind,
+                acceptance.Classification,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                entry.DistributionOrigin,
+                "bundled",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                entry.SourcePackageSha256,
+                prepared.Identity.SourceSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                entry.SourcePackageFile,
+                prepared.SourceReference,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                entry.GeneratedDisplayName,
+                candidate.DisplayName,
+                StringComparison.Ordinal)
+            || string.Equals(
+                   entry.DisplayNameMode,
+                   "generated",
+                   StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(
+                   entry.DisplayName,
+                   candidate.DisplayName,
+                   StringComparison.Ordinal)
+            || bundle == null
+            || bundle.SchemaVersion < 5
+            || !bundle.FoundationArtifactValidated
+            || bundle.PolicyValueArtifact == null
+            || bundle.PolicyValue != null
+            || !string.Equals(
+                CandidateModelId(bundle),
+                modelId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                bundle.FoundationPackageId,
+                package.PackageId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                (bundle.FoundationModelVersion ?? "")
+                    .Trim()
+                    .TrimStart('v', 'V'),
+                prepared.Identity.ModelVersion,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                bundle.FoundationDistributionOrigin,
+                "bundled",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                bundle.FoundationSourcePackageSha256,
+                prepared.Identity.SourceSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                bundle.FoundationSourcePackageFile,
+                prepared.SourceReference,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                bundle.PolicyValueArtifact.WeightsFile,
+                ModelWeightsFileName(modelId),
+                StringComparison.Ordinal)
+            || package.ModelArtifact != null
+               && (!string.Equals(
+                       bundle.PolicyValueArtifact.WeightsSha256,
+                       package.ModelArtifact.WeightsSha256,
+                       StringComparison.OrdinalIgnoreCase)
+                   || bundle.PolicyValueArtifact.WeightsByteLength
+                   != package.ModelArtifact.WeightsByteLength
+                   || !string.Equals(
+                       bundle.PolicyValueArtifact.ModelId,
+                       package.ModelArtifact.ModelId,
+                       StringComparison.Ordinal))
+            || !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                ModelLibraryDirectory(),
+                bundle.PolicyValueArtifact,
+                out _))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private static BundledFoundationFileTransaction
+        StageBundledFoundationRegistration(
+        AutoBattleModelLibraryDocument library,
+        PreparedBundledFoundationCandidate prepared,
+        AutoBattleModelLibraryEntry? existing,
+        AuraSharedStorageCoordinator storage,
+        CombatModelRuntimeContext runtimeContext)
+    {
+        var fileTransaction = new BundledFoundationFileTransaction();
+        try
+        {
+            Directory.CreateDirectory(ModelLibraryDirectory());
+            var candidate = prepared.Candidate;
+            var package = candidate.Package;
+            var modelId = prepared.Identity.ModelId;
+            var bundle = CreateBundledFoundationBundle(
+                candidate,
+                prepared.SourceReference);
+            bundle.PolicyValueArtifact = InstallPolicyValueArtifact(
+                candidate,
+                modelId,
+                fileTransaction);
+            bundle.PolicyValue = null;
+            var fileName = ModelBundleFileName(modelId);
+            var bundlePath = Path.Combine(ModelLibraryDirectory(), fileName);
+            fileTransaction.Publish(
+                bundlePath,
+                stagedPath => storage.WriteTextAtomic(
+                    stagedPath,
+                    AuraSharedJson.Serialize(bundle),
+                    createBackup: false));
+
+            var stagedEntry = existing == null
+                ? new AutoBattleModelLibraryEntry
+                {
+                    ModelId = modelId,
+                    DisplayName = candidate.DisplayName,
+                    DisplayNameMode = "generated",
+                    GeneratedDisplayName = candidate.DisplayName,
+                    CreatedUtc = package.CreatedUtc == default
+                        ? DateTime.UtcNow
+                        : package.CreatedUtc
+                }
+                : CloneLibraryEntry(existing);
+            UpdateLibraryEntry(
+                stagedEntry,
+                bundle,
+                fileName,
+                runtimeContext);
+            ApplyFoundationDisplayName(
+                stagedEntry,
+                candidate.DisplayName,
+                package.DisplayName);
+
+            if (existing == null)
+            {
+                library.Models.Add(stagedEntry);
+            }
+            else
+            {
+                var index = library.Models.IndexOf(existing);
+                if (index < 0)
+                {
+                    throw new InvalidOperationException(
+                        "既有模型条目在原子提交前已从模型库消失");
+                }
+                library.Models[index] = stagedEntry;
+            }
+            return fileTransaction;
+        }
+        catch (Exception ex)
+        {
+            var rolledBack = fileTransaction.TryRollback(
+                out var rollbackDiagnostic);
+            fileTransaction.Dispose();
+            if (!rolledBack)
+            {
+                throw new IOException(
+                    ex.Message + "；发布回滚失败：" + rollbackDiagnostic,
+                    ex);
+            }
+            throw;
+        }
+    }
+
+    private static string RollbackBundledFoundationRegistrations(
+        IEnumerable<PendingBundledFoundationRegistration> pending)
+    {
+        var failures = new List<string>();
+        foreach (var outcome in (pending
+                     ?? Array.Empty<PendingBundledFoundationRegistration>())
+                 .Reverse())
+        {
+            if (!outcome.FileTransaction.TryRollback(out var diagnostic))
+            {
+                failures.Add(diagnostic);
+            }
+        }
+        return failures.Count == 0
+            ? ""
+            : "；发布文件回滚失败：" + string.Join("；", failures);
+    }
+
+    private static void RecordBundledRegistrationFailure(
+        BundledFoundationRegistrationSummary summary,
+        IEnumerable<string> sourceReferences,
+        string diagnostic)
+    {
+        var sources = (sourceReferences ?? Array.Empty<string>())
+            .Where(source => !string.IsNullOrWhiteSpace(source))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(source => source, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(source => source, StringComparer.Ordinal)
+            .ToList();
+        if (sources.Count == 0)
+        {
+            sources.Add("<unknown-bundled-foundation-package>");
+        }
+        summary.Failed += sources.Count;
+        foreach (var source in sources)
+        {
+            summary.Diagnostics.Add(source + "：" + diagnostic);
+        }
+    }
+
+    private static void MergeBundledRegistrationSummary(
+        BundledFoundationRegistrationSummary target,
+        BundledFoundationRegistrationSummary source)
+    {
+        target.LibraryChanged |= source.LibraryChanged;
+        target.Installed += source.Installed;
+        target.Deduplicated += source.Deduplicated;
+        target.Conflicts += source.Conflicts;
+        target.Failed += source.Failed;
+        target.Diagnostics.AddRange(source.Diagnostics);
+    }
+
+    private static bool CanonicalSha256(string value)
+    {
+        var normalized = (value ?? "").Trim();
+        return normalized.Length == 64
+               && normalized.All(character =>
+                   character >= '0' && character <= '9'
+                   || character >= 'a' && character <= 'f'
+                   || character >= 'A' && character <= 'F');
+    }
+
+    private static AutoBattleCandidateBundle CreateBundledFoundationBundle(
+        BundledFoundationPackageCandidate candidate,
+        string sourcePackageReference)
     {
         var package = candidate.Package;
         var bundle = NewCandidateBundle(
@@ -3395,7 +4057,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.FoundationAcceptance = acceptance;
         bundle.FoundationDistributionOrigin = "bundled";
         bundle.FoundationSourcePackageSha256 = candidate.SourceSha256;
-        bundle.FoundationSourcePackageFile = candidate.SourceFileName;
+        bundle.FoundationSourcePackageFile = sourcePackageReference;
         bundle.ProjectionNormalWinRate = package.Validation.NormalWinRate;
         bundle.ProjectionAdvancedWinRate = package.Validation.AdvancedWinRate;
         bundle.GeneratedUtc = package.CreatedUtc;
@@ -3407,45 +4069,74 @@ internal static class AuraToolsAutoBattleModelRuntime
         BundledFoundationPackageCandidate candidate,
         string modelId)
     {
+        using var fileTransaction = new BundledFoundationFileTransaction();
+        var installed = InstallPolicyValueArtifact(
+            candidate,
+            modelId,
+            fileTransaction);
+        fileTransaction.Commit();
+        return installed;
+    }
+
+    private static CombatPolicyValueArtifactManifest InstallPolicyValueArtifact(
+        BundledFoundationPackageCandidate candidate,
+        string modelId,
+        BundledFoundationFileTransaction fileTransaction)
+    {
         var package = candidate.Package;
         var sourceArtifact = package.ModelArtifact;
-        var fileName = "weights-"
-                       + HashBytes(Encoding.UTF8.GetBytes(modelId))
-                           .Substring(0, 16)
-                           .ToLowerInvariant()
-                       + ".bin";
+        var fileName = ModelWeightsFileName(modelId);
         var targetPath = Path.Combine(ModelLibraryDirectory(), fileName);
-        if (sourceArtifact == null)
-        {
-            return CombatPolicyValueArtifactProtocol.Write(
-                targetPath,
-                package.Model
-                ?? throw new InvalidDataException("底模网络为空"));
-        }
-
-        var sourcePath = Path.Combine(
-            candidate.SourceDirectory,
-            sourceArtifact.WeightsFile);
-        var installed = CloneArtifact(sourceArtifact, fileName);
-        if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
-                ModelLibraryDirectory(),
-                installed,
-                out _))
-        {
-            CombatFoundationCheckpointStorage.WriteAtomicStream(
-                targetPath,
-                output =>
+        CombatPolicyValueArtifactManifest? installed = null;
+        fileTransaction.Publish(
+            targetPath,
+            stagedPath =>
+            {
+                CombatPolicyValueArtifactManifest stagedArtifact;
+                if (sourceArtifact == null)
                 {
-                    using var input = new FileStream(
-                        sourcePath,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.Read,
-                        64 * 1024,
-                        FileOptions.SequentialScan);
-                    input.CopyTo(output, 64 * 1024);
-                },
-                retainBackup: false);
+                    stagedArtifact = CombatPolicyValueArtifactProtocol.Write(
+                        stagedPath,
+                        package.Model
+                        ?? throw new InvalidDataException("底模网络为空"));
+                    installed = CloneArtifact(stagedArtifact, fileName);
+                }
+                else
+                {
+                    var sourcePath = Path.Combine(
+                        candidate.SourceDirectory,
+                        sourceArtifact.WeightsFile);
+                    CombatFoundationCheckpointStorage.WriteAtomicStream(
+                        stagedPath,
+                        output =>
+                        {
+                            using var input = new FileStream(
+                                sourcePath,
+                                FileMode.Open,
+                                FileAccess.Read,
+                                FileShare.Read,
+                                64 * 1024,
+                                FileOptions.SequentialScan);
+                            input.CopyTo(output, 64 * 1024);
+                        },
+                        retainBackup: false);
+                    stagedArtifact = CloneArtifact(
+                        sourceArtifact,
+                        Path.GetFileName(stagedPath));
+                    installed = CloneArtifact(sourceArtifact, fileName);
+                }
+
+                if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                        Path.GetDirectoryName(stagedPath) ?? "",
+                        stagedArtifact,
+                        out var stagedDiagnostic))
+                {
+                    throw new InvalidDataException(stagedDiagnostic);
+                }
+            });
+        if (installed == null)
+        {
+            throw new InvalidDataException("暂存权重没有生成工件清单");
         }
         if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
                 ModelLibraryDirectory(),
@@ -3455,6 +4146,15 @@ internal static class AuraToolsAutoBattleModelRuntime
             throw new InvalidDataException(diagnostic);
         }
         return installed;
+    }
+
+    private static string ModelWeightsFileName(string modelId)
+    {
+        return "weights-"
+               + HashBytes(Encoding.UTF8.GetBytes(modelId ?? ""))
+                   .Substring(0, 16)
+                   .ToLowerInvariant()
+               + ".bin";
     }
 
     private static CombatPolicyValueArtifactManifest CloneArtifact(
@@ -3485,29 +4185,6 @@ internal static class AuraToolsAutoBattleModelRuntime
             ActionQuantileHeadReady = source.ActionQuantileHeadReady,
             CreatedUtc = source.CreatedUtc
         };
-    }
-
-    private static bool SameFoundationRelease(
-        AutoBattleModelLibraryEntry entry,
-        CombatFoundationModelPackage package,
-        string modelVersion)
-    {
-        return !string.IsNullOrWhiteSpace(entry.ModelVersion)
-               && string.Equals(
-                   entry.ModelVersion.Trim().TrimStart('v', 'V'),
-                   modelVersion,
-                   StringComparison.OrdinalIgnoreCase)
-               && string.Equals(
-                   entry.RoleId,
-                   package.RoleId,
-                   StringComparison.OrdinalIgnoreCase)
-               && string.Equals(
-                   entry.PartnerId,
-                   package.PartnerId,
-                   StringComparison.OrdinalIgnoreCase)
-               && SameIds(
-                   entry.EnabledRewardCardPackIds,
-                   package.EnabledRewardCardPackIds);
     }
 
     private static bool SameIds(
@@ -3561,7 +4238,8 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static void UpdateLibraryEntry(
         AutoBattleModelLibraryEntry entry,
         AutoBattleCandidateBundle bundle,
-        string fileName)
+        string fileName,
+        CombatModelRuntimeContext runtimeContext)
     {
         entry.Profile = NormalizeProfile(bundle.Profile);
         entry.RoleId = bundle.RoleId;
@@ -3570,7 +4248,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         entry.EnabledRewardCardPackIds = bundle.EnabledRewardCardPackIds.ToList();
         entry.PreferredDeckSizeMinimum = bundle.PreferredDeckSizeMinimum;
         entry.PreferredDeckSizeMaximum = bundle.PreferredDeckSizeMaximum;
-        var coverage = AssessBundleCoverage(bundle);
+        var coverage = AssessBundleCoverage(bundle, runtimeContext);
         entry.CoverageLevel = coverage?.Level ?? "exact-local";
         entry.CoverageSummary = coverage?.Summary ?? "当前角色与卡池专属模型";
         entry.ModelPurpose = bundle.ModelPurpose;
@@ -3817,6 +4495,13 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static CombatModelCoverageAssessment? AssessBundleCoverage(
         AutoBattleCandidateBundle bundle)
     {
+        return AssessBundleCoverage(bundle, CurrentRuntimeContext());
+    }
+
+    private static CombatModelCoverageAssessment? AssessBundleCoverage(
+        AutoBattleCandidateBundle bundle,
+        CombatModelRuntimeContext runtimeContext)
+    {
         if (!string.Equals(
                 bundle.ModelPurpose,
                 "foundation",
@@ -3830,7 +4515,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             bundle.DeclaredCoverage
             ?? CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
                 bundle.TrainingSubject),
-            CurrentRuntimeContext());
+            runtimeContext);
     }
 
     private static string DescribeWorkerProvenance(
@@ -3870,6 +4555,11 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static AutoBattleModelLibraryDocument ReadLibrary()
     {
         EnsureModelLibraryMigrated();
+        return ReadLibraryNoMigration();
+    }
+
+    private static AutoBattleModelLibraryDocument ReadLibraryNoMigration()
+    {
         var path = ModelLibraryManifestPath();
         if (!File.Exists(path))
         {
@@ -3883,12 +4573,27 @@ internal static class AuraToolsAutoBattleModelRuntime
         return library;
     }
 
-    private static void WriteLibrary(AutoBattleModelLibraryDocument library)
+    private static T ExecuteModelLibraryWrite<T>(
+        Func<AuraSharedStorageCoordinator, T> action)
     {
-        EnsureModelLibraryMigrated();
+        if (!Monitor.IsEntered(LibraryGate))
+        {
+            throw new InvalidOperationException(
+                "模型库写事务必须先持有进程内 LibraryGate");
+        }
+        using var storage = new AuraSharedStorageCoordinator(
+            AuraSharedPaths.RootDirectory);
+        return storage.ExecuteWrite(
+            ModelLibraryWriteLockKey,
+            () => action(storage));
+    }
+
+    private static void WriteLibraryNoLock(
+        AutoBattleModelLibraryDocument library,
+        AuraSharedStorageCoordinator storage)
+    {
         library.SchemaVersion = Math.Max(5, library.SchemaVersion);
         Directory.CreateDirectory(ModelLibraryDirectory());
-        using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
         storage.WriteTextAtomic(
             ModelLibraryManifestPath(),
             AuraSharedJson.Serialize(library),
@@ -3909,7 +4614,8 @@ internal static class AuraToolsAutoBattleModelRuntime
             CardPoolScope = source.CardPoolScope,
             PartnerId = source.PartnerId,
             EnabledRewardCardPackIds =
-                source.EnabledRewardCardPackIds.ToList(),
+                (source.EnabledRewardCardPackIds
+                 ?? new List<string>()).ToList(),
             PreferredDeckSizeMinimum = source.PreferredDeckSizeMinimum,
             PreferredDeckSizeMaximum = source.PreferredDeckSizeMaximum,
             CoverageLevel = source.CoverageLevel,
@@ -3987,6 +4693,39 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return;
         }
+        var legacyManifest = Path.Combine(
+            AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId),
+            "model-library",
+            "models.json");
+        if (!File.Exists(legacyManifest))
+        {
+            return;
+        }
+
+        try
+        {
+            ExecuteModelLibraryWrite(storage =>
+            {
+                EnsureModelLibraryMigratedNoLock(storage);
+                return true;
+            });
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[AutoBattle][Models] legacy model library migration failed; continuing without deletion: "
+                              + ex.Message);
+        }
+    }
+
+    private static void EnsureModelLibraryMigratedNoLock(
+        AuraSharedStorageCoordinator storage)
+    {
+        var destination = ModelLibraryDirectory();
+        var destinationManifest = Path.Combine(destination, "models.json");
+        if (File.Exists(destinationManifest))
+        {
+            return;
+        }
 
         var legacy = Path.Combine(
             AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId),
@@ -3997,42 +4736,33 @@ internal static class AuraToolsAutoBattleModelRuntime
             return;
         }
 
-        try
+        Directory.CreateDirectory(destination);
+        var files = Directory.EnumerateFiles(legacy, "*", SearchOption.TopDirectoryOnly)
+            .OrderBy(path => string.Equals(
+                Path.GetFileName(path),
+                "models.json",
+                StringComparison.OrdinalIgnoreCase)
+                ? 1
+                : 0)
+            .ToArray();
+        foreach (var source in files)
         {
-            Directory.CreateDirectory(destination);
-            var files = Directory.EnumerateFiles(legacy, "*", SearchOption.TopDirectoryOnly)
-                .OrderBy(path => string.Equals(
-                    Path.GetFileName(path),
-                    "models.json",
-                    StringComparison.OrdinalIgnoreCase)
-                    ? 1
-                    : 0)
-                .ToArray();
-            using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
-            foreach (var source in files)
+            var target = Path.Combine(destination, Path.GetFileName(source));
+            if (File.Exists(target))
             {
-                var target = Path.Combine(destination, Path.GetFileName(source));
-                if (File.Exists(target))
-                {
-                    continue;
-                }
-
-                storage.WriteTextAtomic(
-                    target,
-                    File.ReadAllText(source),
-                    createBackup: false);
+                continue;
             }
-            AuraToolsLog.Info("[AutoBattle][Models] copied legacy model library into AuraShared owner data; source="
-                              + legacy
-                              + "; destination="
-                              + destination
-                              + ".");
+
+            storage.WriteTextAtomic(
+                target,
+                File.ReadAllText(source),
+                createBackup: false);
         }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[AutoBattle][Models] legacy model library migration failed; continuing without deletion: "
-                              + ex.Message);
-        }
+        AuraToolsLog.Info("[AutoBattle][Models] copied legacy model library into AuraShared owner data; source="
+                          + legacy
+                          + "; destination="
+                          + destination
+                          + ".");
     }
 
     private static string ExternalValidationDirectory()

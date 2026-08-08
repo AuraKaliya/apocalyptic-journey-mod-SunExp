@@ -296,6 +296,7 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "InferenceParallelism", "推理并行上下文", 0, 64);
         AddNumber(panel, "InferenceLaneCount", "推理 Lane 数（0 自动）", 0, 64);
         AddNumber(panel, "InferenceBatchSize", "推理批大小（0 自动）", 0, 32);
+        AddToggle(panel, "ReuseAutoTuneCache", "复用签名匹配的自动调优缓存");
         AddNumber(
             panel,
             "ThreadPoolMinimumWorkerThreads",
@@ -437,6 +438,18 @@ internal sealed class MainWindow : Window
             "教师最终 Epoch",
             1,
             100);
+        AddNumber(
+            panel,
+            "TransformerTeacherIncrementalReplayFrames",
+            "教师增量回放 Frames",
+            0,
+            100000);
+        AddNumber(
+            panel,
+            "TransformerTeacherMaximumIncrementalTrainingFrames",
+            "教师单轮增量训练上限",
+            64,
+            100000);
         AddNumber(panel, "TransformerTeacherCpuThreads", "教师 CPU 线程（0 自动）", 0, 64);
         AddNumber(
             panel,
@@ -465,13 +478,19 @@ internal sealed class MainWindow : Window
         AddToggle(
             panel,
             "TransformerTeacherEnableShardedDataset",
-            "教师数据使用磁盘分片");
+            "教师数据自动选择 resident/磁盘大分片");
         AddNumber(
             panel,
             "TransformerTeacherDatasetShardFrames",
             "教师每分片 Frames",
-            16,
-            512);
+            256,
+            4096);
+        AddNumber(
+            panel,
+            "TransformerTeacherResidentDatasetMaximumFrames",
+            "教师 resident 数据上限",
+            256,
+            100000);
         AddNumber(
             panel,
             "TransformerTeacherMemoryReserveMegabytes",
@@ -486,6 +505,10 @@ internal sealed class MainWindow : Window
             panel,
             "TransformerTeacherEnableMixedPrecision",
             "GPU 使用自动混合精度");
+        AddToggle(
+            panel,
+            "TransformerTeacherEnableDeterministicTraining",
+            "启用可复现的确定性训练");
         AddDouble(panel, "TransformerDistillationWeight", "教师蒸馏权重");
 
         panel.Children.Add(Section("课程、探索与验收"));
@@ -2026,7 +2049,8 @@ internal sealed class MainWindow : Window
         {
             settings = new ControllerSettings();
         }
-        if (settings.SchemaVersion != ControllerSettings.CurrentSchemaVersion)
+        if (!settings.MigrateFromPreviousSchema()
+            && settings.SchemaVersion != ControllerSettings.CurrentSchemaVersion)
         {
             settings = new ControllerSettings();
         }
@@ -2059,7 +2083,6 @@ internal sealed class MainWindow : Window
                 CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
                 Environment.ProcessorCount));
         parameters.EnableMemoryCapacityParallelism = true;
-        parameters.ReuseAutoTuneCache = false;
     }
 
     private static CombatGameSubjectPreset LoadDefaultGameSubject(
@@ -2217,6 +2240,7 @@ internal sealed class MainWindow : Window
         p.InferenceParallelism = Int("InferenceParallelism");
         p.InferenceLaneCount = Int("InferenceLaneCount");
         p.InferenceBatchSize = Int("InferenceBatchSize");
+        p.ReuseAutoTuneCache = Toggle("ReuseAutoTuneCache");
         p.ThreadPoolMinimumWorkerThreads =
             Int("ThreadPoolMinimumWorkerThreads");
         p.CheckpointSerializationParallelism =
@@ -2321,6 +2345,10 @@ internal sealed class MainWindow : Window
             Int("TransformerTeacherIncrementalEpochs");
         p.TransformerTeacherFinalEpochs =
             Int("TransformerTeacherFinalEpochs");
+        p.TransformerTeacherIncrementalReplayFrames =
+            Int("TransformerTeacherIncrementalReplayFrames");
+        p.TransformerTeacherMaximumIncrementalTrainingFrames =
+            Int("TransformerTeacherMaximumIncrementalTrainingFrames");
         p.TransformerTeacherCpuThreads =
             Int("TransformerTeacherCpuThreads");
         p.TransformerTeacherCpuInteropThreads =
@@ -2335,6 +2363,8 @@ internal sealed class MainWindow : Window
             Toggle("TransformerTeacherEnableShardedDataset");
         p.TransformerTeacherDatasetShardFrames =
             Int("TransformerTeacherDatasetShardFrames");
+        p.TransformerTeacherResidentDatasetMaximumFrames =
+            Int("TransformerTeacherResidentDatasetMaximumFrames");
         p.TransformerTeacherMemoryReserveBytes =
             (long)Int("TransformerTeacherMemoryReserveMegabytes")
             * 1024L
@@ -2343,6 +2373,8 @@ internal sealed class MainWindow : Window
             Toggle("TransformerTeacherEnablePinnedMemory");
         p.TransformerTeacherEnableMixedPrecision =
             Toggle("TransformerTeacherEnableMixedPrecision");
+        p.TransformerTeacherEnableDeterministicTraining =
+            Toggle("TransformerTeacherEnableDeterministicTraining");
         p.TransformerDistillationWeight =
             Double("TransformerDistillationWeight");
         p.EnableCurriculum = Toggle("EnableCurriculum");
@@ -2450,6 +2482,7 @@ internal sealed class MainWindow : Window
         Set("InferenceParallelism", p.InferenceParallelism);
         Set("InferenceLaneCount", p.InferenceLaneCount);
         Set("InferenceBatchSize", p.InferenceBatchSize);
+        SetToggle("ReuseAutoTuneCache", p.ReuseAutoTuneCache);
         Set(
             "ThreadPoolMinimumWorkerThreads",
             p.ThreadPoolMinimumWorkerThreads);
@@ -2574,6 +2607,12 @@ internal sealed class MainWindow : Window
             "TransformerTeacherFinalEpochs",
             p.TransformerTeacherFinalEpochs);
         Set(
+            "TransformerTeacherIncrementalReplayFrames",
+            p.TransformerTeacherIncrementalReplayFrames);
+        Set(
+            "TransformerTeacherMaximumIncrementalTrainingFrames",
+            p.TransformerTeacherMaximumIncrementalTrainingFrames);
+        Set(
             "TransformerTeacherCpuThreads",
             p.TransformerTeacherCpuThreads);
         Set(
@@ -2595,6 +2634,9 @@ internal sealed class MainWindow : Window
             "TransformerTeacherDatasetShardFrames",
             p.TransformerTeacherDatasetShardFrames);
         Set(
+            "TransformerTeacherResidentDatasetMaximumFrames",
+            p.TransformerTeacherResidentDatasetMaximumFrames);
+        Set(
             "TransformerTeacherMemoryReserveMegabytes",
             Math.Max(
                 128L,
@@ -2606,6 +2648,9 @@ internal sealed class MainWindow : Window
         SetToggle(
             "TransformerTeacherEnableMixedPrecision",
             p.TransformerTeacherEnableMixedPrecision);
+        SetToggle(
+            "TransformerTeacherEnableDeterministicTraining",
+            p.TransformerTeacherEnableDeterministicTraining);
         Set(
             "TransformerDistillationWeight",
             p.TransformerDistillationWeight);

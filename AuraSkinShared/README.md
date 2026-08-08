@@ -9,8 +9,8 @@
 - The first consumer creates the persistent `AuraSkin.Global` component; later consumers use its reflected protocol.
 - Native UI refresh hooks replace an image only when the selected skin explicitly overrides that image field. The default
   skin leaves the game's native image and layout untouched.
-- Explicit skin changes refresh the selected role immediately. Career-detail images preserve the host UI's `RectTransform`
-  geometry and render with their original aspect ratio instead of restoring legacy native-size behavior or stretching.
+- Explicit skin changes refresh the selected role immediately. Career-detail images mirror the host UI's native-size
+  behavior after the selected sprite is assigned and keep aspect-ratio preservation enabled.
 - Mod resources under `SharedResources/Skins` are installation sources only.
 - The runtime enumerates only skin packages registered in the current session.
 - Logical skin paths use `Skin/Role/<careerId>/Skin/<owner>/<skinId>/content`.

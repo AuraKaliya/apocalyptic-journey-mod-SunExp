@@ -18,6 +18,7 @@ public sealed class SpiritOtherObj : OtherObj
     private static Dictionary<string, string>? presentationAdapterData;
 
     private CompanionBattleState? battleState;
+    private ObjectCard? intentCard;
 
     public CapturedEnemySnapshot Snapshot { get; private set; } = new();
 
@@ -179,8 +180,7 @@ public sealed class SpiritOtherObj : OtherObj
     private void RebuildAction(string cardId, int priority)
     {
         var started = TerriasPerformanceCounters.Timestamp();
-        FightAction = new ObjectAction(this);
-        var card = new ObjectCard { status = Status as StatusManager };
+        FightAction ??= new ObjectAction(this);
         var sourceCardId = string.IsNullOrWhiteSpace(cardId)
             ? TerriasIds.ProjectionActionWaitCardId
             : cardId.Trim();
@@ -200,9 +200,21 @@ public sealed class SpiritOtherObj : OtherObj
         });
         var config = materialized.Instance as DataConfig
             ?? throw new InvalidOperationException("Spirit intent materialization failed: " + materialized.Message);
-        card.Init(config);
+        if (intentCard == null)
+        {
+            intentCard = new ObjectCard { status = Status as StatusManager };
+            intentCard.Init(config);
+            FightAction.AddCard(intentCard);
+        }
+        else
+        {
+            // Keep the ObjectAction/allCards slot stable for the native action
+            // intent protocol. Only the adapter presentation payload changes.
+            intentCard.status = Status as StatusManager;
+            intentCard.Init(config);
+        }
+        intentCard.nowCD = 0;
         VerifyPresentationBinding(config, sourceCardId);
-        FightAction.AddCard(card);
         TerriasPerformanceCounters.RecordHotspot(
             "Spirit.Intent.PresentationBuild",
             started,
