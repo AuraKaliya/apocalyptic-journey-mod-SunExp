@@ -33,6 +33,10 @@
              Link="Native\AuraToolsNativePrograms.g.cs" />
     <Compile Include="..\AuraFoundationTrainer.Worker\WorkerNativeShims.cs"
              Link="Native\WorkerNativeShims.cs" />
+    <Compile Include="..\AuraFoundationTrainer.Worker\CombatFoundationRequestIdentity.cs"
+             Link="Worker\CombatFoundationRequestIdentity.cs" />
+    <Compile Include="..\AuraFoundationTrainer.Worker\WorkerCompactEpisodeContractResolver.cs"
+             Link="Worker\WorkerCompactEpisodeContractResolver.cs" />
   </ItemGroup>
 
   <ItemGroup>

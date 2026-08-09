@@ -90,20 +90,9 @@ public sealed class SandroneCatBattleState
 
 public static class SandroneCatMaxHpFormula
 {
-    public static int CalculateStartLoss(int maxHp)
-    {
-        return SaturatingAdd(3, PercentageCeiling(maxHp, 2));
-    }
-
     public static int CalculateEndGain(int maxHp)
     {
-        return SaturatingAdd(2, PercentageCeiling(maxHp, 3));
-    }
-
-    public static int MaxHpAfterStart(int maxHp)
-    {
-        var current = Math.Max(1, maxHp);
-        return Math.Max(1, current - CalculateStartLoss(current));
+        return SaturatingAdd(1, PercentageCeiling(maxHp, 4));
     }
 
     public static int MaxHpAfterEnd(int maxHp)

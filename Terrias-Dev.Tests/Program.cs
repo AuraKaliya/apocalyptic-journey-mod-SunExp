@@ -16,6 +16,10 @@ internal static class Program
         TestCardCostHelpers();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
+        TestSolarFlameSealFormula();
+        TestMorningStarRelicFormula();
+        TestMorningStarBlessingFormula();
+        TestSunCardPackSelectionMigration();
         TestCardGrantRequest();
         TestCombatCardViewPoolCatalog();
         TestCardMutationService();
@@ -60,6 +64,74 @@ internal static class Program
 
         True(DictionaryUtil.ContainsToken("Burnout, " + WhiteRadiance + " ,Froze", TerriasIds.WhiteRadianceTag), "ContainsToken trims comma-separated tokens");
         False(DictionaryUtil.ContainsToken(WhiteRadiance + "\u5316", TerriasIds.WhiteRadianceTag), "ContainsToken requires exact token matches");
+        True(TerriasIds.IsTechnicalBlessingId("*origin_strength_50"), "Hidden origin milestones are classified as technical blessings");
+        True(TerriasIds.IsTechnicalBlessingId(TerriasIds.OriginFortune50Blessing), "Runtime origin milestone ids remain excluded from custom blessing pools");
+        False(TerriasIds.IsTechnicalBlessingId("Terrias_terrias_solar_witch"), "Player-facing Solar blessings are not classified as technical");
+    }
+
+    private static void TestSolarFlameSealFormula()
+    {
+        Equal(1, SolarFlameSealFormula.GatheredFlameGain(0), "Solar Flame Seal grants 1 Gathered Flame for a zero-cost card");
+        Equal(4, SolarFlameSealFormula.GatheredFlameGain(3), "Solar Flame Seal grants paid cost plus 1");
+        Equal(1, SolarFlameSealFormula.GatheredFlameGain(-5), "Solar Flame Seal clamps invalid negative costs before adding 1");
+        Equal(int.MaxValue, SolarFlameSealFormula.GatheredFlameGain(int.MaxValue), "Solar Flame Seal gain saturates safely");
+    }
+
+    private static void TestMorningStarRelicFormula()
+    {
+        var paidCard = NewConfig(
+            new Dictionary<string, string> { ["Id"] = "timeless_target", ["Expend"] = "3" },
+            new Dictionary<string, string>());
+        True(MorningStarRelicFormula.IsTimelessClockCandidate(paidCard), "Timeless Clock accepts a positive-cost unmarked card");
+        True(MorningStarRelicFormula.MakeTimelessClockFree(paidCard), "Timeless Clock marks its first eligible target");
+        Equal(0, CardConfigApi.CurrentCost(paidCard), "Timeless Clock keeps the selected card at zero cost");
+        Equal("-999", paidCard.Vars["TotalExCost"], "Timeless Clock uses a combat-scoped total cost override");
+        True(CardMutationService.HasRuntimeMarker(paidCard, TerriasIds.TimelessClockZeroCostMarker), "Timeless Clock records its own runtime marker");
+        False(MorningStarRelicFormula.IsTimelessClockCandidate(paidCard), "Timeless Clock never selects a card it already zeroed");
+        False(MorningStarRelicFormula.MakeTimelessClockFree(paidCard), "Timeless Clock cannot apply twice to the same card instance");
+
+        var freeCard = NewConfig(
+            new Dictionary<string, string> { ["Id"] = "already_free", ["Expend"] = "0" },
+            new Dictionary<string, string>());
+        False(MorningStarRelicFormula.IsTimelessClockCandidate(freeCard), "Timeless Clock skips cards that already cost zero");
+
+        True(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "player", true, true), "Fox-Woman's Harp counts a player-applied enemy debuff event");
+        False(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "enemy", true, true), "Fox-Woman's Harp ignores debuffs applied by enemies");
+        False(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "player", false, true), "Fox-Woman's Harp ignores self-applied debuffs");
+        False(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "player", true, false), "Fox-Woman's Harp ignores positive buffs");
+
+        False(MorningStarRelicFormula.RelicPouchRecycles(false), "A non-Loneer relic pouch is one-shot");
+        True(MorningStarRelicFormula.RelicPouchRecycles(true), "A Loneer relic pouch refills after it is emptied");
+        var careerKey = MorningStarRelicFormula.PouchStateKey("player", MorningStarRelicFormula.CareerPouchChannel);
+        var relicKey = MorningStarRelicFormula.PouchStateKey("player", MorningStarRelicFormula.RelicPouchChannel);
+        False(string.Equals(careerKey, relicKey, StringComparison.Ordinal), "Career and relic pouches use independent owner-channel state keys");
+        Equal("", MorningStarRelicFormula.PouchStateKey("", MorningStarRelicFormula.RelicPouchChannel), "Pouch state rejects an empty owner identity");
+    }
+
+    private static void TestMorningStarBlessingFormula()
+    {
+        Equal(0, MorningStarBlessingFormula.MissingHealthRecovery(100, 100), "Withered One does not heal at full health");
+        Equal(1, MorningStarBlessingFormula.MissingHealthRecovery(100, 1), "Withered One heals at least one HP when health is missing");
+        Equal(1, MorningStarBlessingFormula.MissingHealthRecovery(300, 101), "Withered One follows the base-game integer one-percent precedent");
+        Equal(2, MorningStarBlessingFormula.MissingHealthRecovery(300, 100), "Withered One heals two HP at two hundred missing health");
+        Equal(0, MorningStarBlessingFormula.MissingHealthRecovery(-5, -9), "Withered One normalizes invalid health values safely");
+    }
+
+    private static void TestSunCardPackSelectionMigration()
+    {
+        var selected = new HashSet<string>(StringComparer.Ordinal)
+        {
+            TerriasIds.RadiantSparkCardPackId,
+            "cardpack_ember_crown",
+            "base_pack"
+        };
+        True(SunCardPackSelectionMigration.Apply(selected), "Legacy selected Solar packs migrate to the consolidated pack");
+        True(selected.SetEquals(new[] { TerriasIds.SolarEmberCrownCanopyCardPackId, "base_pack" }), "Migration removes all legacy Solar selections and preserves unrelated packs");
+        False(SunCardPackSelectionMigration.Apply(selected), "Canonical Solar pack selection is idempotent");
+
+        var disabled = new HashSet<string>(StringComparer.Ordinal) { "base_pack" };
+        False(SunCardPackSelectionMigration.Apply(disabled), "Migration does not enable the consolidated Solar pack when no legacy pack was selected");
+        False(disabled.Contains(TerriasIds.SolarEmberCrownCanopyCardPackId), "Disabled Solar packs stay disabled after migration");
     }
 
     private static void TestProjectionTurnQueuePolicy()
@@ -367,13 +439,29 @@ internal static class Program
         Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
 
         CardVisualSkinApi.RegisterTerriasDefaults();
-        var radiantSparkCard = new DataConfig(new Dictionary<string, string>
+        var consolidatedSunPackCard = new DataConfig(new Dictionary<string, string>
         {
             ["Id"] = "Terrias_terrias_morning_light_bulwark",
+            ["PackBelong"] = TerriasIds.SolarEmberCrownCanopyCardPackId,
+            ["Icon"] = "Other/Icon"
+        });
+        Equal(TerriasIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(consolidatedSunPackCard)?.Id, "The consolidated Solar pack uses the Sun card visual skin by pack id");
+
+        var legacySunPackCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "legacy_solar_card",
             ["PackBelong"] = TerriasIds.RadiantSparkCardPackId,
+            ["Icon"] = "Other/Icon"
+        });
+        Equal(TerriasIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(legacySunPackCard)?.Id, "Serialized cards from legacy Solar packs retain the Sun card visual skin");
+
+        var sunIconFallbackCard = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = "sun_icon_fallback",
+            ["PackBelong"] = "",
             ["Icon"] = "Mods/Terrias/ModResource/Images/Card/Terrias/morning_light_bulwark"
         });
-        Equal(TerriasIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(radiantSparkCard)?.Id, "Terrias defaults keep Sun packs on the Sun card visual skin");
+        Equal(TerriasIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(sunIconFallbackCard)?.Id, "Solar card art retains the Sun skin as an icon fallback");
 
         var morningStarPackCard = new DataConfig(new Dictionary<string, string>
         {
@@ -868,6 +956,10 @@ internal static class Program
         False(failed.Success, "CardApi grant returns structured failure on delivery errors");
         Equal("deliver", failed.FailureStep, "CardApi grant identifies the failing step");
         Equal(0, FightCardManager.Instance.cardList.Count, "CardApi grant cleans up created combat cards when delivery fails");
+
+        FightCardManager.Instance.usedCardList.Clear();
+        True(CardApi.AddCardToDiscardPile(executor, TerriasIds.ForgottenCardId), "CardApi can create a combat card directly in the discard pile");
+        Equal(TerriasIds.ForgottenCardId, CardConfigApi.Id(FightCardManager.Instance.usedCardList.Single()), "Discard-pile grants preserve the resolved card id");
     }
 
     private static void TestCardMutationService()

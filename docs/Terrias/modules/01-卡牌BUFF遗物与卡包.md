@@ -10,24 +10,24 @@
 
 | 内容 | 数量 | 数据入口 |
 | --- | ---: | --- |
-| 卡牌 | 56 | `Terrias/Data/Card/*.csv` |
-| Buff | 32 | `Terrias/Data/Buff/*.csv` |
-| 遗物 | 13 | `Terrias/Data/Relic/terrias.csv` |
-| 卡包 | 5 | `Terrias/Data/CardPack/terrias.csv` |
+| 卡牌 | 60 | `Terrias/Data/Card/*.csv` |
+| Buff | 47 | `Terrias/Data/Buff/*.csv` |
+| 遗物 | 17 | `Terrias/Data/Relic/terrias.csv` |
+| 卡包 | 3 | `Terrias/Data/CardPack/terrias.csv` |
 
-卡牌总数由 `Card/terrias.csv` 的 50 张、乌娜 3 张、洛奈尔 1 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
+卡牌总数由 `Card/terrias.csv` 的 52 张、乌娜 3 张、洛奈尔 1 张、哥伦比娅 2 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
 
-## 2. 五个卡包
+## 2. 三个卡包
 
 | 运行时完整 id | 显示名 | 机制定位 |
 | --- | --- | --- |
-| `Terrias_terrias_cardpack_radiant_spark` | 日耀：星火 | 日耀、聚炎、烬衣、圣冕的低复杂度入口 |
-| `Terrias_terrias_cardpack_ember_crown` | 日耀：烬冠 | 自身灼烧、聚炎转化、圣冕爆发和自燃压力 |
-| `Terrias_terrias_cardpack_solar_canopy` | 日耀：天幕 | 场地、敌方灼烧、负面状态和持续扩散 |
+| `Terrias_terrias_cardpack_solar_ember_crown_canopy` | 日耀：烬冠天幕 | 整合日耀、聚焰、烬衣、圣冕、场地、自身灼烧管理与敌方灼烧扩散 |
 | `Terrias_terrias_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
 | `Terrias_terrias_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
 
 卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 Terrias 的 `GameCompatibilityApi` 负责按包查询。
+
+旧的三个日耀卡包勾选会在运行时迁移为合并卡包；旧卡牌实例仍保留卡框皮肤兼容规则。合并卡包暂时复用【日耀：烬冠】封面。
 
 ## 3. 卡牌分类
 
@@ -57,6 +57,7 @@ flowchart LR
 - **天幕场地**：灼热天幕、天幕再临、启辉誓言、日蚀。
 - **日耀/圣冕**：太阳圣祷、日耀：授冕、圣冕显化及等阶效果。
 - **手牌事务**：被珍藏的名字弃牌、被燃尽的名字焚毁手牌。
+- **阳炣火漆**：耀焰斩、太阳圣祷、炎轮再临、浴火打出后，按实际费用+1获得聚焰。
 
 ### 3.2 晨星卡
 
@@ -148,15 +149,16 @@ Clear 时清除 hook、token 和本地 Vars。这样 Buff 被移除后，旧回�
 
 ## 6. 遗物运行方式
 
-13 件遗物全部由 `RelicScripts.Fight` 的 `FightHandlers` 分派。**反编译确认**，游戏 `BlessingRelic` 在进入战斗时为遗物 DataConfig 设置 Self/Object 并运行 `FightScript`。
+17 件遗物全部由 `RelicScripts.Fight` 的 `FightHandlers` 分派。**反编译确认**，游戏 `BlessingRelic` 在进入战斗时为遗物 DataConfig 设置 Self/Object 并运行 `FightScript`。
 
 遗物 handler 不在 FightScript 当场执行所有效果，而是注册到语义事件：
 
 | 事件 | 代表遗物 |
 | --- | --- |
-| `FightStart` | 晨辉碎片、环日镜初始化、日心棱镜初始化 |
-| `StartRound` | 烬衣衬布、太阳瓶、日相刻盘、小型日轮、灰烬护符、日晷、风带 |
-| `Action` | 环日镜计数、授冕圣座/棱镜状态检查 |
+| `FightStart` | 晨辉碎片、环日镜初始化、日心棱镜初始化、洛奈尔的星石袋 |
+| `StartRound` | 烬衣衬布、太阳瓶、日相刻盘、小型日轮、灰烬护符、日晷、风带、黯淡星石 |
+| `Action` | 环日镜计数、授冕圣座/棱镜状态检查、无刻时钟 |
+| `AddBuff` | 狐女的竖琴统计玩家向敌方施加负面 Buff 的次数 |
 | Buff level change | 聚炎护符、授冕圣座、日心棱镜 |
 | `EndRound` | 灰烬护符等结算 |
 

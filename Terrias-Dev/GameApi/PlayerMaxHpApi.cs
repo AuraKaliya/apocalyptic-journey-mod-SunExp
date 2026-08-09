@@ -31,7 +31,7 @@ public static class PlayerMaxHpApi
                 GameSaveManager.UpdateRoles(RoleTable.Instance);
             }
 
-            TerriasLog.Info("[SandroneCat] native max HP change from "
+            TerriasLog.Info("[PlayerMaxHp] native max HP change from "
                             + source
                             + ": "
                             + oldMaxHp
@@ -44,7 +44,7 @@ public static class PlayerMaxHpApi
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[SandroneCat] native max HP change failed from "
+            TerriasLog.Warn("[PlayerMaxHp] native max HP change failed from "
                             + source
                             + ": "
                             + ex.Message);

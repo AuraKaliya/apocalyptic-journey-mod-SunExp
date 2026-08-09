@@ -150,6 +150,102 @@ def verify_reseed_compatibility() -> None:
         assert torch.equal(expected_torch, torch.rand(8))
 
 
+def live_process_tree_ids() -> set[int]:
+    process_ids = {os.getpid()}
+    try:
+        import multiprocessing
+
+        process_ids.update(
+            int(child.pid)
+            for child in multiprocessing.active_children()
+            if child.pid is not None
+        )
+    except (ImportError, OSError, RuntimeError):
+        pass
+    return process_ids
+
+
+def process_cpu_times_by_pid() -> dict[int, float]:
+    if os.name != "nt":
+        return {os.getpid(): time.process_time()}
+    try:
+        class FileTime(ctypes.Structure):
+            _fields_ = [
+                ("low", ctypes.c_ulong),
+                ("high", ctypes.c_ulong),
+            ]
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.OpenProcess.argtypes = (
+            ctypes.c_ulong,
+            ctypes.c_int,
+            ctypes.c_ulong,
+        )
+        kernel32.OpenProcess.restype = ctypes.c_void_p
+        kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+        kernel32.CloseHandle.restype = ctypes.c_int
+        kernel32.GetProcessTimes.argtypes = (
+            ctypes.c_void_p,
+            ctypes.POINTER(FileTime),
+            ctypes.POINTER(FileTime),
+            ctypes.POINTER(FileTime),
+            ctypes.POINTER(FileTime),
+        )
+        kernel32.GetProcessTimes.restype = ctypes.c_int
+        result: dict[int, float] = {}
+        for process_id in live_process_tree_ids():
+            owned_handle = process_id != os.getpid()
+            handle = (
+                kernel32.OpenProcess(0x1000, 0, process_id)
+                if owned_handle
+                else kernel32.GetCurrentProcess()
+            )
+            if not handle:
+                continue
+            try:
+                creation = FileTime()
+                exit_time = FileTime()
+                kernel = FileTime()
+                user = FileTime()
+                if kernel32.GetProcessTimes(
+                    handle,
+                    ctypes.byref(creation),
+                    ctypes.byref(exit_time),
+                    ctypes.byref(kernel),
+                    ctypes.byref(user),
+                ):
+                    kernel_ticks = (int(kernel.high) << 32) | int(kernel.low)
+                    user_ticks = (int(user.high) << 32) | int(user.low)
+                    result[process_id] = (kernel_ticks + user_ticks) / 10_000_000.0
+            finally:
+                if owned_handle:
+                    kernel32.CloseHandle(handle)
+        return result
+    except (AttributeError, OSError, ValueError):
+        return {os.getpid(): time.process_time()}
+
+
+class ProcessTreeCpuTracker:
+    def __init__(self):
+        initial = process_cpu_times_by_pid()
+        self.baseline = dict(initial)
+        self.high_water = dict(initial)
+        self.lock = threading.Lock()
+
+    def elapsed_seconds(self) -> float:
+        current = process_cpu_times_by_pid()
+        with self.lock:
+            for process_id, value in current.items():
+                self.high_water[process_id] = max(
+                    value, self.high_water.get(process_id, 0.0)
+                )
+            return sum(
+                max(0.0, value - self.baseline.get(process_id, 0.0))
+                for process_id, value in self.high_water.items()
+            )
+
+
 def working_set_bytes() -> int:
     if os.name != "nt":
         try:
@@ -192,19 +288,8 @@ def working_set_bytes() -> int:
             ctypes.c_ulong,
         )
         psapi.GetProcessMemoryInfo.restype = ctypes.c_int
-        process_ids = {os.getpid()}
-        try:
-            import multiprocessing
-
-            process_ids.update(
-                int(child.pid)
-                for child in multiprocessing.active_children()
-                if child.pid is not None
-            )
-        except (ImportError, OSError, RuntimeError):
-            pass
         total = 0
-        for process_id in process_ids:
+        for process_id in live_process_tree_ids():
             owned_handle = process_id != os.getpid()
             handle = (
                 kernel32.OpenProcess(0x1000 | 0x0010, 0, process_id)
@@ -233,7 +318,7 @@ class ProgressReporter:
     def __init__(self, enabled: bool = True):
         self.enabled = enabled
         self.started = time.perf_counter()
-        self.cpu_started = time.process_time()
+        self.cpu_tracker = ProcessTreeCpuTracker()
         self.stage_started = self.started
         self.stage_seconds = {}
         self.peak_working_set_bytes = 0
@@ -277,7 +362,7 @@ class ProgressReporter:
             return
         now = time.perf_counter()
         elapsed = max(1.0e-6, now - self.started)
-        cpu = max(0.0, time.process_time() - self.cpu_started)
+        cpu = self.cpu_tracker.elapsed_seconds()
         working_set = working_set_bytes()
         with self.lock:
             payload = dict(self.state)
@@ -313,6 +398,9 @@ class ProgressReporter:
                 + max(0.0, now - self.stage_started)
             )
         return snapshot
+
+    def process_cpu_seconds(self) -> float:
+        return self.cpu_tracker.elapsed_seconds()
 
     def _heartbeat(self) -> None:
         while not self.stop_event.wait(2.0):
@@ -499,7 +587,12 @@ def load_rows(
         key = run_key(row) + f"|battle:{int(row.get('B', -1))}"
         by_episode.setdefault(key, []).append(row)
     for episode_rows in by_episode.values():
-        episode_rows.sort(key=lambda row: (int(row["T"]), int(row["Q"]), int(row["F"])))
+        episode_rows.sort(
+            key=lambda row: (
+                int(row.get("QD", row.get("F", 0))),
+                int(row.get("F", 0)),
+            )
+        )
         for index, row in enumerate(episode_rows):
             row["_history"] = episode_rows[max(0, index - history_length) : index]
     if progress is not None:
@@ -535,6 +628,8 @@ def synthetic_rows(count: int = 96) -> list[dict]:
                 "F": index % 8,
                 "T": index % 8,
                 "Q": index,
+                "OK": 1,
+                "DK": 1,
                 "S": state,
                 "O": [
                     [generator.uniform(-1.0, 1.0) for _ in range(32)]
@@ -545,6 +640,12 @@ def synthetic_rows(count: int = 96) -> list[dict]:
                 "X": chosen,
                 "V": math.tanh(state[0] + actions[chosen][0]),
                 "G": index % 5,
+                "SL": [
+                    1 if strategy == index % 5 else 0
+                    for strategy in range(5)
+                ],
+                "SA": [1, 1, 1, 1, 1],
+                "SK": 1,
                 "N": [
                     math.tanh(value + actions[chosen][slot % len(actions[chosen])] * 0.05)
                     for slot, value in enumerate(state)
@@ -555,6 +656,7 @@ def synthetic_rows(count: int = 96) -> list[dict]:
                 "H": max(0.0, min(1.0, (state[0] + 1.0) * 0.5)),
                 "U": float(7 - index % 8),
                 "Z": 1 if index % 8 == 7 else 0,
+                "TK": 1,
                 "_history": [],
             }
         )
@@ -830,6 +932,11 @@ class ShardedTeacherDataset(Dataset):
                             "L": row.get("L", "general"),
                             "J": int(row.get("J", 0)),
                             "M": int(row.get("M", 0)),
+                            "DK": int(row.get("DK", 0)),
+                            "SK": int(row.get("SK", 0)),
+                            "SL": list(row.get("SL", [])),
+                            "SA": list(row.get("SA", [])),
+                            "TK": int(row.get("TK", 0)),
                             "_sampling_repeats": int(
                                 row.get("_sampling_repeats", 1)
                             ),
@@ -939,6 +1046,18 @@ def base_sharded_dataset(rows) -> ShardedTeacherDataset | None:
     return current if isinstance(current, ShardedTeacherDataset) else None
 
 
+def dataset_locality_keys(rows) -> list[int] | None:
+    """Return the backing shard for every row visible through dataset views."""
+    visible_indices = list(range(len(rows)))
+    current = rows
+    while isinstance(current, ShardedDatasetView):
+        visible_indices = [current.indices[index] for index in visible_indices]
+        current = current.source
+    if not isinstance(current, ShardedTeacherDataset):
+        return None
+    return [current.locations[index][0] for index in visible_indices]
+
+
 def subset_for_row_ids(rows, selected_rows: set[int] | None):
     if selected_rows is None:
         return rows
@@ -963,6 +1082,40 @@ def audit_dataset(rows) -> dict:
     sparse_frames = sum(bool(row.get("_dataset_sparse")) for row in metadata)
     object_frames = sum(int(row.get("_object_count", 0)) > 0 for row in metadata)
     empty_object_frames = max(0, frame_count - object_frames)
+    transition_frames = sum(int(row.get("M", 0)) > 0 for row in metadata)
+    invalid_transition_frames = sum(
+        int(row.get("DK", 0)) <= 0 for row in metadata
+    )
+    strategy_rows = [row for row in metadata if int(row.get("SK", 0)) > 0]
+    strategy_label_frames = len(strategy_rows)
+    strategy_label_counts = [0, 0, 0, 0, 0]
+    strategy_applicable_counts = [0, 0, 0, 0, 0]
+    for row in strategy_rows:
+        labels = list(row.get("SL", []))
+        applicable = list(row.get("SA", []))
+        if len(labels) != len(strategy_label_counts) or len(applicable) != 5:
+            continue
+        for index, value in enumerate(labels):
+            is_applicable = float(applicable[index]) >= 0.5
+            if is_applicable:
+                strategy_applicable_counts[index] += 1
+            if is_applicable and float(value) >= 0.5:
+                strategy_label_counts[index] += 1
+    strategy_negative_counts = [
+        max(0, applicable - positive)
+        for applicable, positive in zip(
+            strategy_applicable_counts, strategy_label_counts
+        )
+    ]
+    strategy_quality_passed = all(
+        applicable == 0 or (positive > 0 and negative > 0)
+        for applicable, positive, negative in zip(
+            strategy_applicable_counts,
+            strategy_label_counts,
+            strategy_negative_counts,
+        )
+    )
+    terminal_known_frames = sum(int(row.get("TK", 0)) > 0 for row in metadata)
     warnings: list[str] = []
     if frame_count > 0 and object_frames == 0:
         warnings.append(
@@ -973,11 +1126,25 @@ def audit_dataset(rows) -> dict:
         warnings.append(
             f"{empty_object_frames} loaded frames have zero public object tokens"
         )
+    if frame_count > 0 and object_frames / frame_count < 0.95:
+        warnings.append("public object-token coverage is below the 95% quality floor")
+    if not strategy_quality_passed:
+        warnings.append(
+            "one or more applicable strategy heads lack positive or negative supervision"
+        )
+    if frame_count > 0 and terminal_known_frames / frame_count < 0.95:
+        warnings.append("terminal-known coverage is below the 95% quality floor")
+    if invalid_transition_frames > 0:
+        warnings.append(
+            f"{invalid_transition_frames} frames have no valid transition/terminal contract"
+        )
+    if frame_count > 1 and transition_frames == 0:
+        warnings.append("the loaded dataset contains no trainable dynamics transitions")
     if sparse_frames == frame_count and frame_count > 0:
-        encoding = "aura.combat-transformer-dataset.sparse-index-value.v1"
+        encoding = "aura.combat-transformer-dataset.sparse-index-value.v3"
     elif sparse_frames > 0:
         encoding = "mixed-sparse-and-legacy-dense"
-        warnings.append("the loaded dataset mixes sparse-v1 and legacy dense rows")
+        warnings.append("the loaded dataset mixes sparse-v2 and legacy dense rows")
     else:
         encoding = "legacy-dense-json"
     return {
@@ -989,43 +1156,99 @@ def audit_dataset(rows) -> dict:
         "object_frames": object_frames,
         "empty_object_frames": empty_object_frames,
         "object_coverage": object_frames / max(1, frame_count),
-        "object_audit_passed": frame_count == 0 or object_frames > 0,
+        "object_audit_passed": (
+            frame_count == 0 or object_frames / max(1, frame_count) >= 0.95
+        ),
+        "transition_frames": transition_frames,
+        "invalid_transition_frames": invalid_transition_frames,
+        "strategy_label_frames": strategy_label_frames,
+        "strategy_label_counts": strategy_label_counts,
+        "strategy_applicable_counts": strategy_applicable_counts,
+        "strategy_negative_counts": strategy_negative_counts,
+        "strategy_quality_passed": strategy_quality_passed,
+        "terminal_known_frames": terminal_known_frames,
         "warnings": warnings,
     }
 
 
 class LengthBucketBatchSampler(Sampler[list[int]]):
-    def __init__(self, rows: list[dict], batch_size: int, seed: int):
+    def __init__(
+        self,
+        rows: list[dict],
+        batch_size: int,
+        seed: int,
+        locality_keys: list[int] | None = None,
+    ):
         self.rows = rows
         self.batch_size = max(1, batch_size)
         self.seed = seed
         self.epoch = 0
+        if locality_keys is not None and len(locality_keys) != len(rows):
+            raise ValueError("dataset locality keys must match the row count")
+        self.locality_keys = locality_keys
 
     def __len__(self) -> int:
-        samples = sum(int(row.get("_sampling_repeats", 1)) for row in self.rows)
-        return math.ceil(samples / self.batch_size)
-
-    def __iter__(self):
-        randomizer = random.Random(self.seed + self.epoch * 104729)
-        self.epoch += 1
-        indices = sorted(
-            (
-                index
-                for index, row in enumerate(self.rows)
-                for _ in range(int(row.get("_sampling_repeats", 1)))
-            ),
-            key=lambda index: self.rows[index]["_bucket_cost"],
+        if self.locality_keys is None:
+            samples = sum(
+                int(row.get("_sampling_repeats", 1)) for row in self.rows
+            )
+            return math.ceil(samples / self.batch_size)
+        samples_by_locality: dict[int, int] = {}
+        for row, locality in zip(self.rows, self.locality_keys):
+            samples_by_locality[locality] = (
+                samples_by_locality.get(locality, 0)
+                + int(row.get("_sampling_repeats", 1))
+            )
+        return sum(
+            math.ceil(samples / self.batch_size)
+            for samples in samples_by_locality.values()
         )
+
+    def _batches(
+        self,
+        indices: list[int],
+        randomizer: random.Random,
+    ) -> list[list[int]]:
+        indices.sort(key=lambda index: self.rows[index]["_bucket_cost"])
         bucket_size = self.batch_size * 8
         buckets = [
             indices[start : start + bucket_size]
             for start in range(0, len(indices), bucket_size)
         ]
         randomizer.shuffle(buckets)
+        batches: list[list[int]] = []
         for bucket in buckets:
             randomizer.shuffle(bucket)
-            for start in range(0, len(bucket), self.batch_size):
-                yield bucket[start : start + self.batch_size]
+            batches.extend(
+                bucket[start : start + self.batch_size]
+                for start in range(0, len(bucket), self.batch_size)
+            )
+        return batches
+
+    def __iter__(self):
+        randomizer = random.Random(self.seed + self.epoch * 104729)
+        self.epoch += 1
+        indices = [
+            index
+            for index, row in enumerate(self.rows)
+            for _ in range(int(row.get("_sampling_repeats", 1)))
+        ]
+        if self.locality_keys is None:
+            yield from self._batches(indices, randomizer)
+            return
+
+        # A sharded dataset has a one-shard cache per process. Global length
+        # bucketing makes adjacent samples jump between files and can reload a
+        # 512-frame shard hundreds of times for one batch. Randomize shard
+        # order between epochs, but consume each shard contiguously; retain
+        # length bucketing and randomization inside that shard.
+        locality_groups: dict[int, list[int]] = {}
+        for index in indices:
+            locality_groups.setdefault(self.locality_keys[index], []).append(index)
+        groups = list(locality_groups.values())
+        randomizer.shuffle(groups)
+        for group in groups:
+            yield from self._batches(group, randomizer)
 
 
 def run_key(row: dict) -> str:
@@ -1245,12 +1468,15 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     history_actions = torch.zeros(batch, maximum_history, action_dimensions)
     history_mask = torch.zeros(batch, maximum_history, dtype=torch.bool)
     values = torch.zeros(batch)
-    strategies = torch.full((batch,), -1, dtype=torch.long)
+    phases = torch.full((batch,), -1, dtype=torch.long)
+    strategy_labels = torch.zeros(batch, 5)
+    strategy_mask = torch.zeros(batch, 5, dtype=torch.bool)
     executed_actions = torch.zeros(batch, dtype=torch.long)
     next_states = torch.zeros(batch, state_dimensions)
     transition_mask = torch.zeros(batch, dtype=torch.bool)
     outcomes = torch.zeros(batch, 4)
     terminals = torch.zeros(batch)
+    terminal_mask = torch.zeros(batch, dtype=torch.bool)
     row_ids = torch.zeros(batch, dtype=torch.long)
     for owner, row in enumerate(rows):
         states[owner] = row["_state_tensor"]
@@ -1272,7 +1498,16 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
             history_actions[owner, offset:] = history_actions_for_row
             history_mask[owner, offset:] = True
         values[owner] = float(row["V"])
-        strategies[owner] = int(row.get("G", -1))
+        phases[owner] = int(row.get("G", -1))
+        labels = list(row.get("SL", []))
+        applicable = list(row.get("SA", []))
+        if (
+            int(row.get("SK", 0)) > 0
+            and len(labels) == 5
+            and len(applicable) == 5
+        ):
+            strategy_labels[owner] = torch.as_tensor(labels, dtype=torch.float32)
+            strategy_mask[owner] = torch.as_tensor(applicable, dtype=torch.bool)
         executed_actions[owner] = max(0, min(action_count - 1, int(row["X"])))
         if (
             int(row.get("M", 0)) > 0
@@ -1282,6 +1517,7 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
             transition_mask[owner] = True
         outcomes[owner] = row["_outcome_tensor"]
         terminals[owner] = 1.0 if int(row.get("Z", 0)) > 0 else 0.0
+        terminal_mask[owner] = int(row.get("TK", 0)) > 0
         row_ids[owner] = int(row["I"])
     return {
         "states": states,
@@ -1295,12 +1531,15 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
         "history_actions": history_actions,
         "history_mask": history_mask,
         "values": values,
-        "strategies": strategies,
+        "phases": phases,
+        "strategy_labels": strategy_labels,
+        "strategy_mask": strategy_mask,
         "executed_actions": executed_actions,
         "next_states": next_states,
         "transition_mask": transition_mask,
         "outcomes": outcomes,
         "terminals": terminals,
+        "terminal_mask": terminal_mask,
         "row_ids": row_ids,
     }
 
@@ -1338,6 +1577,7 @@ class StrategyTransformer(nn.Module):
         self.encoder = nn.TransformerEncoder(layer, layers, norm=nn.LayerNorm(hidden))
         self.policy_head = nn.Linear(hidden, 1)
         self.value_head = nn.Sequential(nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, 1))
+        self.phase_head = nn.Linear(hidden, 5)
         self.strategy_head = nn.Linear(hidden, 5)
         self.dynamics_head = nn.Sequential(
             nn.Linear(hidden * 2, hidden),
@@ -1396,6 +1636,7 @@ class StrategyTransformer(nn.Module):
         policy = self.policy_head(action_encoded).squeeze(-1)
         policy = policy.masked_fill(~action_mask, -1.0e9)
         value = torch.tanh(self.value_head(cls_encoded).squeeze(-1))
+        phase = self.phase_head(cls_encoded)
         strategy = self.strategy_head(cls_encoded)
         executed = batch["executed_actions"].clamp(0, max(0, action_count - 1))
         executed_encoded = action_encoded[
@@ -1405,7 +1646,7 @@ class StrategyTransformer(nn.Module):
         next_state = self.dynamics_head(transition_context)
         outcome = self.outcome_head(cls_encoded)
         terminal = self.terminal_head(transition_context).squeeze(-1)
-        return policy, value, strategy, next_state, outcome, terminal
+        return policy, value, phase, strategy, next_state, outcome, terminal
 
 
 def move(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
@@ -1852,6 +2093,7 @@ def loss_for(
     (
         policy_logits,
         values,
+        phase_logits,
         strategy_logits,
         predicted_next_states,
         predicted_outcomes,
@@ -1866,11 +2108,21 @@ def loss_for(
         else policy_losses.sum() * 0.0
     )
     value_loss = torch.nn.functional.mse_loss(values, batch["values"])
-    valid_strategy = batch["strategies"] >= 0
-    if valid_strategy.any():
-        strategy_loss = torch.nn.functional.cross_entropy(
-            strategy_logits[valid_strategy], batch["strategies"][valid_strategy]
+    valid_phase = batch["phases"] >= 0
+    if valid_phase.any():
+        phase_loss = torch.nn.functional.cross_entropy(
+            phase_logits[valid_phase], batch["phases"][valid_phase]
         )
+    else:
+        phase_loss = policy_loss.new_zeros(())
+    valid_strategy = batch["strategy_mask"]
+    if valid_strategy.any():
+        strategy_losses = torch.nn.functional.binary_cross_entropy_with_logits(
+            strategy_logits,
+            batch["strategy_labels"],
+            reduction="none",
+        )
+        strategy_loss = strategy_losses[valid_strategy].mean()
     else:
         strategy_loss = policy_loss.new_zeros(())
     transition_mask = batch["transition_mask"]
@@ -1884,14 +2136,21 @@ def loss_for(
     outcome_loss = torch.nn.functional.mse_loss(
         predicted_outcomes, batch["outcomes"]
     )
-    terminal_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-        terminal_logits, batch["terminals"]
+    terminal_mask = batch["terminal_mask"]
+    terminal_loss = (
+        torch.nn.functional.binary_cross_entropy_with_logits(
+            terminal_logits[terminal_mask], batch["terminals"][terminal_mask]
+        )
+        if terminal_mask.any()
+        else policy_loss.new_zeros(())
     )
     if effective_counts is None:
         policy_weight = 1.0
         sample_weight = 1.0
         strategy_weight = 1.0
+        phase_weight = 1.0
         dynamics_weight = 1.0
+        terminal_weight = 1.0
     else:
         policy_weight = int(policy_supervision_mask.sum()) / max(
             1, effective_counts["policies"]
@@ -1902,20 +2161,28 @@ def loss_for(
         strategy_weight = int(valid_strategy.sum()) / max(
             1, effective_counts["strategies"]
         )
+        phase_weight = int(valid_phase.sum()) / max(
+            1, effective_counts["phases"]
+        )
         dynamics_weight = int(transition_mask.sum()) / max(
             1, effective_counts["transitions"]
+        )
+        terminal_weight = int(terminal_mask.sum()) / max(
+            1, effective_counts["terminals"]
         )
     total = (
         policy_loss * policy_weight
         + value_loss * 0.35 * sample_weight
-        + strategy_loss * 0.20 * strategy_weight
+        + phase_loss * 0.08 * phase_weight
+        + strategy_loss * 0.12 * strategy_weight
         + dynamics_loss * 0.15 * dynamics_weight
         + outcome_loss * 0.20 * sample_weight
-        + terminal_loss * 0.10 * sample_weight
+        + terminal_loss * 0.10 * terminal_weight
     )
     return total, {
         "policy": float(policy_loss.detach()),
         "value": float(value_loss.detach()),
+        "phase": float(phase_loss.detach()),
         "strategy": float(strategy_loss.detach()),
         "dynamics": float(dynamics_loss.detach()),
         "outcome": float(outcome_loss.detach()),
@@ -1936,8 +2203,10 @@ def verify_micro_batch_accumulation(
     effective_counts = {
         "samples": int(raw["states"].shape[0]),
         "policies": int(raw["policy_supervision_mask"].sum()),
-        "strategies": int((raw["strategies"] >= 0).sum()),
+        "phases": int((raw["phases"] >= 0).sum()),
+        "strategies": int(raw["strategy_mask"].sum()),
         "transitions": int(raw["transition_mask"].sum()),
+        "terminals": int(raw["terminal_mask"].sum()),
     }
     for start in range(0, effective_counts["samples"], 3):
         micro = move(
@@ -1977,6 +2246,8 @@ def evaluate(
     uniform_policy_cross_entropy = 0.0
     policy_correct = 0
     value_error = 0.0
+    phase_count = 0
+    phase_correct = 0
     strategy_count = 0
     strategy_correct = 0
     dynamics_squared_error = 0.0
@@ -1984,6 +2255,7 @@ def evaluate(
     outcome_absolute_error = 0.0
     outcome_elements = 0
     death_squared_error = 0.0
+    terminal_count = 0
     terminal_correct = 0
     for raw in loader:
         batch = move(raw, device)
@@ -1991,6 +2263,7 @@ def evaluate(
             (
                 policy_logits,
                 values,
+                phase_logits,
                 strategy_logits,
                 predicted_next_states,
                 predicted_outcomes,
@@ -2014,13 +2287,22 @@ def evaluate(
                 batch["action_mask"][policy_mask].sum(dim=-1).float().log().sum()
             )
         value_error += float((values - batch["values"]).abs().sum())
-        valid = batch["strategies"] >= 0
-        strategy_count += int(valid.sum())
-        if valid.any():
+        valid_phase = batch["phases"] >= 0
+        phase_count += int(valid_phase.sum())
+        if valid_phase.any():
+            phase_correct += int(
+                (
+                    phase_logits[valid_phase].argmax(dim=-1)
+                    == batch["phases"][valid_phase]
+                ).sum()
+            )
+        valid_strategy = batch["strategy_mask"]
+        strategy_count += int(valid_strategy.sum())
+        if valid_strategy.any():
             strategy_correct += int(
                 (
-                    strategy_logits[valid].argmax(dim=-1)
-                    == batch["strategies"][valid]
+                    (strategy_logits >= 0.0)[valid_strategy]
+                    == (batch["strategy_labels"] >= 0.5)[valid_strategy]
                 ).sum()
             )
         transition_mask = batch["transition_mask"]
@@ -2035,15 +2317,22 @@ def evaluate(
         outcome_absolute_error += float(outcome_difference.abs().sum())
         outcome_elements += outcome_difference.numel()
         death_squared_error += float((outcome_difference[:, 1] ** 2).sum())
-        terminal_correct += int(
-            ((terminal_logits >= 0.0) == (batch["terminals"] >= 0.5)).sum()
-        )
+        terminal_mask = batch["terminal_mask"]
+        terminal_count += int(terminal_mask.sum())
+        if terminal_mask.any():
+            terminal_correct += int(
+                (
+                    (terminal_logits[terminal_mask] >= 0.0)
+                    == (batch["terminals"][terminal_mask] >= 0.5)
+                ).sum()
+            )
         count += size
     return {
         "policy_ce": policy_cross_entropy / max(1, policy_count),
         "uniform_policy_ce": uniform_policy_cross_entropy / max(1, policy_count),
         "policy_accuracy": policy_correct / max(1, policy_count),
         "value_mae": value_error / max(1, count),
+        "phase_accuracy": phase_correct / max(1, phase_count),
         "strategy_accuracy": strategy_correct / max(1, strategy_count),
         "dynamics_mse": dynamics_squared_error / max(1, dynamics_elements),
         "dynamics_frames": sum(
@@ -2051,7 +2340,7 @@ def evaluate(
         ),
         "outcome_mae": outcome_absolute_error / max(1, outcome_elements),
         "death_brier": death_squared_error / max(1, count),
-        "terminal_accuracy": terminal_correct / max(1, count),
+        "terminal_accuracy": terminal_correct / max(1, terminal_count),
     }
 
 
@@ -2123,7 +2412,18 @@ def load_warm_start(
             "Transformer warm-start checkpoint is incompatible: "
             + ", ".join(incompatible)
         )
-    model.load_state_dict(checkpoint["state_dict"], strict=True)
+    state_dict = dict(checkpoint["state_dict"])
+    # v2 used the five-way "strategy" head as a mutually-exclusive journey
+    # phase classifier. Preserve that learned representation in the new phase
+    # head while allowing the independent multi-label strategy head to start
+    # from the same conservative prior.
+    if (
+        "phase_head.weight" not in state_dict
+        and "strategy_head.weight" in state_dict
+    ):
+        state_dict["phase_head.weight"] = state_dict["strategy_head.weight"].clone()
+        state_dict["phase_head.bias"] = state_dict["strategy_head.bias"].clone()
+    model.load_state_dict(state_dict, strict=True)
     teacher_generation = max(
         0, int(checkpoint.get("teacher_generation", 0))
     )
@@ -2303,7 +2603,10 @@ def train(
     training_loader = DataLoader(
         training_dataset,
         batch_sampler=LengthBucketBatchSampler(
-            training_metadata, plan["effective_batch_size"], args.seed
+            training_metadata,
+            plan["effective_batch_size"],
+            args.seed,
+            dataset_locality_keys(training_rows),
         ),
         collate_fn=collate,
         **worker_options,
@@ -2344,8 +2647,10 @@ def train(
             effective_counts = {
                 "samples": batch_count,
                 "policies": int(raw["policy_supervision_mask"].sum()),
-                "strategies": int((raw["strategies"] >= 0).sum()),
+                "phases": int((raw["phases"] >= 0).sum()),
+                "strategies": int(raw["strategy_mask"].sum()),
                 "transitions": int(raw["transition_mask"].sum()),
+                "terminals": int(raw["terminal_mask"].sum()),
             }
             python_rng = random.getstate()
             torch_rng = torch.random.get_rng_state()
@@ -2503,7 +2808,7 @@ def annotate_once(
         for raw in loader:
             batch = move(raw, device)
             with precision_context(device, plan["precision"]):
-                logits, _, _, _, _, _ = model(batch)
+                logits, _, _, _, _, _, _ = model(batch)
             probabilities = torch.softmax(logits, dim=-1).cpu()
             masks = raw["action_mask"]
             row_ids = raw["row_ids"]
@@ -2662,6 +2967,39 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             assert isinstance(nested_view, ShardedDatasetView)
             assert nested_view.source is first_view
             assert base_sharded_dataset(nested_view) is sharded
+            nested_localities = dataset_locality_keys(nested_view)
+            assert nested_localities == [
+                sharded.locations[first_view.indices[index]][0]
+                for index in nested_view.indices
+            ]
+            sampler_rows = [
+                {
+                    "_bucket_cost": index % 4,
+                    "_sampling_repeats": 2 if index % 3 == 0 else 1,
+                }
+                for index in range(12)
+            ]
+            sampler_localities = [0] * 4 + [1] * 4 + [2] * 4
+            locality_sampler = LengthBucketBatchSampler(
+                sampler_rows,
+                2,
+                args.seed,
+                sampler_localities,
+            )
+            locality_batches = list(locality_sampler)
+            assert len(locality_batches) == len(locality_sampler)
+            assert all(
+                len({sampler_localities[index] for index in batch}) == 1
+                for batch in locality_batches
+            )
+            sampled_indices = [
+                index for batch in locality_batches for index in batch
+            ]
+            assert all(
+                sampled_indices.count(index)
+                == int(row["_sampling_repeats"])
+                for index, row in enumerate(sampler_rows)
+            )
             assert audit_dataset(sharded)["encoding"] == (
                 "mixed-sparse-and-legacy-dense"
             )
@@ -2681,9 +3019,13 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 selected_sharded.close()
             prior_anchor = args.anchor
             prior_fixed_anchor = args.fixed_anchor
+            prior_dataset_storage = args.dataset_storage
+            prior_loader_workers = args.loader_workers
             try:
                 args.anchor = str(Path(sharded_root) / "anchor.jsonl")
                 args.fixed_anchor = 1
+                args.dataset_storage = "sharded"
+                args.loader_workers = 2
                 (
                     _,
                     sharded_metrics,
@@ -2705,6 +3047,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             finally:
                 args.anchor = prior_anchor
                 args.fixed_anchor = prior_fixed_anchor
+                args.dataset_storage = prior_dataset_storage
+                args.loader_workers = prior_loader_workers
                 sharded.close()
         tensorize_rows(rows)
         single_run_rows = rows[:8]
@@ -2957,7 +3301,6 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     if any(not value for value in required):
         raise RuntimeError("input, annotations, model, and report paths are required")
     started = time.perf_counter()
-    cpu_started = time.process_time()
     progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
     loading_started = time.perf_counter()
     training_selection = read_row_selection(args.training_selection)
@@ -3102,7 +3445,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     progress.update(Stage="saving", Message="正在写入模型和教师报告")
     saving_started = time.perf_counter()
     checkpoint = {
-        "protocol": "aura.combat-transformer-world-model.v2",
+        "protocol": "aura.combat-transformer-world-model.v4",
         "state_dimensions": rows[0]["_state_tensor"].shape[0],
         "action_dimensions": rows[0]["_action_tensor"].shape[1],
         "hidden_dimensions": args.hidden,
@@ -3131,7 +3474,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         }
     )
     report = {
-        "Protocol": "aura.combat-transformer-world-model-report.v2",
+        "Protocol": "aura.combat-transformer-world-model-report.v4",
         "Success": True,
         "EffectiveBackend": device.type,
         "DeviceName": device_name,
@@ -3169,9 +3512,13 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "ValidationUniformPolicyCrossEntropy": metrics["uniform_policy_ce"],
         "ValidationPolicyTop1Accuracy": metrics["policy_accuracy"],
         "ValidationValueMae": metrics["value_mae"],
+        "ValidationPhaseAccuracy": metrics["phase_accuracy"],
         "ValidationStrategyAccuracy": metrics["strategy_accuracy"],
         "ValidationDynamicsMse": metrics["dynamics_mse"],
-        "DynamicsTrainingFrames": metrics["dynamics_frames"],
+        "DynamicsTrainingFrames": sum(
+            int(row.get("M", 0)) > 0 for row in dataset_metadata(training_rows)
+        ),
+        "DynamicsValidationFrames": metrics["dynamics_frames"],
         "ValidationOutcomeMae": metrics["outcome_mae"],
         "ValidationDeathBrier": metrics["death_brier"],
         "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
@@ -3189,12 +3536,12 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         ),
         "HeadRegressionGatePassed": bool(training_gate["head_gate_passed"]),
         "ElapsedSeconds": time.perf_counter() - started,
-        "ProcessCpuSeconds": time.process_time() - cpu_started,
+        "ProcessCpuSeconds": progress.process_cpu_seconds(),
         "PeakWorkingSetBytes": max(
             progress.peak_working_set_bytes, working_set_bytes()
         ),
         "DatasetStorageMode": (
-            "sharded-disk-v2"
+            "sharded-disk-v3-locality"
             if base_sharded_dataset(rows) is not None
             else "resident"
         ),
@@ -3217,7 +3564,30 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "EmptyObjectTokenFrames": int(data_audit["empty_object_frames"]),
         "ObjectTokenFrameCoverage": float(data_audit["object_coverage"]),
         "ObjectTokenAuditPassed": bool(data_audit["object_audit_passed"]),
-        "ObjectTokenAuditAdvisoryOnly": True,
+        "ObjectTokenAuditAdvisoryOnly": False,
+        "StrategyLabelFrames": int(data_audit["strategy_label_frames"]),
+        "StrategyLabelCounts": {
+            key: int(data_audit["strategy_label_counts"][index])
+            for index, key in enumerate(
+                ("survival", "finale", "bank", "transform", "growth")
+            )
+        },
+        "StrategyApplicableFrames": int(data_audit["strategy_label_frames"]),
+        "StrategyApplicableCounts": {
+            key: int(data_audit["strategy_applicable_counts"][index])
+            for index, key in enumerate(
+                ("survival", "finale", "bank", "transform", "growth")
+            )
+        },
+        "StrategyNegativeCounts": {
+            key: int(data_audit["strategy_negative_counts"][index])
+            for index, key in enumerate(
+                ("survival", "finale", "bank", "transform", "growth")
+            )
+        },
+        "StrategyQualityGatePassed": bool(data_audit["strategy_quality_passed"]),
+        "InvalidTransitionFrames": int(data_audit["invalid_transition_frames"]),
+        "TerminalKnownFrames": int(data_audit["terminal_known_frames"]),
         "DataQualityWarnings": list(data_audit["warnings"])
         + (
             ["CUDA auto backend fell back to CPU: " + cuda_fallback_reason]

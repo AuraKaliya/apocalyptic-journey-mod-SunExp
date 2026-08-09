@@ -302,7 +302,8 @@ public static class CombatActionProductivity
                + Math.Max(0d, semantics.Draw)
                + Math.Max(0d, semantics.EnergyGain)
                + SetupValue(semantics) > Epsilon
-               || semantics.HandTransform != null;
+               || semantics.HandTransform != null
+               || semantics.Interaction?.EffectsComplete == true;
     }
 
     private static bool HasCleansableStatus(

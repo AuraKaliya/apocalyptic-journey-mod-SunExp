@@ -1,4 +1,5 @@
 "Id","Tag","LoadScript","DrawScript","DropScript","PreUseScript","UseScript","UnloadScript","Rarity","Icon","PackBelong"
 "唯一标识","添加的标签","初始效果","抽到时的效果","进入弃牌堆的效果","","使用时的效果","卸下效果","稀有度","","cardpack id"
-"solar_keyword","白曜","","","","","","","2","Icon/EnchIcon/末日","Terrias_terrias_cardpack_radiant_spark"
-"morning_star_seal","启明星","","","","","","","3","Icon/EnchIcon/末日",""
+"solar_keyword","白曜","","","","","","","2","Icon/EnchIcon/末日","Terrias_terrias_cardpack_solar_ember_crown_canopy"
+"solar_flame_seal","阳炣","","","","","","","2","Icon/EnchIcon/末日","Terrias_terrias_cardpack_solar_ember_crown_canopy"
+"morning_star_seal","启明星","","","","","","","3","Icon/EnchIcon/末日","Terrias_terrias_cardpack_morning_star_overture"

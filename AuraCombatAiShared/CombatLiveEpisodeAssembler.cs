@@ -109,9 +109,13 @@ public static class CombatLiveEpisodeAssembler
 
         for (var index = 0; index < samples.Count; index++)
         {
-            episode.Frames.Add(ToFrame(samples[index], index));
+            var frame = ToFrame(samples[index], index);
+            frame.BattleSessionId = battleSessionId;
+            frame.DecisionSequence = index + 1L;
+            episode.Frames.Add(frame);
         }
         ApplyTerminalTargets(episode, victory);
+        CombatPolicyValueEpisodeMigration.NormalizeSemanticsInPlace(episode);
         return episode.Frames.Count > 0;
     }
 

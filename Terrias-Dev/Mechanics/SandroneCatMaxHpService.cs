@@ -23,24 +23,8 @@ public static class SandroneCatMaxHpService
             return false;
         }
 
-        var oldMaxHp = Math.Max(1, status.MaxHp);
-        var nextMaxHp = SandroneCatMaxHpFormula.MaxHpAfterStart(oldMaxHp);
-        if (PlayerMaxHpApi.TrySetNativeMaxHp(
-                status,
-                nextMaxHp,
-                persistRole: false,
-                "FightStarted"))
-        {
-            TerriasLog.Info("[SandroneCat] combat-start cost applied: session="
-                            + sessionId
-                            + ", loss="
-                            + (oldMaxHp - nextMaxHp)
-                            + ".");
-            return true;
-        }
-
-        BattleState.ReleaseStart(sessionId, ownerId);
-        return false;
+        TerriasLog.Info("[SandroneCat] combat registered: session=" + sessionId + ".");
+        return true;
     }
 
     public static bool ApplyBattleEnd(IStatusManager? status)

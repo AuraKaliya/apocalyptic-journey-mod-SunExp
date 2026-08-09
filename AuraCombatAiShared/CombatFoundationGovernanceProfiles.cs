@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace AuraCombatAi.Shared;
 
@@ -32,10 +33,44 @@ public sealed class CombatFoundationGovernancePlan
 
     public int AutoTuneSampleCampaigns { get; set; }
 
+    public int ArenaEvaluationInterval { get; set; } = 6;
+
+    public bool ArenaConfirmationFinalIterationOnly { get; set; } = true;
+
+    public bool RunsArenaAtIteration(int iterationIndex, int totalIterations)
+    {
+        var iteration = Math.Max(0, iterationIndex);
+        var total = Math.Max(1, totalIterations);
+        return iteration == total - 1
+               || (iteration + 1) % Math.Max(1, ArenaEvaluationInterval) == 0;
+    }
+
+    public bool RunsFormalConfirmationAtIteration(
+        int iterationIndex,
+        int totalIterations)
+    {
+        return !ArenaConfirmationFinalIterationOnly
+               && RunsArenaAtIteration(iterationIndex, totalIterations)
+               || iterationIndex == Math.Max(1, totalIterations) - 1;
+    }
+
+    public int ScheduledArenaIterations(int totalIterations)
+    {
+        return Enumerable.Range(0, Math.Max(1, totalIterations))
+            .Count(iteration => RunsArenaAtIteration(iteration, totalIterations));
+    }
+
     public bool RunsTuningAtIteration(int iterationIndex, int totalIterations)
     {
         var iteration = Math.Max(0, iterationIndex);
         var total = Math.Max(1, totalIterations);
+        if (!string.Equals(
+                Profile,
+                CombatFoundationGovernanceProfileNames.Custom,
+                StringComparison.Ordinal))
+        {
+            return iteration == total - 1;
+        }
         if (TuningInterval <= 1
             || iteration == 0
             || iteration == total - 1)
@@ -82,7 +117,9 @@ public static class CombatFoundationGovernanceProfiles
         int tuningScreeningAdvancedCampaigns,
         int tuningFinalistCount,
         int capabilityProbeTeacherCampaignsPerDifficulty,
-        int autoTuneSampleCampaigns)
+        int autoTuneSampleCampaigns,
+        int arenaEvaluationInterval = 6,
+        bool arenaConfirmationFinalIterationOnly = true)
     {
         var normalized = Normalize(profile);
         var normal = Math.Max(0, Math.Min(64, tuningNormalCampaigns));
@@ -105,7 +142,12 @@ public static class CombatFoundationGovernanceProfiles
                 Math.Min(128, capabilityProbeTeacherCampaignsPerDifficulty)),
             AutoTuneSampleCampaigns = Math.Max(
                 4,
-                Math.Min(64, autoTuneSampleCampaigns))
+                Math.Min(64, autoTuneSampleCampaigns)),
+            ArenaEvaluationInterval = Math.Max(
+                1,
+                Math.Min(12, arenaEvaluationInterval)),
+            ArenaConfirmationFinalIterationOnly =
+                arenaConfirmationFinalIterationOnly
         };
         if (!string.Equals(
                 normalized,

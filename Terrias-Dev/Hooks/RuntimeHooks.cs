@@ -21,6 +21,7 @@ public static class RuntimeHooks
         RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
         RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
         RunHookStep("origin milestones", () => OriginMilestoneRuntime.Initialize(modConfig));
+        RunHookStep("solar card pack migration", () => SunCardPackMigrationRuntime.Initialize(modConfig));
         RunHookStep("field effect registry", () => FieldEffectRegistry.WarmupConfigCache("RuntimeHooks.Initialize"));
         RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));

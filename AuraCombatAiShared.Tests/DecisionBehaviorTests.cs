@@ -96,6 +96,14 @@ internal static class CombatAiDecisionBehaviorTests
             && gameSubjectCampaign.Player.Variables["DoomPower"] == 0d
             && gameSubjectCampaign.Player.InitialStatuses.Count == 0
             && gameSubject.ResolvedRoleInitialStatuses["status_test"] == 2
+            && gameSubjectCampaign.Player.RolePassiveContract
+               .InitialStatuses["status_test"] == 2
+            && gameSubjectCampaign.Player.RolePassiveContract.TriggerIds
+               .SequenceEqual(new[] { "StartRound" })
+            && gameSubjectCampaign.Player.RolePassiveContract.RuntimeFormIds
+               .SequenceEqual(new[] { "career_test", "career_test_form" })
+            && !string.IsNullOrWhiteSpace(
+                gameSubjectCampaign.Player.RolePassiveContract.ContractHash)
             && gameSubjectCampaign.Player.RoleNativeScriptHash == "native-role-hash"
             && gameSubjectCampaign.Player.NativeManagedSkillCooldownIds.SequenceEqual(
                 new[] { "skill_test" })
@@ -114,6 +122,17 @@ internal static class CombatAiDecisionBehaviorTests
                    gameSubject,
                    gameSubjectCampaign.Player.Deck),
             "game subject preset resolves and applies one immutable campaign snapshot");
+        var trainingSubject = CombatFoundationModelCoverageProtocol
+            .CreateTrainingSubject(gameSubjectCampaign);
+        Assert(trainingSubject.SchemaVersion == 2
+               && trainingSubject.RoleInitialStatusIds.SequenceEqual(
+                   new[] { "status_test" })
+               && trainingSubject.RoleInitialStatuses["status_test"] == 2
+               && trainingSubject.RolePassiveTriggerIds.SequenceEqual(
+                   new[] { "StartRound" })
+               && trainingSubject.RolePassiveContractHash
+                  == gameSubjectCampaign.Player.RolePassiveContract.ContractHash,
+            "training subject preserves role-passive metadata while native execution avoids duplicate statuses");
 
         var lowValueTransformState = BuildHandTransformFixture(valuableHand: false);
         var lowValueTransformAction = lowValueTransformState.Actions[0];
@@ -384,7 +403,90 @@ internal static class CombatAiDecisionBehaviorTests
                 "done"),
             "interaction transition");
         CombatInteractionBroker.Clear(request.RequestId);
-        Assert(CombatInteractionBroker.Snapshot() == null, "interaction cleanup");
+        var completedInteractionTrace =
+            CombatInteractionBroker.ConsumeCompletedTrace();
+        Assert(CombatInteractionBroker.Snapshot() == null
+               && completedInteractionTrace?.Protocol
+               == CombatTrainingInteractionTrace.CurrentProtocol
+               && completedInteractionTrace.Completed
+               && completedInteractionTrace.MinSelections == 2
+               && completedInteractionTrace.MaxSelections == 2,
+            "interaction cleanup preserves one training trace");
+
+        Assert(CombatInteractionContractInference.TryInfer(
+                   "ChooseCardToAction(\"20\", cards => { foreach (var card in cards) { AddBuff(\"buff_rebirth\", \"15\"); card.InternalBurning(); } }, \"2\")",
+                   out var optionalBurn)
+               && optionalBurn.MinSelections == 0
+               && optionalBurn.MaxSelections == 20
+               && optionalBurn.CanConfirmEarly
+               && optionalBurn.CanConfirmEmpty
+               && optionalBurn.EffectsComplete
+               && optionalBurn.SelectionEffects.Any(effect =>
+                   effect.Kind == CombatInteractionEffectKind.BurnSelected)
+               && optionalBurn.SelectionEffects.Any(effect =>
+                   effect.Kind == CombatInteractionEffectKind.AddStatusPerSelected
+                   && effect.DefinitionId == "buff_rebirth"
+                   && effect.Amount == 15d),
+            "native type-2 interaction preserves optional cardinality and callback effects");
+        CombatInteractionBroker.SetNextHint(new CombatInteractionHint
+        {
+            Purpose = "dynamic-optional",
+            Interaction = optionalBurn
+        });
+        var dynamicOptionalRequest = CombatInteractionBroker.Begin(
+            new CombatInteractionHint(),
+            3,
+            choices: null);
+        Assert(dynamicOptionalRequest.MinSelections == 0
+               && dynamicOptionalRequest.MaxSelections == 3,
+            "live native count overrides the compiled maximum without losing optional mode");
+        CombatInteractionBroker.Clear();
+        Assert(CombatInteractionContractInference.TryInfer(
+                   "ChooseCardToAction(\"3\", cards => { AddBuff(\"ReturnAgain\", (30 - 20 * cards.Count).ToString()); foreach (var card in cards) card.InternalBurning(); }, \"2\")",
+                   out var countScaled)
+               && countScaled.SelectionEffects.Any(effect =>
+                   effect.Kind == CombatInteractionEffectKind.AddStatusBySelectionCount
+                   && effect.BaseAmount == 30d
+                   && effect.AmountPerSelection == -20d),
+            "selection-count callback formula is represented structurally");
+        var optionalChoices = new[]
+        {
+            new CombatActionObservation
+            {
+                CandidateId = "low",
+                Semantics = new CombatActionSemantics { PersistentValue = 2d }
+            },
+            new CombatActionObservation
+            {
+                CandidateId = "high",
+                Semantics = new CombatActionSemantics { PersistentValue = 8d }
+            }
+        };
+        var optionalPlan = CombatInteractionPlanner.Plan(
+            countScaled,
+            optionalChoices);
+        Assert(optionalPlan.SelectedIndices.Count == 0,
+            "optional count-scaled interaction may prove empty selection best");
+        var retainInteraction = new CombatInteractionDefinition
+        {
+            Kind = CombatInteractionKind.ModifyCards,
+            Zone = CombatInteractionZone.Hand,
+            MinSelections = 1,
+            MaxSelections = 1,
+            EffectsComplete = true,
+            SelectionEffects =
+            {
+                new CombatInteractionEffectDefinition
+                {
+                    Kind = CombatInteractionEffectKind.RetainSelected
+                }
+            }
+        };
+        var retainPlan = CombatInteractionPlanner.Plan(
+            retainInteraction,
+            optionalChoices);
+        Assert(retainPlan.SelectedCandidateIds.SequenceEqual(new[] { "high" }),
+            "beneficial interaction selects the highest-value target");
 
         var transaction = new CombatActionTransaction();
         Assert(transaction.TryBegin(7, "card:test", 10d, 2d),
@@ -458,6 +560,10 @@ internal static class CombatAiDecisionBehaviorTests
                && selection.Observe(2, 2.31d)
                == CombatSelectionProgress.TimedOut,
             "confirmed prompts wait for native closure without selecting again and fail on a bounded close timeout");
+        selection = new CombatPromptSelectionTracker(0);
+        Assert(selection.Observe(0, 0d) == CombatSelectionProgress.Complete
+               && selection.TryIssueConfirm(0, 0d),
+            "empty optional interaction confirms without forcing a card selection");
 
         var setupState = new CombatStateObservation
         {
@@ -842,8 +948,8 @@ internal static class CombatAiDecisionBehaviorTests
             terminal: true,
             gameBuild: "test-game",
             sharedBuild: "test-shared");
-        Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v7"
-               && trainingSample.FeatureSchemaVersion == 10
+        Assert(trainingSample.ModelProtocol == CombatTrainingProtocol.SampleProtocol
+               && trainingSample.FeatureSchemaVersion == CombatTrainingProtocol.FeatureSchemaVersion
                && trainingSample.Candidates.Count == state.Actions.Count
                && trainingSample.Candidates.Single(candidate =>
                    candidate.CandidateId == "attack").SourceId == "attack",
@@ -939,7 +1045,7 @@ internal static class CombatAiDecisionBehaviorTests
 
         var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
         Assert(trained.Success
-               && trained.Model?.FeatureSchemaVersion == 10
+               && trained.Model?.FeatureSchemaVersion == CombatTrainingProtocol.FeatureSchemaVersion
                && trained.Model.DecisionProfile == "balanced"
                && trained.Model.FeatureMinimums.Count > 0
                && trained.Model.CategoryObservationCounts.Count > 0,

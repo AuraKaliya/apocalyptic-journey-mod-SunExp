@@ -58,6 +58,90 @@ internal static class CombatAiPolicyValueBehaviorTests
                                            && frame.RemainingTurnsTarget >= 0d))
                && episodes.All(episode => episode.Authoritative),
             "episode recorder captures search targets and backfills cross-turn terminal returns");
+        Assert(episodes.All(episode =>
+                   episode.Frames.Select((frame, index) => new { frame, index })
+                       .All(item => item.frame.HasObservation
+                                    && item.frame.StrategyApplicabilityKnown
+                                    && (!item.frame.StrategyLabelsKnown
+                                        || item.frame.StrategyApplicableLabels
+                                            .Count > 0)
+                                    && item.frame.TerminalKnown
+                                    && (item.index == episode.Frames.Count - 1
+                                        ? item.frame.Terminal
+                                          && !item.frame.TransitionKnown
+                                        : item.frame.TransitionKnown
+                                          && item.frame.TransitionValid
+                                          && item.frame.TransitionSpan > 0
+                                          && item.frame
+                                              .CompactTransitionNextStateFeatures
+                                              != null))),
+            "episode recorder preserves object observations, explicit strategy applicability supervision, true adjacent transitions, and known terminal targets");
+        var crossTurnPrevious = new CombatEpisodeFrame
+        {
+            Turn = 1,
+            ActionSequence = 3,
+            DecisionSequence = 1,
+            BattleSessionId = 77,
+            StateFingerprint = "cross-turn-before"
+        };
+        var crossTurnNext = new CombatEpisodeFrame
+        {
+            Turn = 2,
+            ActionSequence = 3,
+            DecisionSequence = 2,
+            BattleSessionId = 77,
+            StateFingerprint = "cross-turn-after",
+            StateFeatures = { ["playerHp"] = 20d }
+        };
+        CombatEpisodeTransitionProtocol.Link(crossTurnPrevious, crossTurnNext);
+        var regressedAction = new CombatEpisodeFrame
+        {
+            Turn = 2,
+            ActionSequence = 2,
+            DecisionSequence = 3,
+            BattleSessionId = 77,
+            StateFingerprint = "same-turn-regressed",
+            StateFeatures = { ["playerHp"] = 20d }
+        };
+        CombatEpisodeTransitionProtocol.Link(crossTurnNext, regressedAction);
+        Assert(crossTurnPrevious.TransitionValid
+               && crossTurnPrevious.TransitionCrossedTurnBoundary
+               && crossTurnPrevious.TransitionKind
+                  == CombatEpisodeTransitionProtocol.CrossTurn
+               && crossTurnPrevious.TransitionActionSequenceDelta == 0
+               && crossTurnPrevious.TransitionSpan == 1
+               && !crossTurnNext.TransitionValid
+               && crossTurnNext.TransitionInvalidReason
+                  == "action-sequence-regressed",
+            "decision sequence validates adjacent cross-turn decisions even when the simulation action sequence does not advance, while retaining same-turn regression checks");
+        var genericStrategyFrame = new CombatEpisodeFrame
+        {
+            ExecutedCandidateId = "defend",
+            StateFeatures = { ["expectedIncomingDamage"] = 8d },
+            Candidates =
+            {
+                new CombatEpisodeCandidate
+                {
+                    CandidateId = "attack",
+                    Legal = true
+                },
+                new CombatEpisodeCandidate
+                {
+                    CandidateId = "defend",
+                    Legal = true,
+                    Features = { ["effectiveDefend"] = 6d }
+                }
+            }
+        };
+        var genericStrategy = CombatPolicyValueBatchTrainer
+            .StrategicFrameSupervisionForExecutedAction(genericStrategyFrame);
+        Assert(genericStrategy.Known
+               && genericStrategy.ApplicableLabels.SequenceEqual(
+                   new[] { "survival" })
+               && genericStrategy.PositiveLabels.SequenceEqual(
+                   new[] { "survival" })
+               && !genericStrategy.ApplicableLabels.Contains("transform"),
+            "generic candidate semantics supervise career-independent strategy heads and leave impossible strategies masked instead of teaching false negatives");
         var recordedEpochMetrics =
             new List<CombatPolicyValueEpochMetrics>();
         var policyValueTraining = CombatPolicyValueTrainer.Train(

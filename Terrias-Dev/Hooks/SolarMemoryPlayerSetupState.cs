@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 
 namespace Terrias.Dll.Hooks;
@@ -98,17 +99,25 @@ public static class SolarMemoryPlayerSetupState
 
     public static List<string> SelectedPacks()
     {
-        return SplitList(GetValue(TerriasIds.SolarMemorySelectedPacksKey, "", migrateLegacyWhenSolo: false));
+        var packs = SplitList(GetValue(TerriasIds.SolarMemorySelectedPacksKey, "", migrateLegacyWhenSolo: false));
+        if (SunCardPackSelectionMigration.Apply(packs))
+        {
+            SetSelectedPacks(packs);
+        }
+
+        return packs;
     }
 
     public static void SetSelectedPacks(IEnumerable<string> packs)
     {
-        SetValue(TerriasIds.SolarMemorySelectedPacksKey, JoinList(packs));
+        var normalized = NormalizePacks(packs);
+        SetValue(TerriasIds.SolarMemorySelectedPacksKey, JoinList(normalized));
     }
 
     public static void SetSelectedPacks(RoleTable? role, IEnumerable<string> packs)
     {
-        SetValue(role, TerriasIds.SolarMemorySelectedPacksKey, JoinList(packs));
+        var normalized = NormalizePacks(packs);
+        SetValue(role, TerriasIds.SolarMemorySelectedPacksKey, JoinList(normalized));
     }
 
     public static List<string> SelectedBlessings()
@@ -159,6 +168,16 @@ public static class SolarMemoryPlayerSetupState
             : value.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .ToList();
+    }
+
+    private static List<string> NormalizePacks(IEnumerable<string> packs)
+    {
+        var normalized = (packs ?? Enumerable.Empty<string>())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        SunCardPackSelectionMigration.Apply(normalized);
+        return normalized;
     }
 
     private static string JoinList(IEnumerable<string> values)

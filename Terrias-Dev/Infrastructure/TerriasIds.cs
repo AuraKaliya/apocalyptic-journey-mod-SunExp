@@ -39,6 +39,7 @@ public static class TerriasIds
     public const string MorningStarCardFramePath = "Mods/Terrias/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
     public const string SunCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Terrias/";
     public const string StellarOvertureCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Loneer/stellar_overture_";
+    public const string SolarEmberCrownCanopyCardPackId = "Terrias_terrias_cardpack_solar_ember_crown_canopy";
     public const string RadiantSparkCardPackId = "Terrias_terrias_cardpack_radiant_spark";
     public const string EmberCrownCardPackId = "Terrias_terrias_cardpack_ember_crown";
     public const string SolarCanopyCardPackId = "Terrias_terrias_cardpack_solar_canopy";
@@ -46,8 +47,16 @@ public static class TerriasIds
     public const string EmberCloakLiningRelicId = "*ember_cloak_lining";
     public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";
 
+    public static readonly string[] LegacySunCardPackIds =
+    {
+        RadiantSparkCardPackId,
+        EmberCrownCardPackId,
+        SolarCanopyCardPackId
+    };
+
     public static readonly string[] SunThemeCardPackIds =
     {
+        SolarEmberCrownCanopyCardPackId,
         RadiantSparkCardPackId,
         EmberCrownCardPackId,
         SolarCanopyCardPackId
@@ -70,8 +79,42 @@ public static class TerriasIds
             || string.Equals(localId, LegacyEmberCloakLiningRelicId, System.StringComparison.Ordinal);
     }
 
+    public static bool IsTechnicalBlessingId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return false;
+        }
+
+        var localId = TerriasContentIdCompatibility.LocalId(id).TrimStart('*');
+        return string.Equals(localId, "dusk_afterheat_recovery", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "star_clay_doll_placeholder", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "sandrone_cat_placeholder", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "origin_strength_50", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "origin_spirit_50", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "origin_fortune_50", System.StringComparison.OrdinalIgnoreCase)
+            || string.Equals(localId, "origin_perceive_50", System.StringComparison.OrdinalIgnoreCase);
+    }
+
     public const string WhiteRadianceTag = "白曜";
     public const string MorningStarSealTag = "启明星";
+    public const string SolarFlameSealTag = "阳炣";
+    public const string SolarWitchBlessing = "solar_witch";
+    public const string WhiteRadianceSaintBlessing = "white_radiance_saint";
+    public const string SunPriestBlessing = "sun_priest";
+    public const string ForgottenOneBlessing = "forgotten_one";
+    public const string DreamTalkerBlessing = "dream_talker";
+    public const string DeliriousTalkerBlessing = "delirious_talker";
+    public const string WisherBlessing = "wisher";
+    public const string UnspeakableOneBlessing = "unspeakable_one";
+    public const string WitheredOneBlessing = "withered_one";
+    public const string BlindOneBlessing = "blind_one";
+
+    public const string TimelessClockRelic = "timeless_clock";
+    public const string LoneerStarStonePouchRelic = "loneer_star_stone_pouch";
+    public const string FoxWomanHarpRelic = "fox_woman_harp";
+    public const string DimStarStoneRelic = "dim_star_stone";
+    public const string TimelessClockZeroCostMarker = "TerriasTimelessClockZeroCost";
 
     public const string SolarRadiance = "Terrias_terrias_solar_radiance";
     public const string SolarCrown = "Terrias_terrias_solar_crown";
@@ -104,6 +147,7 @@ public static class TerriasIds
     public const string BossTraitWhiteRadianceSaint = "Terrias_terrias_boss_trait_white_radiance_saint";
     public const string BossWhiteRadianceCrown = "Terrias_terrias_boss_white_radiance_crown";
     public const string StarStonePouch = "Terrias_terrias_star_stone_pouch";
+    public const string RelicStarStonePouch = "Terrias_terrias_relic_star_stone_pouch";
     public const string MiracleClock = "Terrias_terrias_miracle_clock";
     public const string Starlight = "Terrias_terrias_starlight";
     public const string Moonlight = "Terrias_terrias_moonlight";
@@ -116,6 +160,17 @@ public static class TerriasIds
     public const string SandroneCatTrait = "Terrias_terrias_sandrone_cat_trait";
     public const string Cripple = "buff_cripple";
     public const string Extraordinary = "buff_extraordinary";
+    public const string KeenEdge = "buff_keenedge";
+    public const string Resilient = "buff_resilient";
+    public const string Evergreen = "buff_evergreen";
+    public const string VowPower = "buff_VowPower";
+    public const string ForgottenCardId = "cursecard_6";
+    public const string DreamCardId = "cursecard_11";
+    public const string ThoughtDisorderCardId = "cursecard_2";
+    public const string PhantomPainCardId = "cursecard_10";
+    public const string HiddenIllnessCardId = "cursecard_7";
+    public const string DecayCardId = "cursecard_5";
+    public const string FearCardId = "cursecard_8";
     public const string EnemyCardSaintWhiteEdict = "Terrias_terrias_enemycard_saint_white_edict";
     public const string AbyssLifeTheftCardId = "Terrias_cursecard_abyss_life_theft";
     public const string AbyssDeficitCardId = "Terrias_cursecard_abyss_deficit";

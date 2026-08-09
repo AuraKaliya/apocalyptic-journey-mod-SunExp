@@ -14,6 +14,9 @@ public sealed class CombatTrainingReplayWindowOptions
 
     public bool RequireMultipleCandidates { get; set; }
 
+    public Dictionary<string, int> RequiredStrategyClassFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
     public CombatTrainingReplayWindowOptions Normalized()
     {
         MaximumFrames = Math.Max(64, Math.Min(100000, MaximumFrames));
@@ -25,6 +28,14 @@ public sealed class CombatTrainingReplayWindowOptions
             0.05d,
             0.80d,
             0.30d);
+        RequiredStrategyClassFrames = (RequiredStrategyClassFrames
+                                       ?? new Dictionary<string, int>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value > 0)
+            .ToDictionary(
+                item => item.Key.Trim().ToLowerInvariant(),
+                item => Math.Max(1, Math.Min(MaximumFrames, item.Value)),
+                StringComparer.Ordinal);
         return this;
     }
 
@@ -82,6 +93,9 @@ public sealed class CombatTrainingReplayWindowResult
     public Dictionary<string, int> StrategyQuotaShortfalls { get; set; } =
         new(StringComparer.Ordinal);
 
+    public Dictionary<string, int> RequiredStrategyClassFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
     public bool StrategyQuotaRepairAttempted { get; set; }
 
     public int StrategyQuotaRepairSourceEpisodes { get; set; }
@@ -116,14 +130,12 @@ public static class CombatTrainingReplayWindowSelector
                                   StableRunEpisodeKey(episode))
                               && (episode.Frames
                                   ?? new List<CombatEpisodeFrame>())
-                              .Any(frame => missing.Contains(
-                                  CombatPolicyValueBatchTrainer
-                                      .StrategicFrameStratumForFrame(frame))))
+                              .Any(frame => missing.Any(key =>
+                                  FrameMatchesStrategyClass(frame, key))))
             .OrderByDescending(episode =>
                 (episode.Frames ?? new List<CombatEpisodeFrame>())
-                .Count(frame => missing.Contains(
-                    CombatPolicyValueBatchTrainer.StrategicFrameStratumForFrame(
-                        frame))))
+                .Count(frame => missing.Any(key =>
+                    FrameMatchesStrategyClass(frame, key))))
             .ThenBy(StableRunEpisodeKey, StringComparer.Ordinal)
             .ToList();
         var repaired = Select(existing.Concat(targeted), selectionOptions);
@@ -154,7 +166,8 @@ public static class CombatTrainingReplayWindowSelector
         var entries = episodes
             .SelectMany(episode => SelectEpisodeFrames(
                     episode,
-                    options.MaximumFramesPerEpisode)
+                    options.MaximumFramesPerEpisode,
+                    options.RequiredStrategyClassFrames)
                 .Select(frame => new FrameEntry(
                     episode,
                     frame,
@@ -196,6 +209,9 @@ public static class CombatTrainingReplayWindowSelector
             AvailableStrategyFrames = StrategyCounts(availableFrames),
             SourceStrategyFrames = StrategyCounts(
                 entries.Select(item => item.Frame)),
+            RequiredStrategyClassFrames = new Dictionary<string, int>(
+                options.RequiredStrategyClassFrames,
+                StringComparer.Ordinal),
             SourcePriorityMean = entries.Count == 0
                 ? 0d
                 : entries.Average(entry => entry.PriorityScore)
@@ -214,6 +230,35 @@ public static class CombatTrainingReplayWindowSelector
         var selectedStrategyCounts = new Dictionary<string, int>(
             StringComparer.Ordinal);
         var selectedUnsafe = 0;
+        foreach (var required in result.RequiredStrategyClassFrames
+                     .OrderByDescending(item => item.Value)
+                     .ThenBy(item => item.Key, StringComparer.Ordinal))
+        {
+            foreach (var entry in Ranked(entries.Where(item =>
+                         FrameMatchesStrategyClass(
+                             item.Frame,
+                             required.Key))))
+            {
+                if (selected.Count >= capacity
+                    || selectedUnsafe >= maximumUnsafe
+                       && entry.UnsafeEndTurn)
+                {
+                    continue;
+                }
+                if (selected.Add(entry))
+                {
+                    selectedStrategyCounts[entry.Strategy] =
+                        Count(selectedStrategyCounts, entry.Strategy) + 1;
+                    if (entry.UnsafeEndTurn) selectedUnsafe++;
+                }
+                if (selected.Count(item => FrameMatchesStrategyClass(
+                        item.Frame,
+                        required.Key)) >= required.Value)
+                {
+                    break;
+                }
+            }
+        }
         foreach (var quota in result.MinimumStrategyShares
                      .OrderByDescending(item => item.Value)
                      .ThenBy(item => item.Key, StringComparer.Ordinal))
@@ -329,6 +374,17 @@ public static class CombatTrainingReplayWindowSelector
                 result.StrategyQuotaShortfalls[quota.Key] = target - actual;
             }
         }
+        foreach (var required in result.RequiredStrategyClassFrames)
+        {
+            var actual = selected.Count(item => FrameMatchesStrategyClass(
+                item.Frame,
+                required.Key));
+            if (actual < required.Value)
+            {
+                result.StrategyQuotaShortfalls[required.Key] =
+                    required.Value - actual;
+            }
+        }
         result.StrategyQuotaPassed =
             result.StrategyQuotaShortfalls.Count == 0
             && MaximumSharesPassed(result);
@@ -376,7 +432,9 @@ public static class CombatTrainingReplayWindowSelector
             }
         }
         result.StrategyQuotaActive = result.MinimumStrategyShares.Count > 0
-                                     || result.MaximumStrategyShares.Count > 0;
+                                     || result.MaximumStrategyShares.Count > 0
+                                     || result.RequiredStrategyClassFrames.Count
+                                     > 0;
     }
 
     private static IEnumerable<FrameEntry> Ranked(IEnumerable<FrameEntry> source)
@@ -647,7 +705,8 @@ public static class CombatTrainingReplayWindowSelector
 
     private static IReadOnlyList<CombatEpisodeFrame> SelectEpisodeFrames(
         CombatEpisode episode,
-        int maximumFrames)
+        int maximumFrames,
+        IReadOnlyDictionary<string, int> requiredStrategyClasses)
     {
         var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
         if (frames.Count <= maximumFrames)
@@ -657,7 +716,10 @@ public static class CombatTrainingReplayWindowSelector
         var pinned = frames.Where(frame =>
                 IsScarceStrategy(
                     CombatPolicyValueBatchTrainer
-                        .StrategicFrameStratumForFrame(frame)))
+                        .StrategicFrameStratumForFrame(frame))
+                || (requiredStrategyClasses
+                    ?? new Dictionary<string, int>()).Keys.Any(key =>
+                    FrameMatchesStrategyClass(frame, key)))
             .ToList();
         var selected = EvenlySpaced(
             pinned,
@@ -703,7 +765,60 @@ public static class CombatTrainingReplayWindowSelector
                || string.Equals(
                    strategy,
                    "strategy-bank",
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-transform",
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-growth",
                    StringComparison.Ordinal);
+    }
+
+    internal static bool FrameMatchesStrategyClass(
+        CombatEpisodeFrame? frame,
+        string? strategyClass)
+    {
+        var normalized = (strategyClass ?? "").Trim().ToLowerInvariant();
+        if (frame == null || !normalized.StartsWith(
+                "strategy-",
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+        var negative = normalized.EndsWith(
+            "-negative",
+            StringComparison.Ordinal);
+        if (!negative
+            && string.Equals(
+                CombatPolicyValueBatchTrainer.StrategicFrameStratumForFrame(
+                    frame),
+                normalized,
+                StringComparison.Ordinal))
+        {
+            return true;
+        }
+        var label = normalized.Substring("strategy-".Length);
+        if (negative)
+        {
+            label = label.Substring(
+                0,
+                label.Length - "-negative".Length);
+        }
+        var supervision = CombatPolicyValueBatchTrainer
+            .StrategicFrameSupervisionForExecutedAction(frame);
+        if (!supervision.Known
+            || !supervision.ApplicableLabels.Contains(
+                label,
+                StringComparer.Ordinal))
+        {
+            return false;
+        }
+        var positive = supervision.PositiveLabels.Contains(
+            label,
+            StringComparer.Ordinal);
+        return negative ? !positive : positive;
     }
 
     private static Dictionary<string, int> StrategyCounts(

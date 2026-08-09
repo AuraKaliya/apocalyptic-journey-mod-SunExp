@@ -19,6 +19,15 @@ public static class CombatAuthoritativeSemanticProjector
         if (action == null) throw new ArgumentNullException(nameof(action));
 
         var semantics = new CombatActionSemantics();
+        if (card.Interaction != null)
+        {
+            semantics.Interaction = card.Interaction.Normalize();
+            semantics.OpensInteraction = true;
+            if (!semantics.Interaction.EffectsComplete)
+            {
+                semantics.Uncertainty += 1d;
+            }
+        }
         var projected = state.Clone();
         var sourceActorId = action.ActorId > 0
             ? action.ActorId
@@ -92,7 +101,8 @@ public static class CombatAuthoritativeSemanticProjector
             }
             if (effect.Probability < 1d
                 || !string.IsNullOrWhiteSpace(effect.RandomChoiceGroup)
-                || effect.Target == CombatSimulationTarget.RandomEnemy)
+                || effect.Target == CombatSimulationTarget.RandomEnemy
+                || IsRandomEffect(effect, projected, effect.Amount))
             {
                 semantics.RandomOutcome = true;
                 semantics.Uncertainty +=
@@ -141,6 +151,21 @@ public static class CombatAuthoritativeSemanticProjector
         return semantics;
     }
 
+    private static bool IsRandomEffect(
+        CombatSimulationEffectDefinition effect,
+        CombatBattleState state,
+        int amount)
+    {
+        return effect.Kind is CombatSimulationEffectKind.DiscardRandom
+                   or CombatSimulationEffectKind.ExhaustRandom
+                   or CombatSimulationEffectKind.CreateRandomCard
+               || effect.RandomizeDestination
+               || (effect.Kind is CombatSimulationEffectKind.Draw
+                       or CombatSimulationEffectKind.DrawToHandLimit
+                   && state.DrawPile.Count < Math.Max(0, amount)
+                   && state.DiscardPile.Count > 0);
+    }
+
     private static void ProjectImmediateEffect(
         CombatActionSemantics semantics,
         CombatBattleState projected,
@@ -175,11 +200,15 @@ public static class CombatAuthoritativeSemanticProjector
                 {
                     Phase = CombatSemanticEffectPhase.Immediate,
                     Kind = ToSemanticDamageKind(effect.Kind),
+                    Attribution = CombatSemanticEffectAttribution.DirectAction,
                     TargetRuntimeId = targetId,
                     DefinitionId = effect.DefinitionId,
+                    SourceDefinitionId = effect.DefinitionId,
+                    SourceActionId = sourceActionId,
                     RawAmount = amount,
                     EffectiveAmount = damage.HpDamage,
                     EffectiveDurabilityAmount = damage.DurabilityDamage,
+                    BlockedAmount = damage.BlockedAmount,
                     Probability = probability,
                     BypassesBlock = damage.BypassesBlock
                 });
@@ -197,7 +226,9 @@ public static class CombatAuthoritativeSemanticProjector
                 {
                     Phase = CombatSemanticEffectPhase.Immediate,
                     Kind = CombatSemanticEffectKind.Defend,
+                    Attribution = CombatSemanticEffectAttribution.DirectAction,
                     TargetRuntimeId = targetId,
+                    SourceActionId = sourceActionId,
                     RawAmount = amount,
                     EffectiveAmount = amount,
                     Probability = probability
@@ -209,7 +240,9 @@ public static class CombatAuthoritativeSemanticProjector
                 {
                     Phase = CombatSemanticEffectPhase.Immediate,
                     Kind = CombatSemanticEffectKind.Heal,
+                    Attribution = CombatSemanticEffectAttribution.DirectAction,
                     TargetRuntimeId = targetId,
+                    SourceActionId = sourceActionId,
                     RawAmount = amount,
                     EffectiveAmount = target == null
                         ? amount
@@ -218,6 +251,101 @@ public static class CombatAuthoritativeSemanticProjector
                             Math.Max(0, target.MaxHp - target.Hp)),
                     Probability = probability
                 });
+                return;
+
+            case CombatSimulationEffectKind.SetHp:
+                if (target == null)
+                {
+                    return;
+                }
+                var hpDelta = amount - target.Hp;
+                if (target.Kind == CombatSimulationActorKind.Player)
+                {
+                    AddStateChange(semantics, "player.hp", hpDelta * probability);
+                    if (hpDelta < 0)
+                    {
+                        semantics.SelfHpLoss += -hpDelta * probability;
+                        semantics.DirectSelfHpLoss += -hpDelta * probability;
+                        semantics.Risk += -hpDelta * probability;
+                    }
+                    else
+                    {
+                        semantics.Heal += hpDelta * probability;
+                        semantics.DirectHeal += hpDelta * probability;
+                    }
+                }
+                if (probability >= 1d)
+                {
+                    target.Hp = Math.Max(0, Math.Min(target.MaxHp, amount));
+                }
+                return;
+
+            case CombatSimulationEffectKind.SetHpToMax:
+                if (target == null)
+                {
+                    return;
+                }
+                var healToMaximum = Math.Max(0, target.MaxHp - target.Hp);
+                if (target.Kind == CombatSimulationActorKind.Player)
+                {
+                    semantics.Heal += healToMaximum * probability;
+                    semantics.DirectHeal += healToMaximum * probability;
+                    AddStateChange(
+                        semantics,
+                        "player.hp",
+                        healToMaximum * probability);
+                }
+                if (probability >= 1d)
+                {
+                    target.Hp = target.MaxHp;
+                }
+                return;
+
+            case CombatSimulationEffectKind.ScaleMaxHpPercent:
+                if (target == null)
+                {
+                    return;
+                }
+                var scaledMaximum = Math.Max(
+                    1,
+                    (int)((long)target.MaxHp * Math.Max(0, amount) / 100L));
+                var maximumDelta = scaledMaximum - target.MaxHp;
+                var clampedHpLoss = Math.Max(0, target.Hp - scaledMaximum);
+                if (target.Kind == CombatSimulationActorKind.Player)
+                {
+                    AddStateChange(
+                        semantics,
+                        "playerMaxHp",
+                        maximumDelta * probability);
+                    if (clampedHpLoss > 0)
+                    {
+                        semantics.SelfHpLoss += clampedHpLoss * probability;
+                        semantics.DirectSelfHpLoss += clampedHpLoss * probability;
+                        semantics.Risk += clampedHpLoss * probability;
+                        AddStateChange(
+                            semantics,
+                            "player.hp",
+                            -clampedHpLoss * probability);
+                    }
+                }
+                if (probability >= 1d)
+                {
+                    target.MaxHp = scaledMaximum;
+                    target.Hp = Math.Min(target.Hp, target.MaxHp);
+                }
+                return;
+
+            case CombatSimulationEffectKind.ModifyStatusCounter:
+                if (target != null)
+                {
+                    AddStateChange(
+                        semantics,
+                        "statusCounter:"
+                        + effect.DefinitionId
+                        + ":"
+                        + effect.CounterKey,
+                        amount * probability);
+                }
                 return;
 
             case CombatSimulationEffectKind.AddStatus:
@@ -242,8 +370,10 @@ public static class CombatAuthoritativeSemanticProjector
                 {
                     Phase = CombatSemanticEffectPhase.Immediate,
                     Kind = CombatSemanticEffectKind.AddStatus,
+                    Attribution = CombatSemanticEffectAttribution.DirectAction,
                     TargetRuntimeId = targetId,
                     DefinitionId = effect.DefinitionId,
+                    SourceActionId = sourceActionId,
                     RawAmount = amount,
                     EffectiveAmount = gainedStacks,
                     Probability = probability
@@ -255,6 +385,10 @@ public static class CombatAuthoritativeSemanticProjector
                 else
                 {
                     semantics.Buff += gainedStacks * probability;
+                    AddStateChange(
+                        semantics,
+                        "status:" + effect.DefinitionId,
+                        gainedStacks * probability);
                 }
                 if (gainedStacks <= 0 || probability < 1d)
                 {
@@ -329,9 +463,11 @@ public static class CombatAuthoritativeSemanticProjector
                         actor,
                         trigger,
                         eligibleStacks,
+                        status.StatusId,
                         CombatSemanticEffectPhase.PostAction,
                         sourceActorId,
-                        selectedTargetId);
+                        selectedTargetId,
+                        sourceActionId);
                 }
             }
         }
@@ -382,9 +518,11 @@ public static class CombatAuthoritativeSemanticProjector
                     actor,
                     trigger,
                     eligibleStacks,
+                    status.StatusId,
                     CombatSemanticEffectPhase.Deferred,
                     actor.ActorId,
-                    selectedTargetId);
+                    selectedTargetId,
+                    sourceActionId);
             }
         }
     }
@@ -396,9 +534,11 @@ public static class CombatAuthoritativeSemanticProjector
         CombatActorState owner,
         CombatStatusTriggerDefinition trigger,
         int eligibleStacks,
+        string sourceStatusId,
         CombatSemanticEffectPhase phase,
         int eventSourceId,
-        int eventTargetId)
+        int eventTargetId,
+        long sourceActionId)
     {
         foreach (var effect in trigger.Effects)
         {
@@ -427,6 +567,9 @@ public static class CombatAuthoritativeSemanticProjector
                 }
                 var probability =
                     Math.Max(0d, Math.Min(1d, effect.Probability));
+                var attribution = phase == CombatSemanticEffectPhase.Deferred
+                    ? CombatSemanticEffectAttribution.PhaseTriggered
+                    : CombatSemanticEffectAttribution.ActionTriggeredContext;
                 if (effect.Kind is CombatSimulationEffectKind.Damage
                     or CombatSimulationEffectKind.TrueDamage
                     or CombatSimulationEffectKind.DirectHpLoss)
@@ -447,18 +590,35 @@ public static class CombatAuthoritativeSemanticProjector
                         {
                             Phase = phase,
                             Kind = ToSemanticDamageKind(effect.Kind),
+                            Attribution = attribution,
                             TargetRuntimeId = targetId,
                             DefinitionId = effect.DefinitionId,
                             Trigger = trigger.EventKind.ToString(),
+                            SourceDefinitionId = sourceStatusId,
+                            SourceActionId = sourceActionId,
+                            TriggerWave = 1,
                             RawAmount = amount,
                             EffectiveAmount = damage.HpDamage,
                             EffectiveDurabilityAmount =
                                 damage.DurabilityDamage,
+                            BlockedAmount = damage.BlockedAmount,
                             Probability = probability,
                             BypassesBlock = damage.BypassesBlock,
-                            Contextual = phase
-                                == CombatSemanticEffectPhase.PostAction
+                            Contextual = true
                         });
+                    if (target.Kind == CombatSimulationActorKind.Enemy)
+                    {
+                        semantics.ContextDamage +=
+                            damage.HpDamage * probability;
+                    }
+                    else if (target.Kind == CombatSimulationActorKind.Player)
+                    {
+                        semantics.ContextSelfHpLoss +=
+                            damage.HpDamage * probability;
+                        semantics.SelfHpLoss +=
+                            damage.HpDamage * probability;
+                        semantics.Risk += damage.HpDamage * probability;
+                    }
                 }
                 else if (effect.Kind == CombatSimulationEffectKind.AddStatus)
                 {
@@ -467,15 +627,100 @@ public static class CombatAuthoritativeSemanticProjector
                         {
                             Phase = phase,
                             Kind = CombatSemanticEffectKind.AddStatus,
+                            Attribution = attribution,
                             TargetRuntimeId = targetId,
                             DefinitionId = effect.DefinitionId,
                             Trigger = trigger.EventKind.ToString(),
+                            SourceDefinitionId = sourceStatusId,
+                            SourceActionId = sourceActionId,
+                            TriggerWave = 1,
                             RawAmount = amount,
                             EffectiveAmount = amount,
                             Probability = probability,
-                            Contextual = phase
-                                == CombatSemanticEffectPhase.PostAction
+                            Contextual = true
                         });
+                }
+                else if (effect.Kind is CombatSimulationEffectKind.Heal
+                    or CombatSimulationEffectKind.GainBlock
+                    or CombatSimulationEffectKind.SetBlock)
+                {
+                    var effective = effect.Kind == CombatSimulationEffectKind.Heal
+                        ? target == null
+                            ? Math.Max(0, amount)
+                            : Math.Min(
+                                Math.Max(0, amount),
+                                Math.Max(0, target.MaxHp - target.Hp))
+                        : Math.Max(0, amount);
+                    var semanticKind = effect.Kind == CombatSimulationEffectKind.Heal
+                        ? CombatSemanticEffectKind.Heal
+                        : CombatSemanticEffectKind.Defend;
+                    semantics.TargetEffects.Add(new CombatTargetedSemanticEffect
+                    {
+                        Phase = phase,
+                        Kind = semanticKind,
+                        Attribution = attribution,
+                        TargetRuntimeId = targetId,
+                        DefinitionId = effect.DefinitionId,
+                        Trigger = trigger.EventKind.ToString(),
+                        SourceDefinitionId = sourceStatusId,
+                        SourceActionId = sourceActionId,
+                        TriggerWave = 1,
+                        RawAmount = amount,
+                        EffectiveAmount = effective,
+                        EffectiveDurabilityAmount = effective,
+                        Probability = probability,
+                        Contextual = true
+                    });
+                    if (semanticKind == CombatSemanticEffectKind.Heal
+                        && target?.Kind == CombatSimulationActorKind.Player)
+                    {
+                        semantics.ContextHeal += effective * probability;
+                    }
+                }
+                else if (effect.Kind == CombatSimulationEffectKind.RemoveStatus)
+                {
+                    semantics.TargetEffects.Add(new CombatTargetedSemanticEffect
+                    {
+                        Phase = phase,
+                        Kind = CombatSemanticEffectKind.RemoveStatus,
+                        Attribution = attribution,
+                        TargetRuntimeId = targetId,
+                        DefinitionId = effect.DefinitionId,
+                        Trigger = trigger.EventKind.ToString(),
+                        SourceDefinitionId = sourceStatusId,
+                        SourceActionId = sourceActionId,
+                        TriggerWave = 1,
+                        RawAmount = Math.Max(1, amount),
+                        EffectiveAmount = Math.Max(1, amount),
+                        Probability = probability,
+                        Contextual = true
+                    });
+                }
+                else
+                {
+                    var key = "trigger-effect:"
+                              + trigger.EventKind
+                              + ":"
+                              + effect.Kind
+                              + ":"
+                              + effect.DefinitionId;
+                    AddStateChange(semantics, key, amount * probability);
+                    semantics.TargetEffects.Add(new CombatTargetedSemanticEffect
+                    {
+                        Phase = phase,
+                        Kind = CombatSemanticEffectKind.StateChange,
+                        Attribution = attribution,
+                        TargetRuntimeId = targetId,
+                        DefinitionId = effect.DefinitionId,
+                        Trigger = trigger.EventKind.ToString(),
+                        SourceDefinitionId = sourceStatusId,
+                        SourceActionId = sourceActionId,
+                        TriggerWave = 1,
+                        RawAmount = amount,
+                        EffectiveAmount = amount,
+                        Probability = probability,
+                        Contextual = true
+                    });
                 }
             }
         }
@@ -492,15 +737,18 @@ public static class CombatAuthoritativeSemanticProjector
         {
             case CombatSimulationEffectKind.Damage:
                 semantics.Damage += expected;
+                semantics.DirectDamage += expected;
                 break;
             case CombatSimulationEffectKind.TrueDamage:
                 semantics.TrueDamage += expected;
+                semantics.DirectDamage += expected;
                 break;
             case CombatSimulationEffectKind.DirectHpLoss:
                 if (effect.Target is CombatSimulationTarget.Self
                     or CombatSimulationTarget.Player)
                 {
                     semantics.SelfHpLoss += expected;
+                    semantics.DirectSelfHpLoss += expected;
                     semantics.Risk += expected;
                 }
                 else
@@ -513,6 +761,7 @@ public static class CombatAuthoritativeSemanticProjector
                 break;
             case CombatSimulationEffectKind.Heal:
                 semantics.Heal += expected;
+                semantics.DirectHeal += expected;
                 break;
             case CombatSimulationEffectKind.Draw:
                 semantics.Draw += expected;
@@ -562,19 +811,6 @@ public static class CombatAuthoritativeSemanticProjector
             case CombatSimulationEffectKind.ChangeCardCost:
                 semantics.CostReduction += Math.Max(0d, -expected);
                 break;
-            case CombatSimulationEffectKind.SetHp:
-                var currentHp = state.Player?.Hp ?? 0;
-                var hpDelta = expected - currentHp;
-                semantics.StateChanges["player.hp"] = hpDelta;
-                if (hpDelta < 0d)
-                {
-                    semantics.Risk += -hpDelta;
-                }
-                else
-                {
-                    semantics.Heal += hpDelta;
-                }
-                break;
             case CombatSimulationEffectKind.ModifyVariable:
                 if (effect.Target is CombatSimulationTarget.Self
                     or CombatSimulationTarget.Player)
@@ -610,6 +846,24 @@ public static class CombatAuthoritativeSemanticProjector
                 semantics.Risk += expected;
                 break;
         }
+    }
+
+    private static void AddStateChange(
+        CombatActionSemantics semantics,
+        string key,
+        double delta)
+    {
+        if (string.IsNullOrWhiteSpace(key)
+            || double.IsNaN(delta)
+            || double.IsInfinity(delta)
+            || Math.Abs(delta) < 0.000001d)
+        {
+            return;
+        }
+        semantics.StateChanges[key] =
+            semantics.StateChanges.TryGetValue(key, out var previous)
+                ? previous + delta
+                : delta;
     }
 
     private static CombatCardZoneKind ToAiCardZone(CombatCardZone zone)

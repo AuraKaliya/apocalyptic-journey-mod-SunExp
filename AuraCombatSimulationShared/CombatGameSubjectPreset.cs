@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AuraCombatSimulation.Shared;
 
@@ -198,17 +199,21 @@ public sealed class CombatGameSubjectPreset
                 .Select(item => item.Clone())
                 .ToList(),
             ResolvedRoleInitialStatuses =
-                (player.InitialStatuses ?? new List<CombatInitialStatus>())
-                .Where(item => item != null
-                               && !string.IsNullOrWhiteSpace(item.StatusId)
-                               && item.Stacks > 0)
-                .GroupBy(
-                    item => item.StatusId.Trim(),
-                    StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Sum(item => item.Stacks),
-                    StringComparer.OrdinalIgnoreCase),
+                player.RolePassiveContract?.InitialStatuses?.Count > 0
+                    ? new Dictionary<string, int>(
+                        player.RolePassiveContract.InitialStatuses,
+                        StringComparer.OrdinalIgnoreCase)
+                    : (player.InitialStatuses ?? new List<CombatInitialStatus>())
+                    .Where(item => item != null
+                                   && !string.IsNullOrWhiteSpace(item.StatusId)
+                                   && item.Stacks > 0)
+                    .GroupBy(
+                        item => item.StatusId.Trim(),
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.Sum(item => item.Stacks),
+                        StringComparer.OrdinalIgnoreCase),
             ResolvedFamiliarBlessingIds =
                 (player.FamiliarBlessingIds
                  ?? new List<string>()).ToList()
@@ -310,9 +315,12 @@ public static class CombatGameSubjectPresetRuntime
         campaign.Player.RoleNativeScriptHash =
             effective.ResolvedRoleNativeScriptHash;
         campaign.Player.RoleFightScript = effective.ResolvedRoleFightScript;
+        campaign.Player.RolePassiveContract =
+            CombatRolePassiveContractProtocol.Create(effective);
         campaign.Player.RoleRuntimeForms = effective.ResolvedRoleRuntimeForms
             .Select(item => item.Clone())
             .ToList();
+        campaign.Player.PersistentMaxHpAdjustment = 0;
         if (effective.ResolvedRoleMaximumHp > 0)
         {
             campaign.Player.MaxHp = effective.ResolvedRoleMaximumHp;
@@ -441,6 +449,264 @@ public static class CombatGameSubjectPresetRuntime
             (values ?? Array.Empty<string>())
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .OrderBy(item => item, StringComparer.OrdinalIgnoreCase));
+    }
+}
+
+public static class CombatRolePassiveContractProtocol
+{
+    private static readonly Regex TriggerPattern = new(
+        @"AddEvent\s*\(\s*[""'](?<id>[^""']+)[""']",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    public static CombatRolePassiveContract Create(
+        CombatGameSubjectPreset preset)
+    {
+        if (preset == null) throw new ArgumentNullException(nameof(preset));
+        var effective = preset.Clone();
+        var contract = new CombatRolePassiveContract
+        {
+            RoleId = effective.RoleId,
+            NativeScriptHash = effective.ResolvedRoleNativeScriptHash,
+            MaximumHp = effective.ResolvedRoleMaximumHp,
+            InitialStatuses = new Dictionary<string, int>(
+                effective.ResolvedRoleInitialStatuses,
+                StringComparer.OrdinalIgnoreCase),
+            InitialVariables = new Dictionary<string, double>(
+                effective.ResolvedRoleInitialVariables,
+                StringComparer.OrdinalIgnoreCase),
+            InitialSkillCooldownTurns = new Dictionary<string, int>(
+                effective.ResolvedRoleInitialSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase),
+            TriggerIds = TriggerPattern.Matches(effective.ResolvedRoleFightScript)
+                .Cast<Match>()
+                .Select(match => match.Groups["id"].Value.Trim())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            NativeManagedSkillCooldownIds = effective
+                .ResolvedRoleNativeManagedSkillCooldownIds
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            RuntimeFormIds = effective.ResolvedRoleRuntimeForms
+                .Select(item => item.RoleId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+        };
+        contract.ContractHash = ComputeHash(contract);
+        return contract;
+    }
+
+    public static IReadOnlyList<string> ValidateBeforeRoleInitialization(
+        CombatPlayerSetup player,
+        CombatBattleState state)
+    {
+        if (player == null || state == null)
+        {
+            return new[] { "initialization-context-missing" };
+        }
+        var contract = player.RolePassiveContract;
+        if (contract == null
+            || !contract.AuditInitialization
+            || string.IsNullOrWhiteSpace(contract.ContractHash))
+        {
+            return Array.Empty<string>();
+        }
+        var actor = state.Player;
+        if (actor == null)
+        {
+            return new[] { "player-state-missing" };
+        }
+        var errors = new List<string>();
+        if (!string.Equals(
+                contract.RoleId,
+                player.RoleId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("role-id-mismatch");
+        }
+        if (!string.Equals(
+                contract.NativeScriptHash,
+                player.RoleNativeScriptHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("native-script-hash-mismatch");
+        }
+        var expectedMaximumHp = contract.MaximumHp
+                                + player.PersistentMaxHpAdjustment;
+        if (contract.MaximumHp > 0 && actor.MaxHp != expectedMaximumHp)
+        {
+            errors.Add(
+                "maximum-hp:expected=" + expectedMaximumHp
+                + ",actual=" + actor.MaxHp);
+        }
+        return errors;
+    }
+
+    public static IReadOnlyList<string> ValidateInitialized(
+        CombatPlayerSetup player,
+        CombatBattleState state)
+    {
+        if (player == null || state == null)
+        {
+            return new[] { "initialization-context-missing" };
+        }
+        var contract = player.RolePassiveContract;
+        if (contract == null
+            || !contract.AuditInitialization
+            || string.IsNullOrWhiteSpace(contract.ContractHash))
+        {
+            return Array.Empty<string>();
+        }
+        var actor = state.Player;
+        if (actor == null)
+        {
+            return new[] { "player-state-missing" };
+        }
+        var errors = new List<string>();
+        if (!string.Equals(
+                contract.RoleId,
+                player.RoleId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("role-id-mismatch");
+        }
+        if (!string.Equals(
+                contract.NativeScriptHash,
+                player.RoleNativeScriptHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add("native-script-hash-mismatch");
+        }
+        foreach (var expected in contract.InitialStatuses
+                                 ?? new Dictionary<string, int>())
+        {
+            var actual = actor.Statuses
+                .Where(item => string.Equals(
+                    item.StatusId,
+                    expected.Key,
+                    StringComparison.OrdinalIgnoreCase))
+                .Sum(item => Math.Max(0, item.Stacks));
+            if (actual < expected.Value)
+            {
+                errors.Add(
+                    "status:" + expected.Key
+                    + ":expected=" + expected.Value
+                    + ",actual=" + actual);
+            }
+        }
+        foreach (var expected in contract.InitialVariables
+                                 ?? new Dictionary<string, double>())
+        {
+            if (!actor.Variables.TryGetValue(expected.Key, out var actual)
+                || Math.Abs(actual - expected.Value) > 0.000001d)
+            {
+                errors.Add(
+                    "variable:" + expected.Key
+                    + ":expected=" + expected.Value.ToString(
+                        "R",
+                        CultureInfo.InvariantCulture)
+                    + ",actual=" + (actor.Variables.TryGetValue(
+                        expected.Key,
+                        out actual)
+                            ? actual.ToString("R", CultureInfo.InvariantCulture)
+                            : "missing"));
+            }
+        }
+        foreach (var expected in contract.InitialSkillCooldownTurns
+                                 ?? new Dictionary<string, int>())
+        {
+            var instanceIds = state.SkillCards.Where(instanceId =>
+                state.Cards.Any(card => card.InstanceId == instanceId
+                                        && string.Equals(
+                                            card.CardId,
+                                            expected.Key,
+                                            StringComparison.OrdinalIgnoreCase)));
+            foreach (var instanceId in instanceIds)
+            {
+                var actual = state.SkillCooldowns.TryGetValue(
+                    instanceId,
+                    out var cooldown)
+                    ? cooldown
+                    : 0;
+                if (actual != expected.Value)
+                {
+                    errors.Add(
+                        "skill-cooldown:" + expected.Key
+                        + ":expected=" + expected.Value
+                        + ",actual=" + actual);
+                }
+            }
+        }
+        return errors;
+    }
+
+    public static IReadOnlyList<string> ValidateAfterRoleInitialization(
+        CombatPlayerSetup player,
+        CombatBattleState state)
+    {
+        var errors = ValidateInitialized(player, state).ToList();
+        if (player == null || state == null)
+        {
+            return errors;
+        }
+        var contract = player.RolePassiveContract;
+        var actor = state.Player;
+        if (contract == null
+            || actor == null
+            || !contract.AuditInitialization
+            || string.IsNullOrWhiteSpace(contract.ContractHash))
+        {
+            return errors;
+        }
+        var expectedMaximumHp = contract.MaximumHp
+                                + player.PersistentMaxHpAdjustment;
+        if (contract.MaximumHp > 0 && actor.MaxHp != expectedMaximumHp)
+        {
+            errors.Add(
+                "maximum-hp:expected=" + expectedMaximumHp
+                + ",actual=" + actor.MaxHp);
+        }
+        return errors;
+    }
+
+    private static string ComputeHash(CombatRolePassiveContract contract)
+    {
+        var canonical = string.Join("\n", new[]
+        {
+            "schema=" + CombatRolePassiveContract.CurrentSchemaVersion,
+            "role=" + contract.RoleId,
+            "native=" + contract.NativeScriptHash,
+            "maximumHp=" + contract.MaximumHp,
+            "statuses=" + Join(contract.InitialStatuses),
+            "variables=" + string.Join(
+                ",",
+                contract.InitialVariables
+                    .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(item => item.Key + ":" + item.Value.ToString(
+                        "R",
+                        CultureInfo.InvariantCulture))),
+            "cooldowns=" + Join(contract.InitialSkillCooldownTurns),
+            "triggers=" + string.Join(",", contract.TriggerIds),
+            "nativeCooldowns=" + string.Join(",", contract.NativeManagedSkillCooldownIds),
+            "forms=" + string.Join(",", contract.RuntimeFormIds)
+        });
+        using var sha = SHA256.Create();
+        return BitConverter.ToString(
+                sha.ComputeHash(Encoding.UTF8.GetBytes(canonical)))
+            .Replace("-", "")
+            .ToLowerInvariant();
+    }
+
+    private static string Join<T>(IReadOnlyDictionary<string, T> values)
+    {
+        return string.Join(
+            ",",
+            (values ?? new Dictionary<string, T>())
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.Key + ":" + item.Value));
     }
 }
 

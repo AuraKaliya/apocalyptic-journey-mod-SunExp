@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using AuraDecision.Shared;
@@ -40,7 +41,37 @@ public sealed class CombatSearchResult
 
     public double ElapsedMilliseconds { get; set; }
 
+    public int MinimumTimeMilliseconds { get; set; }
+
+    public bool MinimumTimeSatisfied { get; set; }
+
+    public bool EarlyStopCertified { get; set; }
+
+    public string StopReason { get; set; } = "completed";
+
     public double Confidence { get; set; }
+
+    public bool HasNetworkPrediction { get; set; }
+
+    public double NetworkExpectedReturn { get; set; }
+
+    public double NetworkWinProbability { get; set; }
+
+    public double NetworkDeathProbability { get; set; }
+
+    public double NetworkExpectedRemainingHpRatio { get; set; }
+
+    public double NetworkExpectedRemainingTurns { get; set; }
+
+    public double NetworkUncertainty { get; set; }
+
+    public double PolicyAmbiguity { get; set; }
+
+    public double SemanticCoverageRisk { get; set; }
+
+    public double OutcomeUncertainty { get; set; }
+
+    public double SearchEvidence { get; set; }
 
     public double ValueGap { get; set; }
 
@@ -126,6 +157,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private int modelCacheHits;
     private int modelEvaluationBudget;
     private bool modelBudgetExhausted;
+    private SearchNode? activeRootNode;
+    private CombatPolicyValuePrediction? rootNetworkPrediction;
 
     public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
@@ -202,6 +235,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         modelEvaluations = 0;
         modelCacheHits = 0;
         modelBudgetExhausted = false;
+        activeRootNode = null;
+        rootNetworkPrediction = null;
         determinizationIndex = Math.Max(
             0,
             exploration?.DeterminizationOffset ?? 0);
@@ -262,7 +297,17 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         simulationRules = useRuntimeRegistries
             ? CombatAiRegistry.SnapshotSimulationRules()
             : isolatedSimulationRules;
-        nodeBudget = Math.Max(256, Math.Min(65536, budget.NodeBudget));
+        var configuredNodeBudget = Math.Max(
+            256,
+            Math.Min(65536, budget.NodeBudget));
+        // Deployment search must not exhaust its ordinary node budget before
+        // the configured minimum wall-clock evidence has been collected.
+        // The hard 65k cap still bounds memory, while training profiles (which
+        // have no wall-clock budget) retain their original throughput budget.
+        nodeBudget = budget.TimeBudgetMilliseconds > 0
+                     && budget.MinimumTimeMilliseconds > 0
+            ? Math.Min(65536, configuredNodeBudget * 4)
+            : configuredNodeBudget;
         if (actions.Count == 0)
         {
             return new CombatSearchResult { Summary = "no legal search action" };
@@ -276,6 +321,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             CombatPublicObservationHasher.Seed(
                 rootDeterminizationSeedBasis,
                 determinizationIndex++));
+        rootState.ActionCostAdjustments = new int[actions.Count];
         determinizationKnowledgeValues.Clear();
         for (var index = 0;
              index < rootState.DrawPileCardIds.Count
@@ -291,6 +337,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             cloneThreats: true,
             stateArena);
         var root = NewNode(rootState);
+        activeRootNode = root;
         EnsureEdges(root);
         var simulationAllocationStart = ReadThreadAllocatedBytes();
 
@@ -310,6 +357,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         var simulationBudget = Math.Max(
             actions.Count,
             Math.Min(20000, budget.SimulationBudget));
+        var extendedSimulationBudget = Math.Max(
+            simulationBudget,
+            Math.Min(20000, simulationBudget * 4));
         var minimumSimulations = Math.Min(
             simulationBudget,
             Math.Max(actions.Count, Math.Max(1, budget.MinimumSimulations)));
@@ -319,7 +369,15 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         var stableChecks = 0;
         var stoppedEarly = false;
         var stoppedByTime = false;
-        while (simulations < simulationBudget && nodeCount < nodeBudget)
+        var earlyStopCertified = false;
+        var stopReason = "completed";
+        while ((simulations < simulationBudget
+                || (budget.MinimumTimeMilliseconds > 0
+                    && ElapsedMilliseconds(searchStarted)
+                       < budget.MinimumTimeMilliseconds)
+                || (budget.TimeBudgetMilliseconds > 0
+                    && simulations < extendedSimulationBudget
+                    && ShouldExtendLowConfidenceSearch(root, budget))))
         {
             if (budget.TimeBudgetMilliseconds > 0
                 && ElapsedMilliseconds(searchStarted)
@@ -327,14 +385,26 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             {
                 stoppedEarly = true;
                 stoppedByTime = true;
+                stopReason = "time-budget";
                 break;
             }
-            if (modelBudgetExhausted)
+            if (modelBudgetExhausted
+                && (budget.MinimumTimeMilliseconds <= 0
+                    || ElapsedMilliseconds(searchStarted)
+                       >= budget.MinimumTimeMilliseconds))
             {
                 stoppedEarly = true;
+                stopReason = "model-evaluation-budget";
                 break;
             }
-            Simulate(root, null);
+            Simulate(
+                root,
+                FindUnderSampledRootEdge(
+                    root,
+                    Math.Max(1, budget.MinimumRootVisits))
+                ?? FindUnderSampledChallenger(
+                    root,
+                    Math.Max(1, budget.MinimumChallengerVisits)));
             simulations++;
             if (simulations < minimumSimulations
                 || simulations % stabilityWindow != 0)
@@ -343,24 +413,36 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             }
 
             var currentBest = StableBestAction(root);
-            if (currentBest >= 0
+            var minimumTimeSatisfied = budget.MinimumTimeMilliseconds <= 0
+                                       || ElapsedMilliseconds(searchStarted)
+                                          >= budget.MinimumTimeMilliseconds;
+            if (minimumTimeSatisfied
+                && currentBest >= 0
                 && currentBest == lastBestAction
-                && RootLeadIsStable(root, currentBest, stabilityWindow))
+                && RootLeadIsStable(
+                    root,
+                    currentBest,
+                    stabilityWindow,
+                    budget))
             {
                 stableChecks++;
                 if (stableChecks >= requiredStableChecks)
                 {
                     stoppedEarly = true;
+                    earlyStopCertified = true;
+                    stopReason = "statistical-dominance-certificate";
                     break;
                 }
             }
             else
             {
-                stableChecks = currentBest >= 0
+                stableChecks = minimumTimeSatisfied
+                               && currentBest >= 0
                                && RootLeadIsStable(
                                    root,
                                    currentBest,
-                                   stabilityWindow)
+                                   stabilityWindow,
+                                   budget)
                     ? 1
                     : 0;
             }
@@ -388,7 +470,13 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 StoppedByModelBudget = modelBudgetExhausted,
                 ModelEvaluations = modelEvaluations,
                 ModelCacheHits = modelCacheHits,
-                ElapsedMilliseconds = ElapsedMilliseconds(searchStarted)
+                ElapsedMilliseconds = ElapsedMilliseconds(searchStarted),
+                MinimumTimeMilliseconds = budget.MinimumTimeMilliseconds,
+                MinimumTimeSatisfied = budget.MinimumTimeMilliseconds <= 0
+                                       || ElapsedMilliseconds(searchStarted)
+                                          >= budget.MinimumTimeMilliseconds,
+                EarlyStopCertified = earlyStopCertified,
+                StopReason = stopReason
             };
         }
 
@@ -442,7 +530,26 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             ModelEvaluations = modelEvaluations,
             ModelCacheHits = modelCacheHits,
             ElapsedMilliseconds = ElapsedMilliseconds(searchStarted),
+            MinimumTimeMilliseconds = budget.MinimumTimeMilliseconds,
+            MinimumTimeSatisfied = budget.MinimumTimeMilliseconds <= 0
+                                   || ElapsedMilliseconds(searchStarted)
+                                      >= budget.MinimumTimeMilliseconds,
+            EarlyStopCertified = earlyStopCertified,
+            StopReason = stopReason,
             Confidence = confidence,
+            HasNetworkPrediction = rootNetworkPrediction != null,
+            NetworkExpectedReturn = rootNetworkPrediction?.ExpectedReturn ?? 0d,
+            NetworkWinProbability = rootNetworkPrediction?.WinProbability ?? 0d,
+            NetworkDeathProbability = rootNetworkPrediction?.DeathProbability ?? 0d,
+            NetworkExpectedRemainingHpRatio =
+                rootNetworkPrediction?.ExpectedRemainingHpRatio ?? 0d,
+            NetworkExpectedRemainingTurns =
+                rootNetworkPrediction?.ExpectedRemainingTurns ?? 0d,
+            NetworkUncertainty = rootNetworkPrediction?.Uncertainty ?? 0d,
+            PolicyAmbiguity = rootNetworkPrediction?.PolicyAmbiguity ?? 0d,
+            SemanticCoverageRisk = RootSemanticCoverageRisk(),
+            OutcomeUncertainty = OutcomeUncertainty(best),
+            SearchEvidence = confidence,
             ValueGap = valueGap,
             BestVisits = best.Visits,
             SecondBestVisits = second?.Visits ?? 0,
@@ -455,8 +562,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             FakeLoops = fakeLoops,
             BlockedLoops = blockedLoops,
             Summary = BuildSummary(best, steps, simulations)
-                      + (stoppedEarly && !stoppedByTime
-                          ? "; early-stop=stable"
+                      + (earlyStopCertified
+                          ? "; early-stop=statistical-dominance-certificate"
                           : "")
                       + (stoppedByTime ? "; time-budget-exhausted" : "")
                       + (modelBudgetExhausted
@@ -467,6 +574,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                       + "; confidence=" + confidence.ToString("0.000")
                       + "; root-candidates=" + actions.Count
                       + "/" + originalCandidateCount
+                      + BuildNetworkSummary(rootNetworkPrediction)
                       + BuildLoopSummary()
         };
         var allocationEnd = ReadThreadAllocatedBytes();
@@ -492,22 +600,24 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         SearchEdge? second,
         bool stoppedByTime)
     {
-        if (second == null)
-        {
-            return 1d;
-        }
         var totalVisits = Math.Max(1, rootEdges.Sum(edge => edge.Visits));
         var visitShare = best.Visits / (double)totalVisits;
         var evidence = Math.Min(
             1d,
             best.Visits / (double)Math.Max(4, actions.Count * 2));
-        var gap = Math.Max(
-            0d,
-            RootSelectionValue(best) - RootSelectionValue(second));
+        var gap = second == null
+            ? 0d
+            : Math.Max(
+                0d,
+                RootSelectionValue(best) - RootSelectionValue(second));
         var scale = 1d
                     + Math.Abs(RootSelectionValue(best))
-                    + Math.Abs(RootSelectionValue(second));
-        var gapSignal = Math.Min(1d, gap / scale * 8d);
+                    + Math.Abs(second == null
+                        ? RootSelectionValue(best)
+                        : RootSelectionValue(second));
+        var gapSignal = second == null
+            ? 0d
+            : Math.Min(1d, gap / scale * 8d);
         var confidence = 0.45d * evidence
                          + 0.35d * visitShare
                          + 0.20d * gapSignal;
@@ -542,7 +652,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private bool RootLeadIsStable(
         SearchNode root,
         int bestActionIndex,
-        int stabilityWindow)
+        int stabilityWindow,
+        CombatSearchBudget budget)
     {
         var ranked = RankRootEdges(
                 PresentEdges(root)
@@ -558,25 +669,98 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         }
         if (ranked.Count == 1)
         {
-            return ranked[0].Visits >= 2;
+            return ranked[0].Visits >= Math.Max(
+                2,
+                budget.MinimumRootVisits);
         }
         var best = ranked[0];
         var second = ranked[1];
-        if (best.Visits < 2 || second.Visits < 1)
+        if (best.Visits < Math.Max(2, budget.MinimumRootVisits)
+            || second.Visits < Math.Max(
+                1,
+                budget.MinimumChallengerVisits))
         {
             return false;
         }
 
         var requiredVisitLead = Math.Max(4, stabilityWindow / 4);
-        var requiredValueLead = 0.1d
-                                * profile.UncertaintyPenalty
-                                * (best.RiskEstimate(profile.TailRiskQuantile)
-                                       .StandardError
-                                   + second.RiskEstimate(profile.TailRiskQuantile)
-                                       .StandardError);
+        var bestError = best.RiskEstimate(profile.TailRiskQuantile)
+            .StandardError;
+        var secondError = second.RiskEstimate(profile.TailRiskQuantile)
+            .StandardError;
+        var dominance = Math.Max(0.25d, budget.DominanceStandardErrors);
+        var bestLowerBound = RootSelectionValue(best)
+                             - dominance * bestError;
+        var secondUpperBound = RootSelectionValue(second)
+                               + dominance * secondError;
+        var confidence = RootConfidence(
+            ranked,
+            best,
+            second,
+            stoppedByTime: false);
         return best.Visits - second.Visits >= requiredVisitLead
-               && RootSelectionValue(best) - RootSelectionValue(second)
-               > requiredValueLead;
+               && bestLowerBound > secondUpperBound
+               && confidence >= budget.EarlyStopConfidence;
+    }
+
+    private bool ShouldExtendLowConfidenceSearch(
+        SearchNode root,
+        CombatSearchBudget budget)
+    {
+        if (!profile.UseLowConfidenceFallback
+            || budget.TimeBudgetMilliseconds <= 0)
+        {
+            return false;
+        }
+        var rootEdges = PresentEdges(root)
+            .Where(edge => edge.ActionIndex >= 0
+                           && edge.Visits > 0
+                           && !edge.Disabled)
+            .ToList();
+        if (rootEdges.Count == 0)
+        {
+            return true;
+        }
+        var ranked = RankRootEdges(rootEdges).ToList();
+        var confidence = RootConfidence(
+            ranked,
+            ranked[0],
+            ranked.Count > 1 ? ranked[1] : null,
+            stoppedByTime: false);
+        return confidence < Math.Max(
+            0d,
+            Math.Min(1d, profile.MinimumSearchConfidence));
+    }
+
+    private SearchEdge? FindUnderSampledRootEdge(
+        SearchNode root,
+        int minimumVisits)
+    {
+        return PresentEdges(root)
+            .Where(edge => edge.ActionIndex >= 0
+                           && !edge.Disabled
+                           && edge.Visits < minimumVisits)
+            .OrderBy(edge => edge.Visits)
+            .ThenByDescending(edge => edge.Prior)
+            .ThenBy(edge => edge.ActionIndex)
+            .FirstOrDefault();
+    }
+
+    private SearchEdge? FindUnderSampledChallenger(
+        SearchNode root,
+        int minimumVisits)
+    {
+        return RankRootEdges(
+                PresentEdges(root)
+                    .Where(edge => edge.ActionIndex >= 0
+                                   && !edge.Disabled
+                                   && edge.Visits > 0)
+                    .ToList())
+            .Take(2)
+            .Where(edge => edge.Visits < minimumVisits)
+            .OrderBy(edge => edge.Visits)
+            .ThenBy(edge => edge.ActionIndex)
+            .FirstOrDefault();
     }
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
@@ -691,7 +875,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             }
 
             var outcome = SelectOutcome(edge);
-            var immediate = Score(currentState, searchAction.Action);
+            var immediate = Score(
+                currentState,
+                searchAction.Action,
+                edge.ActionIndex);
             rewardPathBuffer[edgePathCount - 1] = immediate;
             var applyStart = detailedAllocations
                 ? ReadThreadAllocatedBytes()
@@ -702,7 +889,12 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 searchAction.UseGroupIndex,
                 outcome.Outcome,
                 profile,
-                stateArena);
+                stateArena,
+                edge.ActionIndex);
+            ApplyHeldActionCostDeltas(
+                currentState,
+                nextState,
+                edge.ActionIndex);
             if (detailedAllocations)
             {
                 CombatDecisionAllocationDiagnostics.RecordForwardApply(
@@ -748,6 +940,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                         goto CompleteSimulation;
                     case CombatLoopClassification.Fake:
                         fakeLoops++;
+                        edge.Disabled = true;
                         terminalValue = leaf.Value - 120d;
                         risk = 1d;
                         resolved = true;
@@ -876,11 +1069,48 @@ CompleteSimulation:
 
     private static bool RequiresFreshObservation(CombatActionObservation action)
     {
-        var semantics = action?.Semantics;
+        var semantics = action.Semantics;
         return semantics != null
                && (semantics.Draw > 0d
                    || semantics.CardGeneration > 0d
-                   || semantics.OpensInteraction);
+                   || semantics.HandTransform != null
+                   || semantics.OpensInteraction
+                   || action.Features.TryGetValue(
+                       "dynamicActionSetMutation",
+                       out var actionSetMutation)
+                   && actionSetMutation > 0d);
+    }
+
+    private void ApplyHeldActionCostDeltas(
+        CombatSimulationState before,
+        CombatSimulationState after,
+        int selectedActionIndex)
+    {
+        if (after.ActionCostAdjustments.Length != actions.Count)
+        {
+            after.ActionCostAdjustments = new int[actions.Count];
+        }
+        for (var index = 0; index < actions.Count; index++)
+        {
+            var candidate = actions[index].Action;
+            if (index == selectedActionIndex
+                || candidate.Kind != CombatActionKind.PlayCard
+                || !candidate.Features.TryGetValue(
+                    "cardCostDeltaPerPlayedAction",
+                    out var rawDelta)
+                || Math.Abs(rawDelta) < 0.000001d
+                || !before.HandCardIds.Contains(
+                    candidate.SourceId,
+                    StringComparer.OrdinalIgnoreCase)
+                || !after.HandCardIds.Contains(
+                    candidate.SourceId,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            after.ActionCostAdjustments[index] +=
+                (int)Math.Round(rawDelta);
+        }
     }
 
     private string BuildLoopSummary()
@@ -899,6 +1129,39 @@ CompleteSimulation:
               + fakeLoops
               + ",blocked:"
               + blockedLoops;
+    }
+
+    private static string BuildNetworkSummary(
+        CombatPolicyValuePrediction? prediction)
+    {
+        if (prediction == null)
+        {
+            return "";
+        }
+        return "; network=return:"
+               + prediction.ExpectedReturn.ToString(
+                   "0.000",
+                   CultureInfo.InvariantCulture)
+               + ",win:"
+               + prediction.WinProbability.ToString(
+                   "0.000",
+                   CultureInfo.InvariantCulture)
+               + ",death:"
+               + prediction.DeathProbability.ToString(
+                   "0.000",
+                   CultureInfo.InvariantCulture)
+               + ",hp:"
+               + prediction.ExpectedRemainingHpRatio.ToString(
+                   "0.000",
+                   CultureInfo.InvariantCulture)
+               + ",turns:"
+               + prediction.ExpectedRemainingTurns.ToString(
+                   "0.0",
+                   CultureInfo.InvariantCulture)
+               + ",uncertainty:"
+               + prediction.Uncertainty.ToString(
+                   "0.000",
+                   CultureInfo.InvariantCulture);
     }
 
     private void EnsureEdges(
@@ -946,6 +1209,10 @@ CompleteSimulation:
                     networkPrediction = EvaluatePolicyValue(edgePolicyInput);
                     policyValueCache[stateHash] = networkPrediction;
                 }
+            }
+            if (ReferenceEquals(node, activeRootNode))
+            {
+                rootNetworkPrediction = networkPrediction;
             }
         }
         var priorTotal = 0d;
@@ -1062,7 +1329,10 @@ CompleteSimulation:
         return selected;
     }
 
-    private double Score(CombatSimulationState simulation, CombatActionObservation source)
+    private double Score(
+        CombatSimulationState simulation,
+        CombatActionObservation source,
+        int dynamicActionIndex)
     {
         var detailedAllocations =
             CombatDecisionAllocationDiagnostics.DetailedEnabled;
@@ -1070,7 +1340,10 @@ CompleteSimulation:
             ? ReadThreadAllocatedBytes()
             : 0L;
         var state = ToObservation(simulation);
-        var effectiveCost = CombatForwardModel.EffectiveCost(simulation, source);
+        var effectiveCost = CombatForwardModel.EffectiveCost(
+            simulation,
+            source,
+            dynamicActionIndex);
         PrepareScoreAction(source, effectiveCost);
         var utility = CombatDecisionEngine.BuildUtility(state, scoreAction, profile);
         CombatDecisionEngine.BuildFeaturesInto(
@@ -1309,7 +1582,12 @@ CompleteSimulation:
                     .ToHashSet(StringComparer.Ordinal)
             });
         }
-        return PruneActorCandidates(result, state);
+        var pruned = PruneActorCandidates(result, state).ToList();
+        for (var index = 0; index < pruned.Count; index++)
+        {
+            pruned[index].DynamicActionIndex = index;
+        }
+        return pruned;
     }
 
     private IReadOnlyList<SearchAction> PruneActorCandidates(
@@ -1645,15 +1923,11 @@ CompleteSimulation:
             Value = baseline.Value
                     + guidanceModel.LeafValue(leafFeatures)
                     + network.ExpectedReturn * 8d,
-            DeathRisk = Math.Max(
+            DeathRisk = CalibratedDeathRisk(
                 baseline.DeathRisk,
-                Math.Max(
-                    guidanceModel.DeathRisk(leafFeatures),
-                    baseline.DeathRisk
-                    + Math.Max(
-                        0d,
-                        network.DeathProbability - baseline.DeathRisk)
-                    * 0.25d))
+                guidanceModel.DeathRisk(leafFeatures),
+                network.DeathProbability,
+                SemanticCoverageRisk(state))
         };
         if (detailedAllocations)
         {
@@ -1661,6 +1935,89 @@ CompleteSimulation:
                 ReadThreadAllocatedBytes() - allocationStart);
         }
         return result;
+    }
+
+    private double CalibratedDeathRisk(
+        double baseline,
+        double guidance,
+        double network,
+        double semanticCoverage)
+    {
+        baseline = Clamp01(baseline);
+        guidance = Clamp01(guidance);
+        network = Clamp01(network);
+        semanticCoverage = Clamp01(semanticCoverage);
+        var networkWeight = Clamp01(profile.NetworkDeathRiskWeight);
+        var semanticWeight = Clamp01(profile.SemanticCoverageRiskWeight);
+        var networkRisk = baseline
+                          + Math.Max(0d, network - baseline)
+                          * networkWeight;
+        var coverageRisk = baseline
+                           + (1d - baseline)
+                           * semanticCoverage
+                           * semanticWeight;
+        return Clamp01(Math.Max(
+            baseline,
+            Math.Max(guidance, Math.Max(networkRisk, coverageRisk))));
+    }
+
+    private double RootSemanticCoverageRisk()
+    {
+        var lifecycle = Math.Max(
+            0d,
+            rootObservation.Features.TryGetValue(
+                CombatTurnFeatureNames.UnknownLifecycleEffectCount,
+                out var unknown)
+                ? unknown
+                : 0d);
+        var actionRisk = actions.Count == 0
+            ? 0d
+            : actions.Average(candidate =>
+            {
+                var semantic = Math.Min(
+                    1d,
+                    Math.Max(
+                        0d,
+                        candidate.Action.Semantics?.Uncertainty ?? 0d) / 3d);
+                var fidelity = candidate.Action.SemanticFidelity switch
+                {
+                    CombatKnowledgeFidelity.Authoritative => 0d,
+                    CombatKnowledgeFidelity.Derived => 0.15d,
+                    CombatKnowledgeFidelity.Approximate => 0.45d,
+                    _ => 1d
+                };
+                return Math.Max(semantic, fidelity);
+            });
+        return Clamp01(Math.Max(
+            actionRisk,
+            1d - Math.Exp(-lifecycle * 0.5d)));
+    }
+
+    private static double SemanticCoverageRisk(CombatSimulationState state)
+    {
+        var unknown = state.Features.TryGetValue(
+                CombatTurnFeatureNames.UnknownLifecycleEffectCount,
+                out var value)
+            ? Math.Max(0d, value)
+            : 0d;
+        return Clamp01(Math.Max(
+            1d - Math.Exp(-unknown * 0.5d),
+            Math.Min(1d, Math.Max(0d, state.Uncertainty) / 4d)));
+    }
+
+    private double OutcomeUncertainty(SearchEdge edge)
+    {
+        var estimate = edge.RiskEstimate(profile.TailRiskQuantile);
+        return Clamp01(
+            estimate.StandardError
+            / (1d + Math.Abs(estimate.Mean)));
+    }
+
+    private static double Clamp01(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value)
+            ? 0d
+            : Math.Max(0d, Math.Min(1d, value));
     }
 
     private CombatPolicyValueInput PrepareLeafInput()
@@ -1776,7 +2133,10 @@ CompleteSimulation:
     {
         if (state.UseCount(searchAction.UseGroupIndex) >= searchAction.UseLimit
             || !state.TargetAlive(searchAction.Action.TargetRuntimeId)
-            || CombatForwardModel.EffectiveCost(state, searchAction.Action) > state.Power)
+            || CombatForwardModel.EffectiveCost(
+                state,
+                searchAction.Action,
+                searchAction.DynamicActionIndex) > state.Power)
         {
             return false;
         }
@@ -1805,7 +2165,8 @@ CompleteSimulation:
                     candidate.Action,
                     CombatForwardModel.EffectiveCost(
                         state,
-                        candidate.Action),
+                        candidate.Action,
+                        candidate.DynamicActionIndex),
                     profile))
             {
                 return false;
@@ -1984,6 +2345,8 @@ CompleteSimulation:
         public int UseGroupIndex { get; set; }
 
         public int UseLimit { get; set; } = 1;
+
+        public int DynamicActionIndex { get; set; } = -1;
 
         public HashSet<string> MemberCandidateIds { get; set; } =
             new(StringComparer.Ordinal);

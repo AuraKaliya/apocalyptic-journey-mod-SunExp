@@ -398,6 +398,16 @@ public static class CombatKnowledgeRegistry
         ValidateUnique(package.Statuses.Select(item => item.StatusId), "status", errors);
         ValidateUnique(package.Enemies.Select(item => item.EnemyId), "enemy", errors);
         ValidateUnique(package.Encounters.Select(item => item.EncounterId), "encounter", errors);
+        foreach (var action in package.Actions.Where(item =>
+                     item.Fidelity == CombatKnowledgeFidelity.Authoritative
+                     && item.Semantics?.OpensInteraction == true
+                     && (item.Semantics.Interaction == null
+                         || !item.Semantics.Interaction.EffectsComplete)))
+        {
+            errors.Add(
+                "authoritative interaction semantics are incomplete: "
+                + action.SourceId);
+        }
         return errors;
     }
 
@@ -426,6 +436,17 @@ public static class CombatKnowledgeRegistry
             Damage = source.Damage,
             TrueDamage = source.TrueDamage,
             DamageOverTime = source.DamageOverTime,
+            SelfHpLoss = source.SelfHpLoss,
+            DirectDamage = source.DirectDamage,
+            ContextDamage = source.ContextDamage,
+            DirectSelfHpLoss = source.DirectSelfHpLoss,
+            ContextSelfHpLoss = source.ContextSelfHpLoss,
+            DirectHeal = source.DirectHeal,
+            ContextHeal = source.ContextHeal,
+            ObservedNetHpDelta = source.ObservedNetHpDelta,
+            MinimumHpDuringAction = source.MinimumHpDuringAction,
+            LethalBeforeRecovery = source.LethalBeforeRecovery,
+            EndOfCycleSelfHpLoss = source.EndOfCycleSelfHpLoss,
             HitCount = source.HitCount,
             Defend = source.Defend,
             Heal = source.Heal,
@@ -466,7 +487,8 @@ public static class CombatKnowledgeRegistry
             CooldownTurns = source.CooldownTurns,
             Risk = source.Risk,
             Uncertainty = source.Uncertainty,
-            OpensInteraction = source.OpensInteraction,
+            OpensInteraction = source.OpensInteraction || source.Interaction != null,
+            Interaction = source.Interaction?.Clone(),
             RandomOutcome = source.RandomOutcome,
             EndsTurn = source.EndsTurn,
             DamageToBlockSetup = source.DamageToBlockSetup,

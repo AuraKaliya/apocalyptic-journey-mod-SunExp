@@ -1,9 +1,19 @@
-Id,Weight,OwnScript,FightScript,Icon,Type,Source,Rarity
-唯一标识,权重,获得物品时执行的,战斗脚本,图片名称,类型,选项,稀有度
-dusk_afterheat_recovery,0,,,Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1,伙伴占位,,5
-star_clay_doll_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1,伙伴占位,,5
-sandrone_cat_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/GenshinImpact/哥！伦！比！娅！,伙伴占位,,5
-origin_strength_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_strength_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
-origin_spirit_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_spirit_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
-origin_fortune_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_fortune_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
-origin_perceive_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_perceive_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
+Id,Weight,OwnScript,FightScript,Icon,Type,Source,Rarity,PackBelong
+唯一标识,权重,获得物品时执行的,战斗脚本,图片名称,类型,选项,稀有度,cardpack id
+*dusk_afterheat_recovery,0,,,Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1,伙伴占位,,5,
+*star_clay_doll_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1,伙伴占位,,5,
+*sandrone_cat_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/GenshinImpact/哥！伦！比！娅！,伙伴占位,,5,
+*origin_strength_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_strength_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3,
+*origin_spirit_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_spirit_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3,
+*origin_fortune_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_fortune_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3,
+*origin_perceive_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_perceive_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3,
+solar_witch,7,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""solar_witch"");",Icon/Blessing/太阳,正面,技能,4,Terrias_terrias_cardpack_solar_ember_crown_canopy
+white_radiance_saint,4,"CS.Terrias.Dll.Scripting.BlessingScripts.Own(self, ""white_radiance_saint"");",,Icon/Blessing/天使,正面,技能,3,Terrias_terrias_cardpack_solar_ember_crown_canopy
+sun_priest,4,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""sun_priest"");",Icon/Blessing/主教,正面,技能,3,Terrias_terrias_cardpack_solar_ember_crown_canopy
+forgotten_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""forgotten_one"");",Icon/Blessing/命运之轮,正面,技能,2,Terrias_terrias_cardpack_solar_ember_crown_canopy
+dream_talker,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""dream_talker"");",Icon/Blessing/月亮,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
+delirious_talker,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""delirious_talker"");",Icon/Blessing/癫狂之手,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
+wisher,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""wisher"");",Icon/Blessing/星星,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
+unspeakable_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""unspeakable_one"");",Icon/Blessing/猜忌之口,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
+withered_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""withered_one"");",Icon/Blessing/死灵,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
+blind_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""blind_one"");",Icon/Blessing/恐惧之眼,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture

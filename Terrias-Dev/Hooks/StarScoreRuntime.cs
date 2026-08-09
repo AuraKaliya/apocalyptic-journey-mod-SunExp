@@ -14,6 +14,7 @@ public static class StarScoreRuntime
     private const string PendingBlessingOvertureVar = "TerriasStarBlessingOverturePending";
     private const string PendingBlessingCostVar = "TerriasStarBlessingHalfCostPending";
     private const string PendingSealBlessingVar = "TerriasMorningStarSealBlessingGain";
+    private const string PendingSolarFlameVar = "TerriasSolarFlameSealGain";
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
     private static readonly ResonanceCostTransactionStore ResonanceCostTransactions = new();
@@ -112,6 +113,15 @@ public static class StarScoreRuntime
             if (StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config)))
             {
                 CancelBlessingPreview(card);
+                ClearPendingUse(config);
+                if (HasSolarFlameSeal(config))
+                {
+                    DictionaryUtil.Set(
+                        config.Vars,
+                        PendingSolarFlameVar,
+                        SolarFlameSealFormula.GatheredFlameGain(CardConfigApi.CurrentCost(config)).ToString());
+                }
+
                 return;
             }
 
@@ -122,6 +132,7 @@ public static class StarScoreRuntime
 
             DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
+            DictionaryUtil.Set(config.Vars, PendingSolarFlameVar, "");
             var player = FightPlayer.Instance?.Status;
             var hasBlessing = player != null && BuffApi.Level(player, TerriasIds.StarBlessing) > 0;
             if (!hasBlessing)
@@ -131,6 +142,9 @@ public static class StarScoreRuntime
 
             var actualPaidCost = CardConfigApi.CurrentCost(config);
             var sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
+            var solarFlameGain = HasSolarFlameSeal(config)
+                ? SolarFlameSealFormula.GatheredFlameGain(actualPaidCost)
+                : 0;
             if (hasBlessing && player != null)
             {
                 if (!CostOverrides.TargetCost(config).HasValue)
@@ -147,6 +161,9 @@ public static class StarScoreRuntime
                 ConsumeBuff(player, TerriasIds.StarBlessing, 1);
                 CostOverrides.MarkBlessingConsumed(config);
                 sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
+                solarFlameGain = HasSolarFlameSeal(config)
+                    ? SolarFlameSealFormula.GatheredFlameGain(actualPaidCost)
+                    : 0;
                 PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u8017\u8d39\u51cf\u534a\u3002");
             }
             else if (player != null && actualPaidCost > 0)
@@ -162,6 +179,11 @@ public static class StarScoreRuntime
             {
                 DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, sealBlessingGain.ToString());
             }
+
+            if (solarFlameGain > 0)
+            {
+                DictionaryUtil.Set(config.Vars, PendingSolarFlameVar, solarFlameGain.ToString());
+            }
         }
         catch (Exception ex)
         {
@@ -175,8 +197,13 @@ public static class StarScoreRuntime
         {
             var card = context.Target as CardItem;
             var config = CardConfigApi.FromActionPayload(context.Target);
+            var hasPendingSealEffect = config != null
+                && (!string.IsNullOrWhiteSpace(DictionaryUtil.Get(config.Vars, PendingSealBlessingVar))
+                    || !string.IsNullOrWhiteSpace(DictionaryUtil.Get(config.Vars, PendingSolarFlameVar)));
             if (config == null
-                || (!CostOverrides.Contains(config) && !ResonanceCostTransactions.Contains(config)))
+                || (!CostOverrides.Contains(config)
+                    && !ResonanceCostTransactions.Contains(config)
+                    && !hasPendingSealEffect))
             {
                 return;
             }
@@ -209,6 +236,11 @@ public static class StarScoreRuntime
                 {
                     RefundResonance(ResonanceCostTransactions.Cancel(config), "CardUseAfterWithoutAction");
                 }
+            }
+
+            if (hasPendingSealEffect)
+            {
+                ClearPendingUse(config);
             }
 
             RefreshCard(card, "AfterUse");
@@ -267,7 +299,16 @@ public static class StarScoreRuntime
             var sealBlessingGain = string.IsNullOrWhiteSpace(pendingSealBlessing)
                 ? 0
                 : Math.Max(0, DictionaryUtil.ParseInt(pendingSealBlessing));
-            Pending.Push(new PendingCard(config, executor, pendingBlessingOverture, sealBlessingGain));
+            var pendingSolarFlame = DictionaryUtil.Get(config.Vars, PendingSolarFlameVar);
+            var solarFlameGain = string.IsNullOrWhiteSpace(pendingSolarFlame)
+                ? 0
+                : Math.Max(0, DictionaryUtil.ParseInt(pendingSolarFlame));
+            Pending.Push(new PendingCard(
+                config,
+                executor,
+                pendingBlessingOverture,
+                sealBlessingGain,
+                solarFlameGain));
             ExecutorApi.CombatIntAdd("TerriasStarScorePlayerActionPending", 1);
         }
         catch (Exception ex)
@@ -299,10 +340,18 @@ public static class StarScoreRuntime
                 PlayerApi.ShowCaption("\u542f\u660e\u661f\uff1a\u661f\u8fb0\u795d\u798f+" + pending.SealBlessingGain);
             }
 
+            if (pending.Executor != null && pending.SolarFlameGain > 0)
+            {
+                pending.Executor.SetStatus("Self");
+                pending.Executor.AddBuff(TerriasIds.GatheredFlame, pending.SolarFlameGain.ToString());
+                PlayerApi.ShowCaption("阳炣：聚焰+" + pending.SolarFlameGain);
+            }
+
             MorningStarOvertureService.OnActionAfter(pending.Executor);
 
             DictionaryUtil.Set(pending.Config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");
+            DictionaryUtil.Set(pending.Config.Vars, PendingSolarFlameVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingBlessingCostVar, "0");
         }
         catch (Exception ex)
@@ -408,6 +457,7 @@ public static class StarScoreRuntime
     {
         DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "");
         DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
+        DictionaryUtil.Set(config.Vars, PendingSolarFlameVar, "");
         DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "0");
     }
 
@@ -583,6 +633,12 @@ public static class StarScoreRuntime
             || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.MorningStarSealTag);
     }
 
+    private static bool HasSolarFlameSeal(IDataConfig config)
+    {
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), TerriasIds.SolarFlameSealTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.SolarFlameSealTag);
+    }
+
     private static bool HasSelectionPreviewInterest()
     {
         var player = FightPlayer.Instance?.Status;
@@ -595,6 +651,7 @@ public static class StarScoreRuntime
         var player = FightPlayer.Instance?.Status;
         return StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
             || HasMorningStarSeal(config)
+            || HasSolarFlameSeal(config)
             || TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze)
             || (player != null
                 && (BuffApi.Level(player, TerriasIds.StarBlessing) > 0
@@ -617,12 +674,18 @@ public static class StarScoreRuntime
 
     private readonly struct PendingCard
     {
-        public PendingCard(IDataConfig config, ScriptExecutor? executor, bool blessingOverturePending, int sealBlessingGain)
+        public PendingCard(
+            IDataConfig config,
+            ScriptExecutor? executor,
+            bool blessingOverturePending,
+            int sealBlessingGain,
+            int solarFlameGain)
         {
             Config = config;
             Executor = executor;
             BlessingOverturePending = blessingOverturePending;
             SealBlessingGain = sealBlessingGain;
+            SolarFlameGain = solarFlameGain;
         }
 
         public IDataConfig Config { get; }
@@ -632,5 +695,7 @@ public static class StarScoreRuntime
         public bool BlessingOverturePending { get; }
 
         public int SealBlessingGain { get; }
+
+        public int SolarFlameGain { get; }
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using AuraCombatSimulation.Shared;
 #if NET8_0_OR_GREATER
 using System.Numerics;
 #endif
@@ -117,6 +118,17 @@ public sealed class CombatPolicyValuePrediction
     public double ExpectedRemainingTurns { get; set; }
 
     public double Uncertainty { get; set; }
+
+    /// <summary>
+    /// The current network output is policy-logit ambiguity, not epistemic or
+    /// semantic uncertainty.  Keep Uncertainty for artifact compatibility and
+    /// expose the precise name to prevent it being used as a confidence head.
+    /// </summary>
+    public double PolicyAmbiguity
+    {
+        get => Uncertainty;
+        set => Uncertainty = value;
+    }
 
     internal void PrepareCandidates(int count, int actionQuantileCount)
     {
@@ -948,13 +960,13 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public string DecisionProfile { get; set; } = "balanced";
 
-    public int StateDimensions { get; set; } = 1024;
+    public int StateDimensions { get; set; } = 2048;
 
     public int ActionDimensions { get; set; } = 1024;
 
     public int HiddenDimensions { get; set; } = 512;
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public double PolicyTemperature { get; set; } = 1d;
 
@@ -2032,8 +2044,13 @@ public static class CombatPolicyValueNetworkValidator
         }
         if (!string.Equals(
                 model.FeatureEncodingMode,
-                "partitioned-v3",
-                StringComparison.OrdinalIgnoreCase))
+                "partitioned-v4",
+                StringComparison.OrdinalIgnoreCase)
+            && !(allowDiagnosticLegacySchema
+                 && string.Equals(
+                     model.FeatureEncodingMode,
+                     "partitioned-v3",
+                     StringComparison.OrdinalIgnoreCase)))
         {
             reason = "策略价值模型特征编码模式无效";
             return false;
@@ -2113,6 +2130,10 @@ public sealed class CombatFeatureCollisionTelemetry
 
 public static class CombatPolicyValueEncoding
 {
+    public const string CurrentEncodingMode = "partitioned-v4";
+
+    public const string PreviousEncodingMode = "partitioned-v3";
+
     [ThreadStatic]
     private static CombatCompactFeatureBuilder? threadCompactStateBuilder;
 
@@ -2231,7 +2252,7 @@ public static class CombatPolicyValueEncoding
         IReadOnlyDictionary<string, double>? values,
         int dimensions)
     {
-        return EncodeState(values, dimensions, "partitioned-v3");
+        return EncodeState(values, dimensions, CurrentEncodingMode);
     }
 
     public static double[] EncodeState(
@@ -2287,7 +2308,10 @@ public static class CombatPolicyValueEncoding
                 target[offset + coreIndex] += Normalize(sanitizedValue);
                 continue;
             }
-            var range = StateRange(pair.Key, safeDimensions);
+            var range = StateRange(
+                pair.Key,
+                safeDimensions,
+                encodingMode);
             AddRange(
                 target,
                 offset + range.Start,
@@ -2325,7 +2349,7 @@ public static class CombatPolicyValueEncoding
                 target[coreIndex] += Normalize(sanitizedValue);
                 continue;
             }
-            var range = StateRange(key, safeDimensions);
+            var range = StateRange(key, safeDimensions, encodingMode);
             AddRange(
                 target,
                 range.Start,
@@ -2353,7 +2377,8 @@ public static class CombatPolicyValueEncoding
 
     public static CombatFeatureCollisionTelemetry MeasureStateCollisions(
         IReadOnlyDictionary<string, double>? values,
-        int dimensions)
+        int dimensions,
+        string encodingMode = CurrentEncodingMode)
     {
         var buckets = new HashSet<int>();
         var count = 0;
@@ -2368,7 +2393,10 @@ public static class CombatPolicyValueEncoding
                 continue;
             }
             count++;
-            buckets.Add(StateIndex(pair.Key, Math.Max(1, dimensions)));
+            buckets.Add(StateIndex(
+                pair.Key,
+                Math.Max(1, dimensions),
+                encodingMode));
         }
         return new CombatFeatureCollisionTelemetry
         {
@@ -2379,11 +2407,15 @@ public static class CombatPolicyValueEncoding
 
     internal static CombatFeatureCollisionTelemetry MeasureStateCollisionsForFrame(
         CombatEpisodeFrame frame,
-        int dimensions)
+        int dimensions,
+        string encodingMode = CurrentEncodingMode)
     {
         if (frame.CompactStateFeatures == null)
         {
-            return MeasureStateCollisions(frame.StateFeatures, dimensions);
+            return MeasureStateCollisions(
+                frame.StateFeatures,
+                dimensions,
+                encodingMode);
         }
         var buckets = new HashSet<int>();
         var count = 0;
@@ -2401,7 +2433,10 @@ public static class CombatPolicyValueEncoding
                 continue;
             }
             count++;
-            buckets.Add(StateIndex(key, Math.Max(1, dimensions)));
+            buckets.Add(StateIndex(
+                key,
+                Math.Max(1, dimensions),
+                encodingMode));
         }
         return new CombatFeatureCollisionTelemetry
         {
@@ -2490,7 +2525,7 @@ public static class CombatPolicyValueEncoding
     public static double[] EncodeCandidate(
         CombatPolicyValueCandidate candidate,
         int dimensions,
-        string encodingMode = "partitioned-v3")
+        string encodingMode = CurrentEncodingMode)
     {
         var result = new double[Math.Max(1, dimensions)];
         EncodeCandidateInto(
@@ -2505,7 +2540,7 @@ public static class CombatPolicyValueEncoding
         CombatPolicyValueCandidate candidate,
         double[] target,
         int dimensions,
-        string encodingMode = "partitioned-v3")
+        string encodingMode = CurrentEncodingMode)
     {
         EncodeCandidateInto(
             candidate,
@@ -2520,7 +2555,7 @@ public static class CombatPolicyValueEncoding
         double[] target,
         int offset,
         int dimensions,
-        string encodingMode = "partitioned-v3")
+        string encodingMode = CurrentEncodingMode)
     {
         RequireCurrentEncoding(encodingMode);
         var safeDimensions = Math.Max(
@@ -2617,11 +2652,15 @@ public static class CombatPolicyValueEncoding
     {
         if (!string.Equals(
                 encodingMode,
-                "partitioned-v3",
+                CurrentEncodingMode,
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(
+                encodingMode,
+                PreviousEncodingMode,
                 StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException(
-                "只接受当前策略价值特征编码 partitioned-v3",
+                "只接受策略价值特征编码 partitioned-v4 或兼容读取 partitioned-v3",
                 nameof(encodingMode));
         }
     }
@@ -2931,6 +2970,8 @@ public static class CombatPolicyValueEncoding
         result["damage"] = semantics.Damage;
         result["trueDamage"] = semantics.TrueDamage;
         result["damageOverTime"] = semantics.DamageOverTime;
+        result["directDamage"] = semantics.DirectDamage;
+        result["contextDamage"] = semantics.ContextDamage;
         result["immediateHpDamage"] =
             CombatActionSemanticMetrics.ImmediateHpDamage(semantics);
         result["immediateDurabilityDamage"] =
@@ -2939,6 +2980,14 @@ public static class CombatPolicyValueEncoding
             CombatActionSemanticMetrics.DeferredHpDamage(semantics);
         result["affectedEnemyCount"] = semantics.AffectedEnemyCount;
         result["selfHpLoss"] = semantics.SelfHpLoss;
+        result["directSelfHpLoss"] = semantics.DirectSelfHpLoss;
+        result["contextSelfHpLoss"] = semantics.ContextSelfHpLoss;
+        result["directHeal"] = semantics.DirectHeal;
+        result["contextHeal"] = semantics.ContextHeal;
+        result["observedNetHpDelta"] = semantics.ObservedNetHpDelta;
+        result["minimumHpDuringAction"] = semantics.MinimumHpDuringAction;
+        result["lethalBeforeRecovery"] =
+            semantics.LethalBeforeRecovery ? 1d : 0d;
         result["endOfCycleSelfHpLoss"] =
             semantics.EndOfCycleSelfHpLoss;
         result["hitCount"] = semantics.HitCount;
@@ -2958,6 +3007,9 @@ public static class CombatPolicyValueEncoding
         result["endsTurn"] = semantics.EndsTurn ? 1d : 0d;
         result["damageToBlockSetup"] =
             semantics.DamageToBlockSetup ? 1d : 0d;
+        AddInteractionFeatures(
+            semantics,
+            (key, value) => result[key] = value);
         result["actionKindPlayCard"] =
             action.Kind == CombatActionKind.PlayCard ? 1d : 0d;
         result["actionKindUseSkill"] =
@@ -2992,6 +3044,8 @@ public static class CombatPolicyValueEncoding
         builder.Set("damage", semantics.Damage);
         builder.Set("trueDamage", semantics.TrueDamage);
         builder.Set("damageOverTime", semantics.DamageOverTime);
+        builder.Set("directDamage", semantics.DirectDamage);
+        builder.Set("contextDamage", semantics.ContextDamage);
         builder.Set(
             "immediateHpDamage",
             CombatActionSemanticMetrics.ImmediateHpDamage(semantics));
@@ -3003,6 +3057,15 @@ public static class CombatPolicyValueEncoding
             CombatActionSemanticMetrics.DeferredHpDamage(semantics));
         builder.Set("affectedEnemyCount", semantics.AffectedEnemyCount);
         builder.Set("selfHpLoss", semantics.SelfHpLoss);
+        builder.Set("directSelfHpLoss", semantics.DirectSelfHpLoss);
+        builder.Set("contextSelfHpLoss", semantics.ContextSelfHpLoss);
+        builder.Set("directHeal", semantics.DirectHeal);
+        builder.Set("contextHeal", semantics.ContextHeal);
+        builder.Set("observedNetHpDelta", semantics.ObservedNetHpDelta);
+        builder.Set("minimumHpDuringAction", semantics.MinimumHpDuringAction);
+        builder.Set(
+            "lethalBeforeRecovery",
+            semantics.LethalBeforeRecovery ? 1d : 0d);
         builder.Set("endOfCycleSelfHpLoss", semantics.EndOfCycleSelfHpLoss);
         builder.Set("hitCount", semantics.HitCount);
         builder.Set("defend", semantics.Defend);
@@ -3022,6 +3085,7 @@ public static class CombatPolicyValueEncoding
         builder.Set(
             "damageToBlockSetup",
             semantics.DamageToBlockSetup ? 1d : 0d);
+        AddInteractionFeatures(semantics, builder.Set);
         builder.Set(
             "actionKindPlayCard",
             action.Kind == CombatActionKind.PlayCard ? 1d : 0d);
@@ -3032,6 +3096,49 @@ public static class CombatPolicyValueEncoding
             "actionKindEndTurn",
             action.Kind == CombatActionKind.EndTurn ? 1d : 0d);
         return builder.Build();
+    }
+
+    private static void AddInteractionFeatures(
+        CombatActionSemantics semantics,
+        Action<string, double> set)
+    {
+        var interaction = semantics.Interaction;
+        set("interactionPresent", interaction == null ? 0d : 1d);
+        if (interaction == null)
+        {
+            return;
+        }
+        interaction = interaction.Normalize();
+        set("interactionMinSelections", interaction.MinSelections);
+        set("interactionMaxSelections", interaction.MaxSelections);
+        set("interactionCanConfirmEarly", interaction.CanConfirmEarly ? 1d : 0d);
+        set("interactionCanConfirmEmpty", interaction.CanConfirmEmpty ? 1d : 0d);
+        set("interactionEffectsComplete", interaction.EffectsComplete ? 1d : 0d);
+        set("interactionEffectsIncomplete", interaction.EffectsComplete ? 0d : 1d);
+        set("interactionKindBurn", interaction.Kind == CombatInteractionKind.BurnCards ? 1d : 0d);
+        set("interactionKindDiscard", interaction.Kind == CombatInteractionKind.DiscardCards ? 1d : 0d);
+        set("interactionZoneHand", interaction.Zone == CombatInteractionZone.Hand ? 1d : 0d);
+        foreach (var effect in interaction.SelectionEffects)
+        {
+            var key = effect.Kind switch
+            {
+                CombatInteractionEffectKind.BurnSelected => "interactionEffectBurn",
+                CombatInteractionEffectKind.DiscardSelected => "interactionEffectDiscard",
+                CombatInteractionEffectKind.RetainSelected => "interactionEffectRetain",
+                CombatInteractionEffectKind.DuplicateSelected => "interactionEffectDuplicate",
+                CombatInteractionEffectKind.ModifySelectedCost => "interactionEffectCost",
+                CombatInteractionEffectKind.ModifySelectedPersistentCost => "interactionEffectPersistentCost",
+                CombatInteractionEffectKind.ModifySelectedExtraUses => "interactionEffectExtraUses",
+                CombatInteractionEffectKind.TransferSelectedCopy => "interactionEffectTransfer",
+                CombatInteractionEffectKind.AddStatusPerSelected => "interactionEffectStatusPerSelected",
+                CombatInteractionEffectKind.AddStatusBySelectionCount => "interactionEffectStatusByCount",
+                _ => "interactionEffectUnknown"
+            };
+            set(key, 1d);
+            set(key + ":amount", effect.Amount);
+            set(key + ":base", effect.BaseAmount);
+            set(key + ":perSelection", effect.AmountPerSelection);
+        }
     }
 
     private static string ActionKindName(CombatActionKind kind)
@@ -3136,13 +3243,16 @@ public static class CombatPolicyValueEncoding
         return slot >= 0;
     }
 
-    private static int StateIndex(string key, int dimensions)
+    private static int StateIndex(
+        string key,
+        int dimensions,
+        string encodingMode)
     {
         if (TryCoreStateIndex(key, dimensions, out var coreIndex))
         {
             return coreIndex;
         }
-        var range = StateRange(key, dimensions);
+        var range = StateRange(key, dimensions, encodingMode);
         return range.Start
                + (int)(Hash("state", key) % (uint)range.Length);
     }
@@ -3173,12 +3283,53 @@ public static class CombatPolicyValueEncoding
 
     private static (int Start, int Length) StateRange(
         string key,
-        int dimensions)
+        int dimensions,
+        string encodingMode)
     {
         var normalized = key ?? "";
+        if (string.Equals(
+                encodingMode,
+                CurrentEncodingMode,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (normalized.StartsWith(
+                    "playerStatus:",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(960, 256, dimensions, 2048);
+            }
+            if (normalized.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith("draw:", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1216, 192, dimensions, 2048);
+            }
+            if (normalized.StartsWith("hand:", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1408, 128, dimensions, 2048);
+            }
+            if (normalized.StartsWith(
+                    "retainedHand:",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1536, 64, dimensions, 2048);
+            }
+            if (normalized.StartsWith("discard:", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1600, 160, dimensions, 2048);
+            }
+            if (normalized.StartsWith("exhaust:", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1760, 96, dimensions, 2048);
+            }
+            if (normalized.StartsWith("enemy", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScaleRange(1856, 192, dimensions, 2048);
+            }
+            return ScaleRange(64, 896, dimensions, 2048);
+        }
         if (normalized.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase))
         {
-            return ScaleRange(32, 24, dimensions);
+            return ScaleRange(32, 24, dimensions, 128);
         }
         if (normalized.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
             || normalized.StartsWith("hand:", StringComparison.OrdinalIgnoreCase)
@@ -3186,33 +3337,37 @@ public static class CombatPolicyValueEncoding
                 "retainedHand:",
                 StringComparison.OrdinalIgnoreCase))
         {
-            return ScaleRange(56, 24, dimensions);
+            return ScaleRange(56, 24, dimensions, 128);
         }
         if (normalized.StartsWith("draw:", StringComparison.OrdinalIgnoreCase))
         {
-            return ScaleRange(80, 16, dimensions);
+            return ScaleRange(80, 16, dimensions, 128);
         }
         if (normalized.StartsWith("discard:", StringComparison.OrdinalIgnoreCase)
             || normalized.StartsWith(
                 "exhaust:",
                 StringComparison.OrdinalIgnoreCase))
         {
-            return ScaleRange(96, 12, dimensions);
+            return ScaleRange(96, 12, dimensions, 128);
         }
         if (normalized.StartsWith("enemy", StringComparison.OrdinalIgnoreCase))
         {
-            return ScaleRange(108, 20, dimensions);
+            return ScaleRange(108, 20, dimensions, 128);
         }
-        return ScaleRange(16, 16, dimensions);
+        return ScaleRange(16, 16, dimensions, 128);
     }
 
     private static (int Start, int Length) ScaleRange(
         int start,
         int length,
-        int dimensions)
+        int dimensions,
+        int referenceDimensions)
     {
-        var scaledStart = (int)Math.Floor(start / 128d * dimensions);
-        var scaledEnd = (int)Math.Floor((start + length) / 128d * dimensions);
+        var reference = Math.Max(1, referenceDimensions);
+        var scaledStart = (int)Math.Floor(
+            start / (double)reference * dimensions);
+        var scaledEnd = (int)Math.Floor(
+            (start + length) / (double)reference * dimensions);
         scaledStart = Math.Max(0, Math.Min(dimensions - 1, scaledStart));
         scaledEnd = Math.Max(scaledStart + 1, Math.Min(dimensions, scaledEnd));
         return (scaledStart, scaledEnd - scaledStart);

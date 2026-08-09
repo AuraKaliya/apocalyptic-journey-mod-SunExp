@@ -33,6 +33,12 @@ public sealed class CombatDecisionPerformanceTelemetry
 
     public bool StoppedByModelBudget { get; set; }
 
+    public int MinimumTimeMilliseconds { get; set; }
+
+    public bool MinimumTimeSatisfied { get; set; }
+
+    public bool EarlyStopCertified { get; set; }
+
     public string StopReason { get; set; } = "";
 
     public CombatDecisionPerformanceTelemetry Clone()
@@ -48,6 +54,9 @@ public sealed class CombatDecisionPerformanceTelemetry
             RetainedCandidates = RetainedCandidates,
             StoppedByTime = StoppedByTime,
             StoppedByModelBudget = StoppedByModelBudget,
+            MinimumTimeMilliseconds = MinimumTimeMilliseconds,
+            MinimumTimeSatisfied = MinimumTimeSatisfied,
+            EarlyStopCertified = EarlyStopCertified,
             StopReason = StopReason
         };
     }
@@ -70,13 +79,16 @@ public sealed class CombatDecisionPerformanceTelemetry
             RetainedCandidates = search.CandidateCount,
             StoppedByTime = search.StoppedByTime,
             StoppedByModelBudget = search.StoppedByModelBudget,
+            MinimumTimeMilliseconds = search.MinimumTimeMilliseconds,
+            MinimumTimeSatisfied = search.MinimumTimeSatisfied,
+            EarlyStopCertified = search.EarlyStopCertified,
             StopReason = search.StoppedByTime
                 ? "time-budget"
                 : search.StoppedByModelBudget
                     ? "model-evaluation-budget"
-                    : search.StoppedEarly
-                        ? "stable"
-                        : "completed"
+                    : string.IsNullOrWhiteSpace(search.StopReason)
+                        ? "completed"
+                        : search.StopReason
         };
     }
 }
@@ -109,12 +121,28 @@ public static class CombatDecisionGovernance
             candidate.Legal
             && search.Action != null
             && ReferenceEquals(candidate.Action, search.Action));
-        if (proposed != null
-            && (!CombatEndTurnSafety.IsEndTurnEquivalent(proposed.Action)
-                || !endTurn.Prohibited
-                || proposed.Utility.Lethal > 0d)
-            && (!search.StoppedByTime
-                || search.Confidence >= Clamp01(profile.MinimumSearchConfidence)))
+        var forcedSingleAction = search.CandidateCount <= 1
+                                 || candidates.Count(candidate =>
+                                     candidate?.Legal == true) <= 1;
+        var certifiedLethal = proposed?.Utility?.Lethal > 0d;
+        var minimumSearchEvidenceAccepted =
+            search.MinimumTimeSatisfied
+            || search.MinimumTimeMilliseconds <= 0
+            || search.EarlyStopCertified
+            || forcedSingleAction
+            || certifiedLethal;
+        var confidenceAccepted = !profile.UseLowConfidenceFallback
+                                 || search.Confidence
+                                 >= Clamp01(profile.MinimumSearchConfidence);
+        var proposedPassesEndTurn = proposed != null
+                                    && (!CombatEndTurnSafety
+                                            .IsEndTurnEquivalent(
+                                                proposed.Action)
+                                        || !endTurn.Prohibited
+                                        || proposed.Utility.Lethal > 0d);
+        if (proposedPassesEndTurn
+            && minimumSearchEvidenceAccepted
+            && confidenceAccepted)
         {
             return new CombatDecisionGovernanceVerdict
             {
@@ -125,23 +153,57 @@ public static class CombatDecisionGovernance
         }
 
         var fallback = SelectSafeFallback(state, candidates, profile);
-        if (fallback != null)
+        if (proposedPassesEndTurn
+            && minimumSearchEvidenceAccepted
+            && !confidenceAccepted
+            && (fallback == null
+                || ReferenceEquals(fallback, proposed)
+                || !IsProvenSaferFallback(
+                    state,
+                    proposed!,
+                    fallback,
+                    profile)))
+        {
+            return new CombatDecisionGovernanceVerdict
+            {
+                Decision = CombatGovernanceDecision.Accept,
+                Candidate = proposed,
+                Reason = fallback == null
+                    ? "search confidence is low, but no legal safety fallback exists"
+                    : ReferenceEquals(fallback, proposed)
+                        ? "search confidence is low, but the proposal is already the safest candidate"
+                        : "search confidence is low, but the alternative has no minimum-loss safety proof"
+            };
+        }
+        var endTurnCandidate = candidates.FirstOrDefault(candidate =>
+            candidate.Legal
+            && CombatEndTurnSafety.IsEndTurnEquivalent(candidate.Action));
+        if (!minimumSearchEvidenceAccepted)
+        {
+            return new CombatDecisionGovernanceVerdict
+            {
+                Decision = CombatGovernanceDecision.RequireMoreSearch,
+                Reason = "minimum search time was not satisfied and no forced, lethal, or dominance certificate exists"
+            };
+        }
+        if (fallback != null
+            && (fallback.RuleScore >= profile.MinimumActionScore
+                || endTurn.Prohibited))
         {
             return new CombatDecisionGovernanceVerdict
             {
                 Decision = CombatGovernanceDecision.UseSafeFallback,
                 Candidate = fallback,
-                Reason = search.StoppedByTime
-                    ? "search deadline requires safe fallback"
-                    : search.StoppedByModelBudget
+                Reason = !confidenceAccepted
+                    ? "search confidence is below the safe threshold"
+                    : search.StoppedByTime
+                        ? "search deadline requires safe fallback"
+                        : search.StoppedByModelBudget
                         ? "model evaluation budget requires safe fallback"
                         : "search proposal did not pass governance"
             };
         }
 
-        var endTurnCandidate = candidates.FirstOrDefault(candidate =>
-            candidate.Legal
-            && CombatEndTurnSafety.IsEndTurnEquivalent(candidate.Action));
         if (endTurnCandidate != null && !endTurn.Prohibited)
         {
             return new CombatDecisionGovernanceVerdict
@@ -152,6 +214,17 @@ public static class CombatDecisionGovernance
             };
         }
 
+        if (fallback != null)
+        {
+            return new CombatDecisionGovernanceVerdict
+            {
+                Decision = CombatGovernanceDecision.UseSafeFallback,
+                Candidate = fallback,
+                Reason =
+                    "minimum-loss fallback is required because end turn is unsafe or unavailable"
+            };
+        }
+
         return new CombatDecisionGovernanceVerdict
         {
             Decision = search.StoppedByTime || search.StoppedByModelBudget
@@ -159,6 +232,34 @@ public static class CombatDecisionGovernance
                 : CombatGovernanceDecision.Reject,
             Reason = "no governance-approved action is available"
         };
+    }
+
+    private static bool IsProvenSaferFallback(
+        CombatStateObservation state,
+        CombatCandidateEvaluation proposed,
+        CombatCandidateEvaluation fallback,
+        CombatDecisionProfile profile)
+    {
+        if (fallback.RuleScore < profile.MinimumActionScore
+            && !CombatActionSafetyPolicy.HasMinimumLossCertificate(
+                fallback.Action))
+        {
+            return false;
+        }
+        var proposedRisk = Math.Max(0d, proposed.SearchDeathRisk);
+        var fallbackRisk = Math.Max(0d, fallback.SearchDeathRisk);
+        if (fallbackRisk + 0.02d < proposedRisk)
+        {
+            return true;
+        }
+        var proposedLoss = CombatActionSafetyPolicy.ProjectedIrreversibleLoss(
+            state,
+            proposed);
+        var fallbackLoss = CombatActionSafetyPolicy.ProjectedIrreversibleLoss(
+            state,
+            fallback);
+        return fallbackLoss + 0.000001d < proposedLoss
+               && fallbackRisk <= proposedRisk + 0.005d;
     }
 
     public static CombatCandidateEvaluation? SelectSafeFallback(
@@ -192,6 +293,33 @@ public static class CombatDecisionGovernance
                 .Where(candidate =>
                     candidate.SearchDeathRisk <= minimumRisk + 0.01d)
                 .ToList();
+        }
+        var aboveMinimum = safe
+            .Where(candidate =>
+                candidate.RuleScore >= profile.MinimumActionScore)
+            .ToList();
+        if (aboveMinimum.Count > 0)
+        {
+            safe = aboveMinimum;
+        }
+
+        else
+        {
+            var minimumLoss = safe.Min(candidate =>
+                CombatActionSafetyPolicy.ProjectedIrreversibleLoss(
+                    state,
+                    candidate));
+            safe = safe
+                .Where(candidate =>
+                    CombatActionSafetyPolicy.ProjectedIrreversibleLoss(
+                        state,
+                        candidate) <= minimumLoss + 0.000001d)
+                .ToList();
+            foreach (var candidate in safe)
+            {
+                CombatActionSafetyPolicy.CertifyMinimumLoss(
+                    candidate.Action);
+            }
         }
         return safe
             .OrderBy(candidate =>

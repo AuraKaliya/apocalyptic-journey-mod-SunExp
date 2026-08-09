@@ -30,31 +30,42 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
         settings.Normalize();
         foreach (var preset in settings.GameParameters.Presets)
         {
+            var sharedPreset = ToSharedPreset(preset);
+            var resolvedFromSubjectCatalog =
+                AuraToolsBundledFoundationModelRuntime
+                    .TryResolveSubjectReferences(sharedPreset);
             var role = RoleCatalog.GetRoles().FirstOrDefault(item =>
                 string.Equals(
                     item.Id,
                     preset.RoleId,
                     StringComparison.OrdinalIgnoreCase));
-            preset.ResolvedRoleSkillIds = (role?.Skills
-                                           ?? new List<RoleSkillInfo>())
-                .Select(item => item.Id)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            preset.ResolvedRoleSkillCooldownTurns = (role?.Skills
-                                                      ?? new List<RoleSkillInfo>())
-                .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => Math.Max(
-                        1,
-                        group.First().CooldownTurns),
-                    StringComparer.OrdinalIgnoreCase);
-            preset.ResolvedRoleInitialStatuses =
-                new Dictionary<string, int>(
-                    role?.InitialStatuses
-                    ?? new Dictionary<string, int>(
-                        StringComparer.OrdinalIgnoreCase),
-                    StringComparer.OrdinalIgnoreCase);
+            if (resolvedFromSubjectCatalog)
+            {
+                CopyResolvedRole(sharedPreset, preset);
+            }
+            else
+            {
+                preset.ResolvedRoleSkillIds = (role?.Skills
+                                               ?? new List<RoleSkillInfo>())
+                    .Select(item => item.Id)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                preset.ResolvedRoleSkillCooldownTurns = (role?.Skills
+                                                          ?? new List<RoleSkillInfo>())
+                    .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => Math.Max(
+                            1,
+                            group.First().CooldownTurns),
+                        StringComparer.OrdinalIgnoreCase);
+                preset.ResolvedRoleInitialStatuses =
+                    new Dictionary<string, int>(
+                        role?.InitialStatuses
+                        ?? new Dictionary<string, int>(
+                            StringComparer.OrdinalIgnoreCase),
+                        StringComparer.OrdinalIgnoreCase);
+            }
             preset.ResolvedFamiliarBlessingIds = PartnerCatalog
                 .GetBlessingIds(preset.PartnerId)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -105,7 +116,7 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
             startingDeck);
     }
 
-    private static CombatGameSubjectPreset ToSharedPreset(
+    internal static CombatGameSubjectPreset ToSharedPreset(
         AutoBattleGameParameterPreset preset)
     {
         return new CombatGameSubjectPreset
@@ -130,9 +141,73 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
                 new Dictionary<string, int>(
                     preset.ResolvedRoleSkillCooldownTurns,
                     StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleInitialSkillCooldownTurns =
+                new Dictionary<string, int>(
+                    preset.ResolvedRoleInitialSkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleMaximumHp = preset.ResolvedRoleMaximumHp,
+            ResolvedRoleInitialVariables = new Dictionary<string, double>(
+                preset.ResolvedRoleInitialVariables,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleNativeScriptHash =
+                preset.ResolvedRoleNativeScriptHash,
+            ResolvedRoleFightScript = preset.ResolvedRoleFightScript,
+            ResolvedRoleNativeManagedSkillCooldownIds =
+                preset.ResolvedRoleNativeManagedSkillCooldownIds.ToList(),
+            ResolvedRoleRuntimeForms = preset.ResolvedRoleRuntimeForms
+                .Select(item => new CombatRoleRuntimeForm
+                {
+                    RoleId = item.RoleId,
+                    MaximumHp = item.MaximumHp,
+                    SkillCardIds = item.SkillCardIds.ToList(),
+                    SkillCooldownTurns = new Dictionary<string, int>(
+                        item.SkillCooldownTurns,
+                        StringComparer.OrdinalIgnoreCase)
+                })
+                .ToList(),
             ResolvedFamiliarBlessingIds =
                 preset.ResolvedFamiliarBlessingIds.ToList()
         }.Normalize();
+    }
+
+    private static void CopyResolvedRole(
+        CombatGameSubjectPreset source,
+        AutoBattleGameParameterPreset destination)
+    {
+        destination.ResolvedRoleSkillIds = source.ResolvedRoleSkillIds.ToList();
+        destination.ResolvedRoleInitialStatuses = new Dictionary<string, int>(
+            source.ResolvedRoleInitialStatuses,
+            StringComparer.OrdinalIgnoreCase);
+        destination.ResolvedRoleSkillCooldownTurns =
+            new Dictionary<string, int>(
+                source.ResolvedRoleSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase);
+        destination.ResolvedRoleInitialSkillCooldownTurns =
+            new Dictionary<string, int>(
+                source.ResolvedRoleInitialSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase);
+        destination.ResolvedRoleMaximumHp = source.ResolvedRoleMaximumHp;
+        destination.ResolvedRoleInitialVariables =
+            new Dictionary<string, double>(
+                source.ResolvedRoleInitialVariables,
+                StringComparer.OrdinalIgnoreCase);
+        destination.ResolvedRoleNativeScriptHash =
+            source.ResolvedRoleNativeScriptHash;
+        destination.ResolvedRoleFightScript = source.ResolvedRoleFightScript;
+        destination.ResolvedRoleNativeManagedSkillCooldownIds = source
+            .ResolvedRoleNativeManagedSkillCooldownIds
+            .ToList();
+        destination.ResolvedRoleRuntimeForms = source.ResolvedRoleRuntimeForms
+            .Select(item => new AutoBattleRoleRuntimeForm
+            {
+                RoleId = item.RoleId,
+                MaximumHp = item.MaximumHp,
+                SkillCardIds = item.SkillCardIds.ToList(),
+                SkillCooldownTurns = new Dictionary<string, int>(
+                    item.SkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase)
+            })
+            .ToList();
     }
 
     private static List<AutoBattleRewardCardPackInfo> ScanRewardCardPacks()

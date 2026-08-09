@@ -463,7 +463,6 @@ $expectedRoles = @{}
 $expectedRoles[$modelId] = $roleId
 $expectedRoles[$derivedModelId] = $derivedRoleId
 $packageSha256 = Get-Sha256 $sourcePackage
-$packageSha12 = $packageSha256.Substring(0, 12)
 Assert-True (-not [string]::IsNullOrWhiteSpace($modelId)) (
     "Shipped package model id is empty.")
 Assert-True (-not [string]::IsNullOrWhiteSpace($roleId)) (
@@ -482,10 +481,68 @@ try {
     [IO.Directory]::CreateDirectory($fakeModRoot) | Out-Null
     [IO.Directory]::CreateDirectory($sharedRoot) | Out-Null
 
-    $derivedPackage = Get-Content `
+    $assemblies = Open-ProductionAssemblies
+    $trainingProtocolType = $assemblies.Shared.GetType(
+        "AuraCombatAi.Shared.CombatFoundationTrainingProtocol",
+        $true)
+    $policyProtocolType = $assemblies.Shared.GetType(
+        "AuraCombatAi.Shared.CombatPolicyValueProtocol",
+        $true)
+    $trainingPolicyVersion = [string]$trainingProtocolType.GetField(
+        "TrainingPolicyVersion",
+        $bindingFlags).GetRawConstantValue()
+    $searchPolicyVersion = [string]$trainingProtocolType.GetField(
+        "SearchPolicyVersion",
+        $bindingFlags).GetRawConstantValue()
+    $trainingSemanticsVersion = [string]$policyProtocolType.GetField(
+        "TrainingSemanticsVersion",
+        $bindingFlags).GetRawConstantValue()
+    $featureSchemaVersion = [int]$policyProtocolType.GetField(
+        "FeatureSchemaVersion",
+        $bindingFlags).GetRawConstantValue()
+    $trainingOptionsType = $assemblies.Shared.GetType(
+        "AuraCombatAi.Shared.CombatPolicyValueTrainingOptions",
+        $true)
+    $trainingOptions = [Activator]::CreateInstance($trainingOptionsType)
+    $featureEncodingMode = [string](Get-ObjectProperty `
+        $trainingOptions `
+        "FeatureEncodingMode")
+
+    # This integration gate verifies directory discovery, hash
+    # deduplication, registration and restart loading. Keep that mechanics
+    # test independent from the separate shipped-artifact compatibility gate
+    # by adapting its temporary copy to the current protocol constants. The
+    # committed model package itself is never rewritten or re-certified.
+    $compatiblePackage = Get-Content `
         -Raw `
         -Encoding UTF8 `
         -LiteralPath $sourcePackage `
+        | ConvertFrom-Json
+    $compatiblePackage.compatibility.trainingPolicyVersion =
+        $trainingPolicyVersion
+    $compatiblePackage.compatibility.searchPolicyVersion =
+        $searchPolicyVersion
+    $compatiblePackage.compatibility.trainingSemanticsVersion =
+        $trainingSemanticsVersion
+    $compatiblePackage.compatibility.featureSchemaVersion =
+        $featureSchemaVersion
+    $compatiblePackage.compatibility.featureEncodingMode =
+        $featureEncodingMode
+    $compatiblePackage.modelArtifact.featureSchemaVersion =
+        $featureSchemaVersion
+    $compatiblePackage.modelArtifact.featureEncodingMode =
+        $featureEncodingMode
+    $compatiblePackagePath = Join-Path $testRoot (
+        "compatible-foundation-model-package-v5.json")
+    [IO.File]::WriteAllText(
+        $compatiblePackagePath,
+        ($compatiblePackage | ConvertTo-Json -Depth 100 -Compress),
+        ([Text.UTF8Encoding]::new($false)))
+
+    $derivedPackage = Get-Content `
+        -Raw `
+        -Encoding UTF8 `
+        -LiteralPath $compatiblePackagePath `
         | ConvertFrom-Json
     $derivedPackage.packageId = (
         [string]$derivedPackage.packageId) + "-integration-" + $derivedRoleId
@@ -501,29 +558,34 @@ try {
         ($derivedPackage | ConvertTo-Json -Depth 100 -Compress),
         ([Text.UTF8Encoding]::new($false)))
     $derivedPackageSha256 = Get-Sha256 $derivedPackagePath
-    $derivedPackageSha12 = $derivedPackageSha256.Substring(0, 12)
 
     foreach ($fixture in @(
         [pscustomobject]@{
             Role = "Integration Role A [$roleId]"
-            Release = "Canonical Pair A [$packageSha12]"
-            Package = $sourcePackage
+            Partner = "Integration Familiar A [$([string]$package.partnerId)]"
+            Release = "玩家发布 A"
+            Package = $compatiblePackagePath
         },
         [pscustomobject]@{
             Role = "Integration Role A Duplicate [$roleId]"
-            Release = "Canonical Pair Duplicate [$packageSha12]"
-            Package = $sourcePackage
+            Partner = "Integration Familiar A Duplicate [$([string]$package.partnerId)]"
+            Release = ""
+            Package = $compatiblePackagePath
         },
         [pscustomobject]@{
             Role = "Integration Role B [$derivedRoleId]"
-            Release = "Canonical Pair B [$derivedPackageSha12]"
+            Partner = "Integration Familiar B [$([string]$derivedPackage.partnerId)]"
+            Release = "官方发布 B"
             Package = $derivedPackagePath
         })) {
         $fixtureDirectory = Join-Path `
             (Join-Path `
                 (Join-Path $fakeModRoot "ModResource\Model") `
                 $fixture.Role) `
-            $fixture.Release
+            $fixture.Partner
+        if (-not [string]::IsNullOrWhiteSpace([string]$fixture.Release)) {
+            $fixtureDirectory = Join-Path $fixtureDirectory $fixture.Release
+        }
         Copy-FileToDirectory `
             $fixture.Package `
             $fixtureDirectory `
@@ -540,27 +602,20 @@ try {
         (Join-Path $fakeModRoot "Config\combat-simulation") `
         "witch-game-subjects-v1.catalog.json"
 
-    $sourceTrustPath = Join-Path $repoRoot (
-        "AuraToolsExp\Config\aura-director.foundation-model-allowlist.json")
-    $sourceTrust = Get-Content `
-        -Raw `
-        -Encoding UTF8 `
-        -LiteralPath $sourceTrustPath `
-        | ConvertFrom-Json
-    $matchingTrust = @($sourceTrust.entries | Where-Object {
-        ([string]$_.modelId) -eq $modelId `
-            -and ([string]$_.artifactSha256) -eq $packageSha256
-    })
-    Assert-True ($matchingTrust.Count -eq 1) (
-        "Shipped package must have one exact artifact trust entry.")
-    $derivedTrust = ($matchingTrust[0] | ConvertTo-Json -Depth 20) `
-        | ConvertFrom-Json
-    $derivedTrust.modelId = $derivedModelId
-    $derivedTrust.artifactSha256 = $derivedPackageSha256
-    $derivedTrust.weightsSha256 = ""
+    $derivedTrust = [pscustomobject]@{
+        FoundationLineage = [string]$derivedPackage.foundationLineage
+        ModelId = $derivedModelId
+        ArtifactSha256 = $derivedPackageSha256
+        WeightsSha256 = ""
+        FeatureSchemaVersion = [int]$derivedPackage.modelArtifact.featureSchemaVersion
+        ContentSetHash = [string]$derivedPackage.contentSetHash
+        RulesetHash = [string]$derivedPackage.rulesetHash
+        NativeProgramPackageHash = [string]$derivedPackage.compatibility.nativeProgramPackageHash
+        RequiredStartGateCapability = "ReadyToStartGate.V1"
+    }
     $temporaryTrust = [pscustomobject]@{
-        SchemaVersion = [int]$sourceTrust.schemaVersion
-        Entries = @($matchingTrust[0], $derivedTrust)
+        SchemaVersion = 1
+        Entries = @($derivedTrust)
     }
     $temporaryTrustPath = Join-Path `
         (Join-Path $fakeModRoot "Config") `
@@ -589,7 +644,6 @@ try {
         ([Text.UTF8Encoding]::new($false)))
     $configSha256 = Get-Sha256 $configurationPath
 
-    $assemblies = Open-ProductionAssemblies
     Set-SharedRoot $assemblies.Shared $sharedRoot
 
     $contextType = $assemblies.Shared.GetType(
@@ -623,12 +677,22 @@ try {
     $first = Invoke-StaticMethod $import $importArguments
     $firstScan = Get-ObjectProperty $first "Scan"
     $firstRegistration = Get-ObjectProperty $first "Registration"
+    $firstScanDiagnostics = @(
+        Get-ObjectProperty $firstScan "Diagnostics"
+    ) -join " | "
     Assert-True (([int](Get-ObjectProperty $firstScan "Scanned")) -eq 3) (
         "Production scanner did not inspect all three canonical pair directories.")
     Assert-True (([int](Get-ObjectProperty $firstScan "Deduplicated")) -eq 1) (
-        "Production scanner did not hash-deduplicate the repeated package.")
+        "Production scanner did not hash-deduplicate the repeated package; " `
+            + "scanned=$([int](Get-ObjectProperty $firstScan 'Scanned')), " `
+            + "failed=$([int](Get-ObjectProperty $firstScan 'Failed')), " `
+            + "diagnostics=$firstScanDiagnostics")
     Assert-True (([int](Get-ObjectProperty $firstScan "Failed")) -eq 0) (
         "Production scanner rejected a valid canonical pair fixture.")
+    Assert-True (([int](Get-ObjectProperty $firstScan "OfficialTrusted")) -eq 1) (
+        "Production scanner did not classify the exact-allowlisted package as official.")
+    Assert-True (([int](Get-ObjectProperty $firstScan "PlayerValidated")) -eq 1) (
+        "Production scanner did not classify the unique player-trained package through local gates.")
     Assert-True (([int](Get-ObjectProperty $firstRegistration "Installed")) -eq 2) (
         "First production import did not install both role models.")
     Assert-True (([int](Get-ObjectProperty $firstRegistration "Failed")) -eq 0) (
@@ -662,6 +726,15 @@ try {
         Assert-True (-not [IO.Path]::IsPathRooted(
             [string]$manifestEntry[0].sourcePackageFile)) (
             "models.json leaked an absolute source package path.")
+        $expectedOrigin = if ($expectedModelId -eq $derivedModelId) {
+            "bundled"
+        }
+        else {
+            "player-trained"
+        }
+        Assert-True (([string]$manifestEntry[0].distributionOrigin -eq $expectedOrigin)) (
+            "models.json distribution origin does not match model '" `
+                + $expectedModelId + "'.")
 
         $bundlePath = Join-Path `
             $libraryDirectory `
@@ -775,7 +848,8 @@ try {
     $sharedSha256 = Get-Sha256 $sharedAssemblyPath
     Write-Host (
         "Temporary ModsData bundled-model integration passed: scanned=3, " `
-            + "installed=2, scanDeduplicated=1, retryDeduplicated=2, " `
+            + "official=1, playerValidated=1, installed=2, " `
+            + "scanDeduplicated=1, retryDeduplicated=2, " `
             + "restartLoad=2/2.")
     Write-Host ("AuraToolsExp.Aura.dll SHA256=" + $entrySha256)
     Write-Host ("Aura.Shared.dll SHA256=" + $sharedSha256)

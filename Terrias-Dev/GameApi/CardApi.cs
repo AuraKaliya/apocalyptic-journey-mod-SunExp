@@ -317,6 +317,27 @@ public static class CardApi
         return GrantCardToHand(self, request).Success;
     }
 
+    public static bool AddCardToDiscardPile(ScriptExecutor self, string cardId)
+    {
+        var resolved = ResolveCardId(cardId);
+        if (self == null || string.IsNullOrWhiteSpace(resolved))
+        {
+            return false;
+        }
+
+        try
+        {
+            self.SetStatus("Self");
+            self.AddCardToDeckById(resolved, true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("AddCardToDiscardPile failed: cardId=" + resolved + ", error=" + ex.Message);
+            return false;
+        }
+    }
+
     public static bool MarkForAdventureRemoval(IDataConfig? config)
     {
         if (config?.Vars == null)

@@ -30,13 +30,13 @@ public static class CombatTransformerTeacherBackendNames
 public static class CombatTransformerWorldModelProtocol
 {
     public const string Model =
-        "aura.combat-transformer-world-model.v2";
+        "aura.combat-transformer-world-model.v4";
 
     public const string Report =
-        "aura.combat-transformer-world-model-report.v2";
+        "aura.combat-transformer-world-model-report.v4";
 
     public const string SparseDataset =
-        "aura.combat-transformer-dataset.sparse-index-value.v1";
+        "aura.combat-transformer-dataset.sparse-index-value.v3";
 }
 
 public static class CombatTransformerTeacherFailureKinds
@@ -76,7 +76,7 @@ public static class CombatTransformerTeacherFailureProtocol
 public static class CombatTransformerTeacherCorpusProtocol
 {
     public const string Version =
-        "transformer-teacher-corpus-v3-sparse-incremental";
+        "transformer-teacher-corpus-v5-backlog-applicability-teacher-split";
 
     public const string CollectingMaturity = "collecting";
 
@@ -137,6 +137,16 @@ public static class CombatTransformerTeacherCorpusProtocol
         };
     }
 
+    public static double IncrementalReplayShare(int rejectedUpdateStreak)
+    {
+        return Math.Max(0, rejectedUpdateStreak) switch
+        {
+            >= 2 => 0.75d,
+            1 => 0.50d,
+            _ => 0.25d
+        };
+    }
+
     public static IReadOnlyList<int> SelectWholeRunRows(
         IEnumerable<CombatTransformerTrainingRow> rows,
         int maximumFrames,
@@ -158,6 +168,7 @@ public static class CombatTransformerTeacherCorpusProtocol
             .Select(group => new
             {
                 RunKey = group.Key,
+                Priority = group.Min(row => row.Priority),
                 Rows = group
                     .GroupBy(row => row.RowIndex)
                     .Select(items => items.First())
@@ -165,7 +176,8 @@ public static class CombatTransformerTeacherCorpusProtocol
                     .ToArray()
             })
             .Where(group => group.Rows.Length > 0)
-            .OrderBy(group => StableSelectionKey(seed, group.RunKey),
+            .OrderBy(group => group.Priority)
+            .ThenBy(group => StableSelectionKey(seed, group.RunKey),
                 StringComparer.Ordinal)
             .ThenBy(group => group.RunKey, StringComparer.Ordinal);
         foreach (var group in groups)
@@ -252,6 +264,8 @@ public sealed class CombatTransformerTrainingRow
     public string RunKey { get; set; } = "";
 
     public string Identity { get; set; } = "";
+
+    public int Priority { get; set; }
 }
 
 public sealed class CombatTransformerTeacherOptions
@@ -266,7 +280,7 @@ public sealed class CombatTransformerTeacherOptions
 
     public int BatchSize { get; set; } = 64;
 
-    public int StateDimensions { get; set; } = 1024;
+    public int StateDimensions { get; set; } = 2048;
 
     public int ActionDimensions { get; set; } = 1024;
 
@@ -287,6 +301,10 @@ public sealed class CombatTransformerTeacherOptions
     public bool EnableWarmStart { get; set; } = true;
 
     public int CpuRefreshInterval { get; set; } = 4;
+
+    public int AcceleratorRefreshInterval { get; set; } = 3;
+
+    public int MinimumFreshFramesForRefresh { get; set; } = 2048;
 
     public int CpuEpochs { get; set; } = 4;
 
@@ -309,6 +327,8 @@ public sealed class CombatTransformerTeacherOptions
     public int IncrementalReplayFrames { get; set; } = 1024;
 
     public int MaximumIncrementalTrainingFrames { get; set; } = 4096;
+
+    public int MaximumObjectTokens { get; set; } = 64;
 
     public int CpuThreads { get; set; }
 
@@ -335,7 +355,7 @@ public sealed class CombatTransformerTeacherOptions
 
     public bool EnableDeterministicTraining { get; set; } = true;
 
-    public double DistillationWeight { get; set; } = 0.35d;
+    public double DistillationWeight { get; set; } = 0.15d;
 
     public int RandomSeed { get; set; } = 1701;
 
@@ -370,6 +390,12 @@ public sealed class CombatTransformerTeacherOptions
             MinimumFrames,
             Math.Min(100000, MaximumFrames));
         CpuRefreshInterval = Math.Max(1, Math.Min(8, CpuRefreshInterval));
+        AcceleratorRefreshInterval = Math.Max(
+            1,
+            Math.Min(8, AcceleratorRefreshInterval));
+        MinimumFreshFramesForRefresh = Math.Max(
+            64,
+            Math.Min(MaximumFrames, MinimumFreshFramesForRefresh));
         CpuEpochs = Math.Max(1, Math.Min(Epochs, CpuEpochs));
         CpuIncrementalEpochs = Math.Max(
             1,
@@ -383,6 +409,7 @@ public sealed class CombatTransformerTeacherOptions
         MaximumIncrementalTrainingFrames = Math.Max(
             MinimumFrames,
             Math.Min(MaximumFrames, MaximumIncrementalTrainingFrames));
+        MaximumObjectTokens = Math.Max(16, Math.Min(192, MaximumObjectTokens));
         CpuThreads = Math.Max(0, Math.Min(64, CpuThreads));
         CpuInteropThreads = Math.Max(0, Math.Min(8, CpuInteropThreads));
         MicroBatchSize = Math.Max(0, Math.Min(BatchSize, MicroBatchSize));
@@ -395,7 +422,7 @@ public sealed class CombatTransformerTeacherOptions
         MemoryReserveBytes = Math.Max(
             128L * 1024L * 1024L,
             Math.Min(16L * 1024L * 1024L * 1024L, MemoryReserveBytes));
-        DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
+        DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.15d);
         AdaptiveRefreshDriftThreshold = Clamp(
             AdaptiveRefreshDriftThreshold,
             0.01d,
@@ -462,6 +489,68 @@ public static class CombatTransformerTeacherRefreshProtocol
         return context != null
                && context.FinalRefreshRequested
                && context.Iteration >= Math.Max(1, context.TotalIterations);
+    }
+
+    public static bool ShouldRefresh(
+        bool warmStarted,
+        bool finalRefresh,
+        bool cpuBackend,
+        int currentIteration,
+        int lastRefreshIteration,
+        int lastAttemptIteration,
+        int rejectedUpdateStreak,
+        int pendingFrames,
+        int freshPendingFrames,
+        bool driftRefresh,
+        CombatTransformerTeacherOptions options,
+        out string reason)
+    {
+        options ??= new CombatTransformerTeacherOptions();
+        var interval = cpuBackend
+            ? Math.Max(1, options.CpuRefreshInterval)
+            : Math.Max(1, options.AcceleratorRefreshInterval);
+        var intervalDue = Math.Max(1, currentIteration)
+                          - Math.Max(0, lastRefreshIteration) >= interval;
+        var rejectionBackoffInterval = interval * (1 << Math.Min(
+            2,
+            Math.Max(0, rejectedUpdateStreak)));
+        var rejectionBackoffDue = rejectedUpdateStreak <= 0
+                                  || Math.Max(1, currentIteration)
+                                     - Math.Max(0, lastAttemptIteration)
+                                     >= rejectionBackoffInterval;
+        if (finalRefresh)
+        {
+            reason = "final-refresh";
+            return true;
+        }
+        if (!rejectionBackoffDue)
+        {
+            reason = "rejected-update-backoff:" + rejectionBackoffInterval;
+            return false;
+        }
+        if (!warmStarted)
+        {
+            reason = "cold-start";
+            return true;
+        }
+        if (driftRefresh)
+        {
+            reason = "dataset-drift";
+            return true;
+        }
+        if (freshPendingFrames
+            >= Math.Max(64, options.MinimumFreshFramesForRefresh))
+        {
+            reason = "fresh-frame-threshold";
+            return true;
+        }
+        if (pendingFrames > 0 && intervalDue)
+        {
+            reason = "maximum-staleness";
+            return true;
+        }
+        reason = "stable-teacher-reuse";
+        return false;
     }
 }
 
@@ -615,6 +704,16 @@ public sealed class CombatTransformerTeacherReport
 
     public bool RefreshTriggeredByCorpusGrowth { get; set; }
 
+    public int RefreshInterval { get; set; }
+
+    public int RefreshRejectedUpdateStreak { get; set; }
+
+    public int RefreshLastAttemptIteration { get; set; }
+
+    public int RefreshMinimumFreshFrames { get; set; }
+
+    public int RefreshFreshPendingFrames { get; set; }
+
     public int CurrentFrameCount { get; set; }
 
     public bool IncrementalCorpusUpdate { get; set; }
@@ -626,6 +725,8 @@ public sealed class CombatTransformerTeacherReport
     public int DeduplicatedCorpusFrames { get; set; }
 
     public int DroppedCorpusFrames { get; set; }
+
+    public int CorpusBacklogFrames { get; set; }
 
     public string CorpusCompatibilityKey { get; set; } = "";
 
@@ -663,6 +764,16 @@ public sealed class CombatTransformerTeacherReport
 
     public int TeacherGeneration { get; set; }
 
+    public int StablePolicyTeacherGeneration { get; set; }
+
+    public int StableWorldTeacherGeneration { get; set; }
+
+    public int AnnotationTeacherGeneration { get; set; }
+
+    public bool PolicyTeacherApplied { get; set; }
+
+    public bool WorldTeacherApplied { get; set; }
+
     public double DatasetDriftScore { get; set; }
 
     public string DatasetFingerprint { get; set; } = "";
@@ -692,9 +803,32 @@ public sealed class CombatTransformerTeacherReport
 
     public double ValidationStrategyAccuracy { get; set; }
 
+    public double ValidationPhaseAccuracy { get; set; }
+
+    public int StrategyLabelFrames { get; set; }
+
+    public Dictionary<string, int> StrategyLabelCounts { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public int StrategyApplicableFrames { get; set; }
+
+    public Dictionary<string, int> StrategyApplicableCounts { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> StrategyNegativeCounts { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public bool StrategyQualityGatePassed { get; set; } = true;
+
     public double ValidationDynamicsMse { get; set; }
 
     public int DynamicsTrainingFrames { get; set; }
+
+    public int DynamicsValidationFrames { get; set; }
+
+    public int InvalidTransitionFrames { get; set; }
+
+    public int TerminalKnownFrames { get; set; }
 
     public double ValidationOutcomeMae { get; set; }
 
@@ -756,11 +890,17 @@ public sealed class CombatTransformerTeacherReport
 
     public int IncrementalNewFrames { get; set; }
 
+    public int IncrementalFreshFrames { get; set; }
+
+    public int IncrementalRetryFrames { get; set; }
+
     public int IncrementalReplayFrames { get; set; }
 
     public int IncrementalPendingFrames { get; set; }
 
     public int IncrementalDeferredFrames { get; set; }
+
+    public int IncrementalReplayEscalationLevel { get; set; }
 
     public int AnnotationSelectionFrames { get; set; }
 
@@ -778,7 +918,7 @@ public sealed class CombatTransformerTeacherReport
 
     public bool ObjectTokenAuditPassed { get; set; } = true;
 
-    public bool ObjectTokenAuditAdvisoryOnly { get; set; } = true;
+    public bool ObjectTokenAuditAdvisoryOnly { get; set; }
 
     public List<string> DataQualityWarnings { get; set; } = new();
 

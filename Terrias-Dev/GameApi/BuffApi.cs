@@ -331,18 +331,48 @@ public static class BuffApi
 
     public static bool RemoveRandomPositiveBuff(ScriptExecutor executor, IStatusManager? status)
     {
-        var buffIds = PositiveBuffs(status)
-            .Select(buff => buff.buffConfig?.BuffId)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
+        return RemoveRandomPositiveBuffAndGetLevel(executor, status) > 0;
+    }
+
+    public static bool HasRemovablePositiveBuff(IStatusManager? status)
+    {
+        return PositiveBuffs(status).Any(buff => buff.buffConfig?.Level > 0);
+    }
+
+    public static int RemoveRandomPositiveBuffAndGetLevel(ScriptExecutor executor, IStatusManager? status)
+    {
+        var buffs = PositiveBuffs(status)
+            .Where(buff => buff.buffConfig?.Level > 0 && !string.IsNullOrWhiteSpace(buff.buffConfig.BuffId))
+            .GroupBy(buff => buff.buffConfig.BuffId, StringComparer.Ordinal)
+            .Select(group => group.First())
             .ToList();
-        if (buffIds.Count <= 0)
+        if (buffs.Count <= 0)
+        {
+            return 0;
+        }
+
+        var buff = buffs[UnityEngine.Random.Range(0, buffs.Count)];
+        var id = buff.buffConfig.BuffId;
+        var removedLevel = Math.Max(0, buff.buffConfig.Level);
+        ExecutorApi.SetStatusForTarget(executor, status, "Target");
+        executor.RemoveBuff(id);
+        return removedLevel;
+    }
+
+    public static bool RemoveRandomNegativeBuff(ScriptExecutor executor, IStatusManager? status)
+    {
+        var buffs = NegativeBuffs(status)
+            .Where(buff => buff.buffConfig?.Level > 0 && !string.IsNullOrWhiteSpace(buff.buffConfig.BuffId))
+            .GroupBy(buff => buff.buffConfig.BuffId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+        if (buffs.Count <= 0)
         {
             return false;
         }
 
-        var id = buffIds[UnityEngine.Random.Range(0, buffIds.Count)];
-        ExecutorApi.SetStatusForTarget(executor, status, "Target");
+        var id = buffs[UnityEngine.Random.Range(0, buffs.Count)].buffConfig.BuffId;
+        ExecutorApi.SetStatusForTarget(executor, status, "Self");
         executor.RemoveBuff(id);
         return true;
     }

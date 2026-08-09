@@ -51,7 +51,8 @@ if (-not (Test-Path -LiteralPath $bundledModelDirectory -PathType Container)) {
 function Assert-BundledModelDirectorySegment {
     param(
         [Parameter(Mandatory = $true)][string]$DirectoryName,
-        [Parameter(Mandatory = $true)][string]$Kind
+        [Parameter(Mandatory = $true)][string]$Kind,
+        [switch]$RequiresMachineSuffix
     )
 
     if ($DirectoryName.Length -eq 0 -or $DirectoryName.Length -gt 200) {
@@ -63,6 +64,12 @@ function Assert-BundledModelDirectorySegment {
                     -eq [Globalization.UnicodeCategory]::Format)) {
             throw "Bundled model $Kind directory contains a control or Unicode Format character."
         }
+    }
+    if (-not $RequiresMachineSuffix) {
+        if ($DirectoryName -cne $DirectoryName.Trim()) {
+            throw "Bundled model $Kind directory must not have leading or trailing whitespace: $DirectoryName"
+        }
+        return
     }
     if (-not $DirectoryName.EndsWith("]", [StringComparison]::Ordinal)) {
         throw "Bundled model $Kind directory must end with a bracketed machine suffix: $DirectoryName"
@@ -137,6 +144,7 @@ function Get-BundledFoundationPackageFiles {
             Layout = "legacy-top-level"
             PackageFile = $legacyPackage
             RoleDirectoryName = ""
+            PartnerDirectoryName = ""
             ReleaseDirectoryName = ""
         })
     }
@@ -146,7 +154,7 @@ function Get-BundledFoundationPackageFiles {
             throw "Bundled model role directory must not be a reparse point: $($roleDirectory.FullName)"
         }
         Assert-BundledModelDirectorySegment -DirectoryName $roleDirectory.Name `
-            -Kind "role"
+            -Kind "role" -RequiresMachineSuffix
         $roleEntries = @(Get-ChildItem -LiteralPath $roleDirectory.FullName `
             -Force | Sort-Object Name)
         foreach ($roleEntry in $roleEntries) {
@@ -158,52 +166,90 @@ function Get-BundledFoundationPackageFiles {
         if ($roleFiles.Count -ne 0) {
             throw "Bundled model role directory may only contain release directories: $($roleDirectory.FullName)"
         }
-        $releaseDirectories = @($roleEntries | Where-Object { $_.PSIsContainer })
-        if ($releaseDirectories.Count -eq 0) {
-            throw "Bundled model role directory has no release directory: $($roleDirectory.FullName)"
+        $partnerDirectories = @($roleEntries | Where-Object { $_.PSIsContainer })
+        if ($partnerDirectories.Count -eq 0) {
+            throw "Bundled model role directory has no familiar directory: $($roleDirectory.FullName)"
         }
 
-        foreach ($releaseDirectory in $releaseDirectories) {
-            if (($releaseDirectory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw "Bundled model release directory must not be a reparse point: $($releaseDirectory.FullName)"
+        foreach ($partnerDirectory in $partnerDirectories) {
+            if (($partnerDirectory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "Bundled model familiar directory must not be a reparse point: $($partnerDirectory.FullName)"
             }
             Assert-BundledModelDirectorySegment `
-                -DirectoryName $releaseDirectory.Name -Kind "release"
-            $releaseEntries = @(Get-ChildItem -LiteralPath $releaseDirectory.FullName `
+                -DirectoryName $partnerDirectory.Name -Kind "familiar" `
+                -RequiresMachineSuffix
+            $partnerEntries = @(Get-ChildItem -LiteralPath $partnerDirectory.FullName `
                 -Force | Sort-Object Name)
-            foreach ($releaseEntry in $releaseEntries) {
-                if (($releaseEntry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                    throw "Bundled model release entry must not be a reparse point: $($releaseEntry.FullName)"
+            foreach ($partnerEntry in $partnerEntries) {
+                if (($partnerEntry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    throw "Bundled model familiar entry must not be a reparse point: $($partnerEntry.FullName)"
                 }
             }
-            $nestedDirectories = @($releaseEntries | Where-Object { $_.PSIsContainer })
-            if ($nestedDirectories.Count -ne 0) {
-                throw "Bundled model layout must be exactly two directories deep: $($releaseDirectory.FullName)"
+            $partnerFiles = @($partnerEntries | Where-Object { -not $_.PSIsContainer })
+            $releaseDirectories = @($partnerEntries | Where-Object { $_.PSIsContainer })
+            if ($partnerFiles.Count -ne 0 -and $releaseDirectories.Count -ne 0) {
+                throw "Bundled model familiar directory cannot mix model files and release directories: $($partnerDirectory.FullName)"
             }
-            $releaseFiles = @($releaseEntries | Where-Object { -not $_.PSIsContainer })
-            $expectedNames = @(
-                "foundation-model-package-v5.json",
-                "foundation-model-weights-v5.bin"
-            )
-            $unexpectedFiles = @($releaseFiles | Where-Object {
-                $expectedNames -cnotcontains $_.Name
-            })
-            if ($unexpectedFiles.Count -ne 0) {
-                throw "Bundled model release directory contains unexpected files: $($releaseDirectory.FullName)"
+            if ($partnerFiles.Count -eq 0 -and $releaseDirectories.Count -eq 0) {
+                throw "Bundled model familiar directory is empty: $($partnerDirectory.FullName)"
             }
-            foreach ($expectedName in $expectedNames) {
-                if (-not (Test-Path -LiteralPath (
-                        Join-Path $releaseDirectory.FullName $expectedName) -PathType Leaf)) {
-                    throw "Bundled model release directory is missing $expectedName`: $($releaseDirectory.FullName)"
+
+            $packageDirectories = [Collections.Generic.List[object]]::new()
+            if ($partnerFiles.Count -ne 0) {
+                $packageDirectories.Add([pscustomobject]@{
+                    Layout = "role-partner-v2"
+                    Directory = $partnerDirectory
+                    Files = $partnerFiles
+                    ReleaseDirectoryName = ""
+                })
+            }
+            foreach ($releaseDirectory in $releaseDirectories) {
+                Assert-BundledModelDirectorySegment `
+                    -DirectoryName $releaseDirectory.Name -Kind "release"
+                $releaseEntries = @(Get-ChildItem `
+                    -LiteralPath $releaseDirectory.FullName -Force | Sort-Object Name)
+                foreach ($releaseEntry in $releaseEntries) {
+                    if (($releaseEntry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                        throw "Bundled model release entry must not be a reparse point: $($releaseEntry.FullName)"
+                    }
+                    if ($releaseEntry.PSIsContainer) {
+                        throw "Bundled model layout must not exceed role/familiar/release depth: $($releaseEntry.FullName)"
+                    }
                 }
+                $packageDirectories.Add([pscustomobject]@{
+                    Layout = "role-partner-release-v2"
+                    Directory = $releaseDirectory
+                    Files = @($releaseEntries)
+                    ReleaseDirectoryName = $releaseDirectory.Name
+                })
             }
-            $packages.Add([pscustomobject]@{
-                Layout = "role-release-v1"
-                PackageFile = Get-Item -LiteralPath (
-                    Join-Path $releaseDirectory.FullName "foundation-model-package-v5.json")
-                RoleDirectoryName = $roleDirectory.Name
-                ReleaseDirectoryName = $releaseDirectory.Name
-            })
+
+            foreach ($packageDirectory in $packageDirectories) {
+                $expectedNames = @(
+                    "foundation-model-package-v5.json",
+                    "foundation-model-weights-v5.bin"
+                )
+                $unexpectedFiles = @($packageDirectory.Files | Where-Object {
+                    $expectedNames -cnotcontains $_.Name
+                })
+                if ($unexpectedFiles.Count -ne 0) {
+                    throw "Bundled model package directory contains unexpected files: $($packageDirectory.Directory.FullName)"
+                }
+                foreach ($expectedName in $expectedNames) {
+                    if (-not (Test-Path -LiteralPath (
+                            Join-Path $packageDirectory.Directory.FullName $expectedName) -PathType Leaf)) {
+                        throw "Bundled model package directory is missing $expectedName`: $($packageDirectory.Directory.FullName)"
+                    }
+                }
+                $packages.Add([pscustomobject]@{
+                    Layout = $packageDirectory.Layout
+                    PackageFile = Get-Item -LiteralPath (
+                        Join-Path $packageDirectory.Directory.FullName "foundation-model-package-v5.json")
+                    RoleDirectoryName = $roleDirectory.Name
+                    PartnerDirectoryName = $partnerDirectory.Name
+                    ReleaseDirectoryName = $packageDirectory.ReleaseDirectoryName
+                })
+            }
         }
     }
 
@@ -225,10 +271,13 @@ function Test-BundledFoundationDiscoveryFixture {
 
     try {
         foreach ($fixture in @(
-            @("Role-A [role_a]", "Partner-A-v5.0.0 [111111111111]"),
-            @("Role-B [role_b]", "Partner-B-v5.0.0 [222222222222]")
+            @("Role-A [role_a]", "Partner-A [partner_a]", ""),
+            @("Role-B [role_b]", "Partner-B [partner_b]", "玩家发布 B")
         )) {
             $directory = Join-Path $fixtureRoot (Join-Path $fixture[0] $fixture[1])
+            if (-not [string]::IsNullOrWhiteSpace($fixture[2])) {
+                $directory = Join-Path $directory $fixture[2]
+            }
             New-Item -ItemType Directory -Path $directory -Force | Out-Null
             [IO.File]::WriteAllText(
                 (Join-Path $directory "foundation-model-package-v5.json"),
@@ -243,7 +292,7 @@ function Test-BundledFoundationDiscoveryFixture {
             Select-Object -ExpandProperty PackageFile |
             Select-Object -ExpandProperty Name -Unique)
         if (($discovered.Count -ne 2) -or ($uniquePackageNames.Count -ne 1)) {
-            throw "Bundled model discovery does not support repeated canonical filenames in separate role releases."
+            throw "Bundled model discovery does not support direct and user-named role/familiar releases."
         }
     }
     finally {
@@ -359,7 +408,8 @@ function Assert-CurrentArtifactFields {
             -or ([string]$Artifact.WeightLayout -cne "fixed-v1-state-action-input-major") `
             -or ([string]$Artifact.ModelProtocol -cne "aura.combat-policy-value.mlp.v2") `
             -or ([int]$Artifact.ProtocolVersion -ne 2) `
-            -or ([int]$Artifact.FeatureSchemaVersion -ne 26) `
+            -or ([int]$Artifact.FeatureSchemaVersion -ne `
+                [AuraCombatAi.Shared.CombatPolicyValueProtocol]::FeatureSchemaVersion) `
             -or ([string]$Artifact.FeatureEncodingMode -cne "partitioned-v3") `
             -or ([int]$Artifact.StateDimensions -lt 16) `
             -or ([int]$Artifact.ActionDimensions -lt 16) `
@@ -386,7 +436,7 @@ function Assert-CurrentArtifactFields {
     }
 }
 
-function Assert-ExactFoundationAllowlistEntry {
+function Test-ExactFoundationAllowlistEntry {
     param(
         [Parameter(Mandatory = $true)]$Package,
         [Parameter(Mandatory = $true)][string]$PackageSha256,
@@ -416,9 +466,7 @@ function Assert-ExactFoundationAllowlistEntry {
             -and ([string]$_.NativeProgramPackageHash -ceq $nativeProgramHash) `
             -and ([string]$_.RequiredStartGateCapability -ceq "ReadyToStartGate.V1")
     })
-    if ($matches.Count -ne 1) {
-        throw "Bundled foundation model has no unique exact artifact allowlist entry: $PackageName"
-    }
+    return $matches.Count -eq 1
 }
 
 Test-BundledFoundationDiscoveryFixture
@@ -465,6 +513,8 @@ if ($layoutEntries.Count -gt 2048) {
     throw "Bundled foundation model layout exceeds the runtime limit of 2048 entries."
 }
 $aggregateModelBytes = [int64]0
+$officialModelCount = 0
+$playerValidatedModelCount = 0
 $publishedModelIdentities = [System.Collections.Generic.List[object]]::new()
 foreach ($candidate in $bundledModels) {
     $modelFile = $candidate.PackageFile
@@ -485,7 +535,7 @@ foreach ($candidate in $bundledModels) {
         throw "Bundled foundation package protocol validation failed: $($modelFile.FullName): $diagnostic"
     }
 
-    if ($candidate.Layout -eq "role-release-v1") {
+    if ($candidate.Layout -ne "legacy-top-level") {
         $roleMatch = [regex]::Match(
             $candidate.RoleDirectoryName,
             '^.+ \[([^\[\]]+)\]$')
@@ -493,13 +543,24 @@ foreach ($candidate in $bundledModels) {
                 -or ($roleMatch.Groups[1].Value -cne [string]$package.RoleId)) {
             throw "Bundled model role directory suffix does not match package RoleId: $($modelFile.FullName)"
         }
-        $releaseMatch = [regex]::Match(
-            $candidate.ReleaseDirectoryName,
-            '^.+ \[([0-9A-Fa-f]{12})\]$')
-        if ((-not $releaseMatch.Success) `
-                -or $releaseMatch.Groups[1].Value.ToUpperInvariant() `
-                    -cne $packageSha256.Substring(0, 12)) {
-            throw "Bundled model release directory hash suffix does not match package SHA-256: $($modelFile.FullName)"
+        $partnerMatch = [regex]::Match(
+            $candidate.PartnerDirectoryName,
+            '^.+ \[([^\[\]]+)\]$')
+        $declaredPartnerId = if ($partnerMatch.Success) {
+            $partnerMatch.Groups[1].Value
+        }
+        else {
+            ""
+        }
+        $isCurrentPartner = $partnerMatch.Success `
+            -and ($declaredPartnerId -ieq [string]$package.PartnerId)
+        $isLegacyHashRelease = ($candidate.Layout -eq "role-partner-v2") `
+            -and $partnerMatch.Success `
+            -and ($declaredPartnerId -match '^[0-9A-Fa-f]{12}$') `
+            -and ($declaredPartnerId.ToUpperInvariant() `
+                -ceq $packageSha256.Substring(0, 12))
+        if (-not $isCurrentPartner -and -not $isLegacyHashRelease) {
+            throw "Bundled model familiar directory suffix does not match package PartnerId: $($modelFile.FullName)"
         }
         if (([int]$package.SchemaVersion -ne 5) `
                 -or ([string]$package.ModelVersion -cne "5.0.0") `
@@ -515,7 +576,7 @@ foreach ($candidate in $bundledModels) {
         if ([IO.Path]::GetFileName($weightsFileName) -cne $weightsFileName) {
             throw "Bundled model weights must be a same-directory filename: $($modelFile.FullName)"
         }
-        if (($candidate.Layout -eq "role-release-v1") `
+        if (($candidate.Layout -ne "legacy-top-level") `
                 -and ($weightsFileName -cne "foundation-model-weights-v5.bin")) {
             throw "Nested bundled model must preserve the canonical v5 weights filename: $($modelFile.FullName)"
         }
@@ -559,9 +620,14 @@ foreach ($candidate in $bundledModels) {
         $null = [AuraCombatAi.Shared.ManagedCombatPolicyValueModel]::new($runtime)
     }
 
-    Assert-ExactFoundationAllowlistEntry -Package $package `
-        -PackageSha256 $packageSha256 -Allowlist $allowlist `
-        -PackageName $modelFile.FullName
+    if (Test-ExactFoundationAllowlistEntry -Package $package `
+            -PackageSha256 $packageSha256 -Allowlist $allowlist `
+            -PackageName $modelFile.FullName) {
+        $officialModelCount++
+    }
+    else {
+        $playerValidatedModelCount++
+    }
 
     $model = if ($null -ne $package.ModelArtifact) {
         $package.ModelArtifact
@@ -599,7 +665,9 @@ Assert-BundledFoundationCollectionIdentity `
     -Identities $publishedModelIdentities.ToArray()
 
 Write-Host (
-    "Aura combat training artifacts passed: programs={0}, models={1}, layouts={2}." -f `
+    "Aura combat training artifacts passed: programs={0}, models={1}, official={2}, playerValidated={3}, layouts={4}." -f `
         $manifest.programCount,
         $bundledModels.Count,
+        $officialModelCount,
+        $playerValidatedModelCount,
         (@($bundledModels | Select-Object -ExpandProperty Layout -Unique) -join ","))

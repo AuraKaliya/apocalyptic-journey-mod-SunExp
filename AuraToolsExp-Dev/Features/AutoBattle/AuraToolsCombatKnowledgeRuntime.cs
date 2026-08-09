@@ -196,10 +196,26 @@ internal static class AuraToolsCombatKnowledgeRuntime
         var unsupported = state.Actions.Count(action =>
             action.Kind != CombatActionKind.EndTurn
             && action.SemanticFidelity == CombatKnowledgeFidelity.Unsupported);
+        var unresolvedInteractions = state.Actions
+            .Where(action =>
+                action.Kind != CombatActionKind.EndTurn
+                && action.Legal
+                && action.Semantics?.OpensInteraction == true
+                && (action.Semantics.Interaction == null
+                    || !action.Semantics.Interaction.EffectsComplete))
+            .Select(action => action.SourceId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         reason = "player-equivalent-v2; "
                  + report.Summary
                  + "; unsupported-current-actions="
                  + unsupported;
+        if (unresolvedInteractions.Count > 0)
+        {
+            reason += "; unresolved-interactions="
+                      + string.Join(",", unresolvedInteractions);
+            return false;
+        }
         return true;
     }
 

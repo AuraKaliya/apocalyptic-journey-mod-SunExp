@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
 using Michsky.MUIP;
 using UnityEngine;
@@ -149,6 +150,13 @@ public sealed class WitchCombatRuntime :
 
     public CombatExecutionResult Execute(CombatActionObservation action)
     {
+        return Execute(action, null);
+    }
+
+    public CombatExecutionResult Execute(
+        CombatActionObservation action,
+        Action<CombatStateObservation>? prepareFreshState)
+    {
         if (action == null)
         {
             return CombatExecutionResult.Rejected("action is null");
@@ -179,6 +187,7 @@ public sealed class WitchCombatRuntime :
                         return CombatExecutionResult.Rejected(
                             "end-turn recapture failed: " + captureReason);
                     }
+                    prepareFreshState?.Invoke(freshState);
                     var assessment =
                         CombatEndTurnSafety.AssessObservation(freshState);
                     if (assessment.Prohibited)
@@ -557,6 +566,52 @@ public sealed class WitchCombatRuntime :
         var totalExtraCost = ParseInt(card.Vars, "TotalExCost");
         var extraCost = ParseInt(card.Vars, "ExCost");
         var onceExtraCost = ParseInt(card.Vars, "OnceExCost");
+        var maximumHpLossFraction =
+            WitchCombatValueEstimator.EstimateMaximumHpLossFraction(
+                card.dataConfig);
+        if (maximumHpLossFraction > 0d)
+        {
+            var projectedLoss = Math.Max(
+                1d,
+                Math.Floor(state.Player.MaxHp * maximumHpLossFraction));
+            semantics.SelfHpLoss = Math.Max(
+                semantics.SelfHpLoss,
+                projectedLoss);
+            semantics.Risk = Math.Max(semantics.Risk, projectedLoss);
+        }
+        var directStatusChanges =
+            WitchCombatValueEstimator.EstimateDirectStatusChanges(
+                card.dataConfig);
+        var systemProgress = 0d;
+        foreach (var pair in directStatusChanges)
+        {
+            var currentLevel = state.Player.Statuses
+                .Where(status => string.Equals(
+                    status.StatusId,
+                    pair.Key,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(status => Math.Max(0, status.Level))
+                .DefaultIfEmpty(0)
+                .Max();
+            var effectiveDelta = pair.Value < 0d
+                ? -Math.Min(currentLevel, -pair.Value)
+                : pair.Value;
+            semantics.StateChanges["status:" + pair.Key] =
+                semantics.StateChanges.TryGetValue(
+                    "status:" + pair.Key,
+                    out var previous)
+                    ? previous + effectiveDelta
+                    : effectiveDelta;
+            if (effectiveDelta < 0d
+                && currentLevel > 0
+                && HasMatchingCardSystem(state, sourceId, pair.Key))
+            {
+                systemProgress += -effectiveDelta;
+            }
+        }
+        var heldActionCostDelta =
+            WitchCombatValueEstimator.EstimateHeldActionCostDelta(
+                card.dataConfig);
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
             ["handIndex"] = index,
@@ -582,6 +637,15 @@ public sealed class WitchCombatRuntime :
             ["cardExCost"] = extraCost,
             ["cardOnceExCost"] = onceExtraCost,
             ["cardCostCap"] = 4d,
+            ["selfMaxHpLossFraction"] = maximumHpLossFraction,
+            ["cardCostDeltaPerPlayedAction"] = heldActionCostDelta,
+            ["systemProgressValue"] = systemProgress,
+            ["dynamicActionSetMutation"] =
+                semantics.CardGeneration > 0d
+                || semantics.HandTransform != null
+                || semantics.Interaction != null
+                    ? 1d
+                    : 0d,
             ["exhaustOnUse"] = HasAnyTag(
                 card,
                 "Burnout",
@@ -1279,7 +1343,38 @@ public sealed class WitchCombatRuntime :
             Defend = status.Defend
         };
         ObserveEffects(status, result);
+        if (kind == CombatTargetKind.Self)
+        {
+            ObservePlayerStrength(result);
+        }
         return result;
+    }
+
+    private static bool HasMatchingCardSystem(
+        CombatStateObservation state,
+        string sourceId,
+        string statusId)
+    {
+        var normalizedSourceId = sourceId ?? "";
+        var separator = normalizedSourceId.IndexOf('_');
+        var family = separator > 0
+            ? normalizedSourceId.Substring(0, separator)
+            : normalizedSourceId;
+        if (family.Length < 3
+            || (statusId ?? "").IndexOf(
+                family,
+                StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return false;
+        }
+        var familyPrefix = family + "_";
+        return state.HandCardIds
+                   .Concat(state.DeckCardIds)
+                   .Concat(state.DeckKnowledge?.KnownDeckCardIds
+                           ?? new List<string>())
+                   .Count(cardId => (cardId ?? "").StartsWith(
+                       familyPrefix,
+                       StringComparison.OrdinalIgnoreCase)) >= 2;
     }
 
     private static void AddEnemyThreat(
@@ -1289,6 +1384,9 @@ public sealed class WitchCombatRuntime :
     {
         var actionCards = ReadMember(enemy, "ActionCards") as IEnumerable;
         var currentCount = 0;
+        var expectedThreat = 0d;
+        var summonPotential = 0d;
+        var supportPotential = 0d;
         if (actionCards != null)
         {
             foreach (var rawCard in actionCards)
@@ -1313,8 +1411,24 @@ public sealed class WitchCombatRuntime :
                 }
 
                 var knownSemantics = HasKnownSemantics(semantics);
-                var fallbackBlockable = !knownSemantics && observed.Attack > 0d
-                    ? observed.Attack * 0.35d
+                var hitCount = Math.Max(
+                    1,
+                    (int)Math.Round(Math.Max(1d, semantics.HitCount)));
+                var projectedAttack = CombatDynamicDamageProjection.ResolveNormal(
+                    Math.Max(0d, semantics.Damage),
+                    observed.Features,
+                    state.Player.Features,
+                    applyStrength: false) * hitCount;
+                var projectedTrueDamage = CombatDynamicDamageProjection.ResolveTrue(
+                    Math.Max(0d, semantics.TrueDamage),
+                    observed.Features) * hitCount;
+                var projectedFallbackAttack = CombatDynamicDamageProjection.ResolveNormal(
+                    Math.Max(0d, observed.Attack),
+                    observed.Features,
+                    state.Player.Features,
+                    applyStrength: false);
+                var fallbackBlockable = !knownSemantics && projectedFallbackAttack > 0d
+                    ? projectedFallbackAttack * 0.35d
                     : 0d;
                 var intent = new CombatIntentObservation
                 {
@@ -1325,8 +1439,8 @@ public sealed class WitchCombatRuntime :
                     Probability = knownSemantics ? 1d : 0.35d,
                     BlockableDamage = Math.Max(
                         fallbackBlockable,
-                        semantics.Damage * Math.Max(1d, semantics.HitCount)),
-                    UnblockableDamage = Math.Max(0d, semantics.TrueDamage),
+                        projectedAttack),
+                    UnblockableDamage = Math.Max(0d, projectedTrueDamage),
                     DamageOverTime = Math.Max(0d, semantics.DamageOverTime),
                     Confidence = knownSemantics ? 0.9d : 0.35d,
                     Current = true
@@ -1339,6 +1453,15 @@ public sealed class WitchCombatRuntime :
                     : Math.Max(intent.BlockableDamage, observed.Attack);
                 state.Threat.ExpectedUnblockableDamage += intent.UnblockableDamage;
                 state.Threat.ExpectedDamageOverTime += intent.DamageOverTime;
+                expectedThreat += intent.BlockableDamage
+                                  + intent.UnblockableDamage
+                                  + intent.DamageOverTime;
+                summonPotential = Math.Max(
+                    summonPotential,
+                    WitchCombatValueEstimator.EstimateSummonPotential(config));
+                supportPotential = Math.Max(
+                    supportPotential,
+                    WitchCombatValueEstimator.EstimateSupportPotential(config));
             }
         }
 
@@ -1346,11 +1469,24 @@ public sealed class WitchCombatRuntime :
         observed.Features["actionCount"] = Math.Max(
             1d,
             ReadNumber(enemy, "ActionCount", "MaxActionCount"));
+        observed.Features[CombatEnemyPriorityPolicy.SummonPotentialFeature] =
+            summonPotential;
+        observed.Features[CombatEnemyPriorityPolicy.SupportPotentialFeature] =
+            supportPotential;
+        observed.Features[CombatEnemyPriorityPolicy.ExpectedThreatFeature] =
+            expectedThreat;
+        observed.Features[CombatEnemyPriorityPolicy.StrategicPriorityFeature] =
+            CombatEnemyPriorityPolicy.Calculate(observed.Features);
         state.Threat.IntentPoolSize += CountIntentPool(enemyConfig);
         if (currentCount == 0 && observed.Attack > 0d)
         {
             var actionCount = Math.Max(1d, ReadNumber(enemy, "ActionCount", "MaxActionCount"));
-            var maximum = observed.Attack * actionCount;
+            var maximum = CombatDynamicDamageProjection.ResolveNormal(
+                    observed.Attack,
+                    observed.Features,
+                    state.Player.Features,
+                    applyStrength: false)
+                * actionCount;
             state.Threat.ExpectedBlockableDamage += maximum * 0.35d;
             state.Threat.MaximumBlockableDamage += maximum;
             state.Threat.AttackProbability = Math.Max(state.Threat.AttackProbability, 0.35d);
@@ -1411,6 +1547,7 @@ public sealed class WitchCombatRuntime :
 
     private static void ObserveEffects(StatusManager status, CombatUnitObservation observed)
     {
+        ObserveDamageVariables(status, observed);
         IBuffItem[] buffs;
         try
         {
@@ -1469,6 +1606,82 @@ public sealed class WitchCombatRuntime :
                 ReducePerAttacked = config.ReducePerAttacked,
                 Type = config.Type ?? ""
             });
+        }
+    }
+
+    private static void ObserveDamageVariables(
+        StatusManager status,
+        CombatUnitObservation observed)
+    {
+        var variables = ReadMember(
+            status,
+            "dynamicVariables",
+            "DynamicVariables") as IDictionary;
+        if (variables == null)
+        {
+            return;
+        }
+
+        var keys = new[]
+        {
+            CombatDynamicDamageProjection.PercentDamage,
+            CombatDynamicDamageProjection.DefaultDamage,
+            CombatDynamicDamageProjection.AttackedPercentDamage,
+            CombatDynamicDamageProjection.AttackedDefaultDamage,
+            CombatDynamicDamageProjection.TruePercentDamage,
+            "DefendPercent",
+            "MaxChangeHp",
+            "HealMultiplier"
+        };
+        foreach (var key in keys)
+        {
+            if (!variables.Contains(key))
+            {
+                continue;
+            }
+            var value = variables[key];
+            if (value == null)
+            {
+                continue;
+            }
+            try
+            {
+                var number = Convert.ToDouble(value);
+                if (!double.IsNaN(number) && !double.IsInfinity(number))
+                {
+                    observed.Features[key] = number;
+                }
+            }
+            catch
+            {
+                // A third-party status may publish a non-numeric dynamic value.
+            }
+        }
+    }
+
+    private static void ObservePlayerStrength(CombatUnitObservation observed)
+    {
+        var manager = FightManager.Instance;
+        var variables = manager == null
+            ? null
+            : ReadMember(manager, "TempVarsMap") as IDictionary;
+        if (variables == null
+            || !variables.Contains(CombatDynamicDamageProjection.Strength))
+        {
+            return;
+        }
+        try
+        {
+            var strength = Convert.ToDouble(
+                variables[CombatDynamicDamageProjection.Strength]);
+            if (!double.IsNaN(strength) && !double.IsInfinity(strength))
+            {
+                observed.Features[CombatDynamicDamageProjection.Strength] = strength;
+            }
+        }
+        catch
+        {
+            // Ignore malformed public combat variables and retain the default.
         }
     }
 
@@ -1843,6 +2056,130 @@ public static class WitchCombatValueEstimator
             CombinedScript(config));
     }
 
+    public static double EstimateSummonPotential(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return 0d;
+        }
+        var script = CombinedScript(config);
+        return ContainsAny(
+            script,
+            "AddEnemy(",
+            "AddEnemy (",
+            "SummonEnemy",
+            "ChangeSummon")
+            ? 1d
+            : 0d;
+    }
+
+    public static double EstimateSupportPotential(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return 0d;
+        }
+        var script = CombinedScript(config);
+        return ContainsAny(
+            script,
+            "Heal(",
+            "Cure(",
+            "RecoverHp",
+            "AddBuff(",
+            "ChangeDefend(",
+            "ChangeDefence(")
+            ? 1d
+            : 0d;
+    }
+
+    public static double EstimateMaximumHpLossFraction(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return 0d;
+        }
+        var script = CombinedScript(config);
+        var divisor = Regex.Match(
+            script,
+            "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*/\\s*(\\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (divisor.Success
+            && double.TryParse(divisor.Groups[1].Value, out var denominator)
+            && denominator > 0d)
+        {
+            return Math.Min(1d, 1d / denominator);
+        }
+        var percentage = Regex.Match(
+            script,
+            "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*\\*\\s*(0?\\.\\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return percentage.Success
+               && double.TryParse(
+                   percentage.Groups[1].Value,
+                   System.Globalization.NumberStyles.Float,
+                   System.Globalization.CultureInfo.InvariantCulture,
+                   out var ratio)
+            ? Math.Max(0d, Math.Min(1d, ratio))
+            : 0d;
+    }
+
+    public static Dictionary<string, double> EstimateDirectStatusChanges(
+        IDataConfig? config)
+    {
+        var result = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        if (config == null)
+        {
+            return result;
+        }
+        var script = CombinedScript(config);
+        var statusIds = Regex.Matches(
+                script,
+                "GetBuff\\s*\\(\\s*(?:DataId\\.)?([A-Za-z_][A-Za-z0-9_]*)\\s*\\)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+            .Cast<Match>()
+            .Select(match => match.Groups[1].Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var decrement = Regex.Match(
+            script,
+            "buffConfig\\.Level\\s*=\\s*Math\\.Max\\s*\\(\\s*0\\s*,[^;]*buffConfig\\.Level\\s*-\\s*(\\d+)",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (statusIds.Count == 1
+            && decrement.Success
+            && double.TryParse(decrement.Groups[1].Value, out var amount)
+            && amount > 0d)
+        {
+            result[statusIds[0]] = -amount;
+        }
+        return result;
+    }
+
+    public static double EstimateHeldActionCostDelta(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return 0d;
+        }
+        var script = CombinedScript(config);
+        if (!Regex.IsMatch(
+                script,
+                "AddEvent\\s*\\(\\s*\"Action\"",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return 0d;
+        }
+        var match = Regex.Match(
+            script,
+            "Vars\\s*\\[\\s*\"ExCost\"\\s*\\][^;]*-\\s*(\\d+)\\s*\\)\\s*\\.ToString",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return match.Success
+               && double.TryParse(match.Groups[1].Value, out var amount)
+            ? -Math.Max(0d, amount)
+            : 0d;
+    }
+
     public static WitchCombatLifecycleEstimate EstimateLifecycle(
         IDataConfig? config)
     {
@@ -2027,6 +2364,15 @@ public static class WitchCombatValueEstimator
             "DeckUI",
             "ThrowCard",
             "Burning");
+        if (CombatInteractionContractInference.TryInfer(script, out var interaction))
+        {
+            result.Interaction = interaction;
+            result.OpensInteraction = true;
+            if (!interaction.EffectsComplete)
+            {
+                result.Uncertainty += 1.5d;
+            }
+        }
         result.RandomOutcome = ContainsAny(script, "Random", "Dice", "RandomRange");
         result.EndsTurn = ContainsAny(
             script,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
 
 namespace AuraToolsExp.Dll.Features.AutoBattle;
 
@@ -549,30 +550,69 @@ internal static class AuraToolsWitchSkillInteraction
     {
         if (state == null
             || action == null
-            || action.Kind != CombatActionKind.UseSkill
-            || !RequiresChoice(action.SourceId))
+            || (action.Semantics?.Interaction == null
+                && (action.Kind != CombatActionKind.UseSkill
+                    || !RequiresChoice(action.SourceId))))
         {
             CombatInteractionBroker.ClearNextHint();
             return;
         }
 
+        var interaction = action.Semantics?.Interaction?.Normalize();
+        var legacyDeckChoice = interaction == null
+                               && (action.SourceId == "careercard_1"
+                                   || action.SourceId == "careercard_9");
+        var destructive = interaction?.SelectionEffects.Any(effect =>
+            effect.Kind is CombatInteractionEffectKind.BurnSelected
+                or CombatInteractionEffectKind.DiscardSelected) == true;
         CombatInteractionBroker.SetNextHint(new CombatInteractionHint
         {
             OwnerModId = "AuraToolsExp",
             SourceId = action.SourceId,
-            Purpose = "role-skill:" + action.SourceId,
-            Kind = action.SourceId == "careercard_1" || action.SourceId == "careercard_9"
-                ? CombatPromptKind.ChooseCards
-                : CombatPromptKind.ChooseHandCards,
-            Zone = action.SourceId == "careercard_1" || action.SourceId == "careercard_9"
-                ? CombatPromptZone.Deck
-                : CombatPromptZone.Hand,
-            Forced = true,
-            PreferLowestValue = false,
-            ChoiceScorer = new WitchSkillChoiceScorer(
-                action.SourceId,
-                RemainingBattles(state))
+            ParentActionToken = action.ActionToken,
+            ParentCandidateId = action.CandidateId,
+            Purpose = "action-interaction:" + action.SourceId,
+            Kind = ToPromptKind(interaction, legacyDeckChoice),
+            Zone = ToPromptZone(interaction, legacyDeckChoice),
+            Forced = interaction?.MinSelections > 0 || interaction == null,
+            PreferLowestValue = destructive,
+            Interaction = interaction,
+            ChoiceScorer = RequiresChoice(action.SourceId)
+                ? new WitchSkillChoiceScorer(
+                    action.SourceId,
+                    RemainingBattles(state))
+                : null
         });
+    }
+
+    private static CombatPromptKind ToPromptKind(
+        CombatInteractionDefinition? interaction,
+        bool legacyDeckChoice)
+    {
+        if (interaction?.Kind == CombatInteractionKind.BurnCards)
+        {
+            return CombatPromptKind.BurnCards;
+        }
+        if (interaction?.Kind == CombatInteractionKind.DiscardCards)
+        {
+            return CombatPromptKind.DiscardCards;
+        }
+        return legacyDeckChoice || interaction?.Zone != CombatInteractionZone.Hand
+            ? CombatPromptKind.ChooseCards
+            : CombatPromptKind.ChooseHandCards;
+    }
+
+    private static CombatPromptZone ToPromptZone(
+        CombatInteractionDefinition? interaction,
+        bool legacyDeckChoice)
+    {
+        if (legacyDeckChoice) return CombatPromptZone.Deck;
+        return interaction?.Zone switch
+        {
+            CombatInteractionZone.Hand => CombatPromptZone.Hand,
+            CombatInteractionZone.DiscardPile => CombatPromptZone.DiscardPile,
+            _ => CombatPromptZone.Deck
+        };
     }
 
     private static bool RequiresChoice(string sourceId)

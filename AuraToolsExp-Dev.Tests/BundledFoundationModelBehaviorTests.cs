@@ -138,8 +138,15 @@ internal static partial class AuraToolsTestSuite
     {
         WithModelLayoutRoot(root =>
         {
-            AddLayoutPackage(root, "同名角色 [career_12]", "v5 [aaaaaaaaaaaa]");
-            AddLayoutPackage(root, "同名角色 [career_13]", "v5 [bbbbbbbbbbbb]");
+            AddLayoutPackage(
+                root,
+                "同名角色 [career_12]",
+                "同名使魔 [Partner_10012]");
+            AddLayoutPackage(
+                root,
+                "同名角色 [career_13]",
+                "同名使魔 [Partner_10013]",
+                "玩家自定义发布名");
 
             var discovery = AuraToolsBundledFoundationModelLayout.Discover(
                 root,
@@ -179,6 +186,7 @@ internal static partial class AuraToolsTestSuite
                 !AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
                     career12,
                     "career_13",
+                    "Partner_10012",
                     new string('A', 64),
                     out _),
                 "bundled layout rejects role id suffix mismatch");
@@ -186,9 +194,23 @@ internal static partial class AuraToolsTestSuite
                 !AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
                     career12,
                     "career_12",
+                    "Partner_10013",
                     new string('C', 64),
                     out _),
-                "bundled layout rejects package sha12 suffix mismatch");
+                "bundled layout rejects partner id suffix mismatch");
+            var career13 = discovery.Sources.Single(source =>
+                source.RoleDirectoryName.EndsWith(
+                    "[career_13]",
+                    StringComparison.Ordinal));
+            Assert(
+                AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
+                    career13,
+                    "career_13",
+                    "Partner_10013",
+                    new string('C', 64),
+                    out _)
+                && career13.ReleaseDirectoryName == "玩家自定义发布名",
+                "bundled layout ignores user-authored release labels for model identity");
             Assert(
                 AuraToolsBundledFoundationModelLayout.TryResolveWeightsPath(
                     career12,
@@ -206,8 +228,12 @@ internal static partial class AuraToolsTestSuite
                     root,
                     AuraToolsBundledFoundationModelLayout.LegacyV4ManifestFileName),
                 "{}");
-            AddLayoutPackage(root, "角色甲 [career_1]", "v5 [aaaaaaaaaaaa]");
-            AddLayoutPackage(root, "角色乙 [career_2]", "v5 [bbbbbbbbbbbb]");
+            AddLayoutPackage(root, "角色甲 [career_1]", "使魔甲 [partner_1]");
+            AddLayoutPackage(
+                root,
+                "角色乙 [career_2]",
+                "使魔乙 [partner_2]",
+                "第二版");
 
             var discovery = AuraToolsBundledFoundationModelLayout.Discover(
                 root,
@@ -223,7 +249,7 @@ internal static partial class AuraToolsTestSuite
             AddLayoutPackage(
                 root,
                 "伪装\u202e角色 [career_1]",
-                "v5 [aaaaaaaaaaaa]");
+                "使魔 [partner_1]");
             var discovery = AuraToolsBundledFoundationModelLayout.Discover(
                 root,
                 CancellationToken.None);
@@ -232,6 +258,7 @@ internal static partial class AuraToolsTestSuite
                 && !AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
                     discovery.Sources[0],
                     "career_1",
+                    "partner_1",
                     new string('A', 64),
                     out _),
                 "bundled layout rejects bidi role directory");
@@ -242,12 +269,13 @@ internal static partial class AuraToolsTestSuite
             var release = Path.Combine(
                 root,
                 "角色 [career_1]",
-                "v5 [aaaaaaaaaaaa]");
-            var thirdLevel = Path.Combine(release, "unexpected");
-            Directory.CreateDirectory(thirdLevel);
+                "使魔 [partner_1]",
+                "玩家发布");
+            var fourthLevel = Path.Combine(release, "unexpected");
+            Directory.CreateDirectory(fourthLevel);
             File.WriteAllText(
                 Path.Combine(
-                    thirdLevel,
+                    fourthLevel,
                     AuraToolsBundledFoundationModelLayout.ManifestFileName),
                 "{}");
             var discovery = AuraToolsBundledFoundationModelLayout.Discover(
@@ -255,7 +283,28 @@ internal static partial class AuraToolsTestSuite
                 CancellationToken.None);
             Assert(
                 discovery.Sources.Count == 0 && discovery.Rejected > 0,
-                "bundled layout rejects an extra third directory level");
+                "bundled layout rejects an extra fourth directory level");
+        });
+
+        WithModelLayoutRoot(root =>
+        {
+            AddLayoutPackage(
+                root,
+                "旧角色 [career_1]",
+                "旧发布 [aaaaaaaaaaaa]");
+            var discovery = AuraToolsBundledFoundationModelLayout.Discover(
+                root,
+                CancellationToken.None);
+            var source = discovery.Sources.Single();
+            Assert(
+                AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
+                    source,
+                    "career_1",
+                    "Partner_10001",
+                    new string('A', 64),
+                    out _)
+                && source.LegacyHashReleasePackage,
+                "bundled layout reads the previous hash-suffixed release layout as migration input");
         });
     }
 
@@ -308,9 +357,16 @@ internal static partial class AuraToolsTestSuite
     private static void AddLayoutPackage(
         string root,
         string roleDirectory,
-        string releaseDirectory)
+        string partnerDirectory,
+        string releaseDirectory = "")
     {
-        var directory = Path.Combine(root, roleDirectory, releaseDirectory);
+        var directory = string.IsNullOrWhiteSpace(releaseDirectory)
+            ? Path.Combine(root, roleDirectory, partnerDirectory)
+            : Path.Combine(
+                root,
+                roleDirectory,
+                partnerDirectory,
+                releaseDirectory);
         Directory.CreateDirectory(directory);
         File.WriteAllText(
             Path.Combine(
@@ -356,6 +412,7 @@ internal static partial class AuraToolsTestSuite
             File.WriteAllBytes(bundlePath, originalBundle);
 
             using var transaction = new BundledFoundationFileTransaction(
+                new TestBundledFoundationFileStorage(),
                 target =>
                 {
                     if (string.Equals(
@@ -400,7 +457,9 @@ internal static partial class AuraToolsTestSuite
             File.WriteAllBytes(weightsPath, originalWeights);
             File.WriteAllBytes(bundlePath, originalBundle);
 
-            using var transaction = new BundledFoundationFileTransaction();
+            using var transaction =
+                new BundledFoundationFileTransaction(
+                    new TestBundledFoundationFileStorage());
             transaction.Publish(
                 weightsPath,
                 staged => File.WriteAllBytes(staged, new byte[] { 20, 21 }));
@@ -453,6 +512,35 @@ internal static partial class AuraToolsTestSuite
             if (Directory.Exists(root))
             {
                 Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class TestBundledFoundationFileStorage
+        : IBundledFoundationFileStorage
+    {
+        public void Move(string sourcePath, string destinationPath)
+        {
+            File.Move(sourcePath, destinationPath);
+        }
+
+        public void Replace(
+            string sourcePath,
+            string destinationPath,
+            string backupPath = "")
+        {
+            File.Replace(
+                sourcePath,
+                destinationPath,
+                string.IsNullOrWhiteSpace(backupPath) ? null : backupPath,
+                ignoreMetadataErrors: true);
+        }
+
+        public void Delete(string path)
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
             }
         }
     }

@@ -12,6 +12,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
+using AuraFoundationTrainer.Worker;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using Microsoft.Win32;
 using Newtonsoft.Json;
@@ -246,23 +247,34 @@ internal sealed class MainWindow : Window
         AddToggle(
             panel,
             "EnableIterationProcessIsolation",
-            "每轮使用独立训练进程");
+            "按批次使用隔离训练进程");
+        AddNumber(
+            panel,
+            "IterationsPerIsolatedProcess",
+            "每个隔离进程训练轮数",
+            1,
+            6);
         AddNumber(panel, "TrainingCampaignsPerIteration", "每轮训练冒险", 2, 1000);
         AddNumber(panel, "PreflightCampaignsPerDifficulty", "预检冒险/难度", 1, 100);
         AddNumber(panel, "ArenaCampaignsPerDifficulty", "竞技场/难度", 1, 100);
+        AddNumber(panel, "ArenaEvaluationInterval", "竞技场检查间隔轮数", 1, 12);
         AddNumber(
             panel,
             "ArenaConfirmationCampaignsPerDifficulty",
             "确认竞技场/难度",
             0,
             200);
+        AddToggle(
+            panel,
+            "ArenaConfirmationFinalIterationOnly",
+            "仅末轮运行正式竞技场确认");
         AddNumber(panel, "NormalValidationCampaigns", "普通隔离验证", 10, 1000);
         AddNumber(panel, "AdvancedValidationCampaigns", "高级隔离验证", 10, 1000);
         AddNumber(panel, "ValidationEarlyStopBatchSize", "验证检查批次", 1, 128);
         AddNumber(
             panel,
             "CapabilityProbeCampaignsPerDifficulty",
-            "能力探针/难度",
+            "初始能力探针/难度（证据不足自动扩容）",
             0,
             128);
         AddNumber(
@@ -285,7 +297,7 @@ internal sealed class MainWindow : Window
         AddDouble(
             panel,
             "CapabilityProbeMinimumDepthGain",
-            "能力探针深度诊断阈值（不用于晋级）");
+            "能力探针最少生存深度增益");
         panel.Children.Add(Section("模型训练"));
         AddNumber(panel, "ModelEpochs", "最大 Epoch", 5, 200);
         AddNumber(panel, "ModelMinimumEpochs", "最小 Epoch", 1, 200);
@@ -402,6 +414,18 @@ internal sealed class MainWindow : Window
             "CPU 教师刷新间隔",
             1,
             8);
+        AddNumber(
+            panel,
+            "TransformerTeacherAcceleratorRefreshInterval",
+            "GPU 教师刷新间隔",
+            1,
+            8);
+        AddNumber(
+            panel,
+            "TransformerTeacherMinimumFreshFramesForRefresh",
+            "刷新所需新 Frames",
+            64,
+            100000);
         AddNumber(panel, "TransformerTeacherCpuEpochs", "CPU 冷启动 Epoch", 1, 100);
         AddNumber(
             panel,
@@ -450,6 +474,12 @@ internal sealed class MainWindow : Window
             "教师单轮增量训练上限",
             64,
             100000);
+        AddNumber(
+            panel,
+            "TransformerTeacherMaximumObjectTokens",
+            "每帧对象 Token 软上限（关键对象保留）",
+            16,
+            192);
         AddNumber(panel, "TransformerTeacherCpuThreads", "教师 CPU 线程（0 自动）", 0, 64);
         AddNumber(
             panel,
@@ -509,7 +539,7 @@ internal sealed class MainWindow : Window
             panel,
             "TransformerTeacherEnableDeterministicTraining",
             "启用可复现的确定性训练");
-        AddDouble(panel, "TransformerDistillationWeight", "教师蒸馏权重");
+        AddDouble(panel, "TransformerDistillationWeight", "固定教师蒸馏权重");
 
         panel.Children.Add(Section("课程、探索与验收"));
         AddToggle(panel, "EnableCurriculum", "启用课程难度");
@@ -617,6 +647,8 @@ internal sealed class MainWindow : Window
             },
             SelectedIndex = 0
         };
+        checkpointResumeModeInput.SelectionChanged += (_, _) =>
+            UpdateCheckpointDetails();
         checkpointModeRow.Children.Add(checkpointResumeModeInput);
         selectedCheckpointButton = ActionButton(
             "从所选检查点继续",
@@ -860,6 +892,10 @@ internal sealed class MainWindow : Window
             + " · 泛化差 " + item.GeneralizationGap.ToString("+0.0000;-0.0000;0.0000")
             + " · 固定锚点 " + anchor
             + " · " + CheckpointRiskLabel(item.Risk)
+            + " · 结构能力 "
+            + (item.SupportsExact ? "可精确续训" : "不可精确续训")
+            + "/"
+            + (item.SupportsModelBranch ? "可模型分支" : "不可模型分支")
             + " · " + (item.QualityGatesPassed ? "质量门禁通过" : "质量门禁未完整通过");
     }
 
@@ -891,6 +927,24 @@ internal sealed class MainWindow : Window
                            checkpointResumeModeInput.SelectedValue,
                            CultureInfo.InvariantCulture)
                        ?? CombatFoundationCheckpointResumeModes.Exact;
+            if (string.Equals(
+                    mode,
+                    CombatFoundationCheckpointResumeModes.Exact,
+                    StringComparison.Ordinal)
+                && !choice.Entry.SupportsExact)
+            {
+                throw new InvalidOperationException(
+                    "所选检查点不包含优化器与 epoch 状态，不能精确续训");
+            }
+            if (string.Equals(
+                    mode,
+                    CombatFoundationCheckpointResumeModes.ModelBranch,
+                    StringComparison.Ordinal)
+                && !choice.Entry.SupportsModelBranch)
+            {
+                throw new InvalidOperationException(
+                    "所选检查点不包含可用于模型分支的模型权重");
+            }
             StartWorker(
                 initialChampion: null,
                 continueGeneration: false,
@@ -1132,15 +1186,34 @@ internal sealed class MainWindow : Window
                                         result.CompletionKind,
                                         "training-rejected-resumable",
                                         StringComparison.Ordinal);
-            var champion = accepted
-                ? result?.Training?.Champion
-                : result?.Training?.WorkingChampion
-                  ?? result?.Training?.Champion;
-            if (champion == null || (!accepted && !rejectedResumable))
+            var training = result?.Training;
+            var latestTrainingModel = training?.LatestTrainingModel
+                                      ?? training?.WorkingChampion
+                                      ?? training?.Champion;
+            var validatedModel = training?.AbsoluteQualifiedBestModel
+                                 ?? training?.WorkingChampion
+                                 ?? training?.Champion;
+            if (latestTrainingModel == null
+                || validatedModel == null
+                || (!accepted && !rejectedResumable))
             {
                 throw new InvalidOperationException(
-                    "只有已通过验收的上一轮 Champion 才能作为新一轮起点");
+                    "上一轮没有可继续训练的最新模型或已验证模型");
             }
+            var continuationResume = new CombatCampaignFoundationResumeState
+            {
+                Stage = "setup",
+                NextIteration = 0,
+                Champion = validatedModel,
+                WorkingChampion = training?.WorkingChampion ?? validatedModel,
+                LatestTrainingModel = latestTrainingModel,
+                BestPendingArenaCandidate =
+                    training?.BestPendingArenaCandidate,
+                AbsoluteQualifiedBestModel =
+                    training?.AbsoluteQualifiedBestModel,
+                AbsoluteQualifiedBestEvidence =
+                    training?.AbsoluteQualifiedBestEvidence
+            };
             var priorJobPath = Path.Combine(
                 settings.LastRunDirectory,
                 "foundation-worker-job.json");
@@ -1162,12 +1235,13 @@ internal sealed class MainWindow : Window
                     "当前游戏主体与上一轮 Champion 不一致；请开始新的训练任务");
             }
             StartWorker(
-                champion,
+                latestTrainingModel,
                 continueGeneration: true,
                 resumeFromCheckpoint: false,
                 requireCompatibleResume: false,
                 resetCheckpointOnFreshStart: true,
-                requestedStartMode: "champion-seed");
+                requestedStartMode: "champion-seed",
+                seedResume: continuationResume);
         }
         catch (Exception ex)
         {
@@ -1185,7 +1259,8 @@ internal sealed class MainWindow : Window
         bool resetCheckpointOnFreshStart,
         string requestedStartMode,
         string resumeCheckpointPath = "",
-        string resumeMode = CombatFoundationCheckpointResumeModes.Exact)
+        string resumeMode = CombatFoundationCheckpointResumeModes.Exact,
+        CombatCampaignFoundationResumeState? seedResume = null)
     {
         if (IsWorkerRunning())
         {
@@ -1244,6 +1319,25 @@ internal sealed class MainWindow : Window
 
         ApplyIndependentTrainerExecutionContract(settings.Parameters);
         var parameters = settings.Parameters.Normalized();
+        CombatFoundationWorkerCheckpoint? selectedCheckpoint = null;
+        if (resumeFromCheckpoint
+            && string.Equals(
+                CombatFoundationCheckpointResumeModes.Normalize(resumeMode),
+                CombatFoundationCheckpointResumeModes.Exact,
+                StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(resumeCheckpointPath))
+        {
+            selectedCheckpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    resumeCheckpointPath))
+                ?? throw new InvalidOperationException("无法读取所选检查点");
+            if (selectedCheckpoint.Resume?.RunSeed > 0UL)
+            {
+                // Exact continuation owns its random sequence. Do this before
+                // the job factory derives the Transformer teacher seed.
+                parameters.RunSeed = selectedCheckpoint.Resume.RunSeed;
+            }
+        }
         if (parameters.RunSeed == 0UL || continueGeneration)
         {
             parameters.RunSeed = GenerateRunSeed();
@@ -1304,6 +1398,29 @@ internal sealed class MainWindow : Window
         job.ResumeCheckpointPath = resumeCheckpointPath;
         job.ResumeMode = CombatFoundationCheckpointResumeModes.Normalize(
             resumeMode);
+        if (selectedCheckpoint != null
+            && !CombatFoundationRequestIdentity.Matches(
+                job,
+                selectedCheckpoint,
+                rulesetBuild.Ruleset.RulesetHash,
+                out var checkpointIdentityDiagnostic))
+        {
+            throw new InvalidOperationException(
+                "所选检查点与当前训练配置不兼容："
+                + checkpointIdentityDiagnostic);
+        }
+        if (seedResume != null)
+        {
+            seedResume.SchemaVersion = CombatFoundationWorkerProtocol.SchemaVersion;
+            seedResume.RunSeed = job.Request.RunSeed;
+            seedResume.TrainingSeedStart = job.Request.TrainingSeedStart;
+            seedResume.ArenaSeedStart = job.Request.ArenaSeedStart;
+            seedResume.TuningSeedStart = job.Request.TuningSeedStart;
+            seedResume.ValidationSeedStart = job.Request.ValidationSeedStart;
+            seedResume.ModelRandomSeed = job.Request.Training.RandomSeed;
+            job.Request.Resume = seedResume;
+            job.Request.ReleaseResumeReplayAfterTransfer = true;
+        }
         var jobPath = Path.Combine(resultDirectory, "foundation-worker-job.json");
         WriteAtomic(jobPath, Serialize(job));
         TryDelete(job.CancellationPath);
@@ -1474,20 +1591,25 @@ internal sealed class MainWindow : Window
             ? telemetry.RunTotalIterations
             : Math.Max(1, telemetry.TotalIterations);
         var globalIterationText = telemetry.RunStartIteration > 1
+                                  && telemetry.Iteration > 0
             ? "（模型全局第 "
               + telemetry.Iteration
               + "/"
               + telemetry.TotalIterations
               + " 轮）"
             : "";
+        var iterationText = runIteration > 0
+            ? "本次第 "
+              + runIteration
+              + "/"
+              + runIterations
+              + " 轮"
+              + globalIterationText
+            : "训练前准备（计划 " + runIterations + " 轮）";
         runStatus.Text = (running ? "运行中 · " : "")
                          + FriendlyStage(telemetry.Stage)
-                         + " · 本次第 "
-                         + runIteration
-                         + "/"
-                         + runIterations
-                         + " 轮"
-                         + globalIterationText;
+                         + " · "
+                         + iterationText;
         runStatus.Foreground =
             running ? TrainerTheme.Accent : TrainerTheme.Text;
         var transformerTeacherPhase = string.Equals(
@@ -1502,6 +1624,14 @@ internal sealed class MainWindow : Window
         var completed = telemetry.RunRequestedCampaigns > 0
             ? telemetry.RunCompletedCampaigns
             : telemetry.CompletedCampaigns;
+        var phaseCampaignProgress =
+            telemetry.CurrentPhaseRequestedCampaigns > 0;
+        var displayedCompleted = phaseCampaignProgress
+            ? telemetry.CurrentPhaseCompletedCampaigns
+            : completed;
+        var displayedTotal = phaseCampaignProgress
+            ? telemetry.CurrentPhaseRequestedCampaigns
+            : total;
         progressBar.Value = Math.Max(
             0,
             Math.Min(
@@ -1510,7 +1640,8 @@ internal sealed class MainWindow : Window
                 && telemetry.TransformerTeacherTotalFrames > 0
                     ? telemetry.TransformerTeacherCompletedFrames * 100d
                       / telemetry.TransformerTeacherTotalFrames
-                    : completed * 100d / total));
+                    : displayedCompleted * 100d
+                      / Math.Max(1, displayedTotal)));
         progressPrimary.Text = transformerTeacherPhase
             ? "教师阶段 "
               + FriendlyTeacherStage(telemetry.TransformerTeacherStage)
@@ -1520,11 +1651,22 @@ internal sealed class MainWindow : Window
               + telemetry.TransformerTeacherTotalFrames
               + " · "
               + telemetry.TransformerTeacherMessage
-            : $"本次冒险 {completed}/{total} · "
-              + $"累计 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns} · "
-              + $"本次战斗 {telemetry.RunCompletedBattles}"
-              + $"/累计 {telemetry.CompletedBattles} · 深度 "
-              + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
+            : phaseCampaignProgress
+                ? $"阶段冒险 {telemetry.CurrentPhaseCompletedCampaigns}/"
+                  + $"{telemetry.CurrentPhaseRequestedCampaigns} · "
+                  + $"正式冒险 {completed}/{total} · "
+                  + $"阶段战斗 {telemetry.CurrentPhaseCompletedBattles}"
+                  + $"/全阶段累计 {telemetry.RunCompletedBattles} · 深度 "
+                  + $"{telemetry.MaximumActiveBattleDepth}/"
+                  + $"{telemetry.MaximumCompletedBattleDepth}/37"
+                : $"正式冒险 {completed}/{total} · "
+                  + $"累计 {telemetry.CompletedCampaigns}/"
+                  + $"{telemetry.RequestedCampaigns} · "
+                  + $"全阶段实测冒险 {telemetry.RunExecutedCampaigns} · "
+                  + $"全阶段战斗 {telemetry.RunCompletedBattles}"
+                  + $"/累计 {telemetry.CompletedBattles} · 深度 "
+                  + $"{telemetry.MaximumActiveBattleDepth}/"
+                  + $"{telemetry.MaximumCompletedBattleDepth}/37";
         var executionSummary =
             $"{telemetry.GovernanceProfile} · "
             + $"冒险 CPU {telemetry.EffectiveParallelism}"
@@ -1561,9 +1703,19 @@ internal sealed class MainWindow : Window
               + $"最佳 {FormatLoss(telemetry.ModelBestValidationLoss)} · "
               + $"并行 {telemetry.ActiveCampaigns}/{telemetry.EffectiveParallelism} · "
               + $"{telemetry.CurrentPhaseCampaignsPerSecond:0.00} 冒险/秒 · "
-              + $"ETA {FormatDuration(telemetry.EstimatedRemainingSeconds)}";
+              + (phaseCampaignProgress ? "阶段 ETA " : "ETA ")
+              + FormatDuration(
+                  phaseCampaignProgress
+                      ? telemetry.PhaseEstimatedRemainingSeconds
+                      : telemetry.EstimatedRemainingSeconds);
         logBox.Text =
             $"阶段：{telemetry.Stage} / {telemetry.Phase}\r\n"
+            + $"计数：正式={telemetry.RunCompletedCampaigns}/"
+            + $"{telemetry.RunRequestedCampaigns}，"
+            + $"全阶段实测={telemetry.RunExecutedCampaigns}，"
+            + $"当前阶段={telemetry.CurrentPhaseCompletedCampaigns}/"
+            + $"{telemetry.CurrentPhaseRequestedCampaigns}，"
+            + $"阶段战斗={telemetry.CurrentPhaseCompletedBattles}\r\n"
             + $"搜索：本次 {telemetry.RunSearchSimulations:N0} / "
             + $"累计 {telemetry.SearchSimulations:N0} 次，"
             + $"{telemetry.CurrentPhaseSearchSimulationsPerSecond:N0}/秒，"
@@ -1867,6 +2019,47 @@ internal sealed class MainWindow : Window
                   + teacher.HiddenDimensions
                   + " / "
                   + FormatParameters(teacher.ParameterCount)
+                  + Environment.NewLine
+                  + "教师分轨 · Policy "
+                  + (teacher.PolicyTeacherApplied ? "已应用" : "未应用")
+                  + "（稳定代次 "
+                  + teacher.StablePolicyTeacherGeneration
+                  + "） · World "
+                  + (teacher.WorldTeacherApplied ? "已应用" : "已保留")
+                  + "（稳定代次 "
+                  + teacher.StableWorldTeacherGeneration
+                  + "） · 本轮标注代次 "
+                  + teacher.AnnotationTeacherGeneration
+                  + Environment.NewLine
+                  + "教师语料 · 活跃 "
+                  + teacher.FrameCount
+                  + " · Backlog "
+                  + teacher.CorpusBacklogFrames
+                  + " · 本轮 "
+                  + teacher.CurrentFrameCount
+                  + " · 复用 "
+                  + teacher.ReusedCorpusFrames
+                  + " · 去重 "
+                  + teacher.DeduplicatedCorpusFrames
+                  + " · 丢弃 "
+                  + teacher.DroppedCorpusFrames
+                  + Environment.NewLine
+                  + "教师数据质检 · Object "
+                  + teacher.ObjectTokenFrames
+                  + "/"
+                  + teacher.LoadedDatasetFrames
+                  + " · Transition invalid "
+                  + teacher.InvalidTransitionFrames
+                  + " · Terminal "
+                  + teacher.TerminalKnownFrames
+                  + "/"
+                  + teacher.LoadedDatasetFrames
+                  + " · Strategy applicable/positive/negative "
+                  + (teacher.StrategyApplicableCounts?.Values.Sum() ?? 0)
+                  + "/"
+                  + (teacher.StrategyLabelCounts?.Values.Sum() ?? 0)
+                  + "/"
+                  + (teacher.StrategyNegativeCounts?.Values.Sum() ?? 0)
                   + Environment.NewLine
                   + "教师运行计划 · CPU "
                   + teacher.EffectiveCpuThreads
@@ -2204,14 +2397,19 @@ internal sealed class MainWindow : Window
         p.Iterations = Int("Iterations");
         p.EnableIterationProcessIsolation =
             Toggle("EnableIterationProcessIsolation");
+        p.IterationsPerIsolatedProcess =
+            Int("IterationsPerIsolatedProcess");
         p.AdditionalIterationsOnResume =
             Int("AdditionalIterationsOnResume");
         p.TrainingCampaignsPerIteration = Int("TrainingCampaignsPerIteration");
         p.PreflightCampaignsPerDifficulty =
             Int("PreflightCampaignsPerDifficulty");
         p.ArenaCampaignsPerDifficulty = Int("ArenaCampaignsPerDifficulty");
+        p.ArenaEvaluationInterval = Int("ArenaEvaluationInterval");
         p.ArenaConfirmationCampaignsPerDifficulty =
             Int("ArenaConfirmationCampaignsPerDifficulty");
+        p.ArenaConfirmationFinalIterationOnly =
+            Toggle("ArenaConfirmationFinalIterationOnly");
         p.NormalValidationCampaigns = Int("NormalValidationCampaigns");
         p.AdvancedValidationCampaigns = Int("AdvancedValidationCampaigns");
         p.ValidationEarlyStopBatchSize = Int("ValidationEarlyStopBatchSize");
@@ -2327,6 +2525,10 @@ internal sealed class MainWindow : Window
             Toggle("TransformerTeacherEnableWarmStart");
         p.TransformerTeacherCpuRefreshInterval =
             Int("TransformerTeacherCpuRefreshInterval");
+        p.TransformerTeacherAcceleratorRefreshInterval =
+            Int("TransformerTeacherAcceleratorRefreshInterval");
+        p.TransformerTeacherMinimumFreshFramesForRefresh =
+            Int("TransformerTeacherMinimumFreshFramesForRefresh");
         p.TransformerTeacherCpuEpochs =
             Int("TransformerTeacherCpuEpochs");
         p.TransformerTeacherCpuIncrementalEpochs =
@@ -2349,6 +2551,8 @@ internal sealed class MainWindow : Window
             Int("TransformerTeacherIncrementalReplayFrames");
         p.TransformerTeacherMaximumIncrementalTrainingFrames =
             Int("TransformerTeacherMaximumIncrementalTrainingFrames");
+        p.TransformerTeacherMaximumObjectTokens =
+            Int("TransformerTeacherMaximumObjectTokens");
         p.TransformerTeacherCpuThreads =
             Int("TransformerTeacherCpuThreads");
         p.TransformerTeacherCpuInteropThreads =
@@ -2447,6 +2651,9 @@ internal sealed class MainWindow : Window
             "EnableIterationProcessIsolation",
             p.EnableIterationProcessIsolation);
         Set(
+            "IterationsPerIsolatedProcess",
+            p.IterationsPerIsolatedProcess);
+        Set(
             "AdditionalIterationsOnResume",
             p.AdditionalIterationsOnResume);
         Set("TrainingCampaignsPerIteration", p.TrainingCampaignsPerIteration);
@@ -2454,9 +2661,13 @@ internal sealed class MainWindow : Window
             "PreflightCampaignsPerDifficulty",
             p.PreflightCampaignsPerDifficulty);
         Set("ArenaCampaignsPerDifficulty", p.ArenaCampaignsPerDifficulty);
+        Set("ArenaEvaluationInterval", p.ArenaEvaluationInterval);
         Set(
             "ArenaConfirmationCampaignsPerDifficulty",
             p.ArenaConfirmationCampaignsPerDifficulty);
+        SetToggle(
+            "ArenaConfirmationFinalIterationOnly",
+            p.ArenaConfirmationFinalIterationOnly);
         Set("NormalValidationCampaigns", p.NormalValidationCampaigns);
         Set("AdvancedValidationCampaigns", p.AdvancedValidationCampaigns);
         Set("ValidationEarlyStopBatchSize", p.ValidationEarlyStopBatchSize);
@@ -2581,6 +2792,12 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherCpuRefreshInterval",
             p.TransformerTeacherCpuRefreshInterval);
+        Set(
+            "TransformerTeacherAcceleratorRefreshInterval",
+            p.TransformerTeacherAcceleratorRefreshInterval);
+        Set(
+            "TransformerTeacherMinimumFreshFramesForRefresh",
+            p.TransformerTeacherMinimumFreshFramesForRefresh);
         Set("TransformerTeacherCpuEpochs", p.TransformerTeacherCpuEpochs);
         Set(
             "TransformerTeacherCpuIncrementalEpochs",
@@ -2612,6 +2829,9 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherMaximumIncrementalTrainingFrames",
             p.TransformerTeacherMaximumIncrementalTrainingFrames);
+        Set(
+            "TransformerTeacherMaximumObjectTokens",
+            p.TransformerTeacherMaximumObjectTokens);
         Set(
             "TransformerTeacherCpuThreads",
             p.TransformerTeacherCpuThreads);
@@ -3512,7 +3732,12 @@ internal sealed class MainWindow : Window
     private static T? DeserializeFileStreaming<T>(string path)
     {
         using var reader = CreateJsonReader(path);
-        return JsonSerializer.CreateDefault().Deserialize<T>(reader);
+        return JsonSerializer.Create(
+                new JsonSerializerSettings
+                {
+                    ObjectCreationHandling = ObjectCreationHandling.Replace
+                })
+            .Deserialize<T>(reader);
     }
 
     private static JsonTextReader CreateJsonReader(string path)
@@ -3805,13 +4030,40 @@ internal sealed class MainWindow : Window
 
     private static string FriendlyStage(string value)
     {
-        if ((value ?? "").StartsWith(
+        var normalized = (value ?? "").Trim();
+        if (normalized.StartsWith(
                 "transformer-teacher",
                 StringComparison.Ordinal))
         {
             return "Transformer 教师";
         }
-        return value switch
+        if (normalized.StartsWith(
+                "auto-tune",
+                StringComparison.Ordinal))
+        {
+            return normalized.EndsWith(
+                ":advanced",
+                StringComparison.Ordinal)
+                ? "并行自动调优（高级）"
+                : normalized.EndsWith(
+                    ":normal",
+                    StringComparison.Ordinal)
+                    ? "并行自动调优（普通）"
+                    : "并行自动调优";
+        }
+        if (normalized.StartsWith(
+                "preflight",
+                StringComparison.Ordinal))
+        {
+            return "权威快检";
+        }
+        if (normalized.StartsWith(
+                "capability-probe",
+                StringComparison.Ordinal))
+        {
+            return "能力上限诊断";
+        }
+        return normalized switch
         {
             "preflight" => "权威快检",
             "training" => "课程自博弈",
@@ -3819,7 +4071,9 @@ internal sealed class MainWindow : Window
             "transformer-teacher" => "Transformer 教师",
             "arena" => "竞技场",
             "validation" => "隔离验证",
-            _ => string.IsNullOrWhiteSpace(value) ? "准备中" : value
+            _ => string.IsNullOrWhiteSpace(normalized)
+                ? "准备中"
+                : normalized
         };
     }
 
@@ -4290,7 +4544,12 @@ internal sealed class MainWindow : Window
 
     private static T? Deserialize<T>(string json)
     {
-        return JsonConvert.DeserializeObject<T>(json);
+        return JsonConvert.DeserializeObject<T>(
+            json,
+            new JsonSerializerSettings
+            {
+                ObjectCreationHandling = ObjectCreationHandling.Replace
+            });
     }
 
     private static string Serialize(object value)

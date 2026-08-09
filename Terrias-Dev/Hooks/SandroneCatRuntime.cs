@@ -56,7 +56,7 @@ public static class SandroneCatRuntime
                 status.AddBuff(TerriasIds.SandroneCatTrait, 1);
             }
         });
-        RunStep("combat-start max HP", () => SandroneCatMaxHpService.ApplyBattleStart(status));
+        RunStep("combat registration", () => SandroneCatMaxHpService.ApplyBattleStart(status));
     }
 
     private static void OnFightEnding(ModHookContext context)

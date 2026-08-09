@@ -1132,6 +1132,7 @@ public static class CombatArchetypePolicy
         value.Risk = 0d;
         value.Uncertainty = 0d;
         value.OpensInteraction = false;
+        value.Interaction = null;
         value.RandomOutcome = false;
         value.EndsTurn = false;
         value.DamageToBlockSetup = false;

@@ -1676,6 +1676,8 @@ public static class AuraToolsSettingsRuntime
                             1,
                             group.First().CooldownTurns),
                         StringComparer.OrdinalIgnoreCase);
+                AuraToolsAutoBattleGameParameterRuntime
+                    .ResolvePresetReferences(autoBattle);
                 autoBattle.Normalize();
                 AuraToolsConfigService.SaveMatchExperience();
             },
@@ -2732,7 +2734,7 @@ public static class AuraToolsSettingsRuntime
             1f);
         AuraToolsUi.AddText(
             parent,
-            "按 Model/角色名 [RoleId]/模型发布/ 批量注册到 ModsData；注册后不会自动选择或启用。",
+            "按 Model/角色名 [RoleId]/使魔名 [PartnerId]/[可选的用户发布名]/ 放入固定模型文件；哈希、卡包和版本由程序识别，注册后不会自动选择或启用。",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,

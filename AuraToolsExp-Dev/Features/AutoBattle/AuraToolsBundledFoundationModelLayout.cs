@@ -17,9 +17,13 @@ internal sealed class BundledFoundationModelLayoutSource
 
     public string RoleDirectoryName { get; set; } = "";
 
+    public string PartnerDirectoryName { get; set; } = "";
+
     public string ReleaseDirectoryName { get; set; } = "";
 
     public bool LegacyRootPackage { get; set; }
+
+    public bool LegacyHashReleasePackage { get; set; }
 }
 
 internal sealed class BundledFoundationModelLayoutDiscovery
@@ -32,9 +36,10 @@ internal sealed class BundledFoundationModelLayoutDiscovery
 }
 
 /// <summary>
-/// Pure filesystem/layout contract for bundled foundation models. Display-name
-/// portions of directories are deliberately ignored; only bracketed machine
-/// suffixes are validated against package metadata by <see cref="TryValidateIdentity"/>.
+/// Pure filesystem/layout contract for published foundation models. Role and
+/// familiar directories carry stable ids; an optional release directory is a
+/// user-authored label and never carries artifact identity. The previous
+/// role/release-[PackageSha12] layout remains readable as a migration input.
 /// </summary>
 internal static class AuraToolsBundledFoundationModelLayout
 {
@@ -133,7 +138,7 @@ internal static class AuraToolsBundledFoundationModelLayout
                 legacyLayoutValid = false;
                 Reject(
                     result,
-                    relative + "：Model 根目录只允许旧版单包的固定文件名，或两层角色目录");
+                    relative + "：Model 根目录只允许旧版单包的固定文件名，或角色目录");
             }
         }
 
@@ -148,6 +153,7 @@ internal static class AuraToolsBundledFoundationModelLayout
                 legacyManifests[0],
                 true,
                 "",
+                "",
                 ""));
         }
         else if (rootEntries.Any(entry =>
@@ -161,8 +167,8 @@ internal static class AuraToolsBundledFoundationModelLayout
         }
 
         foreach (var roleDirectory in roleDirectories
-                     .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-                     .ThenBy(Path.GetFileName, StringComparer.Ordinal))
+                      .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                      .ThenBy(Path.GetFileName, StringComparer.Ordinal))
         {
             cancellation.ThrowIfCancellationRequested();
             if (!TryEnumerateEntries(
@@ -177,7 +183,7 @@ internal static class AuraToolsBundledFoundationModelLayout
                 return result;
             }
 
-            var releaseDirectories = new List<string>();
+            var partnerDirectories = new List<string>();
             foreach (var entry in roleEntries)
             {
                 if (!TryReadEntry(
@@ -191,41 +197,42 @@ internal static class AuraToolsBundledFoundationModelLayout
                 }
                 if (isDirectory)
                 {
-                    releaseDirectories.Add(entry);
+                    partnerDirectories.Add(entry);
                 }
                 else
                 {
-                    Reject(result, relative + "：角色目录下只允许发布目录");
+                    Reject(result, relative + "：角色目录下只允许使魔目录");
                 }
             }
 
-            if (releaseDirectories.Count == 0)
+            if (partnerDirectories.Count == 0)
             {
                 TryRelativePath(root, roleDirectory, out var roleRelative);
-                Reject(result, roleRelative + "：角色目录不包含发布目录");
+                Reject(result, roleRelative + "：角色目录不包含使魔目录");
                 continue;
             }
 
-            foreach (var releaseDirectory in releaseDirectories
+            foreach (var partnerDirectory in partnerDirectories
                          .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
                          .ThenBy(Path.GetFileName, StringComparer.Ordinal))
             {
                 cancellation.ThrowIfCancellationRequested();
                 if (!TryEnumerateEntries(
                         root,
-                        releaseDirectory,
+                        partnerDirectory,
                         ref entryCount,
                         cancellation,
                         result,
-                        out var releaseEntries))
+                        out var partnerEntries))
                 {
                     result.Sources.Clear();
                     return result;
                 }
 
-                var releaseValid = true;
-                string manifestPath = "";
-                foreach (var entry in releaseEntries)
+                var partnerValid = true;
+                var releaseDirectories = new List<string>();
+                var partnerFiles = new List<string>();
+                foreach (var entry in partnerEntries)
                 {
                     if (!TryReadEntry(
                             root,
@@ -234,45 +241,115 @@ internal static class AuraToolsBundledFoundationModelLayout
                             out var relative,
                             out var isDirectory))
                     {
-                        releaseValid = false;
+                        partnerValid = false;
                         continue;
                     }
                     if (isDirectory)
                     {
-                        releaseValid = false;
-                        Reject(result, relative + "：内置底模只允许固定两层目录");
+                        releaseDirectories.Add(entry);
                         continue;
                     }
 
-                    var name = Path.GetFileName(entry);
-                    if (string.Equals(name, ManifestFileName, StringComparison.Ordinal))
-                    {
-                        manifestPath = entry;
-                    }
-                    else if (!string.Equals(name, WeightsFileName, StringComparison.Ordinal))
-                    {
-                        releaseValid = false;
-                        Reject(result, relative + "：发布目录只允许固定清单和权重文件名");
-                    }
+                    partnerFiles.Add(entry);
                 }
 
-                if (string.IsNullOrWhiteSpace(manifestPath))
-                {
-                    TryRelativePath(root, releaseDirectory, out var releaseRelative);
-                    Reject(result, releaseRelative + "：发布目录缺少 " + ManifestFileName);
-                    continue;
-                }
-                if (!releaseValid)
+                if (!partnerValid)
                 {
                     continue;
                 }
+                if (partnerFiles.Count > 0 && releaseDirectories.Count > 0)
+                {
+                    TryRelativePath(root, partnerDirectory, out var partnerRelative);
+                    Reject(
+                        result,
+                        partnerRelative + "：使魔目录不能同时包含模型文件和发布子目录");
+                    continue;
+                }
+                if (partnerFiles.Count > 0)
+                {
+                    if (TryAddPackageDirectory(
+                            root,
+                            partnerDirectory,
+                            partnerFiles,
+                            result,
+                            Path.GetFileName(roleDirectory),
+                            Path.GetFileName(partnerDirectory),
+                            ""))
+                    {
+                        continue;
+                    }
+                    continue;
+                }
+                if (releaseDirectories.Count == 0)
+                {
+                    TryRelativePath(root, partnerDirectory, out var partnerRelative);
+                    Reject(result, partnerRelative + "：使魔目录不包含模型文件或发布目录");
+                    continue;
+                }
 
-                result.Sources.Add(NewSource(
-                    root,
-                    manifestPath,
-                    false,
-                    Path.GetFileName(roleDirectory),
-                    Path.GetFileName(releaseDirectory)));
+                foreach (var releaseDirectory in releaseDirectories
+                             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                             .ThenBy(Path.GetFileName, StringComparer.Ordinal))
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (!TryValidateUserDirectoryName(
+                            Path.GetFileName(releaseDirectory),
+                            out var releaseDiagnostic))
+                    {
+                        TryRelativePath(root, releaseDirectory, out var releaseRelative);
+                        Reject(
+                            result,
+                            releaseRelative + "：发布目录名称无效：" + releaseDiagnostic);
+                        continue;
+                    }
+                    if (!TryEnumerateEntries(
+                            root,
+                            releaseDirectory,
+                            ref entryCount,
+                            cancellation,
+                            result,
+                            out var releaseEntries))
+                    {
+                        result.Sources.Clear();
+                        return result;
+                    }
+
+                    var releaseValid = true;
+                    var releaseFiles = new List<string>();
+                    foreach (var entry in releaseEntries)
+                    {
+                        if (!TryReadEntry(
+                                root,
+                                entry,
+                                result,
+                                out var relative,
+                                out var isDirectory))
+                        {
+                            releaseValid = false;
+                            continue;
+                        }
+                        if (isDirectory)
+                        {
+                            releaseValid = false;
+                            Reject(result, relative + "：发布底模最多允许角色/使魔/发布三层目录");
+                            continue;
+                        }
+
+                        releaseFiles.Add(entry);
+                    }
+                    if (!releaseValid)
+                    {
+                        continue;
+                    }
+                    TryAddPackageDirectory(
+                        root,
+                        releaseDirectory,
+                        releaseFiles,
+                        result,
+                        Path.GetFileName(roleDirectory),
+                        Path.GetFileName(partnerDirectory),
+                        Path.GetFileName(releaseDirectory));
+                }
             }
         }
 
@@ -290,7 +367,7 @@ internal static class AuraToolsBundledFoundationModelLayout
         {
             Reject(
                 result,
-                "内置底模包数量超过上限 "
+                "发布底模包数量超过上限 "
                 + MaximumPackageCount
                 + "；仅处理相对路径排序后的前 "
                 + MaximumPackageCount
@@ -299,9 +376,57 @@ internal static class AuraToolsBundledFoundationModelLayout
         return result;
     }
 
+    private static bool TryAddPackageDirectory(
+        string root,
+        string packageDirectory,
+        IReadOnlyList<string> files,
+        BundledFoundationModelLayoutDiscovery result,
+        string roleDirectoryName,
+        string partnerDirectoryName,
+        string releaseDirectoryName)
+    {
+        var valid = true;
+        var manifestPath = "";
+        foreach (var entry in files ?? Array.Empty<string>())
+        {
+            var name = Path.GetFileName(entry);
+            if (string.Equals(name, ManifestFileName, StringComparison.Ordinal))
+            {
+                manifestPath = entry;
+            }
+            else if (!string.Equals(name, WeightsFileName, StringComparison.Ordinal))
+            {
+                valid = false;
+                TryRelativePath(root, entry, out var relative);
+                Reject(result, relative + "：模型目录只允许固定清单和权重文件名");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(manifestPath))
+        {
+            TryRelativePath(root, packageDirectory, out var relative);
+            Reject(result, relative + "：模型目录缺少 " + ManifestFileName);
+            return false;
+        }
+        if (!valid)
+        {
+            return false;
+        }
+
+        result.Sources.Add(NewSource(
+            root,
+            manifestPath,
+            false,
+            roleDirectoryName,
+            partnerDirectoryName,
+            releaseDirectoryName));
+        return true;
+    }
+
     public static bool TryValidateIdentity(
         BundledFoundationModelLayoutSource source,
         string roleId,
+        string partnerId,
         string packageSha256,
         out string diagnostic)
     {
@@ -335,11 +460,39 @@ internal static class AuraToolsBundledFoundationModelLayout
             return false;
         }
         if (!TryReadBracketedSuffix(
-                source.ReleaseDirectoryName,
+                source.PartnerDirectoryName,
                 out _,
-                out var declaredSha12))
+                out var declaredPartnerId))
         {
-            diagnostic = "发布目录必须使用“可读名 [PackageSha12]”格式";
+            diagnostic = "使魔目录必须使用“可读名 [PartnerId]”格式";
+            return false;
+        }
+        var expectedPartnerId = (partnerId ?? "").Trim();
+        if (string.Equals(
+                declaredPartnerId,
+                expectedPartnerId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(source.ReleaseDirectoryName)
+                && !TryValidateUserDirectoryName(
+                    source.ReleaseDirectoryName,
+                    out diagnostic))
+            {
+                diagnostic = "发布目录名称无效：" + diagnostic;
+                return false;
+            }
+            diagnostic = "";
+            return true;
+        }
+
+        // Migration compatibility for the previous two-level
+        // <Role>/<Release [PackageSha12]> layout. New layouts never need this.
+        if (!string.IsNullOrWhiteSpace(source.ReleaseDirectoryName))
+        {
+            diagnostic = "使魔目录 PartnerId 后缀与模型包不一致："
+                         + declaredPartnerId
+                         + " != "
+                         + expectedPartnerId;
             return false;
         }
         var sha = (packageSha256 ?? "").Trim();
@@ -350,17 +503,42 @@ internal static class AuraToolsBundledFoundationModelLayout
         }
         var expectedSha12 = sha.Substring(0, 12);
         if (!string.Equals(
-                declaredSha12,
+                declaredPartnerId,
                 expectedSha12,
                 StringComparison.OrdinalIgnoreCase))
         {
-            diagnostic = "发布目录 PackageSha12 后缀与原始模型包不一致："
-                         + declaredSha12
+            diagnostic = "使魔目录 PartnerId 后缀与模型包不一致："
+                         + declaredPartnerId
                          + " != "
-                         + expectedSha12;
+                         + expectedPartnerId;
             return false;
         }
 
+        source.LegacyHashReleasePackage = true;
+        diagnostic = "";
+        return true;
+    }
+
+    public static bool TryValidateUserDirectoryName(
+        string directoryName,
+        out string diagnostic)
+    {
+        var name = directoryName ?? "";
+        if (name.Length == 0 || name.Length > MaximumDirectorySegmentLength)
+        {
+            diagnostic = "长度必须在 1 至 " + MaximumDirectorySegmentLength + " 之间";
+            return false;
+        }
+        if (!string.Equals(name, name.Trim(), StringComparison.Ordinal))
+        {
+            diagnostic = "名称首尾不能包含空白";
+            return false;
+        }
+        if (name.Any(IsUnsafeDisplayCharacter))
+        {
+            diagnostic = "名称不能包含控制字符或双向格式字符";
+            return false;
+        }
         diagnostic = "";
         return true;
     }
@@ -445,6 +623,7 @@ internal static class AuraToolsBundledFoundationModelLayout
         string manifestPath,
         bool legacy,
         string roleDirectoryName,
+        string partnerDirectoryName,
         string releaseDirectoryName)
     {
         if (!TryRelativePath(root, manifestPath, out var relative))
@@ -458,6 +637,7 @@ internal static class AuraToolsBundledFoundationModelLayout
                 Path.GetDirectoryName(manifestPath) ?? ""),
             RelativeManifestPath = relative,
             RoleDirectoryName = roleDirectoryName ?? "",
+            PartnerDirectoryName = partnerDirectoryName ?? "",
             ReleaseDirectoryName = releaseDirectoryName ?? "",
             LegacyRootPackage = legacy
         };

@@ -7,7 +7,7 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationTrainingSubject
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public string RoleId { get; set; } = "";
 
@@ -26,6 +26,19 @@ public sealed class CombatFoundationTrainingSubject
     public List<string> FamiliarBlessingIds { get; set; } = new();
 
     public List<string> RoleInitialStatusIds { get; set; } = new();
+
+    public Dictionary<string, int> RoleInitialStatuses { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public string RoleNativeScriptHash { get; set; } = "";
+
+    public string RolePassiveContractHash { get; set; } = "";
+
+    public List<string> RolePassiveTriggerIds { get; set; } = new();
+
+    public List<string> RoleInitialVariableIds { get; set; } = new();
+
+    public List<string> RoleRuntimeFormIds { get; set; } = new();
 
     public int PreferredDeckSizeMinimum { get; set; }
 
@@ -65,6 +78,8 @@ public sealed class CombatModelRuntimeContext
 
     public List<string> FamiliarBlessingIds { get; set; } = new();
 
+    public string RolePassiveContractHash { get; set; } = "";
+
     public int PreferredDeckSizeMinimum { get; set; }
 
     public int PreferredDeckSizeMaximum { get; set; }
@@ -98,6 +113,23 @@ public static class CombatFoundationModelCoverageProtocol
     {
         if (campaign == null) throw new ArgumentNullException(nameof(campaign));
         var player = campaign.Player ?? new CombatPlayerSetup();
+        var passive = player.RolePassiveContract
+                      ?? new CombatRolePassiveContract();
+        var projectedStatuses = passive.InitialStatuses?.Count > 0
+            ? new Dictionary<string, int>(
+                passive.InitialStatuses,
+                StringComparer.OrdinalIgnoreCase)
+            : (player.InitialStatuses ?? new List<CombatInitialStatus>())
+            .Where(item => item != null
+                           && !string.IsNullOrWhiteSpace(item.StatusId)
+                           && item.Stacks > 0)
+            .GroupBy(
+                item => item.StatusId.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Sum(item => item.Stacks),
+                StringComparer.OrdinalIgnoreCase);
         return Normalize(new CombatFoundationTrainingSubject
         {
             RoleId = player.RoleId,
@@ -115,10 +147,18 @@ public static class CombatFoundationModelCoverageProtocol
                 new List<string>(
                     player.FamiliarBlessingIds ?? new List<string>()),
             RoleInitialStatusIds =
-                (player.InitialStatuses ?? new List<CombatInitialStatus>())
-                .Where(item => item != null)
-                .Select(item => item.StatusId)
+                projectedStatuses.Keys.ToList(),
+            RoleInitialStatuses = projectedStatuses,
+            RoleNativeScriptHash = player.RoleNativeScriptHash,
+            RolePassiveContractHash = passive.ContractHash,
+            RolePassiveTriggerIds = new List<string>(
+                passive.TriggerIds ?? new List<string>()),
+            RoleInitialVariableIds = (passive.InitialVariables
+                                      ?? new Dictionary<string, double>())
+                .Keys
                 .ToList(),
+            RoleRuntimeFormIds = new List<string>(
+                passive.RuntimeFormIds ?? new List<string>()),
             PreferredDeckSizeMinimum = campaign.TargetDeckSizeMinimum,
             PreferredDeckSizeMaximum = campaign.TargetDeckSizeMaximum
         });
@@ -214,6 +254,14 @@ public static class CombatFoundationModelCoverageProtocol
             .Where(item => !runtimePacks.Contains(item))
             .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var passiveContractMatches = string.IsNullOrWhiteSpace(
+                                         training.RolePassiveContractHash)
+                                     || string.IsNullOrWhiteSpace(
+                                         current.RolePassiveContractHash)
+                                     || string.Equals(
+                                         training.RolePassiveContractHash,
+                                         current.RolePassiveContractHash,
+                                         StringComparison.OrdinalIgnoreCase);
         var deckCovered =
             current.PreferredDeckSizeMinimum >= training.PreferredDeckSizeMinimum
             && current.PreferredDeckSizeMaximum
@@ -248,10 +296,25 @@ public static class CombatFoundationModelCoverageProtocol
         {
             result.Warnings.Add("旧模型包没有实体级覆盖清单，按兼容模式运行");
         }
+        if (!passiveContractMatches)
+        {
+            result.Warnings.Add("当前角色被动契约与训练版本不同，按部分覆盖运行");
+        }
+        else if (string.IsNullOrWhiteSpace(training.RolePassiveContractHash)
+                 && !string.IsNullOrWhiteSpace(
+                     current.RolePassiveContractHash))
+        {
+            result.Warnings.Add("旧模型包没有角色被动契约，按兼容模式运行");
+        }
         result.Level = roleMatches
                        && partnerMatches
                        && runtimeExtra.Count == 0
                        && deckCovered
+                       && passiveContractMatches
+                       && (!string.IsNullOrWhiteSpace(
+                               training.RolePassiveContractHash)
+                           || string.IsNullOrWhiteSpace(
+                               current.RolePassiveContractHash))
             ? "full"
             : "partial";
         result.Summary = result.Level == "full"
@@ -280,6 +343,33 @@ public static class CombatFoundationModelCoverageProtocol
             NormalizeIds(subject.FamiliarBlessingIds);
         subject.RoleInitialStatusIds =
             NormalizeIds(subject.RoleInitialStatusIds);
+        subject.RoleInitialStatuses = (subject.RoleInitialStatuses
+                                       ?? new Dictionary<string, int>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value > 0)
+            .GroupBy(
+                item => item.Key.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Max(item => item.Value),
+                StringComparer.OrdinalIgnoreCase);
+        subject.RoleInitialStatusIds = NormalizeIds(
+            subject.RoleInitialStatusIds.Concat(
+                subject.RoleInitialStatuses.Keys));
+        subject.RoleNativeScriptHash =
+            (subject.RoleNativeScriptHash ?? "").Trim();
+        subject.RolePassiveContractHash =
+            (subject.RolePassiveContractHash ?? "").Trim();
+        subject.RolePassiveTriggerIds = NormalizeIds(
+            subject.RolePassiveTriggerIds);
+        subject.RoleInitialVariableIds = NormalizeIds(
+            subject.RoleInitialVariableIds);
+        subject.RoleRuntimeFormIds = NormalizeIds(subject.RoleRuntimeFormIds);
+        subject.SchemaVersion = string.IsNullOrWhiteSpace(
+            subject.RolePassiveContractHash)
+            ? Math.Max(1, subject.SchemaVersion)
+            : 2;
         subject.PreferredDeckSizeMinimum =
             Math.Max(1, subject.PreferredDeckSizeMinimum);
         subject.PreferredDeckSizeMaximum = Math.Max(

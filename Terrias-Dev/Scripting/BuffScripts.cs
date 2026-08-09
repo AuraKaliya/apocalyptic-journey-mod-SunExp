@@ -21,6 +21,7 @@ public static class BuffScripts
         ["cycle_gathered_flame"] = ApplyCycleGatheredFlame,
         ["afterglow_omen"] = ApplyAfterglowOmen,
         ["star_stone_pouch"] = ApplyStarStonePouch,
+        ["relic_star_stone_pouch"] = ApplyRelicStarStonePouch,
         ["star_score"] = ApplyStarScore,
         ["star_stage"] = ApplyStarStage,
         ["moonlight"] = ApplyMoonlight,
@@ -44,6 +45,7 @@ public static class BuffScripts
         ["cycle_gathered_flame"] = ClearCycleGatheredFlame,
         ["afterglow_omen"] = ClearAfterglowOmen,
         ["star_stone_pouch"] = ClearStarStonePouch,
+        ["relic_star_stone_pouch"] = ClearRelicStarStonePouch,
         ["star_score"] = ClearStarScore,
         ["star_stage"] = ClearStarStage,
         ["moonlight"] = ClearMoonlight,
@@ -150,6 +152,11 @@ public static class BuffScripts
     private static void ClearStarStonePouch(ScriptExecutor self)
     {
         StarStonePouchService.Clear(self);
+    }
+
+    private static void ClearRelicStarStonePouch(ScriptExecutor self)
+    {
+        StarStonePouchService.ClearRelic(self);
     }
 
     private static void ClearStarScore(ScriptExecutor self)
@@ -282,6 +289,11 @@ public static class BuffScripts
     private static void ApplyStarStonePouch(ScriptExecutor self)
     {
         StarStonePouchService.Apply(self);
+    }
+
+    private static void ApplyRelicStarStonePouch(ScriptExecutor self)
+    {
+        StarStonePouchService.ApplyRelic(self);
     }
 
     private static void ApplyStarScore(ScriptExecutor self)

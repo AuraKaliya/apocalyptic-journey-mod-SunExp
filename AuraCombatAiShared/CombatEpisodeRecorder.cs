@@ -8,7 +8,8 @@ namespace AuraCombatAi.Shared;
 public sealed class CombatEpisodeRecordingPolicy :
     ICombatSimulationPolicy,
     ICombatSimulationBorrowedStatePolicy,
-    ICombatSimulationPolicyMetricsProvider
+    ICombatSimulationPolicyMetricsProvider,
+    ICombatSimulationActionExecutionObserver
 {
     private readonly ICombatSimulationPolicy inner;
     private readonly string decisionProfile;
@@ -59,16 +60,64 @@ public sealed class CombatEpisodeRecordingPolicy :
             && decisionPolicy.LastObservation != null
             && decisionPolicy.LastDecision != null)
         {
-            frames.Add(CreateFrame(
+            var frame = CreateFrame(
                 context,
                 decisionPolicy.LastObservation,
                 decisionPolicy.LastDecision,
                 selected,
                 inner is ICombatSimulationPolicyMetricsProvider metrics
                 && metrics.LastDecisionMetrics
-                       .AuthoritativeTeacherOverrides > 0));
+                       .AuthoritativeTeacherOverrides > 0);
+            LinkPreviousFrame(frame);
+            frames.Add(frame);
         }
         return selected;
+    }
+
+    public void OnActionExecuted(CombatSimulationActionExecution execution)
+    {
+        if (execution == null) throw new ArgumentNullException(nameof(execution));
+        if (inner is ICombatSimulationActionExecutionObserver observer)
+        {
+            observer.OnActionExecuted(execution);
+        }
+        if (frames.Count == 0
+            || inner is not ICombatDecisionTracePolicy decisionPolicy
+            || decisionPolicy.LastDecision == null
+            || decisionPolicy.LastObservation == null)
+        {
+            return;
+        }
+
+        var frame = frames[frames.Count - 1];
+        var evaluation = decisionPolicy.LastDecision.Candidates
+            .FirstOrDefault(item => string.Equals(
+                item?.Action?.CandidateId,
+                execution.Action.CandidateId,
+                StringComparison.Ordinal));
+        var recorded = frame.Candidates.FirstOrDefault(item => string.Equals(
+            item.CandidateId,
+            execution.Action.CandidateId,
+            StringComparison.Ordinal));
+        if (evaluation?.Action != null && recorded != null)
+        {
+            recorded.SearchDeathRisk = Finite(evaluation.SearchDeathRisk);
+            recorded.SearchValue = Finite(evaluation.PlanScore);
+            recorded.SearchMeanReturn = Finite(evaluation.SearchMeanReturn);
+            recorded.SearchReturnStandardError =
+                Finite(evaluation.SearchReturnStandardError);
+            recorded.SearchLowerTailMean =
+                Finite(evaluation.SearchLowerTailMean);
+            recorded.SetCompactFeatures(
+                CombatPolicyValueEncoding.BuildCompactCandidateFeatures(
+                    evaluation));
+        }
+        if (recordWorldModelObservation)
+        {
+            frame.Observation = CombatWorldModelTokenizer.BuildNormalizedOwned(
+                decisionPolicy.LastObservation);
+        }
+        RefreshStrategicSupervision(frame);
     }
 
     public CombatEpisode Complete(CombatSimulationResult result)
@@ -91,6 +140,8 @@ public sealed class CombatEpisodeRecordingPolicy :
             frames[i].DeathTarget = defeat ? 1d : 0d;
             frames[i].RemainingHpRatioTarget = hpRatio;
             frames[i].RemainingTurnsTarget = remainingTurns;
+            frames[i].TerminalKnown = true;
+            frames[i].Terminal = i == frames.Count - 1;
         }
         return new CombatEpisode
         {
@@ -130,6 +181,8 @@ public sealed class CombatEpisodeRecordingPolicy :
         {
             Turn = context.State?.Turn ?? 0,
             ActionSequence = context.State?.ActionSequence ?? 0,
+            DecisionSequence = frames.Count + 1L,
+            BattleSessionId = observation.BattleSessionId,
             StateFingerprint = observation.Fingerprint,
             ExecutedCandidateId = selected?.CandidateId
                                   ?? decision.Action?.CandidateId
@@ -178,7 +231,31 @@ public sealed class CombatEpisodeRecordingPolicy :
                 CombatPolicyValueEncoding.BuildCompactCandidateFeatures(candidate));
             frame.Candidates.Add(episodeCandidate);
         }
+        RefreshStrategicSupervision(frame);
         return frame;
+    }
+
+    private static void RefreshStrategicSupervision(CombatEpisodeFrame frame)
+    {
+        var strategy = CombatPolicyValueBatchTrainer
+            .StrategicFrameSupervisionForExecutedAction(frame);
+        frame.StrategyApplicabilityKnown = strategy.Known;
+        frame.StrategyApplicableLabels = strategy.ApplicableLabels.ToList();
+        frame.StrategyLabelsKnown = strategy.Known
+                                    && strategy.ApplicableLabels.Count > 0;
+        frame.StrategyLabels = strategy.PositiveLabels.ToList();
+        frame.StrategyLabelSource = strategy.Source;
+        frame.StrategyPhase = CombatPolicyValueBatchTrainer
+            .StrategicPhaseForFrame(frame);
+    }
+
+    private void LinkPreviousFrame(CombatEpisodeFrame next)
+    {
+        if (frames.Count == 0)
+        {
+            return;
+        }
+        CombatEpisodeTransitionProtocol.Link(frames[frames.Count - 1], next);
     }
 
     private static double Finite(double value)

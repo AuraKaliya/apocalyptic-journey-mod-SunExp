@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
 namespace Terrias.Dll.Scripting;
 
@@ -22,7 +23,11 @@ public static class RelicScripts
         ["gathered_flame_charm"] = RegisterGatheredFlameCharm,
         ["ash_charm"] = RegisterAshCharm,
         ["blazing_sundial"] = RegisterBlazingSundial,
-        ["burning_calamity_wind_belt"] = RegisterBurningCalamityWindBelt
+        ["burning_calamity_wind_belt"] = RegisterBurningCalamityWindBelt,
+        [TerriasIds.TimelessClockRelic] = MorningStarRelicService.RegisterTimelessClock,
+        [TerriasIds.LoneerStarStonePouchRelic] = MorningStarRelicService.RegisterLoneerStarStonePouch,
+        [TerriasIds.FoxWomanHarpRelic] = MorningStarRelicService.RegisterFoxWomanHarp,
+        [TerriasIds.DimStarStoneRelic] = MorningStarRelicService.RegisterDimStarStone
     };
 
     public static void Fight(ScriptExecutor self, string id)

@@ -718,7 +718,7 @@ public static class CombatFoundationCaseLearning
             + CombatFoundationTrainingProtocol.SearchPolicyVersion
             + "|"
             + CombatFoundationTrainingProtocol.CurriculumVersion
-            + "|partitioned-v3");
+            + "|partitioned-v4");
     }
 
     public static List<CombatEpisode> SelectExpertEpisodes(

@@ -22,6 +22,16 @@ public sealed class CombatSearchBudget
 
     public int TimeBudgetMilliseconds { get; set; }
 
+    public int MinimumTimeMilliseconds { get; set; }
+
+    public int MinimumRootVisits { get; set; } = 2;
+
+    public int MinimumChallengerVisits { get; set; } = 4;
+
+    public double EarlyStopConfidence { get; set; } = 0.55d;
+
+    public double DominanceStandardErrors { get; set; } = 1d;
+
     public string Reason { get; set; } = "";
 }
 
@@ -57,6 +67,14 @@ public static class CombatSearchBudgetPolicy
                 : context,
             SearchTimeBudgetMilliseconds =
                 profile.SearchTimeBudgetMilliseconds,
+            SearchMinimumTimeMilliseconds =
+                profile.SearchMinimumTimeMilliseconds,
+            SearchMinimumRootVisits = profile.SearchMinimumRootVisits,
+            SearchMinimumChallengerVisits =
+                profile.SearchMinimumChallengerVisits,
+            SearchEarlyStopConfidence = profile.SearchEarlyStopConfidence,
+            SearchDominanceStandardErrors =
+                profile.SearchDominanceStandardErrors,
             SearchModelEvaluationBudget =
                 profile.SearchModelEvaluationBudget,
             SearchExploration = profile.SearchExploration,
@@ -71,6 +89,9 @@ public static class CombatSearchBudgetPolicy
             TailRiskQuantile = profile.TailRiskQuantile,
             RiskPreference = profile.RiskPreference,
             UncertaintyPenalty = profile.UncertaintyPenalty,
+            NetworkDeathRiskWeight = profile.NetworkDeathRiskWeight,
+            SemanticCoverageRiskWeight =
+                profile.SemanticCoverageRiskWeight,
             SetupValueWeight = profile.SetupValueWeight,
             PersistentValueWeight = profile.PersistentValueWeight,
             NextTurnThreatRetention = profile.NextTurnThreatRetention,
@@ -312,9 +333,44 @@ public static class CombatSearchBudgetPolicy
             profile.SearchTimeBudgetMilliseconds);
         if (budget.TimeBudgetMilliseconds > 0)
         {
+            var automaticRatio = budget.Tier switch
+            {
+                "complex" => 0.60d,
+                "difficult" => 0.50d,
+                "normal" => 0.35d,
+                "simple" => 0.25d,
+                _ => 0d
+            };
+            var requestedMinimum = profile.SearchMinimumTimeMilliseconds > 0
+                ? profile.SearchMinimumTimeMilliseconds
+                : (int)Math.Ceiling(
+                    budget.TimeBudgetMilliseconds * automaticRatio);
+            budget.MinimumTimeMilliseconds = Math.Max(
+                0,
+                Math.Min(budget.TimeBudgetMilliseconds, requestedMinimum));
             budget.Reason += "; deployment-time-ms="
-                             + budget.TimeBudgetMilliseconds;
+                             + budget.TimeBudgetMilliseconds
+                             + "; minimum-effective-ms="
+                             + budget.MinimumTimeMilliseconds;
         }
+        budget.MinimumRootVisits = Math.Max(
+            1,
+            Math.Min(
+                8,
+                Math.Max(
+                    profile.SearchMinimumRootVisits,
+                    budget.Tier == "complex" ? 4
+                    : budget.Tier == "difficult" ? 3
+                    : 2)));
+        budget.MinimumChallengerVisits = Math.Max(
+            budget.MinimumRootVisits,
+            Math.Min(16, profile.SearchMinimumChallengerVisits));
+        budget.EarlyStopConfidence = Math.Max(
+            0d,
+            Math.Min(1d, profile.SearchEarlyStopConfidence));
+        budget.DominanceStandardErrors = Math.Max(
+            0.25d,
+            Math.Min(4d, profile.SearchDominanceStandardErrors));
         return budget;
     }
 

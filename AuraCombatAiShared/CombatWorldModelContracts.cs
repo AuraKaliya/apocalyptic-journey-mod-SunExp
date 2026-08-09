@@ -17,7 +17,7 @@ public static class CombatWorldModelProtocol
     public const string TransitionProtocol =
         "aura.combat-world-model.transition.v1";
 
-    public const int TokenSchemaVersion = 1;
+    public const int TokenSchemaVersion = 2;
 }
 
 public enum CombatInformationVisibility
@@ -768,7 +768,8 @@ public static class CombatWorldModelTokenEncoding
     public static double[][] Encode(
         CombatObservationEnvelope? observation,
         int dimensions,
-        int maximumTokens = MaximumBattleTokens)
+        int maximumTokens = MaximumBattleTokens,
+        bool includeActionCandidates = true)
     {
         if (observation?.Tokens == null || observation.Tokens.Count == 0)
         {
@@ -778,6 +779,9 @@ public static class CombatWorldModelTokenEncoding
         var safeMaximum = Math.Max(1, maximumTokens);
         var ordered = observation.Tokens
             .Where(token => token != null)
+            .Where(token => includeActionCandidates
+                            || token.Kind
+                            != CombatObjectTokenKind.ActionCandidate)
             .OrderByDescending(IsRequiredToken)
             .ThenBy(TokenPriority)
             .ThenBy(token => token.TokenId, StringComparer.Ordinal)
@@ -799,11 +803,19 @@ public static class CombatWorldModelTokenEncoding
             ["visibility:" + token.Visibility] = 1d,
             ["definition:" + (token.DefinitionId ?? "")] = 1d,
             ["zone:" + (token.Zone ?? "")] = 1d,
-            ["runtimeId"] = token.RuntimeId,
-            ["ownerRuntimeId"] = token.OwnerRuntimeId,
             ["position"] = token.Position,
             ["count"] = token.Count
         };
+        if (token.RuntimeId != 0)
+        {
+            features["runtime:" + token.RuntimeId.ToString(
+                CultureInfo.InvariantCulture)] = 1d;
+        }
+        if (token.OwnerRuntimeId != 0)
+        {
+            features["owner-runtime:" + token.OwnerRuntimeId.ToString(
+                CultureInfo.InvariantCulture)] = 1d;
+        }
         foreach (var pair in token.Values
                  ?? new Dictionary<string, double>())
         {

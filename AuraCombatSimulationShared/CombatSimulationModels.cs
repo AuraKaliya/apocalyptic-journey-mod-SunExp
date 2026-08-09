@@ -97,6 +97,25 @@ public enum CombatActionApplicationOutcome
     AwaitingChoice
 }
 
+public enum CombatActionApplicationFailureKind
+{
+    None,
+    ActionUnavailable,
+    IllegalAction,
+    UnsupportedRule,
+    SafetyLimit,
+    EngineError,
+    RuntimeContinuationUnavailable,
+    RuntimeFailure
+}
+
+public enum CombatSimulationBranchFidelity
+{
+    StateOnly,
+    ExactRuntimeContinuation,
+    RuntimeContinuationUnavailable
+}
+
 public enum CombatActionPreconditionKind
 {
     DrawPileCountAtLeast,
@@ -186,7 +205,12 @@ public enum CombatSimulationEventKind
     VariableChanged,
     RandomResolved,
     BattleEnded,
-    RuleRejected
+    RuleRejected,
+    MaximumHpChanged,
+    MaximumEnergyChanged,
+    TurnFlowChanged,
+    ActorResurrected,
+    StatusStacksChanged
 }
 
 public enum CombatCardZone
@@ -366,6 +390,8 @@ public sealed class CombatCardDefinition
 
     public CombatActionContractDefinition? ActionContract { get; set; }
 
+    public CombatInteractionDefinition? Interaction { get; set; }
+
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
     public List<CombatSimulationEffectDefinition> DrawEffects { get; set; } = new();
@@ -391,6 +417,7 @@ public sealed class CombatCardDefinition
             Fidelity = Fidelity,
             VerificationSource = VerificationSource,
             ActionContract = ActionContract?.Clone(),
+            Interaction = Interaction?.Clone(),
             Effects = Effects.Select(effect => effect.Clone()).ToList(),
             DrawEffects = DrawEffects.Select(effect => effect.Clone()).ToList(),
             DiscardEffects = DiscardEffects.Select(effect => effect.Clone()).ToList()
@@ -685,11 +712,26 @@ public sealed class CombatPlayerSetup
 
     public string RoleFightScript { get; set; } = "";
 
+    /// <summary>
+    /// Declarative projection of the role passive. Native scripts remain the
+    /// execution source of truth; this contract preserves what training,
+    /// packaging and initialization audits are expected to observe without
+    /// applying the same passive twice.
+    /// </summary>
+    public CombatRolePassiveContract RolePassiveContract { get; set; } = new();
+
     public List<CombatRoleRuntimeForm> RoleRuntimeForms { get; set; } = new();
 
     public List<string> FamiliarBlessingIds { get; set; } = new();
 
     public int MaxHp { get; set; } = 30;
+
+    /// <summary>
+    /// Persistent maximum-health growth already applied before this battle,
+    /// measured relative to the role passive contract's base maximum health.
+    /// This is campaign state provenance, not part of the static role contract.
+    /// </summary>
+    public int PersistentMaxHpAdjustment { get; set; }
 
     public int CurrentHp { get; set; } = 30;
 
@@ -701,6 +743,68 @@ public sealed class CombatPlayerSetup
 
     public Dictionary<string, double> Variables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CombatRolePassiveContract
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    public string RoleId { get; set; } = "";
+
+    public string Source { get; set; } = "game-subject-catalog";
+
+    public string NativeScriptHash { get; set; } = "";
+
+    public string ContractHash { get; set; } = "";
+
+    public int MaximumHp { get; set; }
+
+    public Dictionary<string, int> InitialStatuses { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, double> InitialVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> InitialSkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> TriggerIds { get; set; } = new();
+
+    public List<string> NativeManagedSkillCooldownIds { get; set; } = new();
+
+    public List<string> RuntimeFormIds { get; set; } = new();
+
+    public bool AuditInitialization { get; set; } = true;
+
+    public CombatRolePassiveContract Clone()
+    {
+        return new CombatRolePassiveContract
+        {
+            SchemaVersion = SchemaVersion,
+            RoleId = RoleId,
+            Source = Source,
+            NativeScriptHash = NativeScriptHash,
+            ContractHash = ContractHash,
+            MaximumHp = MaximumHp,
+            InitialStatuses = new Dictionary<string, int>(
+                InitialStatuses ?? new Dictionary<string, int>(),
+                StringComparer.OrdinalIgnoreCase),
+            InitialVariables = new Dictionary<string, double>(
+                InitialVariables ?? new Dictionary<string, double>(),
+                StringComparer.OrdinalIgnoreCase),
+            InitialSkillCooldownTurns = new Dictionary<string, int>(
+                InitialSkillCooldownTurns ?? new Dictionary<string, int>(),
+                StringComparer.OrdinalIgnoreCase),
+            TriggerIds = new List<string>(TriggerIds ?? new List<string>()),
+            NativeManagedSkillCooldownIds = new List<string>(
+                NativeManagedSkillCooldownIds ?? new List<string>()),
+            RuntimeFormIds = new List<string>(
+                RuntimeFormIds ?? new List<string>()),
+            AuditInitialization = AuditInitialization
+        };
+    }
 }
 
 public sealed class CombatRoleRuntimeForm
@@ -1267,11 +1371,67 @@ public sealed class CombatSimulationPolicyContext
         Array.Empty<CombatSimulationAction>();
 }
 
+/// <summary>
+/// Immutable action-scoped facts delivered after the authoritative session has
+/// applied the selected action.  A physical battle terminal is intentionally
+/// separate from action application success: an applied action may legitimately
+/// end in victory or defeat.
+/// </summary>
+public sealed class CombatSimulationActionExecution
+{
+    public CombatScenarioDefinition Scenario { get; set; } = new();
+
+    public CombatRuleset Ruleset { get; set; } = CombatRuleset.Empty;
+
+    public CombatSimulationAction Action { get; set; } = new();
+
+    public bool ApplicationSucceeded { get; set; }
+
+    public CombatActionApplicationOutcome ActionOutcome { get; set; } =
+        CombatActionApplicationOutcome.Rejected;
+
+    public CombatActionApplicationFailureKind FailureKind { get; set; }
+
+    public string FailureReason { get; set; } = "";
+
+    public CombatSimulationOutcome BattleOutcome { get; set; }
+
+    public CombatTerminationReason TerminationReason { get; set; }
+
+    public CombatBattleState BeforeState { get; set; } = new();
+
+    public CombatBattleState AfterState { get; set; } = new();
+
+    public string BeforeStateHash { get; set; } = "";
+
+    public string AfterStateHash { get; set; } = "";
+
+    public Dictionary<string, string> BeforeCampaignVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, string> AfterCampaignVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<CombatSimulationEvent> Events { get; set; } = new();
+
+    public List<string> UnsupportedDefinitions { get; set; } = new();
+}
+
 public interface ICombatSimulationPolicy
 {
     string PolicyId { get; }
 
     CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context);
+}
+
+/// <summary>
+/// Optional synchronous observer for policies that learn from the action that
+/// the live authoritative session actually executed. Implementations must not
+/// mutate the supplied snapshots.
+/// </summary>
+public interface ICombatSimulationActionExecutionObserver
+{
+    void OnActionExecuted(CombatSimulationActionExecution execution);
 }
 
 /// <summary>
@@ -1394,11 +1554,34 @@ public sealed class CombatSemanticAuditMetrics
 
     public int ExplainedActions { get; set; }
 
+    /// <summary>
+    /// Number of valid source projections whose predicted semantics did not
+    /// match the authoritative fork.  This is intentionally separate from
+    /// the post-fork realized-projection consistency audit.
+    /// </summary>
+    public int UnexplainedMismatchActions { get; set; }
+
     public int SelectedExplainedActions { get; set; }
 
     public int SelectedContextAdjustedActions { get; set; }
 
     public int SelectedUnexplainedMismatchActions { get; set; }
+
+    public int SelectedSourceProjectionInvalidActions { get; set; }
+
+    public int SelectedSourceProjectionValidActions { get; set; }
+
+    public int SelectedSourceProjectionUnexplainedMismatchActions {
+        get;
+        set;
+    }
+
+    /// <summary>
+    /// Candidate branches intentionally skipped because a consumer-owned
+    /// runtime could not reproduce its live continuation from battle state.
+    /// These are coverage diagnostics, not semantic failures.
+    /// </summary>
+    public int CounterfactualBranchUnavailableActions { get; set; }
 
     public Dictionary<string, int> AuditedSources { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -1411,6 +1594,26 @@ public sealed class CombatSemanticAuditMetrics
 
     public Dictionary<string, int> SelectedInvalidSources { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedSourceProjectionInvalidSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedSourceProjectionMismatchSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedSourceProjectionMismatchKinds {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> CounterfactualBranchUnavailableSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> InvalidKinds { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -1453,6 +1656,16 @@ public sealed class CombatSemanticAuditMetrics
         set;
     } = new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, string> SelectedSourceProjectionExamples {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, string> CounterfactualBranchUnavailableExamples {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
     public void MergeFrom(CombatSemanticAuditMetrics? source)
     {
         if (source == null)
@@ -1474,6 +1687,9 @@ public sealed class CombatSemanticAuditMetrics
         ExplainedActions = SaturatingAdd(
             ExplainedActions,
             source.ExplainedActions);
+        UnexplainedMismatchActions = SaturatingAdd(
+            UnexplainedMismatchActions,
+            source.UnexplainedMismatchActions);
         SelectedExplainedActions = SaturatingAdd(
             SelectedExplainedActions,
             source.SelectedExplainedActions);
@@ -1483,10 +1699,34 @@ public sealed class CombatSemanticAuditMetrics
         SelectedUnexplainedMismatchActions = SaturatingAdd(
             SelectedUnexplainedMismatchActions,
             source.SelectedUnexplainedMismatchActions);
+        SelectedSourceProjectionInvalidActions = SaturatingAdd(
+            SelectedSourceProjectionInvalidActions,
+            source.SelectedSourceProjectionInvalidActions);
+        SelectedSourceProjectionValidActions = SaturatingAdd(
+            SelectedSourceProjectionValidActions,
+            source.SelectedSourceProjectionValidActions);
+        SelectedSourceProjectionUnexplainedMismatchActions = SaturatingAdd(
+            SelectedSourceProjectionUnexplainedMismatchActions,
+            source.SelectedSourceProjectionUnexplainedMismatchActions);
+        CounterfactualBranchUnavailableActions = SaturatingAdd(
+            CounterfactualBranchUnavailableActions,
+            source.CounterfactualBranchUnavailableActions);
         MergeCounts(AuditedSources, source.AuditedSources);
         MergeCounts(SelectedAuditedSources, source.SelectedAuditedSources);
         MergeCounts(InvalidSources, source.InvalidSources);
         MergeCounts(SelectedInvalidSources, source.SelectedInvalidSources);
+        MergeCounts(
+            SelectedSourceProjectionInvalidSources,
+            source.SelectedSourceProjectionInvalidSources);
+        MergeCounts(
+            SelectedSourceProjectionMismatchSources,
+            source.SelectedSourceProjectionMismatchSources);
+        MergeCounts(
+            SelectedSourceProjectionMismatchKinds,
+            source.SelectedSourceProjectionMismatchKinds);
+        MergeCounts(
+            CounterfactualBranchUnavailableSources,
+            source.CounterfactualBranchUnavailableSources);
         MergeCounts(InvalidKinds, source.InvalidKinds);
         MergeCounts(
             SelectedUnexplainedMismatchSources,
@@ -1523,6 +1763,12 @@ public sealed class CombatSemanticAuditMetrics
         MergeExamples(
             SelectedUnexplainedExamples,
             source.SelectedUnexplainedExamples);
+        MergeExamples(
+            SelectedSourceProjectionExamples,
+            source.SelectedSourceProjectionExamples);
+        MergeExamples(
+            CounterfactualBranchUnavailableExamples,
+            source.CounterfactualBranchUnavailableExamples);
     }
 
     private static void MergeExamples(
@@ -1587,6 +1833,12 @@ public sealed class CombatSimulationEvent
 
     public long SourceActionId { get; set; }
 
+    /// <summary>
+    /// Zero is the root action. Positive values identify trigger waves caused
+    /// by that action and let consumers distinguish direct and chained facts.
+    /// </summary>
+    public int TriggerWave { get; set; }
+
     public int Turn { get; set; }
 
     public CombatSimulationPhase Phase { get; set; }
@@ -1602,6 +1854,23 @@ public sealed class CombatSimulationEvent
     public string DefinitionId { get; set; } = "";
 
     public int Amount { get; set; }
+
+    /// <summary>
+    /// Requested amount before mitigation, caps, missing-health clamps, or
+    /// other authoritative state constraints. Amount remains the applied
+    /// change for backwards compatibility.
+    /// </summary>
+    public int RawAmount { get; set; }
+
+    public int BlockedAmount { get; set; }
+
+    public int DurabilityAmount { get; set; }
+
+    public int PreviousAmount { get; set; }
+
+    public int CurrentAmount { get; set; }
+
+    public string StatePath { get; set; } = "";
 
     public string BeforeHash { get; set; } = "";
 
@@ -1906,16 +2175,42 @@ public sealed class CombatActionApplicationResult
 
     public string Reason { get; set; } = "";
 
+    public CombatActionApplicationFailureKind FailureKind { get; set; }
+
     public CombatActionApplicationOutcome Outcome { get; set; } =
         CombatActionApplicationOutcome.Rejected;
+
+    public CombatSimulationOutcome BattleOutcome { get; set; }
+
+    public CombatTerminationReason TerminationReason { get; set; }
+
+    public CombatSimulationBranchFidelity BranchFidelity { get; set; } =
+        CombatSimulationBranchFidelity.StateOnly;
 
     public bool PolicyEligible { get; set; }
 
     public string ActionContractVersion { get; set; } = "";
 
+    public string CandidateId { get; set; } = "";
+
+    public string DefinitionId { get; set; } = "";
+
+    public int CardInstanceId { get; set; }
+
+    public int TargetActorId { get; set; }
+
+    public string BeforeStateHash { get; set; } = "";
+
+    public string AfterStateHash { get; set; } = "";
+
     public CombatBattleState State { get; set; } = new();
 
     public List<CombatSimulationEvent> Events { get; set; } = new();
+
+    public Dictionary<string, string> CampaignVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> UnsupportedDefinitions { get; set; } = new();
 }
 
 internal sealed class CombatSimulationCommand

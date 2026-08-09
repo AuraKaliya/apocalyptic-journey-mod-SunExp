@@ -239,8 +239,40 @@ public static class AuraToolsAutoBattleRuntime
 
     private static void EndBattle()
     {
+        StopPendingNativeEnemyActions();
         controller?.EndBattle();
         WitchCombatInteractionRuntime.Reset();
+    }
+
+    private static void StopPendingNativeEnemyActions()
+    {
+        var stopped = 0;
+        try
+        {
+            foreach (var enemy in Object.FindObjectsByType<OtherObj>(
+                         FindObjectsSortMode.None))
+            {
+                if (enemy == null)
+                {
+                    continue;
+                }
+                enemy.StopAllCoroutines();
+                stopped++;
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn(
+                "[AutoBattle][Lifecycle] pending enemy action cleanup failed: "
+                + ex.Message);
+            return;
+        }
+        if (stopped > 0)
+        {
+            AuraToolsLog.Debug(
+                "[AutoBattle][Lifecycle] stopped pending native enemy coroutines="
+                + stopped);
+        }
     }
 
     private static void ObserveHumanAction(ModHookContext context)
@@ -319,6 +351,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private string pendingShadowFingerprint = "";
     private readonly Dictionary<string, float> failedActionStateKeys =
         new(StringComparer.Ordinal);
+    private readonly HashSet<string> persistentNoEffectActionKeys =
+        new(StringComparer.Ordinal);
     private bool activeDecisionPending;
     private string pendingActiveDecisionKey = "";
     private long decisionWorkGeneration;
@@ -328,6 +362,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private string modelConfigurationKey = "";
     private long modelLoadGeneration;
     private long lastResetBattleSessionId;
+    private string noActionFingerprint = "";
+    private float noActionSince = -1f;
 
     public bool Active { get; private set; }
 
@@ -372,6 +408,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             ClearTeacherAction();
         }
         ClearPendingAction();
+        ResetNoActionWatchdog();
         ClearPredictionMarkers();
         transaction.Reset();
         nextDecisionAt = Time.unscaledTime + 0.15f;
@@ -395,6 +432,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         nextPredictionAt = 0f;
         transaction.Reset();
         failedActionStateKeys.Clear();
+        persistentNoEffectActionKeys.Clear();
+        ResetNoActionWatchdog();
         ClearContinuationHint();
         SetActive(startActive);
         DestroyButton();
@@ -426,6 +465,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
 
         Active = false;
+        failedActionStateKeys.Clear();
+        persistentNoEffectActionKeys.Clear();
+        ResetNoActionWatchdog();
         ClearContinuationHint();
         ClearTeacherAction();
         ClearPendingAction();
@@ -653,7 +695,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                                 profile,
                                 new CombatSearchExplorationOptions
                                 {
-                                    RootNoiseFraction = 0d,
+                                    RootNoiseFraction = 0.08d,
+                                    RandomSeed = StringComparer.Ordinal
+                                        .GetHashCode(capturedFingerprint)
+                                                 ^ 104729,
                                     DeterminizationOffset = 104729
                                 }));
                         decision = MergeParallelDecisions(
@@ -724,13 +769,33 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                         + " budget=" + result.Decision.SearchBudgetTier
                         + " confidence="
                         + result.Decision.SearchConfidence.ToString("0.000")
+                        + " policyAmbiguity="
+                        + result.Decision.PolicyAmbiguity.ToString("0.000")
+                        + " semanticRisk="
+                        + result.Decision.SemanticCoverageRisk.ToString("0.000")
+                        + " outcomeUncertainty="
+                        + result.Decision.OutcomeUncertainty.ToString("0.000")
                         + " candidates="
                         + result.Decision.SearchCandidateCount
                         + "/" + result.Decision.SearchOriginalCandidateCount
                         + " workers="
                         + result.Decision.InferenceWorkerCount
                         + " agreement="
-                        + result.Decision.InferenceAgreement.ToString("0.00"));
+                        + result.Decision.InferenceAgreement.ToString("0.00")
+                        + " model="
+                        + (result.Learned ? capturedModelId : "baseline")
+                        + " path=" + result.Decision.DecisionPath
+                        + " proposed="
+                        + result.Decision.SearchProposedCandidateId
+                        + " executed="
+                        + (result.Decision.Action?.CandidateId ?? "none")
+                        + " governance="
+                        + result.Decision.GovernanceDecision
+                        + " stop=" + result.Decision.SearchStopReason
+                        + " minimumTime="
+                        + result.Decision.SearchMinimumTimeMilliseconds
+                        + "ms/satisfied="
+                        + result.Decision.SearchMinimumTimeSatisfied);
                     TryExecuteCompletedDecision(result);
                 },
                 OnFailedOnMainThread = ex =>
@@ -821,11 +886,17 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
         if (!decision.HasAction || decision.Action == null)
         {
+            if (RetryTransientNoAction(state, decision))
+            {
+                return;
+            }
             AuraToolsAutoBattleGameValidationRuntime.RecordExecutionFailure(
-                "模型没有返回可执行动作");
-            StopWithReason("没有可执行的合法动作");
+                "模型在事务看门狗期限内始终没有返回可执行动作");
+            StopWithReason("在动作事务期限内没有获得治理批准的合法动作");
             return;
         }
+
+        ResetNoActionWatchdog();
 
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
         if (string.Equals(settings.UnknownActionPolicy, "handoff", StringComparison.OrdinalIgnoreCase)
@@ -864,7 +935,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             }
         }
         AuraToolsWitchSkillInteraction.Prepare(state, decision.Action);
-        var execution = runtime.Execute(decision.Action);
+        var execution = runtime.Execute(
+            decision.Action,
+            ApplyFailedActionSuppressions);
         if (!execution.Accepted)
         {
             CombatInteractionBroker.ClearNextHint();
@@ -908,6 +981,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             + " transpositions=" + decision.SearchTranspositionHits
             + " stoppedByTime=" + decision.SearchStoppedByTime
             + " confidence=" + decision.SearchConfidence.ToString("0.000")
+            + " evidence=" + decision.SearchEvidence.ToString("0.000")
+            + " policyAmbiguity="
+            + decision.PolicyAmbiguity.ToString("0.000")
+            + " semanticRisk="
+            + decision.SemanticCoverageRisk.ToString("0.000")
+            + " outcomeUncertainty="
+            + decision.OutcomeUncertainty.ToString("0.000")
             + " valueGap=" + decision.SearchValueGap.ToString("0.000")
             + " rootVisits=" + decision.SearchBestVisits
             + "/" + decision.SearchSecondBestVisits
@@ -915,6 +995,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             + "/" + decision.SearchOriginalCandidateCount
             + " workers=" + decision.InferenceWorkerCount
             + " agreement=" + decision.InferenceAgreement.ToString("0.00")
+            + " path=" + decision.DecisionPath
+            + " proposed=" + decision.SearchProposedCandidateId
+            + " governance=" + decision.GovernanceDecision
+            + " governanceReason=" + decision.GovernanceReason
+            + " stop=" + decision.SearchStopReason
             + " " + ScoreBreakdown(decision)
             + " " + decision.EndTurnTrace
             + " " + decision.PlanSummary);
@@ -1237,10 +1322,73 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return true;
         }
 
+        if (CombatActionExecutionPolicy.OpensFollowUpInteraction(
+                pendingDecision.Action))
+        {
+            transaction.HandOff(
+                "interactive action did not reach a terminal native prompt state before the transaction deadline");
+            RecordPendingTrainingSample(
+                CombatActionTransactionState.HandedOff.ToString(),
+                transaction.TerminalReason,
+                terminal: false,
+                after);
+            ClearPendingAction();
+            transaction.Reset();
+            DeactivateWithReason(
+                "交互动作在超时前未完成，已交还玩家，未将其误判为无效果动作");
+            return true;
+        }
+
         SuppressNoEffectAction(
             after,
             "action transaction reached the no-effect timeout");
         return true;
+    }
+
+    private bool RetryTransientNoAction(
+        CombatStateObservation state,
+        CombatDecision decision)
+    {
+        var fingerprint = state?.Fingerprint ?? "";
+        if (!string.Equals(
+                noActionFingerprint,
+                fingerprint,
+                StringComparison.Ordinal))
+        {
+            noActionFingerprint = fingerprint;
+            noActionSince = Time.unscaledTime;
+        }
+        if (noActionSince < 0f)
+        {
+            noActionSince = Time.unscaledTime;
+        }
+
+        var timeout = Math.Max(
+            1f,
+            AuraToolsConfigService.MatchExperience.AutoBattle
+                .ActionTimeoutSeconds);
+        if (Time.unscaledTime - noActionSince >= timeout)
+        {
+            return false;
+        }
+
+        AuraToolsLog.Debug(
+            "[AutoBattle][TransientNoAction] retrying governance/search path="
+            + decision.DecisionPath
+            + " governance=" + decision.GovernanceDecision
+            + " reason=" + decision.GovernanceReason
+            + " elapsed="
+            + (Time.unscaledTime - noActionSince).ToString("0.00")
+            + "/" + timeout.ToString("0.00"));
+        ClearDecisionCache();
+        nextDecisionAt = Time.unscaledTime + 0.10f;
+        return true;
+    }
+
+    private void ResetNoActionWatchdog()
+    {
+        noActionFingerprint = "";
+        noActionSince = -1f;
     }
 
     private void SuppressNoEffectAction(
@@ -1253,9 +1401,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         var failedAction = pendingDecision.Action;
         var suppressionState = after ?? beforeAction;
-        failedActionStateKeys[
-            FailedActionStateKey(suppressionState, failedAction)] =
-            Time.unscaledTime + FailedActionSuppressionSeconds;
+        persistentNoEffectActionKeys.Add(
+            FailedActionStateKey(suppressionState, failedAction));
         RecordPendingTrainingSample(
             CombatActionTransactionState.Failed.ToString(),
             "action produced no causal game-state effect and was suppressed: "
@@ -1283,8 +1430,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         foreach (var action in state.Actions)
         {
-            if (!failedActionStateKeys.ContainsKey(
-                    FailedActionStateKey(state, action)))
+            var key = FailedActionStateKey(state, action);
+            if (!failedActionStateKeys.ContainsKey(key)
+                && !persistentNoEffectActionKeys.Contains(key))
             {
                 continue;
             }
@@ -1336,7 +1484,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
 
         pendingSampleRecorded = true;
-        CombatAiRegistry.RecordTrainingSample(CombatTrainingSampleBuilder.Create(
+        var sample = CombatTrainingSampleBuilder.Create(
             beforeAction,
             after,
             pendingDecision,
@@ -1348,7 +1496,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             typeof(FightUI).Assembly.GetName().Version?.ToString() ?? "",
             typeof(CombatDecisionEngine).Assembly.GetName().Version?.ToString() ?? "",
             demonstrator: "policy",
-            recommendedCandidateId: pendingDecision.Action.CandidateId));
+            recommendedCandidateId: pendingDecision.Action.CandidateId);
+        sample.Interaction = CombatInteractionBroker.ConsumeCompletedTrace(
+            pendingDecision.Action.ActionToken);
+        CombatAiRegistry.RecordTrainingSample(sample);
     }
 
     private void ClearPendingAction()
@@ -1497,6 +1648,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             AuraToolsLog.Info("[AutoBattle] " + lastModelDiagnostic);
             return;
         }
+        AuraToolsAutoBattleGameParameterRuntime.ResolvePresetReferences(
+            settings);
         var configuredMode = AuraToolsAutoBattleRuntime.ModuleEnabled
             ? settings.TrainedModelMode
             : "off";
@@ -1914,7 +2067,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         var groups = available
             .GroupBy(
-                decision => decision.Action?.CandidateId ?? "",
+                decision => string.IsNullOrWhiteSpace(
+                    decision.SearchProposedCandidateId)
+                    ? decision.Action?.CandidateId ?? ""
+                    : decision.SearchProposedCandidateId,
                 StringComparer.Ordinal)
             .Select(group => new
             {
@@ -1939,14 +2095,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             .ThenByDescending(item => item.Score)
             .First();
         var agreement = groups.Decisions.Count / (double)available.Count;
-        var independentConfidence = agreement >= 1d
-            ? 1d - groups.Decisions.Aggregate(
-                1d,
-                (remaining, item) => remaining
-                                     * (1d - Math.Max(
-                                         0d,
-                                         Math.Min(1d, item.SearchConfidence))))
-            : groups.Confidence * agreement;
+        // Workers share one model and prior, so their confidence is correlated.
+        // Consensus may improve evidence modestly but must not be combined as
+        // independent probabilities.
+        var correlatedConfidence = groups.Confidence
+                                   * (0.75d + 0.25d * agreement);
         chosen.SearchSimulations = available.Sum(item => item.SearchSimulations);
         chosen.SearchNodes = available.Sum(item => item.SearchNodes);
         chosen.SearchTranspositionHits = available.Sum(
@@ -1955,7 +2108,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         chosen.SearchStoppedByTime = available.Any(item => item.SearchStoppedByTime);
         chosen.SearchConfidence = Math.Max(
             0d,
-            Math.Min(1d, independentConfidence));
+            Math.Min(1d, correlatedConfidence));
         chosen.SearchBestVisits = groups.Decisions.Sum(item => item.SearchBestVisits);
         chosen.SearchSecondBestVisits = groups.Decisions.Sum(
             item => item.SearchSecondBestVisits);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
@@ -76,6 +77,13 @@ public sealed class CombatSimulationState
     public ulong[] UsedActionWords { get; set; } = Array.Empty<ulong>();
 
     public int[] UsedActionCounts { get; set; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Per-search-action cost changes caused while a card remains in hand.
+    /// This is separate from use groups because two equivalent candidates can
+    /// refer to different live card instances with different dynamic costs.
+    /// </summary>
+    public int[] ActionCostAdjustments { get; set; } = Array.Empty<int>();
 
     public int StepCount { get; set; }
 
@@ -216,6 +224,7 @@ public sealed class CombatSimulationState
             Threats = threats,
             UsedActionWords = (ulong[])UsedActionWords.Clone(),
             UsedActionCounts = (int[])UsedActionCounts.Clone(),
+            ActionCostAdjustments = (int[])ActionCostAdjustments.Clone(),
             StepCount = StepCount,
             Turn = Turn,
             TurnActionsTaken = TurnActionsTaken,
@@ -351,12 +360,14 @@ public sealed class CombatSimulationState
         var deathRisk = hpAfter <= 0d
             ? Math.Max(0.5d, attackProbability)
             : Math.Max(0d, Math.Min(1d, hpLoss / Math.Max(1d, PlayerHp) - 0.65d));
-        var livingMaxHp = 0;
-        var livingHp = 0;
+        var livingMaxHp = 0d;
+        var livingHp = 0d;
         for (var i = 0; i < Enemies.Length; i++)
         {
-            livingMaxHp += Math.Max(1, Enemies[i].MaxHp);
-            livingHp += Math.Max(0, Enemies[i].Hp);
+            var weight = CombatEnemyPriorityPolicy.Weight(
+                Enemies[i].Features);
+            livingMaxHp += Math.Max(1, Enemies[i].MaxHp) * weight;
+            livingHp += Math.Max(0, Enemies[i].Hp) * weight;
         }
         var enemyProgress = livingMaxHp <= 0
             ? 1d
@@ -522,6 +533,10 @@ public sealed class CombatSimulationState
             {
                 Mix(ref hash, UsedActionCounts[i]);
             }
+            for (var i = 0; i < ActionCostAdjustments.Length; i++)
+            {
+                Mix(ref hash, ActionCostAdjustments[i]);
+            }
             return hash;
         }
     }
@@ -565,6 +580,10 @@ public sealed class CombatSimulationState
                 Mix(ref hash, DeferredEffects[i].StatusId);
                 Mix(ref hash, DeferredEffects[i].SourceId);
                 Mix(ref hash, DeferredEffects[i].TargetRuntimeId);
+            }
+            for (var i = 0; i < ActionCostAdjustments.Length; i++)
+            {
+                Mix(ref hash, ActionCostAdjustments[i]);
             }
             return hash;
         }
@@ -816,6 +835,13 @@ public static class CombatForwardModel
             MaxPower = state.MaxPower,
             HandCount = state.HandCount,
             HandLimit = ResolveHandLimit(state),
+            DamageMultiplier = state.Player?.Features.TryGetValue(
+                    CombatDynamicDamageProjection.PercentDamage,
+                    out var observedDamageMultiplier) == true
+                && !double.IsNaN(observedDamageMultiplier)
+                && !double.IsInfinity(observedDamageMultiplier)
+                    ? Math.Max(0d, observedDamageMultiplier)
+                    : 1d,
             CardCostMultiplier = Math.Max(
                 0d,
                 state.Features.TryGetValue(
@@ -912,7 +938,8 @@ public static class CombatForwardModel
             DeterminizationSeed = determinizationSeed,
             ShuffleEpoch = 0,
             UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64],
-            UsedActionCounts = new int[Math.Max(0, actionCount)]
+            UsedActionCounts = new int[Math.Max(0, actionCount)],
+            ActionCostAdjustments = Array.Empty<int>()
         };
     }
 
@@ -970,18 +997,24 @@ public static class CombatForwardModel
         }
         if (!hasImmediateTargetEffects)
         {
-            Add(
-                outcome,
-                CombatEffectKind.Damage,
-                action.TargetRuntimeId,
-                semantics.Damage * Math.Max(1d, semantics.HitCount),
-                arena);
-            Add(
-                outcome,
-                CombatEffectKind.TrueDamage,
-                action.TargetRuntimeId,
-                semantics.TrueDamage,
-                arena);
+            var hitCount = Math.Max(
+                1,
+                Math.Min(32, (int)Math.Round(Math.Max(1d, semantics.HitCount))));
+            for (var hit = 0; hit < hitCount; hit++)
+            {
+                Add(
+                    outcome,
+                    CombatEffectKind.Damage,
+                    action.TargetRuntimeId,
+                    semantics.Damage,
+                    arena);
+                Add(
+                    outcome,
+                    CombatEffectKind.TrueDamage,
+                    action.TargetRuntimeId,
+                    semantics.TrueDamage,
+                    arena);
+            }
         }
         Add(outcome, CombatEffectKind.DamageOverTime, action.TargetRuntimeId, semantics.DamageOverTime, arena);
         Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend, arena);
@@ -1098,12 +1131,15 @@ public static class CombatForwardModel
         int actionIndex,
         CombatActionOutcome outcome,
         CombatDecisionProfile profile,
-        CombatSimulationStateArena? arena = null)
+        CombatSimulationStateArena? arena = null,
+        int dynamicActionIndex = -1)
     {
         var stateChanges = DynamicRebirthStateChanges(source, action);
         var handTransform = action.Semantics?.HandTransform;
+        var interaction = action.Semantics?.Interaction;
         var mutatesCardPiles = action.Kind == CombatActionKind.PlayCard
-                               || handTransform != null;
+                               || handTransform != null
+                               || interaction?.Zone == CombatInteractionZone.Hand;
         for (var effectIndex = 0;
              !mutatesCardPiles && effectIndex < outcome.Effects.Count;
              effectIndex++)
@@ -1114,9 +1150,10 @@ public static class CombatForwardModel
         var state = source.CloneForTransition(
             mutatesCardPiles,
             stateChanges != null && stateChanges.Count > 0
-            || handTransform != null,
+            || handTransform != null
+            || interaction != null,
             arena: arena);
-        var rawCost = RawDynamicCost(state, action);
+        var rawCost = RawDynamicCost(state, action, dynamicActionIndex);
         var effectiveCost = Math.Max(0, rawCost - state.CostReduction);
         var reductionSpent = Math.Min(rawCost, state.CostReduction);
         state.CostReduction = Math.Max(0, state.CostReduction - reductionSpent);
@@ -1171,6 +1208,10 @@ public static class CombatForwardModel
         {
             ApplyHandTransform(state, action, handTransform);
         }
+        if (interaction != null)
+        {
+            ApplyInteraction(state, interaction);
+        }
         state.StepCount++;
 
         if (stateChanges != null
@@ -1203,10 +1244,19 @@ public static class CombatForwardModel
         {
             state.UnmarkUsed(actionIndex);
         }
-        var selfHpLoss = Math.Max(
+        var semanticSelfHpLoss = Math.Max(
             0d,
             (action.Semantics?.SelfHpLoss ?? 0d)
             + (action.Semantics?.EndOfCycleSelfHpLoss ?? 0d));
+        var stateHpDelta = stateChanges != null
+                           && stateChanges.TryGetValue(
+                               "player.hp",
+                               out var configuredHpDelta)
+            ? configuredHpDelta
+            : 0d;
+        var selfHpLoss = Math.Max(
+            semanticSelfHpLoss,
+            Math.Max(0d, -stateHpDelta));
         if (selfHpLoss > 0d)
         {
             state.PlayerHp = Math.Max(
@@ -1218,7 +1268,13 @@ public static class CombatForwardModel
         {
             foreach (var pair in stateChanges)
             {
-                state.Features[pair.Key] = Value(state.Features, pair.Key) + pair.Value;
+                var nextFeatureValue =
+                    Value(state.Features, pair.Key) + pair.Value;
+                state.Features[pair.Key] = pair.Key.StartsWith(
+                        "status:",
+                        StringComparison.OrdinalIgnoreCase)
+                    ? Math.Max(0d, nextFeatureValue)
+                    : nextFeatureValue;
                 if (string.Equals(
                         pair.Key,
                         "status:buff_rebirth",
@@ -1441,6 +1497,164 @@ public static class CombatForwardModel
         return state;
     }
 
+    private static void ApplyInteraction(
+        CombatSimulationState state,
+        CombatInteractionDefinition interaction)
+    {
+        interaction = interaction.Normalize();
+        if (interaction.Zone != CombatInteractionZone.Hand)
+        {
+            if (!interaction.EffectsComplete) state.Uncertainty += 1d;
+            return;
+        }
+
+        var count = Math.Min(state.HandCardIds.Count, state.HandCardValues.Count);
+        var choices = new List<CombatActionObservation>(count);
+        for (var index = 0; index < count; index++)
+        {
+            var cardId = state.HandCardIds[index];
+            var semantics = state.KnownCardSemantics.TryGetValue(cardId, out var known)
+                ? CombatSimulationState.CloneSemantics(known)
+                : new CombatActionSemantics
+                {
+                    PersistentValue = Math.Max(0d, state.HandCardValues[index])
+                };
+            choices.Add(new CombatActionObservation
+            {
+                ObservationId = "forward-interaction",
+                ActionToken = "forward-interaction:" + index,
+                CandidateId = "forward-interaction:" + index + ":" + cardId,
+                SourceId = cardId,
+                DisplayName = cardId,
+                Kind = CombatActionKind.ResolvePrompt,
+                RuntimeId = index,
+                Semantics = semantics
+            });
+        }
+        var plan = CombatInteractionPlanner.Plan(interaction, choices);
+        var selected = plan.SelectedIndices
+            .Where(index => index >= 0 && index < count)
+            .Select(index => new
+            {
+                Index = index,
+                Id = state.HandCardIds[index],
+                Value = state.HandCardValues[index]
+            })
+            .ToList();
+        var burns = interaction.SelectionEffects.Any(effect =>
+            effect.Kind == CombatInteractionEffectKind.BurnSelected);
+        var discards = interaction.SelectionEffects.Any(effect =>
+            effect.Kind == CombatInteractionEffectKind.DiscardSelected);
+        if (burns || discards)
+        {
+            foreach (var card in selected.OrderByDescending(item => item.Index))
+            {
+                state.HandCardIds.RemoveAt(card.Index);
+                state.HandCardValues.RemoveAt(card.Index);
+                RemoveFirst(state.RetainedHandCardIds, card.Id);
+                RemoveClosestIfPresent(state.RetainedHandCardValues, card.Value);
+                if (burns)
+                {
+                    state.ExhaustPileCardIds.Add(card.Id);
+                    state.ExhaustPileValues.Add(card.Value);
+                }
+                else
+                {
+                    state.DiscardPileCardIds.Add(card.Id);
+                    state.DiscardPileValues.Add(card.Value);
+                }
+            }
+            state.HandCount = state.HandCardIds.Count;
+        }
+
+        foreach (var effect in interaction.SelectionEffects)
+        {
+            switch (effect.Kind)
+            {
+                case CombatInteractionEffectKind.RetainSelected:
+                    foreach (var card in selected)
+                    {
+                        if (!state.RetainedHandCardIds.Contains(
+                                card.Id,
+                                StringComparer.OrdinalIgnoreCase))
+                        {
+                            state.RetainedHandCardIds.Add(card.Id);
+                            state.RetainedHandCardValues.Add(card.Value);
+                        }
+                    }
+                    break;
+                case CombatInteractionEffectKind.DuplicateSelected:
+                    foreach (var card in selected)
+                    {
+                        if (state.HandCardIds.Count < state.HandLimit)
+                        {
+                            state.HandCardIds.Add(card.Id);
+                            state.HandCardValues.Add(card.Value);
+                        }
+                        else
+                        {
+                            state.DiscardPileCardIds.Add(card.Id);
+                            state.DiscardPileValues.Add(card.Value);
+                        }
+                    }
+                    state.HandCount = state.HandCardIds.Count;
+                    break;
+                case CombatInteractionEffectKind.ModifySelectedCost:
+                    state.PersistentValue += Math.Max(0d, -effect.Amount)
+                                             * selected.Count * 1.8d;
+                    break;
+                case CombatInteractionEffectKind.ModifySelectedPersistentCost:
+                    state.PersistentValue -= Math.Max(0d, effect.Amount)
+                                             * selected.Count * 1.4d;
+                    break;
+                case CombatInteractionEffectKind.ModifySelectedExtraUses:
+                case CombatInteractionEffectKind.TransferSelectedCopy:
+                    state.PersistentValue += Math.Max(0d, effect.Amount)
+                                             * selected.Sum(item => item.Value);
+                    break;
+                case CombatInteractionEffectKind.AddStatusPerSelected:
+                    AddInteractionStatus(
+                        state,
+                        effect.DefinitionId,
+                        effect.Amount * selected.Count);
+                    break;
+                case CombatInteractionEffectKind.AddStatusBySelectionCount:
+                    AddInteractionStatus(
+                        state,
+                        effect.DefinitionId,
+                        effect.BaseAmount
+                        + effect.AmountPerSelection * selected.Count);
+                    break;
+            }
+        }
+        if (!interaction.EffectsComplete)
+        {
+            state.Uncertainty += Math.Max(1d, selected.Count * 0.5d);
+        }
+    }
+
+    private static void AddInteractionStatus(
+        CombatSimulationState state,
+        string statusId,
+        double amount)
+    {
+        if (string.IsNullOrWhiteSpace(statusId) || Math.Abs(amount) <= 0.000001d)
+        {
+            return;
+        }
+        var key = "status:" + statusId;
+        state.Features[key] = Math.Max(0d, Value(state.Features, key) + amount);
+        if (string.Equals(statusId, "buff_rebirth", StringComparison.OrdinalIgnoreCase))
+        {
+            state.Features[CombatArchetypePolicy.RebirthStacksFeature] =
+                Math.Max(
+                    0d,
+                    Value(
+                        state.Features,
+                        CombatArchetypePolicy.RebirthStacksFeature) + amount);
+        }
+    }
+
     private static int LivingEnemyHp(CombatSimulationUnit[] enemies)
     {
         var total = 0;
@@ -1605,14 +1819,21 @@ public static class CombatForwardModel
         return result;
     }
 
-    public static int EffectiveCost(CombatSimulationState state, CombatActionObservation action)
+    public static int EffectiveCost(
+        CombatSimulationState state,
+        CombatActionObservation action,
+        int dynamicActionIndex = -1)
     {
-        return Math.Max(0, RawDynamicCost(state, action) - state.CostReduction);
+        return Math.Max(
+            0,
+            RawDynamicCost(state, action, dynamicActionIndex)
+            - state.CostReduction);
     }
 
     private static int RawDynamicCost(
         CombatSimulationState state,
-        CombatActionObservation action)
+        CombatActionObservation action,
+        int dynamicActionIndex = -1)
     {
         if (action.Kind != CombatActionKind.PlayCard
             || !action.Features.TryGetValue("cardBaseCost", out var rawBaseCost))
@@ -1630,12 +1851,18 @@ public static class CombatForwardModel
         var scaledCost = Math.Min(
             (int)(baseCost * Math.Max(0d, state.CardCostMultiplier)),
             cap);
+        var instanceAdjustment = dynamicActionIndex >= 0
+                                 && dynamicActionIndex
+                                 < state.ActionCostAdjustments.Length
+            ? state.ActionCostAdjustments[dynamicActionIndex]
+            : 0;
         return Math.Max(
             0,
             scaledCost
             + (int)Math.Round(Value(action.Features, "cardTotalExCost"))
             + (int)Math.Round(Value(action.Features, "cardExCost"))
-            + (int)Math.Round(Value(action.Features, "cardOnceExCost")));
+            + (int)Math.Round(Value(action.Features, "cardOnceExCost"))
+            + instanceAdjustment);
     }
 
     private static void ApplyEffect(
@@ -1651,10 +1878,19 @@ public static class CombatForwardModel
                 ApplyDamage(
                     state,
                     targetId,
-                    Math.Max(0, (int)Math.Round(effect.Magnitude * state.DamageMultiplier)),
+                    ResolvePlayerNormalDamage(
+                        state,
+                        targetId,
+                        effect.Magnitude),
                     bypassDefend: false);
                 break;
             case CombatEffectKind.TrueDamage:
+                ApplyDamage(
+                    state,
+                    targetId,
+                    ResolvePlayerTrueDamage(state, effect.Magnitude),
+                    bypassDefend: true);
+                break;
             case CombatEffectKind.DamageOverTime:
                 ApplyDamage(state, targetId, magnitude, bypassDefend: true);
                 break;
@@ -2132,7 +2368,10 @@ public static class CombatForwardModel
                 ApplyDamage(
                     state,
                     0,
-                    Math.Max(0, (int)Math.Round(damage / living)),
+                    ResolvePlayerNormalDamage(
+                        state,
+                        0,
+                        damage / living),
                     bypassDefend: false);
             }
             else if (string.Equals(
@@ -2143,7 +2382,7 @@ public static class CombatForwardModel
                 ApplyDamage(
                     state,
                     0,
-                    Math.Max(0, (int)Math.Round(damage)),
+                    ResolvePlayerNormalDamage(state, 0, damage),
                     bypassDefend: false);
             }
             else
@@ -2153,7 +2392,12 @@ public static class CombatForwardModel
                     targetRuntimeId != 0
                         ? targetRuntimeId
                         : ConservativeDeferredTarget(state),
-                    Math.Max(0, (int)Math.Round(damage)),
+                    ResolvePlayerNormalDamage(
+                        state,
+                        targetRuntimeId != 0
+                            ? targetRuntimeId
+                            : ConservativeDeferredTarget(state),
+                        damage),
                     bypassDefend: false);
             }
         }
@@ -2165,7 +2409,7 @@ public static class CombatForwardModel
                 targetRuntimeId != 0
                     ? targetRuntimeId
                     : ConservativeDeferredTarget(state),
-                Math.Max(0, (int)Math.Round(trueDamage)),
+                ResolvePlayerTrueDamage(state, trueDamage),
                 bypassDefend: true);
         }
         state.PlayerDefend += Math.Max(
@@ -2488,6 +2732,56 @@ public static class CombatForwardModel
         }
 
         return null;
+    }
+
+    private static int ResolvePlayerNormalDamage(
+        CombatSimulationState state,
+        int targetId,
+        double baseDamage)
+    {
+        var target = FindTarget(state, targetId);
+        return CombatDynamicDamageProjection.ResolveNormal(
+            baseDamage,
+            state.DamageMultiplier,
+            Value(state.Features, "player." + CombatDynamicDamageProjection.DefaultDamage),
+            Value(state.Features, "player." + CombatDynamicDamageProjection.Strength),
+            target == null
+                ? 1d
+                : FeatureValue(
+                    target.Features,
+                    CombatDynamicDamageProjection.AttackedPercentDamage,
+                    1d),
+            target == null
+                ? 0d
+                : FeatureValue(
+                    target.Features,
+                    CombatDynamicDamageProjection.AttackedDefaultDamage,
+                    0d),
+            applyStrength: true);
+    }
+
+    private static int ResolvePlayerTrueDamage(
+        CombatSimulationState state,
+        double baseDamage)
+    {
+        return CombatDynamicDamageProjection.ResolveTrue(
+            baseDamage,
+            FeatureValue(
+                state.Features,
+                "player." + CombatDynamicDamageProjection.TruePercentDamage,
+                1d));
+    }
+
+    private static double FeatureValue(
+        IReadOnlyDictionary<string, double> values,
+        string key,
+        double fallback)
+    {
+        return values.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : fallback;
     }
 
     private static void ApplyDamage(

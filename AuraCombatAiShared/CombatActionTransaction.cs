@@ -173,7 +173,7 @@ public sealed class CombatPromptSelectionTracker
         double attemptTimeoutSeconds = 0.8d,
         double nativeCloseTimeoutSeconds = 2d)
     {
-        RequiredCount = Math.Max(1, requiredCount);
+        RequiredCount = Math.Max(0, requiredCount);
         this.attemptTimeoutSeconds = Math.Max(0.05d, attemptTimeoutSeconds);
         this.nativeCloseTimeoutSeconds = Math.Max(
             0.1d,
@@ -188,7 +188,7 @@ public sealed class CombatPromptSelectionTracker
 
     public void SetRequiredCount(int requiredCount)
     {
-        RequiredCount = Math.Max(1, requiredCount);
+        RequiredCount = Math.Max(0, requiredCount);
     }
 
     public CombatSelectionProgress Observe(int selectedCount, double now)

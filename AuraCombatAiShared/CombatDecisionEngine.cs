@@ -64,8 +64,11 @@ public sealed class CombatDecisionEngine
             var observedMechanics =
                 CombatPlayerObservationBoundary.NormalizeSemantics(
                     action.Semantics);
-            ApplySemantics(prepared, action);
-            MergeMechanicalSemantics(action.Semantics, observedMechanics);
+            if (!HasAuthoritativeTransitionSemantics(action))
+            {
+                ApplySemantics(prepared, action);
+                MergeMechanicalSemantics(action.Semantics, observedMechanics);
+            }
             action.Semantics =
                 CombatPlayerObservationBoundary.NormalizeSemantics(
                     action.Semantics);
@@ -136,10 +139,13 @@ public sealed class CombatDecisionEngine
                 var observedMechanics =
                     CombatPlayerObservationBoundary.NormalizeSemantics(
                         action.Semantics);
-                ApplySemantics(state, action);
-                MergeMechanicalSemantics(
-                    action.Semantics,
-                    observedMechanics);
+                if (!HasAuthoritativeTransitionSemantics(action))
+                {
+                    ApplySemantics(state, action);
+                    MergeMechanicalSemantics(
+                        action.Semantics,
+                        observedMechanics);
+                }
                 action.Semantics =
                     CombatPlayerObservationBoundary.NormalizeSemantics(
                         action.Semantics);
@@ -220,6 +226,15 @@ public sealed class CombatDecisionEngine
                 action,
                 utility,
                 selectedProfile);
+            if (legal
+                && !CombatActionSafetyPolicy.IsAdmissible(
+                    state,
+                    action,
+                    utility,
+                    out rejectionReason))
+            {
+                legal = false;
+            }
             var features = action.Features;
             var evaluatedUtility = utility.Clone();
             var graphEvaluation = DecisionGraphEvaluator.Evaluate(selectedProfile.Graph, features);
@@ -307,7 +322,12 @@ public sealed class CombatDecisionEngine
                     }
                 },
                 PlanSummary = "dominant-free-setup; plan=" + dominantSetup.Action.DisplayName,
-                SearchAlgorithm = "dominance"
+                SearchAlgorithm = "dominance",
+                SearchProposedCandidateId = dominantSetup.Action.CandidateId,
+                SearchProposedDisplayName = dominantSetup.Action.DisplayName,
+                GovernanceDecision = CombatGovernanceDecision.Accept.ToString(),
+                GovernanceReason = "dominance certificate",
+                DecisionPath = "dominance-certificate"
             };
         }
 
@@ -332,14 +352,11 @@ public sealed class CombatDecisionEngine
             endTurnAssessment,
             search,
             selectedProfile);
-        var usingGovernanceFallback = false;
-        if (selectedProfile.UseLowConfidenceFallback
-            && governance.Decision
-               == CombatGovernanceDecision.UseSafeFallback
+        if (governance.Decision
+            == CombatGovernanceDecision.UseSafeFallback
             && governance.Candidate != null)
         {
             var fallback = governance.Candidate;
-            usingGovernanceFallback = true;
             hasPlanAction = true;
             planAction = fallback.Action;
             planScore = fallback.RuleScore;
@@ -377,8 +394,9 @@ public sealed class CombatDecisionEngine
                 || evaluations.Any(candidate =>
                     ReferenceEquals(candidate.Action, planAction)
                     && candidate.Utility.Lethal > 0d))
-            && (usingGovernanceFallback
-                || planScore >= selectedProfile.MinimumActionScore))
+            && (planScore >= selectedProfile.MinimumActionScore
+                || CombatActionSafetyPolicy.HasMinimumLossCertificate(
+                    planAction)))
         {
             return new CombatDecision
             {
@@ -397,7 +415,15 @@ public sealed class CombatDecisionEngine
                 SearchTranspositionHits = search.TranspositionHits,
                 SearchStoppedEarly = search.StoppedEarly,
                 SearchStoppedByTime = search.StoppedByTime,
+                SearchMinimumTimeMilliseconds = search.MinimumTimeMilliseconds,
+                SearchMinimumTimeSatisfied = search.MinimumTimeSatisfied,
+                SearchEarlyStopCertified = search.EarlyStopCertified,
+                SearchStopReason = search.StopReason,
                 SearchConfidence = search.Confidence,
+                SearchEvidence = search.SearchEvidence,
+                PolicyAmbiguity = search.PolicyAmbiguity,
+                SemanticCoverageRisk = search.SemanticCoverageRisk,
+                OutcomeUncertainty = search.OutcomeUncertainty,
                 SearchValueGap = search.ValueGap,
                 SearchBestVisits = search.BestVisits,
                 SearchSecondBestVisits = search.SecondBestVisits,
@@ -409,7 +435,19 @@ public sealed class CombatDecisionEngine
                 SustainableControlLoops =
                     search.SustainableControlLoops,
                 FakeLoops = search.FakeLoops,
-                BlockedLoops = search.BlockedLoops
+                BlockedLoops = search.BlockedLoops,
+                SearchProposedCandidateId =
+                    search.Action?.CandidateId ?? "",
+                SearchProposedDisplayName =
+                    search.Action?.DisplayName ?? "",
+                GovernanceDecision = governance.Decision.ToString(),
+                GovernanceReason = governance.Reason,
+                GovernanceFallbackApplied = governance.Decision
+                    == CombatGovernanceDecision.UseSafeFallback,
+                DecisionPath = governance.Decision
+                    == CombatGovernanceDecision.UseSafeFallback
+                        ? "governance-safe-fallback"
+                        : "model-search-accepted"
             };
         }
 
@@ -433,7 +471,15 @@ public sealed class CombatDecisionEngine
                 SearchTranspositionHits = search.TranspositionHits,
                 SearchStoppedEarly = search.StoppedEarly,
                 SearchStoppedByTime = search.StoppedByTime,
+                SearchMinimumTimeMilliseconds = search.MinimumTimeMilliseconds,
+                SearchMinimumTimeSatisfied = search.MinimumTimeSatisfied,
+                SearchEarlyStopCertified = search.EarlyStopCertified,
+                SearchStopReason = search.StopReason,
                 SearchConfidence = search.Confidence,
+                SearchEvidence = search.SearchEvidence,
+                PolicyAmbiguity = search.PolicyAmbiguity,
+                SemanticCoverageRisk = search.SemanticCoverageRisk,
+                OutcomeUncertainty = search.OutcomeUncertainty,
                 SearchValueGap = search.ValueGap,
                 SearchBestVisits = search.BestVisits,
                 SearchSecondBestVisits = search.SecondBestVisits,
@@ -445,21 +491,24 @@ public sealed class CombatDecisionEngine
                 SustainableControlLoops =
                     search.SustainableControlLoops,
                 FakeLoops = search.FakeLoops,
-                BlockedLoops = search.BlockedLoops
+                BlockedLoops = search.BlockedLoops,
+                SearchProposedCandidateId =
+                    search.Action?.CandidateId ?? "",
+                SearchProposedDisplayName =
+                    search.Action?.DisplayName ?? "",
+                GovernanceDecision = governance.Decision.ToString(),
+                GovernanceReason = governance.Reason,
+                GovernanceFallbackApplied = true,
+                DecisionPath = "certified-end-turn-fallback"
             };
         }
 
         if (endTurnAssessment.Prohibited)
         {
-            var safeFallback = evaluations
-                .Where(candidate =>
-                    CombatEndTurnSafety.IsSafeAlternative(
-                        state,
-                        candidate,
-                        selectedProfile))
-                .OrderByDescending(candidate => candidate.RuleScore)
-                .ThenBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
-                .FirstOrDefault();
+            var safeFallback = CombatDecisionGovernance.SelectSafeFallback(
+                state,
+                evaluations,
+                selectedProfile);
             if (safeFallback != null)
             {
                 return new CombatDecision
@@ -479,14 +528,33 @@ public sealed class CombatDecisionEngine
                     SearchTranspositionHits = search.TranspositionHits,
                     SearchStoppedEarly = search.StoppedEarly,
                     SearchStoppedByTime = search.StoppedByTime,
+                    SearchMinimumTimeMilliseconds =
+                        search.MinimumTimeMilliseconds,
+                    SearchMinimumTimeSatisfied =
+                        search.MinimumTimeSatisfied,
+                    SearchEarlyStopCertified = search.EarlyStopCertified,
+                    SearchStopReason = search.StopReason,
                     SearchConfidence = search.Confidence,
+                    SearchEvidence = search.SearchEvidence,
+                    PolicyAmbiguity = search.PolicyAmbiguity,
+                    SemanticCoverageRisk = search.SemanticCoverageRisk,
+                    OutcomeUncertainty = search.OutcomeUncertainty,
                     SearchValueGap = search.ValueGap,
                     SearchBestVisits = search.BestVisits,
                     SearchSecondBestVisits = search.SecondBestVisits,
                     SearchCandidateCount = search.CandidateCount,
                     SearchOriginalCandidateCount = search.OriginalCandidateCount,
                     SearchBudgetTier = search.BudgetTier,
-                    Performance = CombatDecisionPerformanceTelemetry.FromSearch(search)
+                    Performance = CombatDecisionPerformanceTelemetry.FromSearch(search),
+                    SearchProposedCandidateId =
+                        search.Action?.CandidateId ?? "",
+                    SearchProposedDisplayName =
+                        search.Action?.DisplayName ?? "",
+                    GovernanceDecision = CombatGovernanceDecision
+                        .UseSafeFallback.ToString(),
+                    GovernanceReason = "end-turn safety fallback",
+                    GovernanceFallbackApplied = true,
+                    DecisionPath = "end-turn-safety-fallback"
                 };
             }
         }
@@ -503,7 +571,15 @@ public sealed class CombatDecisionEngine
             SearchTranspositionHits = search.TranspositionHits,
             SearchStoppedEarly = search.StoppedEarly,
             SearchStoppedByTime = search.StoppedByTime,
+            SearchMinimumTimeMilliseconds = search.MinimumTimeMilliseconds,
+            SearchMinimumTimeSatisfied = search.MinimumTimeSatisfied,
+            SearchEarlyStopCertified = search.EarlyStopCertified,
+            SearchStopReason = search.StopReason,
             SearchConfidence = search.Confidence,
+            SearchEvidence = search.SearchEvidence,
+            PolicyAmbiguity = search.PolicyAmbiguity,
+            SemanticCoverageRisk = search.SemanticCoverageRisk,
+            OutcomeUncertainty = search.OutcomeUncertainty,
             SearchValueGap = search.ValueGap,
             SearchBestVisits = search.BestVisits,
             SearchSecondBestVisits = search.SecondBestVisits,
@@ -515,7 +591,13 @@ public sealed class CombatDecisionEngine
             SustainableControlLoops =
                 search.SustainableControlLoops,
             FakeLoops = search.FakeLoops,
-            BlockedLoops = search.BlockedLoops
+            BlockedLoops = search.BlockedLoops,
+            SearchProposedCandidateId = search.Action?.CandidateId ?? "",
+            SearchProposedDisplayName = search.Action?.DisplayName ?? "",
+            GovernanceDecision = governance.Decision.ToString(),
+            GovernanceReason = governance.Reason,
+            GovernanceFallbackApplied = false,
+            DecisionPath = "no-governance-approved-action"
         };
     }
 
@@ -555,6 +637,15 @@ public sealed class CombatDecisionEngine
                 observed.DeckValue);
             target.OpensInteraction = true;
         }
+        if (target.Interaction == null && observed.Interaction != null)
+        {
+            target.Interaction = observed.Interaction.Clone();
+            target.OpensInteraction = true;
+            if (!target.Interaction.EffectsComplete)
+            {
+                target.Uncertainty = Math.Max(target.Uncertainty, 1.5d);
+            }
+        }
         if (!target.EnergySetAmount.HasValue
             && !target.EnergyMinimum.HasValue
             && !target.RestoreEnergyToMaximum)
@@ -572,6 +663,15 @@ public sealed class CombatDecisionEngine
                     observed.EnergyGain);
             }
         }
+    }
+
+    private static bool HasAuthoritativeTransitionSemantics(
+        CombatActionObservation action)
+    {
+        return action.Features.TryGetValue(
+                   "authoritativeTransitionSemantics",
+                   out var value)
+               && value > 0.5d;
     }
 
     public static DecisionUtility BuildUtility(
@@ -720,6 +820,7 @@ public sealed class CombatDecisionEngine
             && semantics.Scaling == 0d
             && semantics.DeckValue == 0d
             && semantics.HandTransform == null
+            && semantics.Interaction == null
             && setupValue == 0d)
         {
             unknown = Math.Max(unknown, profile.UnknownActionPenalty);
@@ -831,6 +932,8 @@ public sealed class CombatDecisionEngine
         features["damage"] = semantics.Damage;
         features["trueDamage"] = semantics.TrueDamage;
         features["damageOverTime"] = semantics.DamageOverTime;
+        features["directDamage"] = semantics.DirectDamage;
+        features["contextDamage"] = semantics.ContextDamage;
         features["immediateHpDamage"] =
             CombatActionSemanticMetrics.ImmediateHpDamage(semantics);
         features["immediateDurabilityDamage"] =
@@ -839,6 +942,14 @@ public sealed class CombatDecisionEngine
             CombatActionSemanticMetrics.DeferredHpDamage(semantics);
         features["affectedEnemyCount"] = semantics.AffectedEnemyCount;
         features["selfHpLoss"] = semantics.SelfHpLoss;
+        features["directSelfHpLoss"] = semantics.DirectSelfHpLoss;
+        features["contextSelfHpLoss"] = semantics.ContextSelfHpLoss;
+        features["directHeal"] = semantics.DirectHeal;
+        features["contextHeal"] = semantics.ContextHeal;
+        features["observedNetHpDelta"] = semantics.ObservedNetHpDelta;
+        features["minimumHpDuringAction"] = semantics.MinimumHpDuringAction;
+        features["lethalBeforeRecovery"] =
+            semantics.LethalBeforeRecovery ? 1d : 0d;
         features["endOfCycleSelfHpLoss"] =
             semantics.EndOfCycleSelfHpLoss;
         features["hitCount"] = semantics.HitCount;
@@ -976,7 +1087,8 @@ public sealed class CombatDecisionEngine
                                   + draw
                                   + Math.Max(0d, semantics.EnergyGain)
                                   + setupValue > 0d
-                                  || semantics.HandTransform != null;
+                                  || semantics.HandTransform != null
+                                  || semantics.Interaction?.EffectsComplete == true;
         var semanticConfidence = recognizedSemantics
             ? 1d - Math.Min(1d, Math.Max(0d, semantics.Uncertainty) / 3d)
             : 0d;
@@ -1101,7 +1213,8 @@ public sealed class CombatDecisionEngine
             || semantics.CardGeneration > 0d
             || semantics.PersistentValue > 0d
             || semantics.Scaling > 0d
-            || semantics.HandTransform != null)
+            || semantics.HandTransform != null
+            || semantics.Interaction?.EffectsComplete == true)
         {
             return "support";
         }

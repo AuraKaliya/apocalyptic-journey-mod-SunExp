@@ -661,6 +661,76 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         File.Move(source, destination);
     }
 
+    public void ReplaceFileInsideRoot(
+        string sourcePath,
+        string destinationPath,
+        string backupPath = "")
+    {
+        var source = Path.GetFullPath(sourcePath);
+        var destination = Path.GetFullPath(destinationPath);
+        var backup = string.IsNullOrWhiteSpace(backupPath)
+            ? ""
+            : Path.GetFullPath(backupPath);
+        if (!IsInside(source, rootDirectory)
+            || !IsInside(destination, rootDirectory)
+            || !string.IsNullOrWhiteSpace(backup)
+               && !IsInside(backup, rootDirectory))
+        {
+            throw new InvalidDataException(
+                "Replace target escapes shared storage.");
+        }
+        EnsurePortablePath(source, "replace-source");
+        EnsurePortablePath(destination, "replace-destination");
+        if (!string.IsNullOrWhiteSpace(backup))
+        {
+            EnsurePortablePath(backup, "replace-backup");
+        }
+        if (!File.Exists(source))
+        {
+            throw new FileNotFoundException(
+                "Shared replace source does not exist.",
+                source);
+        }
+        if (!File.Exists(destination))
+        {
+            throw new FileNotFoundException(
+                "Shared replace destination does not exist.",
+                destination);
+        }
+        if (!string.IsNullOrWhiteSpace(backup) && File.Exists(backup))
+        {
+            throw new IOException(
+                "Shared replace backup already exists: " + backup);
+        }
+        Directory.CreateDirectory(
+            Path.GetDirectoryName(destination) ?? rootDirectory);
+        if (!string.IsNullOrWhiteSpace(backup))
+        {
+            Directory.CreateDirectory(
+                Path.GetDirectoryName(backup) ?? rootDirectory);
+        }
+        File.Replace(
+            source,
+            destination,
+            string.IsNullOrWhiteSpace(backup) ? null : backup,
+            ignoreMetadataErrors: true);
+    }
+
+    public void DeleteFileInsideRoot(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!IsInside(fullPath, rootDirectory))
+        {
+            throw new InvalidDataException(
+                "Delete target escapes shared storage.");
+        }
+        EnsurePortablePath(fullPath, "delete-file");
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+    }
+
     private string CompactArchivePath(string category, string sourcePath, string extension)
     {
         var relative = MakeRelative(rootDirectory, sourcePath);

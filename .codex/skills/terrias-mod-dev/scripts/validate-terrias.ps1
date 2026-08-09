@@ -202,10 +202,13 @@ function Test-PackRefs {
     )
     foreach ($row in $Rows) {
         if (-not ($row.PSObject.Properties.Name -contains "PackBelong")) {
+            if ($Kind -eq "Blessing" -or $Kind -eq "EnchTag") {
+                Add-Failure "$Kind '$($row.Id)' is missing the required PackBelong column."
+            }
             continue
         }
         if ([string]::IsNullOrWhiteSpace($row.PackBelong)) {
-            if ($Kind -eq "Card" -and (Normalize-Id $row.Id) -ne $row.Id) {
+            if ((Normalize-Id $row.Id) -ne $row.Id) {
                 continue
             }
             Add-Failure "$Kind '$($row.Id)' has empty PackBelong."
@@ -519,12 +522,16 @@ Test-RuntimeIdCollisions $modRootPath
 $cardFiles = Get-KindCsvFiles $modRootPath "Data" "Card"
 $buffFiles = Get-KindCsvFiles $modRootPath "Data" "Buff"
 $relicFiles = Get-KindCsvFiles $modRootPath "Data" "Relic"
+$blessingFiles = Get-KindCsvFiles $modRootPath "Data" "Blessing"
+$enchTagFiles = Get-KindCsvFiles $modRootPath "Data" "EnchTag"
 $packFiles = Get-KindCsvFiles $modRootPath "Data" "CardPack"
 $enemyFiles = Get-KindCsvFiles $modRootPath "Data" "Enemy"
 
 $cards = Add-RowsFromFiles $cardFiles
 $buffs = Add-RowsFromFiles $buffFiles
 $relics = Add-RowsFromFiles $relicFiles
+$blessings = Add-RowsFromFiles $blessingFiles
+$enchTags = Add-RowsFromFiles $enchTagFiles
 $packs = Add-RowsFromFiles $packFiles
 $enemies = Add-RowsFromFiles $enemyFiles
 
@@ -542,6 +549,8 @@ foreach ($packFile in $packFiles) {
 }
 Test-PackRefs "Card" $cards $packIds
 Test-PackRefs "Relic" $relics $packIds
+Test-PackRefs "Blessing" $blessings $packIds
+Test-PackRefs "EnchTag" $enchTags $packIds
 Test-DisplayRarityValues $modRootPath
 
 foreach ($file in $cardFiles) {

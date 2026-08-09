@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
 using Michsky.MUIP;
 using UnityEngine;
@@ -106,6 +107,46 @@ public static class WitchCombatInteractionRuntime
         {
             int.TryParse(raw, out count);
         }
+        count = Math.Max(0, count);
+        var optional = context.Arguments
+            .Skip(1)
+            .OfType<string>()
+            .Any(value => string.Equals(value.Trim(), "2", StringComparison.Ordinal));
+        var interaction = new CombatInteractionDefinition
+        {
+            SourceApi = kind == CombatPromptKind.BurnCards
+                ? "BurnCard"
+                : kind == CombatPromptKind.DiscardCards
+                    ? "ThrowCard"
+                    : "ChooseCardToAction",
+            NativeMode = optional ? "2" : "",
+            Kind = kind == CombatPromptKind.BurnCards
+                ? CombatInteractionKind.BurnCards
+                : kind == CombatPromptKind.DiscardCards
+                    ? CombatInteractionKind.DiscardCards
+                    : CombatInteractionKind.ChooseCards,
+            Zone = CombatInteractionZone.Hand,
+            MinSelections = optional ? 0 : count,
+            MaxSelections = count,
+            CanConfirmEarly = optional,
+            CanConfirmEmpty = optional,
+            EffectsComplete = kind is CombatPromptKind.BurnCards
+                or CombatPromptKind.DiscardCards
+        };
+        if (kind == CombatPromptKind.BurnCards)
+        {
+            interaction.SelectionEffects.Add(new CombatInteractionEffectDefinition
+            {
+                Kind = CombatInteractionEffectKind.BurnSelected
+            });
+        }
+        else if (kind == CombatPromptKind.DiscardCards)
+        {
+            interaction.SelectionEffects.Add(new CombatInteractionEffectDefinition
+            {
+                Kind = CombatInteractionEffectKind.DiscardSelected
+            });
+        }
 
         var cards = FightUI.cardItemList ?? new List<CardItem>();
 
@@ -116,9 +157,10 @@ public static class WitchCombatInteractionRuntime
                 Kind = kind,
                 Zone = CombatPromptZone.Hand,
                 Forced = true,
-                PreferLowestValue = preferLowestValue
+                PreferLowestValue = preferLowestValue,
+                Interaction = interaction
             },
-            Math.Max(1, count),
+            count,
             null);
         handPrompt = new HandPrompt(
             fightUi,
@@ -200,11 +242,6 @@ public static class WitchCombatInteractionRuntime
                     .Where(choice => choice != null)
                     .Cast<CombatActionObservation>()
                     .ToList());
-            if (buttons.Count < prompt.Request.RequiredCount)
-            {
-                return WitchInteractionResolveResult.Pending;
-            }
-
             var choices = buttons
                 .Select((button, index) =>
                 {
@@ -214,18 +251,20 @@ public static class WitchCombatInteractionRuntime
                         : new CombatActionObservation();
                 })
                 .ToList();
-            var utilities = choices
-                .Select(choice => ChoiceUtility(prompt.Request.Hint, choice))
-                .ToList();
-            var selected = MultiSelectPlanner.ChooseIndices(
-                utilities,
-                prompt.Request.RequiredCount,
-                preferLowest: prompt.Request.Hint.PreferLowestValue);
+            var plan = PlanInteraction(prompt.Request, choices);
+            CombatInteractionBroker.PublishPlan(
+                prompt.Request.RequestId,
+                plan.SelectedIndices.Count,
+                plan.SelectedCandidateIds);
+            if (buttons.Count < prompt.Request.MinSelections)
+            {
+                return WitchInteractionResolveResult.Pending;
+            }
             CombatInteractionBroker.Transition(prompt.Request.RequestId, CombatInteractionState.Resolving);
             prompt.SelectionIssued = true;
-            for (var i = 0; i < selected.Count; i++)
+            for (var i = 0; i < plan.SelectedIndices.Count; i++)
             {
-                buttons[selected[i]].onClick.Invoke();
+                buttons[plan.SelectedIndices[i]].onClick.Invoke();
             }
 
             return WitchInteractionResolveResult.Pending;
@@ -269,16 +308,20 @@ public static class WitchCombatInteractionRuntime
             {
                 prompt.UiObserved = true;
                 var selectedCount = FightUI.SelectedCard?.Count ?? 0;
-                var nativeRequired = FightUI.SpecialCount + selectedCount;
-                if (nativeRequired > 0)
-                {
-                    prompt.Selection.SetRequiredCount(nativeRequired);
-                }
+                var visibleChoices = EligibleHandCards(prompt)
+                    .Select((card, index) => CreateChoice(card.dataConfig, index))
+                    .ToList();
                 CombatInteractionBroker.PublishVisibleChoices(
                     prompt.Request.RequestId,
-                    EligibleHandCards(prompt)
-                        .Select((card, index) => CreateChoice(card.dataConfig, index))
-                        .ToList());
+                    visibleChoices);
+                prompt.Plan = PlanInteraction(prompt.Request, visibleChoices);
+                prompt.Selection.SetRequiredCount(prompt.Plan.SelectedIndices.Count);
+                prompt.PlannedCandidateIds = new Queue<string>(
+                    prompt.Plan.SelectedCandidateIds);
+                CombatInteractionBroker.PublishPlan(
+                    prompt.Request.RequestId,
+                    prompt.Plan.SelectedIndices.Count,
+                    prompt.Plan.SelectedCandidateIds);
                 CombatInteractionBroker.Transition(
                     prompt.Request.RequestId,
                     CombatInteractionState.AwaitingChoice,
@@ -380,22 +423,12 @@ public static class WitchCombatInteractionRuntime
             }
             prompt.NoEligibleSince = -1f;
 
-            var choices = eligibleCards
-                .Select((card, index) => CreateChoice(card.dataConfig, index))
-                .ToList();
-            var utilities = choices
-                .Select(choice => ChoiceUtility(prompt.Request.Hint, choice))
-                .ToList();
-            var selected = MultiSelectPlanner.ChooseIndices(
-                utilities,
-                1,
-                preferLowest: prompt.Request.Hint.PreferLowestValue);
-            if (selected.Count == 0)
+            if (prompt.PlannedCandidateIds.Count == 0)
             {
                 CombatInteractionBroker.Transition(
                     prompt.Request.RequestId,
                     CombatInteractionState.Failed,
-                    "selection policy returned no eligible hand card");
+                    "interaction plan has no remaining eligible card");
                 handPrompt = null;
                 return WitchInteractionResolveResult.Failed;
             }
@@ -424,12 +457,27 @@ public static class WitchCombatInteractionRuntime
                 return WitchInteractionResolveResult.Pending;
             }
 
-            var selectedCard = eligibleCards[selected[0]];
+            var plannedCandidateId = prompt.PlannedCandidateIds.Peek();
+            var selectedCard = eligibleCards.FirstOrDefault(card =>
+                string.Equals(
+                    CreateChoice(card.dataConfig, 0).CandidateId,
+                    plannedCandidateId,
+                    StringComparison.Ordinal));
+            if (selectedCard == null)
+            {
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "planned card is no longer eligible: " + plannedCandidateId);
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
+            }
             var eventData = new PointerEventData(EventSystem.current)
             {
                 button = PointerEventData.InputButton.Left
             };
             HandleSelectModeClick.Invoke(selectedCard, new object[] { eventData });
+            prompt.PlannedCandidateIds.Dequeue();
             CombatInteractionBroker.Transition(
                 prompt.Request.RequestId,
                 CombatInteractionState.Resolving,
@@ -465,7 +513,9 @@ public static class WitchCombatInteractionRuntime
     private static string BuildProgressMessage(HandPrompt prompt, int selectedCount, int eligibleCount)
     {
         return "prompt=" + prompt.Request.Hint.Kind
-               + ", required=" + prompt.Selection.RequiredCount
+               + ", min=" + prompt.Request.MinSelections
+               + ", max=" + prompt.Request.MaxSelections
+               + ", target=" + prompt.Selection.RequiredCount
                + ", selected=" + selectedCount
                + ", eligible=" + eligibleCount;
     }
@@ -488,8 +538,8 @@ public static class WitchCombatInteractionRuntime
         var choice = new CombatActionObservation
         {
             ObservationId = "prompt",
-            ActionToken = "prompt:" + index,
-            CandidateId = "prompt:" + index + ":" + WitchCombatValueEstimator.IdOf(config),
+            ActionToken = "prompt:" + StableChoiceId(config),
+            CandidateId = "prompt:" + StableChoiceId(config),
             SourceId = WitchCombatValueEstimator.IdOf(config),
             DisplayName = WitchCombatValueEstimator.NameOf(config),
             Kind = CombatActionKind.ResolvePrompt,
@@ -515,6 +565,37 @@ public static class WitchCombatInteractionRuntime
             return new DecisionUtility { Scaling = score };
         }
         return ToUtility(choice.Semantics ?? new CombatActionSemantics());
+    }
+
+    private static CombatInteractionPlan PlanInteraction(
+        CombatInteractionRequest request,
+        IReadOnlyList<CombatActionObservation> choices)
+    {
+        return CombatInteractionPlanner.Plan(
+            request.Hint.Interaction,
+            choices,
+            choice =>
+            {
+                if (request.Hint.ChoiceScorer != null
+                    && request.Hint.ChoiceScorer.TryScore(
+                        request.Hint,
+                        choice,
+                        out var score)
+                    && !double.IsNaN(score)
+                    && !double.IsInfinity(score))
+                {
+                    return score;
+                }
+                return 0d;
+            },
+            request.Hint.PreferLowestValue);
+    }
+
+    private static string StableChoiceId(IDataConfig config)
+    {
+        return !string.IsNullOrWhiteSpace(config?.InstanceID)
+            ? config!.InstanceID
+            : WitchCombatValueEstimator.IdOf(config);
     }
 
     private static void AddNumericFeature(
@@ -610,6 +691,10 @@ public static class WitchCombatInteractionRuntime
         public bool UiObserved { get; set; }
 
         public CombatPromptSelectionTracker Selection { get; }
+
+        public CombatInteractionPlan Plan { get; set; } = new();
+
+        public Queue<string> PlannedCandidateIds { get; set; } = new();
 
         public float NoEligibleSince { get; set; }
     }

@@ -532,12 +532,16 @@ public sealed class CombatJourneyRunner
                         definition.Player.NativeManagedSkillCooldownIds),
                     RoleNativeScriptHash = definition.Player.RoleNativeScriptHash,
                     RoleFightScript = definition.Player.RoleFightScript,
+                    RolePassiveContract = definition.Player.RolePassiveContract
+                        ?.Clone() ?? new CombatRolePassiveContract(),
                     RoleRuntimeForms = definition.Player.RoleRuntimeForms
                         .Select(item => item.Clone())
                         .ToList(),
                     FamiliarBlessingIds = new List<string>(
                         definition.Player.FamiliarBlessingIds),
                     MaxHp = definition.Player.MaxHp,
+                    PersistentMaxHpAdjustment =
+                        definition.Player.PersistentMaxHpAdjustment,
                     CurrentHp = checkpoint.CurrentHp,
                     BaseEnergy = definition.Player.BaseEnergy,
                     Deck = new List<string>(checkpoint.Deck),

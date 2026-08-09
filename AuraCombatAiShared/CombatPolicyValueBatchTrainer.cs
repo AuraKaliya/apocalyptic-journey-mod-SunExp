@@ -702,7 +702,8 @@ internal static class CombatPolicyValueBatchTrainer
             .Select(frame => CombatPolicyValueEncoding
                 .MeasureStateCollisionsForFrame(
                     frame,
-                    options.StateDimensions)));
+                    options.StateDimensions,
+                    options.FeatureEncodingMode)));
         var actionCollision = CollisionRate(episodes
             .SelectMany(episode => episode.Frames
                                   ?? new List<CombatEpisodeFrame>())
@@ -1307,6 +1308,14 @@ internal static class CombatPolicyValueBatchTrainer
                || string.Equals(
                    strategy,
                    "strategy-bank",
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-transform",
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-growth",
                    StringComparison.Ordinal);
     }
 
@@ -1787,6 +1796,306 @@ internal static class CombatPolicyValueBatchTrainer
         return frame.CompactStateFeatures != null
             ? StrategicFrameStratum(frame.CompactStateFeatures)
             : StrategicFrameStratum(frame.StateFeatures);
+    }
+
+    internal static (
+        bool Known,
+        IReadOnlyList<string> ApplicableLabels,
+        IReadOnlyList<string> PositiveLabels,
+        string Source) StrategicFrameSupervisionForExecutedAction(
+            CombatEpisodeFrame? frame)
+    {
+        if (frame == null || string.IsNullOrWhiteSpace(frame.ExecutedCandidateId))
+        {
+            return (
+                false,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "executed-action-missing");
+        }
+        var candidates = (frame.Candidates ?? new List<CombatEpisodeCandidate>())
+            .Where(candidate => candidate != null && candidate.Legal)
+            .ToList();
+        var executed = candidates
+            .FirstOrDefault(candidate => string.Equals(
+                candidate.CandidateId,
+                frame.ExecutedCandidateId,
+                StringComparison.Ordinal));
+        if (executed == null)
+        {
+            return (
+                false,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "executed-action-not-found");
+        }
+        var active = executed.CompactFeatures != null
+            ? ActiveStrategySignals(executed.CompactFeatures)
+            : ActiveStrategySignals(executed.Features);
+        var positive = StrategicLabels(active).ToHashSet(StringComparer.Ordinal);
+        var applicable = new HashSet<string>(positive, StringComparer.Ordinal);
+
+        var incomingThreat = FrameValue(frame, "expectedIncomingDamage") > 0d;
+        var survivalOpportunity = incomingThreat && candidates.Any(candidate =>
+            CandidateValue(candidate, "effectiveDefend") > 0d
+            || CandidateValue(candidate, "effectiveHeal") > 0d
+            || CandidateHasStrategySignal(
+                candidate,
+                "survival-override",
+                "survival-action"));
+        if (survivalOpportunity)
+        {
+            applicable.Add("survival");
+            if (CandidateValue(executed, "effectiveDefend") > 0d
+                || CandidateValue(executed, "effectiveHeal") > 0d)
+            {
+                positive.Add("survival");
+            }
+        }
+
+        var finaleOpportunity = candidates.Any(candidate =>
+            CandidateValue(candidate, "lethal") > 0.5d
+            || CandidateHasStrategySignal(candidate, "finale-safe", "finale-line"));
+        if (finaleOpportunity)
+        {
+            applicable.Add("finale");
+            if (CandidateValue(executed, "lethal") > 0.5d)
+            {
+                positive.Add("finale");
+            }
+        }
+
+        var bankOpportunity = candidates.Any(candidate =>
+            CandidateValue(candidate, "endTurnBankedSurplusEnergy") > 0d
+            || CandidateHasStrategySignal(
+                candidate,
+                "bank-for-next-turn",
+                "intent-bank",
+                "bank-transform"));
+        if (bankOpportunity)
+        {
+            applicable.Add("bank");
+            if (CandidateValue(executed, "endTurnBankedSurplusEnergy") > 0d)
+            {
+                positive.Add("bank");
+            }
+        }
+
+        var transformOpportunity = candidates.Any(candidate =>
+            CandidateValue(candidate, "handTransform") > 0.5d
+            || CandidateHasStrategySignal(
+                candidate,
+                "transformed",
+                "transform-ready",
+                "early-transform"));
+        if (transformOpportunity)
+        {
+            applicable.Add("transform");
+            if (CandidateValue(executed, "handTransform") > 0.5d)
+            {
+                positive.Add("transform");
+            }
+        }
+
+        var growthOpportunity = candidates.Any(candidate =>
+            CandidateValue(candidate, "scaling") > 0d
+            || CandidateValue(candidate, "persistentValue") > 0d
+            || CandidateHasStrategySignal(
+                candidate,
+                "safe-growth-window",
+                "growth-builder"));
+        if (growthOpportunity)
+        {
+            applicable.Add("growth");
+            if (CandidateValue(executed, "scaling") > 0d
+                || CandidateValue(executed, "persistentValue") > 0d)
+            {
+                positive.Add("growth");
+            }
+        }
+
+        var applicableLabels = OrderedStrategyLabels(applicable);
+        var positiveLabels = OrderedStrategyLabels(positive.Where(applicable.Contains));
+        return (
+            true,
+            applicableLabels,
+            positiveLabels,
+            applicableLabels.Count == 0
+                ? "executed-action-no-applicable-strategy"
+                : positiveLabels.Count == 0
+                    ? "executed-action-applicable-baseline"
+                    : "executed-action-canonical-intent");
+    }
+
+    internal static (
+        bool Known,
+        IReadOnlyList<string> Labels,
+        string Source) StrategicFrameLabelsForExecutedAction(
+            CombatEpisodeFrame? frame)
+    {
+        var supervision = StrategicFrameSupervisionForExecutedAction(frame);
+        return (
+            supervision.Known,
+            supervision.PositiveLabels,
+            supervision.Source);
+    }
+
+    internal static int StrategicPhaseForFrame(CombatEpisodeFrame? frame)
+    {
+        if (frame == null)
+        {
+            return -1;
+        }
+        var executed = (frame.Candidates ?? new List<CombatEpisodeCandidate>())
+            .FirstOrDefault(candidate => string.Equals(
+                candidate.CandidateId,
+                frame.ExecutedCandidateId,
+                StringComparison.Ordinal));
+        var phase = double.NaN;
+        var phaseKnown = executed?.CompactFeatures != null
+            ? executed.CompactFeatures.TryGetValue(
+                CombatRoleStrategyFeatureNames.Phase,
+                out phase)
+            : executed?.Features != null
+              && executed.Features.TryGetValue(
+                  CombatRoleStrategyFeatureNames.Phase,
+                  out phase);
+        if (!phaseKnown)
+        {
+            phaseKnown = frame.CompactStateFeatures != null
+                ? frame.CompactStateFeatures.TryGetValue(
+                    CombatRoleStrategyFeatureNames.Phase,
+                    out phase)
+                : frame.StateFeatures.TryGetValue(
+                    CombatRoleStrategyFeatureNames.Phase,
+                    out phase);
+        }
+        if (phaseKnown)
+        {
+            return double.IsNaN(phase) || double.IsInfinity(phase)
+                ? -1
+                : Math.Max(0, Math.Min(4, (int)Math.Round(phase)));
+        }
+        return -1;
+    }
+
+    private static IReadOnlyList<string> ActiveStrategySignals(
+        CombatCompactFeatureVector features)
+    {
+        var active = new List<string>();
+        for (var index = 0; index < features.Count; index++)
+        {
+            if (features.Values[index] <= 0.5d
+                || !CombatFeatureTokenRegistry.TryResolve(
+                    features.TokenIds[index],
+                    out var key)
+                || !key.StartsWith(
+                    CombatRoleStrategyFeatureNames.Prefix,
+                    StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(
+                    CombatRoleStrategyFeatureNames.TrainingQuotaPrefix,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            active.Add(key.ToLowerInvariant());
+        }
+        return active;
+    }
+
+    private static IReadOnlyList<string> ActiveStrategySignals(
+        IReadOnlyDictionary<string, double>? features)
+    {
+        return (features ?? new Dictionary<string, double>())
+            .Where(pair => pair.Value > 0.5d
+                           && pair.Key.StartsWith(
+                               CombatRoleStrategyFeatureNames.Prefix,
+                               StringComparison.OrdinalIgnoreCase)
+                           && !pair.Key.StartsWith(
+                               CombatRoleStrategyFeatureNames
+                                   .TrainingQuotaPrefix,
+                               StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Key.ToLowerInvariant())
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> StrategicLabels(
+        IReadOnlyList<string> active)
+    {
+        var labels = new List<string>(5);
+        if (HasStrategySignal(active, "survival-override", "survival-action"))
+        {
+            labels.Add("survival");
+        }
+        if (HasStrategySignal(active, "finale-safe", "finale-line"))
+        {
+            labels.Add("finale");
+        }
+        if (HasStrategySignal(
+                active,
+                "bank-for-next-turn",
+                "intent-bank",
+                "bank-transform"))
+        {
+            labels.Add("bank");
+        }
+        if (HasStrategySignal(
+                active,
+                "transformed",
+                "transform-ready",
+                "early-transform"))
+        {
+            labels.Add("transform");
+        }
+        if (HasStrategySignal(active, "safe-growth-window", "growth-builder"))
+        {
+            labels.Add("growth");
+        }
+        return labels;
+    }
+
+    private static IReadOnlyList<string> OrderedStrategyLabels(
+        IEnumerable<string> labels)
+    {
+        var source = (labels ?? Array.Empty<string>())
+            .ToHashSet(StringComparer.Ordinal);
+        return new[] { "survival", "finale", "bank", "transform", "growth" }
+            .Where(source.Contains)
+            .ToArray();
+    }
+
+    private static double FrameValue(CombatEpisodeFrame frame, string key)
+    {
+        return frame.TryGetStateFeature(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
+    }
+
+    private static double CandidateValue(
+        CombatEpisodeCandidate candidate,
+        string key)
+    {
+        double value;
+        var found = candidate.CompactFeatures != null
+            ? candidate.CompactFeatures.TryGetValue(key, out value)
+            : candidate.Features.TryGetValue(key, out value);
+        return found
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
+    }
+
+    private static bool CandidateHasStrategySignal(
+        CombatEpisodeCandidate candidate,
+        params string[] signals)
+    {
+        var active = candidate.CompactFeatures != null
+            ? ActiveStrategySignals(candidate.CompactFeatures)
+            : ActiveStrategySignals(candidate.Features);
+        return HasStrategySignal(active, signals);
     }
 
     private static bool HasActionStrategySignal(

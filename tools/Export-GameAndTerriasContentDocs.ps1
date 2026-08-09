@@ -278,9 +278,7 @@ foreach ($pack in $terriasPacks) {
 }
 
 $packOrder = @(
-    "Terrias_terrias_cardpack_radiant_spark",
-    "Terrias_terrias_cardpack_ember_crown",
-    "Terrias_terrias_cardpack_solar_canopy",
+    "Terrias_terrias_cardpack_solar_ember_crown_canopy",
     "Terrias_terrias_cardpack_morning_star_overture",
     "Terrias_terrias_cardpack_more_dimensions"
 )
@@ -302,12 +300,12 @@ $terriasLines.Add("| 类型 | 数量 | 玩家侧定位 |")
 $terriasLines.Add("|---|---:|---|")
 $terriasLines.Add("| 角色 | $($terriasCareers.Count) | 乌娜、洛奈尔、哥伦比娅 |")
 $terriasLines.Add("| 使魔 | $($terriasPartners.Count) | 黄昏、星泥人傀、桑多涅喵 |")
-$terriasLines.Add("| 卡包 | $($terriasPacks.Count) | 3 个日耀、1 个晨星、1 个异次元卡包 |")
+$terriasLines.Add("| 卡包 | $($terriasPacks.Count) | 1 个日耀、1 个晨星、1 个异次元卡包 |")
 $terriasLines.Add("| 卡牌 | $($terriasCards.Count) | $(@($terriasCards | Where-Object { -not [string]::IsNullOrWhiteSpace($_.PackBelong) }).Count) 张卡包归属牌；$(@($terriasCards | Where-Object { [string]::IsNullOrWhiteSpace($_.PackBelong) }).Count) 张角色／系统／模式牌 |")
 $terriasLines.Add("| Buff | $($terriasBuffs.Count) | 正面、负面、能力、契印、特性与场地 |")
-$terriasLines.Add("| 遗物 | $($terriasRelics.Count) | 日耀三卡包配套遗物 |")
-$terriasLines.Add("| 祝福 | $($terriasBlesses.Count) | 3 个伙伴占位祝福与 4 个本源升华祝福 |")
-$terriasLines.Add("| 火漆 | $($terriasEnchTags.Count) | 白曜、启明星 |")
+$terriasLines.Add("| 遗物 | $($terriasRelics.Count) | 日耀合并卡包配套遗物 |")
+$terriasLines.Add("| 祝福 | $($terriasBlesses.Count) | 3 个伙伴占位、4 个本源升华与 4 个日耀祝福 |")
+$terriasLines.Add("| 火漆 | $($terriasEnchTags.Count) | 白曜、阳炣、启明星 |")
 $terriasLines.Add("| 难度词条 | $($terriasHard.Count) | Terrias 与异次元主题规则 |")
 $terriasLines.Add("| 专属敌人／意图 | $($terriasEnemies.Count)／$($terriasEnemyCards.Count) | 日耀回忆固定 Boss 与专属出招 |")
 $terriasLines.Add("")
@@ -339,7 +337,7 @@ foreach ($partner in $terriasPartners) {
 }
 
 $terriasLines.Add("")
-$terriasLines.Add("## 五个卡包")
+$terriasLines.Add("## 三个卡包")
 $terriasLines.Add("")
 $terriasLines.Add("| 卡包 | 运行时 ID | 卡牌数 | 定位 |")
 $terriasLines.Add("|---|---|---:|---|")
@@ -421,19 +419,23 @@ $terriasLines.Add("## 祝福与火漆")
 $terriasLines.Add("")
 $terriasLines.Add("### 祝福（$($terriasBlesses.Count) 条）")
 $terriasLines.Add("")
-$terriasLines.Add("| 祝福 ID | 名称 | 类型 | 稀有度 | 效果 |")
-$terriasLines.Add("|---|---|---|---:|---|")
+$terriasLines.Add("| 祝福 ID | 名称 | 类型 | 稀有度 | 所属卡包 | 效果 |")
+$terriasLines.Add("|---|---|---|---:|---|---|")
 foreach ($bless in $terriasBlesses) {
-    $terriasLines.Add("| ``$($bless.Id)`` | $($bless.Name) | $(Format-MarkdownText $bless.Type) | $($bless.Rarity) | $(Format-MarkdownText $bless.Description) |")
+    $pack = if ([string]::IsNullOrWhiteSpace($bless.PackBelong)) { $null } else { $packById[$bless.PackBelong] }
+    $packName = if ($null -ne $pack) { $pack.Name } else { "隐藏条目" }
+    $terriasLines.Add("| ``$($bless.Id)`` | $($bless.Name) | $(Format-MarkdownText $bless.Type) | $($bless.Rarity) | $(Format-MarkdownText $packName) | $(Format-MarkdownText $bless.Description) |")
 }
 
 $terriasLines.Add("")
 $terriasLines.Add("### 火漆（$($terriasEnchTags.Count) 条）")
 $terriasLines.Add("")
-$terriasLines.Add("| 火漆 ID | 名称 | 稀有度 | 效果 |")
-$terriasLines.Add("|---|---|---:|---|")
+$terriasLines.Add("| 火漆 ID | 名称 | 稀有度 | 所属卡包 | 效果 |")
+$terriasLines.Add("|---|---|---:|---|---|")
 foreach ($tag in $terriasEnchTags) {
-    $terriasLines.Add("| ``$($tag.Id)`` | $($tag.Name) | $($tag.Rarity) | $(Format-MarkdownText $tag.Description) |")
+    $pack = if ([string]::IsNullOrWhiteSpace($tag.PackBelong)) { $null } else { $packById[$tag.PackBelong] }
+    $packName = if ($null -ne $pack) { $pack.Name } else { $tag.PackBelong }
+    $terriasLines.Add("| ``$($tag.Id)`` | $($tag.Name) | $($tag.Rarity) | $(Format-MarkdownText $packName) | $(Format-MarkdownText $tag.Description) |")
 }
 
 $terriasLines.Add("")

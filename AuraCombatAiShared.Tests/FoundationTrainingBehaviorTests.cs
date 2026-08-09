@@ -85,8 +85,9 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && signedSeedWorkerJob.Request.RunSeed
                   == signedTransformerRunSeed
                && signedSeedWorkerJob.Request.TransformerTeacher.RandomSeed
-                  == expectedSignedTransformerSeed,
-            "foundation RunSeed deterministically separates self-play, arena, and model randomness while retaining canonical validation seeds and the signed Transformer seed contract");
+                  == expectedSignedTransformerSeed
+               && signedSeedWorkerJob.Request.MaximumIterationsPerProcess == 3,
+            "foundation RunSeed deterministically separates self-play, arena, and model randomness while retaining canonical validation seeds, the signed Transformer seed contract and three-round process batching");
         var cleanFeatureVector = CombatPolicyValueEncoding.EncodeState(
             new Dictionary<string, double>
             {
@@ -303,29 +304,34 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && normalBudget.Tier == "normal"
                && normalBudget.SimulationBudget == 128
                && normalBudget.TimeBudgetMilliseconds == 125
+               && simpleBudget.MinimumTimeMilliseconds == 32
+               && normalBudget.MinimumTimeMilliseconds == 44
                && difficultBudget.Tier == "difficult"
                && difficultBudget.SimulationBudget == 192
+               && difficultBudget.MinimumTimeMilliseconds == 63
                && fakeLoopBudget.Tier == "complex"
                && fakeLoopBudget.SimulationBudget == 256
+               && fakeLoopBudget.MinimumTimeMilliseconds == 75
+               && fakeLoopBudget.MinimumRootVisits == 4
                && resourceCycleBudget.Tier == "normal"
                && fakeLoopBudget.MaxPly == 16,
             "deployment search caps latency, reserves bounded deep budgets for true loop risk, and does not overclassify ordinary resource generation");
         var partitionedStatus = CombatPolicyValueEncoding.EncodeState(
             new Dictionary<string, double> { ["playerStatus:test"] = 1d },
-            128,
-            "partitioned-v3");
+            2048,
+            "partitioned-v4");
         var partitionedDeck = CombatPolicyValueEncoding.EncodeState(
             new Dictionary<string, double> { ["deck:test"] = 1d },
-            128,
-            "partitioned-v3");
+            2048,
+            "partitioned-v4");
         Assert(partitionedStatus
                    .Select((value, index) => new { value, index })
                    .Where(item => Math.Abs(item.value) > 0.0000001d)
-                   .All(item => item.index >= 32 && item.index < 56)
+                   .All(item => item.index >= 960 && item.index < 1216)
                && partitionedDeck
                    .Select((value, index) => new { value, index })
                    .Where(item => Math.Abs(item.value) > 0.0000001d)
-                   .All(item => item.index >= 56 && item.index < 80),
+                   .All(item => item.index >= 1216 && item.index < 1408),
             "partitioned state encoding keeps status and deck identities in disjoint feature ranges");
         var coreStateEncoding = CombatPolicyValueEncoding.EncodeState(
             new Dictionary<string, double>
@@ -333,8 +339,8 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 ["playerHp"] = 10d,
                 ["playerMaxHp"] = 20d
             },
-            128,
-            "partitioned-v3");
+            2048,
+            "partitioned-v4");
         var coreActionEncoding = CombatPolicyValueEncoding.EncodeCandidate(
             new CombatPolicyValueCandidate
             {
@@ -346,7 +352,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 }
             },
             96,
-            "partitioned-v3");
+            "partitioned-v4");
         Assert(coreStateEncoding[0] != 0d
                && coreStateEncoding[1] != 0d
                && coreActionEncoding[0] != 0d
@@ -355,7 +361,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    "stateFeatureCollisionRate")
                && policyValueTraining.Model.Metrics.ContainsKey(
                    "actionFeatureCollisionRate"),
-            "partitioned-v3 reserves fixed core slots and reports sparse collision telemetry");
+            "partitioned-v4 reserves fixed core slots and reports sparse collision telemetry");
         var replayFixture = Enumerable.Range(0, 8)
             .Select(index => new CombatEpisode
             {
@@ -754,6 +760,87 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && quotaRepairWindow.StrategyQuotaRepairAddedEpisodes == 10
                && quotaRepairWindow.StrategyQuotaPassed,
             "strategy quota shortfalls trigger targeted shared-corpus collection before fitting without lowering declared quotas");
+        var strategyClassReplay = Enumerable.Range(0, 8)
+            .Select(index => new CombatEpisode
+            {
+                EpisodeId = "growth-class-" + index,
+                JourneyRunId = "growth-class-" + index,
+                Authoritative = true,
+                Campaign = new CombatCampaignEpisodeMetadata
+                {
+                    DifficultyId = "advanced"
+                },
+                Frames =
+                {
+                    new CombatEpisodeFrame
+                    {
+                        ExecutedCandidateId = "chosen",
+                        Candidates =
+                        {
+                            new CombatEpisodeCandidate
+                            {
+                                CandidateId = "chosen",
+                                Legal = true,
+                                SearchVisits = 8,
+                                Features = index < 4
+                                    ? new Dictionary<string, double>
+                                    {
+                                        ["scaling"] = 1d
+                                    }
+                                    : new Dictionary<string, double>()
+                            },
+                            new CombatEpisodeCandidate
+                            {
+                                CandidateId = "growth-option",
+                                Legal = true,
+                                SearchVisits = 4,
+                                Features = new Dictionary<string, double>
+                                {
+                                    ["scaling"] = 1d
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+            .ToList();
+        var strategyClassWindow = CombatTrainingReplayWindowSelector.Select(
+            strategyClassReplay,
+            new CombatTrainingReplayWindowOptions
+            {
+                MaximumFrames = 64,
+                RequiredStrategyClassFrames = new Dictionary<string, int>
+                {
+                    ["strategy-growth"] = 4,
+                    ["strategy-growth-negative"] = 4
+                }
+            });
+        Assert(strategyClassWindow.StrategyQuotaActive
+               && strategyClassWindow.StrategyQuotaPassed
+               && strategyClassWindow.StrategyQuotaShortfalls.Count == 0
+               && strategyClassWindow.RequiredStrategyClassFrames.Count == 2,
+            "targeted replay selection distinguishes positive and negative growth supervision instead of relying only on a single strategy stratum");
+        var targetedRequirements = CombatCampaignFoundationTrainer
+            .RequiredStrategyClassFrames(
+                new CombatTransformerTeacherReport
+                {
+                    StrategyApplicableCounts = new Dictionary<string, int>
+                    {
+                        ["growth"] = 11,
+                        ["transform"] = 0
+                    },
+                    StrategyLabelCounts = new Dictionary<string, int>
+                    {
+                        ["growth"] = 0
+                    },
+                    StrategyNegativeCounts = new Dictionary<string, int>
+                    {
+                        ["growth"] = 11
+                    }
+                });
+        Assert(targetedRequirements.Count == 1
+               && targetedRequirements["strategy-growth"] == 4,
+            "teacher applicability telemetry requests missing growth positives but does not launch futile transform collection when no transform opportunity exists");
         var forcedDecisionReplay = new[] { quotaReplay[0] };
         forcedDecisionReplay[0].Frames[0].Candidates.RemoveAt(1);
         var forcedDecisionWindow = CombatTrainingReplayWindowSelector.Select(
@@ -908,7 +995,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             NativeProgramPackageHash = new string('d', 64),
             TrainingCampaignHash = new string('e', 64),
             FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
-            FeatureEncodingMode = "partitioned-v3",
+            FeatureEncodingMode = "partitioned-v4",
             TrainingSemanticsVersion =
                 CombatPolicyValueProtocol.TrainingSemanticsVersion,
             TrainingPolicyVersion = CombatFoundationTrainingProtocol.TrainingPolicyVersion
@@ -981,7 +1068,13 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && CombatTransformerTeacherCorpusProtocol.CorpusMaturity(2048, 1024)
                   == CombatTransformerTeacherCorpusProtocol.ProvisionalMaturity
                && CombatTransformerTeacherCorpusProtocol.CorpusMaturity(4096, 1024)
-                  == CombatTransformerTeacherCorpusProtocol.MatureMaturity,
+                  == CombatTransformerTeacherCorpusProtocol.MatureMaturity
+               && CombatTransformerTeacherCorpusProtocol
+                      .IncrementalReplayShare(0) == 0.25d
+               && CombatTransformerTeacherCorpusProtocol
+                      .IncrementalReplayShare(1) == 0.50d
+               && CombatTransformerTeacherCorpusProtocol
+                      .IncrementalReplayShare(2) == 0.75d,
             "Transformer teacher identities are deterministic and cold-start export stays incremental until the next source window can reach training scale");
         Assert(!CombatTransformerTeacherApplicationProtocol
                    .HasUsableTeacherSource(new CombatTransformerTeacherReport
@@ -1070,6 +1163,18 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 groupedTransformerRows,
                 8,
                 "seed");
+        var priorityTransformerRows = groupedTransformerRows
+            .Where(row => row.RowIndex < 8)
+            .Select(row => new CombatTransformerTrainingRow
+            {
+                RowIndex = row.RowIndex,
+                RunKey = row.RunKey,
+                Identity = row.Identity,
+                Priority = row.RunKey == "journey:b" ? 0 : 4
+            })
+            .ToArray();
+        var selectedPriorityRows = CombatTransformerTeacherCorpusProtocol
+            .SelectWholeRunRows(priorityTransformerRows, 4, "seed");
         var selectedTransformerRuns = groupedTransformerRows
             .Where(row => boundedTransformerRows.Contains(row.RowIndex))
             .GroupBy(row => row.RunKey)
@@ -1081,12 +1186,13 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    pair.Value == groupedTransformerRows.Count(row =>
                        row.RunKey == pair.Key))
                && !boundedTransformerRows.Any(index => index >= 8)
+               && selectedPriorityRows.SequenceEqual(Enumerable.Range(4, 4))
                && CombatTransformerTeacherCorpusProtocol.SelectWholeRunRows(
                        groupedTransformerRows,
                        3,
                        "seed")
                    .Count == 0,
-            "incremental Transformer replay is deterministic, budget-bounded, and never splits one Journey run across the selected boundary");
+            "incremental Transformer replay is deterministic, budget-bounded, prioritizes complete supervision, and never splits one Journey run across the selected boundary");
         var runtimeDisplay = CombatTransformerRuntimeResolver.DisplayText(
             new CombatTransformerRuntimeProbe
             {
@@ -2006,6 +2112,20 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 0.35d,
                 null,
                 Array.Empty<CombatCampaignFoundationIteration>());
+        var policyOnlyDistillation =
+            CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
+                new CombatTransformerTeacherReport
+                {
+                    Applied = true,
+                    PolicyTeacherApplied = true,
+                    WorldTeacherApplied = false,
+                    PolicyQualityGatePassed = true,
+                    WorldModelQualityGatePassed = false,
+                    TeacherGeneration = 2
+                },
+                0.35d,
+                new CombatPolicyValueNetworkDefinition(),
+                Array.Empty<CombatCampaignFoundationIteration>());
         var regressedDistillation =
             CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
                 new CombatTransformerTeacherReport
@@ -2050,15 +2170,17 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 new CombatPolicyValueNetworkDefinition(),
                 Array.Empty<CombatCampaignFoundationIteration>(),
                 1024);
-        Assert(Math.Abs(bootstrapDistillation.Weight - 0.10d) < 0.000001d
-               && bootstrapDistillation.Guarded
-               && Math.Abs(regressedDistillation.Weight - 0.15d) < 0.000001d
-               && regressedDistillation.Guarded
-               && Math.Abs(bootstrapCorpusDistillation.Weight - 0.10d) < 0.000001d
-               && bootstrapCorpusDistillation.Guarded
-               && Math.Abs(provisionalCorpusDistillation.Weight - 0.20d) < 0.000001d
-               && provisionalCorpusDistillation.Guarded,
-            "student-side distillation starts conservatively and backs off to the shared 0.10-0.15 band after a regression");
+        Assert(Math.Abs(bootstrapDistillation.Weight - 0.35d) < 0.000001d
+               && !bootstrapDistillation.Guarded
+               && Math.Abs(policyOnlyDistillation.Weight - 0.35d) < 0.000001d
+               && !policyOnlyDistillation.Guarded
+               && Math.Abs(regressedDistillation.Weight - 0.35d) < 0.000001d
+               && !regressedDistillation.Guarded
+               && Math.Abs(bootstrapCorpusDistillation.Weight - 0.35d) < 0.000001d
+               && !bootstrapCorpusDistillation.Guarded
+               && Math.Abs(provisionalCorpusDistillation.Weight - 0.35d) < 0.000001d
+               && !provisionalCorpusDistillation.Guarded,
+            "student-side distillation uses the trainer-configured fixed weight for every qualified policy teacher generation even when the independent world head is withheld");
         var consecutiveRegressionDistillation =
             CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
                 new CombatTransformerTeacherReport
@@ -2092,10 +2214,10 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                             { FrameCount = 100, CompositeLoss = 0.15d }
                     }
                 });
-        Assert(Math.Abs(consecutiveRegressionDistillation.Weight - 0.10d)
+        Assert(Math.Abs(consecutiveRegressionDistillation.Weight - 0.35d)
                < 0.000001d
-               && consecutiveRegressionDistillation.Guarded,
-            "consecutive cross-iteration validation/test regression reduces distillation to 0.10 without model-specific rules");
+               && !consecutiveRegressionDistillation.Guarded,
+            "student validation history does not silently override the trainer-configured fixed distillation weight");
         var ineffectiveHardIterations = new List<CombatCampaignFoundationIteration>
         {
             new()
@@ -2168,6 +2290,21 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    hasChampion: true,
                    startIndex: stagnationIterations.Count),
             "a resumed training attempt resets its rejection streak instead of immediately inheriting historical stagnation");
+        var sparseArenaIterations = new List<CombatCampaignFoundationIteration>
+        {
+            new() { ArenaEvaluationRan = true, WorkingModelAccepted = true },
+            new() { ArenaEvaluationRan = true },
+            new() { TrainingOnlyIteration = true },
+            new() { TrainingOnlyIteration = true }
+        };
+        Assert(!CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+                   new CombatCampaignFoundationTrainingRequest
+                   {
+                       MaximumConsecutiveRejectedIterations = 1
+                   },
+                   sparseArenaIterations,
+                   hasChampion: true),
+            "scheduled training-only iterations never consume or trigger the Arena stagnation budget");
         stagnationIterations[2].ProductiveProgress = true;
         stagnationIterations[2].ProductiveProgressReasons = new List<string>
         {
@@ -2306,6 +2443,37 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                        FinalRefreshRequested = true
                    }),
             "continuation boundaries do not force a Transformer final refresh unless the run explicitly requests finalization");
+        var refreshOptions = new CombatTransformerTeacherOptions
+        {
+            CpuRefreshInterval = 4,
+            AcceleratorRefreshInterval = 3,
+            MinimumFreshFramesForRefresh = 2048
+        }.Normalized();
+        var stableTeacherReuse =
+            !CombatTransformerTeacherRefreshProtocol.ShouldRefresh(
+                true, false, false, 2, 1, 0, 0, 1200, 1200, false,
+                refreshOptions, out var stableTeacherReason);
+        var thresholdRefresh = CombatTransformerTeacherRefreshProtocol
+            .ShouldRefresh(
+                true, false, false, 2, 1, 0, 0, 2200, 2048, false,
+                refreshOptions, out var thresholdRefreshReason);
+        var intervalRefresh = CombatTransformerTeacherRefreshProtocol
+            .ShouldRefresh(
+                true, false, false, 4, 1, 0, 0, 64, 64, false,
+                refreshOptions, out var intervalRefreshReason);
+        var rejectionBackoff = !CombatTransformerTeacherRefreshProtocol
+            .ShouldRefresh(
+                true, false, false, 5, 1, 4, 1, 4096, 4096, true,
+                refreshOptions, out var rejectionBackoffReason);
+        Assert(stableTeacherReuse
+               && stableTeacherReason == "stable-teacher-reuse"
+               && thresholdRefresh
+               && thresholdRefreshReason == "fresh-frame-threshold"
+               && intervalRefresh
+               && intervalRefreshReason == "maximum-staleness"
+               && rejectionBackoff
+               && rejectionBackoffReason == "rejected-update-backoff:6",
+            "accelerator teacher annotation reuses stable weights until fresh-frame or maximum-staleness gates fire and backs off after rejected updates");
         var unhealthyInference = CombatFoundationInferenceHealthProtocol.Evaluate(
             new CombatCampaignFoundationTelemetry
             {
@@ -2386,13 +2554,13 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         };
         Assert(workerProtocolJob.SchemaVersion
                    == CombatFoundationWorkerProtocol.SchemaVersion
-               && CombatFoundationWorkerProtocol.SchemaVersion == 12
+               && CombatFoundationWorkerProtocol.SchemaVersion == 16
                && CombatFoundationTerminalCreditProtocol.Version
                   == "terminal-credit-v2"
                && CombatFoundationCounterfactualProtocol.Version
                   == "hard-encounter-counterfactual-v2"
                && CombatFoundationStagnationProtocol.Version
-                  == "foundation-stagnation-v3-behavior-vs-pipeline-progress"
+                  == "foundation-stagnation-v4-arena-checkpoints-only"
                && CombatPolicyValueFrameStratificationProtocol.Version
                   == "frame-strata-v8-action-aligned-strategy-quota"
                && workerProtocolProgress.SchemaVersion
@@ -2681,7 +2849,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
             capabilityGateRequest,
             capabilityGateProbe);
-        Assert(capabilityGateProbe.PassedBaselineGate
+        Assert(!capabilityGateProbe.PassedBaselineGate
                && capabilityGateProbe.BaselineGateVerdict == "inconclusive"
                && capabilityGateProbe.BaselineGateReason.Contains(
                    "deployment=normal 10/12, advanced 3/12",
@@ -2689,15 +2857,15 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && capabilityGateProbe.BaselineGateReason.Contains(
                    "teacher-hard=normal 11/12, advanced 5/12",
                    StringComparison.Ordinal),
-            "capability probe preserves a tied paired result as inconclusive instead of rejecting the champion");
+            "capability probe keeps tied evidence inconclusive and blocks publication");
         capabilityGateProbe.Arms[1].NormalVictories = 9;
         CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
             capabilityGateRequest,
             capabilityGateProbe);
-        Assert(capabilityGateProbe.PassedBaselineGate
+        Assert(!capabilityGateProbe.PassedBaselineGate
                && capabilityGateProbe.BaselineGateVerdict == "inconclusive"
                && capabilityGateProbe.ChampionVictoryGain == -1,
-            "capability probe does not reject a champion from unpaired aggregate noise when paired evidence is statistically inconclusive");
+            "capability probe blocks publication when paired evidence remains statistically inconclusive");
         capabilityGateProbe.Arms[1].NormalVictories = 10;
         capabilityGateProbe.Pairs.Clear();
         for (var pairedIndex = 0; pairedIndex < 24; pairedIndex++)
@@ -2735,6 +2903,105 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         Assert(!capabilityGateProbe.PassedBaselineGate
                && capabilityGateProbe.BaselineGateVerdict == "fail",
             "capability probe rejects a credible paired-seed regression");
+        var depthGainProbe = new CombatFoundationCapabilityProbe
+        {
+            Arms =
+            {
+                new CombatFoundationCapabilityProbeArm
+                {
+                    ArmId = "rule-baseline",
+                    NormalCampaigns = 8,
+                    AdvancedCampaigns = 8,
+                    AverageCompletedBattles = 18d
+                },
+                new CombatFoundationCapabilityProbeArm
+                {
+                    ArmId = "champion-deployment",
+                    NormalCampaigns = 8,
+                    AdvancedCampaigns = 8,
+                    AverageCompletedBattles = 19d
+                }
+            }
+        };
+        for (var depthPairIndex = 0; depthPairIndex < 8; depthPairIndex++)
+        {
+            depthGainProbe.Pairs.Add(new CombatFoundationCapabilityProbePair
+            {
+                DifficultyId = depthPairIndex < 4 ? "normal" : "advanced",
+                WorldSeed = (ulong)depthPairIndex,
+                BaselineCompletedBattles = 18,
+                ChampionCompletedBattles = 19
+            });
+        }
+        CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+            capabilityGateRequest,
+            depthGainProbe);
+        Assert(depthGainProbe.PassedBaselineGate
+               && depthGainProbe.DepthGainEvidencePassed
+               && depthGainProbe.PairedLossPairs == 8
+               && depthGainProbe.BaselineGateVerdict == "pass",
+            "capability probe accepts sufficiently broad paired survival-depth gain without a win-rate regression");
+        depthGainProbe.Arms[1].AverageCompletedBattles = 18.1d;
+        CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+            capabilityGateRequest,
+            depthGainProbe);
+        Assert(!depthGainProbe.PassedBaselineGate
+               && !depthGainProbe.DepthGainEvidencePassed
+               && depthGainProbe.BaselineGateVerdict == "inconclusive",
+            "capability depth evidence still requires the configured aggregate gain threshold");
+        Assert(CombatCampaignFoundationTrainer.ShouldExpandCapabilityProbe(
+                   capabilityGateRequest,
+                   depthGainProbe,
+                   completedCampaignsPerDifficulty: 32,
+                   initialCampaignsPerDifficulty: 32,
+                   maximumCampaignsPerDifficulty: 128),
+            "an inconclusive initial capability probe expands instead of rejecting immediately");
+        depthGainProbe.Arms[1].AverageCompletedBattles = 19d;
+        CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+            capabilityGateRequest,
+            depthGainProbe);
+        Assert(!CombatCampaignFoundationTrainer.ShouldExpandCapabilityProbe(
+                   capabilityGateRequest,
+                   depthGainProbe,
+                   completedCampaignsPerDifficulty: 32,
+                   initialCampaignsPerDifficulty: 32,
+                   maximumCampaignsPerDifficulty: 128),
+            "conclusive paired depth evidence stops adaptive capability expansion");
+        var saturatedBaseline = Enumerable.Range(0, 8)
+            .Select(index => index < 4
+                ? new CombatCampaignResult
+                {
+                    DifficultyId = "normal",
+                    FinalBossVictory = true
+                }
+                : null)
+            .ToList();
+        var saturatedChampion = saturatedBaseline
+            .Select(item => item == null
+                ? null
+                : new CombatCampaignResult
+                {
+                    DifficultyId = item.DifficultyId,
+                    FinalBossVictory = item.FinalBossVictory
+                })
+            .ToList();
+        Assert(CombatCampaignFoundationTrainer
+                   .CapabilityDifficultySaturatedAtVictory(
+                       saturatedBaseline,
+                       saturatedChampion,
+                       campaignCapacity: 4,
+                       difficultyIndex: 0,
+                       completedCampaigns: 4),
+            "adaptive capability probing identifies a saturated all-victory normal arm");
+        saturatedChampion[0]!.FinalBossVictory = false;
+        Assert(!CombatCampaignFoundationTrainer
+                   .CapabilityDifficultySaturatedAtVictory(
+                       saturatedBaseline,
+                       saturatedChampion,
+                       campaignCapacity: 4,
+                       difficultyIndex: 0,
+                       completedCampaigns: 4),
+            "normal capability expansion remains active when the paired arm is not saturated");
         Assert(new CombatPolicyValueTrainingOptions
                {
                    GradientShardCount = 24
@@ -2888,6 +3155,8 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         var incrementallyRecordedModelMetrics =
             new List<CombatPolicyValueEpochMetrics>();
         CombatCampaignFoundationTelemetry? latestFoundationTelemetry = null;
+        var foundationTelemetrySnapshots =
+            new List<CombatCampaignFoundationTelemetry>();
         foundationRequest.ObservationRecorded = _ =>
             incrementallyObservedFoundationCases++;
         foundationRequest.SuccessCaseRecorded = _ =>
@@ -2895,7 +3164,13 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         foundationRequest.ModelMetricRecorded = metrics =>
             incrementallyRecordedModelMetrics.Add(metrics);
         foundationRequest.Telemetry = telemetry =>
-            latestFoundationTelemetry = telemetry;
+        {
+            lock (foundationTelemetrySnapshots)
+            {
+                latestFoundationTelemetry = telemetry;
+                foundationTelemetrySnapshots.Add(telemetry);
+            }
+        };
         var foundationDecisionAllocationStart =
             CombatDecisionAllocationDiagnostics.Capture();
         CombatDecisionAllocationDiagnostics.DetailedEnabled = true;
@@ -2916,6 +3191,14 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && foundationTraining.AcceptancePassed
                && foundationTraining.Champion != null
                && foundationTraining.WorkingChampion != null
+               && foundationTraining.LatestTrainingModel != null
+               && foundationTraining.AbsoluteQualifiedBestModel != null
+               && foundationTraining.AbsoluteQualifiedBestEvidence
+                  ?.AbsoluteQualificationGatePassed == true
+               && foundationTraining.AbsoluteQualifiedBestModel.ModelId
+                  == foundationTraining.Champion.ModelId
+               && foundationTraining.AbsoluteQualifiedBestEvidence.CandidateModelId
+                  == foundationTraining.Champion.ModelId
                && foundationTraining.AcceptanceKind
                   == CombatFoundationPromotionProtocol.AbsoluteQualifiedBest
                && foundationTraining.QualifiedCandidateCount == 1
@@ -2999,10 +3282,27 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                   == latestFoundationTelemetry.CompletedCampaigns
                && latestFoundationTelemetry.RunRequestedCampaigns
                   == latestFoundationTelemetry.RequestedCampaigns
+               && latestFoundationTelemetry.ExecutedCampaigns
+                  >= latestFoundationTelemetry.CompletedCampaigns
+               && latestFoundationTelemetry.RunInitialExecutedCampaigns == 0
+               && latestFoundationTelemetry.RunExecutedCampaigns
+                  == latestFoundationTelemetry.ExecutedCampaigns
+               && latestFoundationTelemetry.RunExecutedCampaigns
+                  > latestFoundationTelemetry.RunCompletedCampaigns
                && latestFoundationTelemetry.RunCompletedBattles
                   == latestFoundationTelemetry.CompletedBattles
                && latestFoundationTelemetry.RunSearchSimulations
                   == latestFoundationTelemetry.SearchSimulations
+               && foundationTelemetrySnapshots.Any(item =>
+                   string.Equals(
+                       item.Phase,
+                       "preflight",
+                       StringComparison.Ordinal)
+                   && item.CurrentPhaseRequestedCampaigns > 0
+                   && item.CurrentPhaseCompletedCampaigns > 0
+                   && item.CurrentPhaseCompletedBattles > 0
+                   && item.CurrentPhaseCampaignsPerSecond > 0d
+                   && item.CompletedCampaigns == 0)
                && foundationTraining.ElapsedSeconds > 0d,
             "foundation trainer qualifies an absolute-line bootstrap candidate, validates it, and reports telemetry while streaming successful cases"
             + $" (success={foundationTraining.Success}, acceptance={foundationTraining.AcceptancePassed},"
@@ -3443,12 +3743,12 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && sharedParameters.ModelUnsafeEndTurnRiskAuxiliaryShare == 0.10d
                && sharedParameters.MinimumArenaDiscordantPairs == 8
                && sharedParameters.MaximumOfflineHeadRegression == 0.05d
-               && sharedParameters.MaximumStateFeatureCollisionRate == 0.20d
+               && sharedParameters.MaximumStateFeatureCollisionRate == 0.05d
                && sharedParameters.MaximumActionFeatureCollisionRate == 0.06d
-               && sharedParameters.ModelStateDimensions == 1024
+               && sharedParameters.ModelStateDimensions == 2048
                && sharedParameters.ModelActionDimensions == 1024
                && sharedParameters.ModelHiddenDimensions == 512
-               && sharedParameters.TransformerTeacherStateDimensions == 1024
+               && sharedParameters.TransformerTeacherStateDimensions == 2048
                && sharedParameters.TransformerTeacherActionDimensions == 1024
                && sharedParameters.TransformerTeacherMinimumFrames == 1024
                && sharedParameters.TransformerTeacherMaximumFrames == 10000
@@ -3747,7 +4047,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             ActionDimensions = 1024,
             HiddenDimensions = 512,
             ActionQuantileCount = 16,
-            FeatureEncodingMode = "partitioned-v3"
+            FeatureEncodingMode = "partitioned-v4"
         };
         var inferenceSignature20 =
             CombatCampaignFoundationTrainer.BuildInferenceAutoTuneCacheKey(
@@ -4001,7 +4301,10 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 ReuseAutoTuneCache = false,
                 Iterations = 37,
                 TrainingCampaignsPerIteration = 73,
-                TransformerTeacherDatasetShardFrames = 512
+                TransformerTeacherDatasetShardFrames = 512,
+                ModelStateDimensions = 1024,
+                TransformerTeacherStateDimensions = 1024,
+                MaximumStateFeatureCollisionRate = 0.20d
             }
         };
         var currentControllerSettings = new ControllerSettings
@@ -4016,16 +4319,43 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         Assert(migratedControllerSettings.MigrateFromPreviousSchema()
                && migratedControllerSettings.SchemaVersion
                   == ControllerSettings.CurrentSchemaVersion
-               && migratedControllerSettings.Parameters.ReuseAutoTuneCache
+               && !migratedControllerSettings.Parameters.ReuseAutoTuneCache
                && migratedControllerSettings.Parameters.Iterations == 37
                && migratedControllerSettings.Parameters
                       .TrainingCampaignsPerIteration == 73
+               && migratedControllerSettings.Parameters
+                      .IterationsPerIsolatedProcess == 3
+               && migratedControllerSettings.Parameters
+                      .ModelStateDimensions == 2048
+               && migratedControllerSettings.Parameters
+                      .TransformerTeacherStateDimensions == 2048
+               && migratedControllerSettings.Parameters
+                      .MaximumStateFeatureCollisionRate == 0.05d
                && migratedControllerSettings.LastRunDirectory
                   == "preserve-this-run"
                && !currentControllerSettings.MigrateFromPreviousSchema()
                && !currentControllerSettings.Parameters.ReuseAutoTuneCache
                && currentControllerSettings.Parameters.Iterations == 19,
-            "controller v16 migration enables signed auto-tune reuse without resetting unrelated settings while v17 preserves an explicit opt-out");
+            "controller v21 migration preserves unrelated settings and upgrades the shipped state encoding contract");
+        var shippedPresetMigration = new ControllerSettings
+        {
+            SchemaVersion = ControllerSettings.PreviousSchemaVersion,
+            Parameters = new CombatFoundationTrainingParameters
+            {
+                GovernanceProfile =
+                    CombatFoundationGovernanceProfileNames.Development,
+                Iterations = 12,
+                TrainingCampaignsPerIteration = 96,
+                ArenaCampaignsPerDifficulty = 8,
+                ArenaConfirmationCampaignsPerDifficulty = 48,
+                ArenaEvaluationInterval = 6,
+                ArenaConfirmationFinalIterationOnly = true
+            }
+        };
+        Assert(shippedPresetMigration.MigrateFromPreviousSchema()
+               && shippedPresetMigration.Parameters
+                      .ArenaConfirmationCampaignsPerDifficulty == 56,
+            "controller v21 preserves the shipped 64-pair Arena evidence migration");
         var stableAutoTuneCampaign = new CombatCampaignDefinition
         {
             CampaignId = "cache-campaign",
@@ -4089,8 +4419,14 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && developmentGovernance.CapabilityProbeTeacherCampaignsPerDifficulty
                   == 16
                && developmentGovernance.AutoTuneSampleCampaigns == 16
-               && developmentGovernance.ScheduledTuningIterations(8) == 4,
-            "development governance reduces iterative evaluation without weakening formal validation");
+               && developmentGovernance.ScheduledTuningIterations(8) == 1
+               && developmentGovernance.ScheduledArenaIterations(8) == 2
+               && developmentGovernance.RunsArenaAtIteration(5, 8)
+               && developmentGovernance.RunsArenaAtIteration(7, 8)
+               && !developmentGovernance.RunsArenaAtIteration(4, 8)
+               && !developmentGovernance.RunsFormalConfirmationAtIteration(5, 8)
+               && developmentGovernance.RunsFormalConfirmationAtIteration(7, 8),
+            "development governance uses sparse Arena checkpoints, final-only confirmation and final-only tuning");
         var efficientCampaignEstimate = new CombatFoundationTrainingParameters
         {
             GovernanceProfile = CombatFoundationGovernanceProfileNames.Development,
@@ -4111,8 +4447,8 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             TuningScreeningAdvancedCampaigns = 16,
             TuningFinalistCount = 2
         }.EstimatedCampaigns();
-        Assert(efficientCampaignEstimate == 5116,
-            "development governance campaign estimate reflects scheduled tuning and diagnostic teacher caps");
+        Assert(efficientCampaignEstimate == 2340,
+            "development campaign estimate counts only scheduled Arena, final confirmation and final tuning work");
         var rebalancedDevelopmentCampaignEstimate = new CombatFoundationTrainingParameters
         {
             GovernanceProfile = CombatFoundationGovernanceProfileNames.Development,
@@ -4134,8 +4470,8 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             TuningScreeningAdvancedCampaigns = 16,
             TuningFinalistCount = 2
         }.EstimatedCampaigns();
-        Assert(rebalancedDevelopmentCampaignEstimate == 3692,
-            "development defaults increase self-play while reducing repeated evaluation campaigns");
+        Assert(rebalancedDevelopmentCampaignEstimate == 2004,
+            "development estimate reserves the adaptive capability ceiling while retaining sparse formal evaluation");
         var arenaChampionRuns = new List<CombatCampaignResult>
         {
             new() { DifficultyId = "normal", FinalBossVictory = true },
@@ -4572,6 +4908,80 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                   > CombatCampaignFoundationTrainer.QualifiedCandidateArenaScore(
                       qualifiedOpening),
             "qualified-candidate selection prefers the strongest balanced absolute arena result before score, depth, and validation-loss tie breakers");
+        var qualifiedResumeEvidence = new CombatCampaignFoundationIteration
+        {
+            CandidateModelId = policyValueTraining.Model!.ModelId,
+            AbsoluteQualificationGatePassed = true
+        };
+        var qualifiedResume = new CombatCampaignFoundationResumeState
+        {
+            Champion = policyValueTraining.Model,
+            WorkingChampion = policyValueTraining.Model,
+            LatestTrainingModel = policyValueTraining.Model,
+            AbsoluteQualifiedBestModel = policyValueTraining.Model,
+            AbsoluteQualifiedBestEvidence = qualifiedResumeEvidence
+        };
+        Assert(CombatCampaignFoundationTrainer.ResumeCompatible(qualifiedResume),
+            "resume accepts a separately persisted absolute-qualified model only when its hard-gate evidence names the same model");
+        qualifiedResumeEvidence.CandidateModelId = "mismatched-model";
+        Assert(!CombatCampaignFoundationTrainer.ResumeCompatible(qualifiedResume),
+            "resume rejects detached absolute-qualified evidence before it can influence final model selection");
+        qualifiedResumeEvidence.CandidateModelId =
+            policyValueTraining.Model.ModelId;
+        var pendingOlder = new CombatFoundationPendingArenaCandidate
+        {
+            SourceIteration = 7,
+            Model = policyValueTraining.Model,
+            OfflineHeadRegressionGatePassed = true,
+            StrategyQuotaGatePassed = true,
+            FeatureCollisionGatePassed = true,
+            SelectionAnchorMetrics = new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = 128,
+                CompositeLoss = 0.20d
+            },
+            ValidationMetrics = new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = 128,
+                CompositeLoss = 0.22d,
+                ValueMae = 0.10d,
+                Brier = 0.10d,
+                DeathBrier = 0.10d
+            }
+        };
+        var pendingNewestRegression = new CombatFoundationPendingArenaCandidate
+        {
+            SourceIteration = 12,
+            Model = policyValueTraining.Model,
+            OfflineHeadRegressionGatePassed = true,
+            StrategyQuotaGatePassed = true,
+            FeatureCollisionGatePassed = true,
+            SelectionAnchorMetrics = new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = 128,
+                CompositeLoss = 0.30d
+            },
+            ValidationMetrics = new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = 128,
+                CompositeLoss = 0.25d,
+                ValueMae = 0.12d,
+                Brier = 0.12d,
+                DeathBrier = 0.12d
+            }
+        };
+        qualifiedResume.BestPendingArenaCandidate = pendingOlder;
+        Assert(CombatCampaignFoundationTrainer.BetterPendingArenaCandidate(
+                   pendingNewestRegression,
+                   pendingOlder) == pendingOlder
+               && CombatCampaignFoundationTrainer.ResumeCompatible(
+                   qualifiedResume),
+            "training-only rounds persist the strongest offline-safe pending Arena candidate without letting a newer regression overwrite it");
+        pendingOlder.StrategyQuotaGatePassed = false;
+        Assert(!CombatCampaignFoundationTrainer.ResumeCompatible(
+                qualifiedResume),
+            "resume rejects a pending Arena slot that no longer satisfies its offline, strategy, or collision safety gates");
+        qualifiedResume.BestPendingArenaCandidate = null;
         var quantileMetricClone =
             CombatCampaignFoundationTrainer.CloneMetricSnapshot(
                 new CombatPolicyValueMetricSnapshot
@@ -4584,16 +4994,16 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && Math.Abs(quantileMetricClone.ActionQuantileMae - 0.25d) < 0.0000001d
                && quantileMetricClone.ActionQuantileLabelCount == 4096,
             "iteration metric cloning preserves action-quantile telemetry");
-        const long expectedExpandedModelParameters = 1_060_886L;
+        const long expectedExpandedModelParameters = 1_585_174L;
         var expandedModelParameters =
-            (2L * 1024 * 512)
+            (2048L * 512) + (1024L * 512)
             + (2L * 512)
             + 512 + 1
             + (16L * 512) + 16
             + (5L * (512 + 1));
         var expandedModelSizeFixture = new CombatPolicyValueNetworkDefinition
         {
-            StateWeights = Enumerable.Repeat(0.123456789012345d, 1024 * 512).ToArray(),
+            StateWeights = Enumerable.Repeat(0.123456789012345d, 2048 * 512).ToArray(),
             StateBias = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
             ActionWeights = Enumerable.Repeat(0.123456789012345d, 1024 * 512).ToArray(),
             ActionBias = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
@@ -4619,7 +5029,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && !CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
                    50_000_001L,
                    out _),
-            "1024/1024/512 parameter and serialized-size budgets remain below the 50 MB package hard gate");
+            "2048/1024/512 parameter and serialized-size budgets remain below the 50 MB package hard gate");
         Assert(CombatCampaignFoundationTrainer.OfflineHeadRegressionPassed(
                    new CombatPolicyValueMetricSnapshot
                    {
@@ -4744,7 +5154,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             TrainingCampaignHash = "training",
             ValidationCampaignHash = "validation",
             FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
-            FeatureEncodingMode = "partitioned-v3",
+            FeatureEncodingMode = "partitioned-v4",
             TrainingPolicyVersion =
                 CombatFoundationTrainingProtocol.TrainingPolicyVersion,
             StateDimensions = 128,
@@ -4899,7 +5309,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && !string.IsNullOrWhiteSpace(
                    capturedFoundationCheckpoint.Compatibility.ValidationCampaignHash)
                && capturedFoundationCheckpoint.Compatibility.FeatureEncodingMode
-                  == "partitioned-v3"
+                  == "partitioned-v4"
                && capturedFoundationCheckpoint.Compatibility.StateDimensions
                   == foundationRequest.Training.StateDimensions
                && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8

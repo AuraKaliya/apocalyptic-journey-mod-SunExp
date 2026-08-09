@@ -63,10 +63,16 @@ internal sealed class TrainingDiagnosticsPanel
 
         verdict.Text = "训练进行中 · " + FriendlyPhase(telemetry.Phase);
         verdict.Foreground = TrainerTheme.Accent;
-        verdictDetail.Text =
-            $"本次已完成 {telemetry.RunCompletedCampaigns}/{telemetry.RunRequestedCampaigns} 场冒险，"
-            + $"生命周期累计 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns}，"
-            + $"模型 Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs}。";
+        verdictDetail.Text = telemetry.CurrentPhaseRequestedCampaigns > 0
+            ? $"本阶段实测 {telemetry.CurrentPhaseCompletedCampaigns}/"
+              + $"{telemetry.CurrentPhaseRequestedCampaigns} 场冒险，"
+              + $"正式训练 {telemetry.RunCompletedCampaigns}/"
+              + $"{telemetry.RunRequestedCampaigns}，"
+              + $"模型 Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs}。"
+            : $"正式训练已完成 {telemetry.RunCompletedCampaigns}/"
+              + $"{telemetry.RunRequestedCampaigns} 场冒险，"
+              + $"全阶段实测 {telemetry.RunExecutedCampaigns} 场，"
+              + $"模型 Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs}。";
         SetGate("data", "监测中", TrainerTheme.Accent);
         SetGate("arena", "等待候选", TrainerTheme.Muted);
         SetGate("validation", "等待晋级", TrainerTheme.Muted);
@@ -120,7 +126,7 @@ internal sealed class TrainingDiagnosticsPanel
                     : result.TrainingAnalysisPath);
         }
         PresentData(training, latestIteration);
-        PresentArena(training.Iterations);
+        PresentArena(training);
         PresentSearch(training);
         AppendNanaStrategySummary(result);
         PresentFailures(training);
@@ -290,23 +296,55 @@ internal sealed class TrainingDiagnosticsPanel
             verdictDetail.Text =
                 "无效战役的全部轨迹未进入底模；本轮不可恢复，也未发布候选模型。";
         }
+        else if (training.FormalModelBlocked)
+        {
+            verdict.Text = "训练已阻断：教师或协议故障";
+            verdict.Foreground = TrainerTheme.Danger;
+            verdictDetail.Text = string.IsNullOrWhiteSpace(
+                training.FormalModelBlockReason)
+                ? training.Message
+                : training.FormalModelBlockReason;
+        }
         else if (training.AcceptancePassed)
         {
             verdict.Text = "训练通过：底模可发布";
             verdict.Foreground = TrainerTheme.Success;
             verdictDetail.Text = training.Message;
         }
-        else if (training.Iterations.Any(item => item.Promoted))
+        else if (training.QualifiedCandidateCount > 0
+                 || training.AbsoluteQualifiedBestModel != null)
         {
-            verdict.Text = "候选已晋级，正式验证未通过";
+            verdict.Text = "已有合格候选，正式验证未通过";
             verdict.Foreground = TrainerTheme.Warning;
+            verdictDetail.Text = training.Message;
+        }
+        else if (training.BestPendingArenaCandidate != null)
+        {
+            verdict.Text = "训练已推进：最佳候选等待竞技场";
+            verdict.Foreground = TrainerTheme.Accent;
+            verdictDetail.Text =
+                $"已保留第 {training.BestPendingArenaCandidate.SourceIteration} 轮的离线安全候选；"
+                + "后续竞技场将验证该候选，而不是强制使用最新模型。"
+                + (string.IsNullOrWhiteSpace(training.Message)
+                    ? ""
+                    : " " + training.Message);
+        }
+        else if (!training.Iterations.Any(item => item.ArenaEvaluationRan))
+        {
+            verdict.Text = "训练已推进：竞技场尚未到计划轮次";
+            verdict.Foreground = TrainerTheme.Accent;
             verdictDetail.Text = training.Message;
         }
         else
         {
-            verdict.Text = "训练完成：候选未通过竞技场";
+            var lastArena = training.Iterations.Last(item =>
+                item.ArenaEvaluationRan);
+            verdict.Text = "竞技场未形成合格候选";
             verdict.Foreground = TrainerTheme.Warning;
-            verdictDetail.Text = result.Message;
+            verdictDetail.Text = PrimaryArenaReason(lastArena)
+                                 + (string.IsNullOrWhiteSpace(result.Message)
+                                     ? ""
+                                     : " " + result.Message);
         }
     }
 
@@ -328,27 +366,50 @@ internal sealed class TrainingDiagnosticsPanel
             "offline",
             metric == null ? "无数据" : OfflineGate(metric),
             metric == null ? TrainerTheme.Muted : OfflineBrush(metric));
-        var promoted = training.Iterations.Any(item => item.Promoted);
+        var arenaIterations = training.Iterations
+            .Where(item => item.ArenaEvaluationRan)
+            .ToList();
+        var lastArena = arenaIterations.LastOrDefault();
+        var pending = training.BestPendingArenaCandidate;
+        var arenaState = training.QualifiedCandidateCount > 0
+                         || training.AbsoluteQualifiedBestModel != null
+            ? "已有合格候选"
+            : pending != null
+                ? $"待验证 I{pending.SourceIteration}"
+                : lastArena == null
+                    ? "计划中"
+                    : lastArena.ArenaScreeningDiagnosticOnly
+                        ? "诊断筛选阻断"
+                        : lastArena.ArenaConfirmationPairs > 0
+                            ? "正式确认未合格"
+                            : lastArena.FormalArenaConfirmationScheduled
+                                ? "正式确认未触发"
+                                : "筛选未通过";
         SetGate(
             "arena",
-            promoted ? "晋级" : training.Iterations.Count == 0 ? "未运行" : "未晋级",
-            promoted
+            arenaState,
+            training.QualifiedCandidateCount > 0
+            || training.AbsoluteQualifiedBestModel != null
                 ? TrainerTheme.Success
-                : training.Iterations.Count == 0
-                    ? TrainerTheme.Muted
+                : pending != null || lastArena == null
+                    ? TrainerTheme.Accent
                     : TrainerTheme.Warning);
+        var validationNotRun =
+            training.Validation.NormalStatus == "not-run"
+            && training.Validation.AdvancedStatus == "not-run";
         SetGate(
             "validation",
             training.Validation.Passed
                 ? "通过"
-                : training.Validation.NormalStatus == "not-run"
-                  && training.Validation.AdvancedStatus == "not-run"
-                    ? "未运行"
+                : validationNotRun
+                    ? training.QualifiedCandidateCount > 0
+                      || training.AbsoluteQualifiedBestModel != null
+                        ? "待正式验证"
+                        : "等待合格候选"
                     : "未通过",
             training.Validation.Passed
                 ? TrainerTheme.Success
-                : training.Validation.NormalStatus == "not-run"
-                  && training.Validation.AdvancedStatus == "not-run"
+                : validationNotRun
                     ? TrainerTheme.Muted
                     : TrainerTheme.Danger);
     }
@@ -435,6 +496,11 @@ internal sealed class TrainingDiagnosticsPanel
             + $"本轮 {iteration.TransformerTeacher.CurrentFrameCount:N0} · "
             + $"复用 {iteration.TransformerTeacher.ReusedCorpusFrames:N0} · "
             + $"去重 {iteration.TransformerTeacher.DeduplicatedCorpusFrames:N0}\r\n"
+            + $"教师执行：{(iteration.TransformerTeacher.TrainingRefreshed ? "重训并标注" : "稳定教师仅标注")}"
+            + $" · 原因 {iteration.TransformerTeacher.RefreshReason}"
+            + $" · 新待训 {iteration.TransformerTeacher.RefreshFreshPendingFrames:N0}/"
+            + $"{iteration.TransformerTeacher.RefreshMinimumFreshFrames:N0}"
+            + $" · 最大间隔 {iteration.TransformerTeacher.RefreshInterval} 轮\r\n"
             + $"策略配额缺口：{strategyShortfall}\r\n"
             + $"行为进展：{(iteration.BehavioralProductiveProgress ? "是" : "否")} · "
             + $"数据管线进展：{(iteration.DataPipelineProgress ? "是" : "否")} · "
@@ -447,16 +513,43 @@ internal sealed class TrainingDiagnosticsPanel
                 : "");
     }
 
-    private void PresentArena(
-        IReadOnlyList<CombatCampaignFoundationIteration> iterations)
+    private void PresentArena(ControllerTrainingResultSummary training)
     {
         arenaRows.Children.Clear();
-        if (iterations.Count == 0)
+        var iterations = training.Iterations
+                         ?? new List<CombatCampaignFoundationIteration>();
+        var trainingOnly = iterations.Count(item => item.TrainingOnlyIteration);
+        var arenaIterations = iterations
+            .Where(item => item.ArenaEvaluationRan)
+            .ToList();
+        arenaRows.Children.Add(Muted(
+            "模型槽：最新训练 "
+            + ModelId(training.LatestTrainingModel)
+            + " · 待验证 "
+            + (training.BestPendingArenaCandidate == null
+                ? "无"
+                : "I"
+                  + training.BestPendingArenaCandidate.SourceIteration
+                  + "/"
+                  + ModelId(training.BestPendingArenaCandidate.Model))
+            + " · 工作模型 "
+            + ModelId(training.WorkingChampion)
+            + " · 已验证合格 "
+            + ModelId(training.AbsoluteQualifiedBestModel)));
+        if (trainingOnly > 0)
         {
-            arenaRows.Children.Add(Muted("候选模型尚未进入竞技场。"));
+            arenaRows.Children.Add(Muted(
+                $"{trainingOnly} 轮为 training-only：只训练并更新待验证候选，不计作竞技场失败。"));
+        }
+        if (arenaIterations.Count == 0)
+        {
+            arenaRows.Children.Add(Muted(
+                training.BestPendingArenaCandidate == null
+                    ? "候选模型尚未进入计划中的竞技场轮次。"
+                    : $"第 {training.BestPendingArenaCandidate.SourceIteration} 轮候选已保留，等待下一次竞技场。"));
             return;
         }
-        foreach (var item in iterations)
+        foreach (var item in arenaIterations)
         {
             var row = new Grid { Margin = new Thickness(0, 3, 0, 7) };
             row.ColumnDefinitions.Add(new ColumnDefinition
@@ -477,7 +570,18 @@ internal sealed class TrainingDiagnosticsPanel
             var detail = new TextBlock
             {
                 Text =
-                    $"普通 候选 {item.CandidateNormalWinRate:P1} / 对照 {item.ChampionNormalWinRate:P1} · "
+                    $"验证候选 I{Math.Max(1, item.ArenaCandidateSourceIteration)}"
+                    + (item.ArenaCandidateSelectedFromPendingBank
+                        ? "（历史待验证最佳）"
+                        : "（本轮模型）")
+                    + $" · 筛选 {item.ArenaScreeningPairs} 对"
+                    + (item.ArenaScreeningDiagnosticOnly ? "（仅诊断）" : "")
+                    + $" · 正式确认 {item.ArenaConfirmationPairs} 对"
+                    + (item.FormalArenaConfirmationScheduled
+                        ? "（已计划）"
+                        : "（未计划）")
+                    + $" · 节省 {item.ArenaScreeningPairsSaved + item.ArenaConfirmationPairsSaved} 对\r\n"
+                    + $"普通 候选 {item.CandidateNormalWinRate:P1} / 对照 {item.ChampionNormalWinRate:P1} · "
                     + $"高级 候选 {item.CandidateAdvancedWinRate:P1} / 对照 {item.ChampionAdvancedWinRate:P1}\r\n"
                     + $"分数差 {item.CandidateScoreGain:+0.0;-0.0;0.0} · "
                     + $"深度差 {item.CandidateDepthGain:+0.000;-0.000;0.000} · "
@@ -500,7 +604,7 @@ internal sealed class TrainingDiagnosticsPanel
                             ? "已进入合格候选池"
                             : item.Promoted
                                 ? "已晋级"
-                                : item.PromotionReason),
+                                : PrimaryArenaReason(item)),
                 Foreground = TrainerTheme.Text,
                 TextWrapping = TextWrapping.Wrap
             };
@@ -508,6 +612,65 @@ internal sealed class TrainingDiagnosticsPanel
             row.Children.Add(detail);
             arenaRows.Children.Add(row);
         }
+    }
+
+    private static string PrimaryArenaReason(
+        CombatCampaignFoundationIteration item)
+    {
+        if (!item.OfflineHeadRegressionGatePassed)
+        {
+            return "离线多头回退超过阈值，筛选仅用于诊断。";
+        }
+        if (!item.StrategyQuotaGatePassed)
+        {
+            return "策略标签配额仍有缺口，未进入正式确认。";
+        }
+        if (!item.FeatureCollisionGatePassed)
+        {
+            return "特征碰撞率超过门槛，未进入正式确认。";
+        }
+        if (!item.AbsoluteAdvancedGatePassed)
+        {
+            return "高级难度绝对门槛未通过。";
+        }
+        if (item.FormalArenaConfirmationScheduled
+            && item.ArenaConfirmationPairs == 0)
+        {
+            return "正式确认已计划，但筛选未满足启动条件。";
+        }
+        if (!item.ArenaEvidenceGatePassed)
+        {
+            return "正式证据不足，分歧样本未达到要求。";
+        }
+        return PromotionReasonText(item.PromotionReason);
+    }
+
+    private static string PromotionReasonText(string reason)
+    {
+        return reason switch
+        {
+            "no-iterative-gain" => "相对工作模型没有形成迭代收益。",
+            "absolute-advanced-gate" => "高级难度绝对门槛未通过。",
+            "insufficient-discordant-pairs" => "正式确认的分歧样本不足。",
+            "regression-or-incomplete-arena" => "竞技场回退或证据不完整。",
+            "advanced-target-not-improved" => "高级难度目标没有改善。",
+            "no-meaningful-gain" => "收益未达到有意义改善阈值。",
+            "offline-head-regression" => "离线多头回退超过阈值。",
+            "strategy-quota-shortfall" => "策略标签配额仍有缺口。",
+            "feature-collision-gate" => "特征碰撞率超过门槛。",
+            "scheduled-training-continuation" => "训练续跑轮，不执行竞技场。",
+            _ => string.IsNullOrWhiteSpace(reason)
+                ? "尚未形成合格证据。"
+                : reason
+        };
+    }
+
+    private static string ModelId(ControllerModelIdentity? model)
+    {
+        if (string.IsNullOrWhiteSpace(model?.ModelId)) return "无";
+        return model.ModelId.Length <= 14
+            ? model.ModelId
+            : model.ModelId.Substring(0, 14) + "…";
     }
 
     private static string PassMark(bool passed)
@@ -521,6 +684,12 @@ internal sealed class TrainingDiagnosticsPanel
             $"教师覆盖 {Rate(training.AuthoritativeTeacherOverrides, training.AuthoritativeSelectedActionsAudited)}\r\n"
             + $"选中动作语义不匹配 "
             + $"{Rate(training.AuthoritativeSelectedSemanticMismatches, training.AuthoritativeSelectedActionsAudited)}\r\n"
+            + $"决策前实演语义 无效 {training.Preflight.SourceProjectionInvalidRate:P2}"
+            + $" / 偏差 {training.Preflight.SourceProjectionMismatchRate:P2}"
+            + $"（门槛 {CombatFoundationSemanticGateProtocol.MaximumSourceProjectionInvalidRate:P0}"
+            + $" / {CombatFoundationSemanticGateProtocol.MaximumSourceProjectionMismatchRate:P0}）\r\n"
+            + $"选中决策前实演 无效 {training.Preflight.SelectedSourceProjectionInvalidActions}"
+            + $" / 偏差 {training.Preflight.SelectedSourceProjectionUnexplainedMismatchActions}\r\n"
             + $"根节点最大访问占比 {training.RootMaximumVisitShareMean:P1}\r\n"
             + $"终局一致性错误 {training.TerminalConsistencyViolations} · "
             + $"特征泄漏 {training.FeatureLeakageViolations} · "

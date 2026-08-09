@@ -94,8 +94,17 @@ public static class CombatActionExecutionPolicy
         if (!IsDivineChoice(action))
         {
             return state.BattleSessionId.ToString(CultureInfo.InvariantCulture)
-                   + "|" + (state.Fingerprint ?? "")
-                   + "|" + (action.CandidateId ?? "");
+                   + "|" + (action.CandidateId ?? "")
+                   + "|eligibility:cost="
+                   + action.Cost.ToString(CultureInfo.InvariantCulture)
+                   + ",runtime="
+                   + action.RuntimeId.ToString(CultureInfo.InvariantCulture)
+                   + ",target="
+                   + action.TargetRuntimeId.ToString(CultureInfo.InvariantCulture)
+                   + ",usable=" + Feature(action, "runtimeUsable")
+                   + ",ex=" + Feature(action, "cardExCost")
+                   + ",once=" + Feature(action, "cardOnceExCost")
+                   + ",total=" + Feature(action, "cardTotalExCost");
         }
 
         var hasDrawCard = (state.DeckKnowledge?.DrawPileCount ?? 0) > 0;
@@ -110,9 +119,35 @@ public static class CombatActionExecutionPolicy
         CombatActionObservation action,
         double decisionIntervalSeconds)
     {
-        return IsDivineChoice(action)
-            ? Math.Max(0.75d, Math.Max(0d, decisionIntervalSeconds) * 2d)
-            : double.PositiveInfinity;
+        // An accepted root action may open its native prompt asynchronously.
+        // A short action-specific grace period races that prompt and turns a
+        // valid interaction into a permanent no-effect suppression.  The
+        // action transaction deadline is the single bounded watchdog; until
+        // then settlement remains pending for every action kind.
+        return double.PositiveInfinity;
+    }
+
+    public static bool OpensFollowUpInteraction(CombatActionObservation? action)
+    {
+        return action?.Semantics?.OpensInteraction == true
+               || action?.Semantics?.Interaction != null
+               || action?.Features != null
+               && action.Features.TryGetValue(
+                   "dynamicActionSetMutation",
+                   out var mutation)
+               && mutation > 0d;
+    }
+
+    private static string Feature(
+        CombatActionObservation action,
+        string key)
+    {
+        return action.Features != null
+               && action.Features.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value.ToString("R", CultureInfo.InvariantCulture)
+            : "n/a";
     }
 }
 

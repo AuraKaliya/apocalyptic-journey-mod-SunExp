@@ -6,9 +6,9 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public const int PreviousSchemaVersion = 16;
+    public const int PreviousSchemaVersion = 20;
 
-    public const int CurrentSchemaVersion = 17;
+    public const int CurrentSchemaVersion = 21;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -29,18 +29,82 @@ internal sealed class ControllerSettings
 
     internal bool MigrateFromPreviousSchema()
     {
-        if (SchemaVersion != PreviousSchemaVersion)
+        if (SchemaVersion < 17
+            || SchemaVersion > PreviousSchemaVersion)
         {
             return false;
         }
-        // v16 unconditionally forced this value to false, so that persisted
-        // value cannot represent an intentional user choice. Upgrade only the
-        // affected defaults; all unrelated training parameters remain intact.
         Parameters ??= new CombatFoundationTrainingParameters();
-        Parameters.ReuseAutoTuneCache = true;
-        if (Parameters.TransformerTeacherDatasetShardFrames <= 64)
+        if (SchemaVersion == 17)
         {
-            Parameters.TransformerTeacherDatasetShardFrames = 512;
+            // v18 moves the development preset to fixed training blocks with
+            // sparse Arena checkpoints. Preserve unrelated user configuration.
+            if (string.Equals(
+                    Parameters.GovernanceProfile,
+                    CombatFoundationGovernanceProfileNames.Development,
+                    StringComparison.OrdinalIgnoreCase)
+                && Parameters.Iterations == 8
+                && Parameters.TrainingCampaignsPerIteration == 96
+                && Parameters.ArenaCampaignsPerDifficulty == 16
+                && Parameters.ArenaConfirmationCampaignsPerDifficulty == 48)
+            {
+                Parameters.Iterations = 12;
+                Parameters.ArenaCampaignsPerDifficulty = 8;
+                Parameters.ArenaEvaluationInterval = 6;
+                Parameters.ArenaConfirmationFinalIterationOnly = true;
+                Parameters.NormalValidationCampaigns = 64;
+                Parameters.AdvancedValidationCampaigns = 128;
+                Parameters.CapabilityProbeCampaignsPerDifficulty = 32;
+                Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 8;
+                Parameters.PreflightCampaignsPerDifficulty = 8;
+                Parameters.TuningInterval = 6;
+                Parameters.TuningNormalCampaigns = 8;
+                Parameters.TuningAdvancedCampaigns = 16;
+                Parameters.TuningScreeningNormalCampaigns = 4;
+                Parameters.TuningScreeningAdvancedCampaigns = 8;
+                Parameters.TuningFinalistCount = 1;
+            }
+            SchemaVersion = 18;
+        }
+        // v19 raises formal confirmation from 48 to 56 pairs per difficulty.
+        // Together with the 8-pair screen this reaches the 64-pair
+        // non-inferiority evidence contract. Only migrate the shipped preset.
+        if (string.Equals(
+                Parameters.GovernanceProfile,
+                CombatFoundationGovernanceProfileNames.Development,
+                StringComparison.OrdinalIgnoreCase)
+            && Parameters.Iterations == 12
+            && Parameters.TrainingCampaignsPerIteration == 96
+            && Parameters.ArenaCampaignsPerDifficulty == 8
+            && Parameters.ArenaConfirmationCampaignsPerDifficulty == 48
+            && Parameters.ArenaEvaluationInterval == 6
+            && Parameters.ArenaConfirmationFinalIterationOnly)
+        {
+            Parameters.ArenaConfirmationCampaignsPerDifficulty = 56;
+        }
+        // v20 batches several training iterations inside one isolated worker.
+        // The field initializer already supplies 3 for old JSON that omitted
+        // it; this guard also repairs hand-authored zero values.
+        if (Parameters.IterationsPerIsolatedProcess <= 0)
+        {
+            Parameters.IterationsPerIsolatedProcess = 3;
+        }
+        // v21 moves the student and teacher state encoders to the
+        // partitioned-v4 2048-slot layout. Preserve deliberately customized
+        // dimensions and thresholds; migrate only the shipped v20 values.
+        if (Parameters.ModelStateDimensions == 1024)
+        {
+            Parameters.ModelStateDimensions = 2048;
+        }
+        if (Parameters.TransformerTeacherStateDimensions == 1024)
+        {
+            Parameters.TransformerTeacherStateDimensions = 2048;
+        }
+        if (Math.Abs(
+                Parameters.MaximumStateFeatureCollisionRate - 0.20d)
+            < 0.000001d)
+        {
+            Parameters.MaximumStateFeatureCollisionRate = 0.05d;
         }
         SchemaVersion = CurrentSchemaVersion;
         return true;
@@ -55,18 +119,21 @@ internal sealed class ControllerSettings
         {
             GovernanceProfile =
                 CombatFoundationGovernanceProfileNames.Development,
-            Iterations = 8,
+            Iterations = 12,
+            IterationsPerIsolatedProcess = 3,
             AdditionalIterationsOnResume = 2,
             TrainingCampaignsPerIteration = 96,
-            ArenaCampaignsPerDifficulty = 16,
-            ArenaConfirmationCampaignsPerDifficulty = 48,
-            NormalValidationCampaigns = 100,
-            AdvancedValidationCampaigns = 200,
-            CapabilityProbeCampaignsPerDifficulty = 64,
-            CapabilityProbeTeacherCampaignsPerDifficulty = 16,
+            ArenaCampaignsPerDifficulty = 8,
+            ArenaConfirmationCampaignsPerDifficulty = 56,
+            ArenaEvaluationInterval = 6,
+            ArenaConfirmationFinalIterationOnly = true,
+            NormalValidationCampaigns = 64,
+            AdvancedValidationCampaigns = 128,
+            CapabilityProbeCampaignsPerDifficulty = 32,
+            CapabilityProbeTeacherCampaignsPerDifficulty = 8,
             CapabilityProbeBatchSize = 16,
-            PreflightCampaignsPerDifficulty = 16,
-            TuningInterval = 2,
+            PreflightCampaignsPerDifficulty = 8,
+            TuningInterval = 6,
             ParallelismProfile =
                 CombatFoundationExecutionProfileNames.Auto,
             InferenceExecutionMode =
@@ -89,18 +156,18 @@ internal sealed class ControllerSettings
             ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d,
             MinimumArenaDiscordantPairs = 8,
             MaximumOfflineHeadRegression = 0.05d,
-            MaximumStateFeatureCollisionRate = 0.20d,
+            MaximumStateFeatureCollisionRate = 0.05d,
             MaximumActionFeatureCollisionRate = 0.06d,
             ModelLearningRate = 0.004d,
             ModelL2 = 0.002d,
-            ModelStateDimensions = 1024,
+            ModelStateDimensions = 2048,
             ModelActionDimensions = 1024,
             ModelHiddenDimensions = 512,
             TransformerTeacherBackend =
                 CombatTransformerTeacherBackendNames.Auto,
             TransformerTeacherEpochs = 12,
             TransformerTeacherBatchSize = 64,
-            TransformerTeacherStateDimensions = 1024,
+            TransformerTeacherStateDimensions = 2048,
             TransformerTeacherActionDimensions = 1024,
             TransformerTeacherHiddenDimensions = 384,
             TransformerTeacherLayers = 6,
@@ -111,6 +178,8 @@ internal sealed class ControllerSettings
             TransformerTeacherMaximumFrames = 10000,
             TransformerTeacherEnableWarmStart = true,
             TransformerTeacherCpuRefreshInterval = 4,
+            TransformerTeacherAcceleratorRefreshInterval = 3,
+            TransformerTeacherMinimumFreshFramesForRefresh = 2048,
             TransformerTeacherCpuEpochs = 4,
             TransformerTeacherCpuIncrementalEpochs = 1,
             TransformerTeacherCpuFinalEpochs = 4,
@@ -122,6 +191,7 @@ internal sealed class ControllerSettings
             TransformerTeacherFinalEpochs = 12,
             TransformerTeacherIncrementalReplayFrames = 1024,
             TransformerTeacherMaximumIncrementalTrainingFrames = 4096,
+            TransformerTeacherMaximumObjectTokens = 64,
             TransformerTeacherCpuThreads = 0,
             TransformerTeacherCpuInteropThreads = 0,
             TransformerTeacherMicroBatchSize = 0,
@@ -135,7 +205,7 @@ internal sealed class ControllerSettings
             TransformerTeacherEnablePinnedMemory = true,
             TransformerTeacherEnableMixedPrecision = true,
             TransformerTeacherEnableDeterministicTraining = true,
-            TransformerDistillationWeight = 0.35d,
+            TransformerDistillationWeight = 0.15d,
             HardEncounterWeights = new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase)
             {
@@ -277,6 +347,25 @@ internal sealed class ControllerTrainingResultSummary
 
     public string Message { get; set; } = "";
 
+    public bool FormalModelBlocked { get; set; }
+
+    public string FormalModelBlockReason { get; set; } = "";
+
+    public ControllerModelIdentity? Champion { get; set; }
+
+    public ControllerModelIdentity? WorkingChampion { get; set; }
+
+    public ControllerModelIdentity? LatestTrainingModel { get; set; }
+
+    public ControllerPendingArenaCandidateSummary? BestPendingArenaCandidate {
+        get;
+        set;
+    }
+
+    public ControllerModelIdentity? AbsoluteQualifiedBestModel { get; set; }
+
+    public int QualifiedCandidateCount { get; set; }
+
     public int GeneratedReplayEpisodes { get; set; }
 
     public int PersistedReplayEpisodes { get; set; }
@@ -350,4 +439,16 @@ internal sealed class ControllerTrainingResultSummary
 
     public List<CombatPolicyValueEpochMetrics> ModelEpochHistory { get; set; } =
         new();
+}
+
+internal sealed class ControllerModelIdentity
+{
+    public string ModelId { get; set; } = "";
+}
+
+internal sealed class ControllerPendingArenaCandidateSummary
+{
+    public int SourceIteration { get; set; }
+
+    public ControllerModelIdentity? Model { get; set; }
 }

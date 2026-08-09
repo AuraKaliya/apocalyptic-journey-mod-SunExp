@@ -26,6 +26,36 @@ public interface ICombatSimulationRuntimeExtension
     void Complete(ICombatSimulationRuntimeContext context);
 }
 
+/// <summary>
+/// Optional declaration used by exact counterfactual teachers. A factory that
+/// owns state outside <see cref="CombatBattleState"/> must reject state-only
+/// forks until it can reproduce the live runtime continuation exactly.
+/// Ordinary standalone state probes may still use the factory without asking
+/// for this stronger guarantee.
+/// </summary>
+public interface ICombatSimulationRuntimeExtensionForkSupport
+{
+    bool SupportsExactStateOnlyFork(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset,
+        out string reason);
+}
+
+/// <summary>
+/// Optional initialization boundary for extensions that own both role
+/// passives and other combat content. The engine audits the role contract
+/// after <see cref="InitializeRole"/> and before
+/// <see cref="InitializeContent"/>, so rewards, relics and difficulty rules
+/// cannot be mistaken for role initialization failures.
+/// </summary>
+public interface ICombatSimulationStagedInitializationRuntimeExtension :
+    ICombatSimulationRuntimeExtension
+{
+    void InitializeRole(ICombatSimulationRuntimeContext context);
+
+    void InitializeContent(ICombatSimulationRuntimeContext context);
+}
+
 public interface ICombatSimulationDecisionRuntimeExtension
 {
     void BeforePolicyDecision(ICombatSimulationRuntimeContext context);
@@ -67,6 +97,27 @@ public interface ICombatSimulationRuntimeContext
 public interface ICombatPersistentProgressionContext
 {
     void RecordPersistentVariableDelta(string variableId, int amount);
+}
+
+/// <summary>
+/// Optional factual trace sink for consumer-owned native scripts that must
+/// mutate authoritative state directly. Facts carry no AI value judgement;
+/// the AI domain decides whether a change is helpful, harmful, or contextual.
+/// </summary>
+public interface ICombatSimulationFactContext
+{
+    CombatSimulationEvent RecordFact(
+        CombatSimulationEventKind kind,
+        int sourceActorId,
+        int targetActorId,
+        string definitionId,
+        int amount,
+        CombatSimulationEvent? sourceEvent = null,
+        string message = "",
+        string statePath = "",
+        int rawAmount = 0,
+        int previousAmount = 0,
+        int currentAmount = 0);
 }
 
 public sealed class CombatScenarioRewardCatalogEntry

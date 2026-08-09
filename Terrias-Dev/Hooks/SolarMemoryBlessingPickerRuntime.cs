@@ -645,13 +645,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static bool IsTechnicalBlessing(string id)
     {
-        var localId = TerriasContentIdCompatibility.LocalId(id);
-        return localId.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || localId.Equals("star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
-            || id.EndsWith("_star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
-            || localId.Equals("sandrone_cat_placeholder", StringComparison.OrdinalIgnoreCase)
-            || id.EndsWith("_sandrone_cat_placeholder", StringComparison.OrdinalIgnoreCase);
+        return TerriasIds.IsTechnicalBlessingId(id);
     }
 
     private static IEnumerable<int> OrderedTiers()

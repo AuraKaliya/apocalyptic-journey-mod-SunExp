@@ -85,6 +85,28 @@ $worker = Join-Path $resolvedOutput "AuraFoundationTrainer.Worker.exe"
 $controlCenter = Join-Path $resolvedOutput "AuraFoundationTrainer.ControlCenter.exe"
 $trainerTargets = @($worker, $controlCenter)
 
+function Get-FoundationFileSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $LiteralPath
+    )
+
+    $stream = [System.IO.File]::OpenRead($LiteralPath)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+            return ([System.BitConverter]::ToString($hashBytes)).Replace('-', '')
+        }
+        finally {
+            $sha256.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
 function Wait-TrainerProcessesExit {
     param(
         [string[]]$TargetPaths,
@@ -412,12 +434,8 @@ if (-not (Test-Path -LiteralPath $publishedTeacher -PathType Leaf)) {
     throw "Published Transformer teacher is missing: $publishedTeacher"
 }
 $sourceTeacher = Join-Path $transformerTeacherSource "train_teacher.py"
-$sourceTeacherSha256 = (Get-FileHash `
-    -LiteralPath $sourceTeacher `
-    -Algorithm SHA256).Hash
-$publishedTeacherSha256 = (Get-FileHash `
-    -LiteralPath $publishedTeacher `
-    -Algorithm SHA256).Hash
+$sourceTeacherSha256 = Get-FoundationFileSha256 -LiteralPath $sourceTeacher
+$publishedTeacherSha256 = Get-FoundationFileSha256 -LiteralPath $publishedTeacher
 if ($sourceTeacherSha256 -ne $publishedTeacherSha256) {
     throw (
         "Published Transformer teacher SHA256 does not match its source: " `

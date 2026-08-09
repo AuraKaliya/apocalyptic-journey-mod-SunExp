@@ -58,6 +58,12 @@ public sealed class AutoBattleSettings
     [JsonProperty("minimumSearchConfidence")]
     public double MinimumSearchConfidence { get; set; } = 0.35d;
 
+    [JsonProperty("networkDeathRiskWeight")]
+    public double NetworkDeathRiskWeight { get; set; } = 1d;
+
+    [JsonProperty("semanticCoverageRiskWeight")]
+    public double SemanticCoverageRiskWeight { get; set; } = 0.5d;
+
     [JsonProperty("searchModelEvaluationBudget")]
     public int SearchModelEvaluationBudget { get; set; } = 384;
 
@@ -114,6 +120,12 @@ public sealed class AutoBattleSettings
         MinimumSearchConfidence = Math.Max(
             0.1d,
             Math.Min(0.8d, MinimumSearchConfidence));
+        NetworkDeathRiskWeight = NormalizeUnitWeight(
+            NetworkDeathRiskWeight,
+            1d);
+        SemanticCoverageRiskWeight = NormalizeUnitWeight(
+            SemanticCoverageRiskWeight,
+            0.5d);
         SearchModelEvaluationBudget = Math.Max(
             32,
             Math.Min(4096, SearchModelEvaluationBudget));
@@ -148,6 +160,13 @@ public sealed class AutoBattleSettings
         }
 
         return choices[0];
+    }
+
+    private static double NormalizeUnitWeight(double value, double fallback)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value)
+            ? fallback
+            : Math.Max(0d, Math.Min(1d, value));
     }
 }
 
@@ -261,6 +280,33 @@ public sealed class AutoBattleGameParameterPreset
     public Dictionary<string, int> ResolvedRoleSkillCooldownTurns { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    [JsonProperty("resolvedRoleInitialSkillCooldownTurns")]
+    public Dictionary<string, int> ResolvedRoleInitialSkillCooldownTurns {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("resolvedRoleMaximumHp")]
+    public int ResolvedRoleMaximumHp { get; set; }
+
+    [JsonProperty("resolvedRoleInitialVariables")]
+    public Dictionary<string, double> ResolvedRoleInitialVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("resolvedRoleNativeScriptHash")]
+    public string ResolvedRoleNativeScriptHash { get; set; } = "";
+
+    [JsonProperty("resolvedRoleFightScript")]
+    public string ResolvedRoleFightScript { get; set; } = "";
+
+    [JsonProperty("resolvedRoleNativeManagedSkillCooldownIds")]
+    public List<string> ResolvedRoleNativeManagedSkillCooldownIds { get; set; } =
+        new();
+
+    [JsonProperty("resolvedRoleRuntimeForms")]
+    public List<AutoBattleRoleRuntimeForm> ResolvedRoleRuntimeForms { get; set; } =
+        new();
+
     [JsonProperty("resolvedFamiliarBlessingIds")]
     public List<string> ResolvedFamiliarBlessingIds { get; set; } = new();
 
@@ -287,6 +333,21 @@ public sealed class AutoBattleGameParameterPreset
             ResolvedRoleSkillCooldownTurns = new Dictionary<string, int>(
                 ResolvedRoleSkillCooldownTurns,
                 StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleInitialSkillCooldownTurns =
+                new Dictionary<string, int>(
+                    ResolvedRoleInitialSkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleMaximumHp = ResolvedRoleMaximumHp,
+            ResolvedRoleInitialVariables = new Dictionary<string, double>(
+                ResolvedRoleInitialVariables,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleNativeScriptHash = ResolvedRoleNativeScriptHash,
+            ResolvedRoleFightScript = ResolvedRoleFightScript,
+            ResolvedRoleNativeManagedSkillCooldownIds =
+                ResolvedRoleNativeManagedSkillCooldownIds.ToList(),
+            ResolvedRoleRuntimeForms = ResolvedRoleRuntimeForms
+                .Select(item => item.Clone())
+                .ToList(),
             ResolvedFamiliarBlessingIds = ResolvedFamiliarBlessingIds.ToList()
         };
     }
@@ -340,6 +401,39 @@ public sealed class AutoBattleGameParameterPreset
                 item => item.Key.Trim(),
                 item => Math.Max(1, Math.Min(99, item.Value)),
                 StringComparer.OrdinalIgnoreCase);
+        ResolvedRoleInitialSkillCooldownTurns =
+            (ResolvedRoleInitialSkillCooldownTurns
+             ?? new Dictionary<string, int>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value >= 0)
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => Math.Min(99, item.Value),
+                StringComparer.OrdinalIgnoreCase);
+        ResolvedRoleMaximumHp = Math.Max(
+            0,
+            Math.Min(1000000, ResolvedRoleMaximumHp));
+        ResolvedRoleInitialVariables = (ResolvedRoleInitialVariables
+                                        ?? new Dictionary<string, double>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && !double.IsNaN(item.Value)
+                           && !double.IsInfinity(item.Value))
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
+        ResolvedRoleNativeScriptHash =
+            (ResolvedRoleNativeScriptHash ?? "").Trim();
+        ResolvedRoleFightScript ??= "";
+        ResolvedRoleNativeManagedSkillCooldownIds = NormalizeIds(
+            ResolvedRoleNativeManagedSkillCooldownIds);
+        ResolvedRoleRuntimeForms = (ResolvedRoleRuntimeForms
+                                    ?? new List<AutoBattleRoleRuntimeForm>())
+            .Where(item => item != null
+                           && !string.IsNullOrWhiteSpace(item.RoleId))
+            .GroupBy(item => item.RoleId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First().Clone())
+            .ToList();
         ResolvedFamiliarBlessingIds = NormalizeIds(
             ResolvedFamiliarBlessingIds);
     }
@@ -374,6 +468,35 @@ public sealed class AutoBattleGameParameterPreset
                && int.TryParse(id.Substring(prefix.Length), out var value)
             ? value
             : int.MaxValue;
+    }
+}
+
+public sealed class AutoBattleRoleRuntimeForm
+{
+    [JsonProperty("roleId")]
+    public string RoleId { get; set; } = "";
+
+    [JsonProperty("maximumHp")]
+    public int MaximumHp { get; set; }
+
+    [JsonProperty("skillCardIds")]
+    public List<string> SkillCardIds { get; set; } = new();
+
+    [JsonProperty("skillCooldownTurns")]
+    public Dictionary<string, int> SkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public AutoBattleRoleRuntimeForm Clone()
+    {
+        return new AutoBattleRoleRuntimeForm
+        {
+            RoleId = RoleId,
+            MaximumHp = MaximumHp,
+            SkillCardIds = new List<string>(SkillCardIds),
+            SkillCooldownTurns = new Dictionary<string, int>(
+                SkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase)
+        };
     }
 }
 

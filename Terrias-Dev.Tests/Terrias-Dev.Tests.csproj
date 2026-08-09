@@ -36,6 +36,10 @@
     <Compile Include="..\Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs" Link="Source\RuntimeCardAttachmentService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\StarBlessingCostOverrideStore.cs" Link="Source\StarBlessingCostOverrideStore.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ResonanceCostTransactionStore.cs" Link="Source\ResonanceCostTransactionStore.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SolarFlameSealFormula.cs" Link="Source\SolarFlameSealFormula.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\MorningStarRelicFormula.cs" Link="Source\MorningStarRelicFormula.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\MorningStarBlessingFormula.cs" Link="Source\MorningStarBlessingFormula.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SunCardPackSelectionMigration.cs" Link="Source\SunCardPackSelectionMigration.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\LoneerCombatState.cs" Link="Source\LoneerCombatState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\StarScoreNote.cs" Link="Source\StarScoreNote.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\StarScoreDisplaySnapshot.cs" Link="Source\StarScoreDisplaySnapshot.cs" />

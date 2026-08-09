@@ -188,6 +188,41 @@ try
            && pathBudgetFailure.Operation == "atomic-target",
         "atomic storage rejects over-budget paths before creating partial directories");
 
+    var transactionDirectory = Path.Combine(tempRoot, "Data", "TransactionTest");
+    Directory.CreateDirectory(transactionDirectory);
+    var transactionTarget = Path.Combine(transactionDirectory, "target.bin");
+    var transactionStaged = Path.Combine(transactionDirectory, "staged.bin");
+    var transactionBackup = Path.Combine(transactionDirectory, "backup.bin");
+    File.WriteAllText(transactionTarget, "old");
+    File.WriteAllText(transactionStaged, "new");
+    storage.ReplaceFileInsideRoot(
+        transactionStaged,
+        transactionTarget,
+        transactionBackup);
+    Assert(File.ReadAllText(transactionTarget) == "new"
+           && File.ReadAllText(transactionBackup) == "old",
+        "shared storage replacement retains an exact rollback file");
+    storage.ReplaceFileInsideRoot(transactionBackup, transactionTarget);
+    Assert(File.ReadAllText(transactionTarget) == "old"
+           && !File.Exists(transactionBackup),
+        "shared storage replacement restores a rollback file atomically");
+    var transactionMoved = Path.Combine(transactionDirectory, "moved.bin");
+    storage.MoveFileInsideRoot(transactionTarget, transactionMoved);
+    storage.DeleteFileInsideRoot(transactionMoved);
+    Assert(!File.Exists(transactionTarget) && !File.Exists(transactionMoved),
+        "shared storage owns move and delete operations inside its root");
+    var escapedDeleteRejected = false;
+    try
+    {
+        storage.DeleteFileInsideRoot(Path.Combine(sourceRoot, "outside.bin"));
+    }
+    catch (InvalidDataException)
+    {
+        escapedDeleteRejected = true;
+    }
+    Assert(escapedDeleteRejected,
+        "shared storage rejects file transaction paths outside its root");
+
     var sourceFile = Path.Combine(sourceRoot, "audio.wav");
     File.WriteAllText(sourceFile, "v1");
     var install = packages.Install(Request("OwnerA", "Audio", "voice", "PackA", 1, sourceFile, "Audio/Test/voice.wav"));

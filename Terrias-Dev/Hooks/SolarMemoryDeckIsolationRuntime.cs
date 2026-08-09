@@ -84,7 +84,9 @@ public static class SolarMemoryDeckIsolationRuntime
                 : "";
             if (!string.IsNullOrWhiteSpace(saved))
             {
-                var savedPacks = saved.Split('|')
+                var savedPacks = saved.Split('|').ToList();
+                SunCardPackSelectionMigration.Apply(savedPacks);
+                savedPacks = savedPacks
                     .Where(IsValidPackForCurrentLobby)
                     .ToList();
                 if (savedPacks.Count > 0)

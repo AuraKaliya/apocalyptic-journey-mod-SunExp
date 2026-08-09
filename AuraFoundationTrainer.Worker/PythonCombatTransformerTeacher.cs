@@ -13,6 +13,8 @@ internal sealed class PythonCombatTransformerTeacher :
     private const string ProgressPrefix = "AURA_TEACHER_PROGRESS ";
     private const string CorpusFileName =
         "world-model-corpus-v4.sparse.jsonl";
+    private const string CorpusBacklogFileName =
+        "world-model-backlog-v1.sparse.jsonl";
     private const string CorpusIdentityIndexFileName =
         "corpus-identities-v1.txt";
     private const string CorpusManifestFileName = "corpus-manifest-v1.json";
@@ -120,17 +122,27 @@ internal sealed class PythonCombatTransformerTeacher :
         Directory.CreateDirectory(persistentTeacherDirectory);
         var persistentModelPath = Path.Combine(
             persistentTeacherDirectory,
-            "world-model-v2.pt");
+            "policy-teacher-v1.pt");
         var persistentReportPath = Path.Combine(
             persistentTeacherDirectory,
-            "world-model-report-v2.json");
+            "policy-teacher-report-v1.json");
+        var persistentWorldModelPath = Path.Combine(
+            persistentTeacherDirectory,
+            "world-teacher-v1.pt");
+        var persistentWorldReportPath = Path.Combine(
+            persistentTeacherDirectory,
+            "world-teacher-report-v1.json");
         var anchorPath = Path.Combine(
             persistentTeacherDirectory,
             "fixed-anchor-validation-v1.jsonl");
         var trainedIdentityPath = Path.Combine(
             persistentTeacherDirectory,
             "trained-frame-identities-v1.txt");
+        var attemptedIdentityPath = Path.Combine(
+            persistentTeacherDirectory,
+            "attempted-frame-identities-v1.txt");
         var trainedIdentities = ReadIdentitySet(trainedIdentityPath);
+        var attemptedIdentities = ReadIdentitySet(attemptedIdentityPath);
         var anchorRunKeys = ReadAnchorRunKeys(anchorPath, cancellationToken);
         var legacyDatasetPath = Path.Combine(
             corpusDirectory,
@@ -144,6 +156,8 @@ internal sealed class PythonCombatTransformerTeacher :
             cancellationToken);
         var datasetPath = activeCorpusGeneration?.CorpusPath
                           ?? legacyDatasetPath;
+        var backlogPath = activeCorpusGeneration?.BacklogPath
+                          ?? Path.Combine(corpusDirectory, CorpusBacklogFileName);
         var corpusManifestPath = activeCorpusGeneration?.ManifestPath
                                  ?? legacyCorpusManifestPath;
         var corpusIdentityIndexPath = activeCorpusGeneration?.IdentityIndexPath
@@ -197,7 +211,8 @@ internal sealed class PythonCombatTransformerTeacher :
                                         sourceFrameUpperBound);
         var existingIdentities = incrementalUpdate
             ? new HashSet<string>(
-                validatedCorpus!.Identities,
+                validatedCorpus!.Identities.Concat(
+                    validatedCorpus.BacklogIdentities),
                 StringComparer.Ordinal)
             : null;
         report.IncrementalCorpusUpdate = incrementalUpdate;
@@ -223,9 +238,11 @@ internal sealed class PythonCombatTransformerTeacher :
         var corpus = incrementalUpdate
                      && exportedFrames == 0
                      && validatedCorpus != null
+                     && validatedCorpus.BacklogFrameCount == 0
             ? CorpusFromValidatedSnapshot(validatedCorpus, datasetPath)
             : MergeCorpus(
                 datasetPath,
+                backlogPath,
                 currentDatasetPath,
                 corpusDirectory,
                 corpusCompatibilityKey,
@@ -266,6 +283,7 @@ internal sealed class PythonCombatTransformerTeacher :
         report.ReusedCorpusFrames = corpus.ReusedFrames;
         report.DeduplicatedCorpusFrames = corpus.DeduplicatedFrames;
         report.DroppedCorpusFrames = corpus.DroppedFrames;
+        report.CorpusBacklogFrames = corpus.BacklogFrames;
         report.DatasetStrategyFrames = corpus.StrategyFrames;
         report.DatasetFingerprint = corpus.Fingerprint;
         TryDelete(currentDatasetPath);
@@ -298,6 +316,8 @@ internal sealed class PythonCombatTransformerTeacher :
             teacherCompatibilityKey);
         var persistentPreviousReport = ReadPreviousReport(
             persistentReportPath);
+        var persistentWorldPreviousReport = ReadPreviousReport(
+            persistentWorldReportPath);
         var persistentPreviousApplied = HasAcceptedTeacherArtifactForWarmStart(
             persistentModelPath,
             persistentPreviousReport,
@@ -312,47 +332,60 @@ internal sealed class PythonCombatTransformerTeacher :
             : persistentPreviousApplied
                 ? persistentPreviousReport
                 : null;
+        var rejectedUpdateStreak = ConsecutiveRejectedTeacherUpdates(
+            resultDirectory,
+            context.Iteration,
+            teacherCompatibilityKey);
+        var lastAttemptIteration = LastTeacherAttemptIteration(
+            resultDirectory,
+            context.Iteration,
+            teacherCompatibilityKey);
         report.DatasetDriftScore = DatasetDrift(report, previousReport);
         var warmStarted = options.EnableWarmStart
                           && File.Exists(previousModelPath);
         var pendingFrames = corpusRows.Count(row =>
             !anchorRunKeys.Contains(EffectiveRunKey(row))
             && !trainedIdentities.Contains(row.Identity));
+        var freshPendingFrames = corpusRows.Count(row =>
+            !anchorRunKeys.Contains(EffectiveRunKey(row))
+            && !trainedIdentities.Contains(row.Identity)
+            && !attemptedIdentities.Contains(row.Identity));
         var finalRefresh =
             CombatTransformerTeacherRefreshProtocol.IsFinalRefresh(context);
         var cpuBackend = string.Equals(
             runtime.EffectiveBackend,
             CombatTransformerTeacherBackendNames.Cpu,
             StringComparison.OrdinalIgnoreCase);
-        var intervalRefresh = (context.Iteration - 1)
-                              % options.CpuRefreshInterval == 0;
         var driftRefresh = options.EnableAdaptiveRefresh
                            && report.DatasetDriftScore
                               >= options.AdaptiveRefreshDriftThreshold;
         var corpusGrowthRefresh = report.CorpusGrowthFrames >= 256
                                   || report.CorpusGrowthRatio >= 0.20d;
         report.RefreshTriggeredByCorpusGrowth = corpusGrowthRefresh;
-        var trainingEnabled = !warmStarted
-                              || finalRefresh
-                              || (cpuBackend && intervalRefresh)
-                              || driftRefresh
-                              || exportedFrames > 0
-                              || pendingFrames > 0;
-        report.RefreshReason = !warmStarted
-            ? "cold-start"
-            : finalRefresh
-                    ? "final-refresh"
-                : pendingFrames > 0
-                    ? "pending-backlog"
-                : !cpuBackend && exportedFrames > 0
-                    ? "accelerator-incremental"
-                    : corpusGrowthRefresh
-                        ? "corpus-growth"
-                        : driftRefresh
-                        ? "dataset-drift"
-                        : intervalRefresh
-                            ? "maximum-staleness"
-                            : "stable-teacher-reuse";
+        var refreshInterval = cpuBackend
+            ? options.CpuRefreshInterval
+            : options.AcceleratorRefreshInterval;
+        var trainingEnabled = CombatTransformerTeacherRefreshProtocol
+            .ShouldRefresh(
+                warmStarted,
+                finalRefresh,
+                cpuBackend,
+                context.Iteration,
+                previousReport?.Iteration ?? 0,
+                lastAttemptIteration,
+                rejectedUpdateStreak,
+                pendingFrames,
+                freshPendingFrames,
+                driftRefresh,
+                options,
+                out var refreshReason);
+        report.RefreshReason = refreshReason;
+        report.RefreshInterval = refreshInterval;
+        report.RefreshRejectedUpdateStreak = rejectedUpdateStreak;
+        report.RefreshLastAttemptIteration = lastAttemptIteration;
+        report.RefreshMinimumFreshFrames =
+            options.MinimumFreshFramesForRefresh;
+        report.RefreshFreshPendingFrames = freshPendingFrames;
         var effectiveEpochs = cpuBackend
             ? finalRefresh
                 ? options.CpuFinalEpochs
@@ -417,7 +450,7 @@ internal sealed class PythonCombatTransformerTeacher :
         report.MemoryReserveBytes = options.MemoryReserveBytes;
         report.PredictedPeakWorkingSetBytes = predictedPeak;
         report.DatasetStorageMode = options.EnableShardedDataset
-            ? "auto-resident-sharded-v2"
+            ? "auto-resident-sharded-v3-locality"
             : "resident";
         report.DatasetShardFrames = options.DatasetShardFrames;
         report.DatasetEncoding = CombatTransformerWorldModelProtocol
@@ -463,10 +496,12 @@ internal sealed class PythonCombatTransformerTeacher :
             incrementalSelection = SelectIncrementalTrainingRows(
                 corpusRows,
                 trainedIdentities,
+                attemptedIdentities,
                 anchorRunKeys,
                 options,
                 teacherCompatibilityKey,
-                context.Iteration);
+                context.Iteration,
+                rejectedUpdateStreak);
             trainingSelectionPath = Path.Combine(
                 iterationDirectory,
                 "incremental-training-row-selection-v1.txt");
@@ -477,10 +512,14 @@ internal sealed class PythonCombatTransformerTeacher :
             report.IncrementalTrainingFrames =
                 incrementalSelection.RowIndices.Count;
             report.IncrementalNewFrames = incrementalSelection.NewFrames;
+            report.IncrementalFreshFrames = incrementalSelection.FreshFrames;
+            report.IncrementalRetryFrames = incrementalSelection.RetryFrames;
             report.IncrementalReplayFrames = incrementalSelection.ReplayFrames;
             report.IncrementalPendingFrames = incrementalSelection.PendingFrames;
             report.IncrementalDeferredFrames =
                 incrementalSelection.DeferredFrames;
+            report.IncrementalReplayEscalationLevel =
+                incrementalSelection.ReplayEscalationLevel;
             if (incrementalSelection.RowIndices.Count == 0)
             {
                 trainingEnabled = false;
@@ -561,11 +600,48 @@ internal sealed class PythonCombatTransformerTeacher :
             var external = JsonConvert.DeserializeObject<
                 CombatTransformerTeacherReport>(
                 File.ReadAllText(reportPath, Encoding.UTF8));
-            if (external != null)
+            if (external == null
+                || !string.Equals(
+                    external.Protocol,
+                    CombatTransformerWorldModelProtocol.Report,
+                    StringComparison.Ordinal))
             {
-                MergeExternalReport(report, external);
+                report.Message =
+                    "Transformer teacher report protocol is missing or incompatible.";
+                CombatTransformerTeacherFailureProtocol.Mark(
+                    report,
+                    CombatTransformerTeacherFailureKinds.Protocol,
+                    retryable: false,
+                    formalModelBlocked: true);
+                return report;
             }
+            MergeExternalReport(report, external);
             ApplyAnnotations(annotationsPath, bindings, report);
+            if (report.TrainingRefreshed && incrementalSelection != null)
+            {
+                try
+                {
+                    // Attempt history follows the compatibility-scoped corpus,
+                    // including rows currently parked in the durable backlog.
+                    var attemptedRows = incrementalSelection.RowIndices
+                        .ToHashSet();
+                    foreach (var row in corpusRows.Where(row =>
+                                 attemptedRows.Contains(row.SourceLine)))
+                    {
+                        attemptedIdentities.Add(row.Identity);
+                    }
+                    WriteIdentitySet(
+                        attemptedIdentityPath,
+                        attemptedIdentities);
+                }
+                catch (Exception ex)
+                {
+                    report.DataQualityWarnings.Add(
+                        "Transformer attempted-frame watermark was not "
+                        + "persisted: "
+                        + ex.Message);
+                }
+            }
             report.Success = report.Success && report.AnnotatedFrames > 0;
             report.PolicyQualityGatePassed =
                 report.ValidationUniformPolicyCrossEntropy > 0d
@@ -575,6 +651,11 @@ internal sealed class PythonCombatTransformerTeacher :
                    <= report.ValidationUniformPolicyCrossEntropy + 0.000001d;
             report.WorldModelQualityGatePassed =
                 report.DynamicsTrainingFrames > 0
+                && report.DynamicsValidationFrames > 0
+                && report.InvalidTransitionFrames == 0
+                && report.TerminalKnownFrames
+                   >= Math.Ceiling(report.LoadedDatasetFrames * 0.95d)
+                && report.ObjectTokenAuditPassed
                 && Finite(report.ValidationDynamicsMse)
                 && report.ValidationDynamicsMse <= 0.5d
                 && Finite(report.ValidationOutcomeMae)
@@ -617,14 +698,38 @@ internal sealed class PythonCombatTransformerTeacher :
             report.TeacherSourceGatePassed =
                 CombatTransformerTeacherApplicationProtocol
                     .HasUsableTeacherSource(report);
-            report.Applied = report.Success
-                              && report.QualityGatePassed
-                              && report.TeacherSourceGatePassed
-                              && report.FrameCount >= options.MinimumFrames
-                              && report.AnnotatedFrames > 0;
+            report.PolicyTeacherApplied = report.Success
+                                          && report.PolicyQualityGatePassed
+                                          && report.AnchorCoverageGatePassed
+                                          && report.TeacherSourceGatePassed
+                                          && report.FrameCount
+                                          >= options.MinimumFrames
+                                          && report.AnnotatedFrames > 0;
+            report.WorldTeacherApplied = report.PolicyTeacherApplied
+                                         && report.WorldModelQualityGatePassed;
+            // Applied is the student-distillation contract. A world-head
+            // failure must not disable a qualified policy teacher.
+            report.Applied = report.PolicyTeacherApplied;
+            report.StablePolicyTeacherGeneration = report.PolicyTeacherApplied
+                ? report.TeacherGeneration
+                : Math.Max(
+                    0,
+                    persistentPreviousReport?.StablePolicyTeacherGeneration
+                    ?? persistentPreviousReport?.TeacherGeneration
+                    ?? 0);
+            report.StableWorldTeacherGeneration = report.WorldTeacherApplied
+                ? report.TeacherGeneration
+                : Math.Max(
+                    0,
+                    persistentWorldPreviousReport?.StableWorldTeacherGeneration
+                    ?? persistentWorldPreviousReport?.TeacherGeneration
+                    ?? 0);
+            report.AnnotationTeacherGeneration = report.PolicyTeacherApplied
+                ? report.TeacherGeneration
+                : 0;
             HashSet<string>? nextTrainedIdentities = null;
             HashSet<string>? currentAnchorRuns = null;
-            if (report.Applied
+            if (report.WorldTeacherApplied
                 && report.TrainingRefreshed
                 && report.UpdateAccepted)
             {
@@ -634,13 +739,11 @@ internal sealed class PythonCombatTransformerTeacher :
                 var selectedRows = incrementalSelection == null
                     ? null
                     : incrementalSelection.RowIndices.ToHashSet();
-                var corpusIdentities = corpusRows
-                    .Select(row => row.Identity)
-                    .ToHashSet(StringComparer.Ordinal);
                 nextTrainedIdentities = new HashSet<string>(
                     trainedIdentities,
                     StringComparer.Ordinal);
-                nextTrainedIdentities.IntersectWith(corpusIdentities);
+                // Do not prune identities merely because their rows rotated
+                // from the active training window into the durable backlog.
                 foreach (var row in corpusRows.Where(row =>
                              !currentAnchorRuns.Contains(EffectiveRunKey(row))
                              && (selectedRows == null
@@ -656,6 +759,9 @@ internal sealed class PythonCombatTransformerTeacher :
             if (modelArtifactMissing)
             {
                 report.Applied = false;
+                report.PolicyTeacherApplied = false;
+                report.WorldTeacherApplied = false;
+                report.AnnotationTeacherGeneration = 0;
                 nextTrainedIdentities = null;
                 currentAnchorRuns = null;
             }
@@ -663,6 +769,12 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 report.Message =
                     "Transformer teacher withheld: the accepted model artifact is missing.";
+            }
+            else if (report.PolicyTeacherApplied
+                     && !report.WorldTeacherApplied)
+            {
+                report.Message =
+                    "Transformer policy teacher annotations applied; world model update withheld by its independent quality gate.";
             }
             else if (report.Applied)
             {
@@ -680,11 +792,6 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 report.Message =
                     "Transformer teacher withheld: validation policy loss did not beat the uniform baseline.";
-            }
-            else if (report.Success && !report.WorldModelQualityGatePassed)
-            {
-                report.Message =
-                    "Transformer world model withheld: dynamics or outcome validation gate failed.";
             }
             else if (report.Success && !report.AnchorCoverageGatePassed)
             {
@@ -711,6 +818,11 @@ internal sealed class PythonCombatTransformerTeacher :
                         trainedIdentityPath,
                         nextTrainedIdentities,
                         out var watermarkError);
+                if (report.WorldTeacherApplied)
+                {
+                    CopyAtomic(modelPath, persistentWorldModelPath);
+                    CopyAtomic(reportPath, persistentWorldReportPath);
+                }
                 if (nextTrainedIdentities != null)
                 {
                     if (watermarkAdvanced)
@@ -734,6 +846,10 @@ internal sealed class PythonCombatTransformerTeacher :
                     reportPath,
                     JsonConvert.SerializeObject(report, Formatting.Indented));
                 CopyAtomic(reportPath, persistentReportPath);
+                if (report.WorldTeacherApplied)
+                {
+                    CopyAtomic(reportPath, persistentWorldReportPath);
+                }
             }
             return report;
         }
@@ -802,9 +918,10 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 continue;
             }
+            // Episode frame order is the authoritative decision clock. Turn
+            // and simulation action ids are observability fields and may stay
+            // unchanged across EndTurn or no-effect decisions.
             var frames = (episode.Frames ?? new List<CombatEpisodeFrame>())
-                .OrderBy(frame => frame.Turn)
-                .ThenBy(frame => frame.ActionSequence)
                 .ToList();
             for (var episodeFrameIndex = 0;
                  episodeFrameIndex < frames.Count;
@@ -863,14 +980,25 @@ internal sealed class PythonCombatTransformerTeacher :
                                + "|"
                                + frame.ActionSequence
                                + "|"
+                               + frame.DecisionSequence
+                               + "|"
                                + frame.StateFingerprint;
                 var policy = CombatPolicyValueBatchTrainer.PolicyTargets(
                     candidates,
                     frame.ExecutedCandidateId,
                     1.25d,
                     0.95d);
-                var strategy = CombatPolicyValueBatchTrainer
-                    .StrategicFrameStratum(frame.StateFeatures);
+                var strategyLabels = NormalizeStrategyLabels(
+                    frame.StrategyLabelsKnown
+                        ? frame.StrategyLabels
+                        : Array.Empty<string>());
+                var strategyApplicable = NormalizeStrategyLabels(
+                    frame.StrategyApplicabilityKnown
+                        ? frame.StrategyApplicableLabels
+                        : Array.Empty<string>());
+                var strategy = strategyApplicable.Count > 0
+                    ? PrimaryStrategy(strategyLabels)
+                    : "strategy-not-applicable";
                 var binding = new FrameBinding
                 {
                     Frame = frame,
@@ -885,20 +1013,54 @@ internal sealed class PythonCombatTransformerTeacher :
                     continue;
                 }
                 binding.ExportedToCurrentDataset = true;
-                var hasNextState = episodeFrameIndex + 1 < frames.Count;
-                var nextState = hasNextState
-                    ? CombatPolicyValueEncoding.EncodeState(
-                        frames[episodeFrameIndex + 1].StateFeatures,
+                var compactNextState =
+                    frame.CompactTransitionNextStateFeatures;
+                var hasNextState = frame.TransitionKnown
+                                   && frame.TransitionValid
+                                   && (compactNextState?.Count > 0
+                                       || frame.TransitionNextStateFeatures.Count
+                                       > 0);
+                var nextState = new double[options.StateDimensions];
+                if (hasNextState && compactNextState != null)
+                {
+                    CombatPolicyValueEncoding.EncodeStateInto(
+                        compactNextState,
+                        nextState,
                         options.StateDimensions,
-                        "partitioned-v3")
-                    : new double[options.StateDimensions];
-                var encodedState = CombatPolicyValueEncoding.EncodeState(
-                    frame.StateFeatures,
-                    options.StateDimensions,
-                    "partitioned-v3");
-                var objectTokens = CombatWorldModelTokenEncoding.Encode(
-                    frame.Observation,
-                    options.StateDimensions);
+                        "partitioned-v4");
+                }
+                else if (hasNextState)
+                {
+                    CombatPolicyValueEncoding.EncodeStateInto(
+                        frame.TransitionNextStateFeatures,
+                        nextState,
+                        options.StateDimensions,
+                        "partitioned-v4");
+                }
+                var encodedState = new double[options.StateDimensions];
+                if (frame.CompactStateFeatures != null)
+                {
+                    CombatPolicyValueEncoding.EncodeStateInto(
+                        frame.CompactStateFeatures,
+                        encodedState,
+                        options.StateDimensions,
+                        "partitioned-v4");
+                }
+                else
+                {
+                    CombatPolicyValueEncoding.EncodeStateInto(
+                        frame.StateFeatures,
+                        encodedState,
+                        options.StateDimensions,
+                        "partitioned-v4");
+                }
+                var objectTokens = frame.HasObservation
+                    ? CombatWorldModelTokenEncoding.Encode(
+                        frame.Observation,
+                        options.StateDimensions,
+                        options.MaximumObjectTokens,
+                        includeActionCandidates: false)
+                    : Array.Empty<double[]>();
                 var row = new TeacherDatasetRow
                 {
                     I = exportedRowIndex++,
@@ -907,11 +1069,22 @@ internal sealed class PythonCombatTransformerTeacher :
                     F = episodeFrameIndex,
                     T = frame.Turn,
                     Q = frame.ActionSequence,
+                    QD = frame.DecisionSequence,
                     D = identity,
                     L = strategy,
                     C = NormalizeDifficulty(episode.Campaign?.DifficultyId),
                     B = episode.JourneyBattleIndex,
                     J = episode.Campaign?.FinalBossVictory == true ? 1 : 0,
+                    OK = objectTokens.Length > 0 ? 1 : 0,
+                    DK = hasNextState
+                         || frame.TerminalKnown && frame.Terminal
+                        ? 1
+                        : 0,
+                    SK = frame.StrategyApplicabilityKnown
+                         && strategyApplicable.Count > 0
+                        ? 1
+                        : 0,
+                    TK = frame.TerminalKnown ? 1 : 0,
                     S = SparseFeatureVector.Encode(encodedState),
                     O = objectTokens
                         .Select(SparseFeatureVector.Encode)
@@ -926,12 +1099,16 @@ internal sealed class PythonCombatTransformerTeacher :
                                         Features = candidate.Features
                                     },
                                     options.ActionDimensions,
-                                    "partitioned-v3")))
+                                    "partitioned-v4")))
                         .ToArray(),
                     P = policy,
                     X = executedIndex,
                     V = Math.Max(-1d, Math.Min(1d, frame.LongTermReturn)),
-                    G = StrategyStage(frame.StateFeatures),
+                    G = frame.StrategyPhase >= 0
+                        ? Math.Max(0, Math.Min(4, frame.StrategyPhase))
+                        : StrategyStage(frame.StateFeatures),
+                    SL = StrategyVector(strategyLabels),
+                    SA = StrategyVector(strategyApplicable),
                     K = HasDeclaredTrainingQuota(frame.StateFeatures)
                         || string.Equals(
                             strategy,
@@ -941,11 +1118,15 @@ internal sealed class PythonCombatTransformerTeacher :
                         : 2d,
                     N = SparseFeatureVector.Encode(nextState),
                     M = hasNextState ? 1 : 0,
+                    TS = hasNextState ? Math.Max(1, frame.TransitionSpan) : 0,
+                    TB = frame.TransitionCrossedTurnBoundary ? 1 : 0,
+                    AD = frame.TransitionActionSequenceDelta,
+                    TR = frame.TransitionInvalidReason ?? "",
                     W = Math.Max(0d, Math.Min(1d, frame.WinTarget)),
                     R = Math.Max(0d, Math.Min(1d, frame.DeathTarget)),
                     H = Math.Max(0d, Math.Min(1d, frame.RemainingHpRatioTarget)),
                     U = Math.Max(0d, frame.RemainingTurnsTarget),
-                    Z = hasNextState ? 0 : 1
+                    Z = frame.TerminalKnown && frame.Terminal ? 1 : 0
                 };
                 writer.WriteLine(JsonConvert.SerializeObject(row, Formatting.None));
             }
@@ -1023,6 +1204,30 @@ internal sealed class PythonCombatTransformerTeacher :
                 descriptors,
                 cancellationToken);
             var identities = descriptors.Keys.ToHashSet(StringComparer.Ordinal);
+            var backlogPath = Path.Combine(
+                Path.GetDirectoryName(path)!,
+                CorpusBacklogFileName);
+            var backlogDescriptors = new Dictionary<string, CorpusFrameDescriptor>(
+                StringComparer.Ordinal);
+            var backlogRows = File.Exists(backlogPath)
+                ? ReadCorpusDescriptors(
+                    backlogPath,
+                    current: false,
+                    backlogDescriptors,
+                    cancellationToken)
+                : 0;
+            var backlogValid = manifest.BacklogFrameCount == backlogRows
+                               && backlogRows == backlogDescriptors.Count
+                               && (backlogRows == 0
+                                   ? !File.Exists(backlogPath)
+                                     || new FileInfo(backlogPath).Length == 0
+                                   : manifest.BacklogContentLengthBytes
+                                     == new FileInfo(backlogPath).Length
+                                     && string.Equals(
+                                         manifest.BacklogContentSha256,
+                                         FileSha256(backlogPath),
+                                         StringComparison.Ordinal))
+                               && !identities.Overlaps(backlogDescriptors.Keys);
             var strategies = descriptors.Values
                 .GroupBy(item => item.Strategy, StringComparer.Ordinal)
                 .OrderBy(group => group.Key, StringComparer.Ordinal)
@@ -1036,7 +1241,8 @@ internal sealed class PythonCombatTransformerTeacher :
                     DatasetFingerprint(identities),
                     manifest.Fingerprint,
                     StringComparison.Ordinal)
-                || !SameStrategyFrames(strategies, manifest.StrategyFrames))
+                || !SameStrategyFrames(strategies, manifest.StrategyFrames)
+                || !backlogValid)
             {
                 return null;
             }
@@ -1046,7 +1252,10 @@ internal sealed class PythonCombatTransformerTeacher :
                 FrameCount = manifest.FrameCount,
                 Fingerprint = manifest.Fingerprint,
                 StrategyFrames = strategies,
-                Identities = identities
+                Identities = identities,
+                BacklogFrameCount = backlogRows,
+                BacklogIdentities = backlogDescriptors.Keys.ToHashSet(
+                    StringComparer.Ordinal)
             };
         }
         catch (OperationCanceledException)
@@ -1134,6 +1343,63 @@ internal sealed class PythonCombatTransformerTeacher :
             CancellationToken.None)?.CorpusPath;
     }
 
+    internal static (
+        string CorpusPath,
+        string BacklogPath,
+        int ActiveFrames,
+        int BacklogFrames,
+        int DroppedFrames) MergeCorpusRowsForTests(
+        string corpusDirectory,
+        IReadOnlyList<string> currentRows,
+        int maximumFrames,
+        IReadOnlySet<string>? trainedIdentities = null,
+        string? existingCorpusPath = null,
+        string? existingBacklogPath = null)
+    {
+        Directory.CreateDirectory(corpusDirectory);
+        var currentPath = Path.Combine(
+            corpusDirectory,
+            "current-for-tests-" + Guid.NewGuid().ToString("N") + ".jsonl");
+        File.WriteAllLines(
+            currentPath,
+            currentRows ?? Array.Empty<string>(),
+            new UTF8Encoding(false));
+        try
+        {
+            var result = MergeCorpus(
+                existingCorpusPath ?? Path.Combine(
+                    corpusDirectory,
+                    CorpusFileName),
+                existingBacklogPath ?? Path.Combine(
+                    corpusDirectory,
+                    CorpusBacklogFileName),
+                currentPath,
+                corpusDirectory,
+                "TEST-COMPATIBILITY",
+                Array.Empty<FrameBinding>(),
+                maximumFrames,
+                trainedIdentities
+                ?? new HashSet<string>(StringComparer.Ordinal),
+                new HashSet<string>(StringComparer.Ordinal),
+                includeExistingCorpus:
+                    File.Exists(existingCorpusPath ?? "")
+                    || File.Exists(existingBacklogPath ?? ""),
+                cancellationToken: CancellationToken.None);
+            return (
+                result.CorpusPath,
+                Path.Combine(
+                    Path.GetDirectoryName(result.CorpusPath)!,
+                    CorpusBacklogFileName),
+                result.FrameCount,
+                result.BacklogFrames,
+                result.DroppedFrames);
+        }
+        finally
+        {
+            TryDelete(currentPath);
+        }
+    }
+
     private static CorpusGenerationSnapshot PublishPersistedCorpusSnapshot(
         string corpusDirectory,
         string corpusPath,
@@ -1176,6 +1442,15 @@ internal sealed class PythonCombatTransformerTeacher :
             File.Copy(
                 manifestPath,
                 Path.Combine(stagingDirectory, CorpusManifestFileName));
+            var backlogPath = Path.Combine(
+                Path.GetDirectoryName(corpusPath)!,
+                CorpusBacklogFileName);
+            if (File.Exists(backlogPath))
+            {
+                File.Copy(
+                    backlogPath,
+                    Path.Combine(stagingDirectory, CorpusBacklogFileName));
+            }
             return CommitCorpusGeneration(
                 corpusDirectory,
                 generation,
@@ -1369,6 +1644,7 @@ internal sealed class PythonCombatTransformerTeacher :
             directory,
             CorpusIdentityIndexFileName);
         var manifestPath = Path.Combine(directory, CorpusManifestFileName);
+        var backlogPath = Path.Combine(directory, CorpusBacklogFileName);
         var manifest = ReadCorpusManifest(manifestPath, compatibilityKey);
         var snapshot = manifest == null
             ? null
@@ -1383,6 +1659,7 @@ internal sealed class PythonCombatTransformerTeacher :
                 Generation = generation,
                 DirectoryPath = directory,
                 CorpusPath = corpusPath,
+                BacklogPath = backlogPath,
                 IdentityIndexPath = identityIndexPath,
                 ManifestPath = manifestPath,
                 Manifest = manifest!,
@@ -1583,6 +1860,7 @@ internal sealed class PythonCombatTransformerTeacher :
             CorpusPath = corpusPath,
             CurrentFrames = 0,
             ReusedFrames = Math.Max(0, snapshot.FrameCount),
+            BacklogFrames = Math.Max(0, snapshot.BacklogFrameCount),
             Fingerprint = snapshot.Fingerprint,
             StrategyFrames = new Dictionary<string, int>(
                 snapshot.StrategyFrames,
@@ -1592,6 +1870,7 @@ internal sealed class PythonCombatTransformerTeacher :
 
     private static CorpusMergeResult MergeCorpus(
         string corpusPath,
+        string backlogPath,
         string currentPath,
         string corpusDirectory,
         string compatibilityKey,
@@ -1613,6 +1892,14 @@ internal sealed class PythonCombatTransformerTeacher :
                 candidates,
                 cancellationToken);
         }
+        if (includeExistingCorpus && File.Exists(backlogPath))
+        {
+            observedRows += ReadCorpusDescriptors(
+                backlogPath,
+                current: false,
+                candidates,
+                cancellationToken);
+        }
         observedRows += ReadCorpusDescriptors(
             currentPath,
             current: true,
@@ -1628,6 +1915,9 @@ internal sealed class PythonCombatTransformerTeacher :
             anchorRunKeys);
         var selectedIdentities = selected
             .Select(item => item.Identity)
+            .ToHashSet(StringComparer.Ordinal);
+        var backlogIdentities = candidates.Keys
+            .Where(identity => !selectedIdentities.Contains(identity))
             .ToHashSet(StringComparer.Ordinal);
         var currentBindings = bindings
             .GroupBy(binding => binding.Identity, StringComparer.Ordinal)
@@ -1652,6 +1942,9 @@ internal sealed class PythonCombatTransformerTeacher :
         var generationCorpusPath = Path.Combine(
             stagingDirectory,
             CorpusFileName);
+        var generationBacklogPath = Path.Combine(
+            stagingDirectory,
+            CorpusBacklogFileName);
         var rowIndex = 0;
         try
         {
@@ -1673,6 +1966,18 @@ internal sealed class PythonCombatTransformerTeacher :
                         ref rowIndex,
                         cancellationToken);
                 }
+                if (includeExistingCorpus && File.Exists(backlogPath))
+                {
+                    WriteSelectedCorpusRows(
+                        backlogPath,
+                        current: false,
+                        selectedIdentities,
+                        candidates,
+                        currentBindings,
+                        writer,
+                        ref rowIndex,
+                        cancellationToken);
+                }
                 WriteSelectedCorpusRows(
                     currentPath,
                     current: true,
@@ -1683,13 +1988,55 @@ internal sealed class PythonCombatTransformerTeacher :
                     ref rowIndex,
                     cancellationToken);
             }
+            var backlogRowIndex = 0;
+            using (var writer = new StreamWriter(
+                       generationBacklogPath,
+                       append: false,
+                       new UTF8Encoding(false),
+                       1024 * 1024))
+            {
+                if (includeExistingCorpus && File.Exists(corpusPath))
+                {
+                    WriteSelectedCorpusRows(
+                        corpusPath,
+                        current: false,
+                        backlogIdentities,
+                        candidates,
+                        currentBindings,
+                        writer,
+                        ref backlogRowIndex,
+                        cancellationToken);
+                }
+                if (includeExistingCorpus && File.Exists(backlogPath))
+                {
+                    WriteSelectedCorpusRows(
+                        backlogPath,
+                        current: false,
+                        backlogIdentities,
+                        candidates,
+                        currentBindings,
+                        writer,
+                        ref backlogRowIndex,
+                        cancellationToken);
+                }
+                WriteSelectedCorpusRows(
+                    currentPath,
+                    current: true,
+                    backlogIdentities,
+                    candidates,
+                    currentBindings,
+                    writer,
+                    ref backlogRowIndex,
+                    cancellationToken);
+            }
             var result = new CorpusMergeResult
             {
                 FrameCount = selected.Count,
                 CurrentFrames = selected.Count(item => item.Current),
                 ReusedFrames = selected.Count(item => !item.Current),
                 DeduplicatedFrames = Math.Max(0, observedRows - candidates.Count),
-                DroppedFrames = Math.Max(0, candidates.Count - selected.Count),
+                DroppedFrames = 0,
+                BacklogFrames = backlogIdentities.Count,
                 Fingerprint = DatasetFingerprint(
                     selected.Select(item => item.Identity)),
                 StrategyFrames = selected
@@ -1713,6 +2060,12 @@ internal sealed class PythonCombatTransformerTeacher :
                 StrategyFrames = result.StrategyFrames,
                 ContentLengthBytes = new FileInfo(generationCorpusPath).Length,
                 ContentSha256 = FileSha256(generationCorpusPath),
+                BacklogFrameCount = result.BacklogFrames,
+                BacklogContentLengthBytes =
+                    new FileInfo(generationBacklogPath).Length,
+                BacklogContentSha256 = result.BacklogFrames == 0
+                    ? ""
+                    : FileSha256(generationBacklogPath),
                 UpdatedUtc = DateTime.UtcNow
             };
             WriteTextAtomic(
@@ -1839,6 +2192,26 @@ internal sealed class PythonCombatTransformerTeacher :
                         reader.Value,
                         CultureInfo.InvariantCulture) != 0;
                     break;
+                case "OK":
+                    descriptor.HasObjectTokens = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture) != 0;
+                    break;
+                case "DK":
+                    descriptor.TransitionContractKnown = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture) != 0;
+                    break;
+                case "SK":
+                    descriptor.StrategyKnown = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture) != 0;
+                    break;
+                case "M":
+                    descriptor.HasTransition = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture) != 0;
+                    break;
                 case "S":
                     return string.IsNullOrWhiteSpace(descriptor.Identity)
                         ? null
@@ -1880,19 +2253,6 @@ internal sealed class PythonCombatTransformerTeacher :
             .ThenBy(run => StableRunRank(run.RunKey))
             .ThenBy(run => run.RunKey, StringComparer.Ordinal)
             .ToList();
-        var protectedFrames = runs
-            .Where(run => run.Protected)
-            .Sum(run => run.Frames.Count);
-        if (protectedFrames > capacity)
-        {
-            throw new InvalidOperationException(
-                "Untrained Transformer Journey runs exceed corpus capacity: "
-                + protectedFrames
-                + " > "
-                + capacity
-                + ". Increase MaximumFrames; pending runs were not dropped.");
-        }
-
         var selectedRuns = new HashSet<string>(StringComparer.Ordinal);
         var selectedFrames = 0;
         void AddRun(CorpusRunDescriptor run)
@@ -1905,19 +2265,27 @@ internal sealed class PythonCombatTransformerTeacher :
             selectedRuns.Add(run.RunKey);
             selectedFrames += run.Frames.Count;
         }
+        var protectedTarget = runs.Any(run => !run.Protected)
+            ? (int)Math.Ceiling(capacity * 0.60d)
+            : capacity;
         foreach (var run in runs.Where(run => run.Protected))
         {
+            if (selectedFrames >= protectedTarget) break;
             AddRun(run);
         }
         var advancedTarget = Math.Min(
             runs.Where(run => run.Advanced).Sum(run => run.Frames.Count),
             (int)Math.Ceiling(capacity * 0.40d));
-        foreach (var run in runs.Where(run => run.Advanced))
+        foreach (var run in runs.Where(run => !run.Protected && run.Advanced))
         {
             if (selectedFrames >= advancedTarget) break;
             AddRun(run);
         }
-        foreach (var run in runs)
+        foreach (var run in runs.Where(run => !run.Protected))
+        {
+            AddRun(run);
+        }
+        foreach (var run in runs.Where(run => run.Protected))
         {
             AddRun(run);
         }
@@ -2019,10 +2387,12 @@ internal sealed class PythonCombatTransformerTeacher :
     private static IncrementalTrainingSelection SelectIncrementalTrainingRows(
         IReadOnlyList<CorpusFrameDescriptor> corpusRows,
         IReadOnlySet<string> trainedIdentities,
+        IReadOnlySet<string> attemptedIdentities,
         IReadOnlySet<string> anchorRunKeys,
         CombatTransformerTeacherOptions options,
         string teacherCompatibilityKey,
-        int iteration)
+        int iteration,
+        int rejectedUpdateStreak)
     {
         var configuredMaximum = Math.Max(
             options.MinimumFrames,
@@ -2038,6 +2408,14 @@ internal sealed class PythonCombatTransformerTeacher :
             .Where(row => pendingIdentities.Contains(row.Identity))
             .Select(row => EffectiveRunKey(row))
             .ToHashSet(StringComparer.Ordinal);
+        var freshRunKeys = eligibleRows
+            .Where(row => pendingIdentities.Contains(row.Identity)
+                          && !attemptedIdentities.Contains(row.Identity))
+            .Select(EffectiveRunKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var retryRunKeys = pendingRunKeys
+            .Where(runKey => !freshRunKeys.Contains(runKey))
+            .ToHashSet(StringComparer.Ordinal);
         var largestPendingRun = eligibleRows
             .Where(row => pendingRunKeys.Contains(EffectiveRunKey(row)))
             .GroupBy(EffectiveRunKey, StringComparer.Ordinal)
@@ -2048,12 +2426,48 @@ internal sealed class PythonCombatTransformerTeacher :
             options.MaximumFrames,
             Math.Max(configuredMaximum, largestPendingRun));
         var selected = new Dictionary<int, CorpusFrameDescriptor>();
+        var escalationLevel = rejectedUpdateStreak >= 2
+            ? 2
+            : rejectedUpdateStreak == 1
+                ? 1
+                : 0;
+        var replayShare = CombatTransformerTeacherCorpusProtocol
+            .IncrementalReplayShare(rejectedUpdateStreak);
+        var replayTarget = Math.Min(
+            maximum,
+            Math.Max(
+                options.IncrementalReplayFrames,
+                (int)Math.Ceiling(maximum * replayShare)));
+        AddWholeRuns(
+            selected,
+            eligibleRows.Where(row =>
+                !pendingRunKeys.Contains(EffectiveRunKey(row))),
+            replayTarget,
+            teacherCompatibilityKey + "|replay|" + iteration);
+
+        var pendingCapacity = Math.Max(0, maximum - selected.Count);
+        var firstPendingTarget = selected.Count + pendingCapacity / 2;
+        if (freshRunKeys.Count > 0 && retryRunKeys.Count > 0)
+        {
+            AddWholeRuns(
+                selected,
+                eligibleRows.Where(row =>
+                    freshRunKeys.Contains(EffectiveRunKey(row))),
+                firstPendingTarget,
+                teacherCompatibilityKey + "|fresh|" + iteration);
+            AddWholeRuns(
+                selected,
+                eligibleRows.Where(row =>
+                    retryRunKeys.Contains(EffectiveRunKey(row))),
+                maximum,
+                teacherCompatibilityKey + "|retry|" + iteration);
+        }
         AddWholeRuns(
             selected,
             eligibleRows.Where(row =>
                 pendingRunKeys.Contains(EffectiveRunKey(row))),
             maximum,
-            teacherCompatibilityKey + "|pending|" + iteration);
+            teacherCompatibilityKey + "|pending-fill|" + iteration);
         var newFrames = selected.Values.Count(row =>
             pendingIdentities.Contains(row.Identity));
         if (pendingIdentities.Count > 0 && newFrames == 0)
@@ -2061,23 +2475,9 @@ internal sealed class PythonCombatTransformerTeacher :
             return new IncrementalTrainingSelection
             {
                 PendingFrames = pendingIdentities.Count,
-                DeferredFrames = pendingIdentities.Count
+                DeferredFrames = pendingIdentities.Count,
+                ReplayEscalationLevel = escalationLevel
             };
-        }
-        var replayCapacity = Math.Max(0, maximum - selected.Count);
-        var replayTarget = Math.Min(
-            replayCapacity,
-            Math.Max(
-                newFrames,
-                Math.Min(options.IncrementalReplayFrames, replayCapacity)));
-        if (replayTarget > 0)
-        {
-            AddWholeRuns(
-                selected,
-                eligibleRows.Where(row =>
-                    !pendingRunKeys.Contains(EffectiveRunKey(row))),
-                Math.Min(maximum, selected.Count + replayTarget),
-                teacherCompatibilityKey + "|replay|" + iteration);
         }
         if (selected.Count == 0)
         {
@@ -2092,13 +2492,20 @@ internal sealed class PythonCombatTransformerTeacher :
             RowIndices = selected.Keys.OrderBy(index => index).ToList(),
             NewFrames = selected.Values.Count(row =>
                 pendingIdentities.Contains(row.Identity)),
+            FreshFrames = selected.Values.Count(row =>
+                pendingIdentities.Contains(row.Identity)
+                && !attemptedIdentities.Contains(row.Identity)),
+            RetryFrames = selected.Values.Count(row =>
+                pendingIdentities.Contains(row.Identity)
+                && attemptedIdentities.Contains(row.Identity)),
             ReplayFrames = selected.Values.Count(row =>
                 !pendingIdentities.Contains(row.Identity)),
             PendingFrames = pendingIdentities.Count,
             DeferredFrames = Math.Max(
                 0,
                 pendingIdentities.Count - selected.Values.Count(row =>
-                    pendingIdentities.Contains(row.Identity)))
+                    pendingIdentities.Contains(row.Identity))),
+            ReplayEscalationLevel = escalationLevel
         };
     }
 
@@ -2121,7 +2528,8 @@ internal sealed class PythonCombatTransformerTeacher :
                 {
                     RowIndex = row.SourceLine,
                     RunKey = EffectiveRunKey(row),
-                    Identity = row.Identity
+                    Identity = row.Identity,
+                    Priority = CorpusPriority(row)
                 }),
                 target - destination.Count,
                 seed)
@@ -2284,15 +2692,24 @@ internal sealed class PythonCombatTransformerTeacher :
 
     private static int CorpusPriority(CorpusFrameDescriptor item)
     {
-        if (IsAdvanced(item) && item.BattleIndex is >= 1 and <= 3)
+        if (item.StrategyKnown
+            && !string.Equals(
+                item.Strategy,
+                "strategy-baseline",
+                StringComparison.Ordinal)
+            || item.HasTransition && item.HasObjectTokens)
         {
             return 0;
         }
-        if (IsAdvanced(item) && !item.Victory)
+        if (IsAdvanced(item) && item.BattleIndex is >= 1 and <= 3)
         {
             return 1;
         }
-        return IsAdvanced(item) ? 2 : 3;
+        if (IsAdvanced(item) && !item.Victory)
+        {
+            return 2;
+        }
+        return IsAdvanced(item) ? 3 : 4;
     }
 
     private static bool IsAdvanced(CorpusFrameDescriptor item)
@@ -2528,6 +2945,47 @@ internal sealed class PythonCombatTransformerTeacher :
         return -1;
     }
 
+    private static IReadOnlyList<string> NormalizeStrategyLabels(
+        IEnumerable<string>? labels)
+    {
+        var supported = new HashSet<string>(
+            new[] { "survival", "finale", "bank", "transform", "growth" },
+            StringComparer.Ordinal);
+        return (labels ?? Array.Empty<string>())
+            .Select(label => (label ?? "").Trim().ToLowerInvariant())
+            .Where(supported.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(label => label, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static int[] StrategyVector(IReadOnlyCollection<string> labels)
+    {
+        return new[]
+        {
+            labels.Contains("survival", StringComparer.Ordinal) ? 1 : 0,
+            labels.Contains("finale", StringComparer.Ordinal) ? 1 : 0,
+            labels.Contains("bank", StringComparer.Ordinal) ? 1 : 0,
+            labels.Contains("transform", StringComparer.Ordinal) ? 1 : 0,
+            labels.Contains("growth", StringComparer.Ordinal) ? 1 : 0
+        };
+    }
+
+    private static string PrimaryStrategy(IReadOnlyCollection<string> labels)
+    {
+        foreach (var label in new[]
+                 {
+                     "survival", "finale", "bank", "transform", "growth"
+                 })
+        {
+            if (labels.Contains(label, StringComparer.Ordinal))
+            {
+                return "strategy-" + label;
+            }
+        }
+        return "strategy-baseline";
+    }
+
     private static void MergeExternalReport(
         CombatTransformerTeacherReport target,
         CombatTransformerTeacherReport source)
@@ -2587,10 +3045,26 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ValidationPolicyTop1Accuracy =
             source.ValidationPolicyTop1Accuracy;
         target.ValidationValueMae = source.ValidationValueMae;
+        target.ValidationPhaseAccuracy = source.ValidationPhaseAccuracy;
         target.ValidationStrategyAccuracy =
             source.ValidationStrategyAccuracy;
         target.ValidationDynamicsMse = source.ValidationDynamicsMse;
         target.DynamicsTrainingFrames = source.DynamicsTrainingFrames;
+        target.DynamicsValidationFrames = source.DynamicsValidationFrames;
+        target.InvalidTransitionFrames = source.InvalidTransitionFrames;
+        target.TerminalKnownFrames = source.TerminalKnownFrames;
+        target.StrategyLabelFrames = source.StrategyLabelFrames;
+        target.StrategyLabelCounts = new Dictionary<string, int>(
+            source.StrategyLabelCounts ?? new Dictionary<string, int>(),
+            StringComparer.Ordinal);
+        target.StrategyApplicableFrames = source.StrategyApplicableFrames;
+        target.StrategyApplicableCounts = new Dictionary<string, int>(
+            source.StrategyApplicableCounts ?? new Dictionary<string, int>(),
+            StringComparer.Ordinal);
+        target.StrategyNegativeCounts = new Dictionary<string, int>(
+            source.StrategyNegativeCounts ?? new Dictionary<string, int>(),
+            StringComparer.Ordinal);
+        target.StrategyQualityGatePassed = source.StrategyQualityGatePassed;
         target.ValidationOutcomeMae = source.ValidationOutcomeMae;
         target.ValidationDeathBrier = source.ValidationDeathBrier;
         target.ValidationTerminalAccuracy = source.ValidationTerminalAccuracy;
@@ -2884,6 +3358,76 @@ internal sealed class PythonCombatTransformerTeacher :
         }
     }
 
+    private static int ConsecutiveRejectedTeacherUpdates(
+        string resultDirectory,
+        int iteration,
+        string teacherCompatibilityKey)
+    {
+        var streak = 0;
+        for (var prior = Math.Max(1, iteration - 1); prior >= 1; prior--)
+        {
+            var path = Path.Combine(
+                resultDirectory,
+                "transformer-teacher",
+                "iteration-" + prior.ToString("D2"),
+                "world-model-report-v2.json");
+            var report = ReadPreviousReport(path);
+            if (report == null)
+            {
+                continue;
+            }
+            if (!string.Equals(
+                    report.TeacherCompatibilityKey,
+                    teacherCompatibilityKey,
+                    StringComparison.Ordinal))
+            {
+                break;
+            }
+            if (!report.TrainingRefreshed)
+            {
+                continue;
+            }
+            if (report.UpdateAccepted)
+            {
+                break;
+            }
+            streak++;
+        }
+        return streak;
+    }
+
+    private static int LastTeacherAttemptIteration(
+        string resultDirectory,
+        int iteration,
+        string teacherCompatibilityKey)
+    {
+        for (var prior = Math.Max(1, iteration - 1); prior >= 1; prior--)
+        {
+            var path = Path.Combine(
+                resultDirectory,
+                "transformer-teacher",
+                "iteration-" + prior.ToString("D2"),
+                "world-model-report-v2.json");
+            var report = ReadPreviousReport(path);
+            if (report == null)
+            {
+                continue;
+            }
+            if (!string.Equals(
+                    report.TeacherCompatibilityKey,
+                    teacherCompatibilityKey,
+                    StringComparison.Ordinal))
+            {
+                break;
+            }
+            if (report.TrainingRefreshed)
+            {
+                return prior;
+            }
+        }
+        return 0;
+    }
+
     private static void TryDeleteCorpusGenerationDirectory(
         string path,
         string generationRoot)
@@ -2961,6 +3505,14 @@ internal sealed class PythonCombatTransformerTeacher :
 
         public bool Victory { get; set; }
 
+        public bool HasObjectTokens { get; set; }
+
+        public bool HasTransition { get; set; }
+
+        public bool TransitionContractKnown { get; set; }
+
+        public bool StrategyKnown { get; set; }
+
         public string SourcePath { get; set; } = "";
 
         public int SourceLine { get; set; }
@@ -2982,6 +3534,8 @@ internal sealed class PythonCombatTransformerTeacher :
 
         public int DroppedFrames { get; set; }
 
+        public int BacklogFrames { get; set; }
+
         public string Fingerprint { get; set; } = "";
 
         public Dictionary<string, int> StrategyFrames { get; set; } =
@@ -2998,6 +3552,11 @@ internal sealed class PythonCombatTransformerTeacher :
             new(StringComparer.Ordinal);
 
         public HashSet<string> Identities { get; set; } =
+            new(StringComparer.Ordinal);
+
+        public int BacklogFrameCount { get; set; }
+
+        public HashSet<string> BacklogIdentities { get; set; } =
             new(StringComparer.Ordinal);
     }
 
@@ -3019,6 +3578,12 @@ internal sealed class PythonCombatTransformerTeacher :
 
         public string ContentSha256 { get; set; } = "";
 
+        public int BacklogFrameCount { get; set; }
+
+        public long BacklogContentLengthBytes { get; set; }
+
+        public string BacklogContentSha256 { get; set; } = "";
+
         public DateTime UpdatedUtc { get; set; }
     }
 
@@ -3039,6 +3604,8 @@ internal sealed class PythonCombatTransformerTeacher :
         public string DirectoryPath { get; set; } = "";
 
         public string CorpusPath { get; set; } = "";
+
+        public string BacklogPath { get; set; } = "";
 
         public string IdentityIndexPath { get; set; } = "";
 
@@ -3070,11 +3637,17 @@ internal sealed class PythonCombatTransformerTeacher :
 
         public int NewFrames { get; set; }
 
+        public int FreshFrames { get; set; }
+
+        public int RetryFrames { get; set; }
+
         public int ReplayFrames { get; set; }
 
         public int PendingFrames { get; set; }
 
         public int DeferredFrames { get; set; }
+
+        public int ReplayEscalationLevel { get; set; }
     }
 
     private sealed class CorpusRunDescriptor
@@ -3146,11 +3719,17 @@ internal sealed class PythonCombatTransformerTeacher :
         public int F { get; set; }
         public int T { get; set; }
         public long Q { get; set; }
+        public long QD { get; set; }
         public string D { get; set; } = "";
         public string L { get; set; } = "";
         public string C { get; set; } = "normal";
         public int B { get; set; }
         public int J { get; set; }
+        public int OK { get; set; }
+        public int DK { get; set; }
+        public int SK { get; set; }
+        public int TK { get; set; }
+        public int M { get; set; }
         public SparseFeatureVector S { get; set; } = new();
         public SparseFeatureVector[] O { get; set; } =
             Array.Empty<SparseFeatureVector>();
@@ -3160,10 +3739,15 @@ internal sealed class PythonCombatTransformerTeacher :
         public int X { get; set; }
         public double V { get; set; }
         public int G { get; set; }
+        public int[] SL { get; set; } = new int[5];
+        public int[] SA { get; set; } = new int[5];
 
         public double K { get; set; } = 1d;
         public SparseFeatureVector N { get; set; } = new();
-        public int M { get; set; }
+        public int TS { get; set; }
+        public int TB { get; set; }
+        public long AD { get; set; }
+        public string TR { get; set; } = "";
         public double W { get; set; }
         public double R { get; set; }
         public double H { get; set; }

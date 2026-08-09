@@ -112,11 +112,9 @@ internal static class CombatFoundationCheckpointCatalogStore
                 CombatFoundationWorkerCheckpoint>(
                 CombatFoundationCheckpointStorage.ReadAllTextShared(path));
             if (checkpoint == null
-                || checkpoint.SchemaVersion
-                   != CombatFoundationWorkerProtocol.SchemaVersion
+                || !SupportedResumeSchema(checkpoint.SchemaVersion)
                 || checkpoint.Resume == null
-                || checkpoint.Resume.SchemaVersion
-                   != CombatFoundationWorkerProtocol.SchemaVersion)
+                || checkpoint.Resume.SchemaVersion != checkpoint.SchemaVersion)
             {
                 throw new InvalidDataException(
                     "checkpoint or resume protocol is incompatible");
@@ -315,11 +313,10 @@ internal static class CombatFoundationCheckpointCatalogStore
                     CombatFoundationCheckpointStorage.ReadAllTextShared(
                         candidate));
                 if (checkpoint == null
-                    || checkpoint.SchemaVersion
-                       != CombatFoundationWorkerProtocol.SchemaVersion
+                    || !SupportedResumeSchema(checkpoint.SchemaVersion)
                     || checkpoint.Resume == null
                     || checkpoint.Resume.SchemaVersion
-                       != CombatFoundationWorkerProtocol.SchemaVersion)
+                       != checkpoint.SchemaVersion)
                 {
                     continue;
                 }
@@ -1313,8 +1310,7 @@ internal static class CombatFoundationCheckpointCatalogStore
         CombatFoundationEpisodeSnapshot snapshot,
         out string diagnostic)
     {
-        if (checkpoint.SchemaVersion
-                != CombatFoundationWorkerProtocol.SchemaVersion
+        if (!SupportedResumeSchema(checkpoint.SchemaVersion)
             || checkpoint.Resume == null
             || !string.Equals(
                 checkpoint.RequestFingerprint,
@@ -1358,6 +1354,15 @@ internal static class CombatFoundationCheckpointCatalogStore
         }
         diagnostic = "";
         return true;
+    }
+
+    private static bool SupportedResumeSchema(int schemaVersion)
+    {
+        return schemaVersion == CombatFoundationWorkerProtocol.SchemaVersion
+               || schemaVersion
+               == CombatFoundationWorkerProtocol.PreviousSchemaVersion
+               || schemaVersion
+               == CombatFoundationWorkerProtocol.RepairMigratableSchemaVersion;
     }
 
     private static bool ValidSha256(string value)

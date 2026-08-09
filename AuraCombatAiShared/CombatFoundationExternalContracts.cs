@@ -17,25 +17,31 @@ public sealed class CombatFoundationTrainingParameters
 
     public string DecisionProfile { get; set; } = "balanced";
 
-    public int Iterations { get; set; } = 8;
+    public int Iterations { get; set; } = 12;
 
     public bool EnableIterationProcessIsolation { get; set; } = true;
 
+    public int IterationsPerIsolatedProcess { get; set; } = 3;
+
     public int AdditionalIterationsOnResume { get; set; } = 3;
 
-    public int TrainingCampaignsPerIteration { get; set; } = 64;
+    public int TrainingCampaignsPerIteration { get; set; } = 96;
 
-    public int ArenaCampaignsPerDifficulty { get; set; } = 32;
+    public int ArenaCampaignsPerDifficulty { get; set; } = 8;
 
-    public int ArenaConfirmationCampaignsPerDifficulty { get; set; } = 64;
+    public int ArenaConfirmationCampaignsPerDifficulty { get; set; } = 56;
 
-    public int NormalValidationCampaigns { get; set; } = 200;
+    public int ArenaEvaluationInterval { get; set; } = 6;
 
-    public int AdvancedValidationCampaigns { get; set; } = 500;
+    public bool ArenaConfirmationFinalIterationOnly { get; set; } = true;
 
-    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 128;
+    public int NormalValidationCampaigns { get; set; } = 64;
 
-    public int CapabilityProbeTeacherCampaignsPerDifficulty { get; set; } = 128;
+    public int AdvancedValidationCampaigns { get; set; } = 128;
+
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 32;
+
+    public int CapabilityProbeTeacherCampaignsPerDifficulty { get; set; } = 8;
 
     public int CapabilityProbeBatchSize { get; set; } = 16;
 
@@ -45,7 +51,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public double CapabilityProbeMinimumDepthGain { get; set; } = 0.5d;
 
-    public int PreflightCampaignsPerDifficulty { get; set; } = 32;
+    public int PreflightCampaignsPerDifficulty { get; set; } = 8;
 
     public int MaximumDegreeOfParallelism { get; set; }
 
@@ -124,21 +130,21 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool EnableTuningArena { get; set; } = true;
 
-    public int TuningNormalCampaigns { get; set; } = 32;
+    public int TuningNormalCampaigns { get; set; } = 8;
 
-    public int TuningAdvancedCampaigns { get; set; } = 64;
+    public int TuningAdvancedCampaigns { get; set; } = 16;
 
     public bool EnableProgressiveTuning { get; set; } = true;
 
-    public int TuningInterval { get; set; } = 1;
+    public int TuningInterval { get; set; } = 6;
 
     public bool EnableOfflineTuningGate { get; set; } = true;
 
-    public int TuningScreeningNormalCampaigns { get; set; } = 8;
+    public int TuningScreeningNormalCampaigns { get; set; } = 4;
 
-    public int TuningScreeningAdvancedCampaigns { get; set; } = 16;
+    public int TuningScreeningAdvancedCampaigns { get; set; } = 8;
 
-    public int TuningFinalistCount { get; set; } = 2;
+    public int TuningFinalistCount { get; set; } = 1;
 
     public bool EnableSequentialArenaStop { get; set; } = true;
 
@@ -154,7 +160,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public double MaximumOfflineHeadRegression { get; set; } = 0.05d;
 
-    public double MaximumStateFeatureCollisionRate { get; set; } = 0.20d;
+    public double MaximumStateFeatureCollisionRate { get; set; } = 0.05d;
 
     public double MaximumActionFeatureCollisionRate { get; set; } = 0.06d;
 
@@ -222,7 +228,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public double ModelL2 { get; set; } = 0.0015d;
 
-    public int ModelStateDimensions { get; set; } = 1024;
+    public int ModelStateDimensions { get; set; } = 2048;
 
     public int ModelActionDimensions { get; set; } = 1024;
 
@@ -238,7 +244,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherBatchSize { get; set; } = 64;
 
-    public int TransformerTeacherStateDimensions { get; set; } = 1024;
+    public int TransformerTeacherStateDimensions { get; set; } = 2048;
 
     public int TransformerTeacherActionDimensions { get; set; } = 1024;
 
@@ -259,6 +265,11 @@ public sealed class CombatFoundationTrainingParameters
     public bool TransformerTeacherEnableWarmStart { get; set; } = true;
 
     public int TransformerTeacherCpuRefreshInterval { get; set; } = 4;
+
+    public int TransformerTeacherAcceleratorRefreshInterval { get; set; } = 3;
+
+    public int TransformerTeacherMinimumFreshFramesForRefresh { get; set; } =
+        2048;
 
     public int TransformerTeacherCpuEpochs { get; set; } = 4;
 
@@ -285,6 +296,8 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherMaximumIncrementalTrainingFrames { get; set; } =
         4096;
+
+    public int TransformerTeacherMaximumObjectTokens { get; set; } = 64;
 
     public int TransformerTeacherCpuThreads { get; set; }
 
@@ -313,9 +326,9 @@ public sealed class CombatFoundationTrainingParameters
     public bool TransformerTeacherEnableDeterministicTraining { get; set; } =
         true;
 
-    public double TransformerDistillationWeight { get; set; } = 0.35d;
+    public double TransformerDistillationWeight { get; set; } = 0.15d;
 
-    public string ModelFeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string ModelFeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public int MinimumEpisodes { get; set; } = 8;
 
@@ -332,6 +345,9 @@ public sealed class CombatFoundationTrainingParameters
         GovernanceProfile = CombatFoundationGovernanceProfiles.Normalize(
             GovernanceProfile);
         Iterations = Math.Max(1, Math.Min(20, Iterations));
+        IterationsPerIsolatedProcess = Math.Max(
+            1,
+            Math.Min(6, IterationsPerIsolatedProcess));
         AdditionalIterationsOnResume = Math.Max(
             0,
             Math.Min(20, AdditionalIterationsOnResume));
@@ -344,6 +360,9 @@ public sealed class CombatFoundationTrainingParameters
         ArenaConfirmationCampaignsPerDifficulty = Math.Max(
             0,
             Math.Min(200, ArenaConfirmationCampaignsPerDifficulty));
+        ArenaEvaluationInterval = Math.Max(
+            1,
+            Math.Min(12, ArenaEvaluationInterval));
         NormalValidationCampaigns = Math.Max(
             10,
             Math.Min(1000, NormalValidationCampaigns));
@@ -499,7 +518,7 @@ public sealed class CombatFoundationTrainingParameters
             MaximumStateFeatureCollisionRate,
             0d,
             1d,
-            0.20d);
+            0.05d);
         MaximumActionFeatureCollisionRate = Clamp(
             MaximumActionFeatureCollisionRate,
             0d,
@@ -626,6 +645,10 @@ public sealed class CombatFoundationTrainingParameters
             MaximumFrames = TransformerTeacherMaximumFrames,
             EnableWarmStart = TransformerTeacherEnableWarmStart,
             CpuRefreshInterval = TransformerTeacherCpuRefreshInterval,
+            AcceleratorRefreshInterval =
+                TransformerTeacherAcceleratorRefreshInterval,
+            MinimumFreshFramesForRefresh =
+                TransformerTeacherMinimumFreshFramesForRefresh,
             CpuEpochs = TransformerTeacherCpuEpochs,
             CpuIncrementalEpochs =
                 TransformerTeacherCpuIncrementalEpochs,
@@ -644,6 +667,7 @@ public sealed class CombatFoundationTrainingParameters
                 TransformerTeacherIncrementalReplayFrames,
             MaximumIncrementalTrainingFrames =
                 TransformerTeacherMaximumIncrementalTrainingFrames,
+            MaximumObjectTokens = TransformerTeacherMaximumObjectTokens,
             CpuThreads = TransformerTeacherCpuThreads,
             CpuInteropThreads = TransformerTeacherCpuInteropThreads,
             MicroBatchSize = TransformerTeacherMicroBatchSize,
@@ -677,6 +701,10 @@ public sealed class CombatFoundationTrainingParameters
         TransformerTeacherMaximumFrames = transformer.MaximumFrames;
         TransformerTeacherEnableWarmStart = transformer.EnableWarmStart;
         TransformerTeacherCpuRefreshInterval = transformer.CpuRefreshInterval;
+        TransformerTeacherAcceleratorRefreshInterval =
+            transformer.AcceleratorRefreshInterval;
+        TransformerTeacherMinimumFreshFramesForRefresh =
+            transformer.MinimumFreshFramesForRefresh;
         TransformerTeacherCpuEpochs = transformer.CpuEpochs;
         TransformerTeacherCpuIncrementalEpochs =
             transformer.CpuIncrementalEpochs;
@@ -695,6 +723,7 @@ public sealed class CombatFoundationTrainingParameters
             transformer.IncrementalReplayFrames;
         TransformerTeacherMaximumIncrementalTrainingFrames =
             transformer.MaximumIncrementalTrainingFrames;
+        TransformerTeacherMaximumObjectTokens = transformer.MaximumObjectTokens;
         TransformerTeacherCpuThreads = transformer.CpuThreads;
         TransformerTeacherCpuInteropThreads = transformer.CpuInteropThreads;
         TransformerTeacherMicroBatchSize = transformer.MicroBatchSize;
@@ -711,7 +740,7 @@ public sealed class CombatFoundationTrainingParameters
         TransformerTeacherEnableDeterministicTraining =
             transformer.EnableDeterministicTraining;
         TransformerDistillationWeight = transformer.DistillationWeight;
-        ModelFeatureEncodingMode = "partitioned-v3";
+        ModelFeatureEncodingMode = "partitioned-v4";
         MinimumEpisodes = Math.Max(
             2,
             Math.Min(TrainingCampaignsPerIteration, MinimumEpisodes));
@@ -737,7 +766,9 @@ public sealed class CombatFoundationTrainingParameters
             TuningScreeningAdvancedCampaigns,
             TuningFinalistCount,
             CapabilityProbeTeacherCampaignsPerDifficulty,
-            AutoTuneSampleCampaigns);
+            AutoTuneSampleCampaigns,
+            ArenaEvaluationInterval,
+            ArenaConfirmationFinalIterationOnly);
         var tuningCampaigns = EnableTuningArena
             ? CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
                 ModelRetainedCandidates,
@@ -748,17 +779,28 @@ public sealed class CombatFoundationTrainingParameters
                 governance.TuningScreeningAdvancedCampaigns,
                 governance.TuningFinalistCount)
             : 0;
-        return Iterations
-               * (TrainingCampaignsPerIteration
-                  + (ArenaCampaignsPerDifficulty
-                     + (ArenaCampaignsPerDifficulty >= 16
-                         ? ArenaConfirmationCampaignsPerDifficulty
-                         : 0)) * 4)
+        var iterativeCampaigns = Enumerable.Range(0, Iterations).Sum(iteration =>
+            TrainingCampaignsPerIteration
+            + (governance.RunsArenaAtIteration(iteration, Iterations)
+                ? ArenaCampaignsPerDifficulty * 4
+                  + (governance.RunsFormalConfirmationAtIteration(
+                         iteration,
+                         Iterations)
+                      ? ArenaConfirmationCampaignsPerDifficulty * 4
+                      : 0)
+                : 0));
+        return iterativeCampaigns
                + governance.ScheduledTuningIterations(Iterations)
                * tuningCampaigns
                + NormalValidationCampaigns
                + AdvancedValidationCampaigns
-               + CapabilityProbeCampaignsPerDifficulty * 2 * 2
+               + (CapabilityProbeCampaignsPerDifficulty <= 0
+                   ? 0
+                   : Math.Max(
+                       CapabilityProbeCampaignsPerDifficulty,
+                       CombatFoundationTrainingProtocol
+                           .MaximumAdaptiveCapabilityProbeCampaignsPerDifficulty))
+                 * 2 * 2
                + governance.CapabilityProbeTeacherCampaignsPerDifficulty * 2;
     }
 
@@ -891,6 +933,10 @@ public static class CombatFoundationWorkerJobFactory
                 Iterations = parameters.Iterations,
                 EnableIterationProcessIsolation =
                     parameters.EnableIterationProcessIsolation,
+                MaximumIterationsPerProcess = parameters
+                    .EnableIterationProcessIsolation
+                    ? parameters.IterationsPerIsolatedProcess
+                    : 0,
                 AdditionalIterationsOnResume =
                     parameters.AdditionalIterationsOnResume,
                 TrainingCampaignsPerIteration =
@@ -899,6 +945,10 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.ArenaCampaignsPerDifficulty,
                 ArenaConfirmationCampaignsPerDifficulty =
                     parameters.ArenaConfirmationCampaignsPerDifficulty,
+                ArenaEvaluationInterval =
+                    parameters.ArenaEvaluationInterval,
+                ArenaConfirmationFinalIterationOnly =
+                    parameters.ArenaConfirmationFinalIterationOnly,
                 NormalValidationCampaigns =
                     parameters.NormalValidationCampaigns,
                 AdvancedValidationCampaigns =
@@ -1119,6 +1169,10 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.TransformerTeacherEnableWarmStart,
                     CpuRefreshInterval =
                         parameters.TransformerTeacherCpuRefreshInterval,
+                    AcceleratorRefreshInterval = parameters
+                        .TransformerTeacherAcceleratorRefreshInterval,
+                    MinimumFreshFramesForRefresh = parameters
+                        .TransformerTeacherMinimumFreshFramesForRefresh,
                     CpuEpochs = parameters.TransformerTeacherCpuEpochs,
                     CpuIncrementalEpochs =
                         parameters.TransformerTeacherCpuIncrementalEpochs,
@@ -1140,6 +1194,8 @@ public static class CombatFoundationWorkerJobFactory
                         .TransformerTeacherIncrementalReplayFrames,
                     MaximumIncrementalTrainingFrames = parameters
                         .TransformerTeacherMaximumIncrementalTrainingFrames,
+                    MaximumObjectTokens = parameters
+                        .TransformerTeacherMaximumObjectTokens,
                     CpuThreads = parameters.TransformerTeacherCpuThreads,
                     CpuInteropThreads =
                         parameters.TransformerTeacherCpuInteropThreads,

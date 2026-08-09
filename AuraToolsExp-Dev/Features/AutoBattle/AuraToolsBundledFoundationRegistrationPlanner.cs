@@ -42,15 +42,31 @@ internal sealed class BundledFoundationRegistrationPlanDecision
     public string Diagnostic { get; set; } = "";
 }
 
+internal interface IBundledFoundationFileStorage
+{
+    void Move(string sourcePath, string destinationPath);
+
+    void Replace(
+        string sourcePath,
+        string destinationPath,
+        string backupPath = "");
+
+    void Delete(string path);
+}
+
 internal sealed class BundledFoundationFileTransaction : IDisposable
 {
     private readonly List<PublishedFile> publishedFiles = new();
+    private readonly IBundledFoundationFileStorage storage;
     private readonly Action<string>? beforePublish;
     private bool completed;
 
     public BundledFoundationFileTransaction(
+        IBundledFoundationFileStorage storage,
         Action<string>? beforePublish = null)
     {
+        this.storage = storage
+                       ?? throw new ArgumentNullException(nameof(storage));
         this.beforePublish = beforePublish;
     }
 
@@ -97,11 +113,11 @@ internal sealed class BundledFoundationFileTransaction : IDisposable
             beforePublish?.Invoke(target);
             if (publication.OriginalExisted)
             {
-                File.Replace(staged, target, backup, ignoreMetadataErrors: true);
+                storage.Replace(staged, target, backup);
             }
             else
             {
-                File.Move(staged, target);
+                storage.Move(staged, target);
             }
             publication.Published = true;
             publishedFiles.Add(publication);
@@ -208,7 +224,7 @@ internal sealed class BundledFoundationFileTransaction : IDisposable
         }
     }
 
-    private static void RestoreUncertainPublication(PublishedFile publication)
+    private void RestoreUncertainPublication(PublishedFile publication)
     {
         if (publication.OriginalExisted && File.Exists(publication.BackupPath))
         {
@@ -219,11 +235,11 @@ internal sealed class BundledFoundationFileTransaction : IDisposable
             && !File.Exists(publication.StagedPath)
             && File.Exists(publication.TargetPath))
         {
-            File.Delete(publication.TargetPath);
+            storage.Delete(publication.TargetPath);
         }
     }
 
-    private static void RestorePublishedFile(PublishedFile publication)
+    private void RestorePublishedFile(PublishedFile publication)
     {
         if (publication.OriginalExisted)
         {
@@ -237,32 +253,32 @@ internal sealed class BundledFoundationFileTransaction : IDisposable
             }
             if (File.Exists(publication.TargetPath))
             {
-                File.Replace(
+                storage.Replace(
                     publication.BackupPath,
-                    publication.TargetPath,
-                    destinationBackupFileName: null,
-                    ignoreMetadataErrors: true);
+                    publication.TargetPath);
             }
             else
             {
-                File.Move(publication.BackupPath, publication.TargetPath);
+                storage.Move(
+                    publication.BackupPath,
+                    publication.TargetPath);
             }
             return;
         }
 
         if (File.Exists(publication.TargetPath))
         {
-            File.Delete(publication.TargetPath);
+            storage.Delete(publication.TargetPath);
         }
     }
 
-    private static void TryDelete(string path)
+    private void TryDelete(string path)
     {
         try
         {
             if (File.Exists(path))
             {
-                File.Delete(path);
+                storage.Delete(path);
             }
         }
         catch

@@ -42,6 +42,10 @@ internal sealed class BundledFoundationImportStatus
 
     public int Failed { get; set; }
 
+    public int OfficialTrusted { get; set; }
+
+    public int PlayerValidated { get; set; }
+
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
     public bool Busy => Stage == BundledFoundationImportStage.Queued
@@ -67,6 +71,8 @@ internal sealed class BundledFoundationPackageCandidate
     public string DisplayName { get; set; } = "";
 
     public string SourceDirectory { get; set; } = "";
+
+    public string DistributionOrigin { get; set; } = "player-trained";
 }
 
 internal sealed class BundledFoundationRegistrationSummary
@@ -222,7 +228,13 @@ internal static class AuraToolsBundledFoundationModelRuntime
         }
 
         var catalog = LoadSubjectCatalog(root);
-        var trustCatalog = LoadFoundationTrustCatalog(root);
+        var trustCatalog = LoadFoundationTrustCatalog(
+            root,
+            out var trustCatalogDiagnostic);
+        if (!string.IsNullOrWhiteSpace(trustCatalogDiagnostic))
+        {
+            result.Diagnostics.Add(trustCatalogDiagnostic);
+        }
         var seenPackageHashes = new HashSet<string>(
             StringComparer.OrdinalIgnoreCase);
         long aggregateBytes = 0;
@@ -260,10 +272,19 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 if (!AuraToolsBundledFoundationModelLayout.TryValidateIdentity(
                         source,
                         package!.RoleId,
+                        package.PartnerId,
                         sourceSha256,
                         out diagnostic))
                 {
                     throw new InvalidDataException(diagnostic);
+                }
+                if (!source.LegacyRootPackage
+                    && (package.SchemaVersion
+                        != CombatFoundationModelPackageProtocol.SchemaVersion
+                        || package.ModelArtifact == null))
+                {
+                    throw new InvalidDataException(
+                        "角色/使魔发布目录只接受当前 v5 FP32 双文件底模包");
                 }
                 if (package.ModelArtifact != null)
                 {
@@ -323,16 +344,19 @@ internal static class AuraToolsBundledFoundationModelRuntime
                                             StringComparison.OrdinalIgnoreCase))
                         .ToList()
                 };
-                if (!AuraDirectorFoundationTrustPolicy.TryAuthorize(
+                var officialTrusted = AuraDirectorFoundationTrustPolicy.TryAuthorize(
                         exactArtifactTrustCatalog,
                         trustCandidate,
                         out _,
-                        out diagnostic))
-                {
-                    throw new InvalidDataException(
-                        "AuraDirector exact artifact trust rejected the bundled model: "
-                        + diagnostic);
-                }
+                        out _);
+                var distributionOrigin = officialTrusted
+                    ? "bundled"
+                    : "player-trained";
+                // A player-trained package is data-only and never auto-enabled.
+                // The package protocol, formal acceptance evidence, current
+                // compatibility tuple, payload bounds and weights hash above
+                // are its local admission gate. Its computed source hash is
+                // persisted into the local model library during registration.
 
                 var version = NormalizeVersion(package!.ModelVersion);
                 if (string.IsNullOrWhiteSpace(version))
@@ -351,6 +375,14 @@ internal static class AuraToolsBundledFoundationModelRuntime
                     result.Deduplicated++;
                     continue;
                 }
+                if (officialTrusted)
+                {
+                    result.OfficialTrusted++;
+                }
+                else
+                {
+                    result.PlayerValidated++;
+                }
 
                 result.Candidates.Add(new BundledFoundationPackageCandidate
                 {
@@ -359,6 +391,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                     SourceSha256 = sourceSha256,
                     ModelVersion = version,
                     SourceDirectory = source.ManifestDirectory,
+                    DistributionOrigin = distributionOrigin,
                     DisplayName = BuildCanonicalDisplayName(
                         catalog,
                         package.RoleId,
@@ -376,6 +409,27 @@ internal static class AuraToolsBundledFoundationModelRuntime
         }
 
         return result;
+    }
+
+    internal static bool TryResolveSubjectReferences(
+        CombatGameSubjectPreset preset)
+    {
+        if (preset == null)
+        {
+            return false;
+        }
+        lock (Gate)
+        {
+            if (subjectCatalog.Roles.Count == 0)
+            {
+                return false;
+            }
+            subjectCatalog.ResolveReferences(preset);
+            return subjectCatalog.Roles.Any(item => string.Equals(
+                item.Id,
+                preset.RoleId,
+                StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     private static BundledFoundationImportResult Import(
@@ -407,6 +461,10 @@ internal static class AuraToolsBundledFoundationModelRuntime
         var deduplicated = scan.Deduplicated + registration.Deduplicated;
         var message = "Model 底模批量导入完成：扫描 "
                       + scan.Scanned
+                      + "，官方 "
+                      + scan.OfficialTrusted
+                      + "，玩家训练 "
+                      + scan.PlayerValidated
                       + "，新增 "
                       + registration.Installed
                       + "，已存在 "
@@ -428,6 +486,8 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 Deduplicated = deduplicated,
                 Conflicts = registration.Conflicts,
                 Failed = failed,
+                OfficialTrusted = scan.OfficialTrusted,
+                PlayerValidated = scan.PlayerValidated,
                 UpdatedUtc = DateTime.UtcNow
             };
         }
@@ -469,19 +529,45 @@ internal static class AuraToolsBundledFoundationModelRuntime
         }
     }
 
-    private static AuraDirectorFoundationTrustCatalog LoadFoundationTrustCatalog(string root)
+    private static AuraDirectorFoundationTrustCatalog LoadFoundationTrustCatalog(
+        string root,
+        out string diagnostic)
     {
-        var path = Path.Combine(
-            root,
-            FoundationTrustCatalogRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        if (!File.Exists(path))
+        try
         {
-            throw new FileNotFoundException("AuraDirector foundation trust catalog is missing.", path);
-        }
+            var path = Path.Combine(
+                root,
+                FoundationTrustCatalogRelativePath.Replace(
+                    '/',
+                    Path.DirectorySeparatorChar));
+            if (!File.Exists(path))
+            {
+                diagnostic = "官方底模精确信任目录不存在；玩家训练底模仍按本地完整门禁导入";
+                return new AuraDirectorFoundationTrustCatalog();
+            }
 
-        var json = new UTF8Encoding(false, true).GetString(File.ReadAllBytes(path));
-        return AuraSharedJson.Deserialize<AuraDirectorFoundationTrustCatalog>(json)
-            ?? throw new InvalidDataException("AuraDirector foundation trust catalog is empty.");
+            var json = new UTF8Encoding(false, true).GetString(
+                File.ReadAllBytes(path));
+            var catalog = AuraSharedJson
+                .Deserialize<AuraDirectorFoundationTrustCatalog>(json);
+            if (catalog == null
+                || catalog.SchemaVersion
+                != AuraDirectorFoundationTrustProtocol.SchemaVersion
+                || catalog.Entries == null)
+            {
+                diagnostic = "官方底模精确信任目录为空或不兼容；玩家训练底模仍按本地完整门禁导入";
+                return new AuraDirectorFoundationTrustCatalog();
+            }
+            diagnostic = "";
+            return catalog;
+        }
+        catch (Exception ex)
+        {
+            diagnostic = "读取官方底模精确信任目录失败："
+                         + ex.Message
+                         + "；玩家训练底模仍按本地完整门禁导入";
+            return new AuraDirectorFoundationTrustCatalog();
+        }
     }
 
     private static string ResolveRoleName(
@@ -561,6 +647,10 @@ internal static class AuraToolsBundledFoundationModelRuntime
         public int Failed { get; set; }
 
         public int Deduplicated { get; set; }
+
+        public int OfficialTrusted { get; set; }
+
+        public int PlayerValidated { get; set; }
 
         public List<BundledFoundationPackageCandidate> Candidates { get; } = new();
 

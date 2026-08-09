@@ -141,13 +141,15 @@ public sealed class CombatRulesetBuilder
         {
             return this;
         }
+        EnrichInteraction(definition!);
         if (definition!.Cost < 0
             || (definition.TargetScope & ~CombatCardTargetScope.AnyActor) != 0
             || definition.Effects == null
             || definition.DrawEffects == null
             || definition.DiscardEffects == null
             || definition.Tags == null
-            || !ValidateActionContract(definition, key))
+            || !ValidateActionContract(definition, key)
+            || !ValidateInteraction(definition, key))
         {
             errors.Add(
                 "card " + key + " has invalid cost, target scope, or effects");
@@ -162,6 +164,60 @@ public sealed class CombatRulesetBuilder
             cards[key] = definition.Clone();
         }
         return this;
+    }
+
+    private static void EnrichInteraction(CombatCardDefinition definition)
+    {
+        if (definition.Interaction != null)
+        {
+            definition.Interaction = definition.Interaction.Normalize();
+        }
+        else
+        {
+            var script = definition.Metadata != null
+                         && (definition.Metadata.TryGetValue("NativeUseScript", out var native)
+                             || definition.Metadata.TryGetValue("UseScript", out native))
+                ? native
+                : "";
+            if (CombatInteractionContractInference.TryInfer(script, out var inferred))
+            {
+                definition.Interaction = inferred;
+            }
+        }
+
+        if (definition.Interaction != null
+            && !definition.Interaction.EffectsComplete
+            && definition.Fidelity == CombatRuleFidelity.Authoritative)
+        {
+            definition.Fidelity = CombatRuleFidelity.Approximate;
+        }
+    }
+
+    private bool ValidateInteraction(CombatCardDefinition definition, string key)
+    {
+        var interaction = definition.Interaction;
+        if (interaction == null)
+        {
+            return true;
+        }
+        if (interaction.ContractVersion != CombatInteractionDefinition.CurrentContractVersion
+            || interaction.MinSelections < 0
+            || interaction.MaxSelections < interaction.MinSelections
+            || interaction.SelectionEffects == null
+            || interaction.SelectionEffects.Any(item =>
+                item == null
+                || !Enum.IsDefined(typeof(CombatInteractionEffectKind), item.Kind)))
+        {
+            errors.Add("card " + key + " has an invalid interaction contract");
+            return false;
+        }
+        if (definition.Fidelity == CombatRuleFidelity.Authoritative
+            && !interaction.EffectsComplete)
+        {
+            errors.Add("card " + key + " has an incomplete authoritative interaction");
+            return false;
+        }
+        return true;
     }
 
     public CombatRulesetBuilder RegisterEnemy(CombatEnemyDefinition? definition)
@@ -467,6 +523,7 @@ internal static class CombatRulesetHasher
                     card.Tags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)))
                 .Append('\n');
             AppendActionContract(builder, card.ActionContract);
+            AppendInteraction(builder, card.Interaction);
             builder.Append("card-use-effects\n");
             AppendEffects(builder, card.Effects);
             builder.Append("card-draw-effects\n");
@@ -594,6 +651,43 @@ internal static class CombatRulesetHasher
                 .Append(precondition.Kind).Append('|')
                 .Append(precondition.Amount)
                 .Append('\n');
+        }
+    }
+
+    private static void AppendInteraction(
+        StringBuilder builder,
+        CombatInteractionDefinition? interaction)
+    {
+        if (interaction == null)
+        {
+            builder.Append("interaction|null\n");
+            return;
+        }
+        builder.Append("interaction|")
+            .Append(interaction.ContractVersion).Append('|')
+            .Append(interaction.SourceApi).Append('|')
+            .Append(interaction.NativeMode).Append('|')
+            .Append((int)interaction.Kind).Append('|')
+            .Append((int)interaction.Zone).Append('|')
+            .Append(interaction.MinSelections).Append('|')
+            .Append(interaction.MaxSelections).Append('|')
+            .Append(interaction.CanConfirmEarly).Append('|')
+            .Append(interaction.CanConfirmEmpty).Append('|')
+            .Append(interaction.CanCancelPrompt).Append('|')
+            .Append(interaction.CanCancelParentAction).Append('|')
+            .Append(interaction.PromptMandatory).Append('|')
+            .Append(interaction.DistinctSelections).Append('|')
+            .Append(interaction.OrderedSelections).Append('|')
+            .Append(interaction.EffectsComplete).Append('\n');
+        foreach (var effect in interaction.SelectionEffects)
+        {
+            builder.Append("interaction-effect|")
+                .Append((int)effect.Kind).Append('|')
+                .Append(effect.DefinitionId).Append('|')
+                .Append(F(effect.Amount)).Append('|')
+                .Append(F(effect.BaseAmount)).Append('|')
+                .Append(F(effect.AmountPerSelection)).Append('|')
+                .Append(effect.Duration).Append('\n');
         }
     }
 

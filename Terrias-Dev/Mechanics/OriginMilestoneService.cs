@@ -26,8 +26,8 @@ public sealed class OriginMilestoneDefinition
 public static class OriginMilestoneService
 {
     public const string Strength = "Strength";
-    public const string Spirit = "Lucky";
-    public const string Fortune = "Wisdom";
+    public const string Spirit = "Wisdom";
+    public const string Fortune = "Lucky";
     public const string Perceive = "Perceive";
 
     private const string UnstableThoughtCard = "luckycard_7";

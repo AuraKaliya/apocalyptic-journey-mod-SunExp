@@ -7,7 +7,11 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 12;
+    public const int SchemaVersion = 16;
+
+    public const int PreviousSchemaVersion = 15;
+
+    public const int RepairMigratableSchemaVersion = 13;
     public const int TrainingMetricsSchemaVersion = 1;
     public const string PerformanceProbeVersion =
         "foundation-performance-probe-v1";
@@ -496,6 +500,9 @@ public sealed class CombatFoundationWorkerCheckpoint
         CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string RequestFingerprint { get; set; } = "";
+
+    public Dictionary<string, string> RequestIdentityFields { get; set; } =
+        new();
 
     public string RulesetHash { get; set; } = "";
 

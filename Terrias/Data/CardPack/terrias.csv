@@ -1,7 +1,5 @@
 "Id","Type","Icon"
 "唯一标识","卡包类型","卡包图标"
-"cardpack_radiant_spark","Normal","Mods/Terrias/ModResource/Images/CardPack/cardpack_radiant_spark"
-"cardpack_ember_crown","Normal","Mods/Terrias/ModResource/Images/CardPack/cardpack_ember_crown"
-"cardpack_solar_canopy","Normal","Mods/Terrias/ModResource/Images/CardPack/cardpack_solar_canopy"
+"cardpack_solar_ember_crown_canopy","Normal","Mods/Terrias/ModResource/Images/CardPack/cardpack_solar_ember_crown_canopy"
 "cardpack_morning_star_overture","Normal","Mods/Terrias/ModResource/Images/CardPack/cardpack_morning_star_overture"
 "cardpack_more_dimensions","Normal","Mods/Terrias/ModResource/Images/CardPack/more_dimensions"

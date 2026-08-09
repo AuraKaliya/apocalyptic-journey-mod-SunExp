@@ -44,7 +44,7 @@ public sealed class CombatPolicyValueArtifactManifest
 
     public int HiddenDimensions { get; set; }
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public float PolicyTemperature { get; set; } = 1f;
 
@@ -74,7 +74,7 @@ public sealed class CombatPolicyValueRuntimeDefinition
 
     public int HiddenDimensions { get; set; }
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public float PolicyTemperature { get; set; } = 1f;
 
@@ -477,7 +477,7 @@ public static class CombatPolicyValueArtifactProtocol
                != CombatPolicyValueProtocol.FeatureSchemaVersion
             || !string.Equals(
                 manifest.FeatureEncodingMode,
-                "partitioned-v3",
+                "partitioned-v4",
                 StringComparison.OrdinalIgnoreCase))
         {
             diagnostic = "FP32 权重清单字段或尺寸无效";
@@ -507,10 +507,16 @@ public static class CombatPolicyValueArtifactProtocol
                > CombatPolicyValueProtocol.FeatureSchemaVersion
             || string.IsNullOrWhiteSpace(runtime.ModelId)
             || string.IsNullOrWhiteSpace(runtime.DecisionProfile)
-            || !string.Equals(
-                runtime.FeatureEncodingMode,
-                "partitioned-v3",
-                StringComparison.OrdinalIgnoreCase)
+            || !(string.Equals(
+                     runtime.FeatureEncodingMode,
+                     "partitioned-v4",
+                     StringComparison.OrdinalIgnoreCase)
+                 || runtime.FeatureSchemaVersion
+                    < CombatPolicyValueProtocol.FeatureSchemaVersion
+                 && string.Equals(
+                     runtime.FeatureEncodingMode,
+                     "partitioned-v3",
+                     StringComparison.OrdinalIgnoreCase))
             || runtime.StateDimensions < 16
             || runtime.StateDimensions > 2048
             || runtime.ActionDimensions < 16

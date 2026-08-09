@@ -22,12 +22,12 @@
     },
     "PolicyAdapter": {
       "Path": "policy-adapter.json",
-      "Sha256": "f68519724d746fe0696b5d83276d8d90a74949cba4f0b250ee718469f59a5357"
+      "Sha256": "a066e4decef25928deced3a7785abab5dba6289fccaca4775b15097abd2c1ab5"
     },
     "TrainingEpisodes": [
       {
-        "Path": "training/authoritative-episodes-v5.jsonl",
-        "Sha256": "80a90512cffc9850760f0beb3191b56b79f77f59f96f36d0257fa20092365bbc"
+        "Path": "training/authoritative-episodes-v7.jsonl",
+        "Sha256": "7e88c8ce41d3a80044c7f5ecdcf467bd2d9a9cee9383c0f0390add43ff8c1a1c"
       }
     ]
   },

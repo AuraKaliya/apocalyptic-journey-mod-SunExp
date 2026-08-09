@@ -1168,6 +1168,9 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             SearchQuality = settings.SearchQuality,
             UseLowConfidenceFallback = settings.LowConfidenceFallback,
             MinimumSearchConfidence = settings.MinimumSearchConfidence,
+            NetworkDeathRiskWeight = settings.NetworkDeathRiskWeight,
+            SemanticCoverageRiskWeight =
+                settings.SemanticCoverageRiskWeight,
             SearchModelEvaluationBudget =
                 settings.SearchModelEvaluationBudget,
             EnableActorCandidatePruning =

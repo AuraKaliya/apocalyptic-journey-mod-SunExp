@@ -241,6 +241,24 @@ public sealed class ScriptExecutor
         FightCardManager.Instance.cardList.Add(new DataConfig(data, vars));
     }
 
+    public void AddCardToDeckById(string id, bool toUsed = true)
+    {
+        var config = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = id,
+            ["Expend"] = "0",
+            ["Tag"] = ""
+        });
+        if (toUsed)
+        {
+            FightCardManager.Instance.usedCardList.Add(config);
+        }
+        else
+        {
+            DeckCard.Add(config);
+        }
+    }
+
     public void GetCardFromDeck(IDataConfig data)
     {
         if (ThrowOnDelivery)
@@ -453,6 +471,7 @@ namespace Terrias.Dll.GameApi
         }
     }
 }
+
 
 namespace Terrias.Dll.Infrastructure
 {

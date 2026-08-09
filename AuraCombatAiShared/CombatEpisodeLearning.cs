@@ -7,12 +7,14 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatPolicyValueProtocol
 {
-    public const string EpisodeProtocol = "aura.combat-ai.episode.v5";
+    public const string EpisodeProtocol = "aura.combat-ai.episode.v8";
 
-    public const int FeatureSchemaVersion = 26;
+    public const string PreviousEpisodeProtocol = "aura.combat-ai.episode.v7";
+
+    public const int FeatureSchemaVersion = 30;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-action-aligned-role-quota-fixed-anchor-promotion-v21";
+        "decision-input-transition-partitioned-v5-actual-execution-v30";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
@@ -22,6 +24,166 @@ public static class CombatPolicyValueFrameStratificationProtocol
     public const double MinimumWeight = 0.50d;
 
     public const double DefaultMaximumWeight = 3.0d;
+}
+
+public static class CombatEpisodeTransitionProtocol
+{
+    public const string SameTurn = "same-turn";
+
+    public const string CrossTurn = "cross-turn";
+
+    public static void Link(
+        CombatEpisodeFrame previous,
+        CombatEpisodeFrame next)
+    {
+        if (previous == null) throw new ArgumentNullException(nameof(previous));
+        if (next == null) throw new ArgumentNullException(nameof(next));
+
+        previous.TransitionKnown = true;
+        previous.TransitionNextTurn = next.Turn;
+        previous.TransitionNextActionSequence = next.ActionSequence;
+        previous.TransitionNextDecisionSequence = next.DecisionSequence;
+        previous.TransitionNextStateFingerprint = next.StateFingerprint;
+        previous.TransitionActionSequenceDelta =
+            next.ActionSequence - previous.ActionSequence;
+        previous.TransitionCrossedTurnBoundary = next.Turn != previous.Turn;
+        previous.TransitionKind = previous.TransitionCrossedTurnBoundary
+            ? CrossTurn
+            : SameTurn;
+        var decisionDelta = next.DecisionSequence - previous.DecisionSequence;
+        previous.TransitionSpan = decisionDelta > 0
+            ? (int)Math.Min(int.MaxValue, decisionDelta)
+            : 0;
+
+        previous.TransitionInvalidReason = InvalidReason(previous, next);
+        previous.TransitionValid =
+            string.IsNullOrWhiteSpace(previous.TransitionInvalidReason);
+        if (previous.TransitionValid)
+        {
+            previous.SetCompactTransitionNextStateFeatures(
+                next.CompactStateFeatures ?? CombatCompactFeatureVector.Empty);
+        }
+        else
+        {
+            previous.SetCompactTransitionNextStateFeatures(
+                CombatCompactFeatureVector.Empty);
+        }
+    }
+
+    public static void Normalize(CombatEpisode episode)
+    {
+        if (episode == null) throw new ArgumentNullException(nameof(episode));
+        var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
+        for (var index = 0; index < frames.Count; index++)
+        {
+            var frame = frames[index];
+            frame.DecisionSequence = index + 1L;
+            frame.TerminalKnown = true;
+            frame.Terminal = index == frames.Count - 1;
+        }
+        for (var index = 0; index < frames.Count; index++)
+        {
+            var frame = frames[index];
+            if (index + 1 < frames.Count)
+            {
+                Link(frame, frames[index + 1]);
+            }
+            else
+            {
+                frame.TransitionKnown = false;
+                frame.TransitionValid = false;
+                frame.TransitionInvalidReason = "";
+                frame.TransitionSpan = 0;
+                frame.TransitionActionSequenceDelta = 0;
+                frame.TransitionKind = "";
+                frame.TransitionNextTurn = 0;
+                frame.TransitionNextActionSequence = 0;
+                frame.TransitionNextDecisionSequence = 0;
+                frame.TransitionNextStateFingerprint = "";
+                frame.SetCompactTransitionNextStateFeatures(
+                    CombatCompactFeatureVector.Empty);
+            }
+        }
+    }
+
+    private static string InvalidReason(
+        CombatEpisodeFrame previous,
+        CombatEpisodeFrame next)
+    {
+        if (previous.BattleSessionId == 0 || next.BattleSessionId == 0)
+        {
+            return "battle-session-missing";
+        }
+        if (previous.BattleSessionId != next.BattleSessionId)
+        {
+            return "battle-session-changed";
+        }
+        if (next.DecisionSequence <= previous.DecisionSequence)
+        {
+            return "decision-sequence-not-advanced";
+        }
+        if (next.Turn < previous.Turn)
+        {
+            return "turn-regressed";
+        }
+        if (next.Turn == previous.Turn
+            && next.ActionSequence < previous.ActionSequence)
+        {
+            return "action-sequence-regressed";
+        }
+        if (next.CompactStateFeatures?.Count <= 0
+            && next.StateFeatures.Count <= 0)
+        {
+            return "next-state-missing";
+        }
+        return "";
+    }
+}
+
+public static class CombatPolicyValueEpisodeMigration
+{
+    public static bool CanUpgrade(CombatEpisode? episode)
+    {
+        return episode != null
+               && string.Equals(
+                   episode.ModelProtocol,
+                   CombatPolicyValueProtocol.PreviousEpisodeProtocol,
+                   StringComparison.Ordinal)
+               && episode.FeatureSchemaVersion
+               == CombatPolicyValueProtocol.FeatureSchemaVersion;
+    }
+
+    public static bool UpgradeInPlace(CombatEpisode? episode)
+    {
+        if (!CanUpgrade(episode))
+        {
+            return false;
+        }
+        NormalizeSemanticsInPlace(episode!);
+        episode!.ModelProtocol = CombatPolicyValueProtocol.EpisodeProtocol;
+        return true;
+    }
+
+    public static void NormalizeSemanticsInPlace(CombatEpisode episode)
+    {
+        if (episode == null) throw new ArgumentNullException(nameof(episode));
+        foreach (var frame in episode.Frames ?? new List<CombatEpisodeFrame>())
+        {
+            var supervision = CombatPolicyValueBatchTrainer
+                .StrategicFrameSupervisionForExecutedAction(frame);
+            frame.StrategyApplicabilityKnown = supervision.Known;
+            frame.StrategyApplicableLabels =
+                supervision.ApplicableLabels.ToList();
+            frame.StrategyLabelsKnown = supervision.Known
+                                        && supervision.ApplicableLabels.Count > 0;
+            frame.StrategyLabels = supervision.PositiveLabels.ToList();
+            frame.StrategyLabelSource = "v6-migration:"
+                                        + supervision.Source;
+            frame.StrategyPhase = CombatPolicyValueBatchTrainer
+                .StrategicPhaseForFrame(frame);
+        }
+        CombatEpisodeTransitionProtocol.Normalize(episode);
+    }
 }
 
 public sealed class CombatEpisode
@@ -125,11 +287,21 @@ public sealed class CombatCampaignEpisodeMetadata
 public sealed class CombatEpisodeFrame
 {
     private Dictionary<string, double>? stateFeatures;
+    private Dictionary<string, double>? transitionNextStateFeatures;
     private CombatObservationEnvelope? observation;
 
     public int Turn { get; set; }
 
     public long ActionSequence { get; set; }
+
+    /// <summary>
+    /// Monotonic decision clock owned by the episode recorder. Unlike the
+    /// simulation action sequence, this advances for EndTurn and no-effect
+    /// decisions as well.
+    /// </summary>
+    public long DecisionSequence { get; set; }
+
+    public long BattleSessionId { get; set; }
 
     public string StateFingerprint { get; set; } = "";
 
@@ -164,11 +336,79 @@ public sealed class CombatEpisodeFrame
         set => observation = value;
     }
 
+    public bool HasObservation => observation != null;
+
+    public bool TransitionKnown { get; set; }
+
+    public bool TransitionValid { get; set; }
+
+    public string TransitionInvalidReason { get; set; } = "";
+
+    public int TransitionSpan { get; set; }
+
+    public long TransitionActionSequenceDelta { get; set; }
+
+    public string TransitionKind { get; set; } = "";
+
+    public bool TransitionCrossedTurnBoundary { get; set; }
+
+    public int TransitionNextTurn { get; set; }
+
+    public long TransitionNextActionSequence { get; set; }
+
+    public long TransitionNextDecisionSequence { get; set; }
+
+    public string TransitionNextStateFingerprint { get; set; } = "";
+
+    public bool TerminalKnown { get; set; }
+
+    public bool Terminal { get; set; }
+
+    public bool StrategyLabelsKnown { get; set; }
+
+    public bool StrategyApplicabilityKnown { get; set; }
+
+    public List<string> StrategyApplicableLabels { get; set; } = new();
+
+    public List<string> StrategyLabels { get; set; } = new();
+
+    public string StrategyLabelSource { get; set; } = "";
+
+    public int StrategyPhase { get; set; } = -1;
+
+    public Dictionary<string, double> TransitionNextStateFeatures
+    {
+        get
+        {
+            if (transitionNextStateFeatures == null)
+            {
+                transitionNextStateFeatures =
+                    CompactTransitionNextStateFeatures?.Materialize()
+                    ?? new Dictionary<string, double>(
+                        StringComparer.OrdinalIgnoreCase);
+            }
+            return transitionNextStateFeatures;
+        }
+        set
+        {
+            transitionNextStateFeatures = value
+                ?? new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase);
+            CompactTransitionNextStateFeatures = null;
+        }
+    }
+
     internal CombatCompactFeatureVector? CompactStateFeatures { get; private set; }
+
+    internal CombatCompactFeatureVector? CompactTransitionNextStateFeatures {
+        get;
+        private set;
+    }
 
     internal bool HasMaterializedStateFeatures => stateFeatures != null;
 
-    internal bool HasObservation => observation != null;
+    internal bool HasMaterializedTransitionNextStateFeatures =>
+        transitionNextStateFeatures != null;
 
     internal void ReleaseTransientStorage()
     {
@@ -176,6 +416,10 @@ public sealed class CombatEpisodeFrame
         if (CompactStateFeatures != null)
         {
             stateFeatures = null;
+        }
+        if (CompactTransitionNextStateFeatures != null)
+        {
+            transitionNextStateFeatures = null;
         }
         foreach (var candidate in Candidates ?? new List<CombatEpisodeCandidate>())
         {
@@ -213,6 +457,36 @@ public sealed class CombatEpisodeFrame
 
     private int[]? pendingCompactStateTokenIds;
     private float[]? pendingCompactStateValues;
+    private int[]? pendingCompactTransitionNextStateTokenIds;
+    private float[]? pendingCompactTransitionNextStateValues;
+
+    public int[]? CompactTransitionNextStateFeatureTokenIds
+    {
+        get => CompactTransitionNextStateFeatures?.TokenIds;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactTransitionNextStateTokenIds = value;
+            RestoreCompactTransitionNextStateFeatures();
+        }
+    }
+
+    public float[]? CompactTransitionNextStateFeatureValues
+    {
+        get => CompactTransitionNextStateFeatures?.Values;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactTransitionNextStateValues = value;
+            RestoreCompactTransitionNextStateFeatures();
+        }
+    }
 
     internal void SetCompactStateFeatures(CombatCompactFeatureVector features)
     {
@@ -220,6 +494,14 @@ public sealed class CombatEpisodeFrame
         stateFeatures = null;
         CombatEpisodeStorageDiagnostics.CompactStateVector(
             CompactStateFeatures.Count);
+    }
+
+    internal void SetCompactTransitionNextStateFeatures(
+        CombatCompactFeatureVector features)
+    {
+        CompactTransitionNextStateFeatures =
+            features ?? CombatCompactFeatureVector.Empty;
+        transitionNextStateFeatures = null;
     }
 
     private void RestoreCompactStateFeatures()
@@ -234,6 +516,20 @@ public sealed class CombatEpisodeFrame
             pendingCompactStateValues));
         pendingCompactStateTokenIds = null;
         pendingCompactStateValues = null;
+    }
+
+    private void RestoreCompactTransitionNextStateFeatures()
+    {
+        if (pendingCompactTransitionNextStateTokenIds == null
+            || pendingCompactTransitionNextStateValues == null)
+        {
+            return;
+        }
+        SetCompactTransitionNextStateFeatures(new CombatCompactFeatureVector(
+            pendingCompactTransitionNextStateTokenIds,
+            pendingCompactTransitionNextStateValues));
+        pendingCompactTransitionNextStateTokenIds = null;
+        pendingCompactTransitionNextStateValues = null;
     }
 
     internal bool TryGetStateFeature(string key, out double value)
@@ -465,7 +761,7 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double L2 { get; set; } = 0.0015d;
 
-    public int StateDimensions { get; set; } = 1024;
+    public int StateDimensions { get; set; } = 2048;
 
     public int ActionDimensions { get; set; } = 1024;
 
@@ -477,7 +773,7 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int MinimumSearchVisitsForActionQuantiles { get; set; } = 8;
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public int RandomSeed { get; set; } = 20260724;
 
@@ -563,7 +859,7 @@ public sealed class CombatPolicyValueTrainingOptions
             MinimumSearchVisitsForActionQuantiles = Math.Max(
                 1,
                 Math.Min(128, MinimumSearchVisitsForActionQuantiles)),
-            FeatureEncodingMode = "partitioned-v3",
+            FeatureEncodingMode = "partitioned-v4",
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,

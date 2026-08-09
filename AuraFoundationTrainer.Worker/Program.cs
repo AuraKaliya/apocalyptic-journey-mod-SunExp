@@ -206,7 +206,9 @@ try
     // compute identity. CampaignFingerprint normalizes those learned values,
     // so structural compatibility remains stable across training rounds.
     PrepareCaseArchive(job, build.Ruleset.RulesetHash);
-    var requestFingerprint = Fingerprint(job, build.Ruleset.RulesetHash);
+    var requestFingerprint = CombatFoundationRequestIdentity.CreateFingerprint(
+        job,
+        build.Ruleset.RulesetHash);
     var resume = new CombatCampaignFoundationResumeState();
     CombatFoundationEpisodeSnapshot? checkpointSnapshot = null;
     var resumeDiagnostic = "";
@@ -594,6 +596,8 @@ try
                 var checkpoint = new CombatFoundationWorkerCheckpoint
                 {
                     RequestFingerprint = requestFingerprint,
+                    RequestIdentityFields = CombatFoundationRequestIdentity
+                        .CreateFields(job, build.Ruleset.RulesetHash),
                     RulesetHash = build.Ruleset.RulesetHash,
                     EpisodesPath = nextSnapshot.Path,
                     EpisodeSnapshot = nextSnapshot,
@@ -1301,6 +1305,7 @@ static int ReplayCampaign(
             CombatFoundationCheckpointStorage.ReadAllTextShared(checkpointPath));
         model = checkpoint?.Resume?.ModelTraining?.BestModel
                 ?? checkpoint?.Resume?.ModelTraining?.Model
+                ?? checkpoint?.Resume?.LatestTrainingModel
                 ?? checkpoint?.Resume?.WorkingChampion
                 ?? checkpoint?.Resume?.Champion
                 ?? model;
@@ -1468,108 +1473,6 @@ static FileStream AcquireTrainingLease(CombatFoundationWorkerJob job)
     return stream;
 }
 
-static string Fingerprint(
-    CombatFoundationWorkerJob job,
-    string rulesetHash)
-{
-    var request = job.Request;
-    var training = request.Training;
-    var payload = SerializeCompact(new
-    {
-        Protocol = "foundation-continuation-v2-stable-budget",
-        RulesetHash = rulesetHash,
-        request.ContentSetHash,
-        request.OwnerModSetHash,
-        FeatureSchemaVersion =
-            CombatPolicyValueProtocol.FeatureSchemaVersion,
-        request.DecisionProfile,
-        Profile = HashCompact(request.Profile),
-        request.TrainingPolicyVersion,
-        CombatPolicyValueProtocol.TrainingSemanticsVersion,
-        SemanticCanaryVersion =
-            CombatFoundationSemanticProbeResult.CurrentCanaryVersion,
-        request.TrainingCampaignsPerIteration,
-        request.ArenaCampaignsPerDifficulty,
-        request.ArenaConfirmationCampaignsPerDifficulty,
-        request.NormalValidationCampaigns,
-        request.AdvancedValidationCampaigns,
-        request.CapabilityProbeCampaignsPerDifficulty,
-        request.RequireCapabilityProbeBaselineGain,
-        request.CapabilityProbeMinimumVictoryGain,
-        request.CapabilityProbeMinimumDepthGain,
-        request.EnableEarlyValidationStop,
-        request.ValidationEarlyStopBatchSize,
-        request.EnableCurriculum,
-        request.EnableStratifiedReplay,
-        request.EnablePrioritizedReplay,
-        request.EnableHardSeedCurriculum,
-        request.EnableCounterfactualHardEncounters,
-        request.EnableSuccessCaseArchive,
-        request.EnableArenaRecovery,
-        request.ArenaInvalidRetryCount,
-        request.ArenaInvalidRateLimit,
-        request.EnableTuningArena,
-        request.TuningNormalCampaigns,
-        request.TuningAdvancedCampaigns,
-        request.EnableProgressiveTuning,
-        request.TuningScreeningNormalCampaigns,
-        request.TuningScreeningAdvancedCampaigns,
-        request.TuningFinalistCount,
-        request.NormalAcceptanceRate,
-        request.AdvancedAcceptanceRate,
-        request.MinimumArenaDiscordantPairs,
-        request.MaximumOfflineHeadRegression,
-        request.HardSeedReplayShare,
-        HardEncounterWeights = HashCompact(request.HardEncounterWeights),
-        request.MinimumAdvancedReplayShare,
-        request.MinimumAdvancedDefeatReplayShare,
-        request.ExpertReplayEpisodeLimit,
-        request.AuthoritativeContentReplayShare,
-        request.SelfPlayExplorationProbability,
-        request.SelfPlayExplorationTemperature,
-        CampaignId = request.TrainingCampaign?.CampaignId ?? "",
-        CampaignVersion =
-            request.TrainingCampaign?.CampaignVersion ?? "",
-        TrainingCampaign =
-            request.TrainingCampaign == null
-                ? ""
-                : CombatCampaignFoundationTrainer.CampaignFingerprint(
-                    request.TrainingCampaign),
-        ValidationCampaign =
-            request.ValidationCampaign == null
-                ? ""
-                : CombatCampaignFoundationTrainer.CampaignFingerprint(
-                    request.ValidationCampaign),
-        training.StateDimensions,
-        training.ActionDimensions,
-        training.HiddenDimensions,
-        training.GradientShardCount,
-        training.FeatureEncodingMode,
-        training.LearningRate,
-        training.L2,
-        training.Epochs,
-        training.MinimumEpochs,
-        training.EarlyStoppingPatience,
-        training.EarlyStoppingMinimumDelta,
-        training.BatchSize,
-        training.EnableFrameStratification,
-        training.EnableEndTurnSpecialization,
-        training.EndTurnFrameWeight,
-        training.MaximumUnsafeEndTurnFrameShare,
-        training.UnsafeEndTurnRiskAuxiliaryShare,
-        training.PolicyTargetTemperature,
-        training.MaximumPolicyTargetProbability,
-        training.MaximumFrameStratumWeight,
-        training.MaximumFramesPerEpisode,
-        training.ReplayEpisodeLimit,
-        training.ReplayFrameLimit,
-        training.ReplayEstimatedBytesLimit,
-        training.RetainedModelCandidates
-    });
-    return Convert.ToHexString(
-        SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-}
-
 static string HashCompact<T>(T value)
 {
     var payload = value == null ? "null" : SerializeCompact(value);
@@ -1611,9 +1514,21 @@ static bool TryLoadCheckpoint(
             var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
                 CombatFoundationCheckpointStorage.ReadAllTextShared(
                     checkpointPath));
-            if (checkpoint == null
-                || checkpoint.SchemaVersion
-                   != CombatFoundationWorkerProtocol.SchemaVersion)
+            if (checkpoint == null)
+            {
+                throw new InvalidDataException(
+                    "checkpoint protocol is incompatible");
+            }
+            var previousMigration = checkpoint.SchemaVersion
+                                    == CombatFoundationWorkerProtocol
+                                        .PreviousSchemaVersion;
+            var repairMigration = checkpoint.SchemaVersion
+                                  == CombatFoundationWorkerProtocol
+                                      .RepairMigratableSchemaVersion;
+            if (!previousMigration
+                && !repairMigration
+                && checkpoint.SchemaVersion
+                != CombatFoundationWorkerProtocol.SchemaVersion)
             {
                 throw new InvalidDataException(
                     "checkpoint protocol is incompatible");
@@ -1627,12 +1542,27 @@ static bool TryLoadCheckpoint(
             {
                 throw new InvalidDataException(artifactDiagnostic);
             }
-            if (!CheckpointIdentityCompatible(
+            if (!(repairMigration
+                    ? RepairMigrationIdentityCompatible(
+                        job,
+                        checkpoint,
+                        rulesetHash)
+                    : previousMigration
+                        ? PreviousMigrationIdentityCompatible(
+                            job,
+                            checkpoint,
+                            rulesetHash)
+                    : CheckpointIdentityCompatible(
+                        job,
+                        checkpoint,
+                        requestFingerprint,
+                        rulesetHash)))
+            {
+                CombatFoundationRequestIdentity.Matches(
                     job,
                     checkpoint,
-                    requestFingerprint,
-                    rulesetHash))
-            {
+                    rulesetHash,
+                    out var identityDiagnostic);
                 throw new InvalidDataException(
                     "checkpoint identity does not match this job"
                     + "; checkpointFingerprint="
@@ -1643,6 +1573,8 @@ static bool TryLoadCheckpoint(
                     + checkpoint.RulesetHash
                     + ", requestRuleset="
                     + rulesetHash
+                    + ", differences="
+                    + identityDiagnostic
                     + ", supervisorContinuation="
                     + SupervisorContinuationDiagnostic(
                         job,
@@ -1670,6 +1602,59 @@ static bool TryLoadCheckpoint(
                 throw new InvalidDataException(
                     "checkpoint replay identity mismatch");
             }
+            var migratedEpisodes = 0;
+            if (previousMigration || repairMigration)
+            {
+                if (repairMigration)
+                {
+                    foreach (var episode in episodes)
+                    {
+                        if (CombatPolicyValueEpisodeMigration.UpgradeInPlace(episode))
+                        {
+                            migratedEpisodes++;
+                        }
+                        else if (episode.ModelProtocol
+                                 != CombatPolicyValueProtocol.EpisodeProtocol
+                                 || episode.FeatureSchemaVersion
+                                 != CombatPolicyValueProtocol.FeatureSchemaVersion)
+                        {
+                            throw new InvalidDataException(
+                                "repair migration encountered an unsupported replay episode");
+                        }
+                    }
+                }
+                checkpoint.SchemaVersion =
+                    CombatFoundationWorkerProtocol.SchemaVersion;
+                checkpoint.RequestFingerprint = requestFingerprint;
+                checkpoint.Resume.SchemaVersion =
+                    CombatFoundationWorkerProtocol.SchemaVersion;
+                checkpoint.Resume.Compatibility =
+                    CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+                        job.Request,
+                        rulesetHash);
+                if (repairMigration)
+                {
+                    checkpoint.Resume.BestPendingArenaCandidate = null;
+                    checkpoint.Resume.AbsoluteQualifiedBestModel = null;
+                    checkpoint.Resume.AbsoluteQualifiedBestEvidence = null;
+                    foreach (var iteration in checkpoint.Resume.Iterations
+                                 ?? new List<CombatCampaignFoundationIteration>())
+                    {
+                        iteration.AbsoluteQualificationGatePassed = false;
+                        iteration.QualifiedCandidateSelected = false;
+                    }
+                    // ReplayIdentity intentionally describes the stable episode
+                    // population rather than its storage protocol, so v6 and v7
+                    // payloads can share it. Force the next checkpoint commit to
+                    // materialize the migrated frames instead of reusing the
+                    // immutable v6 snapshot under a v15 outer checkpoint.
+                    snapshot.SourceReplayIdentity =
+                        "repair-migration-v23-rewrite-required:"
+                        + (string.IsNullOrWhiteSpace(snapshot.SourceReplayIdentity)
+                            ? snapshot.ReplayIdentity
+                            : snapshot.SourceReplayIdentity);
+                }
+            }
             checkpoint.Resume.Replay = episodes;
             if (checkpoint.Resume.SchemaVersion
                 != CombatFoundationWorkerProtocol.SchemaVersion)
@@ -1685,7 +1670,13 @@ static bool TryLoadCheckpoint(
             }
             resume = checkpoint.Resume;
             episodeSnapshot = snapshot;
-            diagnostic = !string.IsNullOrWhiteSpace(job.ResumeCheckpointPath)
+            diagnostic = repairMigration
+                ? "已将 v22/v6 检查点修复迁移到 v23/v7；重建 "
+                  + migratedEpisodes
+                  + " 个 Episode 的决策转移与策略适用标签，旧合格证据已隔离"
+                : previousMigration
+                    ? "已将 v14 检查点无损迁移到 v15，并启用历史待验证候选槽"
+                : !string.IsNullOrWhiteSpace(job.ResumeCheckpointPath)
                 ? "已加载所选不可变检查点 " + Path.GetFileName(checkpointPath)
                 : checkpointPath.Equals(
                     legacyPath,
@@ -1741,10 +1732,11 @@ static bool CheckpointIdentityCompatible(
     {
         return false;
     }
-    var exactRequestIdentity = string.Equals(
-        checkpoint.RequestFingerprint,
-        requestFingerprint,
-        StringComparison.Ordinal);
+    var exactRequestIdentity = CombatFoundationRequestIdentity.Matches(
+        job,
+        checkpoint,
+        rulesetHash,
+        out _);
     if (exactRequestIdentity)
     {
         return !string.Equals(
@@ -1776,12 +1768,117 @@ static bool CheckpointIdentityCompatible(
         rulesetHash);
     var candidate = checkpoint.Resume?.ModelTraining?.BestModel
                     ?? checkpoint.Resume?.ModelTraining?.Model
+                    ?? checkpoint.Resume?.LatestTrainingModel
                     ?? checkpoint.Resume?.WorkingChampion
                     ?? checkpoint.Resume?.Champion;
     return CombatCampaignFoundationTrainer.ManifestCompatible(
                checkpoint.Resume?.Compatibility,
                current)
            && ModelArchitectureCompatible(candidate, job.Request.Training);
+}
+
+static bool RepairMigrationIdentityCompatible(
+    CombatFoundationWorkerJob job,
+    CombatFoundationWorkerCheckpoint checkpoint,
+    string rulesetHash)
+{
+    var resume = checkpoint.Resume;
+    var legacy = resume?.Compatibility;
+    if (resume == null
+        || legacy == null
+        || resume.SchemaVersion
+        != CombatFoundationWorkerProtocol.RepairMigratableSchemaVersion
+        || legacy.SchemaVersion
+        != CombatFoundationWorkerProtocol.RepairMigratableSchemaVersion
+        || legacy.FeatureSchemaVersion
+        != CombatPolicyValueProtocol.FeatureSchemaVersion
+        || !string.Equals(
+            legacy.TrainingSemanticsVersion,
+            "content-set-object-transition-multistrategy-replay-qualified-best-v22",
+            StringComparison.Ordinal))
+    {
+        return false;
+    }
+    var current = CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+        job.Request,
+        rulesetHash);
+    return string.Equals(legacy.RulesetHash, current.RulesetHash, StringComparison.Ordinal)
+           && string.Equals(
+               legacy.ContentSetHash,
+               current.ContentSetHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.OwnerModSetHash,
+               current.OwnerModSetHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.NativeProgramPackageHash,
+               current.NativeProgramPackageHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.CampaignId,
+               current.CampaignId,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.CampaignVersion,
+               current.CampaignVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.TrainingCampaignHash,
+               current.TrainingCampaignHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.ValidationCampaignHash,
+               current.ValidationCampaignHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               legacy.FeatureEncodingMode,
+               current.FeatureEncodingMode,
+               StringComparison.Ordinal)
+           && legacy.StateDimensions == current.StateDimensions
+           && legacy.ActionDimensions == current.ActionDimensions
+           && legacy.HiddenDimensions == current.HiddenDimensions;
+}
+
+static bool PreviousMigrationIdentityCompatible(
+    CombatFoundationWorkerJob job,
+    CombatFoundationWorkerCheckpoint checkpoint,
+    string rulesetHash)
+{
+    var resume = checkpoint.Resume;
+    var previous = resume?.Compatibility;
+    if (resume == null
+        || previous == null
+        || resume.SchemaVersion
+        != CombatFoundationWorkerProtocol.PreviousSchemaVersion
+        || previous.SchemaVersion
+        != CombatFoundationWorkerProtocol.PreviousSchemaVersion)
+    {
+        return false;
+    }
+    var current = CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+        job.Request,
+        rulesetHash);
+    var previousSchema = previous.SchemaVersion;
+    try
+    {
+        previous.SchemaVersion = current.SchemaVersion;
+        var candidate = resume.ModelTraining?.BestModel
+                        ?? resume.ModelTraining?.Model
+                        ?? resume.LatestTrainingModel
+                        ?? resume.WorkingChampion
+                        ?? resume.Champion;
+        return CombatCampaignFoundationTrainer.ManifestCompatible(
+                   previous,
+                   current)
+               && ModelArchitectureCompatible(
+                   candidate,
+                   job.Request.Training);
+    }
+    finally
+    {
+        previous.SchemaVersion = previousSchema;
+    }
 }
 
 static bool SupervisorManifestCompatible(
@@ -1883,7 +1980,8 @@ static bool SupervisorContinuationIdentityCompatible(
     var current = CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
         job.Request,
         rulesetHash);
-    var candidate = checkpoint.Resume?.WorkingChampion
+    var candidate = checkpoint.Resume?.LatestTrainingModel
+                    ?? checkpoint.Resume?.WorkingChampion
                     ?? checkpoint.Resume?.Champion;
     return SupervisorManifestCompatible(
                checkpoint.Resume?.Compatibility,
@@ -1907,7 +2005,8 @@ static string SupervisorContinuationDiagnostic(
         job.Request,
         rulesetHash);
     var stored = checkpoint.Resume?.Compatibility;
-    var candidate = checkpoint.Resume?.WorkingChampion
+    var candidate = checkpoint.Resume?.LatestTrainingModel
+                    ?? checkpoint.Resume?.WorkingChampion
                     ?? checkpoint.Resume?.Champion;
     return "requiredFingerprint="
            + job.RequiredCheckpointFingerprint
@@ -1954,6 +2053,7 @@ static CombatCampaignFoundationResumeState CreateModelBranchResume(
 {
     var model = source.ModelTraining?.BestModel
                 ?? source.ModelTraining?.Model
+                ?? source.LatestTrainingModel
                 ?? source.WorkingChampion
                 ?? source.Champion
                 ?? throw new InvalidDataException(
@@ -1965,8 +2065,18 @@ static CombatCampaignFoundationResumeState CreateModelBranchResume(
     }
     source.Stage = "iteration-complete";
     source.ModelTraining = null;
+    source.LatestTrainingModel = model;
     source.WorkingChampion = model;
     source.Champion = model;
+    source.BestPendingArenaCandidate = null;
+    if (!string.Equals(
+            source.AbsoluteQualifiedBestModel?.ModelId,
+            model.ModelId,
+            StringComparison.Ordinal))
+    {
+        source.AbsoluteQualifiedBestModel = null;
+        source.AbsoluteQualifiedBestEvidence = null;
+    }
     return source;
 }
 
@@ -2021,6 +2131,7 @@ static bool TryRecoverPriorWorkingResult(
                 CombatFoundationCheckpointStorage.ReadAllTextShared(resultPath));
             var training = workerResult?.Training;
             var working = training?.WorkingChampion ?? training?.Champion;
+            var latest = training?.LatestTrainingModel ?? working;
             if (workerResult?.SchemaVersion
                     != CombatFoundationWorkerProtocol.SchemaVersion
                 || training == null
@@ -2073,6 +2184,13 @@ static bool TryRecoverPriorWorkingResult(
                 ModelRandomSeed = training.ModelRandomSeed,
                 Champion = training.Champion,
                 WorkingChampion = working,
+                LatestTrainingModel = latest,
+                BestPendingArenaCandidate =
+                    training.BestPendingArenaCandidate,
+                AbsoluteQualifiedBestModel =
+                    training.AbsoluteQualifiedBestModel,
+                AbsoluteQualifiedBestEvidence =
+                    training.AbsoluteQualifiedBestEvidence,
                 Replay = episodes,
                 Iterations = new List<CombatCampaignFoundationIteration>(
                     training.Iterations),
@@ -2143,6 +2261,7 @@ static List<CombatEpisode> ReadRecoveryEpisodes(
         var episode = Deserialize<CombatEpisode>(line)
                       ?? throw new InvalidDataException(
                           "prior replay contains a null episode");
+        CombatPolicyValueEpisodeMigration.UpgradeInPlace(episode);
         if (episode.ModelProtocol
                 != CombatPolicyValueProtocol.EpisodeProtocol
             || episode.FeatureSchemaVersion
@@ -2251,6 +2370,10 @@ static CombatCampaignFoundationResumeState WithoutReplay(
         ModelRandomSeed = source.ModelRandomSeed,
         Champion = source.Champion,
         WorkingChampion = source.WorkingChampion,
+        LatestTrainingModel = source.LatestTrainingModel,
+        BestPendingArenaCandidate = source.BestPendingArenaCandidate,
+        AbsoluteQualifiedBestModel = source.AbsoluteQualifiedBestModel,
+        AbsoluteQualifiedBestEvidence = source.AbsoluteQualifiedBestEvidence,
         Iterations = new List<CombatCampaignFoundationIteration>(
             source.Iterations),
         Preflight = source.Preflight,
@@ -2376,6 +2499,7 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
                         ?? new CombatPolicyValueMetricSnapshot();
     var model = modelTraining?.BestModel
                 ?? modelTraining?.Model
+                ?? state.LatestTrainingModel
                 ?? state.WorkingChampion
                 ?? state.Champion;
     var identity = HashCompact(new
@@ -3411,7 +3535,13 @@ static int RunIterationSupervisor(
             childJob.ResultPath = segmentResultPath;
             childJob.RequiredCheckpointFingerprint = "";
             childJob.Request.EnableIterationProcessIsolation = true;
-            childJob.Request.MaximumIterationsPerProcess = 1;
+            childJob.Request.MaximumIterationsPerProcess = Math.Max(
+                1,
+                Math.Min(
+                    6,
+                    sourceJob.Request.MaximumIterationsPerProcess > 0
+                        ? sourceJob.Request.MaximumIterationsPerProcess
+                        : 3));
             if (segment > 1)
             {
                 childJob.ResumeFromCheckpoint = true;
@@ -3633,7 +3763,12 @@ static string ResolveOptionValue(string[] arguments, string name)
 
 static T? Deserialize<T>(string json)
 {
-    return JsonConvert.DeserializeObject<T>(json);
+    return JsonConvert.DeserializeObject<T>(
+        json,
+        new JsonSerializerSettings
+        {
+            ObjectCreationHandling = ObjectCreationHandling.Replace
+        });
 }
 
 static void PersistBuildLimitedSeeds(

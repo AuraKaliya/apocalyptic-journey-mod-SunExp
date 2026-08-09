@@ -7,12 +7,14 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
 
 namespace AuraToolsExp.Dll.Features.AutoBattle;
 
 public sealed class AuraToolsNativeRewardExtensionFactory :
-    ICombatSimulationRuntimeExtensionFactory
+    ICombatSimulationRuntimeExtensionFactory,
+    ICombatSimulationRuntimeExtensionForkSupport
 {
     private static readonly ConcurrentDictionary<string, bool> NativeDefinitionPresence =
         new(StringComparer.Ordinal);
@@ -40,15 +42,41 @@ public sealed class AuraToolsNativeRewardExtensionFactory :
             ? null
             : new AuraToolsNativeRewardExtension();
     }
+
+    public bool SupportsExactStateOnlyFork(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset,
+        out string reason)
+    {
+        if (Create(scenario, ruleset) == null)
+        {
+            reason = "";
+            return true;
+        }
+
+        reason = "AuraTools native runtime owns session-bound script and "
+                 + "trigger continuation state; a state-only branch cannot "
+                 + "reproduce the live continuation exactly";
+        return false;
+    }
 }
 
 public sealed class AuraToolsNativeProgramPackageValidation
 {
+    public string SemanticCoverageVersion { get; set; } =
+        AuraToolsNativeSemanticCoverageAudit.Version;
+
     public int ReferencedProgramCount { get; set; }
 
     public int PrecompiledProgramCount { get; set; }
 
     public string ProgramSetSha256 { get; set; } = "";
+
+    public int SemanticScriptCount { get; set; }
+
+    public int SemanticTriggerCount { get; set; }
+
+    public int DirectMutationScriptCount { get; set; }
 
     public List<string> Errors { get; set; } = new();
 
@@ -64,16 +92,33 @@ public static class AuraToolsNativeProgramPackageAudit
         if (campaign == null) throw new ArgumentNullException(nameof(campaign));
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
         var scripts = new HashSet<string>(StringComparer.Ordinal);
+        var semanticScripts = new List<KeyValuePair<string, string>>();
         foreach (var reward in campaign.Rewards)
         {
             Add(scripts, reward.FightScript);
+            AddSemanticScript(
+                semanticScripts,
+                "reward:" + reward.RewardId,
+                reward.FightScript);
         }
         Add(scripts, campaign.Player?.RoleFightScript ?? "");
+        AddSemanticScript(
+            semanticScripts,
+            "role:" + (campaign.Player?.RoleId ?? "unknown"),
+            campaign.Player?.RoleFightScript ?? "");
         foreach (var card in ruleset.SnapshotCards()
                      .Where(AuraToolsNativeGameScriptAudit.UsesNativeScript))
         {
             AddMetadata(
                 scripts,
+                card.Metadata,
+                "NativeInitScript",
+                "NativeUseScript",
+                "NativeDrawScript",
+                "NativeDropScript");
+            AddSemanticMetadata(
+                semanticScripts,
+                "card:" + card.CardId,
                 card.Metadata,
                 "NativeInitScript",
                 "NativeUseScript",
@@ -89,17 +134,30 @@ public static class AuraToolsNativeProgramPackageAudit
                 "NativeInitScript",
                 "NativeApplyScript",
                 "NativeClearScript");
+            AddSemanticMetadata(
+                semanticScripts,
+                "status:" + status.StatusId,
+                status.Metadata,
+                "NativeInitScript",
+                "NativeApplyScript",
+                "NativeClearScript");
         }
 
         var errors = AuraToolsNativeRewardScriptAudit.Validate(campaign);
         errors.AddRange(AuraToolsNativeGameScriptAudit.Validate(ruleset));
         errors.AddRange(ValidateRoleProgram(campaign.Player));
         errors.AddRange(ValidateLiteralReferences(campaign, ruleset));
+        var semanticCoverage = AuraToolsNativeSemanticCoverageAudit.Analyze(
+            semanticScripts);
+        errors.AddRange(semanticCoverage.Errors);
         return new AuraToolsNativeProgramPackageValidation
         {
             ReferencedProgramCount = scripts.Count,
             PrecompiledProgramCount = NativeRewardProgramRegistry.ProgramCount,
             ProgramSetSha256 = HashProgramSet(scripts),
+            SemanticScriptCount = semanticCoverage.ScriptCount,
+            SemanticTriggerCount = semanticCoverage.TriggerCount,
+            DirectMutationScriptCount = semanticCoverage.DirectMutationScriptCount,
             Errors = errors
         };
     }
@@ -135,6 +193,32 @@ public static class AuraToolsNativeProgramPackageAudit
         if (!string.IsNullOrWhiteSpace(script))
         {
             target.Add(NativeRewardProgramRegistry.Key(script));
+        }
+    }
+
+    private static void AddSemanticMetadata(
+        ICollection<KeyValuePair<string, string>> target,
+        string owner,
+        IReadOnlyDictionary<string, string> metadata,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            AddSemanticScript(
+                target,
+                owner + ":" + key,
+                metadata.GetValueOrDefault(key, ""));
+        }
+    }
+
+    private static void AddSemanticScript(
+        ICollection<KeyValuePair<string, string>> target,
+        string owner,
+        string script)
+    {
+        if (!string.IsNullOrWhiteSpace(script))
+        {
+            target.Add(new KeyValuePair<string, string>(owner, script));
         }
     }
 
@@ -252,6 +336,7 @@ public static class AuraToolsNativeProgramPackageAudit
 
 internal sealed class AuraToolsNativeRewardExtension :
     ICombatSimulationRuntimeExtension,
+    ICombatSimulationStagedInitializationRuntimeExtension,
     ICombatSimulationDecisionRuntimeExtension
 {
     private readonly List<NativeRewardScriptGlobals> programs = new();
@@ -273,7 +358,17 @@ internal sealed class AuraToolsNativeRewardExtension :
 
     public void Initialize(ICombatSimulationRuntimeContext context)
     {
+        InitializeRole(context);
+        InitializeContent(context);
+    }
+
+    public void InitializeRole(ICombatSimulationRuntimeContext context)
+    {
         InitializeRoleProgram(context);
+    }
+
+    public void InitializeContent(ICombatSimulationRuntimeContext context)
+    {
         ApplyHardAffixes(context);
         CombatScenarioRewardRule? previousRelicRule = null;
         foreach (var rule in context.Scenario.RewardRules.ToList())
@@ -1065,6 +1160,106 @@ internal static class NativeRewardProgramRegistry
             "UseAndBurnDrawPileSnapshot();");
         result = Regex.Replace(result, @"\bMathf\b", "NativeRewardMathf");
         result = Regex.Replace(result, @"\bDebug\b", "NativeRewardDebug");
+        return result;
+    }
+}
+
+public sealed class AuraToolsNativeSemanticCoverage
+{
+    public int ScriptCount { get; set; }
+
+    public int TriggerCount { get; set; }
+
+    public int DirectMutationScriptCount { get; set; }
+
+    public List<string> Errors { get; set; } = new();
+
+    public bool Complete => Errors.Count == 0;
+}
+
+public static class AuraToolsNativeSemanticCoverageAudit
+{
+    public const string Version = "native-semantic-coverage-v1-causal-facts";
+
+    private static readonly HashSet<string> SupportedEvents = new(
+        new[]
+        {
+            "Action", "ActionAfter", "AddBuff", "AddPower", "AllDharmas",
+            "Attack", "AttackDone", "BeforeDead", "BurnCard", "CostPower",
+            "CreateInt", "Damage", "Dead", "EndCreateCardItem", "EndRound",
+            "Escape", "FightStart", "Heal", "HealOut", "HpChange", "Hurt",
+            "ICreateCardItem", "MaxHpAdd", "NoCard", "NoPowerWhenTry",
+            "OnDiceCheck", "RandomEffect", "Resurrection", "ResurrectionEnd",
+            "ScriptExecute", "Shuffle", "StartRound", "StartRoundEnd",
+            "TrueDamage", "Win"
+        },
+        StringComparer.OrdinalIgnoreCase);
+
+    private static readonly string[] DirectMutationTokens =
+    {
+        ".CurHp", ".MaxHp", ".Defend", ".Power", ".MaxPower",
+        "dynamicVariables", ".buffConfig.Level", "ChangeMaxHp(",
+        "ChangeMaxPower(", "ChangeRound(", "ShuffleHand(", "AddPartner("
+    };
+
+    public static AuraToolsNativeSemanticCoverage Analyze(
+        IEnumerable<KeyValuePair<string, string>> scripts)
+    {
+        var result = new AuraToolsNativeSemanticCoverage();
+        foreach (var pair in scripts ??
+                     Array.Empty<KeyValuePair<string, string>>())
+        {
+            if (string.IsNullOrWhiteSpace(pair.Value))
+            {
+                continue;
+            }
+            result.ScriptCount++;
+            if (DirectMutationTokens.Any(token => pair.Value.IndexOf(
+                    token,
+                    StringComparison.Ordinal) >= 0))
+            {
+                result.DirectMutationScriptCount++;
+            }
+            var normalizedScript = Regex.Replace(
+                pair.Value,
+                @"\bEventType\.ScriptExecute\.ToString\s*\(\s*\)",
+                "\"ScriptExecute\"");
+            var allSubscriptions = Regex.Matches(
+                normalizedScript,
+                @"\bAddEvent(?:<[^>]+>)?\s*\(");
+            var literalSubscriptions = Regex.Matches(
+                normalizedScript,
+                @"\bAddEvent(?:<[^>]+>)?\s*\(\s*""(?<event>[^""]+)""");
+            result.TriggerCount += literalSubscriptions.Count;
+            if (allSubscriptions.Count != literalSubscriptions.Count)
+            {
+                result.Errors.Add(
+                    pair.Key
+                    + ": non-literal native event subscription cannot be coverage-audited");
+            }
+            foreach (Match match in literalSubscriptions)
+            {
+                var eventName = match.Groups["event"].Value;
+                if (SupportedEvents.Contains(eventName)
+                    || eventName.EndsWith(
+                        "OnLevelChange",
+                        StringComparison.OrdinalIgnoreCase)
+                    || eventName.EndsWith(
+                        "OnTriggerEffect",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                result.Errors.Add(
+                    pair.Key
+                    + ": native event has no authoritative dispatch mapping: "
+                    + eventName);
+            }
+        }
+        result.Errors = result.Errors
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(item => item, StringComparer.Ordinal)
+            .ToList();
         return result;
     }
 }
@@ -2067,6 +2262,13 @@ public sealed partial class NativeRewardScriptGlobals
             {
                 actor.Variables["NativeEndTurnRequested"] = 1d;
             }
+            RecordNativeFact(
+                CombatSimulationEventKind.TurnFlowChanged,
+                actor.ActorId,
+                rule.RewardId,
+                1,
+                "ChangeRound",
+                "TurnFlow");
         }
     }
 
@@ -2077,12 +2279,20 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void ShuffleHand()
     {
+        var moved = context.State.Hand.Count;
         foreach (var instanceId in context.State.Hand.ToList())
         {
             context.State.Hand.Remove(instanceId);
             context.State.DrawPile.Add(instanceId);
         }
         Shuffle(context.State.DrawPile, "hand");
+        RecordNativeFact(
+            CombatSimulationEventKind.DeckShuffled,
+            executionSourceActorId,
+            rule.RewardId,
+            moved,
+            "ShuffleHand",
+            "Deck.HandToDraw");
     }
 
     public void ChangeMaxPower(object amount)
@@ -2092,9 +2302,34 @@ public sealed partial class NativeRewardScriptGlobals
         {
             var actor = context.State.FindActor(actorId);
             if (actor == null) continue;
+            var previousMaximum = actor.BaseEnergy;
+            var previousEnergy = actor.Energy;
             actor.BaseEnergy = Math.Max(0, actor.BaseEnergy + value);
             actor.Energy = Math.Max(0, actor.Energy + value);
             actor.Variables["BaseEnergy"] = actor.BaseEnergy;
+            RecordNativeFact(
+                CombatSimulationEventKind.MaximumEnergyChanged,
+                actorId,
+                rule.RewardId,
+                actor.BaseEnergy - previousMaximum,
+                "ChangeMaxPower",
+                "BaseEnergy",
+                value,
+                previousMaximum,
+                actor.BaseEnergy);
+            if (actor.Energy != previousEnergy)
+            {
+                RecordNativeFact(
+                    CombatSimulationEventKind.EnergyChanged,
+                    actorId,
+                    rule.RewardId,
+                    actor.Energy - previousEnergy,
+                    "ChangeMaxPower",
+                    "Energy",
+                    value,
+                    previousEnergy,
+                    actor.Energy);
+            }
         }
     }
 
@@ -2134,9 +2369,33 @@ public sealed partial class NativeRewardScriptGlobals
             var before = actor.MaxHp;
             actor.MaxHp = Math.Max(1, actor.MaxHp + value);
             var actualDelta = actor.MaxHp - before;
+            var hpBefore = actor.Hp;
             actor.Hp = actualDelta > 0
                 ? Math.Min(actor.MaxHp, Math.Max(0, actor.Hp + actualDelta))
                 : Math.Max(0, Math.Min(actor.Hp, actor.MaxHp));
+            RecordNativeFact(
+                CombatSimulationEventKind.MaximumHpChanged,
+                actorId,
+                rule.RewardId,
+                actualDelta,
+                "ChangeMaxHp",
+                "MaxHp",
+                value,
+                before,
+                actor.MaxHp);
+            if (actor.Hp != hpBefore)
+            {
+                RecordNativeFact(
+                    CombatSimulationEventKind.VariableChanged,
+                    actorId,
+                    "Hp",
+                    actor.Hp - hpBefore,
+                    "ChangeMaxHp",
+                    "Hp",
+                    actor.Hp - hpBefore,
+                    hpBefore,
+                    actor.Hp);
+            }
             if (actualDelta != 0
                 && actor.Kind == CombatSimulationActorKind.Player
                 && context is ICombatPersistentProgressionContext progression)
@@ -2924,9 +3183,19 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void Resurrection(object amount)
     {
-        SetHp(Math.Max(1, Number(amount)));
-        DispatchNamed("Resurrection", currentEvent);
-        DispatchNamed("ResurrectionEnd", currentEvent);
+        var previousHp = Self?.CurHp ?? 0;
+        var restoredHp = Math.Max(1, Number(amount));
+        SetHp(restoredHp);
+        RecordNativeFact(
+            CombatSimulationEventKind.ActorResurrected,
+            executionSourceActorId,
+            rule.RewardId,
+            1,
+            "Resurrection",
+            "Actor.Alive",
+            restoredHp,
+            previousHp,
+            Self?.CurHp ?? restoredHp);
     }
 
     public void EscapeFight()
@@ -2959,6 +3228,13 @@ public sealed partial class NativeRewardScriptGlobals
             Hp = 1,
             MaxHp = 1
         });
+        RecordNativeFact(
+            CombatSimulationEventKind.ActorSummoned,
+            nextActorId,
+            id,
+            1,
+            "AddPartner",
+            "Actors");
     }
 
     public void UpdateCardMsg()
@@ -3026,11 +3302,12 @@ public sealed partial class NativeRewardScriptGlobals
     public void ChooseCardToAction(
         object count,
         Action<List<NativeRewardCardItem>> action,
-        object _)
+        object mode)
     {
         var selected = SelectSkillDataConfigs(
                 HandCard.Select(item => item.dataConfig).ToList(),
-                Math.Max(0, Number(count)))
+                Math.Max(0, Number(count)),
+                Text(mode))
             .Select(item => HandCard.First(card =>
                 string.Equals(
                     card.dataConfig.InstanceID,
@@ -3042,7 +3319,8 @@ public sealed partial class NativeRewardScriptGlobals
 
     private List<NativeRewardDataConfig> SelectSkillDataConfigs(
         IEnumerable<NativeRewardDataConfig> source,
-        int count)
+        int count,
+        string nativeMode = "")
     {
         var cards = (source ?? Enumerable.Empty<NativeRewardDataConfig>())
             .Where(item => item != null)
@@ -3054,18 +3332,62 @@ public sealed partial class NativeRewardScriptGlobals
         {
             return new List<NativeRewardDataConfig>();
         }
-        if (!string.Equals(skillId, "careercard_1", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(skillId, "careercard_9", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(skillId, "careercard_12", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(skillId, "careercard_13", StringComparison.OrdinalIgnoreCase))
+        context.Ruleset.TryGetCard(skillId, out var parentDefinition);
+        var interaction = parentDefinition?.Interaction?.Normalize()
+                          ?? new CombatInteractionDefinition
+                          {
+                              SourceApi = "ChooseCardToAction",
+                              NativeMode = nativeMode,
+                              Kind = CombatInteractionKind.ChooseCards,
+                              Zone = CombatInteractionZone.Hand,
+                              MinSelections = string.Equals(nativeMode, "2", StringComparison.Ordinal)
+                                  ? 0
+                                  : count,
+                              MaxSelections = count,
+                              CanConfirmEarly = string.Equals(nativeMode, "2", StringComparison.Ordinal),
+                              CanConfirmEmpty = string.Equals(nativeMode, "2", StringComparison.Ordinal),
+                              EffectsComplete = false
+                          }.Normalize();
+        interaction.MaxSelections = count;
+        interaction.MinSelections = interaction.CanConfirmEarly
+                                    || interaction.CanConfirmEmpty
+            ? 0
+            : count;
+        interaction = interaction.Normalize();
+        var choices = cards.Select((card, index) =>
         {
-            return cards.Take(count).ToList();
-        }
-
-        return cards
-            .OrderByDescending(card => NativeSkillChoiceScore(skillId, card))
-            .ThenBy(card => card.data.GetValueOrDefault("Id", card.InstanceID), StringComparer.Ordinal)
-            .Take(count)
+            var value = Math.Max(0d, NativeSkillChoiceScore(skillId, card));
+            return new CombatActionObservation
+            {
+                ObservationId = "native-reward-interaction",
+                ActionToken = "native-reward:" + card.InstanceID,
+                CandidateId = "native-reward:" + card.InstanceID,
+                SourceId = card.data.GetValueOrDefault("Id", card.InstanceID),
+                DisplayName = card.data.GetValueOrDefault("Name", card.InstanceID),
+                Kind = CombatActionKind.ResolvePrompt,
+                RuntimeId = index,
+                Cost = Number(card.Vars.GetValueOrDefault(
+                    "Expend",
+                    card.data.GetValueOrDefault("Expend", "0"))),
+                Semantics = new CombatActionSemantics
+                {
+                    PersistentValue = value
+                },
+                Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["choice:cost"] = Number(card.Vars.GetValueOrDefault(
+                        "Expend",
+                        card.data.GetValueOrDefault("Expend", "0"))),
+                    ["choice:rarity"] = Number(card.data.GetValueOrDefault("Rarity", "1")),
+                    ["choice:total-extra-cost"] = Number(card.Vars.GetValueOrDefault("TotalExCost", "0")),
+                    ["choice:extra-use-count"] = Number(card.Vars.GetValueOrDefault("ExUseCount", "0"))
+                }
+            };
+        }).ToList();
+        var plan = CombatInteractionPlanner.Plan(interaction, choices);
+        return plan.SelectedIndices
+            .Where(index => index >= 0 && index < cards.Count)
+            .Select(index => cards[index])
             .ToList();
     }
 
@@ -3650,6 +3972,36 @@ public sealed partial class NativeRewardScriptGlobals
 
     internal ICombatSimulationRuntimeContext Context => context;
 
+    internal void RecordNativeFact(
+        CombatSimulationEventKind kind,
+        int targetActorId,
+        string definitionId,
+        int amount,
+        string message,
+        string statePath,
+        int rawAmount = 0,
+        int previousAmount = 0,
+        int currentAmount = 0)
+    {
+        if (context is not ICombatSimulationFactContext facts)
+        {
+            return;
+        }
+        var fact = facts.RecordFact(
+            kind,
+            executionSourceActorId,
+            targetActorId,
+            definitionId,
+            amount,
+            currentEvent,
+            message,
+            statePath,
+            rawAmount,
+            previousAmount,
+            currentAmount);
+        Dispatch(fact);
+    }
+
     private void Register(string eventName, Action<CombatSimulationEvent?> callback)
     {
         if (!handlers.TryGetValue(eventName, out var list))
@@ -3884,7 +4236,7 @@ public sealed partial class NativeRewardScriptGlobals
                || actorIds.Contains(sourceEvent.TargetActorId);
     }
 
-    private static IEnumerable<string> EventNames(CombatSimulationEvent item)
+    private IEnumerable<string> EventNames(CombatSimulationEvent item)
     {
         switch (item.Kind)
         {
@@ -3898,9 +4250,28 @@ public sealed partial class NativeRewardScriptGlobals
             case CombatSimulationEventKind.TurnEnded:
                 yield return "EndRound";
                 break;
+            case CombatSimulationEventKind.ActionStarted:
+                if (context.Ruleset.TryGetCard(item.DefinitionId, out var card)
+                    && (card.Tags.Any(tag => string.Equals(
+                            tag,
+                            "Attack",
+                            StringComparison.OrdinalIgnoreCase))
+                        || card.Effects.Any(effect =>
+                            (effect.Kind is CombatSimulationEffectKind.Damage
+                                or CombatSimulationEffectKind.TrueDamage
+                                or CombatSimulationEffectKind.DirectHpLoss)
+                            && (effect.Target is CombatSimulationTarget.SelectedEnemy
+                                or CombatSimulationTarget.AllEnemies
+                                or CombatSimulationTarget.AllOpponents
+                                or CombatSimulationTarget.RandomEnemy))))
+                {
+                    yield return "Attack";
+                }
+                break;
             case CombatSimulationEventKind.ActionResolved:
                 yield return "Action";
                 yield return "AttackDone";
+                yield return "ActionAfter";
                 break;
             case CombatSimulationEventKind.CardExhausted:
                 yield return "BurnCard";
@@ -3918,6 +4289,7 @@ public sealed partial class NativeRewardScriptGlobals
             case CombatSimulationEventKind.DamageDealt:
                 yield return "Damage";
                 yield return "Hurt";
+                yield return "HpChange";
                 if (string.Equals(
                         item.Message,
                         "TrueDamage",
@@ -3929,6 +4301,29 @@ public sealed partial class NativeRewardScriptGlobals
             case CombatSimulationEventKind.Healed:
                 yield return "Heal";
                 yield return "HealOut";
+                yield return "HpChange";
+                break;
+            case CombatSimulationEventKind.MaximumHpChanged:
+                yield return "MaxHpAdd";
+                break;
+            case CombatSimulationEventKind.VariableChanged:
+                if (string.Equals(item.StatePath, "Hp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.Message, "Hp", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(item.DefinitionId, "Hp", StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return "HpChange";
+                }
+                break;
+            case CombatSimulationEventKind.StatusStacksChanged:
+                yield return "AddBuff";
+                yield return item.DefinitionId + "OnLevelChange";
+                break;
+            case CombatSimulationEventKind.ActorResurrected:
+                yield return "Resurrection";
+                yield return "ResurrectionEnd";
+                break;
+            case CombatSimulationEventKind.RandomResolved:
+                yield return "RandomEffect";
                 break;
             case CombatSimulationEventKind.EnergyChanged:
                 yield return item.Amount < 0 ? "CostPower" : "AddPower";
@@ -4339,10 +4734,31 @@ public sealed class NativeRewardActor
     {
         this.globals = globals;
         this.actorId = actorId;
-        dynamicVariables = new NativeRewardDoubleDictionary(() => State.Variables);
+        dynamicVariables = new NativeRewardDoubleDictionary(
+            () => State.Variables,
+            onChanged: (key, before, after) => globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                actorId,
+                key,
+                CombatDamageResolver.WitchRounded(after - before),
+                "dynamicVariables",
+                key,
+                CombatDamageResolver.WitchRounded(after - before),
+                CombatDamageResolver.WitchRounded(before),
+                CombatDamageResolver.WitchRounded(after)));
         DamageFilter = new NativeRewardDoubleDictionary(
             () => State.Variables,
-            "DamageFilter.");
+            "DamageFilter.",
+            (key, before, after) => globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                actorId,
+                key,
+                CombatDamageResolver.WitchRounded(after - before),
+                "DamageFilter",
+                key,
+                CombatDamageResolver.WitchRounded(after - before),
+                CombatDamageResolver.WitchRounded(before),
+                CombatDamageResolver.WitchRounded(after)));
     }
 
     private CombatActorState State =>
@@ -4361,7 +4777,21 @@ public sealed class NativeRewardActor
     public int CurHp
     {
         get => State.Hp;
-        set => State.Hp = Math.Max(0, Math.Min(State.MaxHp, value));
+        set
+        {
+            var before = State.Hp;
+            State.Hp = Math.Max(0, Math.Min(State.MaxHp, value));
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                actorId,
+                "Hp",
+                State.Hp - before,
+                "CurHp",
+                "Hp",
+                value - before,
+                before,
+                State.Hp);
+        }
     }
 
     public int MaxHp
@@ -4369,15 +4799,54 @@ public sealed class NativeRewardActor
         get => State.MaxHp;
         set
         {
+            var before = State.MaxHp;
+            var hpBefore = State.Hp;
             State.MaxHp = Math.Max(1, value);
             State.Hp = Math.Min(State.Hp, State.MaxHp);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.MaximumHpChanged,
+                actorId,
+                "MaxHp",
+                State.MaxHp - before,
+                "MaxHp",
+                "MaxHp",
+                value - before,
+                before,
+                State.MaxHp);
+            if (State.Hp != hpBefore)
+            {
+                globals.RecordNativeFact(
+                    CombatSimulationEventKind.VariableChanged,
+                    actorId,
+                    "Hp",
+                    State.Hp - hpBefore,
+                    "MaxHpClamp",
+                    "Hp",
+                    State.Hp - hpBefore,
+                    hpBefore,
+                    State.Hp);
+            }
         }
     }
 
     public int Defend
     {
         get => State.Block;
-        set => State.Block = Math.Max(0, value);
+        set
+        {
+            var before = State.Block;
+            State.Block = Math.Max(0, value);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.BlockChanged,
+                actorId,
+                "Block",
+                State.Block - before,
+                "Defend",
+                "Block",
+                value - before,
+                before,
+                State.Block);
+        }
     }
 
     public NativeRewardDoubleDictionary dynamicVariables { get; }
@@ -4491,13 +4960,41 @@ public sealed class NativeRewardPartner
     public int Attack
     {
         get => (int)State.Variables.GetValueOrDefault("BaseAttack", 0d);
-        set => State.Variables["BaseAttack"] = value;
+        set
+        {
+            var before = Attack;
+            State.Variables["BaseAttack"] = value;
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                actorId,
+                "BaseAttack",
+                value - before,
+                "Partner.Attack",
+                "BaseAttack",
+                value - before,
+                before,
+                value);
+        }
     }
 
     public int Defend
     {
         get => (int)State.Variables.GetValueOrDefault("BaseDefense", 0d);
-        set => State.Variables["BaseDefense"] = value;
+        set
+        {
+            var before = Defend;
+            State.Variables["BaseDefense"] = value;
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                actorId,
+                "BaseDefense",
+                value - before,
+                "Partner.Defend",
+                "BaseDefense",
+                value - before,
+                before,
+                value);
+        }
     }
 
     public int MaxHp
@@ -4505,8 +5002,33 @@ public sealed class NativeRewardPartner
         get => State.MaxHp;
         set
         {
+            var before = State.MaxHp;
+            var hpBefore = State.Hp;
             State.MaxHp = Math.Max(1, value);
             State.Hp = Math.Min(State.Hp, State.MaxHp);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.MaximumHpChanged,
+                actorId,
+                "MaxHp",
+                State.MaxHp - before,
+                "Partner.MaxHp",
+                "MaxHp",
+                value - before,
+                before,
+                State.MaxHp);
+            if (State.Hp != hpBefore)
+            {
+                globals.RecordNativeFact(
+                    CombatSimulationEventKind.VariableChanged,
+                    actorId,
+                    "Hp",
+                    State.Hp - hpBefore,
+                    "Partner.MaxHpClamp",
+                    "Hp",
+                    State.Hp - hpBefore,
+                    hpBefore,
+                    State.Hp);
+            }
         }
     }
 
@@ -4731,7 +5253,18 @@ public sealed class NativeRewardBuffConfig
         {
             if (State != null)
             {
+                var before = State.Stacks;
                 State.Stacks = Math.Max(0, value);
+                globals.RecordNativeFact(
+                    CombatSimulationEventKind.StatusStacksChanged,
+                    actorId,
+                    statusId,
+                    State.Stacks - before,
+                    "BuffLevel",
+                    "Status." + statusId + ".Stacks",
+                    value - before,
+                    before,
+                    State.Stacks);
             }
         }
     }
@@ -4829,7 +5362,21 @@ public sealed class NativeRewardPlayerInfo
     public int Hp
     {
         get => Player.Hp;
-        set => Player.Hp = Math.Max(0, Math.Min(Player.MaxHp, value));
+        set
+        {
+            var before = Player.Hp;
+            Player.Hp = Math.Max(0, Math.Min(Player.MaxHp, value));
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.VariableChanged,
+                Player.ActorId,
+                "Hp",
+                Player.Hp - before,
+                "PlayerInfo.Hp",
+                "Hp",
+                value - before,
+                before,
+                Player.Hp);
+        }
     }
 
     public int MaxHp
@@ -4837,15 +5384,54 @@ public sealed class NativeRewardPlayerInfo
         get => Player.MaxHp;
         set
         {
+            var before = Player.MaxHp;
+            var hpBefore = Player.Hp;
             Player.MaxHp = Math.Max(1, value);
             Player.Hp = Math.Min(Player.Hp, Player.MaxHp);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.MaximumHpChanged,
+                Player.ActorId,
+                "MaxHp",
+                Player.MaxHp - before,
+                "PlayerInfo.MaxHp",
+                "MaxHp",
+                value - before,
+                before,
+                Player.MaxHp);
+            if (Player.Hp != hpBefore)
+            {
+                globals.RecordNativeFact(
+                    CombatSimulationEventKind.VariableChanged,
+                    Player.ActorId,
+                    "Hp",
+                    Player.Hp - hpBefore,
+                    "PlayerInfo.MaxHpClamp",
+                    "Hp",
+                    Player.Hp - hpBefore,
+                    hpBefore,
+                    Player.Hp);
+            }
         }
     }
 
     public int Power
     {
         get => Player.Energy;
-        set => Player.Energy = Math.Max(0, value);
+        set
+        {
+            var before = Player.Energy;
+            Player.Energy = Math.Max(0, value);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.EnergyChanged,
+                Player.ActorId,
+                "Energy",
+                Player.Energy - before,
+                "PlayerInfo.Power",
+                "Energy",
+                value - before,
+                before,
+                Player.Energy);
+        }
     }
 
     public int PowerCost =>
@@ -4854,7 +5440,21 @@ public sealed class NativeRewardPlayerInfo
     public int MaxPower
     {
         get => Player.BaseEnergy;
-        set => Player.BaseEnergy = Math.Max(0, value);
+        set
+        {
+            var before = Player.BaseEnergy;
+            Player.BaseEnergy = Math.Max(0, value);
+            globals.RecordNativeFact(
+                CombatSimulationEventKind.MaximumEnergyChanged,
+                Player.ActorId,
+                "BaseEnergy",
+                Player.BaseEnergy - before,
+                "PlayerInfo.MaxPower",
+                "BaseEnergy",
+                value - before,
+                before,
+                Player.BaseEnergy);
+        }
     }
 
     public int Level => globals.Context.State.Turn;
@@ -5160,7 +5760,18 @@ public sealed class NativeRewardPlayerInfo
 
     private void SetVariable(string key, int value)
     {
+        var before = Variable(key);
         Player.Variables[key] = value;
+        globals.RecordNativeFact(
+            CombatSimulationEventKind.VariableChanged,
+            Player.ActorId,
+            key,
+            value - before,
+            "PlayerInfo.Variable",
+            key,
+            value - before,
+            before,
+            value);
     }
 }
 
@@ -5516,19 +6127,31 @@ public sealed class NativeRewardDoubleDictionary
 {
     private readonly Func<Dictionary<string, double>> source;
     private readonly string keyPrefix;
+    private readonly Action<string, double, double>? onChanged;
 
     public NativeRewardDoubleDictionary(
         Func<Dictionary<string, double>> source,
-        string keyPrefix = "")
+        string keyPrefix = "",
+        Action<string, double, double>? onChanged = null)
     {
         this.source = source;
         this.keyPrefix = keyPrefix ?? "";
+        this.onChanged = onChanged;
     }
 
     public double this[string key]
     {
         get => source().GetValueOrDefault(StoredKey(key), 0d);
-        set => source()[StoredKey(key)] = value;
+        set
+        {
+            var storedKey = StoredKey(key);
+            var before = source().GetValueOrDefault(storedKey, 0d);
+            source()[storedKey] = value;
+            if (Math.Abs(value - before) > 0.000001d)
+            {
+                onChanged?.Invoke(storedKey, before, value);
+            }
+        }
     }
 
     public bool ContainsKey(string key)
@@ -5545,7 +6168,9 @@ public sealed class NativeRewardDoubleDictionary
 
     public void Add(string key, double value)
     {
-        source().Add(StoredKey(key), value);
+        var storedKey = StoredKey(key);
+        source().Add(storedKey, value);
+        onChanged?.Invoke(storedKey, 0d, value);
     }
 
     public void Clear()

@@ -64,6 +64,27 @@ try
     var packageValidation = AuraToolsNativeProgramPackageAudit.Validate(
         campaign,
         rulesetBuild.Ruleset);
+    if (packageValidation.SemanticScriptCount == 0
+        || packageValidation.SemanticTriggerCount == 0
+        || packageValidation.DirectMutationScriptCount == 0)
+    {
+        failures.Add(
+            "package: native semantic coverage inventory is unexpectedly empty");
+    }
+    var semanticCoverage = CombatSemanticCoverageAudit.Analyze(
+        campaign,
+        rulesetBuild.Ruleset);
+    if (!semanticCoverage.Complete)
+    {
+        failures.AddRange(semanticCoverage.Errors.Select(item =>
+            "semantic-coverage: " + item));
+        if (semanticCoverage.UnsupportedCount > 0)
+        {
+            failures.Add(
+                "semantic-coverage: unsupported entries="
+                + semanticCoverage.UnsupportedCount);
+        }
+    }
     failures.AddRange(
         packageValidation.Errors.Select(item => "package: " + item));
     ValidateAuthoritativeRoleProgram(
@@ -88,6 +109,10 @@ try
         campaign,
         rulesetBuild.Ruleset,
         failures);
+    failures.AddRange(ValidateRoleContractStagedInitialization(
+        subjectCatalog,
+        campaign,
+        rulesetBuild.Ruleset));
     failures.AddRange(ValidateAuthoritativeRoleSkillSemantics());
     failures.AddRange(ValidateNanaStatusDerivedMaximumHp(
         subjectCatalog,
@@ -185,6 +210,11 @@ try
         + $"{authoritative} authoritative, {failures.Count} package failures, "
         + $"{packageValidation.ReferencedProgramCount} referenced programs, "
         + $"{packageValidation.PrecompiledProgramCount} precompiled programs.");
+    Console.WriteLine(
+        $"Semantic effect inventory: {semanticCoverage.Entries.Count} entries, "
+        + $"{semanticCoverage.ProjectedCount} projected+realized, "
+        + $"{semanticCoverage.RealizedOnlyCount} realized-only, "
+        + $"{semanticCoverage.UnsupportedCount} unsupported.");
     foreach (var failure in failures)
     {
         Console.Error.WriteLine(failure);

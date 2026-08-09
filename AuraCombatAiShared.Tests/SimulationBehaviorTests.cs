@@ -1188,6 +1188,10 @@ internal static class CombatAiSimulationBehaviorTests
                   == authoritativeTeacherSimulation.Metrics
                       .AuthoritativeSelectedActionsAudited
                && authoritativeTeacherSimulation.Metrics.SemanticAudit
+                      .SelectedSourceProjectionValidActions
+                  + authoritativeTeacherSimulation.Metrics.SemanticAudit
+                      .SelectedSourceProjectionInvalidActions > 0
+               && authoritativeTeacherSimulation.Metrics.SemanticAudit
                       .SelectedContextAdjustedActions
                   == authoritativeTeacherSimulation.Metrics.SemanticAudit
                       .SelectedExplainedActions
@@ -1580,6 +1584,87 @@ internal static class CombatAiSimulationBehaviorTests
                && unsupportedSimulation.TerminationReason == CombatTerminationReason.UnsupportedRule
                && unsupportedSimulation.UnsupportedDefinitions.Contains("card:missing-card"),
             "unknown combat rules fail closed instead of silently contributing zero-value effects");
+
+        var stagedInitializationScenario = BuildSimulationScenario(
+            seed: 61UL,
+            CombatSimulationTraceLevel.Summary);
+        stagedInitializationScenario.Player.MaxHp = 70;
+        stagedInitializationScenario.Player.CurrentHp = 70;
+        stagedInitializationScenario.Player.PersistentMaxHpAdjustment = 40;
+        stagedInitializationScenario.Player.RoleNativeScriptHash =
+            "native-role-test";
+        stagedInitializationScenario.Player.RolePassiveContract = new()
+        {
+            RoleId = stagedInitializationScenario.Player.RoleId,
+            NativeScriptHash = "native-role-test",
+            ContractHash = "role-contract-test",
+            MaximumHp = 30,
+            InitialStatuses = new Dictionary<string, int>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["role-passive"] = 2
+            }
+        };
+        stagedInitializationScenario.Limits.MaximumTurns = 1;
+        var stagedInitializationResult = new CombatSimulationEngine(
+                new TestStagedInitializationExtensionFactory())
+            .Run(
+                stagedInitializationScenario,
+                simulationRules.Ruleset,
+                EndTurnSimulationPolicy.Instance);
+        Assert(stagedInitializationResult.Outcome
+               != CombatSimulationOutcome.Invalid
+               && stagedInitializationResult.FinalState.Player?.MaxHp == 75
+               && stagedInitializationResult.FinalState.Player?.Statuses.Any(
+                   item => item.StatusId == "role-passive"
+                           && item.Stacks == 2) == true
+               && !stagedInitializationResult.UnsupportedDefinitions.Any(
+                   item => item.StartsWith(
+                       "role-passive-contract:",
+                       StringComparison.OrdinalIgnoreCase)),
+            "role contract audit accepts explicit persistent maximum-health growth before content initialization");
+
+        var invalidStagedInitializationScenario = CombatScenarioCloner.Clone(
+            stagedInitializationScenario);
+        invalidStagedInitializationScenario.ScenarioId =
+            "invalid-role-maximum-health-provenance";
+        invalidStagedInitializationScenario.Player.MaxHp = 69;
+        invalidStagedInitializationScenario.Player.CurrentHp = 69;
+        var invalidStagedInitializationResult = new CombatSimulationEngine(
+                new TestStagedInitializationExtensionFactory())
+            .Run(
+                invalidStagedInitializationScenario,
+                simulationRules.Ruleset,
+                EndTurnSimulationPolicy.Instance);
+        Assert(invalidStagedInitializationResult.Outcome
+               == CombatSimulationOutcome.Invalid
+               && invalidStagedInitializationResult.TerminationReason
+               == CombatTerminationReason.UnsupportedRule
+               && invalidStagedInitializationResult.UnsupportedDefinitions
+                   .Contains(
+                       "role-passive-contract:tester:maximum-hp:expected=70,actual=69")
+               && invalidStagedInitializationResult.FinalState.Player?.MaxHp
+               == 69,
+            "role contract audit still rejects unexplained maximum-health drift before role and content scripts run");
+
+        var invalidRoleMutationScenario = CombatScenarioCloner.Clone(
+            stagedInitializationScenario);
+        invalidRoleMutationScenario.ScenarioId =
+            "invalid-role-script-maximum-health-mutation";
+        invalidRoleMutationScenario.Player.Variables[
+            "TestRoleMaximumHpMutation"] = 1d;
+        var invalidRoleMutationResult = new CombatSimulationEngine(
+                new TestStagedInitializationExtensionFactory())
+            .Run(
+                invalidRoleMutationScenario,
+                simulationRules.Ruleset,
+                EndTurnSimulationPolicy.Instance);
+        Assert(invalidRoleMutationResult.Outcome
+               == CombatSimulationOutcome.Invalid
+               && invalidRoleMutationResult.UnsupportedDefinitions.Contains(
+                   "role-passive-contract:tester:maximum-hp:expected=70,actual=71")
+               && invalidRoleMutationResult.FinalState.Player?.MaxHp == 71,
+            "role contract audit rejects maximum-health drift introduced by the role script before content initialization");
 
         var duplicateRewardScenario = BuildSimulationScenario(
             seed: 4UL,
@@ -2902,8 +2987,12 @@ internal static class CombatAiSimulationBehaviorTests
                && bundledRulesV2.Ruleset.CardCount == 297
                && bundledRulesV2.Ruleset.EnemyCount == 55
                 && bundledRulesV2.Ruleset.StatusCount == 137
-                && bundledRulesV2.Ruleset.SnapshotCards().Count(item =>
-                    item.Fidelity == CombatRuleFidelity.Authoritative) == 297
+                 && bundledRulesV2.Ruleset.SnapshotCards().All(item =>
+                     item.Fidelity != CombatRuleFidelity.Authoritative
+                     || item.Interaction == null
+                     || item.Interaction.EffectsComplete)
+                 && bundledRulesV2.Ruleset.SnapshotCards().Any(item =>
+                     item.Interaction != null)
                 && bundledRulesV2.Ruleset.SnapshotStatuses().Count(item =>
                     item.Fidelity == CombatRuleFidelity.Authoritative) == 137
                 && bundledRulesV2.Ruleset.SnapshotEnemies().Count(item =>

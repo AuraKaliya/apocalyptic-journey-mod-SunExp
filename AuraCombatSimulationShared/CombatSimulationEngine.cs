@@ -94,23 +94,61 @@ public sealed class CombatSimulationEngine
         CombatBattleState source,
         CombatSimulationAction action,
         bool captureSemanticEvents = false,
-        bool allowPolicyIneligible = false)
+        bool allowPolicyIneligible = false,
+        bool requireExactRuntimeContinuation = false)
     {
         if (scenario == null) throw new ArgumentNullException(nameof(scenario));
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (action == null) throw new ArgumentNullException(nameof(action));
 
+        var beforeStateHash = CombatBattleStateHasher.Hash(source);
+        var continuationReason = "";
+        if (requireExactRuntimeContinuation
+            && extensionFactory != null
+            && (extensionFactory
+                    is not ICombatSimulationRuntimeExtensionForkSupport forkSupport
+                || !forkSupport.SupportsExactStateOnlyFork(
+                    scenario,
+                    ruleset,
+                    out continuationReason)))
+        {
+            return new CombatActionApplicationResult
+            {
+                Reason = string.IsNullOrWhiteSpace(continuationReason)
+                    ? "runtime extension cannot reproduce the live continuation"
+                    : continuationReason,
+                FailureKind = CombatActionApplicationFailureKind
+                    .RuntimeContinuationUnavailable,
+                Outcome = CombatActionApplicationOutcome.Rejected,
+                BattleOutcome = source.Outcome,
+                TerminationReason = source.TerminationReason,
+                BranchFidelity = CombatSimulationBranchFidelity
+                    .RuntimeContinuationUnavailable,
+                CandidateId = action.CandidateId,
+                DefinitionId = action.DefinitionId,
+                CardInstanceId = action.CardInstanceId,
+                TargetActorId = action.TargetActorId,
+                BeforeStateHash = beforeStateHash,
+                AfterStateHash = beforeStateHash,
+                State = source.Clone(),
+                CampaignVariables = new Dictionary<string, string>(
+                    scenario.CampaignVariables,
+                    StringComparer.OrdinalIgnoreCase)
+            };
+        }
+
+        var branchScenario = CombatScenarioCloner.Clone(scenario);
         var session = new Session(
-            scenario,
+            branchScenario,
             ruleset,
             FirstLegalCombatSimulationPolicy.Instance,
-            extensionFactory?.Create(scenario, ruleset),
+            extensionFactory?.Create(branchScenario, ruleset),
             source.Clone(),
             captureSemanticEvents);
         var candidates = allowPolicyIneligible
-            ? Session.BuildInvocableActions(scenario, ruleset, session.State)
-            : Session.BuildLegalActions(scenario, ruleset, session.State);
+            ? Session.BuildInvocableActions(branchScenario, ruleset, session.State)
+            : Session.BuildLegalActions(branchScenario, ruleset, session.State);
         var selected = candidates.FirstOrDefault(candidate =>
             string.Equals(candidate.CandidateId, action.CandidateId, StringComparison.Ordinal));
         if (selected == null || selected.Kind == CombatSimulationActionKind.EndTurn)
@@ -120,12 +158,28 @@ public sealed class CombatSimulationEngine
                 Reason = allowPolicyIneligible
                     ? "action is not game-invocable"
                     : "action is not policy-eligible",
+                FailureKind = CombatActionApplicationFailureKind.ActionUnavailable,
                 Outcome = CombatActionApplicationOutcome.Rejected,
-                State = source.Clone()
+                BattleOutcome = source.Outcome,
+                TerminationReason = source.TerminationReason,
+                BranchFidelity = requireExactRuntimeContinuation
+                    ? CombatSimulationBranchFidelity.ExactRuntimeContinuation
+                    : CombatSimulationBranchFidelity.StateOnly,
+                CandidateId = action.CandidateId,
+                DefinitionId = action.DefinitionId,
+                CardInstanceId = action.CardInstanceId,
+                TargetActorId = action.TargetActorId,
+                BeforeStateHash = beforeStateHash,
+                AfterStateHash = beforeStateHash,
+                State = source.Clone(),
+                CampaignVariables = new Dictionary<string, string>(
+                    branchScenario.CampaignVariables,
+                    StringComparer.OrdinalIgnoreCase)
             };
         }
 
         var success = session.ApplyPlayerAction(selected);
+        var afterState = session.State.Clone();
         return new CombatActionApplicationResult
         {
             Success = success,
@@ -135,17 +189,58 @@ public sealed class CombatSimulationEngine
                     ? selected.EligibilityReason
                     : ""
                 : session.State.TerminationReason.ToString(),
+            FailureKind = success
+                ? CombatActionApplicationFailureKind.None
+                : FailureKindFor(session.State.TerminationReason),
             Outcome = session.LastActionOutcome,
+            BattleOutcome = session.State.Outcome,
+            TerminationReason = session.State.TerminationReason,
+            BranchFidelity = requireExactRuntimeContinuation
+                ? CombatSimulationBranchFidelity.ExactRuntimeContinuation
+                : CombatSimulationBranchFidelity.StateOnly,
             PolicyEligible = selected.PolicyEligible,
             ActionContractVersion = session.LastActionContractVersion,
-            State = session.State.Clone(),
-            Events = new List<CombatSimulationEvent>(session.Events)
+            CandidateId = selected.CandidateId,
+            DefinitionId = selected.DefinitionId,
+            CardInstanceId = selected.CardInstanceId,
+            TargetActorId = selected.TargetActorId,
+            BeforeStateHash = beforeStateHash,
+            AfterStateHash = CombatBattleStateHasher.Hash(afterState),
+            State = afterState,
+            Events = session.Events.Select(item => item.Clone()).ToList(),
+            CampaignVariables = new Dictionary<string, string>(
+                branchScenario.CampaignVariables,
+                StringComparer.OrdinalIgnoreCase),
+            UnsupportedDefinitions = session.SnapshotUnsupported()
+        };
+    }
+
+    private static CombatActionApplicationFailureKind FailureKindFor(
+        CombatTerminationReason reason)
+    {
+        return reason switch
+        {
+            CombatTerminationReason.IllegalPolicyAction =>
+                CombatActionApplicationFailureKind.IllegalAction,
+            CombatTerminationReason.UnsupportedRule or
+                CombatTerminationReason.InvalidScenario =>
+                CombatActionApplicationFailureKind.UnsupportedRule,
+            CombatTerminationReason.MaximumTurns or
+                CombatTerminationReason.MaximumActions or
+                CombatTerminationReason.MaximumCommands or
+                CombatTerminationReason.MaximumSummonedActors or
+                CombatTerminationReason.TriggerLoop =>
+                CombatActionApplicationFailureKind.SafetyLimit,
+            CombatTerminationReason.EngineError =>
+                CombatActionApplicationFailureKind.EngineError,
+            _ => CombatActionApplicationFailureKind.RuntimeFailure
         };
     }
 
     private sealed class Session :
         ICombatSimulationRuntimeContext,
-        ICombatPersistentProgressionContext
+        ICombatPersistentProgressionContext,
+        ICombatSimulationFactContext
     {
         private readonly CombatScenarioDefinition scenario;
         private readonly CombatRuleset ruleset;
@@ -168,6 +263,7 @@ public sealed class CombatSimulationEngine
         private CombatSimulationFailureDiagnostics failureDiagnostics = new();
         private readonly List<CombatSimulationEvent> secondaryCommandEvents = new();
         private List<CombatSimulationEvent>? currentActionContractEvents;
+        private List<CombatSimulationEvent>? currentObservedActionEvents;
         private readonly ICombatSimulationRuntimeExtension? extension;
         private readonly HashSet<long> extensionEventSequences = new();
         private bool extensionInitialized;
@@ -211,6 +307,14 @@ public sealed class CombatSimulationEngine
             CombatActionApplicationOutcome.Rejected;
 
         public string LastActionContractVersion { get; private set; } = "";
+
+        public List<string> SnapshotUnsupported()
+        {
+            return unsupported.OrderBy(
+                    value => value,
+                    StringComparer.Ordinal)
+                .ToList();
+        }
 
         public bool Initialize()
         {
@@ -366,11 +470,69 @@ public sealed class CombatSimulationEngine
                 State.DiscardPile.Add(instance.InstanceId);
             }
 
-            extension?.Initialize(this);
-            extensionInitialized = extension != null;
+            foreach (var contractError in
+                     CombatRolePassiveContractProtocol
+                         .ValidateBeforeRoleInitialization(
+                             scenario.Player,
+                             State))
+            {
+                AddUnsupported(
+                    "role-passive-contract:"
+                    + scenario.Player.RoleId
+                    + ":"
+                    + contractError);
+            }
+            if (unsupported.Count > 0)
+            {
+                Terminate(
+                    CombatSimulationOutcome.Invalid,
+                    CombatTerminationReason.UnsupportedRule);
+                return false;
+            }
+
+            if (extension is
+                ICombatSimulationStagedInitializationRuntimeExtension staged)
+            {
+                staged.InitializeRole(this);
+                extensionInitialized = true;
+            }
+            else
+            {
+                extension?.Initialize(this);
+                extensionInitialized = extension != null;
+            }
+            var initializedContractErrors = extension is
+                ICombatSimulationStagedInitializationRuntimeExtension
+                ? CombatRolePassiveContractProtocol
+                    .ValidateAfterRoleInitialization(
+                        scenario.Player,
+                        State)
+                : CombatRolePassiveContractProtocol.ValidateInitialized(
+                    scenario.Player,
+                    State);
+            foreach (var contractError in initializedContractErrors)
+            {
+                AddUnsupported(
+                    "role-passive-contract:"
+                    + scenario.Player.RoleId
+                    + ":"
+                    + contractError);
+            }
             if (unsupported.Count > 0)
             {
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.UnsupportedRule);
+                return false;
+            }
+            if (extension is
+                ICombatSimulationStagedInitializationRuntimeExtension stagedContent)
+            {
+                stagedContent.InitializeContent(this);
+            }
+            if (unsupported.Count > 0)
+            {
+                Terminate(
+                    CombatSimulationOutcome.Invalid,
+                    CombatTerminationReason.UnsupportedRule);
                 return false;
             }
 
@@ -595,41 +757,6 @@ public sealed class CombatSimulationEngine
                                 Math.Min(1d, rootVisitShare);
                             metrics.RootMaximumVisitShareSamples++;
                         }
-                        metrics.AuthoritativeActionsAudited += Math.Max(
-                            0,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeActionsAudited);
-                        metrics.AuthoritativeSemanticMismatches += Math.Max(
-                            0,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeSemanticMismatches);
-                        metrics.AuthoritativeSelectedActionsAudited += Math.Max(
-                            0,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeSelectedActionsAudited);
-                        metrics.AuthoritativeSelectedSemanticMismatches +=
-                            Math.Max(
-                                0,
-                                metricsProvider.LastDecisionMetrics
-                                    .AuthoritativeSelectedSemanticMismatches);
-                        metrics.AuthoritativeTeacherOverrides += Math.Max(
-                            0,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeTeacherOverrides);
-                        MergeCounts(
-                            metrics.AuthoritativeSemanticMismatchKinds,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeSemanticMismatchKinds);
-                        MergeCounts(
-                            metrics.AuthoritativeSemanticMismatchSources,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeSemanticMismatchSources);
-                        MergeCounts(
-                            metrics.AuthoritativeSemanticMismatchScenarios,
-                            metricsProvider.LastDecisionMetrics
-                                .AuthoritativeSemanticMismatchScenarios);
-                        metrics.SemanticAudit.MergeFrom(
-                            metricsProvider.LastDecisionMetrics.SemanticAudit);
                     }
                     var selected = requested == null
                         ? null
@@ -640,6 +767,7 @@ public sealed class CombatSimulationEngine
                                 StringComparison.Ordinal));
                     if (selected == null)
                     {
+                        MergePolicySemanticMetrics();
                         Terminate(
                             CombatSimulationOutcome.Invalid,
                             CombatTerminationReason.IllegalPolicyAction);
@@ -647,12 +775,29 @@ public sealed class CombatSimulationEngine
                     }
                     if (selected.Kind == CombatSimulationActionKind.EndTurn)
                     {
+                        MergePolicySemanticMetrics();
                         RecordEndTurnDecision(forced: false);
                         break;
                     }
 
                     summary.Actions++;
-                    if (!ApplyPlayerAction(selected))
+                    var beforeState = State.Clone();
+                    var beforeCampaignVariables =
+                        new Dictionary<string, string>(
+                            scenario.CampaignVariables,
+                            StringComparer.OrdinalIgnoreCase);
+                    currentObservedActionEvents = new List<CombatSimulationEvent>();
+                    var applied = ApplyPlayerAction(selected);
+                    var observedEvents = currentObservedActionEvents;
+                    currentObservedActionEvents = null;
+                    NotifyPolicyActionExecution(
+                        selected,
+                        applied,
+                        beforeState,
+                        beforeCampaignVariables,
+                        observedEvents ?? new List<CombatSimulationEvent>());
+                    MergePolicySemanticMetrics();
+                    if (!applied)
                     {
                         return false;
                     }
@@ -780,6 +925,99 @@ public sealed class CombatSimulationEngine
             DecayStatuses();
             FinishSummary(summary);
             return State.Outcome == CombatSimulationOutcome.None;
+        }
+
+        private void NotifyPolicyActionExecution(
+            CombatSimulationAction action,
+            bool applicationSucceeded,
+            CombatBattleState beforeState,
+            Dictionary<string, string> beforeCampaignVariables,
+            IReadOnlyList<CombatSimulationEvent> actionEvents)
+        {
+            if (policy is not ICombatSimulationActionExecutionObserver observer)
+            {
+                return;
+            }
+
+            var afterState = State.Clone();
+            observer.OnActionExecuted(new CombatSimulationActionExecution
+            {
+                Scenario = CombatScenarioCloner.Clone(scenario),
+                Ruleset = ruleset,
+                Action = CloneAction(action),
+                ApplicationSucceeded = applicationSucceeded,
+                ActionOutcome = LastActionOutcome,
+                FailureKind = applicationSucceeded
+                    ? CombatActionApplicationFailureKind.None
+                    : FailureKindFor(State.TerminationReason),
+                FailureReason = applicationSucceeded
+                    ? ""
+                    : State.TerminationReason.ToString(),
+                BattleOutcome = State.Outcome,
+                TerminationReason = State.TerminationReason,
+                BeforeState = beforeState,
+                AfterState = afterState,
+                BeforeStateHash = CombatBattleStateHasher.Hash(beforeState),
+                AfterStateHash = CombatBattleStateHasher.Hash(afterState),
+                BeforeCampaignVariables = beforeCampaignVariables,
+                AfterCampaignVariables = new Dictionary<string, string>(
+                    scenario.CampaignVariables,
+                    StringComparer.OrdinalIgnoreCase),
+                Events = actionEvents.Select(item => item.Clone()).ToList(),
+                UnsupportedDefinitions = SnapshotUnsupported()
+            });
+        }
+
+        private void MergePolicySemanticMetrics()
+        {
+            if (policy is not ICombatSimulationPolicyMetricsProvider provider)
+            {
+                return;
+            }
+            var decision = provider.LastDecisionMetrics;
+            metrics.AuthoritativeActionsAudited += Math.Max(
+                0,
+                decision.AuthoritativeActionsAudited);
+            metrics.AuthoritativeSemanticMismatches += Math.Max(
+                0,
+                decision.AuthoritativeSemanticMismatches);
+            metrics.AuthoritativeSelectedActionsAudited += Math.Max(
+                0,
+                decision.AuthoritativeSelectedActionsAudited);
+            metrics.AuthoritativeSelectedSemanticMismatches += Math.Max(
+                0,
+                decision.AuthoritativeSelectedSemanticMismatches);
+            metrics.AuthoritativeTeacherOverrides += Math.Max(
+                0,
+                decision.AuthoritativeTeacherOverrides);
+            MergeCounts(
+                metrics.AuthoritativeSemanticMismatchKinds,
+                decision.AuthoritativeSemanticMismatchKinds);
+            MergeCounts(
+                metrics.AuthoritativeSemanticMismatchSources,
+                decision.AuthoritativeSemanticMismatchSources);
+            MergeCounts(
+                metrics.AuthoritativeSemanticMismatchScenarios,
+                decision.AuthoritativeSemanticMismatchScenarios);
+            metrics.SemanticAudit.MergeFrom(decision.SemanticAudit);
+        }
+
+        private static CombatSimulationAction CloneAction(
+            CombatSimulationAction source)
+        {
+            return new CombatSimulationAction
+            {
+                CandidateId = source.CandidateId,
+                Kind = source.Kind,
+                ActorId = source.ActorId,
+                CardInstanceId = source.CardInstanceId,
+                TargetActorId = source.TargetActorId,
+                Cost = source.Cost,
+                DefinitionId = source.DefinitionId,
+                PolicyEligible = source.PolicyEligible,
+                ExpectedOutcome = source.ExpectedOutcome,
+                EligibilityReason = source.EligibilityReason
+            };
         }
 
         private void RecordEndTurnDecision(bool forced)
@@ -1090,6 +1328,10 @@ public sealed class CombatSimulationEngine
             ReturnCommandQueue(queue);
             if (!actionCommandsExecuted)
             {
+                if (TryCompletePhysicalTerminalAction())
+                {
+                    return true;
+                }
                 return false;
             }
             var contractEvents = currentActionContractEvents
@@ -1123,6 +1365,10 @@ public sealed class CombatSimulationEngine
                     1,
                     instance.InstanceId))
             {
+                if (TryCompletePhysicalTerminalAction())
+                {
+                    return true;
+                }
                 return false;
             }
             ReduceStatuses(player, definition => definition.ReducePerUse);
@@ -1143,6 +1389,10 @@ public sealed class CombatSimulationEngine
                 ReturnCommandQueue(zoneEventQueue);
                 if (!zoneCommandsExecuted)
                 {
+                    if (TryCompletePhysicalTerminalAction())
+                    {
+                        return true;
+                    }
                     return false;
                 }
             }
@@ -1170,6 +1420,19 @@ public sealed class CombatSimulationEngine
             }
             LastActionOutcome = CombatActionApplicationOutcome.Applied;
             return ValidateState();
+        }
+
+        private bool TryCompletePhysicalTerminalAction()
+        {
+            if (State.Outcome is not (
+                    CombatSimulationOutcome.Victory
+                    or CombatSimulationOutcome.Defeat))
+            {
+                return false;
+            }
+            currentActionContractEvents = null;
+            LastActionOutcome = CombatActionApplicationOutcome.Applied;
+            return true;
         }
 
         private void RecordNoEffectAction(
@@ -1929,7 +2192,12 @@ public sealed class CombatSimulationEngine
                     State.Random,
                     "effect.choice:" + sourceActorId + ":" + group.Key,
                     out var choiceDraw);
-                TraceRandomDraw(choiceDraw, "effect random choice");
+                TraceRandomDraw(
+                    choiceDraw,
+                    "effect random choice",
+                    sourceActorId,
+                    cardInstanceId,
+                    triggerEvent ?? parent);
                 var cursor = roll * totalWeight;
                 var chosen = candidates[candidates.Count - 1];
                 foreach (var candidate in candidates)
@@ -1971,7 +2239,12 @@ public sealed class CombatSimulationEngine
                         "effect.proc:" + sourceActorId + ":" + effect.Kind + ":" + effect.DefinitionId,
                         out var draw);
                     chanceDraw = draw;
-                    TraceRandomDraw(draw, "effect probability");
+                    TraceRandomDraw(
+                        draw,
+                        "effect probability",
+                        sourceActorId,
+                        cardInstanceId,
+                        triggerEvent ?? parent);
                     if (roll >= Math.Max(0d, effect.Probability))
                     {
                         continue;
@@ -1985,7 +2258,12 @@ public sealed class CombatSimulationEngine
                     out var targetDraw);
                 if (targetDraw != null)
                 {
-                    TraceRandomDraw(targetDraw, "target selection");
+                    TraceRandomDraw(
+                        targetDraw,
+                        "target selection",
+                        sourceActorId,
+                        cardInstanceId,
+                        triggerEvent ?? parent);
                 }
                 if (effect.Kind == CombatSimulationEffectKind.Draw
                     || effect.Kind == CombatSimulationEffectKind.DiscardRandom
@@ -2449,6 +2727,9 @@ public sealed class CombatSimulationEngine
                         hpDamage,
                         beforeHash);
                     damageEvent.Message = command.Kind.ToString();
+                    damageEvent.RawAmount = command.Amount;
+                    damageEvent.BlockedAmount = blocked;
+                    damageEvent.DurabilityAmount = blocked + hpDamage;
                     if (target.Hp <= 0)
                     {
                         secondaryCommandEvents.Add(Emit(
@@ -2513,6 +2794,10 @@ public sealed class CombatSimulationEngine
                         command,
                         healing,
                         beforeHash);
+                    healEvent.RawAmount = command.Amount;
+                    healEvent.PreviousAmount = target.Hp - healing;
+                    healEvent.CurrentAmount = target.Hp;
+                    healEvent.StatePath = "Hp";
                     var conversionRate = Math.Max(
                         0d,
                         Variable(target, "ConversionRate", 0d));
@@ -2546,7 +2831,7 @@ public sealed class CombatSimulationEngine
                     return healEvent;
 
                 case CombatSimulationEffectKind.SetHp:
-                    if (target == null || !target.Alive) return null;
+                    if (target == null) return null;
                     // SetHp is neither healing nor damage, but the resulting
                     // actor state must still respect the current HP domain.
                     var previousSetHp = target.Hp;
@@ -2559,6 +2844,10 @@ public sealed class CombatSimulationEngine
                         target.Hp - previousSetHp,
                         beforeHash);
                     setHpEvent.Message = "Hp";
+                    setHpEvent.StatePath = "Hp";
+                    setHpEvent.RawAmount = command.Amount;
+                    setHpEvent.PreviousAmount = previousSetHp;
+                    setHpEvent.CurrentAmount = target.Hp;
                     return setHpEvent;
 
                 case CombatSimulationEffectKind.SetHpToMax:
@@ -2571,6 +2860,10 @@ public sealed class CombatSimulationEngine
                         target.Hp - previousMaxHp,
                         beforeHash);
                     setMaxHpEvent.Message = "Hp";
+                    setMaxHpEvent.StatePath = "Hp";
+                    setMaxHpEvent.RawAmount = command.Amount;
+                    setMaxHpEvent.PreviousAmount = previousMaxHp;
+                    setMaxHpEvent.CurrentAmount = target.Hp;
                     return setMaxHpEvent;
 
                 case CombatSimulationEffectKind.Draw:
@@ -2658,7 +2951,10 @@ public sealed class CombatSimulationEngine
                             + command.DefinitionId,
                             candidates.Count,
                             out var selectionDraw);
-                        TraceRandomDraw(selectionDraw, "random card definition");
+                        TraceRandomDraw(
+                            selectionDraw,
+                            "random card definition",
+                            command: command);
                         var randomCardDefinition = candidates[selectedIndex];
                         Reference(
                             "card:" + randomCardDefinition.CardId,
@@ -3142,15 +3438,43 @@ public sealed class CombatSimulationEngine
                         return null;
                     }
                     var maxHpBefore = target.MaxHp;
+                    var hpBeforeMaximumScale = target.Hp;
                     target.MaxHp = Math.Max(
                         1,
                         (int)((long)target.MaxHp * Math.Max(0, command.Amount) / 100L));
                     target.Hp = Math.Min(target.Hp, target.MaxHp);
-                    return EmitFromCommand(
-                        CombatSimulationEventKind.VariableChanged,
+                    var maximumHpEvent = EmitFromCommand(
+                        CombatSimulationEventKind.MaximumHpChanged,
                         command,
                         target.MaxHp - maxHpBefore,
-                        beforeHash);
+                        beforeHash,
+                        item =>
+                        {
+                            item.Message = "MaxHp";
+                            item.StatePath = "MaxHp";
+                            item.RawAmount = command.Amount;
+                            item.PreviousAmount = maxHpBefore;
+                            item.CurrentAmount = target.MaxHp;
+                        });
+                    if (target.Hp != hpBeforeMaximumScale)
+                    {
+                        var hpClampEvent = EmitFromCommand(
+                            CombatSimulationEventKind.VariableChanged,
+                            command,
+                            target.Hp - hpBeforeMaximumScale,
+                            beforeHash,
+                            item =>
+                            {
+                                item.Message = "Hp";
+                                item.StatePath = "Hp";
+                                item.RawAmount = target.Hp - hpBeforeMaximumScale;
+                                item.PreviousAmount = hpBeforeMaximumScale;
+                                item.CurrentAmount = target.Hp;
+                            });
+                        hpClampEvent.ParentSequence = maximumHpEvent.Sequence;
+                        secondaryCommandEvents.Add(hpClampEvent);
+                    }
+                    return maximumHpEvent;
 
                 case CombatSimulationEffectKind.DeferVariableUntilVictory:
                     if (target == null || string.IsNullOrWhiteSpace(command.DefinitionId))
@@ -3415,12 +3739,19 @@ public sealed class CombatSimulationEngine
                 {
                     continue;
                 }
+                var triggerContext = sourceEvent.Clone();
+                triggerContext.HandlerId =
+                    "structured-status:"
+                    + match.Definition.StatusId
+                    + ":"
+                    + match.Trigger.TriggerId;
+                triggerContext.SourceRewardId = match.Definition.StatusId;
                 CompileEffects(
                     match.Trigger.Effects,
                     match.Actor.ActorId,
                     sourceEvent.TargetActorId,
                     sourceEvent.CardInstanceId,
-                    null,
+                    triggerContext,
                     sourceEvent,
                     wave,
                     queue,
@@ -3717,7 +4048,10 @@ public sealed class CombatSimulationEngine
                     out var draw);
                 zone.Insert(insertAt, card.InstanceId);
                 randomDraw = draw;
-                TraceRandomDraw(draw, "created card insertion");
+                TraceRandomDraw(
+                    draw,
+                    "created card insertion",
+                    command: command);
             }
             else
             {
@@ -3824,7 +4158,10 @@ public sealed class CombatSimulationEngine
                     destination == CombatCardZone.ExhaustPile ? "hand.exhaust" : "hand.discard",
                     State.Hand.Count,
                     out var draw);
-                TraceRandomDraw(draw, destination.ToString());
+                TraceRandomDraw(
+                    draw,
+                    destination.ToString(),
+                    command: command);
                 var instanceId = State.Hand[index];
                 MoveCardToZone(instanceId, destination);
                 secondaryCommandEvents.Add(Emit(
@@ -4241,7 +4578,8 @@ public sealed class CombatSimulationEngine
             CombatSimulationEventKind kind,
             CombatSimulationCommand command,
             int amount,
-            string beforeHash)
+            string beforeHash,
+            Action<CombatSimulationEvent>? configure = null)
         {
             var draw = string.IsNullOrWhiteSpace(command.RandomStreamId)
                 ? null
@@ -4251,7 +4589,7 @@ public sealed class CombatSimulationEngine
                     Counter = command.RandomCounter,
                     Value = command.RandomValue
                 };
-            return Emit(
+            var item = Emit(
                 kind,
                 command.SourceActorId,
                 command.TargetActorId,
@@ -4264,7 +4602,11 @@ public sealed class CombatSimulationEngine
                 command.CausalChainId,
                 command.HandlerId,
                 command.SourceRewardId,
-                command.SourceActionId);
+                command.SourceActionId,
+                command.TriggerWave);
+            item.RawAmount = amount;
+            configure?.Invoke(item);
+            return item;
         }
 
         private CombatSimulationEvent Emit(
@@ -4280,7 +4622,8 @@ public sealed class CombatSimulationEngine
             long causalChainId = 0,
             string? handlerId = null,
             string? sourceRewardId = null,
-            long sourceActionId = 0)
+            long sourceActionId = 0,
+            int triggerWave = 0)
         {
             var captureHashes = scenario.TraceLevel == CombatSimulationTraceLevel.Full;
             var beforeHash = captureHashes
@@ -4301,6 +4644,7 @@ public sealed class CombatSimulationEngine
                 SourceActionId = sourceActionId > 0
                     ? sourceActionId
                     : State.ActionSequence,
+                TriggerWave = Math.Max(0, triggerWave),
                 Turn = State.Turn,
                 Phase = State.Phase,
                 Kind = kind,
@@ -4309,6 +4653,7 @@ public sealed class CombatSimulationEngine
                 CardInstanceId = cardInstanceId,
                 DefinitionId = definitionId ?? "",
                 Amount = amount,
+                RawAmount = amount,
                 BeforeHash = beforeHash,
                 AfterHash = captureHashes ? CombatBattleStateHasher.Hash(State) : "",
                 RandomStreamId = randomDraw?.StreamId ?? "",
@@ -4316,6 +4661,7 @@ public sealed class CombatSimulationEngine
                 RandomValue = randomDraw?.Value ?? 0
             };
             currentActionContractEvents?.Add(item);
+            currentObservedActionEvents?.Add(item);
             if (ShouldTrace(kind))
             {
                 Events.Add(item);
@@ -4351,17 +4697,66 @@ public sealed class CombatSimulationEngine
             }
         }
 
-        private void TraceRandomDraw(CombatRandomDraw draw, string message)
+        private void TraceRandomDraw(
+            CombatRandomDraw draw,
+            string message,
+            int sourceActorId = 0,
+            int cardInstanceId = 0,
+            CombatSimulationEvent? cause = null,
+            CombatSimulationCommand? command = null)
         {
+            var sourceRewardId = command?.SourceRewardId ?? "";
+            if (string.IsNullOrWhiteSpace(sourceRewardId))
+            {
+                sourceRewardId = cause?.SourceRewardId ?? "";
+            }
+            if (string.IsNullOrWhiteSpace(sourceRewardId)
+                && !string.IsNullOrWhiteSpace(currentActionDefinitionId))
+            {
+                sourceRewardId = currentActionDefinitionId;
+            }
+            var definitionId = !string.IsNullOrWhiteSpace(sourceRewardId)
+                ? sourceRewardId
+                : cause?.DefinitionId ?? currentActionDefinitionId;
+            var parentSequence = command?.ParentSequence > 0
+                ? command.ParentSequence
+                : cause?.Sequence ?? 0;
+            var causalChainId = command?.CausalChainId > 0
+                ? command.CausalChainId
+                : cause?.CausalChainId ?? 0;
+            var handlerId = command?.HandlerId ?? "";
+            if (string.IsNullOrWhiteSpace(handlerId))
+            {
+                handlerId = cause?.HandlerId ?? "";
+            }
+            var sourceActionId = command?.SourceActionId > 0
+                ? command.SourceActionId
+                : cause?.SourceActionId > 0
+                    ? cause.SourceActionId
+                    : State.ActionSequence;
+            var triggerWave = command?.TriggerWave > 0
+                ? command.TriggerWave
+                : cause?.TriggerWave ?? 0;
             var item = Emit(
                 CombatSimulationEventKind.RandomResolved,
+                command?.SourceActorId
+                ?? (sourceActorId != 0
+                    ? sourceActorId
+                    : cause?.SourceActorId ?? 0),
+                command?.TargetActorId ?? cause?.TargetActorId ?? 0,
+                command?.CardInstanceId
+                ?? (cardInstanceId != 0
+                    ? cardInstanceId
+                    : cause?.CardInstanceId ?? 0),
+                definitionId,
                 0,
-                0,
-                0,
-                "",
-                0,
-                0,
-                draw);
+                parentSequence,
+                draw,
+                causalChainId: causalChainId,
+                handlerId: handlerId,
+                sourceRewardId: sourceRewardId,
+                sourceActionId: sourceActionId,
+                triggerWave: triggerWave);
             item.Message = message;
         }
 
@@ -4451,6 +4846,42 @@ public sealed class CombatSimulationEngine
                     out var current)
                     ? current + amount
                     : amount;
+        }
+
+        CombatSimulationEvent ICombatSimulationFactContext.RecordFact(
+            CombatSimulationEventKind kind,
+            int sourceActorId,
+            int targetActorId,
+            string definitionId,
+            int amount,
+            CombatSimulationEvent? sourceEvent,
+            string message,
+            string statePath,
+            int rawAmount,
+            int previousAmount,
+            int currentAmount)
+        {
+            var item = Emit(
+                kind,
+                sourceActorId,
+                targetActorId,
+                sourceEvent?.CardInstanceId ?? 0,
+                definitionId,
+                amount,
+                sourceEvent?.Sequence ?? 0,
+                null,
+                null,
+                sourceEvent?.CausalChainId ?? 0,
+                sourceEvent?.HandlerId,
+                sourceEvent?.SourceRewardId,
+                sourceEvent?.SourceActionId ?? State.ActionSequence,
+                Math.Max(1, sourceEvent?.TriggerWave ?? 0));
+            item.Message = message ?? "";
+            item.StatePath = statePath ?? "";
+            item.RawAmount = rawAmount == 0 ? amount : rawAmount;
+            item.PreviousAmount = previousAmount;
+            item.CurrentAmount = currentAmount;
+            return item;
         }
 
         private void NotifyExtension(CombatSimulationEvent sourceEvent)

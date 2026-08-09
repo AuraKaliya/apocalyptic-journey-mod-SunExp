@@ -7,10 +7,10 @@
 
 ### 1.1 内容交付层
 
-- 卡牌：56（其中 `Card/terrias.csv` 50，乌娜 3，洛奈尔 1，深渊诅咒 2）。
-- Buff：32。
-- 遗物：13。
-- 卡包：5。
+- 卡牌：60（其中 `Card/terrias.csv` 52，乌娜 3，洛奈尔 1，哥伦比娅 2，深渊诅咒 2）。
+- Buff：47。
+- 遗物：17。
+- 卡包：3。
 - Data 类型还包括 Blessing、Career、Dialogue、EnchTag、Enemy、EnemyCard、EventList、Hard、Level、Map、Partner、PartnerCard、RoleData。
 - 注册表/配置包括音频、视觉、起始卡组、使魔祝福、伙伴意图、无尽深渊配置与进化特征、百变角色裁切、共享资源和 CG 注册表。
 

@@ -113,6 +113,77 @@ try
         return;
     }
 
+    var identityFilesIndex = Array.FindIndex(args, argument => string.Equals(
+        argument,
+        "--identity-files",
+        StringComparison.Ordinal));
+    if (identityFilesIndex >= 0)
+    {
+        if (identityFilesIndex + 2 >= args.Length)
+        {
+            throw new InvalidOperationException(
+                "--identity-files requires <job.json> <checkpoint.json.gz>");
+        }
+        var identityFileJob = JsonConvert.DeserializeObject<
+                                  CombatFoundationWorkerJob>(
+                                  CombatFoundationCheckpointStorage
+                                      .ReadAllTextShared(
+                                          args[identityFilesIndex + 1]),
+                                  new JsonSerializerSettings
+                                  {
+                                      ObjectCreationHandling =
+                                          ObjectCreationHandling.Replace
+                                  })
+                              ?? throw new InvalidDataException(
+                                  "identity probe job is invalid");
+        var identityFileCheckpoint = JsonConvert.DeserializeObject<
+                                         CombatFoundationWorkerCheckpoint>(
+                                         CombatFoundationCheckpointStorage
+                                             .ReadAllTextShared(
+                                                 args[identityFilesIndex + 2]))
+                                     ?? throw new InvalidDataException(
+                                         "identity probe checkpoint is invalid");
+        var workerProgram = typeof(CombatFoundationRequestIdentity).Assembly
+            .GetType("Program");
+        var prepareCaseArchive = workerProgram?.GetMethod(
+            "PrepareCaseArchive",
+            System.Reflection.BindingFlags.Static
+            | System.Reflection.BindingFlags.NonPublic);
+        prepareCaseArchive?.Invoke(
+            null,
+            new object[]
+            {
+                identityFileJob,
+                identityFileCheckpoint.RulesetHash
+            });
+        var compatible = CombatFoundationRequestIdentity.Matches(
+            identityFileJob,
+            identityFileCheckpoint,
+            identityFileCheckpoint.RulesetHash,
+            out var fileIdentityDiagnostic);
+        Console.WriteLine(
+            "Checkpoint identity probe: compatible="
+            + compatible
+            + ", checkpoint="
+            + identityFileCheckpoint.RequestFingerprint
+            + ", current="
+            + CombatFoundationRequestIdentity.CreateFingerprint(
+                identityFileJob,
+                identityFileCheckpoint.RulesetHash)
+            + ", legacy="
+            + CombatFoundationRequestIdentity.CreateLegacyFingerprint(
+                identityFileJob,
+                identityFileCheckpoint.RulesetHash,
+                unchecked((int)(identityFileCheckpoint.Resume?.RunSeed ?? 0UL)))
+            + ", diagnostic="
+            + fileIdentityDiagnostic);
+        if (!compatible)
+        {
+            Environment.ExitCode = 2;
+        }
+        return;
+    }
+
     var autoTuneCachePath = Path.Combine(root, "foundation-auto-tune.json");
     File.WriteAllText(autoTuneCachePath, "{}");
     var disabledAutoTuneCache = new CombatFoundationAutoTuneCachePolicy(false);
@@ -126,6 +197,247 @@ try
            && !enabledAutoTuneCache.ShouldPersist(
                new CombatFoundationAutoTuneResult { LowConfidence = true }),
         "enabled cache reuse reads existing state and persists only confident measurements");
+
+    const string identityRuleset =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    var identityJob = new CombatFoundationWorkerJob
+    {
+        Request = new CombatCampaignFoundationTrainingRequest
+        {
+            TransformerTeacher = new CombatTransformerTeacherOptions
+            {
+                Backend = CombatTransformerTeacherBackendNames.Cpu,
+                RandomSeed = 12345
+            }.Normalized()
+        }
+    };
+    var stableFingerprint = CombatFoundationRequestIdentity.CreateFingerprint(
+        identityJob,
+        identityRuleset);
+    var persistedSeedFingerprint = CombatFoundationRequestIdentity
+        .CreatePersistedSeedFingerprint(identityJob, identityRuleset);
+    var identityJsonRoundTrip = JsonConvert.DeserializeObject<
+                                    CombatFoundationWorkerJob>(
+                                    JsonConvert.SerializeObject(identityJob),
+                                    new JsonSerializerSettings
+                                    {
+                                        ObjectCreationHandling =
+                                            ObjectCreationHandling.Replace
+                                    })
+                                ?? throw new InvalidOperationException(
+                                    "identity JSON round-trip failed");
+    var identityBoundaryDifference = CombatFoundationRequestIdentity
+        .DescribeDifferences(
+            CombatFoundationRequestIdentity.CreateFields(
+                identityJob,
+                identityRuleset),
+            CombatFoundationRequestIdentity.CreateFields(
+                identityJsonRoundTrip,
+                identityRuleset));
+    Assert(string.Equals(
+               stableFingerprint,
+               CombatFoundationRequestIdentity.CreateFingerprint(
+                   identityJsonRoundTrip,
+                   identityRuleset),
+               StringComparison.Ordinal),
+        "current identity is stable across the Control Center to Worker JSON boundary: "
+        + identityBoundaryDifference);
+    var appendedDefaultIdentityJob = JsonConvert.DeserializeObject<
+                                         CombatFoundationWorkerJob>(
+                                         JsonConvert.SerializeObject(
+                                             identityJob),
+                                         new JsonSerializerSettings
+                                         {
+                                             ObjectCreationHandling =
+                                                 ObjectCreationHandling.Replace
+                                         })
+                                     ?? throw new InvalidOperationException(
+                                         "appended-default identity clone failed");
+    foreach (var campaign in new[]
+             {
+                 appendedDefaultIdentityJob.Request.TrainingCampaign,
+                 appendedDefaultIdentityJob.Request.ValidationCampaign
+             })
+    {
+        campaign.AttributeIds.AddRange(campaign.AttributeIds.ToList());
+        campaign.EnabledRewardCardPackIds.AddRange(
+            campaign.EnabledRewardCardPackIds.ToList());
+        campaign.CardRewardEncounterKinds.AddRange(
+            campaign.CardRewardEncounterKinds.ToList());
+    }
+    Assert(string.Equals(
+               stableFingerprint,
+               CombatFoundationRequestIdentity.CreateFingerprint(
+                   appendedDefaultIdentityJob,
+                   identityRuleset),
+               StringComparison.Ordinal),
+        "legacy appended defaults in set-like Campaign fields do not change exact-resume identity");
+    appendedDefaultIdentityJob.Request.TrainingCampaign.Player.Deck.Add(
+        appendedDefaultIdentityJob.Request.TrainingCampaign.Player.Deck
+            .FirstOrDefault() ?? "card_1001");
+    Assert(!string.Equals(
+               stableFingerprint,
+               CombatFoundationRequestIdentity.CreateFingerprint(
+                   appendedDefaultIdentityJob,
+                   identityRuleset),
+               StringComparison.Ordinal),
+        "ordered Campaign multisets such as the player deck remain identity-sensitive");
+    var persistedSeedCheckpoint = new CombatFoundationWorkerCheckpoint
+    {
+        RequestFingerprint = persistedSeedFingerprint,
+        RulesetHash = identityRuleset
+    };
+    Assert(CombatFoundationRequestIdentity.Matches(
+               identityJsonRoundTrip,
+               persistedSeedCheckpoint,
+               identityRuleset,
+               out var persistedSeedDiagnostic)
+           && persistedSeedDiagnostic.Contains(
+               "legacy v3 identity matched",
+               StringComparison.Ordinal),
+        "v3 persisted-seed checkpoints migrate to canonical Campaign identity");
+    var legacyFingerprint = CombatFoundationRequestIdentity
+        .CreateLegacyFingerprint(identityJob, identityRuleset, 12345);
+    identityJob.Request.TransformerTeacher.RandomSeed = 54321;
+    Assert(string.Equals(
+               stableFingerprint,
+               CombatFoundationRequestIdentity.CreateFingerprint(
+                   identityJob,
+                   identityRuleset),
+               StringComparison.Ordinal),
+        "exact-resume identity excludes the runtime-generated Transformer seed");
+    var legacyCheckpoint = new CombatFoundationWorkerCheckpoint
+    {
+        RequestFingerprint = legacyFingerprint,
+        RulesetHash = identityRuleset,
+        Resume = new CombatCampaignFoundationResumeState
+        {
+            RunSeed = 12345UL
+        }
+    };
+    Assert(CombatFoundationRequestIdentity.Matches(
+               identityJob,
+               legacyCheckpoint,
+               identityRuleset,
+               out var legacyIdentityDiagnostic)
+           && legacyIdentityDiagnostic.Contains(
+               "persisted seed plan",
+               StringComparison.Ordinal),
+        "schema-v16 checkpoints migrate from the legacy seed-sensitive identity");
+    var structuredCheckpoint = new CombatFoundationWorkerCheckpoint
+    {
+        RequestFingerprint = stableFingerprint,
+        RequestIdentityFields = CombatFoundationRequestIdentity.CreateFields(
+            identityJob,
+            identityRuleset),
+        RulesetHash = identityRuleset,
+        Resume = new CombatCampaignFoundationResumeState { RunSeed = 12345UL }
+    };
+    identityJob.Request.Training.BatchSize++;
+    Assert(!CombatFoundationRequestIdentity.Matches(
+               identityJob,
+               structuredCheckpoint,
+               identityRuleset,
+               out var identityDifference)
+           && identityDifference.Contains(
+               nameof(CombatPolicyValueTrainingOptions.BatchSize),
+               StringComparison.Ordinal),
+        "structured checkpoint identity reports the incompatible field instead of only opaque hashes");
+    identityJob.Request.Training.BatchSize--;
+    var identityResultsRoot = Path.Combine(root, "identity-results");
+    var identityCatalogDirectory = Path.Combine(
+        identityResultsRoot,
+        "foundation-controller-checkpoint",
+        "subject-hash");
+    var identityCheckpointPath = Path.Combine(
+        identityCatalogDirectory,
+        "checkpoints",
+        "opaque-legacy.json.gz");
+    var identityCatalogPath = Path.Combine(
+        identityCatalogDirectory,
+        CombatFoundationCheckpointCatalogProtocol.CatalogFileName);
+    var identitySourceJobId = "identity-source-job";
+    var identitySourceJobDirectory = Path.Combine(
+        identityResultsRoot,
+        identitySourceJobId);
+    Directory.CreateDirectory(identityCatalogDirectory);
+    Directory.CreateDirectory(identitySourceJobDirectory);
+    var identitySourceJob = JsonConvert.DeserializeObject<
+                                CombatFoundationWorkerJob>(
+                                JsonConvert.SerializeObject(identityJob),
+                                new JsonSerializerSettings
+                                {
+                                    ObjectCreationHandling =
+                                        ObjectCreationHandling.Replace
+                                })
+                            ?? throw new InvalidOperationException(
+                                "identity source clone failed");
+    foreach (var campaign in new[]
+             {
+                 identitySourceJob.Request.TrainingCampaign,
+                 identitySourceJob.Request.ValidationCampaign
+             })
+    {
+        campaign.AttributeIds.AddRange(campaign.AttributeIds.ToList());
+        campaign.CardRewardEncounterKinds.AddRange(
+            campaign.CardRewardEncounterKinds.ToList());
+    }
+    identitySourceJob.Request.RunSeed = 777UL;
+    identitySourceJob.Request.TransformerTeacher.RandomSeed = 777;
+    File.WriteAllText(
+        Path.Combine(identitySourceJobDirectory, "foundation-worker-job.json"),
+        JsonConvert.SerializeObject(identitySourceJob));
+    const string opaqueLegacyFingerprint =
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    File.WriteAllText(
+        identityCatalogPath,
+        JsonConvert.SerializeObject(new CombatFoundationCheckpointCatalog
+        {
+            Entries =
+            {
+                new CombatFoundationCheckpointCatalogEntry
+                {
+                    SourceJobId = identitySourceJobId,
+                    RequestFingerprint = opaqueLegacyFingerprint,
+                    CheckpointPath = identityCheckpointPath,
+                    SupportsExact = true
+                }
+            }
+        }));
+    // Keep the current request in its original in-memory form. This is the
+    // Control Center preflight boundary; the source job above represents the
+    // same request after Worker JSON deserialization.
+    var identityCurrentJob = identityJob;
+    identityCurrentJob.CheckpointCatalogPath = identityCatalogPath;
+    identityCurrentJob.ResumeCheckpointPath = identityCheckpointPath;
+    identityCurrentJob.Request.RunSeed = 888UL;
+    identityCurrentJob.Request.TransformerTeacher.RandomSeed = 888;
+    var opaqueLegacyCheckpoint = new CombatFoundationWorkerCheckpoint
+    {
+        RequestFingerprint = opaqueLegacyFingerprint,
+        RulesetHash = identityRuleset,
+        Resume = new CombatCampaignFoundationResumeState { RunSeed = 777UL }
+    };
+    Assert(CombatFoundationRequestIdentity.Matches(
+               identityCurrentJob,
+               opaqueLegacyCheckpoint,
+               identityRuleset,
+               out var sourceJobIdentityDiagnostic)
+           && sourceJobIdentityDiagnostic.Contains(
+               "source-job identity matched",
+               StringComparison.Ordinal),
+        "opaque legacy checkpoints bind exact continuation to their catalog source job fields: "
+        + sourceJobIdentityDiagnostic);
+    identityCurrentJob.Request.Training.LearningRate *= 0.5d;
+    Assert(!CombatFoundationRequestIdentity.Matches(
+               identityCurrentJob,
+               opaqueLegacyCheckpoint,
+               identityRuleset,
+               out var sourceJobDifference)
+           && sourceJobDifference.Contains(
+               nameof(CombatPolicyValueTrainingOptions.LearningRate),
+               StringComparison.Ordinal),
+        "source-job exact migration still rejects a real optimizer configuration change");
 
     var replayRoot = Path.Combine(root, "replay");
     var replay = new CombatFoundationReplayWarehouse(replayRoot);
@@ -2119,6 +2431,81 @@ try
                "preserve",
                StringComparison.Ordinal),
         "Transformer corpus recovery and pruning ignore valid-looking directories that do not use the strict generation protocol name");
+
+    var backlogCorpusRoot = Path.Combine(root, "transformer-backlog");
+    var backlogSourceRows = Enumerable.Range(0, 80)
+        .Select(index => JsonConvert.SerializeObject(new
+        {
+            I = index,
+            D = "backlog-identity-" + index.ToString("D3"),
+            Y = "backlog-run-" + (index / 4).ToString("D2"),
+            L = "strategy-baseline",
+            C = index % 8 == 0 ? "advanced" : "normal",
+            B = index / 4,
+            J = index % 2,
+            OK = 1,
+            DK = 1,
+            SK = 0,
+            M = 1,
+            S = new { D = 4, I = new[] { 0 }, V = new[] { 1f } }
+        }))
+        .ToArray();
+    Dictionary<string, string> ReadBacklogPartition(string path)
+    {
+        return File.ReadLines(path, Encoding.UTF8)
+            .Select(line => JsonConvert.DeserializeObject<
+                Dictionary<string, object>>(line)!)
+            .ToDictionary(
+                row => Convert.ToString(row["D"],
+                           System.Globalization.CultureInfo.InvariantCulture)!,
+                row => Convert.ToString(row["Y"],
+                           System.Globalization.CultureInfo.InvariantCulture)!,
+                StringComparer.Ordinal);
+    }
+    var firstBacklogMerge = PythonCombatTransformerTeacher
+        .MergeCorpusRowsForTests(
+            backlogCorpusRoot,
+            backlogSourceRows,
+            maximumFrames: 64);
+    var firstActiveRows = ReadBacklogPartition(firstBacklogMerge.CorpusPath);
+    var firstBacklogRows = ReadBacklogPartition(firstBacklogMerge.BacklogPath);
+    var firstAllRows = firstActiveRows.Concat(firstBacklogRows)
+        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+    var firstRunsAreWhole = firstAllRows
+        .GroupBy(pair => pair.Value, StringComparer.Ordinal)
+        .All(group => group.Count() == 4
+                      && (group.All(pair => firstActiveRows.ContainsKey(pair.Key))
+                          || group.All(pair => firstBacklogRows.ContainsKey(pair.Key))));
+    var secondBacklogMerge = PythonCombatTransformerTeacher
+        .MergeCorpusRowsForTests(
+            backlogCorpusRoot,
+            Array.Empty<string>(),
+            maximumFrames: 64,
+            trainedIdentities: firstActiveRows.Keys.ToHashSet(
+                StringComparer.Ordinal),
+            existingCorpusPath: firstBacklogMerge.CorpusPath,
+            existingBacklogPath: firstBacklogMerge.BacklogPath);
+    var secondActiveRows = ReadBacklogPartition(secondBacklogMerge.CorpusPath);
+    var secondBacklogRows = ReadBacklogPartition(secondBacklogMerge.BacklogPath);
+    Assert(firstBacklogMerge.ActiveFrames == 64
+           && firstBacklogMerge.BacklogFrames == 16
+           && firstBacklogMerge.DroppedFrames == 0
+           && firstActiveRows.Keys.Intersect(
+                   firstBacklogRows.Keys,
+                   StringComparer.Ordinal).Count() == 0
+           && firstAllRows.Count == backlogSourceRows.Length
+           && firstRunsAreWhole
+           && secondBacklogMerge.ActiveFrames == 64
+           && secondBacklogMerge.BacklogFrames == 16
+           && secondBacklogMerge.DroppedFrames == 0
+           && secondActiveRows.Keys.Intersect(
+                   firstBacklogRows.Keys,
+                   StringComparer.Ordinal).Any()
+           && secondActiveRows.Concat(secondBacklogRows)
+               .Select(pair => pair.Key)
+               .ToHashSet(StringComparer.Ordinal)
+               .SetEquals(firstAllRows.Keys),
+        "Transformer capacity overflow persists complete Journey runs in a lossless backlog and rotates pending backlog rows into the active window after trained watermarks advance");
 
     var transformerCommitRoot = Path.Combine(root, "transformer-commit");
     Directory.CreateDirectory(transformerCommitRoot);

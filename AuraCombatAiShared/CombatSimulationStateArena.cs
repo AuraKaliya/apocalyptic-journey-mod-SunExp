@@ -88,6 +88,7 @@ public sealed class CombatSimulationStateArena
             Array.Empty<CombatSimulationThreat>();
         private ulong[] usedWords = Array.Empty<ulong>();
         private int[] usedCounts = Array.Empty<int>();
+        private int[] actionCostAdjustments = Array.Empty<int>();
 
         public long EstimatedRetainedBytes =>
             512L
@@ -106,7 +107,8 @@ public sealed class CombatSimulationStateArena
             + enemies.LongLength * 128L
             + threats.LongLength * 64L
             + usedWords.LongLength * sizeof(ulong)
-            + usedCounts.LongLength * sizeof(int);
+            + usedCounts.LongLength * sizeof(int)
+            + actionCostAdjustments.LongLength * sizeof(int);
 
         public CombatSimulationState CopyFrom(
             CombatSimulationState source,
@@ -221,6 +223,17 @@ public sealed class CombatSimulationStateArena
                 usedCounts,
                 source.UsedActionCounts.Length);
             state.UsedActionCounts = usedCounts;
+            if (actionCostAdjustments.Length
+                != source.ActionCostAdjustments.Length)
+            {
+                actionCostAdjustments =
+                    new int[source.ActionCostAdjustments.Length];
+            }
+            Array.Copy(
+                source.ActionCostAdjustments,
+                actionCostAdjustments,
+                source.ActionCostAdjustments.Length);
+            state.ActionCostAdjustments = actionCostAdjustments;
             return state;
         }
 

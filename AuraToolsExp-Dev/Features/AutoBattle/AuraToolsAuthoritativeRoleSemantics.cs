@@ -366,7 +366,10 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 : Math.Max(0, state.DeckKnowledge?.DrawPileCount ?? 0);
             return new CombatActionSemantics
             {
-                Draw = handCapacity > 0 && drawPile > 0 ? 1d : 0d,
+                // The skill opens a deck-selection interaction. The card only
+                // enters the hand after the follow-up choice is resolved, so
+                // the parent action must not claim an immediate draw.
+                Draw = 0d,
                 DeckValue = handCapacity > 0 && drawPile > 0 ? 1.5d : 0d,
                 CooldownTurns = 1d,
                 OpensInteraction = true,

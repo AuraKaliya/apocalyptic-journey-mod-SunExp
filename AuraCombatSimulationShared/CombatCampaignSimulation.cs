@@ -3419,6 +3419,8 @@ public sealed class CombatCampaignRunner
                     ?? new List<string>()),
                 RoleNativeScriptHash = definition.Player.RoleNativeScriptHash,
                 RoleFightScript = definition.Player.RoleFightScript,
+                RolePassiveContract = definition.Player.RolePassiveContract
+                    ?.Clone() ?? new CombatRolePassiveContract(),
                 RoleRuntimeForms = (definition.Player.RoleRuntimeForms
                                     ?? new List<CombatRoleRuntimeForm>())
                     .Select(item => item.Clone())
@@ -3427,6 +3429,10 @@ public sealed class CombatCampaignRunner
                     definition.Player.FamiliarBlessingIds
                     ?? new List<string>()),
                 MaxHp = state.MaxHp,
+                PersistentMaxHpAdjustment =
+                    definition.Player.PersistentMaxHpAdjustment
+                    + state.MaxHp
+                    - definition.Player.MaxHp,
                 CurrentHp = state.CurrentHp,
                 BaseEnergy = definition.Player.BaseEnergy,
                 Deck = new List<string>(state.Deck),

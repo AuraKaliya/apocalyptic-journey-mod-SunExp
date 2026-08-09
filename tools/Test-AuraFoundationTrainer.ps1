@@ -131,17 +131,21 @@ function Assert-TransformerTeacherTransitions {
                 "$Context changed the fixed anchor after the first iteration: " `
                 + ($report | ConvertTo-Json -Depth 8 -Compress))
         }
+        $policyApplied = [bool]$report.PolicyTeacherApplied
+        $worldApplied = [bool]$report.WorldTeacherApplied
         $appliedQualityValid =
-            [bool]$report.QualityGatePassed `
-            -and [bool]$report.TeacherSourceGatePassed `
+            [bool]$report.TeacherSourceGatePassed `
             -and [bool]$report.PolicyQualityGatePassed `
-            -and [bool]$report.WorldModelQualityGatePassed `
             -and [bool]$report.AnchorCoverageGatePassed `
             -and (-not $acceptedUpdate `
                 -or [bool]$report.HeadRegressionGatePassed)
-        if ([bool]$report.Applied -and -not $appliedQualityValid) {
+        if ([bool]$report.Applied -ne $policyApplied `
+            -or ($policyApplied -and -not $appliedQualityValid) `
+            -or ($worldApplied `
+                -and (-not $policyApplied `
+                    -or -not [bool]$report.WorldModelQualityGatePassed))) {
             throw (
-                "$Context applied a model without the required quality gates: " `
+                "$Context violated the independent Policy/World teacher gates: " `
                 + ($report | ConvertTo-Json -Depth 8 -Compress))
         }
 
@@ -202,6 +206,8 @@ function Assert-TransformerTeacherTransitionFixture {
     $stable = [pscustomobject]@{
         Iteration = 1
         Applied = $true
+        PolicyTeacherApplied = $true
+        WorldTeacherApplied = $true
         UpdateAccepted = $true
         TeacherGeneration = 1
         WarmStarted = $false
@@ -221,6 +227,8 @@ function Assert-TransformerTeacherTransitionFixture {
     $rejectedWarmUpdate = $stable.PSObject.Copy()
     $rejectedWarmUpdate.Iteration = 2
     $rejectedWarmUpdate.Applied = $false
+    $rejectedWarmUpdate.PolicyTeacherApplied = $false
+    $rejectedWarmUpdate.WorldTeacherApplied = $false
     $rejectedWarmUpdate.UpdateAccepted = $true
     $rejectedWarmUpdate.TeacherGeneration = 2
     $rejectedWarmUpdate.WarmStarted = $true
@@ -242,6 +250,8 @@ function Assert-TransformerTeacherTransitionFixture {
     $finalRejectedWarmUpdate = $stable.PSObject.Copy()
     $finalRejectedWarmUpdate.Iteration = 4
     $finalRejectedWarmUpdate.Applied = $false
+    $finalRejectedWarmUpdate.PolicyTeacherApplied = $false
+    $finalRejectedWarmUpdate.WorldTeacherApplied = $false
     $finalRejectedWarmUpdate.UpdateAccepted = $true
     $finalRejectedWarmUpdate.TeacherGeneration = 2
     $finalRejectedWarmUpdate.WarmStarted = $true
@@ -263,6 +273,19 @@ function Assert-TransformerTeacherTransitionFixture {
         -or [int]$fixtureStable.Iteration -ne 3 `
         -or [int]$fixtureStable.TeacherGeneration -ne 1) {
         throw "Transformer teacher synthetic transition fixture lost the last stable teacher after a final rejected warm update."
+    }
+    $policyOnly = $stable.PSObject.Copy()
+    $policyOnly.QualityGatePassed = $false
+    $policyOnly.WorldModelQualityGatePassed = $false
+    $policyOnly.WorldTeacherApplied = $false
+    $policyOnlyStable = Assert-TransformerTeacherTransitions `
+        -Reports @($policyOnly) `
+        -RequireResumeModelFiles $false `
+        -Context "Transformer policy-only teacher fixture"
+    if ($null -eq $policyOnlyStable `
+        -or -not [bool]$policyOnlyStable.PolicyTeacherApplied `
+        -or [bool]$policyOnlyStable.WorldTeacherApplied) {
+        throw "Transformer policy-only teacher fixture incorrectly coupled the world quality gate back into distillation."
     }
 }
 Assert-TransformerTeacherTransitionFixture
@@ -539,7 +562,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 12
+    $protocolVersion = 16
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -660,10 +683,15 @@ try {
             -lt $TransformerTeacherMinimumFrames `
             -or -not [bool]$teacherReport.Success `
             -or ([bool]$teacherReport.Applied `
-                -and (-not [bool]$teacherReport.QualityGatePassed `
+                -and (-not [bool]$teacherReport.PolicyTeacherApplied `
                     -or -not [bool]$teacherReport.TeacherSourceGatePassed `
                     -or -not [bool]$teacherReport.PolicyQualityGatePassed `
+                    -or -not [bool]$teacherReport.AnchorCoverageGatePassed)) `
+            -or ([bool]$teacherReport.WorldTeacherApplied `
+                -and (-not [bool]$teacherReport.PolicyTeacherApplied `
                     -or -not [bool]$teacherReport.WorldModelQualityGatePassed)) `
+            -or ([bool]$teacherReport.Applied `
+                -ne [bool]$teacherReport.PolicyTeacherApplied) `
             -or -not [bool]$teacherReport.TrainingRefreshed `
             -or [int]$teacherReport.RequestedEpochs `
                 -ne $expectedFinalTeacherEpochs `
@@ -998,6 +1026,23 @@ try {
     }
     if (@($progress.Telemetry.ModelEpochHistory).Count -ne 0) {
         throw "Frequent progress payload retained the growing Epoch history."
+    }
+    if ([int]$result.Training.ExecutedCampaigns -lt `
+            [int]$result.Training.CompletedCampaigns `
+        -or [int]$result.Training.ExecutedCampaigns -le 0 `
+        -or [int]$progress.Telemetry.ExecutedCampaigns -lt `
+            [int]$progress.Telemetry.CompletedCampaigns `
+        -or [int]$progress.Telemetry.RunExecutedCampaigns -lt `
+            [int]$progress.Telemetry.RunCompletedCampaigns `
+        -or [int]$progress.Telemetry.CurrentPhaseCompletedBattles -lt 0) {
+        throw (
+            "Foundation phase/formal campaign telemetry is inconsistent: " `
+            + ($progress.Telemetry | Select-Object `
+                CompletedCampaigns, ExecutedCampaigns, `
+                RunCompletedCampaigns, RunExecutedCampaigns, `
+                CurrentPhaseCompletedCampaigns, `
+                CurrentPhaseRequestedCampaigns, `
+                CurrentPhaseCompletedBattles | ConvertTo-Json -Compress))
     }
     if ($PreflightOnly) {
         if (-not $result.Training.Success `
@@ -1389,12 +1434,14 @@ try {
                 [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash) `
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
+            -or [string]$checkpoint.Resume.Compatibility.SemanticGateVersion `
+                -ne "semantic-admission-v5-actual-selected-transition" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-action-aligned-role-quota-fixed-anchor-promotion-v21" `
+                -ne "decision-input-transition-partitioned-v5-actual-execution-v30" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
-                -ne "dynamic-search-v13-entropy-budget" `
+                -ne "dynamic-search-v15-minimum-duration-enforced" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v26-productive-progress-pareto-arena") {
+                -ne "foundation-governance-v29-source-audit-partitioned-v4") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }
@@ -1484,7 +1531,7 @@ try {
             [bool]$result.Training.AutoTune.CacheHit
     }
     else { "" }
-    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, semanticSelected={3}/{4}, runtime={5}, execution={6}/{7}, parallel={8}, peak={9}, cpu={10:N1}%, alloc={11:N0}MB/s{12}" -f `
+    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, semanticSelected={3}/{4}, runtime={5}, execution={6}/{7}, parallel={8}, peak={9}, cpu={10:N1}%, alloc={11:N0}MB/s{12}, executed={13}" -f `
         $result.Training.CompletedCampaigns, `
         $result.Training.RequestedCampaigns, `
         $result.Training.CompletedBattles, `
@@ -1497,7 +1544,8 @@ try {
         $result.Training.PeakConcurrentCampaigns, `
         $result.Training.CpuUtilizationPercent, `
         $result.Training.AllocationMegabytesPerSecond, `
-        $autoTuneSummary)
+        $autoTuneSummary, `
+        $result.Training.ExecutedCampaigns)
 }
 catch {
     $smokeFailed = $true

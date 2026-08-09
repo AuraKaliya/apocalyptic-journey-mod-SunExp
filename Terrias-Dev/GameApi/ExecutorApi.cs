@@ -58,6 +58,18 @@ public static class ExecutorApi
         return ScriptEventApi.TryAddTokenedEvent(executor, eventName, tokenKey, token, script, context);
     }
 
+    public static bool TryAddTokenedEvent<T>(
+        ScriptExecutor? executor,
+        string eventName,
+        string tokenKey,
+        string? token,
+        Action<T> script,
+        string context = "")
+        where T : ISourceData
+    {
+        return ScriptEventApi.TryAddTokenedEvent(executor, eventName, tokenKey, token, script, context);
+    }
+
     public static bool TryAddTempEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
     {
         return ScriptEventApi.TryAddTempEvent(executor, eventName, script, context);

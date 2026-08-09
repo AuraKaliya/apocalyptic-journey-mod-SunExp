@@ -60,12 +60,12 @@ AuraCombatAI/
 - `ruleset.json`：新增卡牌、敌人、状态，所有定义的 `OwnerModId` 必须等于包 owner；ID 不得覆盖基础规则或其他已加载包。
 - `foundation-overlay.json`：新增敌人池、遭遇、奖励、策略、难度、角色先验和构筑倾向。
 - `transition-audit.json`：同一公开压缩状态与动作的完整状态对照、下一状态、结果，以及实机/模拟结算哈希。
-- `training/*.jsonl`：可选的 `aura.combat-ai.episode.v5` 权威轨迹；必须标记 `Authoritative=true`、保持 campaign integrity，并通过帧/动作/有限数值校验。
+- `training/*.jsonl`：可选的 `aura.combat-ai.episode.v7` 权威轨迹；必须标记 `Authoritative=true`、保持 campaign integrity，并通过帧/动作/有限数值校验。用于 Transformer 的帧还应携带对象 Observation、独立 `DecisionSequence`、真实 transition 或已知 terminal，以及策略适用掩码与正标签。
 - `DeclaredCoverage`：必须设为权威已知，并完整列出本 MOD 的卡、角色技能、敌人、状态、遗物和祝福 ID；卡/角色技能并集、敌人和状态集合必须与 ruleset 中本 owner 的实体精确相等。
 
 转移审计至少有一个完整且 ID 唯一的 case，并且必须满足：相同压缩状态和动作不能因被省略的完整状态而产生不同下一压缩状态、下一完整状态、结果或结算；实机结算哈希必须等于模拟结算哈希。完整状态哈希应基于决策相关的规范状态生成，不包含纯表现字段。失败包可以提供知识，但不能进入底模合并与训练。
 
-训练 Episode 由所在 package manifest 及其 SHA-256 授权。AuraTools 读取后会重新计算动作 owner，并在内存中绑定本次合并后的 `ContentSetHash`、`OwnerModSetHash` 与 `RulesetHash`，再随 schema 12 Worker 任务送入底模 replay。源文件不应预填最终 `ContentSetHash`，否则会形成“文件摘要参与集合哈希、文件内容又引用集合哈希”的循环。任一已声明训练文件为空、行损坏、owner 未注册或 Episode 不完整，整次底模训练都会拒绝启动。单文件上限 128 MiB，内容集合总上限 256 MiB/8192 条 Episode。`authoritativeContentReplayShare` 默认 `0.20`、可在高级训练设置中调到 `0..0.50`，用于保证注册语料不会被大规模自博弈 replay 完全挤出。
+训练 Episode 由所在 package manifest 及其 SHA-256 授权。AuraTools 读取后会重新计算动作 owner，并在内存中绑定本次合并后的 `ContentSetHash`、`OwnerModSetHash` 与 `RulesetHash`，再随 schema 14 Worker 任务送入底模 replay。源文件不应预填最终 `ContentSetHash`，否则会形成“文件摘要参与集合哈希、文件内容又引用集合哈希”的循环。任一已声明训练文件为空、行损坏、owner 未注册或 Episode 不完整，整次底模训练都会拒绝启动。单文件上限 128 MiB，内容集合总上限 256 MiB/8192 条 Episode。`authoritativeContentReplayShare` 默认 `0.20`、可在高级训练设置中调到 `0..0.50`，用于保证注册语料不会被大规模自博弈 replay 完全挤出。
 
 ### 内容低秩适配器
 

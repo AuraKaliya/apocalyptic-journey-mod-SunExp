@@ -247,7 +247,9 @@ public static class FamiliarFinalBlessingService
         var candidates = Singleton<GameConfigManager>.Instance.CardPackCheck(TerriasConfigIndex.Rows(DataType.Bless))
             .Where(row => DictionaryUtil.GetInt(row, "Rarity") == 1)
             .Select(row => DictionaryUtil.Get(row, "Id"))
-            .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
+            .Where(id => !string.IsNullOrWhiteSpace(id)
+                && !id.StartsWith("*", StringComparison.Ordinal)
+                && !TerriasIds.IsTechnicalBlessingId(id))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var unowned = candidates.Where(id => !owned.Contains(id)).ToList();

@@ -9,6 +9,8 @@ using static CombatAiTestFixtures;
 
 ResetAssertions();
 CombatAiDecisionBehaviorTests.Run();
+RuntimeDecisionSafetyBehaviorTests.Run();
+SemanticCausalityBehaviorTests.Run();
 var simulationContext = CombatAiSimulationBehaviorTests.Run();
 CombatAiTrainingBehaviorTests.Run(simulationContext);
 

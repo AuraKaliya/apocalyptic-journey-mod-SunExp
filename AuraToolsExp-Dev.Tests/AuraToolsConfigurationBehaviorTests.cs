@@ -156,10 +156,14 @@ internal static partial class AuraToolsTestSuite
         trainedModel.Simulation.SimulationCount = 500000;
         trainedModel.Simulation.Parallelism = 99;
         trainedModel.Simulation.MinimumAuthoritativeCoverage = double.NaN;
+        trainedModel.NetworkDeathRiskWeight = double.NaN;
+        trainedModel.SemanticCoverageRiskWeight = 2d;
         trainedModel.Normalize();
         Assert(trainedModel.Simulation.SimulationCount == 100000
                && trainedModel.Simulation.Parallelism == 16
-               && trainedModel.Simulation.MinimumAuthoritativeCoverage == 1d,
+               && trainedModel.Simulation.MinimumAuthoritativeCoverage == 1d
+               && trainedModel.NetworkDeathRiskWeight == 1d
+               && trainedModel.SemanticCoverageRiskWeight == 1d,
             "headless simulation settings clamp workload and release-gate thresholds");
     
         var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(

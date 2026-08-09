@@ -99,6 +99,29 @@ public static class ScriptEventApi
         }
     }
 
+    public static bool TryAddTokenedEvent<T>(
+        ScriptExecutor? executor,
+        string eventName,
+        string tokenKey,
+        string? token,
+        Action<T> script,
+        string context = "")
+        where T : ISourceData
+    {
+        if (string.IsNullOrWhiteSpace(tokenKey) || script == null)
+        {
+            return false;
+        }
+
+        return TryAddEvent<T>(executor, eventName, data =>
+        {
+            if (IsHookTokenActive(executor, tokenKey, token))
+            {
+                script(data);
+            }
+        }, context);
+    }
+
     public static bool TryAddOwnedEventListener(
         string eventName,
         Action script,

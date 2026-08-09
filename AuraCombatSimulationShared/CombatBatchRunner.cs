@@ -225,12 +225,16 @@ public static class CombatScenarioCloner
                     source.Player.NativeManagedSkillCooldownIds),
                 RoleNativeScriptHash = source.Player.RoleNativeScriptHash,
                 RoleFightScript = source.Player.RoleFightScript,
+                RolePassiveContract = source.Player.RolePassiveContract
+                    ?.Clone() ?? new CombatRolePassiveContract(),
                 RoleRuntimeForms = source.Player.RoleRuntimeForms
                     .Select(item => item.Clone())
                     .ToList(),
                 FamiliarBlessingIds = new List<string>(
                     source.Player.FamiliarBlessingIds),
                 MaxHp = source.Player.MaxHp,
+                PersistentMaxHpAdjustment =
+                    source.Player.PersistentMaxHpAdjustment,
                 CurrentHp = source.Player.CurrentHp,
                 BaseEnergy = source.Player.BaseEnergy,
                 Deck = new List<string>(source.Player.Deck),

@@ -183,7 +183,8 @@ public static class EndlessAbyssRewardService
             return rows
                 .Select(row => DictionaryUtil.Get(row, "Id"))
                 .Where(id => !string.IsNullOrWhiteSpace(id)
-                    && !id.StartsWith("*", StringComparison.Ordinal))
+                    && !id.StartsWith("*", StringComparison.Ordinal)
+                    && !TerriasIds.IsTechnicalBlessingId(id))
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
         }

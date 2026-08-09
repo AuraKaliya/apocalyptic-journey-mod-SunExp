@@ -63,6 +63,40 @@ internal sealed class AutoBattleTrainingStatus
     }
 }
 
+internal sealed class AuraToolsBundledFoundationFileStorage
+    : IBundledFoundationFileStorage
+{
+    private readonly AuraSharedStorageCoordinator storage;
+
+    public AuraToolsBundledFoundationFileStorage(
+        AuraSharedStorageCoordinator storage)
+    {
+        this.storage = storage
+                       ?? throw new ArgumentNullException(nameof(storage));
+    }
+
+    public void Move(string sourcePath, string destinationPath)
+    {
+        storage.MoveFileInsideRoot(sourcePath, destinationPath);
+    }
+
+    public void Replace(
+        string sourcePath,
+        string destinationPath,
+        string backupPath = "")
+    {
+        storage.ReplaceFileInsideRoot(
+            sourcePath,
+            destinationPath,
+            backupPath);
+    }
+
+    public void Delete(string path)
+    {
+        storage.DeleteFileInsideRoot(path);
+    }
+}
+
 internal sealed class AutoBattleResidentModelSet
 {
     public IDecisionResidualModel Residual { get; set; } =
@@ -75,6 +109,12 @@ internal sealed class AutoBattleResidentModelSet
         NullCombatPolicyValueModel.Instance;
 
     public string ModelId { get; set; } = "none";
+
+    public bool ResidualLoaded { get; set; }
+
+    public bool SearchGuidanceLoaded { get; set; }
+
+    public bool PolicyValueLoaded { get; set; }
 
     public string Diagnostic { get; set; } = "";
 }
@@ -312,7 +352,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         public List<string> SourceReferences { get; set; } = new();
 
         public BundledFoundationFileTransaction FileTransaction { get; set; } =
-            new();
+            null!;
     }
 
     public static string CurrentRoleId
@@ -345,6 +385,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
         settings.Normalize();
         var preset = settings.GameParameters.ActivePreset;
+        var passive = CombatRolePassiveContractProtocol.Create(
+            AuraToolsAutoBattleGameParameterRuntime.ToSharedPreset(preset));
         return new CombatModelRuntimeContext
         {
             RoleId = preset.RoleId,
@@ -354,6 +396,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             RoleSkillCardIds = preset.ResolvedRoleSkillIds.ToList(),
             FamiliarBlessingIds =
                 preset.ResolvedFamiliarBlessingIds.ToList(),
+            RolePassiveContractHash = passive.ContractHash,
             PreferredDeckSizeMinimum = preset.PreferredDeckSizeMinimum,
             PreferredDeckSizeMaximum = preset.PreferredDeckSizeMaximum
         };
@@ -427,7 +470,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         var residual = Load(
             profile,
             enabled: true,
-            out var residualDiagnostic,
+            out _,
             selected);
         var guidance = (ICombatSearchGuidanceModel)
             NullCombatSearchGuidanceModel.Instance;
@@ -500,8 +543,35 @@ internal static class AuraToolsAutoBattleModelRuntime
             SearchGuidance = guidance,
             PolicyValue = policyValue,
             ModelId = ids.Length == 0 ? "none" : string.Join("+", ids),
-            Diagnostic = residualDiagnostic + "；" + libraryDiagnostic
+            ResidualLoaded = !string.Equals(
+                residual.ModelId,
+                "none",
+                StringComparison.Ordinal),
+            SearchGuidanceLoaded = !string.Equals(
+                guidance.ModelId,
+                "none",
+                StringComparison.Ordinal),
+            PolicyValueLoaded = !string.Equals(
+                policyValue.ModelId,
+                "none",
+                StringComparison.Ordinal)
         };
+        loaded.Diagnostic = "模型组件：策略价值="
+                            + (loaded.PolicyValueLoaded
+                                ? policyValue.ModelId
+                                : "未提供")
+                            + "；搜索引导="
+                            + (loaded.SearchGuidanceLoaded
+                                ? guidance.ModelId
+                                : "未提供（由策略价值+PUCT运行）")
+                            + "；残差="
+                            + (loaded.ResidualLoaded
+                                ? residual.ModelId
+                                : "未提供（底模可正常运行）")
+                            + "；effective=" + loaded.ModelId
+                            + (ids.Length == 0
+                                ? "；" + libraryDiagnostic
+                                : "");
         lock (ResidentGate)
         {
             if (residentGeneration == generation)
@@ -3609,7 +3679,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                 SourceDirectory = packageDirectory,
                 SourceSha256 = sourceSha256,
                 ModelVersion = modelVersion,
-                DisplayName = candidate.DisplayName
+                DisplayName = candidate.DisplayName,
+                DistributionOrigin = NormalizePublishedDistributionOrigin(
+                    candidate.DistributionOrigin)
             };
             prepared = new PreparedBundledFoundationCandidate
             {
@@ -3785,7 +3857,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 StringComparison.Ordinal)
             || !string.Equals(
                 entry.DistributionOrigin,
-                "bundled",
+                NormalizePublishedDistributionOrigin(
+                    candidate.DistributionOrigin),
                 StringComparison.OrdinalIgnoreCase)
             || !string.Equals(
                 entry.SourcePackageSha256,
@@ -3828,7 +3901,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 StringComparison.OrdinalIgnoreCase)
             || !string.Equals(
                 bundle.FoundationDistributionOrigin,
-                "bundled",
+                NormalizePublishedDistributionOrigin(
+                    candidate.DistributionOrigin),
                 StringComparison.OrdinalIgnoreCase)
             || !string.Equals(
                 bundle.FoundationSourcePackageSha256,
@@ -3871,7 +3945,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         AuraSharedStorageCoordinator storage,
         CombatModelRuntimeContext runtimeContext)
     {
-        var fileTransaction = new BundledFoundationFileTransaction();
+        var fileTransaction = new BundledFoundationFileTransaction(
+            new AuraToolsBundledFoundationFileStorage(storage));
         try
         {
             Directory.CreateDirectory(ModelLibraryDirectory());
@@ -4055,7 +4130,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.FoundationPairedRegressionUpperBound =
             acceptance.PairedRegressionWilsonUpperBound;
         bundle.FoundationAcceptance = acceptance;
-        bundle.FoundationDistributionOrigin = "bundled";
+        bundle.FoundationDistributionOrigin = NormalizePublishedDistributionOrigin(
+            candidate.DistributionOrigin);
         bundle.FoundationSourcePackageSha256 = candidate.SourceSha256;
         bundle.FoundationSourcePackageFile = sourcePackageReference;
         bundle.ProjectionNormalWinRate = package.Validation.NormalWinRate;
@@ -4065,17 +4141,36 @@ internal static class AuraToolsAutoBattleModelRuntime
         return bundle;
     }
 
+    private static string NormalizePublishedDistributionOrigin(string value)
+    {
+        return string.Equals(
+            (value ?? "").Trim(),
+            "bundled",
+            StringComparison.OrdinalIgnoreCase)
+            ? "bundled"
+            : "player-trained";
+    }
+
     private static CombatPolicyValueArtifactManifest InstallPolicyValueArtifact(
         BundledFoundationPackageCandidate candidate,
         string modelId)
     {
-        using var fileTransaction = new BundledFoundationFileTransaction();
-        var installed = InstallPolicyValueArtifact(
-            candidate,
-            modelId,
-            fileTransaction);
-        fileTransaction.Commit();
-        return installed;
+        using var storage = new AuraSharedStorageCoordinator(
+            AuraSharedPaths.RootDirectory);
+        return storage.ExecuteWrite(
+            ModelLibraryWriteLockKey,
+            () =>
+            {
+                using var fileTransaction =
+                    new BundledFoundationFileTransaction(
+                        new AuraToolsBundledFoundationFileStorage(storage));
+                var installed = InstallPolicyValueArtifact(
+                    candidate,
+                    modelId,
+                    fileTransaction);
+                fileTransaction.Commit();
+                return installed;
+            });
     }
 
     private static CombatPolicyValueArtifactManifest InstallPolicyValueArtifact(

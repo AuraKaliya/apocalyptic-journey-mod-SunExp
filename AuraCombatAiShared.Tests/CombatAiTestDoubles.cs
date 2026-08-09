@@ -39,6 +39,108 @@ sealed class TestLateEscapeExtensionFactory :
     }
 }
 
+sealed class TestStagedInitializationExtensionFactory :
+    ICombatSimulationRuntimeExtensionFactory
+{
+    public ICombatSimulationRuntimeExtension Create(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset)
+    {
+        return new TestStagedInitializationExtension();
+    }
+}
+
+sealed class TestUnforkableCampaignMutationExtensionFactory :
+    ICombatSimulationRuntimeExtensionFactory,
+    ICombatSimulationRuntimeExtensionForkSupport
+{
+    public ICombatSimulationRuntimeExtension Create(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset)
+    {
+        return new TestCampaignMutationExtension();
+    }
+
+    public bool SupportsExactStateOnlyFork(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset,
+        out string reason)
+    {
+        reason = "test extension owns continuation state";
+        return false;
+    }
+}
+
+sealed class TestCampaignMutationExtension : ICombatSimulationRuntimeExtension
+{
+    public void Initialize(ICombatSimulationRuntimeContext context)
+    {
+    }
+
+    public void OnEvent(
+        ICombatSimulationRuntimeContext context,
+        CombatSimulationEvent sourceEvent)
+    {
+        if (sourceEvent.Kind == CombatSimulationEventKind.ActionResolved)
+        {
+            context.Scenario.CampaignVariables["branch-fact"] = "mutated";
+        }
+    }
+
+    public void Complete(ICombatSimulationRuntimeContext context)
+    {
+    }
+}
+
+sealed class TestStagedInitializationExtension :
+    ICombatSimulationStagedInitializationRuntimeExtension
+{
+    public void Initialize(ICombatSimulationRuntimeContext context)
+    {
+        InitializeRole(context);
+        InitializeContent(context);
+    }
+
+    public void InitializeRole(ICombatSimulationRuntimeContext context)
+    {
+        var player = context.State.Player;
+        player?.Statuses.Add(new CombatStatusState
+        {
+            StatusId = "role-passive",
+            Stacks = 2
+        });
+        if (player != null
+            && context.Scenario.Player.Variables.GetValueOrDefault(
+                "TestRoleMaximumHpMutation",
+                0d) != 0d)
+        {
+            player.MaxHp++;
+            player.Hp++;
+        }
+    }
+
+    public void InitializeContent(ICombatSimulationRuntimeContext context)
+    {
+        var player = context.State.Player;
+        if (player == null)
+        {
+            return;
+        }
+        player.MaxHp += 5;
+        player.Hp += 5;
+    }
+
+    public void OnEvent(
+        ICombatSimulationRuntimeContext context,
+        CombatSimulationEvent sourceEvent)
+    {
+    }
+
+    public void Complete(ICombatSimulationRuntimeContext context)
+    {
+    }
+}
+
 sealed class TestLateEscapeExtension : ICombatSimulationRuntimeExtension
 {
     public void Initialize(ICombatSimulationRuntimeContext context)
@@ -560,7 +662,12 @@ sealed class RecordingPolicyValueModel : ICombatPolicyValueModel
         LastInput = input;
         var result = new CombatPolicyValuePrediction
         {
-            ExpectedReturn = 0.75d
+            ExpectedReturn = 0.75d,
+            WinProbability = 0.60d,
+            DeathProbability = 0.10d,
+            ExpectedRemainingHpRatio = 0.70d,
+            ExpectedRemainingTurns = 3d,
+            Uncertainty = 0.20d
         };
         foreach (var candidate in input.Candidates)
         {

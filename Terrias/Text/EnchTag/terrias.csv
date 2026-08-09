@@ -1,4 +1,5 @@
 "Id","Note","Name","Description","Name_zh-Hant","Name_en","Description_zh-Hant","Description_en","Name_ja","Description_ja"
 "唯一标识","备注","名称","效果描述","名稱","Name","效果描述","Effect Description","名称","効果説明"
 "solar_keyword","","白曜","附着卡获得“白曜”。","白曜","White Radiance","附著卡獲得「白曜」。","Attached card gains White Radiance.","白曜","付与されたカードは白曜を得る。"
+"solar_flame_seal","","阳炣","附着卡打出时，自身获得打出费用+1的{Terrias_terrias_gathered_flame}。","陽炣","Solar Flame Seal","附著卡打出時，自身獲得打出費用+1的{Terrias_terrias_gathered_flame}。","When the attached card is played, gain {Terrias_terrias_gathered_flame} equal to its paid cost plus 1.","陽炣","付与されたカードを使用した時、支払ったコスト+1の{Terrias_terrias_gathered_flame}を得る。"
 "morning_star_seal","","启明星","附着卡打出后，根据实际支付费用获得等量{Terrias_terrias_star_blessing}。","啟明星","Morning Star Seal","附著卡打出後，根據實際支付費用獲得等量{Terrias_terrias_star_blessing}。","After the attached card is played, gain {Terrias_terrias_star_blessing} equal to its actually paid cost.","啓明星","付与されたカードを使用した後、実際に支払ったコストと同量の{Terrias_terrias_star_blessing}を得る。"

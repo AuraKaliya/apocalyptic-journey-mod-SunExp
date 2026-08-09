@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -300,11 +301,22 @@ public enum CombatSemanticEffectKind
     StateChange
 }
 
+public enum CombatSemanticEffectAttribution
+{
+    DirectAction,
+    ActionTriggeredContext,
+    PhaseTriggered,
+    ExternalOrUnknown
+}
+
 public sealed class CombatTargetedSemanticEffect
 {
     public CombatSemanticEffectPhase Phase { get; set; }
 
     public CombatSemanticEffectKind Kind { get; set; }
+
+    public CombatSemanticEffectAttribution Attribution { get; set; } =
+        CombatSemanticEffectAttribution.DirectAction;
 
     public int TargetRuntimeId { get; set; }
 
@@ -312,11 +324,25 @@ public sealed class CombatTargetedSemanticEffect
 
     public string Trigger { get; set; } = "";
 
+    public string SourceDefinitionId { get; set; } = "";
+
+    public long SourceActionId { get; set; }
+
+    public long Sequence { get; set; }
+
+    public long ParentSequence { get; set; }
+
+    public long CausalChainId { get; set; }
+
+    public int TriggerWave { get; set; }
+
     public double RawAmount { get; set; }
 
     public double EffectiveAmount { get; set; }
 
     public double EffectiveDurabilityAmount { get; set; }
+
+    public double BlockedAmount { get; set; }
 
     public double Probability { get; set; } = 1d;
 
@@ -339,6 +365,24 @@ public sealed class CombatActionSemantics
     public double DamageOverTime { get; set; }
 
     public double SelfHpLoss { get; set; }
+
+    public double DirectDamage { get; set; }
+
+    public double ContextDamage { get; set; }
+
+    public double DirectSelfHpLoss { get; set; }
+
+    public double ContextSelfHpLoss { get; set; }
+
+    public double DirectHeal { get; set; }
+
+    public double ContextHeal { get; set; }
+
+    public double ObservedNetHpDelta { get; set; }
+
+    public double MinimumHpDuringAction { get; set; }
+
+    public bool LethalBeforeRecovery { get; set; }
 
     public double EndOfCycleSelfHpLoss { get; set; }
 
@@ -400,6 +444,8 @@ public sealed class CombatActionSemantics
     public double Uncertainty { get; set; }
 
     public bool OpensInteraction { get; set; }
+
+    public CombatInteractionDefinition? Interaction { get; set; }
 
     public bool RandomOutcome { get; set; }
 
@@ -640,6 +686,20 @@ public sealed class CombatDecisionProfile
 
     public int SearchTimeBudgetMilliseconds { get; set; } = 450;
 
+    /// <summary>
+    /// Zero selects the automatic tier ratio. A positive value is clamped to
+    /// the configured hard search deadline.
+    /// </summary>
+    public int SearchMinimumTimeMilliseconds { get; set; }
+
+    public int SearchMinimumRootVisits { get; set; } = 2;
+
+    public int SearchMinimumChallengerVisits { get; set; } = 4;
+
+    public double SearchEarlyStopConfidence { get; set; } = 0.55d;
+
+    public double SearchDominanceStandardErrors { get; set; } = 1d;
+
     public int SearchModelEvaluationBudget { get; set; } = 512;
 
     public double SearchExploration { get; set; } = 1.15d;
@@ -661,6 +721,10 @@ public sealed class CombatDecisionProfile
     public double RiskPreference { get; set; } = 0.5d;
 
     public double UncertaintyPenalty { get; set; } = 0.75d;
+
+    public double NetworkDeathRiskWeight { get; set; } = 1d;
+
+    public double SemanticCoverageRiskWeight { get; set; } = 0.5d;
 
     public double SetupValueWeight { get; set; } = 0.8d;
 
@@ -772,7 +836,23 @@ public sealed class CombatDecision
 
     public bool SearchStoppedByTime { get; set; }
 
+    public int SearchMinimumTimeMilliseconds { get; set; }
+
+    public bool SearchMinimumTimeSatisfied { get; set; }
+
+    public bool SearchEarlyStopCertified { get; set; }
+
+    public string SearchStopReason { get; set; } = "";
+
     public double SearchConfidence { get; set; }
+
+    public double SearchEvidence { get; set; }
+
+    public double PolicyAmbiguity { get; set; }
+
+    public double SemanticCoverageRisk { get; set; }
+
+    public double OutcomeUncertainty { get; set; }
 
     public double SearchValueGap { get; set; }
 
@@ -799,6 +879,18 @@ public sealed class CombatDecision
     public int InferenceWorkerCount { get; set; } = 1;
 
     public double InferenceAgreement { get; set; } = 1d;
+
+    public string SearchProposedCandidateId { get; set; } = "";
+
+    public string SearchProposedDisplayName { get; set; } = "";
+
+    public string GovernanceDecision { get; set; } = "";
+
+    public string GovernanceReason { get; set; } = "";
+
+    public bool GovernanceFallbackApplied { get; set; }
+
+    public string DecisionPath { get; set; } = "";
 
     public CombatDecisionPerformanceTelemetry Performance { get; set; } = new();
 }
@@ -876,9 +968,9 @@ public interface ICombatTrainingSampleSink
 
 public static class CombatTrainingProtocol
 {
-    public const string SampleProtocol = "aura.combat-ai.sample.v7";
+    public const string SampleProtocol = "aura.combat-ai.sample.v8";
 
-    public const int FeatureSchemaVersion = 10;
+    public const int FeatureSchemaVersion = 11;
 
     public static bool IsCompatible(CombatTrainingSample? sample)
     {
@@ -934,6 +1026,8 @@ public sealed class CombatTrainingSample
     public string DecisionProfile { get; set; } = "";
 
     public CombatTrainingSelectionTrace Selection { get; set; } = new();
+
+    public CombatTrainingInteractionTrace? Interaction { get; set; }
 
     public string PlanSummary { get; set; } = "";
 
@@ -995,6 +1089,39 @@ public sealed class CombatTrainingSelectionTrace
     public bool HumanPolicyAgreement { get; set; }
 
     public bool PolicyVisibleToHuman { get; set; }
+}
+
+public sealed class CombatTrainingInteractionTrace
+{
+    public const string CurrentProtocol = "aura.combat-ai.interaction-trace.v2";
+
+    public string Protocol { get; set; } = CurrentProtocol;
+
+    public long RequestId { get; set; }
+
+    public string ParentActionToken { get; set; } = "";
+
+    public string ParentCandidateId { get; set; } = "";
+
+    public CombatInteractionKind Kind { get; set; }
+
+    public CombatInteractionZone Zone { get; set; }
+
+    public int MinSelections { get; set; }
+
+    public int MaxSelections { get; set; }
+
+    public bool CanConfirmEarly { get; set; }
+
+    public bool EffectsComplete { get; set; }
+
+    public List<string> EligibleCandidateIds { get; set; } = new();
+
+    public List<string> SelectedCandidateIds { get; set; } = new();
+
+    public bool Completed { get; set; }
+
+    public string CompletionReason { get; set; } = "";
 }
 
 public sealed class CombatTrainingCandidate

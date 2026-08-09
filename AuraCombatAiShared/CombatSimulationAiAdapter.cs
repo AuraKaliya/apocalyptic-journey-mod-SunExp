@@ -98,8 +98,17 @@ public sealed class CombatDecisionSimulationPolicy :
 
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
+        return SelectAction(context, null);
+    }
+
+    internal CombatSimulationAction? SelectAction(
+        CombatSimulationPolicyContext context,
+        CombatStateObservation? authoritativeObservation)
+    {
         var allocationStart = ReadThreadAllocatedBytes();
-        var observation = PlayerEquivalentSimulationObservationProjector.Project(context);
+        var observation = authoritativeObservation
+                          ?? PlayerEquivalentSimulationObservationProjector.Project(
+                              context);
         var projectionAllocated = Math.Max(
             0L,
             ReadThreadAllocatedBytes() - allocationStart);
@@ -109,12 +118,12 @@ public sealed class CombatDecisionSimulationPolicy :
             observation,
             profile,
             searchExploration,
-            out var preparedObservation,
+            out var decisionPreparedObservation,
             stateIsNormalizedAndOwned: true);
         var decisionAllocated = Math.Max(
             0L,
             ReadThreadAllocatedBytes() - decisionStart);
-        LastObservation = preparedObservation ?? observation;
+        LastObservation = decisionPreparedObservation ?? observation;
         LastDecision = decision;
         LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
         LastDecisionMetrics.SearchNodes = decision.SearchNodes;
@@ -378,7 +387,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
     ICombatSimulationPolicy,
     ICombatSimulationBorrowedStatePolicy,
     ICombatSimulationPolicyMetricsProvider,
-    ICombatDecisionTracePolicy
+    ICombatDecisionTracePolicy,
+    ICombatSimulationActionExecutionObserver
 {
     private readonly CombatDecisionSimulationPolicy inner;
     private readonly CombatSimulationEngine engine;
@@ -408,132 +418,116 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
     public CombatSimulationAction? SelectAction(
         CombatSimulationPolicyContext context)
     {
-        var baseline = inner.SelectAction(context);
         if (!ShouldAudit(context))
         {
-            return baseline;
+            return SelectWithSelectedTransition(context);
         }
-        var candidates = SelectCandidates(context, baseline);
+        var observation = PlayerEquivalentSimulationObservationProjector.Project(
+            context);
+        var candidates = SelectCandidates(context, observation);
         if (candidates.Count == 0)
         {
-            return baseline;
+            return inner.SelectAction(context, observation);
         }
 
         CombatSimulationAction? bestAction = null;
         var bestScore = double.NegativeInfinity;
         var audits = new Dictionary<string, CombatSemanticAuditResult>(
             StringComparer.Ordinal);
-        var baselineScore = baseline?.Kind
-                            is CombatSimulationActionKind.PlayCard
-                            or CombatSimulationActionKind.UseSkill
-            ? double.NegativeInfinity
-            : 0d;
+        var transitions = new Dictionary<string, AuthoritativeTransition>(
+            StringComparer.Ordinal);
+        var unavailableBranches = new List<KeyValuePair<string, string>>();
+        var attemptedCandidateIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var candidate in candidates)
         {
-            var applied = engine.ForkAndApplyPlayerAction(
-                context.Scenario,
-                context.Ruleset,
-                context.State,
+            attemptedCandidateIds.Add(candidate.CandidateId);
+            var transition = BuildTransition(
+                context,
+                observation,
                 candidate,
-                captureSemanticEvents: true);
-            if (!applied.Success)
+                (action, reason) => unavailableBranches.Add(
+                    new KeyValuePair<string, string>(
+                        action.DefinitionId,
+                        reason)));
+            if (transition == null)
             {
                 continue;
             }
-            var projected = LastObservation?.Actions.FirstOrDefault(item =>
-                string.Equals(
-                    item.CandidateId,
-                    candidate.CandidateId,
-                    StringComparison.Ordinal));
-            var sourceAudit = CombatSemanticAuditor.Audit(
-                context.State,
-                applied.State,
-                applied.Events,
-                projected?.Semantics,
-                candidate,
-                context.Ruleset);
-            RecordAudit(
-                LastDecisionMetrics,
-                sourceAudit,
-                candidate.DefinitionId,
-                context.Scenario.ScenarioId);
-            if (sourceAudit.Valid)
+            transitions[candidate.CandidateId] = transition;
+            audits[candidate.CandidateId] = transition.Audit;
+            if (transition.Score > bestScore)
             {
-                LastDecisionMetrics.AuthoritativeActionsAudited++;
-            }
-            if (sourceAudit.Mismatch)
-            {
-                LastDecisionMetrics.AuthoritativeSemanticMismatches++;
-                foreach (var kind in sourceAudit.MismatchKinds.Distinct(
-                             StringComparer.OrdinalIgnoreCase))
-                {
-                    Increment(
-                        LastDecisionMetrics
-                            .AuthoritativeSemanticMismatchKinds,
-                        kind);
-                }
-                Increment(
-                    LastDecisionMetrics.AuthoritativeSemanticMismatchSources,
-                    string.IsNullOrWhiteSpace(candidate.DefinitionId)
-                        ? "unknown"
-                        : candidate.DefinitionId);
-                Increment(
-                    LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios,
-                    string.IsNullOrWhiteSpace(context.Scenario.ScenarioId)
-                        ? "unknown"
-                        : context.Scenario.ScenarioId);
-            }
-            var realized = CombatSemanticAuditor.ProjectRealized(
-                context.State,
-                applied.State,
-                applied.Events,
-                candidate,
-                context.Ruleset);
-            if (projected != null)
-            {
-                projected.Semantics = realized;
-                var effective = CombatSemanticAuditor.ProjectEffective(
-                    context.State,
-                    candidate,
-                    realized,
-                    context.Ruleset);
-                projected.Features["effectiveHpDamage"] = effective.Damage;
-                projected.Features["effectiveDurabilityDamage"] =
-                    effective.DurabilityDamage;
-                projected.Features["effectiveDefend"] = effective.Defend;
-                projected.Features["effectiveHeal"] = effective.Heal;
-                projected.Features["deferredHpDamage"] =
-                    CombatActionSemanticMetrics.DeferredHpDamage(realized);
-                projected.Features["affectedEnemyCount"] =
-                    realized.AffectedEnemyCount;
-            }
-            var audit = CombatSemanticAuditor.Audit(
-                context.State,
-                applied.State,
-                applied.Events,
-                realized,
-                candidate,
-                context.Ruleset);
-            audits[candidate.CandidateId] = audit;
-            var score = ScoreTransition(
-                context.State,
-                applied.State,
-                candidate,
-                realized);
-            if (baseline != null
-                && string.Equals(
-                    candidate.CandidateId,
-                    baseline.CandidateId,
-                    StringComparison.Ordinal))
-            {
-                baselineScore = score;
-            }
-            if (score > bestScore)
-            {
-                bestScore = score;
+                bestScore = transition.Score;
                 bestAction = candidate;
             }
         }
+        var baseline = inner.SelectAction(context, observation);
+        if (baseline != null
+            && !transitions.ContainsKey(baseline.CandidateId)
+            && !attemptedCandidateIds.Contains(baseline.CandidateId)
+            && baseline.Kind is CombatSimulationActionKind.PlayCard
+                or CombatSimulationActionKind.UseSkill)
+        {
+            attemptedCandidateIds.Add(baseline.CandidateId);
+            var baselineTransition = BuildTransition(
+                context,
+                observation,
+                baseline,
+                (action, reason) => unavailableBranches.Add(
+                    new KeyValuePair<string, string>(
+                        action.DefinitionId,
+                        reason)));
+            if (baselineTransition != null)
+            {
+                transitions[baseline.CandidateId] = baselineTransition;
+                audits[baseline.CandidateId] = baselineTransition.Audit;
+                if (baselineTransition.Score > bestScore)
+                {
+                    bestScore = baselineTransition.Score;
+                    bestAction = baseline;
+                }
+            }
+        }
+        RecordCounterfactualBranchUnavailable(unavailableBranches);
+        var decisionLegalIds = new HashSet<string>(
+            (LastDecision?.Candidates
+             ?? new List<CombatCandidateEvaluation>())
+            .Where(item => item?.Action != null && item.Legal)
+            .Select(item => item.Action.CandidateId),
+            StringComparer.Ordinal);
+        bestAction = null;
+        bestScore = double.NegativeInfinity;
+        foreach (var item in transitions.Where(item =>
+                     decisionLegalIds.Contains(item.Key)))
+        {
+            var candidate = context.LegalActions.FirstOrDefault(action =>
+                string.Equals(
+                    action.CandidateId,
+                    item.Key,
+                    StringComparison.Ordinal));
+            if (candidate != null)
+            {
+                RecordAuthoritativeAudit(
+                    context,
+                    candidate,
+                    item.Value.Audit);
+                if (item.Value.Score > bestScore)
+                {
+                    bestScore = item.Value.Score;
+                    bestAction = candidate;
+                }
+            }
+        }
+        var baselineScore = baseline != null
+                            && transitions.TryGetValue(
+                                baseline.CandidateId,
+                                out var knownBaseline)
+            ? knownBaseline.Score
+            : baseline?.Kind
+                is CombatSimulationActionKind.PlayCard
+                or CombatSimulationActionKind.UseSkill
+                ? double.NegativeInfinity
+                : 0d;
         var selected = baseline;
         if (bestAction != null
             && bestScore
@@ -548,70 +542,454 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             MakeTeacherTarget(bestAction.CandidateId);
             selected = bestAction;
         }
-        if (selected != null
-            && audits.TryGetValue(selected.CandidateId, out var selectedAudit))
+        return selected;
+    }
+
+    private CombatSimulationAction? SelectWithSelectedTransition(
+        CombatSimulationPolicyContext context)
+    {
+        return inner.SelectAction(context);
+    }
+
+    public void OnActionExecuted(CombatSimulationActionExecution execution)
+    {
+        if (execution == null) throw new ArgumentNullException(nameof(execution));
+        var selected = execution.Action;
+        if (selected.Kind is not (
+                CombatSimulationActionKind.PlayCard
+                or CombatSimulationActionKind.UseSkill)
+            || LastObservation == null)
         {
-            LastDecisionMetrics.AuthoritativeSelectedActionsAudited =
-                selectedAudit.Valid ? 1 : 0;
-            LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches =
-                selectedAudit.Mismatch ? 1 : 0;
-            var selectedSource = string.IsNullOrWhiteSpace(selected.DefinitionId)
-                ? "unknown"
-                : selected.DefinitionId;
+            return;
+        }
+
+        var transition = BuildTransition(
+            execution,
+            LastObservation,
+            selected);
+        var context = new CombatSimulationPolicyContext
+        {
+            Scenario = execution.Scenario,
+            Ruleset = execution.Ruleset,
+            State = execution.BeforeState
+        };
+        RecordAuthoritativeAudit(context, selected, transition.Audit);
+        RecordSelectedAudit(selected, transition.Audit);
+    }
+
+    private void RecordSelectedAudit(
+        CombatSimulationAction selected,
+        CombatSemanticAuditResult audit)
+    {
+        LastDecisionMetrics.AuthoritativeSelectedActionsAudited =
+            audit.Valid ? 1 : 0;
+        LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches =
+            audit.Mismatch ? 1 : 0;
+        var selectedSource = string.IsNullOrWhiteSpace(selected.DefinitionId)
+            ? "unknown"
+            : selected.DefinitionId;
+        Increment(
+            LastDecisionMetrics.SemanticAudit.SelectedAuditedSources,
+            selectedSource);
+        if (audit.Invalid)
+        {
+            LastDecisionMetrics.SemanticAudit.SelectedInvalidActions = 1;
             Increment(
-                LastDecisionMetrics.SemanticAudit.SelectedAuditedSources,
+                LastDecisionMetrics.SemanticAudit.SelectedInvalidSources,
                 selectedSource);
-            if (selectedAudit.Invalid)
-            {
-                LastDecisionMetrics.SemanticAudit.SelectedInvalidActions = 1;
-                Increment(
-                    LastDecisionMetrics.SemanticAudit.SelectedInvalidSources,
-                    selectedSource);
-            }
-            else
-            {
-                LastDecisionMetrics.SemanticAudit.SelectedValidActions = 1;
-            }
-            if (selectedAudit.ExplainedDifference)
-            {
-                LastDecisionMetrics.SemanticAudit.SelectedExplainedActions = 1;
+        }
+        else
+        {
+            LastDecisionMetrics.SemanticAudit.SelectedValidActions = 1;
+        }
+        if (audit.ExplainedDifference)
+        {
+            LastDecisionMetrics.SemanticAudit.SelectedExplainedActions = 1;
+            LastDecisionMetrics.SemanticAudit
+                .SelectedContextAdjustedActions = 1;
+        }
+        if (audit.Mismatch)
+        {
+            LastDecisionMetrics.SemanticAudit
+                .SelectedUnexplainedMismatchActions = 1;
+            Increment(
                 LastDecisionMetrics.SemanticAudit
-                    .SelectedContextAdjustedActions = 1;
-            }
-            if (selectedAudit.Mismatch)
+                    .SelectedUnexplainedMismatchSources,
+                selectedSource);
+            foreach (var kind in audit.MismatchKinds.Distinct(
+                         StringComparer.OrdinalIgnoreCase))
             {
-                LastDecisionMetrics.SemanticAudit
-                    .SelectedUnexplainedMismatchActions = 1;
                 Increment(
                     LastDecisionMetrics.SemanticAudit
-                        .SelectedUnexplainedMismatchSources,
-                    selectedSource);
-                foreach (var kind in selectedAudit.MismatchKinds.Distinct(
-                             StringComparer.OrdinalIgnoreCase))
+                        .SelectedUnexplainedMismatchKinds,
+                    kind);
+                var key = SourceKindKey(selectedSource, kind);
+                Increment(
+                    LastDecisionMetrics.SemanticAudit
+                        .SelectedSourceKindUnexplainedMismatches,
+                    key);
+                if (LastDecisionMetrics.SemanticAudit
+                        .SelectedUnexplainedExamples.Count
+                    < CombatSemanticAuditMetrics.MaximumExamples
+                    && !LastDecisionMetrics.SemanticAudit
+                        .SelectedUnexplainedExamples.ContainsKey(key))
                 {
-                    Increment(
-                        LastDecisionMetrics.SemanticAudit
-                            .SelectedUnexplainedMismatchKinds,
-                        kind);
-                    var key = SourceKindKey(selectedSource, kind);
-                    Increment(
-                        LastDecisionMetrics.SemanticAudit
-                            .SelectedSourceKindUnexplainedMismatches,
-                        key);
-                    if (LastDecisionMetrics.SemanticAudit
-                            .SelectedUnexplainedExamples.Count
-                        < CombatSemanticAuditMetrics.MaximumExamples
-                        && !LastDecisionMetrics.SemanticAudit
-                            .SelectedUnexplainedExamples.ContainsKey(key))
-                    {
-                        LastDecisionMetrics.SemanticAudit
-                            .SelectedUnexplainedExamples[key] =
-                            selectedAudit.Describe(selectedSource);
-                    }
+                    LastDecisionMetrics.SemanticAudit
+                        .SelectedUnexplainedExamples[key] =
+                        audit.Describe(selectedSource);
                 }
             }
         }
-        return selected;
+        RecordSelectedSourceProjectionAudit(
+            LastDecisionMetrics.SemanticAudit,
+            audit,
+            selectedSource);
+    }
+
+    private AuthoritativeTransition? BuildTransition(
+        CombatSimulationPolicyContext context,
+        CombatStateObservation observation,
+        CombatSimulationAction candidate,
+        Action<CombatSimulationAction, string>? onBranchUnavailable = null)
+    {
+        var applied = engine.ForkAndApplyPlayerAction(
+            context.Scenario,
+            context.Ruleset,
+            context.State,
+            candidate,
+            captureSemanticEvents: true,
+            requireExactRuntimeContinuation: true);
+        if (applied.FailureKind
+            == CombatActionApplicationFailureKind.RuntimeContinuationUnavailable)
+        {
+            onBranchUnavailable?.Invoke(candidate, applied.Reason);
+            return null;
+        }
+        if (!applied.Success)
+        {
+            return new AuthoritativeTransition(
+                new CombatSemanticAuditResult
+                {
+                    InvalidKinds = { "action-transition" },
+                    Comparisons =
+                    {
+                        new CombatSemanticAuditComparison
+                        {
+                            Kind = "action-transition",
+                            Classification = "invalid",
+                            Explanation = string.IsNullOrWhiteSpace(applied.Reason)
+                                ? "authoritative action branch failed"
+                                : applied.Reason
+                        }
+                    }
+                },
+                double.NegativeInfinity);
+        }
+        var projected = observation.Actions.FirstOrDefault(item =>
+            string.Equals(
+                item.CandidateId,
+                candidate.CandidateId,
+                StringComparison.Ordinal));
+        var declared = projected?.Semantics;
+        var realized = CombatSemanticAuditor.ProjectRealized(
+            context.State,
+            applied.State,
+            applied.Events,
+            candidate,
+            context.Ruleset,
+            declared);
+        ProjectCampaignVariableChanges(
+            context.Scenario.CampaignVariables,
+            applied.CampaignVariables,
+            realized);
+        if (projected != null)
+        {
+            projected.Semantics = realized;
+            projected.Features["authoritativeTransitionSemantics"] = 1d;
+            var effective = CombatSemanticAuditor.ProjectEffective(
+                context.State,
+                candidate,
+                realized,
+                context.Ruleset);
+            projected.Features["effectiveHpDamage"] = effective.Damage;
+            projected.Features["effectiveDurabilityDamage"] =
+                effective.DurabilityDamage;
+            projected.Features["effectiveDefend"] = effective.Defend;
+            projected.Features["effectiveHeal"] = effective.Heal;
+            projected.Features["deferredHpDamage"] =
+                CombatActionSemanticMetrics.DeferredHpDamage(realized);
+            projected.Features["affectedEnemyCount"] =
+                realized.AffectedEnemyCount;
+        }
+        var audit = CombatSemanticAuditor.Audit(
+            context.State,
+            applied.State,
+            applied.Events,
+            realized,
+            candidate,
+            context.Ruleset);
+        return new AuthoritativeTransition(
+            audit,
+            ScoreTransition(
+                context.State,
+                applied.State,
+                candidate,
+                realized));
+    }
+
+    private void RecordCounterfactualBranchUnavailable(
+        IEnumerable<KeyValuePair<string, string>> unavailable)
+    {
+        foreach (var item in unavailable ??
+                 Array.Empty<KeyValuePair<string, string>>())
+        {
+            var source = string.IsNullOrWhiteSpace(item.Key)
+                ? "unknown"
+                : item.Key;
+            LastDecisionMetrics.SemanticAudit
+                .CounterfactualBranchUnavailableActions++;
+            Increment(
+                LastDecisionMetrics.SemanticAudit
+                    .CounterfactualBranchUnavailableSources,
+                source);
+            if (LastDecisionMetrics.SemanticAudit
+                    .CounterfactualBranchUnavailableExamples.Count
+                < CombatSemanticAuditMetrics.MaximumExamples
+                && !LastDecisionMetrics.SemanticAudit
+                    .CounterfactualBranchUnavailableExamples.ContainsKey(
+                        source))
+            {
+                LastDecisionMetrics.SemanticAudit
+                    .CounterfactualBranchUnavailableExamples[source] =
+                    string.IsNullOrWhiteSpace(item.Value)
+                        ? "runtime continuation unavailable"
+                        : item.Value;
+            }
+        }
+    }
+
+    private AuthoritativeTransition BuildTransition(
+        CombatSimulationActionExecution execution,
+        CombatStateObservation observation,
+        CombatSimulationAction candidate)
+    {
+        if (!execution.ApplicationSucceeded)
+        {
+            var explanation = string.IsNullOrWhiteSpace(execution.FailureReason)
+                ? execution.FailureKind.ToString()
+                : execution.FailureKind + ":" + execution.FailureReason;
+            return new AuthoritativeTransition(
+                InvalidTransitionAudit(explanation),
+                double.NegativeInfinity);
+        }
+
+        var projected = observation.Actions.FirstOrDefault(item =>
+            string.Equals(
+                item.CandidateId,
+                candidate.CandidateId,
+                StringComparison.Ordinal));
+        var declared = projected?.Semantics;
+        var realized = CombatSemanticAuditor.ProjectRealized(
+            execution.BeforeState,
+            execution.AfterState,
+            execution.Events,
+            candidate,
+            execution.Ruleset,
+            declared);
+        ProjectCampaignVariableChanges(
+            execution.BeforeCampaignVariables,
+            execution.AfterCampaignVariables,
+            realized);
+        ApplyRealizedProjection(
+            projected,
+            realized,
+            execution.BeforeState,
+            candidate,
+            execution.Ruleset);
+        var decisionAction = LastDecision?.Candidates
+            .FirstOrDefault(item => string.Equals(
+                item?.Action?.CandidateId,
+                candidate.CandidateId,
+                StringComparison.Ordinal))?.Action;
+        if (!ReferenceEquals(decisionAction, projected))
+        {
+            ApplyRealizedProjection(
+                decisionAction,
+                realized,
+                execution.BeforeState,
+                candidate,
+                execution.Ruleset);
+        }
+        var audit = CombatSemanticAuditor.Audit(
+            execution.BeforeState,
+            execution.AfterState,
+            execution.Events,
+            realized,
+            candidate,
+            execution.Ruleset);
+        return new AuthoritativeTransition(
+            audit,
+            ScoreTransition(
+                execution.BeforeState,
+                execution.AfterState,
+                candidate,
+                realized));
+    }
+
+    private static CombatSemanticAuditResult InvalidTransitionAudit(
+        string explanation)
+    {
+        return new CombatSemanticAuditResult
+        {
+            InvalidKinds = { "action-transition" },
+            Comparisons =
+            {
+                new CombatSemanticAuditComparison
+                {
+                    Kind = "action-transition",
+                    Classification = "invalid",
+                    Explanation = string.IsNullOrWhiteSpace(explanation)
+                        ? "authoritative action execution failed"
+                        : explanation
+                }
+            }
+        };
+    }
+
+    private static void ApplyRealizedProjection(
+        CombatActionObservation? projected,
+        CombatActionSemantics realized,
+        CombatBattleState before,
+        CombatSimulationAction candidate,
+        CombatRuleset ruleset)
+    {
+        if (projected == null)
+        {
+            return;
+        }
+        projected.Semantics = realized;
+        projected.Features["authoritativeTransitionSemantics"] = 1d;
+        var effective = CombatSemanticAuditor.ProjectEffective(
+            before,
+            candidate,
+            realized,
+            ruleset);
+        projected.Features["effectiveHpDamage"] = effective.Damage;
+        projected.Features["effectiveDurabilityDamage"] =
+            effective.DurabilityDamage;
+        projected.Features["effectiveDefend"] = effective.Defend;
+        projected.Features["effectiveHeal"] = effective.Heal;
+        projected.Features["deferredHpDamage"] =
+            CombatActionSemanticMetrics.DeferredHpDamage(realized);
+        projected.Features["affectedEnemyCount"] =
+            realized.AffectedEnemyCount;
+    }
+
+    private static void ProjectCampaignVariableChanges(
+        IReadOnlyDictionary<string, string> before,
+        IReadOnlyDictionary<string, string> after,
+        CombatActionSemantics semantics)
+    {
+        var changed = 0;
+        foreach (var key in (before?.Keys ?? Array.Empty<string>())
+                     .Concat(after?.Keys ?? Array.Empty<string>())
+                     .Where(key => !string.IsNullOrWhiteSpace(key))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var beforeValue = before != null
+                              && before.TryGetValue(key, out var knownBefore)
+                ? knownBefore ?? ""
+                : "";
+            var afterValue = after != null
+                             && after.TryGetValue(key, out var knownAfter)
+                ? knownAfter ?? ""
+                : "";
+            if (string.Equals(
+                    beforeValue,
+                    afterValue,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            changed++;
+            var delta = 1d;
+            if (double.TryParse(
+                    beforeValue,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var numericBefore)
+                && double.TryParse(
+                    afterValue,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var numericAfter)
+                && !double.IsNaN(numericBefore)
+                && !double.IsInfinity(numericBefore)
+                && !double.IsNaN(numericAfter)
+                && !double.IsInfinity(numericAfter))
+            {
+                delta = numericAfter - numericBefore;
+            }
+            semantics.StateChanges["campaign:" + key] = delta;
+        }
+        if (changed > 0)
+        {
+            semantics.StateChanges["campaign.changed"] = changed;
+        }
+    }
+
+    private void RecordAuthoritativeAudit(
+        CombatSimulationPolicyContext context,
+        CombatSimulationAction candidate,
+        CombatSemanticAuditResult audit)
+    {
+        RecordAudit(
+            LastDecisionMetrics,
+            audit,
+            candidate.DefinitionId,
+            context.Scenario.ScenarioId);
+        if (audit.Valid)
+        {
+            LastDecisionMetrics.AuthoritativeActionsAudited++;
+        }
+        if (!audit.Mismatch)
+        {
+            return;
+        }
+        LastDecisionMetrics.AuthoritativeSemanticMismatches++;
+        foreach (var kind in audit.MismatchKinds.Distinct(
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            Increment(
+                LastDecisionMetrics.AuthoritativeSemanticMismatchKinds,
+                kind);
+        }
+        Increment(
+            LastDecisionMetrics.AuthoritativeSemanticMismatchSources,
+            string.IsNullOrWhiteSpace(candidate.DefinitionId)
+                ? "unknown"
+                : candidate.DefinitionId);
+        Increment(
+            LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios,
+            string.IsNullOrWhiteSpace(context.Scenario.ScenarioId)
+                ? "unknown"
+                : context.Scenario.ScenarioId);
+    }
+
+    private sealed class AuthoritativeTransition
+    {
+        public AuthoritativeTransition(
+            CombatSemanticAuditResult audit,
+            double score)
+        {
+            Audit = audit;
+            Score = score;
+        }
+
+        public CombatSemanticAuditResult Audit { get; }
+
+        public double Score { get; }
     }
 
     private static long ReadThreadAllocatedBytes()
@@ -663,12 +1041,16 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
         }
         if (audit.ExplainedDifference)
         {
-            metrics.SemanticAudit.ExplainedActions = 1;
+            metrics.SemanticAudit.ExplainedActions++;
             foreach (var kind in audit.ExplainedKinds.Distinct(
                          StringComparer.OrdinalIgnoreCase))
             {
                 Increment(metrics.SemanticAudit.ExplainedKinds, kind);
             }
+        }
+        if (audit.Mismatch)
+        {
+            metrics.SemanticAudit.UnexplainedMismatchActions++;
         }
         foreach (var kind in audit.MismatchKinds.Distinct(
                      StringComparer.OrdinalIgnoreCase))
@@ -680,6 +1062,42 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 && !metrics.SemanticAudit.Examples.ContainsKey(key))
             {
                 metrics.SemanticAudit.Examples[key] = audit.Describe(source);
+            }
+        }
+    }
+
+    private static void RecordSelectedSourceProjectionAudit(
+        CombatSemanticAuditMetrics metrics,
+        CombatSemanticAuditResult audit,
+        string source)
+    {
+        if (audit.Invalid)
+        {
+            metrics.SelectedSourceProjectionInvalidActions++;
+            Increment(metrics.SelectedSourceProjectionInvalidSources, source);
+        }
+        else
+        {
+            metrics.SelectedSourceProjectionValidActions++;
+        }
+        if (!audit.Mismatch)
+        {
+            return;
+        }
+
+        metrics.SelectedSourceProjectionUnexplainedMismatchActions++;
+        Increment(metrics.SelectedSourceProjectionMismatchSources, source);
+        foreach (var kind in audit.MismatchKinds.Distinct(
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            Increment(metrics.SelectedSourceProjectionMismatchKinds, kind);
+            var key = SourceKindKey(source, kind);
+            if (metrics.SelectedSourceProjectionExamples.Count
+                    < CombatSemanticAuditMetrics.MaximumExamples
+                && !metrics.SelectedSourceProjectionExamples.ContainsKey(key))
+            {
+                metrics.SelectedSourceProjectionExamples[key] =
+                    audit.Describe(source);
             }
         }
     }
@@ -710,40 +1128,46 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
 
     private List<CombatSimulationAction> SelectCandidates(
         CombatSimulationPolicyContext context,
-        CombatSimulationAction? baseline)
+        CombatStateObservation observation)
     {
-        var legalEvaluations = (LastDecision?.Candidates
-                                ?? new List<CombatCandidateEvaluation>())
-            .Where(item => item?.Action != null && item.Legal)
-            .ToList();
         var legalCandidateIds = new HashSet<string>(
-            legalEvaluations.Select(item => item.Action.CandidateId),
+            observation.Actions
+                .Where(item => item != null && item.Legal)
+                .Select(item => item.CandidateId),
             StringComparer.Ordinal);
-        var visits = legalEvaluations
-            .GroupBy(
-                item => item.Action.CandidateId,
-                StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => group.Max(item => item.SearchVisits),
-                StringComparer.Ordinal);
         return context.LegalActions
             .Where(item => (item.Kind is CombatSimulationActionKind.PlayCard
                 or CombatSimulationActionKind.UseSkill)
                 && legalCandidateIds.Contains(item.CandidateId))
-            .OrderByDescending(item => baseline != null
-                                       && string.Equals(
-                                           item.CandidateId,
-                                           baseline.CandidateId,
-                                           StringComparison.Ordinal))
-            .ThenByDescending(item => visits.TryGetValue(
-                item.CandidateId,
-                out var count)
-                ? count
-                : 0)
+            .OrderByDescending(item => RequiresTransitionOracle(
+                context.Ruleset,
+                item))
             .ThenBy(item => item.CandidateId, StringComparer.Ordinal)
             .Take(options.MaximumCandidates)
             .ToList();
+    }
+
+    private static bool RequiresTransitionOracle(
+        CombatRuleset ruleset,
+        CombatSimulationAction action)
+    {
+        if (action.Kind == CombatSimulationActionKind.UseSkill)
+        {
+            return true;
+        }
+        if (!ruleset.TryGetCard(action.DefinitionId, out var card))
+        {
+            return true;
+        }
+        return card.Interaction != null
+               || card.Effects.Count == 0
+               || card.Metadata.TryGetValue(
+                   "NativeExecution",
+                   out var execution)
+               && string.Equals(
+                   execution,
+                   "Script",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static double ScoreTransition(
@@ -1602,6 +2026,11 @@ public static class PlayerEquivalentSimulationObservationProjector
         var semantics = definition == null
             ? new CombatActionSemantics { Uncertainty = 10d }
             : ProjectSemantics(ruleset, state, definition, action);
+        ApplyScenarioActionContextSemantics(
+            scenario,
+            state,
+            action,
+            semantics);
         var instance = state.FindCard(action.CardInstanceId);
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
@@ -1771,6 +2200,65 @@ public static class PlayerEquivalentSimulationObservationProjector
             state,
             card,
             action);
+    }
+
+    private static void ApplyScenarioActionContextSemantics(
+        CombatScenarioDefinition scenario,
+        CombatBattleState state,
+        CombatSimulationAction action,
+        CombatActionSemantics semantics)
+    {
+        if (scenario == null
+            || state == null
+            || semantics == null
+            || action.Kind is not (
+                CombatSimulationActionKind.PlayCard
+                or CombatSimulationActionKind.UseSkill))
+        {
+            return;
+        }
+        var configuredLoss = Math.Max(0, scenario.DirectHpLossAfterPlayerCard);
+        var player = state.Player;
+        if (configuredLoss <= 0 || player == null)
+        {
+            return;
+        }
+
+        var previousProjectedLoss = Math.Max(0d, semantics.SelfHpLoss);
+        var hpBeforeContext = Math.Max(0d, player.Hp - previousProjectedLoss);
+        var effectiveLoss = Math.Min(hpBeforeContext, configuredLoss);
+        semantics.ContextSelfHpLoss += effectiveLoss;
+        semantics.SelfHpLoss += effectiveLoss;
+        semantics.Risk += effectiveLoss;
+        semantics.MinimumHpDuringAction = Math.Max(
+            0d,
+            Math.Min(
+                semantics.MinimumHpDuringAction > 0d
+                    ? semantics.MinimumHpDuringAction
+                    : hpBeforeContext,
+                hpBeforeContext - effectiveLoss));
+        semantics.StateChanges["player.hp"] =
+            semantics.StateChanges.TryGetValue("player.hp", out var hpDelta)
+                ? hpDelta - effectiveLoss
+                : -effectiveLoss;
+        semantics.StateChanges["context:direct-hp-loss-after-player-card"] =
+            effectiveLoss;
+        semantics.TargetEffects.Add(new CombatTargetedSemanticEffect
+        {
+            Phase = CombatSemanticEffectPhase.Immediate,
+            Kind = CombatSemanticEffectKind.DirectHpLoss,
+            Attribution = CombatSemanticEffectAttribution.ActionTriggeredContext,
+            TargetRuntimeId = player.ActorId,
+            DefinitionId = "difficulty:player-card-hp-loss",
+            Trigger = CombatSimulationEventKind.CardPlayed.ToString(),
+            SourceDefinitionId = "difficulty:player-card-hp-loss",
+            SourceActionId = Math.Max(1L, state.ActionSequence + 1L),
+            RawAmount = configuredLoss,
+            EffectiveAmount = effectiveLoss,
+            Probability = 1d,
+            BypassesBlock = true,
+            Contextual = true
+        });
     }
 
     private static double MarginalStatusStacks(

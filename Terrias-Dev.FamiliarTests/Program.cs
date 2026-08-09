@@ -148,15 +148,13 @@ var zeroPartner = new FamiliarInstance { FullSpeciesId = "Example_example_zero_p
 Assert(FamiliarBlessingRegistry.SpecificFinals(zeroPartner).Count == 0, "zero-config compatibility must not invent a species final pool");
 Assert(FamiliarBlessingRegistry.GenericFinals(zeroPartner).Count > 0, "zero-config compatibility must retain the generic final pool");
 
-Assert(SandroneCatMaxHpFormula.CalculateStartLoss(100) == 5,
-    "Sandrone Cat combat start must lose 3 plus 2% of trigger-time Max HP.");
 Assert(SandroneCatMaxHpFormula.CalculateEndGain(95) == 5,
-    "Sandrone Cat combat end must gain 2 plus 3% of trigger-time Max HP.");
-Assert(SandroneCatMaxHpFormula.CalculateStartLoss(200) == 7
-       && SandroneCatMaxHpFormula.CalculateEndGain(193) == 8,
-    "Sandrone Cat percentage components must round up.");
-Assert(SandroneCatMaxHpFormula.MaxHpAfterStart(1) == 1,
-    "Sandrone Cat combat-start loss must never reduce Max HP below one.");
+    "Sandrone Cat combat end must gain 1 plus 4% of trigger-time Max HP.");
+Assert(SandroneCatMaxHpFormula.CalculateEndGain(200) == 9
+       && SandroneCatMaxHpFormula.CalculateEndGain(1) == 2,
+    "Sandrone Cat's four-percent component must round up.");
+Assert(SandroneCatMaxHpFormula.MaxHpAfterEnd(100) == 105,
+    "Sandrone Cat combat-end growth must use trigger-time Max HP.");
 
 var sandroneState = new SandroneCatBattleState();
 Assert(sandroneState.TryMarkStarted(1, "player"), "Sandrone Cat must apply once at combat start.");
@@ -164,7 +162,7 @@ Assert(!sandroneState.TryMarkStarted(1, "player"), "Sandrone Cat must reject dup
 Assert(sandroneState.TryMarkEnded(1, "player"), "Sandrone Cat must apply once at combat end after a start.");
 Assert(!sandroneState.TryMarkEnded(1, "player"), "Sandrone Cat must reject duplicate end callbacks in one combat session.");
 Assert(sandroneState.TryMarkStarted(2, "player"),
-    "Sandrone Cat must reapply combat-start loss after restart creates a new session.");
+    "Sandrone Cat must register again after restart creates a new session.");
 Assert(sandroneState.TryMarkEnded(2, "player"),
     "Sandrone Cat must allow the restarted combat session to settle independently.");
 var unstartedSandroneState = new SandroneCatBattleState();

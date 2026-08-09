@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using AuraCombatAi.Shared;
@@ -10,6 +11,114 @@ using Newtonsoft.Json.Linq;
 
 internal static partial class NativeRewardTestSuite
 {
+    internal static IEnumerable<string>
+        ValidateRoleContractStagedInitialization(
+            CombatGameSubjectCatalog catalog,
+            CombatCampaignDefinition campaignTemplate,
+            CombatRuleset ruleset)
+    {
+        var failures = new List<string>();
+        var subject = new CombatGameSubjectPreset
+        {
+            Id = "role-contract-staged-initialization",
+            RoleId = "career_1",
+            PartnerId = "Partner_10001"
+        };
+        catalog.ResolveReferences(subject);
+        var campaign = JsonConvert.DeserializeObject<CombatCampaignDefinition>(
+                           JsonConvert.SerializeObject(campaignTemplate))
+                       ?? new CombatCampaignDefinition();
+        CombatGameSubjectPresetRuntime.Apply(subject, campaign);
+        campaign.Player.MaxHp = 140;
+        campaign.Player.CurrentHp = 140;
+        campaign.Player.PersistentMaxHpAdjustment = 40;
+        var maximumHpReward = campaign.Rewards.First(item => string.Equals(
+            item.RewardId,
+            "relic_43",
+            StringComparison.OrdinalIgnoreCase));
+        var enemy = ruleset.SnapshotEnemies()
+            .OrderBy(item => item.EnemyId, StringComparer.OrdinalIgnoreCase)
+            .First();
+        var scenario = new CombatScenarioDefinition
+        {
+            ScenarioId = "role-contract-staged-content-mutation",
+            RulesetVersion = ruleset.Version,
+            Seed = 20260809UL,
+            Player = campaign.Player,
+            Enemies =
+            {
+                new CombatEnemySetup
+                {
+                    EnemyId = enemy.EnemyId,
+                    InstanceKey = "role-contract-enemy"
+                }
+            },
+            InitialDraw = 1,
+            DrawPerTurn = 1,
+            Limits = new CombatSimulationLimits
+            {
+                MaximumTurns = 1,
+                MaximumActions = 10,
+                MaximumCommands = 1000
+            },
+            RewardRules =
+            {
+                new CombatScenarioRewardRule
+                {
+                    RewardId = maximumHpReward.RewardId,
+                    Kind = maximumHpReward.Kind.ToString(),
+                    NativeScriptHash = maximumHpReward.NativeScriptHash,
+                    FightScript = maximumHpReward.FightScript,
+                    Variables = new Dictionary<string, string>(
+                        maximumHpReward.InitialVariables,
+                        StringComparer.OrdinalIgnoreCase)
+                }
+            }
+        };
+        var result = new CombatSimulationEngine(
+                new AuraToolsNativeRewardExtensionFactory())
+            .Run(scenario, ruleset, new EndTurnPolicy());
+        if (result.Outcome == CombatSimulationOutcome.Invalid
+            || result.FinalState.Player?.MaxHp != 143
+            || result.UnsupportedDefinitions.Any(item => item.StartsWith(
+                "role-passive-contract:",
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add(
+                "role-contract-staged-initialization:valid-progression:"
+                + result.Outcome
+                + ":maxHp="
+                + (result.FinalState.Player?.MaxHp.ToString(
+                       CultureInfo.InvariantCulture) ?? "missing")
+                + ":"
+                + string.Join(",", result.UnsupportedDefinitions));
+        }
+
+        var invalidScenario = CombatScenarioCloner.Clone(scenario);
+        invalidScenario.ScenarioId =
+            "role-contract-unexplained-max-hp-drift";
+        invalidScenario.Player.MaxHp = 139;
+        invalidScenario.Player.CurrentHp = 139;
+        var invalidResult = new CombatSimulationEngine(
+                new AuraToolsNativeRewardExtensionFactory())
+            .Run(invalidScenario, ruleset, new EndTurnPolicy());
+        if (invalidResult.Outcome != CombatSimulationOutcome.Invalid
+            || !invalidResult.UnsupportedDefinitions.Contains(
+                "role-passive-contract:career_1:maximum-hp:expected=140,actual=139")
+            || invalidResult.FinalState.Player?.MaxHp != 139)
+        {
+            failures.Add(
+                "role-contract-staged-initialization:unexplained-drift-not-rejected:"
+                + invalidResult.Outcome
+                + ":maxHp="
+                + (invalidResult.FinalState.Player?.MaxHp.ToString(
+                       CultureInfo.InvariantCulture) ?? "missing")
+                + ":"
+                + string.Join(",", invalidResult.UnsupportedDefinitions));
+        }
+        return failures;
+    }
+
     internal static void ValidateAuthoritativeRoleProgram(
         string roleId,
         string partnerId,
@@ -47,6 +156,16 @@ internal static partial class NativeRewardTestSuite
                 + ": declarative statuses would duplicate the native role script");
             return;
         }
+        if (string.IsNullOrWhiteSpace(
+                campaign.Player.RolePassiveContract.ContractHash)
+            || !string.Equals(
+                campaign.Player.RolePassiveContract.NativeScriptHash,
+                campaign.Player.RoleNativeScriptHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            failures.Add("native-role-passive-contract:" + roleId);
+            return;
+        }
 
         var scenario = new CombatScenarioDefinition
         {
@@ -66,7 +185,10 @@ internal static partial class NativeRewardTestSuite
             DefinitionId = roleId,
             Kind = CombatSimulationActorKind.Player,
             Hp = campaign.Player.MaxHp,
-            MaxHp = campaign.Player.MaxHp
+            MaxHp = campaign.Player.MaxHp,
+            Variables = new Dictionary<string, double>(
+                campaign.Player.Variables,
+                StringComparer.OrdinalIgnoreCase)
         });
         context.State.Cards.Add(new CombatCardInstanceState
         {
@@ -90,6 +212,15 @@ internal static partial class NativeRewardTestSuite
         {
             failures.Add(
                 "native-role-execution:" + roleId + ":" + execution.Message);
+            return;
+        }
+        var passiveErrors = CombatRolePassiveContractProtocol
+            .ValidateAfterRoleInitialization(campaign.Player, context.State);
+        if (passiveErrors.Count > 0)
+        {
+            failures.Add(
+                "native-role-passive-audit:" + roleId + ":"
+                + string.Join("|", passiveErrors));
             return;
         }
         context.State.SkillCooldowns[1] = startingCooldown;

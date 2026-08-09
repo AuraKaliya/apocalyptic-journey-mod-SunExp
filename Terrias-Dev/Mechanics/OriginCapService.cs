@@ -71,6 +71,40 @@ public static class OriginCapService
         }
     }
 
+    public static bool TryIncreasePrimaryAndSecondaryCurrent(int amount, string source, out OriginCapState state)
+    {
+        var role = RoleTable.Instance;
+        state = Capture(role);
+        if (role == null || amount <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            role.MainVarUpperBound = AddClamped(role.MainVarUpperBound, amount);
+            role.SecondaryVarUpperBound = AddClamped(role.SecondaryVarUpperBound, amount);
+            state = Capture(role);
+            Persist(role, source);
+            TerriasLog.Info("[OriginCap] primary origin caps +"
+                + amount
+                + " from "
+                + source
+                + "; main="
+                + state.Main
+                + "; secondary="
+                + state.Secondary
+                + ".");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[OriginCap] primary increase failed from " + source + ": " + ex.Message);
+            state = Capture(role);
+            return false;
+        }
+    }
+
     public static bool ApplyAuthoritativeCurrent(OriginCapState? state, string source)
     {
         var role = RoleTable.Instance;
@@ -151,6 +185,14 @@ public static class OriginCapService
             + state.Secondary
             + " / 其他"
             + state.Other);
+    }
+
+    public static void ShowPrimaryIncreaseCaption(OriginCapState state)
+    {
+        PlayerApi.ShowCaption("主次本源上限 +10 · 主"
+            + state.Main
+            + " / 次"
+            + state.Secondary);
     }
 
     private static int AddClamped(int current, int amount)

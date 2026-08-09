@@ -417,7 +417,45 @@ internal static partial class NativeRewardTestSuite
             "SpecialBuff_EndlessDesire",
             powerPayload);
 
-        Console.WriteLine("Native combat semantic checks: 9 cases.");
+        var maximumHpRelic = campaign.Rewards.First(item =>
+            string.Equals(
+                item.RewardId,
+                "relic_25",
+                StringComparison.OrdinalIgnoreCase));
+        var maximumHpFacts = Run(
+            "maximum-hp-factual-trace",
+            new List<string> { "blood_1", "blood_1", "blood_1" },
+            scenario => scenario.RewardRules.Add(
+                new CombatScenarioRewardRule
+                {
+                    RewardId = maximumHpRelic.RewardId,
+                    Kind = maximumHpRelic.Kind.ToString(),
+                    Stacks = 1,
+                    NativeScriptHash = maximumHpRelic.NativeScriptHash,
+                    FightScript = maximumHpRelic.FightScript,
+                    Variables = new Dictionary<string, string>(
+                        maximumHpRelic.InitialVariables,
+                        StringComparer.OrdinalIgnoreCase)
+                }),
+            new EndTurnPolicy());
+        var maximumHpFact = maximumHpFacts.Events.FirstOrDefault(item =>
+            item.Kind == CombatSimulationEventKind.MaximumHpChanged
+            && string.Equals(
+                item.SourceRewardId,
+                "relic_25",
+                StringComparison.OrdinalIgnoreCase));
+        if (maximumHpFact == null
+            || maximumHpFact.Amount != 1
+            || maximumHpFact.RawAmount != 1
+            || maximumHpFact.CurrentAmount
+               - maximumHpFact.PreviousAmount != 1
+            || maximumHpFact.CausalChainId <= 0)
+        {
+            failures.Add(
+                "native-semantics:relic_25:maximum-hp-fact-missing-or-incomplete");
+        }
+
+        Console.WriteLine("Native combat semantic checks: 10 cases.");
         return failures;
     }
 

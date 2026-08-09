@@ -8,7 +8,7 @@ namespace AuraCombatAi.Shared;
 public sealed class CombatFoundationSemanticProbeResult
 {
     public const string CurrentCanaryVersion =
-        "targeted-phased-semantic-pipeline-v6-frozen-role-preparation";
+        "causal-gross-semantic-pipeline-v9-decision-input-transition";
 
     public string Version { get; set; } =
         CombatPolicyValueProtocol.TrainingSemanticsVersion;
@@ -39,9 +39,21 @@ public static class CombatFoundationSemanticProbe
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
 
         var result = new CombatFoundationSemanticProbeResult();
+        var coverage = CombatSemanticCoverageAudit.Analyze(campaign, ruleset);
+        foreach (var error in coverage.Errors)
+        {
+            result.Errors.Add("semantic coverage: " + error);
+        }
+        if (!coverage.Complete)
+        {
+            result.Errors.Add(
+                "semantic coverage inventory contains unsupported effects: "
+                + coverage.UnsupportedCount);
+        }
         ValidateBladeAndShield(campaign, ruleset, result.Errors);
         ValidateResourceRecurrence(result.Errors);
         ValidateRetainAndReshuffle(result.Errors);
+        ValidateDirectedRiskScenarios(result.Errors);
         if (engine != null)
         {
             ValidateSemanticAuditPipeline(
@@ -75,6 +87,9 @@ public static class CombatFoundationSemanticProbe
                      "burningcard_1",
                      "burningcard_2",
                      "card_4",
+                     "card_10",
+                     "blood_3",
+                     "nocard_2",
                      "elementscard_9",
                      "timekeeper_11",
                      "Crowdfundingcard_48"
@@ -136,24 +151,52 @@ public static class CombatFoundationSemanticProbe
                 continue;
             }
 
+            var decisionInput = CombatSemanticAuditor.ProjectRealized(
+                before,
+                applied.State,
+                applied.Events,
+                action,
+                ruleset,
+                projected);
             var audit = CombatSemanticAuditor.Audit(
+                before,
+                applied.State,
+                applied.Events,
+                decisionInput,
+                action,
+                ruleset);
+            if (audit.Invalid)
+            {
+                errors.Add(
+                    "decision-input semantic canary trace is invalid: "
+                    + audit.Describe(cardId));
+            }
+            else if (audit.Mismatch)
+            {
+                errors.Add(
+                    "decision-input semantic canary mismatch: "
+                    + audit.Describe(cardId));
+            }
+            if (card.Effects.Count == 0)
+            {
+                // Native scripts are intentionally realized-only. Their
+                // immutable transition is the decision input; an empty
+                // static effect list is coverage metadata, not a false zero
+                // prediction that should reject training.
+                continue;
+            }
+            var declaredAudit = CombatSemanticAuditor.Audit(
                 before,
                 applied.State,
                 applied.Events,
                 projected,
                 action,
                 ruleset);
-            if (audit.Invalid)
+            if (declaredAudit.Invalid || declaredAudit.Mismatch)
             {
                 errors.Add(
-                    "semantic audit canary trace is invalid: "
-                    + audit.Describe(cardId));
-            }
-            else if (audit.Mismatch)
-            {
-                errors.Add(
-                    "semantic audit canary mismatch: "
-                    + audit.Describe(cardId));
+                    "structured semantic canary contradicts execution: "
+                    + declaredAudit.Describe(cardId));
             }
         }
     }
@@ -439,6 +482,173 @@ public static class CombatFoundationSemanticProbe
                 "retain, hand-limit, discard recycling, and draw-pile "
                 + "reshuffle projection is inconsistent");
         }
+    }
+
+    private static void ValidateDirectedRiskScenarios(
+        ICollection<string> errors)
+    {
+        var observation = new CombatStateObservation
+        {
+            Player = new CombatUnitObservation
+            {
+                RuntimeId = 1,
+                CurrentHp = 50,
+                MaxHp = 100,
+                Statuses =
+                {
+                    new CombatStatusObservation
+                    {
+                        StatusId = "buff_ReturnAgain",
+                        Level = 20
+                    }
+                }
+            },
+            HandCardIds = { "ReturnAgain_11", "ReturnAgain_15" },
+            DeckCardIds = { "ReturnAgain_1", "ReturnAgain_2" }
+        };
+        var bridge = new CombatActionObservation
+        {
+            CandidateId = "directed:return-again-bridge",
+            SourceId = "ReturnAgain_11",
+            Kind = CombatActionKind.PlayCard,
+            Semantics = new CombatActionSemantics
+            {
+                SelfHpLoss = 10d,
+                StateChanges =
+                {
+                    ["status:buff_ReturnAgain"] = -10d
+                }
+            },
+            Features =
+            {
+                ["recycle"] = 1d,
+                ["systemProgressValue"] = 10d
+            }
+        };
+        if (!CombatActionSafetyPolicy.IsAdmissible(
+                observation,
+                bridge,
+                new AuraDecision.Shared.DecisionUtility(),
+                out _))
+        {
+            errors.Add(
+                "ReturnAgain self-harm conversion must remain legal when structured system progress is present");
+        }
+        bridge.Features["systemProgressValue"] = 0d;
+        if (CombatActionSafetyPolicy.IsAdmissible(
+                observation,
+                bridge,
+                new AuraDecision.Shared.DecisionUtility(),
+                out _))
+        {
+            errors.Add(
+                "repeatable self-harm must be rejected outside its structured system");
+        }
+
+        var attritionStart = DirectedLoopState();
+        var attritionEnd = attritionStart.Clone();
+        attritionEnd.PlayerHp -= 10;
+        if (CombatLoopSafetyAnalyzer.Analyze(
+                attritionStart,
+                attritionEnd,
+                new CombatDecisionProfile()).Classification
+            != CombatLoopClassification.Fake)
+        {
+            errors.Add("self-harm recurrence must be classified as a fake loop");
+        }
+
+        var zeroCostEnd = attritionStart.Clone();
+        if (CombatLoopSafetyAnalyzer.Analyze(
+                attritionStart,
+                zeroCostEnd,
+                new CombatDecisionProfile()).Classification
+            == CombatLoopClassification.CertifiedLethal)
+        {
+            errors.Add(
+                "zero-cost recurrence without enemy progress must never be certified lethal");
+        }
+
+        var limitedHealingStart = DirectedLoopState();
+        limitedHealingStart.Enemies[0].Features[
+            CombatDamageLimitPolicy.ActiveFeature] = 1d;
+        limitedHealingStart.Enemies[0].Features["escalationPressure"] = 1d;
+        var limitedHealingEnd = limitedHealingStart.Clone();
+        if (CombatLoopSafetyAnalyzer.Analyze(
+                limitedHealingStart,
+                limitedHealingEnd,
+                new CombatDecisionProfile()).Classification
+            != CombatLoopClassification.Blocked)
+        {
+            errors.Add(
+                "enemy limit-damage plus healing/no-progress recurrence must be blocked");
+        }
+
+        var statusAction = new CombatActionObservation
+        {
+            CandidateId = "directed:status-decrement",
+            Kind = CombatActionKind.PlayCard,
+            Semantics = new CombatActionSemantics
+            {
+                StateChanges =
+                {
+                    ["status:buff_ReturnAgain"] = -10d
+                }
+            }
+        };
+        var statusState = DirectedLoopState();
+        statusState.Features["status:buff_ReturnAgain"] = 20d;
+        var statusModel = CombatForwardModel.Resolve(
+            observation,
+            statusAction,
+            useRegisteredResolvers: false);
+        var statusAfter = CombatForwardModel.Apply(
+            statusState,
+            statusAction,
+            0,
+            statusModel.Outcomes[0],
+            new CombatDecisionProfile());
+        if (Feature(statusAfter.Features, "status:buff_ReturnAgain") != 10d)
+        {
+            errors.Add(
+                "direct status-level decrements must survive the forward transition structurally");
+        }
+
+        var dynamicBefore = DirectedLoopState();
+        dynamicBefore.ActionCostAdjustments = new[] { 0 };
+        var dynamicAfter = dynamicBefore.Clone();
+        dynamicAfter.ActionCostAdjustments[0] = -1;
+        if (dynamicBefore.CycleHash() == dynamicAfter.CycleHash())
+        {
+            errors.Add(
+                "dynamic held-card cost changes must break false cycle identity");
+        }
+    }
+
+    private static CombatSimulationState DirectedLoopState()
+    {
+        return new CombatSimulationState
+        {
+            PlayerRuntimeId = 1,
+            PlayerHp = 50,
+            PlayerMaxHp = 100,
+            Power = 3,
+            MaxPower = 3,
+            HandCount = 1,
+            HandLimit = 10,
+            HandCardIds = new List<string> { "directed-card" },
+            HandCardValues = new List<double> { 1d },
+            Enemies = new[]
+            {
+                new CombatSimulationUnit
+                {
+                    RuntimeId = 2,
+                    Hp = 50,
+                    MaxHp = 50
+                }
+            },
+            UsedActionWords = new ulong[1],
+            UsedActionCounts = new int[1]
+        };
     }
 
     private static double Feature(

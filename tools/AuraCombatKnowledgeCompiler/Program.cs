@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -80,7 +81,9 @@ internal sealed class KnowledgeCompiler
             "AddBuff", "RemoveBuff", "ChangeDynamicVar", "ChangeDynamicVarPercent",
             "CreateCard", "DropCard", "BurnCard", "AddEvent", "RemoveEvent",
             "SetStatus", "SetStatusById", "AddDescription", "ChangeMaxHp",
-            "ChangeMaxPower", "AddCardTag", "RemoveCardTag"
+            "ChangeMaxPower", "AddCardTag", "RemoveCardTag",
+            "ChooseCardToAction", "ThrowCard", "PackToDeckAction",
+            "CopyCardWare", "OutFightSelectCardToAction", "BurnCardByData"
         },
         StringComparer.OrdinalIgnoreCase);
 
@@ -385,6 +388,21 @@ internal sealed class KnowledgeCompiler
             case "ChangeHp":
                 semantics.Heal += value;
                 break;
+        }
+        var nativeInvocation = operation.Api
+                               + "("
+                               + string.Join(",", operation.Arguments)
+                               + ")";
+        if (CombatInteractionContractInference.TryInfer(
+                nativeInvocation,
+                out var interaction))
+        {
+            semantics.Interaction = interaction;
+            semantics.OpensInteraction = true;
+            if (!interaction.EffectsComplete)
+            {
+                semantics.Uncertainty = Math.Max(semantics.Uncertainty, 1.5d);
+            }
         }
         if (operation.Fidelity != CombatKnowledgeFidelity.Authoritative)
         {

@@ -714,6 +714,72 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                 }
             }
         };
+        var migratableEpisode = new CombatEpisode
+        {
+            ModelProtocol = CombatPolicyValueProtocol.PreviousEpisodeProtocol,
+            FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
+            EpisodeId = "v6-decision-sequence-migration",
+            Frames =
+            {
+                new CombatEpisodeFrame
+                {
+                    Turn = 1,
+                    ActionSequence = 5,
+                    BattleSessionId = 9001,
+                    StateFingerprint = "migration-before",
+                    ExecutedCandidateId = "attack",
+                    StateFeatures = { ["expectedIncomingDamage"] = 9d },
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "attack",
+                            Legal = true
+                        },
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "defend",
+                            Legal = true,
+                            Features = { ["effectiveDefend"] = 8d }
+                        }
+                    }
+                },
+                new CombatEpisodeFrame
+                {
+                    Turn = 2,
+                    ActionSequence = 5,
+                    BattleSessionId = 9001,
+                    StateFingerprint = "migration-after",
+                    ExecutedCandidateId = "attack",
+                    StateFeatures = { ["playerHp"] = 11d },
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "attack",
+                            Legal = true
+                        }
+                    }
+                }
+            }
+        };
+        Assert(CombatPolicyValueEpisodeMigration.UpgradeInPlace(
+                   migratableEpisode)
+               && migratableEpisode.ModelProtocol
+                  == CombatPolicyValueProtocol.EpisodeProtocol
+               && migratableEpisode.Frames[0].DecisionSequence == 1
+               && migratableEpisode.Frames[1].DecisionSequence == 2
+               && migratableEpisode.Frames[0].TransitionValid
+               && migratableEpisode.Frames[0].TransitionActionSequenceDelta == 0
+               && migratableEpisode.Frames[0].TransitionKind
+                  == CombatEpisodeTransitionProtocol.CrossTurn
+               && migratableEpisode.Frames[0].StrategyApplicabilityKnown
+               && migratableEpisode.Frames[0].StrategyApplicableLabels
+                   .SequenceEqual(new[] { "survival" })
+               && migratableEpisode.Frames[0].StrategyLabels.Count == 0
+               && migratableEpisode.Frames[1].Terminal
+               && !migratableEpisode.Frames[1].TransitionKnown,
+            "v6 replay migration reconstructs the decision clock, cross-turn transitions, terminal contract, and applicable negative strategy supervision without discarding the checkpoint");
         Assert(CombatContentTrainingEpisodeProtocol.TryValidate(
                 contentTrainingEpisode,
                 CombatContentSetProtocol.EmptyContentSetHash,
@@ -1512,18 +1578,18 @@ internal static class CombatAiProtocolArtifactBehaviorTests
             compactState,
             compactStateEncoding,
             compactStateEncoding.Length,
-            "partitioned-v3");
+            "partitioned-v4");
         CombatPolicyValueEncoding.EncodeStateInto(
             eagerState,
             eagerStateEncoding,
             eagerStateEncoding.Length,
-            "partitioned-v3");
+            "partitioned-v4");
         CombatPolicyValueEncoding.EncodeCandidateInto(
             compactCandidate,
             reusableCandidates[0].Action.SourceId,
             compactCandidateEncoding,
             compactCandidateEncoding.Length,
-            "partitioned-v3");
+            "partitioned-v4");
         CombatPolicyValueEncoding.EncodeCandidateInto(
             new CombatPolicyValueCandidate
             {
@@ -1533,23 +1599,29 @@ internal static class CombatAiProtocolArtifactBehaviorTests
             },
             eagerCandidateEncoding,
             eagerCandidateEncoding.Length,
-            "partitioned-v3");
+            "partitioned-v4");
         Assert(compactStateEncoding.SequenceEqual(eagerStateEncoding)
                && compactCandidateEncoding.SequenceEqual(eagerCandidateEncoding),
             "compact numeric feature columns hash to the same model inputs as compatibility dictionaries");
         var lazyFrame = new CombatEpisodeFrame();
         lazyFrame.SetCompactStateFeatures(compactState);
+        lazyFrame.SetCompactTransitionNextStateFeatures(compactState);
+        lazyFrame.TransitionKnown = true;
+        lazyFrame.TransitionValid = true;
+        lazyFrame.TransitionSpan = 1;
         var lazyCandidate = new CombatEpisodeCandidate();
         lazyCandidate.SetCompactFeatures(compactCandidate);
         var storageBeforeMaterialization = CombatEpisodeStorageDiagnostics.Capture();
         Assert(!lazyFrame.HasMaterializedStateFeatures
                && !lazyCandidate.HasMaterializedFeatures
+               && !lazyFrame.HasMaterializedTransitionNextStateFeatures
                && lazyFrame.TryGetStateFeature("power", out var lazyPower)
                && lazyPower == reusableState.CurrentPower
                && lazyCandidate.TryGetFeature("cost", out var lazyCost)
                && lazyCost == reusableCandidates[0].Action.Cost,
             "compact episode columns support hot-path feature lookup without materializing dictionaries");
         _ = lazyFrame.StateFeatures;
+        _ = lazyFrame.TransitionNextStateFeatures;
         _ = lazyCandidate.Features;
         var storageAfterMaterialization = CombatEpisodeStorageDiagnostics.Capture();
         Assert(storageAfterMaterialization.StateDictionaryMaterializations
@@ -1557,6 +1629,7 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                && storageAfterMaterialization.CandidateDictionaryMaterializations
                   == storageBeforeMaterialization.CandidateDictionaryMaterializations + 1
                && !lazyFrame.HasMaterializedStateFeatures
+               && lazyFrame.HasMaterializedTransitionNextStateFeatures
                && !lazyCandidate.HasMaterializedFeatures,
             "compatibility dictionaries are temporary and are not retained beside compact columns");
         lazyFrame.Observation = new CombatObservationEnvelope();
@@ -1564,8 +1637,11 @@ internal static class CombatAiProtocolArtifactBehaviorTests
         lazyFrame.ReleaseTransientStorage();
         Assert(!lazyFrame.HasObservation
                && !lazyFrame.HasMaterializedStateFeatures
+               && !lazyFrame.HasMaterializedTransitionNextStateFeatures
                && !lazyCandidate.HasMaterializedFeatures
                && lazyFrame.TryGetStateFeature("power", out _)
+               && lazyFrame.CompactTransitionNextStateFeatures?.Count
+                  == compactState.Count
                && lazyCandidate.TryGetFeature("cost", out _),
             "cross-round cleanup drops observation graphs while preserving compact training columns");
         var normalizedReusableState = CombatPlayerObservationBoundary.Normalize(

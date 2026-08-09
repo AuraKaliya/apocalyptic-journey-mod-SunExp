@@ -527,7 +527,7 @@ public sealed class CombatLowRankPolicyAdapterDefinition
 
     public int Rank { get; set; } = 4;
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v4";
 
     public double[] StateFactors { get; set; } = Array.Empty<double>();
 
@@ -658,7 +658,7 @@ public static class CombatModelAdapterValidator
             || adapter.Rank > 32
             || !string.Equals(
                 adapter.FeatureEncodingMode,
-                "partitioned-v3",
+                "partitioned-v4",
                 StringComparison.OrdinalIgnoreCase)
             || adapter.StateFactors?.Length
                != adapter.StateDimensions * adapter.Rank

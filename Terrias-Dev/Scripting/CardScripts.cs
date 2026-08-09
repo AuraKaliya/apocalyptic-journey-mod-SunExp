@@ -548,6 +548,20 @@ public static class CardScripts
         {
             ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, removed, "Target");
         }
+
+        if (ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarCrown) <= 0)
+        {
+            var backlashRemoved = ExecutorApi.RemoveBuffsExceptAndCount(
+                self,
+                self.Self,
+                TerriasIds.Burn,
+                TerriasIds.BodyBurn);
+            if (backlashRemoved > 0)
+            {
+                ExecutorApi.AddStatusBuff(self, self.Self, TerriasIds.Burn, backlashRemoved, "Self");
+            }
+        }
+
         RestorePrimaryTargetForAnimation(self, target);
     }
 
