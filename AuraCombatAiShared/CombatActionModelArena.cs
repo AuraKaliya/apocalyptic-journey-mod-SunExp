@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace AuraCombatAi.Shared;
@@ -22,9 +23,48 @@ internal sealed class CombatActionModelArena
 
     public void BeginSearch()
     {
+        TrimRetainedToMaximum(
+            CombatSearchArenaRetentionProtocol.MaximumActionModels,
+            CombatSearchArenaRetentionProtocol.MaximumActionOutcomes,
+            CombatSearchArenaRetentionProtocol.MaximumActionEffects);
         modelCursor = 0;
         outcomeCursor = 0;
         effectCursor = 0;
+    }
+
+    internal void TrimRetainedToMaximum(
+        int maximumModels,
+        int maximumOutcomes,
+        int maximumEffects)
+    {
+        maximumModels = Math.Max(0, maximumModels);
+        maximumOutcomes = Math.Max(0, maximumOutcomes);
+        maximumEffects = Math.Max(0, maximumEffects);
+        if (models.Count <= maximumModels
+            && outcomes.Count <= maximumOutcomes
+            && effects.Count <= maximumEffects)
+        {
+            return;
+        }
+
+        // Break the pooled object graph before dropping high-water slots;
+        // otherwise retained models can keep removed outcomes/effects alive.
+        foreach (var model in models)
+        {
+            model.Outcomes.Clear();
+            model.Outcomes.TrimExcess();
+        }
+        foreach (var outcome in outcomes)
+        {
+            outcome.Effects.Clear();
+            outcome.Effects.TrimExcess();
+        }
+        TrimList(models, maximumModels);
+        TrimList(outcomes, maximumOutcomes);
+        TrimList(effects, maximumEffects);
+        modelCursor = Math.Min(modelCursor, models.Count);
+        outcomeCursor = Math.Min(outcomeCursor, outcomes.Count);
+        effectCursor = Math.Min(effectCursor, effects.Count);
     }
 
     public CombatActionModel RentModel()
@@ -102,5 +142,14 @@ internal sealed class CombatActionModelArena
         outcomeCursor = 0;
         effectCursor = 0;
         return retained;
+    }
+
+    private static void TrimList<T>(List<T> values, int maximum)
+    {
+        if (values.Count > maximum)
+        {
+            values.RemoveRange(maximum, values.Count - maximum);
+            values.TrimExcess();
+        }
     }
 }

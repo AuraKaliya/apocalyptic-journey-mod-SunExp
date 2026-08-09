@@ -106,8 +106,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
     private readonly ICombatSimulationRule[] isolatedSimulationRules;
-    private readonly Dictionary<ulong, SearchNode> transpositions = new();
-    private readonly Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache = new();
+    private Dictionary<ulong, SearchNode> transpositions = new();
+    private Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache =
+        new();
     private SearchNode[] nodePathBuffer = Array.Empty<SearchNode>();
     private SearchEdge[] edgePathBuffer = Array.Empty<SearchEdge>();
     private double[] rewardPathBuffer = Array.Empty<double>();
@@ -204,12 +205,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         retained += actionModelArena.Trim();
         retained += transpositions.Count * 64L;
         retained += policyValueCache.Count * 128L;
-        transpositions.Clear();
-        policyValueCache.Clear();
-#if NET8_0_OR_GREATER
-        transpositions.TrimExcess();
-        policyValueCache.TrimExcess();
-#endif
+        transpositions = new Dictionary<ulong, SearchNode>();
+        policyValueCache =
+            new Dictionary<ulong, CombatPolicyValuePrediction>();
         actions = Array.Empty<SearchAction>();
         reusableSimulationRoot = null;
         return retained;
@@ -224,8 +222,16 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         var allocationStart = ReadThreadAllocatedBytes();
         rootObservation = state;
         profile = selectedProfile;
-        transpositions.Clear();
-        policyValueCache.Clear();
+        transpositions = transpositions.Count
+                         > CombatSearchArenaRetentionProtocol
+                             .MaximumSearchNodes
+            ? new Dictionary<ulong, SearchNode>()
+            : ClearAndReuse(transpositions);
+        policyValueCache = policyValueCache.Count
+                           > CombatSearchArenaRetentionProtocol
+                               .MaximumSearchNodes
+            ? new Dictionary<ulong, CombatPolicyValuePrediction>()
+            : ClearAndReuse(policyValueCache);
         nodeCount = 0;
         transpositionHits = 0;
         certifiedLoops = 0;
@@ -2361,6 +2367,14 @@ CompleteSimulation:
             : 0d;
     }
 
+    private static Dictionary<TKey, TValue> ClearAndReuse<TKey, TValue>(
+        Dictionary<TKey, TValue> values)
+        where TKey : notnull
+    {
+        values.Clear();
+        return values;
+    }
+
     private sealed class SearchNode
     {
         public CombatSimulationState State { get; set; } = null!;
@@ -2391,6 +2405,13 @@ CompleteSimulation:
             Visits = 0;
             ValueSum = 0d;
             RiskSum = 0d;
+        }
+
+        public void Release()
+        {
+            State = null!;
+            Edges = Array.Empty<SearchEdge?>();
+            EdgesInitialized = false;
         }
     }
 
@@ -2444,6 +2465,13 @@ CompleteSimulation:
             Disabled = false;
             Outcomes.Clear();
         }
+
+        public void Release()
+        {
+            Outcomes.Clear();
+            Outcomes.TrimExcess();
+            Statistics.Reset();
+        }
     }
 
     private sealed class SearchOutcome
@@ -2452,7 +2480,8 @@ CompleteSimulation:
 
         public int Visits { get; set; }
 
-        private Dictionary<ulong, ChildEvidence> Children { get; } = new();
+        private Dictionary<ulong, ChildEvidence> Children { get; set; } =
+            new();
 
         public SearchNode? RepresentativeChild
         {
@@ -2492,6 +2521,12 @@ CompleteSimulation:
             Visits = 0;
             Children.Clear();
         }
+
+        public void Release()
+        {
+            Outcome = null!;
+            Children = new Dictionary<ulong, ChildEvidence>();
+        }
     }
 
     private sealed class ChildEvidence
@@ -2506,6 +2541,12 @@ CompleteSimulation:
         {
             Hash = hash;
             Node = node;
+            Visits = 0;
+        }
+
+        public void Release()
+        {
+            Node = null!;
             Visits = 0;
         }
     }
@@ -2530,11 +2571,59 @@ CompleteSimulation:
 
         public void BeginSearch(int currentActionCount)
         {
+            TrimRetainedToMaximum();
             actionCount = Math.Max(0, currentActionCount);
             nodeCursor = 0;
             edgeCursor = 0;
             outcomeCursor = 0;
             evidenceCursor = 0;
+        }
+
+        private void TrimRetainedToMaximum()
+        {
+            if (nodes.Count
+                    <= CombatSearchArenaRetentionProtocol.MaximumSearchNodes
+                && edges.Count
+                    <= CombatSearchArenaRetentionProtocol.MaximumSearchEdges
+                && outcomes.Count
+                    <= CombatSearchArenaRetentionProtocol.MaximumSearchOutcomes
+                && evidence.Count
+                    <= CombatSearchArenaRetentionProtocol.MaximumChildEvidence)
+            {
+                return;
+            }
+
+            // A pooled search graph is cyclic. Clear every retained reference
+            // before removing excess slots so a small retained prefix cannot
+            // pin the discarded high-water graph.
+            foreach (var node in nodes)
+            {
+                node.Release();
+            }
+            foreach (var edge in edges)
+            {
+                edge.Release();
+            }
+            foreach (var outcome in outcomes)
+            {
+                outcome.Release();
+            }
+            foreach (var item in evidence)
+            {
+                item.Release();
+            }
+            TrimList(
+                nodes,
+                CombatSearchArenaRetentionProtocol.MaximumSearchNodes);
+            TrimList(
+                edges,
+                CombatSearchArenaRetentionProtocol.MaximumSearchEdges);
+            TrimList(
+                outcomes,
+                CombatSearchArenaRetentionProtocol.MaximumSearchOutcomes);
+            TrimList(
+                evidence,
+                CombatSearchArenaRetentionProtocol.MaximumChildEvidence);
         }
 
         public SearchNode RentNode(CombatSimulationState state)
@@ -2602,6 +2691,15 @@ CompleteSimulation:
         {
             target.Add(item);
             return item;
+        }
+
+        private static void TrimList<T>(List<T> values, int maximum)
+        {
+            if (values.Count > maximum)
+            {
+                values.RemoveRange(maximum, values.Count - maximum);
+                values.TrimExcess();
+            }
         }
     }
 }

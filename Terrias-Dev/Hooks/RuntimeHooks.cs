@@ -42,7 +42,9 @@ public static class RuntimeHooks
             });
         });
         RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
+        RunHookStep("library submenu", () => TerriasLibrarySubMenuRuntime.Initialize(modConfig));
         RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
+        RunHookStep("witch archive", () => WitchArchiveRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
         RunHookStep("star clay doll", () => StarClayDollRuntime.Initialize(modConfig));
         RunHookStep("sandrone cat", () => SandroneCatRuntime.Initialize(modConfig));

@@ -211,11 +211,41 @@ public sealed class CombatFoundationWorkerJob
 
     public string RequestedStartMode { get; set; } = "auto-resume";
 
+    public CombatFoundationResumeProvenance ResumeProvenance { get; set; } =
+        new();
+
     public CombatCampaignFoundationTrainingRequest Request { get; set; } = new();
 
     public CombatRulesetDocument Ruleset { get; set; } = new();
 
     public CombatPolicyValueNetworkDefinition? InitialChampion { get; set; }
+}
+
+public sealed class CombatFoundationResumeProvenance
+{
+    public bool ExternalRequestCaptured { get; set; }
+
+    public bool ExternalOutcomeCaptured { get; set; }
+
+    public bool ExternalResumeRequested { get; set; }
+
+    public bool ExternalResumeApplied { get; set; }
+
+    public string ExternalResumeDiagnostic { get; set; } = "";
+
+    public string ExternalRequestedStartMode { get; set; } = "auto-resume";
+
+    public string ExternalEffectiveStartMode { get; set; } = "";
+
+    public int InternalSegmentNumber { get; set; } = 1;
+
+    public bool InternalResumeRequested { get; set; }
+
+    public bool InternalResumeApplied { get; set; }
+
+    public string InternalResumeDiagnostic { get; set; } = "";
+
+    public string InternalEffectiveStartMode { get; set; } = "";
 }
 
 public sealed class CombatFoundationWorkerProgress
@@ -250,6 +280,14 @@ public sealed class CombatFoundationWorkerResult
     public bool TrainingSucceeded { get; set; }
 
     public bool ModelAccepted { get; set; }
+
+    public bool BusinessModelIncluded { get; set; }
+
+    public bool HeavyTrainingPayloadOmitted { get; set; }
+
+    public int OmittedModelPayloads { get; set; }
+
+    public int OmittedHardSeedCheckpoints { get; set; }
 
     public int EpochsExecuted { get; set; }
 
@@ -315,6 +353,9 @@ public sealed class CombatFoundationWorkerResult
 
     public string EffectiveStartMode { get; set; } = "";
 
+    public CombatFoundationResumeProvenance ResumeProvenance { get; set; } =
+        new();
+
     public bool Resumable { get; set; }
 
     public int CheckpointWriteFailures { get; set; }
@@ -334,6 +375,57 @@ public sealed class CombatFoundationWorkerResult
     public long CheckpointWritesCoalesced { get; set; }
 
     public CombatCampaignFoundationTrainingResult? Training { get; set; }
+}
+
+public static class CombatFoundationWorkerResultProjection
+{
+    public static void StripRejectedBusinessPayload(
+        CombatFoundationWorkerResult result)
+    {
+        if (result == null)
+        {
+            throw new ArgumentNullException(nameof(result));
+        }
+        result.BusinessModelIncluded = result.ModelAccepted;
+        if (result.ModelAccepted || result.Training == null)
+        {
+            return;
+        }
+
+        var training = result.Training;
+        result.OmittedModelPayloads = new[]
+            {
+                training.Champion,
+                training.WorkingChampion,
+                training.LatestTrainingModel,
+                training.AbsoluteQualifiedBestModel,
+                training.BestPendingArenaCandidate?.Model
+            }
+            .Count(model => model != null);
+        training.Champion = null;
+        training.WorkingChampion = null;
+        training.LatestTrainingModel = null;
+        training.AbsoluteQualifiedBestModel = null;
+        if (training.BestPendingArenaCandidate != null)
+        {
+            training.BestPendingArenaCandidate.Model = null;
+        }
+
+        result.OmittedHardSeedCheckpoints = training.HardSeedHistory.Count(
+            item => item?.FailureEncounterCheckpoint != null);
+        foreach (var hardSeed in training.HardSeedHistory)
+        {
+            if (hardSeed != null)
+            {
+                hardSeed.FailureEncounterCheckpoint = null;
+            }
+        }
+        training.Replay.Clear();
+        training.CampaignObservations.Clear();
+        training.SuccessCases.Clear();
+        training.ValidationRuns.Clear();
+        result.HeavyTrainingPayloadOmitted = true;
+    }
 }
 
 public sealed class CombatFoundationTrainingMetricRecord

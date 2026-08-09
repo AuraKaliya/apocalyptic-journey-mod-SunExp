@@ -338,6 +338,8 @@ public sealed class CombatTransformerTeacherOptions
 
     public int DataLoaderWorkers { get; set; }
 
+    public bool DisableDataLoaderWorkers { get; set; }
+
     public int PrefetchBatches { get; set; } = 2;
 
     public bool EnableShardedDataset { get; set; } = true;
@@ -356,6 +358,10 @@ public sealed class CombatTransformerTeacherOptions
     public bool EnableDeterministicTraining { get; set; } = true;
 
     public double DistillationWeight { get; set; } = 0.15d;
+
+    public int MaximumPolicyTeacherStalenessIterations { get; set; } = 3;
+
+    public bool BlockTrainingWhenPolicyTeacherStale { get; set; } = true;
 
     public int RandomSeed { get; set; } = 1701;
 
@@ -423,6 +429,9 @@ public sealed class CombatTransformerTeacherOptions
             128L * 1024L * 1024L,
             Math.Min(16L * 1024L * 1024L * 1024L, MemoryReserveBytes));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.15d);
+        MaximumPolicyTeacherStalenessIterations = Math.Max(
+            0,
+            Math.Min(32, MaximumPolicyTeacherStalenessIterations));
         AdaptiveRefreshDriftThreshold = Clamp(
             AdaptiveRefreshDriftThreshold,
             0.01d,
@@ -435,6 +444,11 @@ public sealed class CombatTransformerTeacherOptions
             0.05d);
         RandomSeed = RandomSeed == 0 ? 1701 : RandomSeed;
         return this;
+    }
+
+    public CombatTransformerTeacherOptions Clone()
+    {
+        return (CombatTransformerTeacherOptions)MemberwiseClone();
     }
 
     public long EstimatedEncoderParameters()
@@ -480,6 +494,33 @@ public sealed class CombatTransformerTeacherContext
     public string TeacherCompatibilityKey { get; set; } = "";
 
     public Action<CombatTransformerTeacherProgress>? Progress { get; set; }
+
+    /// <summary>
+    /// Called after the authoritative sparse dataset has been exported and no
+    /// world-model observation envelopes are needed by the teacher boundary.
+    /// The host may release those envelopes before the Python process starts.
+    /// </summary>
+    public Func<CombatTransformerTeacherHostReleaseReport>?
+        ReleaseExportedDataset { get; set; }
+}
+
+public sealed class CombatTransformerTeacherHostReleaseReport
+{
+    public bool Attempted { get; set; }
+
+    public int ReleasedEpisodes { get; set; }
+
+    public int ReleasedFrames { get; set; }
+
+    public long WorkingSetBeforeBytes { get; set; }
+
+    public long WorkingSetAfterBytes { get; set; }
+
+    public long GcHeapBeforeBytes { get; set; }
+
+    public long GcHeapAfterBytes { get; set; }
+
+    public string Diagnostic { get; set; } = "";
 }
 
 public static class CombatTransformerTeacherRefreshProtocol
@@ -772,6 +813,10 @@ public sealed class CombatTransformerTeacherReport
 
     public bool PolicyTeacherApplied { get; set; }
 
+    public int PolicyTeacherFreshnessAgeIterations { get; set; }
+
+    public bool PolicyTeacherFreshnessGatePassed { get; set; } = true;
+
     public bool WorldTeacherApplied { get; set; }
 
     public double DatasetDriftScore { get; set; }
@@ -875,6 +920,21 @@ public sealed class CombatTransformerTeacherReport
     public long MemoryReserveBytes { get; set; }
 
     public long PredictedPeakWorkingSetBytes { get; set; }
+
+    public long NormalPlanPredictedPeakWorkingSetBytes { get; set; }
+
+    public string MemoryAdmissionMode { get; set; } = "training-refresh";
+
+    public string MemoryPlanFingerprint { get; set; } = "";
+
+    public bool LowMemoryFallbackAttempted { get; set; }
+
+    public bool LowMemoryRuntimeFallbackApplied { get; set; }
+
+    public CombatTransformerTeacherHostReleaseReport HostDatasetRelease {
+        get;
+        set;
+    } = new();
 
     public string DatasetStorageMode { get; set; } = "resident";
 

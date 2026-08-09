@@ -225,6 +225,53 @@ try {
         Assert-True ($entry.packBelong -eq "Terrias") "Role registry packBelong must be Terrias: $($entry.roleId)"
     }
 
+    $witchArchive = Get-Content -LiteralPath (Join-Path $modRoot "witch.archive.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([int]$witchArchive.schemaVersion -eq 2) "Witch Archive registry schemaVersion must be 2."
+    Assert-True ($witchArchive.ownerModId -eq "Terrias") "Witch Archive registry ownerModId must be Terrias."
+    $witchArchiveIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $enabledWitchArchiveEntries = @($witchArchive.entries | Where-Object { $_.enabled -ne $false })
+    Assert-True ($enabledWitchArchiveEntries.Count -ge 3) "Witch Archive must ship at least the three initial Terrias witches."
+    foreach ($entry in $enabledWitchArchiveEntries) {
+        Assert-True ($witchArchiveIds.Add([string]$entry.id)) "Duplicate Witch Archive entry id: $($entry.id)"
+        Assert-True ($roleIds.Contains([string]$entry.roleId)) "Witch Archive entry references an unknown role: $($entry.roleId)"
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.avatarPath)) "Witch Archive avatar path is missing: $($entry.id)"
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.portraitPath)) "Witch Archive portrait path is missing: $($entry.id)"
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.name.'zh-Hans')) "Witch Archive Simplified Chinese name is missing: $($entry.id)"
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.background.'zh-Hans')) "Witch Archive Simplified Chinese background is missing: $($entry.id)"
+
+        $backgroundTextPath = [string]$entry.backgroundFiles.'zh-Hans'
+        Assert-True (-not [string]::IsNullOrWhiteSpace($backgroundTextPath)) "Witch Archive Simplified Chinese background file is missing: $($entry.id)"
+        if ([string]::IsNullOrWhiteSpace($backgroundTextPath)) {
+            continue
+        }
+
+        $normalizedBackgroundTextPath = $backgroundTextPath.Trim().Replace('/', [IO.Path]::DirectorySeparatorChar)
+        $isRelativeArchiveText = -not [IO.Path]::IsPathRooted($normalizedBackgroundTextPath)
+        $isTextArchiveResource = [IO.Path]::GetExtension($normalizedBackgroundTextPath) -eq '.txt'
+        Assert-True $isRelativeArchiveText "Witch Archive background file must be relative: $($entry.id)"
+        Assert-True $isTextArchiveResource "Witch Archive background file must use .txt: $($entry.id)"
+        if (-not $isRelativeArchiveText -or -not $isTextArchiveResource) {
+            continue
+        }
+
+        try {
+            $archiveRoot = [IO.Path]::GetFullPath($modRoot).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+            $archiveTextFile = [IO.Path]::GetFullPath((Join-Path $archiveRoot $normalizedBackgroundTextPath))
+            $insideModRoot = $archiveTextFile.StartsWith($archiveRoot, [StringComparison]::OrdinalIgnoreCase)
+            Assert-True $insideModRoot "Witch Archive background file escapes the mod root: $($entry.id)"
+            if ($insideModRoot) {
+                Assert-True ([IO.File]::Exists($archiveTextFile)) "Witch Archive background file does not exist: $($entry.id)"
+                if ([IO.File]::Exists($archiveTextFile)) {
+                    $archiveText = Get-Content -LiteralPath $archiveTextFile -Raw -Encoding UTF8
+                    Assert-True (-not [string]::IsNullOrWhiteSpace($archiveText)) "Witch Archive background file is empty: $($entry.id)"
+                }
+            }
+        }
+        catch {
+            Add-Failure "Witch Archive background file path is invalid for '$($entry.id)': $($_.Exception.Message)"
+        }
+    }
+
     $skinRoot = Join-Path $sharedRoot "Skins"
     $skinValidation = Test-SkinPackageContent -PackagePath (Join-Path $skinRoot "package.json")
     $skinPackage = $skinValidation.Package

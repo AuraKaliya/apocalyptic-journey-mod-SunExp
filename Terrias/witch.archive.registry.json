@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 2,
+  "ownerModId": "Terrias",
+  "entries": [
+    {
+      "id": "wuna",
+      "roleId": "Terrias_wuna_wuna",
+      "careerId": "wuna",
+      "sort": 10,
+      "avatarPath": "Mods/Terrias/ModResource/Images/Icon/WuNa",
+      "portraitPath": "Mods/Terrias/ModResource/Images/Character/WuNa1",
+      "portraitOffsetX": 0,
+      "portraitOffsetY": 0,
+      "name": {
+        "zh-Hans": "乌娜",
+        "zh-Hant": "烏娜",
+        "en": "WuNa",
+        "ja": "ウナ"
+      },
+      "title": {
+        "zh-Hans": "曜日魔女",
+        "zh-Hant": "曜日魔女",
+        "en": "Witch of the Blazing Sun",
+        "ja": "曜日の魔女"
+      },
+      "summary": {
+        "zh-Hans": "特瑞厄斯毁灭之后残存的火焰，白曜圣庭旧日圣女，灾难与灰烬的魔女。",
+        "zh-Hant": "特瑞厄斯毀滅之後殘存的火焰，白曜聖庭舊日聖女，災難與灰燼的魔女。",
+        "en": "A former saint of the White Radiance Court and a witch who walks on through calamity and ash.",
+        "ja": "特瑞厄斯滅亡後に残った炎。白曜聖庭のかつての聖女であり、災厄と灰燼の魔女。"
+      },
+      "background": {
+        "zh-Hans": "她曾是白曜圣庭的圣女。\n特瑞厄斯毁灭之后，她成为残存在灰烬中的火焰，记录战场上的灼烧，并判断那些火焰是否值得继续存在。",
+        "zh-Hant": "她曾是白曜聖庭的聖女。\n特瑞厄斯毀滅之後，她成為殘存在灰燼中的火焰，記錄戰場上的灼燒，並判斷那些火焰是否值得繼續存在。",
+        "en": "She was once a saint of the White Radiance Court.\nAfter Terrias fell, she became a flame left among the ashes, recording every burn on the battlefield and deciding which fires deserve to remain.",
+        "ja": "かつて白曜聖庭の聖女だった。\n特瑞厄斯滅亡後、灰燼に残る炎となり、戦場の火傷を記録し、その炎が残る価値を持つかを見定めている。"
+      },
+      "backgroundFiles": {
+        "zh-Hans": "Config/WitchArchive/Text/wuna/background.zh-Hans.txt"
+      },
+      "enabled": true
+    },
+    {
+      "id": "loneer",
+      "roleId": "Terrias_loneer_loneer",
+      "careerId": "loneer",
+      "sort": 20,
+      "avatarPath": "Mods/Terrias/ModResource/Images/Icon/Loneer",
+      "portraitPath": "Mods/Terrias/ModResource/Images/Character/Loneer1",
+      "portraitOffsetX": 0,
+      "portraitOffsetY": 64,
+      "name": {
+        "zh-Hans": "洛奈尔",
+        "zh-Hant": "洛奈爾",
+        "en": "Loneer",
+        "ja": "ロネール"
+      },
+      "title": {
+        "zh-Hans": "晨星魔女",
+        "zh-Hant": "晨星魔女",
+        "en": "Witch of the Morning Star",
+        "ja": "晨星の魔女"
+      },
+      "summary": {
+        "zh-Hans": "她把奇迹装进一只会慢慢变轻的星石袋里。每一次抽石，都是向黎明借来的一小段时间。",
+        "zh-Hant": "她把奇蹟裝進一只會慢慢變輕的星石袋裡。每一次抽石，都是向黎明借來的一小段時間。",
+        "en": "She keeps miracles in a pouch of star stones that slowly grows lighter. Each draw borrows a little time from dawn.",
+        "ja": "彼女は少しずつ軽くなる星石袋に奇跡を入れている。石を引くたび、夜明けから短い時間を借りる。"
+      },
+      "background": {
+        "zh-Hans": "晨星仍在长夜尽头亮着。\n洛奈尔将奇迹封存在星石袋中，以白石指引可能的未来，以黑石偿还向黎明借来的时间。",
+        "zh-Hant": "晨星仍在長夜盡頭亮著。\n洛奈爾將奇蹟封存在星石袋中，以白石指引可能的未來，以黑石償還向黎明借來的時間。",
+        "en": "The morning star still shines at the end of the long night.\nLoneer seals miracles inside her pouch: white stones guide possible futures, while black stones repay the time borrowed from dawn.",
+        "ja": "晨星は長い夜の果てで今も輝いている。\nロネールは奇跡を星石袋に封じ、白石で未来を導き、黒石で夜明けから借りた時間を返していく。"
+      },
+      "backgroundFiles": {
+        "zh-Hans": "Config/WitchArchive/Text/loneer/background.zh-Hans.txt"
+      },
+      "enabled": true
+    },
+    {
+      "id": "columbina",
+      "roleId": "Terrias_columbina_columbina",
+      "careerId": "columbina",
+      "sort": 30,
+      "avatarPath": "Mods/Terrias/ModResource/Images/Icon/Columbina",
+      "portraitPath": "Mods/Terrias/ModResource/Images/Character/Columbina2",
+      "portraitOffsetX": 0,
+      "portraitOffsetY": 16,
+      "name": {
+        "zh-Hans": "哥伦比娅",
+        "zh-Hant": "哥倫比婭",
+        "en": "Columbina",
+        "ja": "コロンビーナ"
+      },
+      "title": {
+        "zh-Hans": "月之少女",
+        "zh-Hant": "月之少女",
+        "en": "Maiden of the Moon",
+        "ja": "月の少女"
+      },
+      "summary": {
+        "zh-Hans": "异世界而来的少女，没人知晓她的过去。",
+        "zh-Hant": "來自異世界的少女，沒有人知曉她的過去。",
+        "en": "A girl from another world. No one knows her past.",
+        "ja": "異世界から来た少女。彼女の過去を知る者はいない。"
+      },
+      "background": {
+        "zh-Hans": "总之就是非常神秘",
+        "zh-Hant": "總之就是非常神祕",
+        "en": "In short, she is extremely mysterious.",
+        "ja": "とにかく、とても謎めいている。"
+      },
+      "backgroundFiles": {
+        "zh-Hans": "Config/WitchArchive/Text/columbina/background.zh-Hans.txt"
+      },
+      "enabled": true
+    }
+  ]
+}

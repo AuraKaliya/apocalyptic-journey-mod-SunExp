@@ -299,6 +299,36 @@ try
                 ? "checkpoint-model-branch"
                 : "checkpoint-exact"
         : "fresh";
+    var resumeProvenance = job.ResumeProvenance
+                           ?? new CombatFoundationResumeProvenance();
+    if (!resumeProvenance.ExternalRequestCaptured)
+    {
+        resumeProvenance.ExternalRequestCaptured = true;
+        resumeProvenance.ExternalResumeRequested = job.ResumeFromCheckpoint;
+        resumeProvenance.ExternalRequestedStartMode = job.RequestedStartMode;
+    }
+    if (!resumeProvenance.ExternalOutcomeCaptured)
+    {
+        resumeProvenance.ExternalOutcomeCaptured = true;
+        resumeProvenance.ExternalResumeApplied = resumedFromCheckpoint;
+        resumeProvenance.ExternalResumeDiagnostic = resumeDiagnostic;
+        resumeProvenance.ExternalEffectiveStartMode = effectiveStartMode;
+    }
+    resumeProvenance.InternalResumeRequested =
+        resumeProvenance.InternalSegmentNumber > 1
+        && job.ResumeFromCheckpoint;
+    resumeProvenance.InternalResumeApplied =
+        resumeProvenance.InternalSegmentNumber > 1
+        && resumedFromCheckpoint;
+    resumeProvenance.InternalResumeDiagnostic =
+        resumeProvenance.InternalSegmentNumber > 1
+            ? resumeDiagnostic
+            : "";
+    resumeProvenance.InternalEffectiveStartMode =
+        resumeProvenance.InternalSegmentNumber > 1
+            ? effectiveStartMode
+            : "";
+    job.ResumeProvenance = resumeProvenance;
     var checkpointCatalogRead = CombatFoundationCheckpointCatalogStore.Read(
         job.CheckpointCatalogPath);
     var checkpointRetention = CombatFoundationCheckpointCatalogStore
@@ -960,6 +990,16 @@ try
             "Foundation build-limited seed index was skipped: "
             + ex.Message);
     }
+    try
+    {
+        PersistDecisionDifferences(job, training);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(
+            "Foundation decision-difference diagnostics were skipped: "
+            + ex.Message);
+    }
     var resultEpisodesPath = Path.Combine(
         job.ResultDirectory,
         "foundation-training-episodes-v4.jsonl");
@@ -1068,11 +1108,12 @@ try
         RoleStrategyMetrics = roleStrategyMetrics,
         RoleStrategyGatePassed = roleStrategyGatePassed,
         RoleStrategyGateFailureReason = roleStrategyGateFailureReason,
-        ResumeRequested = job.ResumeFromCheckpoint,
-        ResumedFromCheckpoint = resumedFromCheckpoint,
-        ResumeDiagnostic = resumeDiagnostic,
-        RequestedStartMode = job.RequestedStartMode,
-        EffectiveStartMode = effectiveStartMode,
+        ResumeRequested = resumeProvenance.ExternalResumeRequested,
+        ResumedFromCheckpoint = resumeProvenance.ExternalResumeApplied,
+        ResumeDiagnostic = resumeProvenance.ExternalResumeDiagnostic,
+        RequestedStartMode = resumeProvenance.ExternalRequestedStartMode,
+        EffectiveStartMode = resumeProvenance.ExternalEffectiveStartMode,
+        ResumeProvenance = resumeProvenance,
         Training = training
     };
     if (string.Equals(
@@ -1143,6 +1184,8 @@ try
         job.TrainingAnalysisPath,
         trainingAnalysis);
     training.ValidationRuns.Clear();
+    CombatFoundationWorkerResultProjection.StripRejectedBusinessPayload(
+        workerResult);
     WriteAtomicJson(job.ResultPath, workerResult);
     Console.WriteLine(
         "Foundation worker completed: campaigns="
@@ -1157,6 +1200,7 @@ catch (OperationCanceledException)
 {
     if (job != null)
     {
+        var terminalResume = TerminalResumeProvenance(job, "cancelled");
         var resumable = TryGetResumableCheckpoint(
             job,
             out var resumableEpisodesPath,
@@ -1195,9 +1239,14 @@ catch (OperationCanceledException)
                 TrainingMetricWriteFailures =
                     trainingMetricWriteFailures,
                 TrainingMetricWarning = trainingMetricWarning,
-                ResumeRequested = job.ResumeFromCheckpoint,
-                RequestedStartMode = job.RequestedStartMode,
-                EffectiveStartMode = "cancelled"
+                ResumeRequested = terminalResume.ExternalResumeRequested,
+                ResumedFromCheckpoint = terminalResume.ExternalResumeApplied,
+                ResumeDiagnostic = terminalResume.ExternalResumeDiagnostic,
+                RequestedStartMode =
+                    terminalResume.ExternalRequestedStartMode,
+                EffectiveStartMode =
+                    terminalResume.ExternalEffectiveStartMode,
+                ResumeProvenance = terminalResume
             });
     }
     return 3;
@@ -1207,6 +1256,7 @@ catch (Exception ex)
     Console.Error.WriteLine(ex);
     if (job != null && !string.IsNullOrWhiteSpace(job.ResultPath))
     {
+        var terminalResume = TerminalResumeProvenance(job, "failed");
         var resumable = TryGetResumableCheckpoint(
             job,
             out var resumableEpisodesPath,
@@ -1244,12 +1294,38 @@ catch (Exception ex)
                 TrainingMetricWriteFailures =
                     trainingMetricWriteFailures,
                 TrainingMetricWarning = trainingMetricWarning,
-                ResumeRequested = job.ResumeFromCheckpoint,
-                RequestedStartMode = job.RequestedStartMode,
-                EffectiveStartMode = "failed"
+                ResumeRequested = terminalResume.ExternalResumeRequested,
+                ResumedFromCheckpoint = terminalResume.ExternalResumeApplied,
+                ResumeDiagnostic = terminalResume.ExternalResumeDiagnostic,
+                RequestedStartMode =
+                    terminalResume.ExternalRequestedStartMode,
+                EffectiveStartMode =
+                    terminalResume.ExternalEffectiveStartMode,
+                ResumeProvenance = terminalResume
             });
     }
     return 1;
+}
+
+static CombatFoundationResumeProvenance TerminalResumeProvenance(
+    CombatFoundationWorkerJob job,
+    string terminalMode)
+{
+    var provenance = job.ResumeProvenance
+                     ?? new CombatFoundationResumeProvenance();
+    if (!provenance.ExternalRequestCaptured)
+    {
+        provenance.ExternalRequestCaptured = true;
+        provenance.ExternalResumeRequested = job.ResumeFromCheckpoint;
+        provenance.ExternalRequestedStartMode = job.RequestedStartMode;
+    }
+    if (!provenance.ExternalOutcomeCaptured)
+    {
+        provenance.ExternalOutcomeCaptured = true;
+        provenance.ExternalResumeApplied = false;
+        provenance.ExternalEffectiveStartMode = terminalMode;
+    }
+    return provenance;
 }
 
 static int ReplayCampaign(
@@ -3500,6 +3576,15 @@ static int RunIterationSupervisor(
         sourceJob.JobId + ".result.json");
     var segment = 0;
     var resolvedIterationLimit = 0;
+    sourceJob.ResumeProvenance ??= new CombatFoundationResumeProvenance();
+    if (!sourceJob.ResumeProvenance.ExternalRequestCaptured)
+    {
+        sourceJob.ResumeProvenance.ExternalRequestCaptured = true;
+        sourceJob.ResumeProvenance.ExternalResumeRequested =
+            sourceJob.ResumeFromCheckpoint;
+        sourceJob.ResumeProvenance.ExternalRequestedStartMode =
+            sourceJob.RequestedStartMode;
+    }
     var requiredCheckpointFingerprint =
         sourceJob.ResumeFromCheckpoint
         && sourceJob.RequireCompatibleResume
@@ -3532,16 +3617,39 @@ static int RunIterationSupervisor(
                                Serialize(sourceJob))
                            ?? throw new InvalidOperationException(
                                "无法创建轮次子进程任务。");
+            childJob.ResumeProvenance.InternalSegmentNumber = segment;
+            childJob.ResumeProvenance.InternalResumeRequested = segment > 1;
+            childJob.ResumeProvenance.InternalResumeApplied = false;
+            childJob.ResumeProvenance.InternalResumeDiagnostic = "";
+            childJob.ResumeProvenance.InternalEffectiveStartMode = "";
             childJob.ResultPath = segmentResultPath;
             childJob.RequiredCheckpointFingerprint = "";
             childJob.Request.EnableIterationProcessIsolation = true;
-            childJob.Request.MaximumIterationsPerProcess = Math.Max(
-                1,
-                Math.Min(
-                    6,
-                    sourceJob.Request.MaximumIterationsPerProcess > 0
-                        ? sourceJob.Request.MaximumIterationsPerProcess
-                        : 3));
+            var segmentResources =
+                CombatFoundationResourceSnapshot.Capture();
+            var configuredIterationsPerProcess =
+                sourceJob.Request.MaximumIterationsPerProcess > 0
+                    ? sourceJob.Request.MaximumIterationsPerProcess
+                    : 3;
+            childJob.Request.MaximumIterationsPerProcess =
+                CombatFoundationMemoryExecutionPolicy
+                    .SelectIterationsPerProcess(
+                        configuredIterationsPerProcess,
+                        segmentResources);
+            childJob.Request.ModelTrainingParallelism =
+                CombatFoundationMemoryExecutionPolicy
+                    .SelectModelTrainingParallelism(
+                        sourceJob.Request.ModelTrainingParallelism,
+                        segmentResources);
+            Console.WriteLine(
+                "内存优先隔离计划：每进程迭代="
+                + childJob.Request.MaximumIterationsPerProcess
+                + "，模型训练并行="
+                + childJob.Request.ModelTrainingParallelism
+                + "，物理内存="
+                + segmentResources.TotalPhysicalMemoryBytes
+                + "，当前可用="
+                + segmentResources.AvailablePhysicalMemoryBytes);
             if (segment > 1)
             {
                 childJob.ResumeFromCheckpoint = true;
@@ -3593,6 +3701,10 @@ static int RunIterationSupervisor(
                                  .ReadAllTextShared(segmentResultPath))
                          ?? throw new InvalidOperationException(
                              "无法读取轮次训练子进程结果。");
+            if (status.ResumeProvenance != null)
+            {
+                sourceJob.ResumeProvenance = status.ResumeProvenance;
+            }
             var continueAtBoundary = child.ExitCode == 0
                                      && string.Equals(
                                          status.CompletionKind,
@@ -3804,6 +3916,20 @@ static void PersistBuildLimitedSeeds(
             item.SolvabilityClass,
             "build-limited-provisional",
             StringComparison.OrdinalIgnoreCase));
+}
+
+static void PersistDecisionDifferences(
+    CombatFoundationWorkerJob job,
+    CombatCampaignFoundationTrainingResult training)
+{
+    var cases = training.CapabilityProbe?.DecisionDifferences
+                ?? new List<CombatFoundationDecisionDifferenceCase>();
+    var path = Path.Combine(
+        job.ResultDirectory,
+        "foundation-decision-differences-v1.jsonl");
+    WriteJsonLines(path, cases);
+    training.DecisionDifferencePath = path;
+    training.DecisionDifferenceCases = cases.Count;
 }
 
 static string ReadArchiveText(string path)
@@ -4310,6 +4436,8 @@ internal static class ArchiveWriteBudget
 internal sealed class IterationSegmentStatus
 {
     public string CompletionKind { get; set; } = "";
+
+    public CombatFoundationResumeProvenance? ResumeProvenance { get; set; }
 
     public IterationSegmentTrainingStatus? Training { get; set; }
 }

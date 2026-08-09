@@ -265,6 +265,14 @@ internal sealed class ControllerWorkerResultSummary
 
     public bool ModelAccepted { get; set; }
 
+    public bool BusinessModelIncluded { get; set; }
+
+    public bool HeavyTrainingPayloadOmitted { get; set; }
+
+    public int OmittedModelPayloads { get; set; }
+
+    public int OmittedHardSeedCheckpoints { get; set; }
+
     public int EpochsExecuted { get; set; }
 
     public int SelectedEpoch { get; set; }
@@ -365,6 +373,10 @@ internal sealed class ControllerTrainingResultSummary
     public ControllerModelIdentity? AbsoluteQualifiedBestModel { get; set; }
 
     public int QualifiedCandidateCount { get; set; }
+
+    public string DecisionDifferencePath { get; set; } = "";
+
+    public int DecisionDifferenceCases { get; set; }
 
     public int GeneratedReplayEpisodes { get; set; }
 

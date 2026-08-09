@@ -65,6 +65,7 @@ public static class TerriasUiLifecycleRuntime
         TerriasResourceCache.ClearCategory("visual.card-skin");
         TerriasResourceCache.ClearCategory("visual.frame-animation");
         TerriasResourceCache.ClearCategory("ui.sprite-source");
+        TerriasResourceCache.ClearCategory(TerriasIds.WitchArchiveResourceCategory);
     }
 
     private static bool ShouldCloseForUi(string name)

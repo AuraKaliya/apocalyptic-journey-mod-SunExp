@@ -103,6 +103,83 @@ var root = Path.Combine(
 Directory.CreateDirectory(root);
 try
 {
+    var teacherRuntimeOptions = new CombatTransformerTeacherOptions
+    {
+        BatchSize = 128,
+        MicroBatchSize = 96,
+        DataLoaderWorkers = 4,
+        PrefetchBatches = 6,
+        DatasetShardFrames = 1024,
+        EnablePinnedMemory = true
+    };
+    var annotationRuntime = PythonCombatTransformerTeacher
+        .LowMemoryRuntimeOptions(
+            teacherRuntimeOptions,
+            trainingEnabled: false);
+    var trainingRuntime = PythonCombatTransformerTeacher
+        .LowMemoryRuntimeOptions(
+            teacherRuntimeOptions,
+            trainingEnabled: true);
+    Assert(!ReferenceEquals(annotationRuntime, teacherRuntimeOptions)
+           && annotationRuntime.DisableDataLoaderWorkers
+           && annotationRuntime.DataLoaderWorkers == 4
+           && annotationRuntime.PrefetchBatches == 1
+           && annotationRuntime.DatasetShardFrames == 256
+           && annotationRuntime.MicroBatchSize == 64
+           && !annotationRuntime.EnablePinnedMemory
+           && trainingRuntime.DisableDataLoaderWorkers
+           && trainingRuntime.DataLoaderWorkers == 4
+           && trainingRuntime.BatchSize == 64
+           && trainingRuntime.MicroBatchSize == 64
+           && trainingRuntime.PrefetchBatches == 1
+           && trainingRuntime.DatasetShardFrames == 256
+           && trainingRuntime.MaximumIncrementalTrainingFrames == 2048
+           && !trainingRuntime.EnablePinnedMemory,
+        "teacher annotation and refresh fallbacks bound loader processes, queues, shards, and incremental refresh frames");
+    var normalFingerprint = PythonCombatTransformerTeacher
+        .MemoryPlanFingerprint(
+            teacherRuntimeOptions,
+            trainingEnabled: true,
+            cpuBackend: false);
+    var lowFingerprint = PythonCombatTransformerTeacher
+        .MemoryPlanFingerprint(
+            trainingRuntime,
+            trainingEnabled: true,
+            cpuBackend: false);
+    var previousHighThroughputReport = new CombatTransformerTeacherReport
+    {
+        TrainingRefreshed = true,
+        PeakWorkingSetBytes = 8L * 1024L * 1024L * 1024L
+    };
+    var normalPrediction = PythonCombatTransformerTeacher
+        .PredictPeakWorkingSetBytes(
+            teacherRuntimeOptions,
+            trainingEnabled: true,
+            cpuBackend: false,
+            previousHighThroughputReport,
+            normalFingerprint,
+            allowLegacyPreviousReport: true);
+    var lowPrediction = PythonCombatTransformerTeacher
+        .PredictPeakWorkingSetBytes(
+            trainingRuntime,
+            trainingEnabled: true,
+            cpuBackend: false,
+            previousHighThroughputReport,
+            lowFingerprint,
+            allowLegacyPreviousReport: false);
+    Assert(normalFingerprint != lowFingerprint
+           && normalPrediction > 9L * 1024L * 1024L * 1024L
+           && lowPrediction < 4L * 1024L * 1024L * 1024L
+           && PythonCombatTransformerTeacher.HasMemoryCapacity(
+               6L * 1024L * 1024L * 1024L,
+               2L * 1024L * 1024L * 1024L,
+               lowPrediction)
+           && !PythonCombatTransformerTeacher.HasMemoryCapacity(
+               6L * 1024L * 1024L * 1024L,
+               2L * 1024L * 1024L * 1024L,
+               normalPrediction),
+        "teacher memory admission reuses legacy peaks only for the matching normal plan and admits the bounded fallback");
+
     if (args.Contains("--transformer-only", StringComparer.Ordinal))
     {
         RunTransformerSafetyTests();

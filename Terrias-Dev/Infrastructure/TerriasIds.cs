@@ -20,6 +20,8 @@ public static class TerriasIds
 
     public const string ModLogTag = "Terrias.DLL";
     public const string FamiliarBlessingRegistryFile = "familiar.blessing.registry.json";
+    public const string WitchArchiveRegistryFile = "witch.archive.registry.json";
+    public const string WitchArchiveResourceCategory = "ui.witch-archive";
     public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
     public const string FamiliarRunActivePartnerKey = "Terrias_FamiliarRunActivePartner";
 

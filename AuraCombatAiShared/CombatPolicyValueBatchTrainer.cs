@@ -194,49 +194,32 @@ internal static class CombatPolicyValueBatchTrainer
         result.DroppedPolicyIntegrityFrames = trainingEpisodes.Sum(episode =>
             SelectEpisodeFrames(episode, options.MaximumFramesPerEpisode)
                 .Count(frame => !PolicyIntegrityValidForTraining(frame)));
-        EncodedFrame[] encodedTraining = Array.Empty<EncodedFrame>();
-        EncodedFrame[]? encodedValidation = null;
-        EncodedFrame[] encodedTest = Array.Empty<EncodedFrame>();
-        var encodingActions = new List<Action>
-        {
-            () => encodedTraining = Encode(
-                trainingEpisodes,
-                options,
-                cancellationToken,
-                EncodingParallelism(
-                    options.MaximumDegreeOfParallelism,
-                    validationEpisodes.Count > 0,
-                    testEpisodes.Count > 0))
-        };
-        if (validationEpisodes.Count > 0)
-        {
-            encodingActions.Add(() => encodedValidation = Encode(
+        // Encode one split at a time. Parallel split encoding retained three
+        // complete source/materialization graphs during the same peak and was
+        // especially expensive after a large replay resume. Each individual
+        // split still uses the configured frame-level parallelism.
+        var encodingParallelism = Math.Max(
+            1,
+            options.MaximumDegreeOfParallelism);
+        var encodedTraining = Encode(
+            trainingEpisodes,
+            options,
+            cancellationToken,
+            encodingParallelism);
+        EncodedFrame[]? encodedValidation = validationEpisodes.Count > 0
+            ? Encode(
                 validationEpisodes,
                 options,
                 cancellationToken,
-                EncodingParallelism(
-                    options.MaximumDegreeOfParallelism,
-                    validationEpisodes.Count > 0,
-                    testEpisodes.Count > 0)));
-        }
-        if (testEpisodes.Count > 0)
-        {
-            encodingActions.Add(() => encodedTest = Encode(
+                encodingParallelism)
+            : null;
+        var encodedTest = testEpisodes.Count > 0
+            ? Encode(
                 testEpisodes,
                 options,
                 cancellationToken,
-                EncodingParallelism(
-                    options.MaximumDegreeOfParallelism,
-                    validationEpisodes.Count > 0,
-                    testEpisodes.Count > 0)));
-        }
-        Parallel.Invoke(
-            new ParallelOptions
-            {
-                CancellationToken = cancellationToken,
-                MaxDegreeOfParallelism = encodingActions.Count
-            },
-            encodingActions.ToArray());
+                encodingParallelism)
+            : Array.Empty<EncodedFrame>();
         var trainingFrames = encodedTraining;
         trainingFrames = CapUnsafeEndTurnFrames(
             trainingFrames,
@@ -1239,17 +1222,6 @@ internal static class CombatPolicyValueBatchTrainer
                 frames[index].Frame,
                 options));
         return encoded.Where(item => item != null).Select(item => item!).ToArray();
-    }
-
-    private static int EncodingParallelism(
-        int parallelism,
-        bool hasValidationSplit,
-        bool hasTestSplit)
-    {
-        var jobs = 1
-                   + (hasValidationSplit ? 1 : 0)
-                   + (hasTestSplit ? 1 : 0);
-        return Math.Max(1, Math.Max(1, parallelism) / jobs);
     }
 
     private static IReadOnlyList<CombatEpisodeFrame> SelectEpisodeFrames(

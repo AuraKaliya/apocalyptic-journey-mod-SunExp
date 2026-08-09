@@ -225,6 +225,30 @@ internal sealed class PythonCombatTransformerTeacher :
             existingIdentities,
             out var skippedExistingFrames);
         report.SkippedExistingCorpusFrames = skippedExistingFrames;
+        if (context.ReleaseExportedDataset != null)
+        {
+            try
+            {
+                report.HostDatasetRelease =
+                    context.ReleaseExportedDataset()
+                    ?? new CombatTransformerTeacherHostReleaseReport
+                    {
+                        Attempted = true,
+                        Diagnostic = "host returned no dataset-release report"
+                    };
+            }
+            catch (Exception ex)
+            {
+                // Dataset export is already durable. A host compaction failure
+                // is diagnostic and must not invalidate the teacher protocol.
+                report.HostDatasetRelease =
+                    new CombatTransformerTeacherHostReleaseReport
+                    {
+                        Attempted = true,
+                        Diagnostic = ex.Message
+                    };
+            }
+        }
         ReportProgress(context, new CombatTransformerTeacherProgress
         {
             Stage = "merging",
@@ -418,58 +442,6 @@ internal sealed class PythonCombatTransformerTeacher :
                 + "training and validation.";
             return report;
         }
-        var memory = CombatFoundationResourceSnapshot.Capture();
-        var previousPeak = Math.Max(
-            0L,
-            previousReport?.PeakWorkingSetBytes ?? 0L);
-        var predictedPeak = previousPeak > 0L
-            ? Math.Max(
-                1024L * 1024L * 1024L,
-                (long)Math.Ceiling(previousPeak * 1.15d))
-            : options.EnableShardedDataset
-                ? 3L * 1024L * 1024L * 1024L
-                : 5L * 1024L * 1024L * 1024L;
-        if (options.EnableShardedDataset)
-        {
-            var automaticWorkers = cpuBackend
-                ? 0
-                : Math.Min(2, Math.Max(1, Environment.ProcessorCount / 4));
-            var loaderWorkers = options.DataLoaderWorkers > 0
-                ? options.DataLoaderWorkers
-                : automaticWorkers;
-            var datasetCopies = 1L + loaderWorkers * 2L;
-            var cacheEstimate = datasetCopies
-                                * options.DatasetShardFrames
-                                * 192L * 1024L;
-            predictedPeak = predictedPeak > long.MaxValue - cacheEstimate
-                ? long.MaxValue
-                : predictedPeak + cacheEstimate;
-        }
-        report.AvailablePhysicalMemoryBytes =
-            memory.AvailablePhysicalMemoryBytes;
-        report.MemoryReserveBytes = options.MemoryReserveBytes;
-        report.PredictedPeakWorkingSetBytes = predictedPeak;
-        report.DatasetStorageMode = options.EnableShardedDataset
-            ? "auto-resident-sharded-v3-locality"
-            : "resident";
-        report.DatasetShardFrames = options.DatasetShardFrames;
-        report.DatasetEncoding = CombatTransformerWorldModelProtocol
-            .SparseDataset;
-        report.MemoryAdmissionPassed =
-            memory.AvailablePhysicalMemoryBytes
-            >= options.MemoryReserveBytes + predictedPeak;
-        if (!report.MemoryAdmissionPassed)
-        {
-            report.Message = "Transformer teacher deferred by memory gate: "
-                             + "available="
-                             + memory.AvailablePhysicalMemoryBytes
-                             + ", predictedPeak="
-                             + predictedPeak
-                             + ", reserve="
-                             + options.MemoryReserveBytes;
-            return report;
-        }
-
         var annotationSelectionPath = Path.Combine(
             iterationDirectory,
             "annotation-row-selection-v1.txt");
@@ -508,18 +480,7 @@ internal sealed class PythonCombatTransformerTeacher :
             WriteRowSelection(
                 trainingSelectionPath,
                 incrementalSelection.RowIndices);
-            report.IncrementalTrainingSelection = true;
-            report.IncrementalTrainingFrames =
-                incrementalSelection.RowIndices.Count;
-            report.IncrementalNewFrames = incrementalSelection.NewFrames;
-            report.IncrementalFreshFrames = incrementalSelection.FreshFrames;
-            report.IncrementalRetryFrames = incrementalSelection.RetryFrames;
-            report.IncrementalReplayFrames = incrementalSelection.ReplayFrames;
-            report.IncrementalPendingFrames = incrementalSelection.PendingFrames;
-            report.IncrementalDeferredFrames =
-                incrementalSelection.DeferredFrames;
-            report.IncrementalReplayEscalationLevel =
-                incrementalSelection.ReplayEscalationLevel;
+            ApplyIncrementalSelection(report, incrementalSelection);
             if (incrementalSelection.RowIndices.Count == 0)
             {
                 trainingEnabled = false;
@@ -530,6 +491,108 @@ internal sealed class PythonCombatTransformerTeacher :
             }
         }
         report.RequestedEpochs = trainingEnabled ? effectiveEpochs : 0;
+        var memory = CombatFoundationResourceSnapshot.Capture();
+        var runtimeOptions = trainingEnabled
+            ? options.Clone()
+            : LowMemoryRuntimeOptions(options, trainingEnabled: false);
+        var memoryPlanFingerprint = MemoryPlanFingerprint(
+            runtimeOptions,
+            trainingEnabled,
+            cpuBackend);
+        var predictedPeak = PredictPeakWorkingSetBytes(
+            runtimeOptions,
+            trainingEnabled,
+            cpuBackend,
+            previousReport,
+            memoryPlanFingerprint,
+            allowLegacyPreviousReport: true);
+        report.NormalPlanPredictedPeakWorkingSetBytes = predictedPeak;
+        var admissionPassed = HasMemoryCapacity(
+            memory.AvailablePhysicalMemoryBytes,
+            runtimeOptions.MemoryReserveBytes,
+            predictedPeak);
+        report.MemoryAdmissionMode = trainingEnabled
+            ? "training-refresh"
+            : "annotation-only";
+        report.LowMemoryRuntimeFallbackApplied = !trainingEnabled;
+
+        if (trainingEnabled && !admissionPassed)
+        {
+            report.LowMemoryFallbackAttempted = true;
+            var lowMemoryOptions = LowMemoryRuntimeOptions(
+                options,
+                trainingEnabled: true);
+            var lowMemoryFingerprint = MemoryPlanFingerprint(
+                lowMemoryOptions,
+                trainingEnabled: true,
+                cpuBackend);
+            var lowMemoryPrediction = PredictPeakWorkingSetBytes(
+                lowMemoryOptions,
+                trainingEnabled: true,
+                cpuBackend,
+                previousReport,
+                lowMemoryFingerprint,
+                allowLegacyPreviousReport: false);
+            runtimeOptions = lowMemoryOptions;
+            memoryPlanFingerprint = lowMemoryFingerprint;
+            predictedPeak = lowMemoryPrediction;
+            admissionPassed = HasMemoryCapacity(
+                memory.AvailablePhysicalMemoryBytes,
+                runtimeOptions.MemoryReserveBytes,
+                predictedPeak);
+            report.MemoryAdmissionMode = "training-refresh-low-memory";
+            report.LowMemoryRuntimeFallbackApplied = admissionPassed;
+
+            if (admissionPassed
+                && warmStarted
+                && !finalRefresh
+                && incrementalSelection != null)
+            {
+                incrementalSelection = SelectIncrementalTrainingRows(
+                    corpusRows,
+                    trainedIdentities,
+                    attemptedIdentities,
+                    anchorRunKeys,
+                    runtimeOptions,
+                    teacherCompatibilityKey,
+                    context.Iteration,
+                    rejectedUpdateStreak);
+                WriteRowSelection(
+                    trainingSelectionPath,
+                    incrementalSelection.RowIndices);
+                ApplyIncrementalSelection(report, incrementalSelection);
+            }
+        }
+        report.AvailablePhysicalMemoryBytes =
+            memory.AvailablePhysicalMemoryBytes;
+        report.MemoryReserveBytes = runtimeOptions.MemoryReserveBytes;
+        report.PredictedPeakWorkingSetBytes = predictedPeak;
+        report.MemoryPlanFingerprint = memoryPlanFingerprint;
+        report.DatasetStorageMode = runtimeOptions.EnableShardedDataset
+            ? "auto-resident-sharded-v3-locality"
+            : "resident";
+        report.DatasetShardFrames = runtimeOptions.DatasetShardFrames;
+        report.DatasetEncoding = CombatTransformerWorldModelProtocol
+            .SparseDataset;
+        report.MemoryAdmissionPassed = admissionPassed;
+        if (!report.MemoryAdmissionPassed)
+        {
+            report.Message = "Transformer teacher deferred by memory gate: "
+                             + "mode="
+                             + report.MemoryAdmissionMode
+                             + ", available="
+                             + memory.AvailablePhysicalMemoryBytes
+                             + ", predictedPeak="
+                             + predictedPeak
+                             + ", reserve="
+                             + runtimeOptions.MemoryReserveBytes;
+            CombatTransformerTeacherFailureProtocol.Mark(
+                report,
+                CombatTransformerTeacherFailureKinds.TransientResource,
+                retryable: true,
+                formalModelBlocked: false);
+            return report;
+        }
         ReportProgress(context, new CombatTransformerTeacherProgress
         {
             Stage = "launching",
@@ -545,7 +608,7 @@ internal sealed class PythonCombatTransformerTeacher :
         });
 
         var process = StartTeacher(
-            options,
+            runtimeOptions,
             runtime.ExecutablePath,
             datasetPath,
             annotationsPath,
@@ -1001,7 +1064,6 @@ internal sealed class PythonCombatTransformerTeacher :
                     : "strategy-not-applicable";
                 var binding = new FrameBinding
                 {
-                    Frame = frame,
                     Candidates = candidates,
                     Strategy = strategy,
                     Identity = identity
@@ -2509,6 +2571,22 @@ internal sealed class PythonCombatTransformerTeacher :
         };
     }
 
+    private static void ApplyIncrementalSelection(
+        CombatTransformerTeacherReport report,
+        IncrementalTrainingSelection selection)
+    {
+        report.IncrementalTrainingSelection = true;
+        report.IncrementalTrainingFrames = selection.RowIndices.Count;
+        report.IncrementalNewFrames = selection.NewFrames;
+        report.IncrementalFreshFrames = selection.FreshFrames;
+        report.IncrementalRetryFrames = selection.RetryFrames;
+        report.IncrementalReplayFrames = selection.ReplayFrames;
+        report.IncrementalPendingFrames = selection.PendingFrames;
+        report.IncrementalDeferredFrames = selection.DeferredFrames;
+        report.IncrementalReplayEscalationLevel =
+            selection.ReplayEscalationLevel;
+    }
+
     private static void AddWholeRuns(
         IDictionary<int, CorpusFrameDescriptor> destination,
         IEnumerable<CorpusFrameDescriptor> source,
@@ -2749,6 +2827,138 @@ internal sealed class PythonCombatTransformerTeacher :
                 StringComparison.OrdinalIgnoreCase));
     }
 
+    internal static CombatTransformerTeacherOptions LowMemoryRuntimeOptions(
+        CombatTransformerTeacherOptions source,
+        bool trainingEnabled)
+    {
+        var result = source.Clone();
+        if (trainingEnabled)
+        {
+            // Keep optimizer work enabled, but eliminate Windows DataLoader
+            // process duplication and bound every CPU-side staging queue. The
+            // deferred corpus remains in the backlog for later refreshes.
+            result.BatchSize = Math.Min(result.BatchSize, 64);
+            result.MaximumIncrementalTrainingFrames = Math.Min(
+                result.MaximumIncrementalTrainingFrames,
+                Math.Max(result.MinimumFrames, 2048));
+            result.ResidentDatasetMaximumFrames = Math.Min(
+                result.ResidentDatasetMaximumFrames,
+                2048);
+            result.DisableDataLoaderWorkers = true;
+            result.PrefetchBatches = 1;
+            result.DatasetShardFrames = Math.Min(
+                result.DatasetShardFrames,
+                256);
+            result.MicroBatchSize = result.MicroBatchSize > 0
+                ? Math.Min(result.MicroBatchSize, 64)
+                : Math.Min(result.BatchSize, 64);
+            result.EnablePinnedMemory = false;
+            return result;
+        }
+
+        // Annotation-only reuse does not need optimizer state or a large
+        // prefetched training queue. Prefer a single-process streaming plan so
+        // a stable teacher can continue producing supervision under pressure.
+        result.DisableDataLoaderWorkers = true;
+        result.PrefetchBatches = 1;
+        result.DatasetShardFrames = Math.Min(result.DatasetShardFrames, 256);
+        result.MicroBatchSize = result.MicroBatchSize > 0
+            ? Math.Min(result.MicroBatchSize, 64)
+            : Math.Min(result.BatchSize, 64);
+        result.EnablePinnedMemory = false;
+        return result;
+    }
+
+    internal static string MemoryPlanFingerprint(
+        CombatTransformerTeacherOptions options,
+        bool trainingEnabled,
+        bool cpuBackend)
+    {
+        var payload = string.Join(
+            "|",
+            "teacher-memory-plan-v1",
+            trainingEnabled ? "training" : "annotation",
+            cpuBackend ? "cpu" : "accelerator",
+            options.BatchSize,
+            options.MicroBatchSize,
+            options.DisableDataLoaderWorkers ? 1 : 0,
+            options.DataLoaderWorkers,
+            options.PrefetchBatches,
+            options.EnableShardedDataset ? 1 : 0,
+            options.DatasetShardFrames,
+            options.ResidentDatasetMaximumFrames,
+            options.MaximumIncrementalTrainingFrames,
+            options.EnablePinnedMemory ? 1 : 0);
+        return Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(payload)))
+            .ToLowerInvariant();
+    }
+
+    internal static long PredictPeakWorkingSetBytes(
+        CombatTransformerTeacherOptions options,
+        bool trainingEnabled,
+        bool cpuBackend,
+        CombatTransformerTeacherReport? previousReport,
+        string memoryPlanFingerprint,
+        bool allowLegacyPreviousReport)
+    {
+        var previousPlanMatches = previousReport != null
+                                  && previousReport.TrainingRefreshed
+                                  == trainingEnabled
+                                  && (string.Equals(
+                                          previousReport.MemoryPlanFingerprint,
+                                          memoryPlanFingerprint,
+                                          StringComparison.Ordinal)
+                                      || (allowLegacyPreviousReport
+                                          && string.IsNullOrWhiteSpace(
+                                              previousReport
+                                                  .MemoryPlanFingerprint)));
+        var previousPeak = previousPlanMatches
+            ? Math.Max(0L, previousReport!.PeakWorkingSetBytes)
+            : 0L;
+        var predictedPeak = previousPeak > 0L
+            ? Math.Max(
+                1024L * 1024L * 1024L,
+                (long)Math.Ceiling(previousPeak * 1.15d))
+            : options.EnableShardedDataset
+                ? 3L * 1024L * 1024L * 1024L
+                : trainingEnabled
+                    ? 5L * 1024L * 1024L * 1024L
+                    : 4L * 1024L * 1024L * 1024L;
+        if (!options.EnableShardedDataset)
+        {
+            return predictedPeak;
+        }
+
+        var automaticWorkers = cpuBackend
+            ? 0
+            : Math.Min(2, Math.Max(1, Environment.ProcessorCount / 4));
+        var loaderWorkers = options.DisableDataLoaderWorkers
+            ? 0
+            : options.DataLoaderWorkers > 0
+                ? options.DataLoaderWorkers
+                : automaticWorkers;
+        var datasetCopies = 1L + loaderWorkers * 2L;
+        var cacheEstimate = datasetCopies
+                            * options.DatasetShardFrames
+                            * 192L * 1024L;
+        return predictedPeak > long.MaxValue - cacheEstimate
+            ? long.MaxValue
+            : predictedPeak + cacheEstimate;
+    }
+
+    internal static bool HasMemoryCapacity(
+        long availableBytes,
+        long reserveBytes,
+        long predictedPeakBytes)
+    {
+        return availableBytes >= 0L
+               && reserveBytes >= 0L
+               && predictedPeakBytes >= 0L
+               && availableBytes >= reserveBytes
+               && availableBytes - reserveBytes >= predictedPeakBytes;
+    }
+
     private Process StartTeacher(
         CombatTransformerTeacherOptions options,
         string pythonExecutable,
@@ -2816,7 +3026,10 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--cpu-threads", options.CpuThreads);
         Add(start, "--cpu-interop-threads", options.CpuInteropThreads);
         Add(start, "--micro-batch-size", options.MicroBatchSize);
-        Add(start, "--loader-workers", options.DataLoaderWorkers);
+        Add(
+            start,
+            "--loader-workers",
+            options.DisableDataLoaderWorkers ? -1 : options.DataLoaderWorkers);
         Add(start, "--prefetch-batches", options.PrefetchBatches);
         Add(
             start,
@@ -3618,8 +3831,6 @@ internal sealed class PythonCombatTransformerTeacher :
 
     private sealed class FrameBinding
     {
-        public CombatEpisodeFrame Frame { get; set; } = new();
-
         public List<CombatEpisodeCandidate> Candidates { get; set; } = new();
 
         public string Strategy { get; set; } = "";

@@ -379,7 +379,9 @@ internal sealed class TrainingDiagnosticsPanel
                 : lastArena == null
                     ? "计划中"
                     : lastArena.ArenaScreeningDiagnosticOnly
-                        ? "诊断筛选阻断"
+                        ? lastArena.ArenaScreeningPairs == 0
+                            ? "前置门禁阻断"
+                            : "诊断筛选阻断"
                         : lastArena.ArenaConfirmationPairs > 0
                             ? "正式确认未合格"
                             : lastArena.FormalArenaConfirmationScheduled
@@ -581,6 +583,9 @@ internal sealed class TrainingDiagnosticsPanel
                         ? "（已计划）"
                         : "（未计划）")
                     + $" · 节省 {item.ArenaScreeningPairsSaved + item.ArenaConfirmationPairsSaved} 对\r\n"
+                    + $"资格状态 {item.CandidateQualificationState}"
+                    + $" · 筛选资格 {PassMark(item.ScreeningQualificationGatePassed)}"
+                    + $" · 完整确认 {PassMark(item.FormalConfirmationCompleted)}\r\n"
                     + $"普通 候选 {item.CandidateNormalWinRate:P1} / 对照 {item.ChampionNormalWinRate:P1} · "
                     + $"高级 候选 {item.CandidateAdvancedWinRate:P1} / 对照 {item.ChampionAdvancedWinRate:P1}\r\n"
                     + $"分数差 {item.CandidateScoreGain:+0.0;-0.0;0.0} · "
@@ -619,15 +624,21 @@ internal sealed class TrainingDiagnosticsPanel
     {
         if (!item.OfflineHeadRegressionGatePassed)
         {
-            return "离线多头回退超过阈值，筛选仅用于诊断。";
+            return item.ArenaScreeningPairs == 0
+                ? "离线多头回退超过阈值，未运行竞技场。"
+                : "离线多头回退超过阈值，筛选仅用于诊断。";
         }
         if (!item.StrategyQuotaGatePassed)
         {
-            return "策略标签配额仍有缺口，未进入正式确认。";
+            return item.ArenaScreeningPairs == 0
+                ? "策略标签配额仍有缺口，未运行竞技场。"
+                : "策略标签配额仍有缺口，未进入正式确认。";
         }
         if (!item.FeatureCollisionGatePassed)
         {
-            return "特征碰撞率超过门槛，未进入正式确认。";
+            return item.ArenaScreeningPairs == 0
+                ? "特征碰撞率超过门槛，未运行竞技场。"
+                : "特征碰撞率超过门槛，未进入正式确认。";
         }
         if (!item.AbsoluteAdvancedGatePassed)
         {

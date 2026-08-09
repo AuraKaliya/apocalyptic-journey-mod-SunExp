@@ -61,6 +61,8 @@
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs" Link="Source\SolarMemoryFixedNodeSpec.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs" Link="Source\SolarMemoryMapSyncRepairService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs" Link="Source\SolarMemoryContentIsolationService.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\WitchArchiveSelectionPolicy.cs" Link="Source\WitchArchiveSelectionPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\WitchArchiveTextLoader.cs" Link="Source\WitchArchiveTextLoader.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

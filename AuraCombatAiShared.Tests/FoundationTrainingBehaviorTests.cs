@@ -42,6 +42,35 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             123456789UL,
             2_000_000UL);
         var foundationSeedPlanB = CombatFoundationSeedPlan.Create(987654321UL, 2_000_000UL);
+        var constrainedMemory = new CombatFoundationResourceSnapshot
+        {
+            TotalPhysicalMemoryBytes = 32L * 1024L * 1024L * 1024L,
+            AvailablePhysicalMemoryBytes = 6L * 1024L * 1024L * 1024L
+        };
+        var mediumMemory = new CombatFoundationResourceSnapshot
+        {
+            TotalPhysicalMemoryBytes = 64L * 1024L * 1024L * 1024L,
+            AvailablePhysicalMemoryBytes = 32L * 1024L * 1024L * 1024L
+        };
+        var ampleMemory = new CombatFoundationResourceSnapshot
+        {
+            TotalPhysicalMemoryBytes = 128L * 1024L * 1024L * 1024L,
+            AvailablePhysicalMemoryBytes = 80L * 1024L * 1024L * 1024L
+        };
+        Assert(CombatFoundationMemoryExecutionPolicy
+                   .SelectIterationsPerProcess(3, constrainedMemory) == 1
+               && CombatFoundationMemoryExecutionPolicy
+                   .SelectModelTrainingParallelism(32, constrainedMemory)
+                  == 12
+               && CombatFoundationMemoryExecutionPolicy
+                   .SelectIterationsPerProcess(3, mediumMemory) == 2
+               && CombatFoundationMemoryExecutionPolicy
+                   .SelectModelTrainingParallelism(32, mediumMemory) == 20
+               && CombatFoundationMemoryExecutionPolicy
+                   .SelectIterationsPerProcess(3, ampleMemory) == 3
+               && CombatFoundationMemoryExecutionPolicy
+                   .SelectModelTrainingParallelism(32, ampleMemory) == 32,
+            "memory-first execution restarts constrained workers every iteration and bounds model-training concurrency without penalizing ample-memory hosts");
         var signedTransformerSeedPlan = CombatFoundationSeedPlan.Create(
             signedTransformerRunSeed,
             2_000_000UL);
@@ -1109,6 +1138,43 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                        RetryableFailure = true
                    }),
             "only explicitly classified permanent Transformer failures block formal model training; resource and unknown process failures remain retryable");
+        var staleTeacherAge = CombatCampaignFoundationTrainer
+            .PolicyTeacherFreshnessAge(
+                12,
+                new CombatTransformerTeacherReport
+                {
+                    Requested = true,
+                    PolicyTeacherApplied = false
+                },
+                new[]
+                {
+                    new CombatCampaignFoundationIteration
+                    {
+                        Iteration = 7,
+                        TransformerTeacher =
+                            new CombatTransformerTeacherReport
+                            {
+                                Requested = true,
+                                PolicyTeacherApplied = true
+                            }
+                    }
+                });
+        Assert(staleTeacherAge == 5
+               && CombatCampaignFoundationTrainer.PolicyTeacherFreshnessAge(
+                   12,
+                   new CombatTransformerTeacherReport
+                   {
+                       Requested = true,
+                       PolicyTeacherApplied = true
+                   },
+                   Array.Empty<CombatCampaignFoundationIteration>()) == 0
+               && new CombatTransformerTeacherOptions
+                   {
+                       MaximumPolicyTeacherStalenessIterations = 99
+                   }
+                   .Normalized()
+                   .MaximumPolicyTeacherStalenessIterations == 32,
+            "teacher freshness is measured from the last applied policy generation and has a bounded fail-closed threshold");
         Assert(!CombatTransformerTeacherApplicationProtocol
                    .HasUsableTeacherSource(new CombatTransformerTeacherReport
                    {
@@ -2574,6 +2640,50 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && new CombatFoundationCompatibilityManifest().SchemaVersion
                    == CombatFoundationWorkerProtocol.SchemaVersion,
             "foundation worker artifacts share one protocol version constant");
+        var rejectedPayloadModel = new CombatPolicyValueNetworkDefinition
+        {
+            ModelId = "rejected-model"
+        };
+        var rejectedWorkerResult = new CombatFoundationWorkerResult
+        {
+            ModelAccepted = false,
+            Training = new CombatCampaignFoundationTrainingResult
+            {
+                Champion = rejectedPayloadModel,
+                WorkingChampion = rejectedPayloadModel,
+                LatestTrainingModel = rejectedPayloadModel,
+                AbsoluteQualifiedBestModel = rejectedPayloadModel,
+                BestPendingArenaCandidate =
+                    new CombatFoundationPendingArenaCandidate
+                    {
+                        Model = rejectedPayloadModel
+                    },
+                HardSeedHistory =
+                {
+                    new CombatFoundationHardSeedHistoryEntry
+                    {
+                        FailureEncounterCheckpoint =
+                            new CombatCampaignCheckpoint()
+                    }
+                }
+            }
+        };
+        CombatFoundationWorkerResultProjection.StripRejectedBusinessPayload(
+            rejectedWorkerResult);
+        Assert(!rejectedWorkerResult.BusinessModelIncluded
+               && rejectedWorkerResult.HeavyTrainingPayloadOmitted
+               && rejectedWorkerResult.OmittedModelPayloads == 5
+               && rejectedWorkerResult.OmittedHardSeedCheckpoints == 1
+               && rejectedWorkerResult.Training?.Champion == null
+               && rejectedWorkerResult.Training?.WorkingChampion == null
+               && rejectedWorkerResult.Training?.LatestTrainingModel == null
+               && rejectedWorkerResult.Training?.AbsoluteQualifiedBestModel
+               == null
+               && rejectedWorkerResult.Training?.BestPendingArenaCandidate
+                   ?.Model == null
+               && rejectedWorkerResult.Training?.HardSeedHistory[0]
+                   .FailureEncounterCheckpoint == null,
+            "rejected worker output keeps diagnostics but omits every business model payload and resumable hard-seed graph");
         var checkpointStorageRoot = Path.Combine(
             Path.GetTempPath(),
             "aura-foundation-checkpoint-" + Guid.NewGuid().ToString("N"));
@@ -4820,6 +4930,25 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 screeningPairsPerDifficulty: 16,
                 confirmationPairsPerDifficulty: 48,
                 confirmationRan: absoluteScreeningConfirmation);
+        var screeningOnlyQualificationPairs =
+            CombatCampaignFoundationTrainer.ExpectedArenaQualificationPairs(
+                screeningPairsPerDifficulty: 16,
+                confirmationPairsPerDifficulty: 48,
+                confirmationRan: false);
+        var legacyScreeningEvidence =
+            new CombatCampaignFoundationIteration
+            {
+                AbsoluteQualificationGatePassed = true,
+                ArenaScreeningPairs = 32,
+                ArenaConfirmationPairs = 0
+            };
+        var completeConfirmationEvidence =
+            new CombatCampaignFoundationIteration
+            {
+                AbsoluteQualificationGatePassed = true,
+                ArenaScreeningPairs = 32,
+                ArenaConfirmationPairs = 96
+            };
         Assert(absoluteScreeningConfirmation
                && !CombatCampaignFoundationTrainer.ShouldRunArenaConfirmation(
                    relativeScreeningPassed: false,
@@ -4861,9 +4990,18 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    offlineHeads: true,
                    strategyQuota: true,
                    featureCollision: true)
-               && fullArenaQualificationPairs == 128
-               && !CombatCampaignFoundationTrainer
-                   .AbsoluteQualificationGatePassed(
+                && fullArenaQualificationPairs == 128
+                && screeningOnlyQualificationPairs < 0
+                && !CombatCampaignFoundationTrainer
+                    .ConfirmedQualificationEvidence(
+                        legacyScreeningEvidence,
+                        confirmationPairsPerDifficulty: 48)
+                && CombatCampaignFoundationTrainer
+                    .ConfirmedQualificationEvidence(
+                        completeConfirmationEvidence,
+                        confirmationPairsPerDifficulty: 48)
+                && !CombatCampaignFoundationTrainer
+                    .AbsoluteQualificationGatePassed(
                        validArenaPairs: 32,
                        expectedArenaPairs: fullArenaQualificationPairs,
                        absoluteNormal: true,
@@ -4872,6 +5010,91 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                        strategyQuota: true,
                        featureCollision: true),
             "an absolute-only screening finalist must run all configured confirmation pairs and cannot qualify on screening evidence alone");
+        var decisionDifferencePair =
+            new CombatFoundationCapabilityProbePair
+            {
+                DifficultyId = "advanced",
+                WorldSeed = 4242UL,
+                BaselineVictory = true,
+                ChampionVictory = false,
+                BaselineCompletedBattles = 36,
+                ChampionCompletedBattles = 21
+            };
+        var baselineDecisionEpisode = new CombatEpisode
+        {
+            JourneyBattleIndex = 12,
+            Frames =
+            {
+                new CombatEpisodeFrame
+                {
+                    DecisionSequence = 7,
+                    StateFingerprint = "shared-state",
+                    ExecutedCandidateId = "safe-line",
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "safe-line",
+                            SearchVisits = 10,
+                            SearchValue = 0.7d,
+                            SearchDeathRisk = 0.1d
+                        }
+                    }
+                }
+            }
+        };
+        var championDecisionEpisode = new CombatEpisode
+        {
+            JourneyBattleIndex = 12,
+            Frames =
+            {
+                new CombatEpisodeFrame
+                {
+                    DecisionSequence = 7,
+                    StateFingerprint = "shared-state",
+                    ExecutedCandidateId = "risky-line",
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "safe-line",
+                            SearchVisits = 6,
+                            SearchValue = 0.8d,
+                            SearchDeathRisk = 0.1d
+                        },
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "risky-line",
+                            SearchVisits = 12,
+                            SearchValue = 0.2d,
+                            SearchDeathRisk = 0.4d
+                        }
+                    }
+                }
+            }
+        };
+        var decisionDifference = CombatCampaignFoundationTrainer
+            .FindFirstDecisionDifference(
+                decisionDifferencePair,
+                new[] { baselineDecisionEpisode },
+                new[] { championDecisionEpisode });
+        Assert(decisionDifference != null
+               && decisionDifference.DataPartition
+               == CombatFoundationDecisionDifferenceProtocol
+                   .AcceptanceDiagnosticPartition
+               && !decisionDifference.TrainingEligible
+               && !decisionDifference.AcceptanceSeedRetired
+               && decisionDifference.DifficultyId == "advanced"
+               && decisionDifference.WorldSeed == 4242UL
+               && decisionDifference.JourneyBattleIndex == 12
+               && decisionDifference.DecisionSequence == 7
+               && decisionDifference.PreferredCandidateId == "safe-line"
+               && decisionDifference.ChampionDecision.CandidateId
+               == "risky-line"
+               && decisionDifference.ChampionViewOfBaselineAction.CandidateId
+               == "safe-line"
+               && decisionDifference.FailureCategory == "search-selection",
+            "capability failures record the first aligned decision divergence as acceptance-only diagnostics without leaking the seed into training");
         var qualifiedOpening = new CombatCampaignFoundationIteration
         {
             AbsoluteQualificationGatePassed = true,
@@ -5505,10 +5728,44 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         foundationRequest.MaximumDegreeOfParallelism = 4;
         foundationRequest.ValidationCampaign = failingValidationCampaign;
         foundationRequest.RetainValidationRunDetails = false;
+        var priorAdditionalIterationsOnResume =
+            foundationRequest.AdditionalIterationsOnResume;
+        foundationRequest.AdditionalIterationsOnResume = 0;
+        var acceptedValidationModel =
+            foundationTraining.AbsoluteQualifiedBestModel!;
+        foundationRequest.Resume = new CombatCampaignFoundationResumeState
+        {
+            Stage = "validation",
+            NextIteration = foundationRequest.Iterations,
+            CompletedCampaigns = foundationTraining.CompletedCampaigns,
+            GeneratedReplayEpisodes =
+                foundationTraining.GeneratedReplayEpisodes,
+            RunSeed = foundationTraining.RunSeed,
+            TrainingSeedStart = foundationTraining.TrainingSeedStart,
+            ArenaSeedStart = foundationTraining.ArenaSeedStart,
+            TuningSeedStart = foundationTraining.TuningSeedStart,
+            ValidationSeedStart = foundationTraining.ValidationSeedStart,
+            ModelRandomSeed = foundationTraining.ModelRandomSeed,
+            Champion = acceptedValidationModel,
+            WorkingChampion = acceptedValidationModel,
+            LatestTrainingModel = acceptedValidationModel,
+            AbsoluteQualifiedBestModel = acceptedValidationModel,
+            AbsoluteQualifiedBestEvidence =
+                foundationTraining.AbsoluteQualifiedBestEvidence,
+            Iterations = foundationTraining.Iterations.ToList(),
+            Preflight = foundationTraining.Preflight,
+            Compatibility = CombatCampaignFoundationTrainer
+                .BuildCompatibilityManifest(
+                    foundationRequest,
+                    campaignRules.Ruleset.RulesetHash)
+        };
         var earlyStoppedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
             foundationRequest,
             campaignRules.Ruleset,
             foundationTraining.Champion);
+        foundationRequest.Resume = null;
+        foundationRequest.AdditionalIterationsOnResume =
+            priorAdditionalIterationsOnResume;
         Assert(earlyStoppedFoundationTraining.Success
                && !earlyStoppedFoundationTraining.AcceptancePassed
                && earlyStoppedFoundationTraining.Validation.EarlyStopped

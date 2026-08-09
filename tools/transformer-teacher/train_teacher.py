@@ -1690,7 +1690,7 @@ def runtime_cache_key(
     payload = "|".join(
         str(value)
         for value in (
-            "transformer-runtime-auto-tune-v4-shape-envelope",
+            "transformer-runtime-auto-tune-v5-memory-plan",
             platform.system(),
             platform.machine(),
             platform.processor(),
@@ -1709,7 +1709,12 @@ def runtime_cache_key(
             args.ffn,
             args.history,
             args.batch_size,
+            args.micro_batch_size,
+            args.loader_workers,
+            args.prefetch_batches,
             args.dataset_storage,
+            args.dataset_shard_frames,
+            args.resident_dataset_maximum_frames,
             int(args.mixed_precision),
             int(args.deterministic),
             int(args.pin_memory),
@@ -1886,7 +1891,7 @@ def resolve_runtime_plan(
         "effective_batch_size": args.batch_size,
         "loader_workers": (
             0
-            if args.dataset_storage == "resident"
+            if args.dataset_storage == "resident" or args.loader_workers < 0
             else args.loader_workers
             if args.loader_workers > 0
             else (
@@ -1917,7 +1922,7 @@ def resolve_runtime_plan(
                 cached.get("effective_batch_size", args.batch_size)
             )
             used_cache = True
-        if args.loader_workers <= 0:
+        if args.loader_workers == 0:
             plan["loader_workers"] = int(
                 cached.get("loader_workers", plan["loader_workers"])
             )

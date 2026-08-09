@@ -809,19 +809,29 @@ internal sealed class MainWindow : Window
                 ? Deserialize<CombatFoundationCheckpointCatalog>(
                     CombatFoundationCheckpointStorage.ReadAllTextShared(path))
                 : null;
-            var choices = (catalog?.Entries
-                           ?? new List<CombatFoundationCheckpointCatalogEntry>())
+            var validEntries = (catalog?.Entries
+                                ?? new List<CombatFoundationCheckpointCatalogEntry>())
                 .Where(item => item != null
                                && CombatFoundationPathRuntime.FileExists(
                                    item.CheckpointPath)
                                && CombatFoundationPathRuntime.FileExists(
                                    item.EpisodeSnapshotPath))
-                .OrderByDescending(item => item.Recommended)
+                .ToList();
+            var latestContinuation = validEntries
+                .OrderByDescending(item => item.NextIteration)
                 .ThenByDescending(item => item.CreatedUtc)
+                .FirstOrDefault();
+            var choices = validEntries
+                .OrderByDescending(item => item.NextIteration)
+                .ThenByDescending(item => item.CreatedUtc)
+                .ThenByDescending(item => item.Recommended)
                 .Select(item => new ControllerCheckpointChoice
                 {
                     Entry = item,
-                    Label = (item.Recommended ? "推荐 · " : "")
+                    Label = (ReferenceEquals(item, latestContinuation)
+                                ? "续训最新 · "
+                                : "")
+                            + (item.Recommended ? "模型推荐 · " : "")
                             + item.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm")
                             + " · 迭代 " + item.NextIteration
                             + " · val-best "
@@ -1875,6 +1885,9 @@ internal sealed class MainWindow : Window
             + $"Worker 已完成：{result.WorkerCompleted}\r\n"
             + $"训练成功：{result.TrainingSucceeded}\r\n"
             + $"模型已接受：{result.ModelAccepted}\r\n"
+            + $"业务模型已输出：{result.BusinessModelIncluded}\r\n"
+            + $"失败重载已裁剪：{result.HeavyTrainingPayloadOmitted}"
+            + $"（模型 {result.OmittedModelPayloads}，失败检查点 {result.OmittedHardSeedCheckpoints}）\r\n"
             + $"执行 epoch：{result.EpochsExecuted}\r\n"
             + $"验证最优 epoch：{(result.BestValidationEpoch > 0 ? result.BestValidationEpoch : result.SelectedEpoch)}\r\n"
             + $"部署选择 epoch：{(result.DeploymentSelectedEpoch > 0 ? result.DeploymentSelectedEpoch : result.SelectedEpoch)}\r\n"
@@ -1890,6 +1903,10 @@ internal sealed class MainWindow : Window
                 : $"检查点提示：{result.CheckpointWarning}\r\n")
             + $"训练指标：{result.TrainingMetricsPath}\r\n"
             + $"训练分析：{result.TrainingAnalysisPath}\r\n"
+            + (result.Training == null
+                ? ""
+                : $"高级失败首决策差异：{result.Training.DecisionDifferenceCases}"
+                  + $" · {result.Training.DecisionDifferencePath}\r\n")
             + $"指标写入失败：{result.TrainingMetricWriteFailures}\r\n"
             + (string.IsNullOrWhiteSpace(result.TrainingMetricWarning)
                 ? ""
@@ -3290,6 +3307,26 @@ internal sealed class MainWindow : Window
                     break;
                 case nameof(ControllerWorkerResultSummary.ModelAccepted):
                     summary.ModelAccepted = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.BusinessModelIncluded):
+                    summary.BusinessModelIncluded = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.HeavyTrainingPayloadOmitted):
+                    summary.HeavyTrainingPayloadOmitted = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.OmittedModelPayloads):
+                    summary.OmittedModelPayloads = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.OmittedHardSeedCheckpoints):
+                    summary.OmittedHardSeedCheckpoints = Convert.ToInt32(
                         reader.Value,
                         CultureInfo.InvariantCulture);
                     break;

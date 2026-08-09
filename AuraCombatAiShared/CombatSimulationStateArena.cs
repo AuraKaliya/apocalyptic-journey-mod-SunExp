@@ -3,6 +3,25 @@ using System.Collections.Generic;
 
 namespace AuraCombatAi.Shared;
 
+public static class CombatSearchArenaRetentionProtocol
+{
+    public const int MaximumStateSlots = 8192;
+
+    public const int MaximumActionModels = 4096;
+
+    public const int MaximumActionOutcomes = 8192;
+
+    public const int MaximumActionEffects = 32768;
+
+    public const int MaximumSearchNodes = 8192;
+
+    public const int MaximumSearchEdges = 32768;
+
+    public const int MaximumSearchOutcomes = 32768;
+
+    public const int MaximumChildEvidence = 65536;
+}
+
 public sealed class CombatSimulationStateArena
 {
     private readonly List<Slot> slots = new();
@@ -27,8 +46,22 @@ public sealed class CombatSimulationStateArena
 
     internal void BeginSearch()
     {
+        TrimRetainedToMaximum(
+            CombatSearchArenaRetentionProtocol.MaximumStateSlots);
         cursor = 0;
         ReusedStates = 0;
+    }
+
+    internal void TrimRetainedToMaximum(int maximumSlots)
+    {
+        maximumSlots = Math.Max(0, maximumSlots);
+        if (slots.Count <= maximumSlots)
+        {
+            return;
+        }
+        slots.RemoveRange(maximumSlots, slots.Count - maximumSlots);
+        slots.TrimExcess();
+        cursor = Math.Min(cursor, slots.Count);
     }
 
     internal CombatSimulationState Clone(

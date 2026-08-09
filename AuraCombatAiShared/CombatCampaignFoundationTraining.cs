@@ -199,6 +199,16 @@ public static class CombatFoundationPromotionProtocol
 
     public const string AbsoluteQualifiedBest = "absolute-qualified-best";
 
+    public const string OfflineRejected = "offline-rejected";
+
+    public const string OfflineSafe = "offline-safe";
+
+    public const string ScreeningPassed = "screening-passed";
+
+    public const string ConfirmedQualified = "confirmed-qualified";
+
+    public const string Accepted = "accepted";
+
     public const string Regressed = "regressed";
 
     public const string InsufficientEvidence = "insufficient-evidence";
@@ -232,6 +242,18 @@ public static class CombatFoundationSemanticGateProtocol
     public const double MaximumSourceProjectionInvalidRate = 0.01d;
 
     public const double MaximumSourceProjectionMismatchRate = 0.05d;
+}
+
+public static class CombatFoundationDecisionDifferenceProtocol
+{
+    public const string Version = "foundation-decision-difference-v1";
+
+    public const string AcceptanceDiagnosticPartition =
+        "acceptance-diagnostic";
+
+    public const string DevelopmentPartition = "development";
+
+    public const string MiningPartition = "mining";
 }
 
 public sealed class CombatFoundationIntegritySeed
@@ -344,6 +366,11 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public int CapabilityProbeBatchSize { get; set; } = 16;
 
     public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
+
+    public bool EnableCapabilityDecisionDifferenceDiagnostics { get; set; } =
+        true;
+
+    public int MaximumCapabilityDecisionDifferenceCases { get; set; } = 16;
 
     public int CapabilityProbeMinimumVictoryGain { get; set; } = 1;
 
@@ -1148,6 +1175,13 @@ public sealed class CombatCampaignFoundationIteration
 
     public bool PendingArenaCandidateRetained { get; set; }
 
+    public string CandidateQualificationState { get; set; } =
+        CombatFoundationPromotionProtocol.OfflineRejected;
+
+    public bool ScreeningQualificationGatePassed { get; set; }
+
+    public bool FormalConfirmationCompleted { get; set; }
+
     public int WorkerProcessId { get; set; }
 
     public CombatFoundationParallelismDecision ParallelismDecision {
@@ -1397,6 +1431,8 @@ public sealed class CombatCampaignFoundationIteration
     public int TuningCandidateCount { get; set; }
 
     public int TuningOfflineRejectedCandidates { get; set; }
+
+    public bool TuningAllCandidatesRejectedOffline { get; set; }
 
     public bool TuningEvaluationRan { get; set; }
 
@@ -1726,6 +1762,75 @@ public sealed class CombatFoundationCapabilityProbePair
     public bool ChampionInvalid { get; set; }
 }
 
+public sealed class CombatFoundationDecisionCandidateTrace
+{
+    public string CandidateId { get; set; } = "";
+
+    public int SearchVisits { get; set; }
+
+    public double SearchPrior { get; set; }
+
+    public double SearchValue { get; set; }
+
+    public double SearchDeathRisk { get; set; }
+
+    public double SearchMeanReturn { get; set; }
+
+    public double SearchReturnStandardError { get; set; }
+}
+
+public sealed class CombatFoundationDecisionDifferenceCase
+{
+    public string Protocol { get; set; } =
+        CombatFoundationDecisionDifferenceProtocol.Version;
+
+    public string DataPartition { get; set; } =
+        CombatFoundationDecisionDifferenceProtocol.AcceptanceDiagnosticPartition;
+
+    public bool TrainingEligible { get; set; }
+
+    public bool AcceptanceSeedRetired { get; set; }
+
+    public string DifficultyId { get; set; } = "";
+
+    public ulong WorldSeed { get; set; }
+
+    public int JourneyBattleIndex { get; set; }
+
+    public long DecisionSequence { get; set; }
+
+    public string StateFingerprint { get; set; } = "";
+
+    public bool BaselineVictory { get; set; }
+
+    public bool ChampionVictory { get; set; }
+
+    public int BaselineCompletedBattles { get; set; }
+
+    public int ChampionCompletedBattles { get; set; }
+
+    public string PreferredCandidateId { get; set; } = "";
+
+    public string FailureCategory { get; set; } = "";
+
+    public double Confidence { get; set; }
+
+    public CombatFoundationDecisionCandidateTrace BaselineDecision {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationDecisionCandidateTrace ChampionDecision {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationDecisionCandidateTrace ChampionViewOfBaselineAction {
+        get;
+        set;
+    } = new();
+}
+
 public sealed class CombatFoundationCapabilityProbe
 {
     public int CampaignsPerDifficulty { get; set; }
@@ -1747,6 +1852,14 @@ public sealed class CombatFoundationCapabilityProbe
 
     public List<CombatFoundationCapabilityProbePair> Pairs { get; set; } =
         new();
+
+    public List<CombatFoundationDecisionDifferenceCase> DecisionDifferences {
+        get;
+        set;
+    } = new();
+
+    public string DecisionDifferencePartition { get; set; } =
+        CombatFoundationDecisionDifferenceProtocol.AcceptanceDiagnosticPartition;
 
     public List<int> CompletedStages { get; set; } = new();
 
@@ -1927,6 +2040,10 @@ public sealed class CombatCampaignFoundationTrainingResult
     public int BuildLimitedSeedCases { get; set; }
 
     public int ProvisionalBuildLimitedSeedCases { get; set; }
+
+    public string DecisionDifferencePath { get; set; } = "";
+
+    public int DecisionDifferenceCases { get; set; }
 
     public string SuccessArchiveError { get; set; } = "";
 
@@ -2952,8 +3069,15 @@ public sealed class CombatCampaignFoundationTrainer
                                   ?? workingChampion;
         foreach (var priorIteration in result.Iterations)
         {
-            priorIteration.AbsoluteQualificationGatePassed |=
-                AbsoluteQualificationGatePassed(
+            var legacyScreeningQualification =
+                priorIteration.AbsoluteQualificationGatePassed;
+            priorIteration.FormalConfirmationCompleted =
+                ConfirmedQualificationEvidence(
+                    priorIteration,
+                    arenaConfirmationPerDifficulty);
+            priorIteration.AbsoluteQualificationGatePassed =
+                priorIteration.FormalConfirmationCompleted
+                && AbsoluteQualificationGatePassed(
                     priorIteration.ValidArenaPairs,
                     priorIteration.ArenaScreeningPairs
                     + priorIteration.ArenaConfirmationPairs,
@@ -2962,6 +3086,43 @@ public sealed class CombatCampaignFoundationTrainer
                     priorIteration.OfflineHeadRegressionGatePassed,
                     priorIteration.StrategyQuotaGatePassed,
                     priorIteration.FeatureCollisionGatePassed);
+            priorIteration.ScreeningQualificationGatePassed |=
+                legacyScreeningQualification
+                || priorIteration.AbsoluteQualificationGatePassed;
+            priorIteration.CandidateQualificationState =
+                priorIteration.AbsoluteQualificationGatePassed
+                    ? CombatFoundationPromotionProtocol.ConfirmedQualified
+                    : priorIteration.ScreeningQualificationGatePassed
+                        ? CombatFoundationPromotionProtocol.ScreeningPassed
+                        : priorIteration.OfflineHeadRegressionGatePassed
+                          && priorIteration.StrategyQuotaGatePassed
+                          && priorIteration.FeatureCollisionGatePassed
+                            ? CombatFoundationPromotionProtocol.OfflineSafe
+                            : CombatFoundationPromotionProtocol
+                                .OfflineRejected;
+        }
+        if (result.AbsoluteQualifiedBestModel != null)
+        {
+            var canonicalQualifiedEvidence = result.Iterations
+                .FirstOrDefault(item =>
+                    item.Iteration
+                    == result.AbsoluteQualifiedBestEvidence?.Iteration
+                    && string.Equals(
+                        item.CandidateModelId,
+                        result.AbsoluteQualifiedBestModel.ModelId,
+                        StringComparison.Ordinal));
+            if (canonicalQualifiedEvidence == null
+                || !canonicalQualifiedEvidence
+                    .AbsoluteQualificationGatePassed)
+            {
+                result.AbsoluteQualifiedBestModel = null;
+                result.AbsoluteQualifiedBestEvidence = null;
+            }
+            else
+            {
+                result.AbsoluteQualifiedBestEvidence =
+                    canonicalQualifiedEvidence;
+            }
         }
         var workingChampionEvidence = result.Iterations
             .LastOrDefault(item => workingChampion != null
@@ -3021,7 +3182,12 @@ public sealed class CombatCampaignFoundationTrainer
             normalValidationCampaigns
             + advancedValidationCampaigns
             + maximumCapabilityProbeCampaigns * 2 * 2
-            + governance.CapabilityProbeTeacherCampaignsPerDifficulty * 2;
+            + governance.CapabilityProbeTeacherCampaignsPerDifficulty * 2
+            + (request.EnableCapabilityDecisionDifferenceDiagnostics
+                ? Math.Max(
+                    0,
+                    request.MaximumCapabilityDecisionDifferenceCases) * 2
+                : 0);
         var remainingIterationCount = Math.Max(0, iterations - startIteration);
         var remainingTuningIterations = Enumerable
             .Range(startIteration, remainingIterationCount)
@@ -4139,6 +4305,7 @@ public sealed class CombatCampaignFoundationTrainer
                 teacherReplayFrames);
             CombatRiskAwareRootSamplingPuctPlanner.TrimRetainedSearchMemory();
             CompactManagedHeap();
+            var teacherDatasetReleased = false;
             var transformerTeacherReport =
                 new CombatTransformerTeacherReport
                 {
@@ -4193,6 +4360,52 @@ public sealed class CombatCampaignFoundationTrainer
                                                         request.DecisionProfile,
                                                         transformerTeacherOptions),
                                                 transformerTeacherOptions),
+                                    ReleaseExportedDataset = () =>
+                                    {
+                                        if (teacherDatasetReleased)
+                                        {
+                                            return new CombatTransformerTeacherHostReleaseReport
+                                            {
+                                                Attempted = true,
+                                                Diagnostic =
+                                                    "teacher dataset storage was already released"
+                                            };
+                                        }
+                                        var process = System.Diagnostics.Process
+                                            .GetCurrentProcess();
+                                        var beforeWorkingSet = process.WorkingSet64;
+                                        var beforeHeap =
+                                            GC.GetTotalMemory(
+                                                forceFullCollection: false);
+                                        var releasedEpisodes =
+                                            trainingReplayWindow.Count;
+                                        var releasedFrames =
+                                            trainingReplayWindow.Sum(episode =>
+                                                episode?.Frames?.Count ?? 0);
+                                        ReleaseTransientEpisodeStorage(
+                                            trainingReplayWindow);
+                                        ReleaseTransientEpisodeStorage(
+                                            replayWindow);
+                                        CombatRiskAwareRootSamplingPuctPlanner
+                                            .TrimRetainedSearchMemory();
+                                        CompactManagedHeap();
+                                        process.Refresh();
+                                        teacherDatasetReleased = true;
+                                        return new CombatTransformerTeacherHostReleaseReport
+                                        {
+                                            Attempted = true,
+                                            ReleasedEpisodes = releasedEpisodes,
+                                            ReleasedFrames = releasedFrames,
+                                            WorkingSetBeforeBytes =
+                                                beforeWorkingSet,
+                                            WorkingSetAfterBytes =
+                                                process.WorkingSet64,
+                                            GcHeapBeforeBytes = beforeHeap,
+                                            GcHeapAfterBytes =
+                                                GC.GetTotalMemory(
+                                                    forceFullCollection: false)
+                                        };
+                                    },
                                     Progress = progress =>
                                         telemetry.TransformerTeacherProgress(
                                             progress)
@@ -4223,6 +4436,43 @@ public sealed class CombatCampaignFoundationTrainer
             ReleaseTransientEpisodeStorage(trainingReplayWindow);
             ReleaseTransientEpisodeStorage(replayWindow);
             CompactManagedHeap();
+            transformerTeacherReport.PolicyTeacherFreshnessAgeIterations =
+                PolicyTeacherFreshnessAge(
+                    iterationNumber,
+                    transformerTeacherReport,
+                    result.Iterations);
+            transformerTeacherReport.PolicyTeacherFreshnessGatePassed =
+                !transformerTeacherReport.Requested
+                || transformerTeacherReport.PolicyTeacherApplied
+                || transformerTeacherReport.PolicyTeacherFreshnessAgeIterations
+                   <= transformerTeacherOptions
+                       .MaximumPolicyTeacherStalenessIterations;
+            if (transformerTeacherOptions.BlockTrainingWhenPolicyTeacherStale
+                && !transformerTeacherReport
+                    .PolicyTeacherFreshnessGatePassed)
+            {
+                var staleMessage = "Transformer policy teacher has been stale for "
+                                   + transformerTeacherReport
+                                       .PolicyTeacherFreshnessAgeIterations
+                                   + " iterations; configured maximum is "
+                                   + transformerTeacherOptions
+                                       .MaximumPolicyTeacherStalenessIterations
+                                   + ".";
+                transformerTeacherReport.Message = string.IsNullOrWhiteSpace(
+                    transformerTeacherReport.Message)
+                    ? staleMessage
+                    : transformerTeacherReport.Message + " " + staleMessage;
+                CombatTransformerTeacherFailureProtocol.Mark(
+                    transformerTeacherReport,
+                    string.IsNullOrWhiteSpace(
+                        transformerTeacherReport.FailureKind)
+                        ? CombatTransformerTeacherFailureKinds.TransientResource
+                        : transformerTeacherReport.FailureKind,
+                    retryable: true,
+                    formalModelBlocked: true,
+                    processExitCode:
+                    transformerTeacherReport.ProcessExitCode);
+            }
             if (CombatTransformerTeacherFailureProtocol.BlocksFormalModel(
                     transformerTeacherReport))
             {
@@ -4235,8 +4485,9 @@ public sealed class CombatCampaignFoundationTrainer
                     "transformer-teacher-formal-model-blocked";
                 result.Message = "第 "
                                  + iterationNumber
-                                 + " 轮 Transformer Teacher 出现不可重试的"
-                                 + "配置、协议或执行边界故障，已停止后续训练。"
+                                 + (transformerTeacherReport.RetryableFailure
+                                     ? " 轮 Transformer Teacher 连续未能提供新鲜蒸馏标注，已在可恢复边界停止训练。"
+                                     : " 轮 Transformer Teacher 出现不可重试的配置、协议或执行边界故障，已停止后续训练。")
                                  + "当前数据与检查点可在修复后恢复；"
                                  + "本次训练结果不可作为正式底模。原因："
                                  + transformerTeacherReport.Message;
@@ -4468,7 +4719,8 @@ public sealed class CombatCampaignFoundationTrainer
             var bootstrapCandidate = result.Champion == null
                                      && workingChampion == null;
             var preArenaOfflineHeadRegressionGatePassed =
-                OfflineHeadRegressionPassed(
+                !tuning.AllCandidatesRejectedOffline
+                && OfflineHeadRegressionPassed(
                     trained.BaselineValidationMetrics,
                     trained.ValidationMetrics,
                     maximumOfflineHeadRegression);
@@ -4546,10 +4798,11 @@ public sealed class CombatCampaignFoundationTrainer
                 || !preArenaStrategyQuotaGatePassed;
             var arenaScreeningPerDifficulty =
                 arenaEvaluationRan
+                && !arenaScreeningDiagnosticOnly
                     ? EffectiveArenaScreeningPairsPerDifficulty(
                         arenaPerDifficulty,
                         request.ArenaEvaluationBatchSize,
-                        arenaScreeningDiagnosticOnly)
+                        diagnosticOnly: false)
                     : 0;
             var arenaRetryAttemptsBefore = result.ArenaRetryAttempts;
             var arenaRecoveredCampaignsBefore =
@@ -5126,10 +5379,16 @@ public sealed class CombatCampaignFoundationTrainer
             var candidateAverageDepth = validCandidateArena.Count == 0
                 ? 0d
                 : validCandidateArena.Average(item => item.CompletedBattles);
-            var expectedArenaPairs = ExpectedArenaQualificationPairs(
-                arenaScreeningPerDifficulty,
-                scheduledArenaConfirmationPerDifficulty,
-                confirmationRan);
+            var expectedArenaPairs = (
+                arenaScreeningPerDifficulty
+                + (confirmationRan
+                    ? scheduledArenaConfirmationPerDifficulty
+                    : 0)) * 2;
+            var expectedQualificationPairs =
+                ExpectedArenaQualificationPairs(
+                    arenaScreeningPerDifficulty,
+                    arenaConfirmationPerDifficulty,
+                    confirmationRan);
             var advancedRecoveryRequired =
                 arenaReferenceDefinition != null
                 && championAdvanced + 0.0000001d
@@ -5193,7 +5452,7 @@ public sealed class CombatCampaignFoundationTrainer
             var absoluteQualificationGatePassed =
                 AbsoluteQualificationGatePassed(
                     validPairIndexes.Count,
-                    expectedArenaPairs,
+                    expectedQualificationPairs,
                     absoluteNormalGatePassed,
                     absoluteAdvancedGatePassed,
                     offlineHeadRegressionGatePassed,
@@ -5301,6 +5560,23 @@ public sealed class CombatCampaignFoundationTrainer
                     !arenaEvaluationRan
                     && PendingArenaCandidateEligible(
                         result.BestPendingArenaCandidate),
+                CandidateQualificationState =
+                    absoluteQualificationGatePassed
+                        ? CombatFoundationPromotionProtocol.ConfirmedQualified
+                        : screeningPassed
+                          || screeningAbsoluteQualificationPassed
+                            ? CombatFoundationPromotionProtocol.ScreeningPassed
+                            : preArenaOfflineHeadRegressionGatePassed
+                              && preArenaStrategyQuotaGatePassed
+                              && preArenaFeatureCollisionGatePassed
+                                ? CombatFoundationPromotionProtocol.OfflineSafe
+                                : CombatFoundationPromotionProtocol
+                                    .OfflineRejected,
+                ScreeningQualificationGatePassed =
+                    screeningPassed || screeningAbsoluteQualificationPassed,
+                FormalConfirmationCompleted = confirmationRan
+                                              && confirmationPairsExecutedPerDifficulty
+                                              == arenaConfirmationPerDifficulty,
                 WorkerProcessId = System.Diagnostics.Process.GetCurrentProcess().Id,
                 ParallelismDecision = parallelismDecision,
                 ReplayEpisodes = result.Replay.Count,
@@ -5552,6 +5828,8 @@ public sealed class CombatCampaignFoundationTrainer
                 TuningCandidateCount = tuning.CandidateCount,
                 TuningOfflineRejectedCandidates =
                     tuning.OfflineRejectedCandidates,
+                TuningAllCandidatesRejectedOffline =
+                    tuning.AllCandidatesRejectedOffline,
                 TuningEvaluationRan = tuning.EvaluationRan,
                 TuningInvalidCampaigns = tuning.InvalidCampaigns,
                 TuningFinalistCount = tuning.FinalistCount,
@@ -5942,14 +6220,21 @@ public sealed class CombatCampaignFoundationTrainer
                 qualifiedBest.Evidence.Iteration;
             result.SelectedQualifiedCandidateModelId =
                 qualifiedBest.Model.ModelId;
-            qualifiedBest.Evidence.QualifiedCandidateSelected = true;
+            var canonicalSelectedEvidence = result.Iterations.FirstOrDefault(
+                item => item.Iteration == qualifiedBest.Evidence.Iteration
+                        && string.Equals(
+                            item.CandidateModelId,
+                            qualifiedBest.Model.ModelId,
+                            StringComparison.Ordinal));
+            (canonicalSelectedEvidence ?? qualifiedBest.Evidence)
+                .QualifiedCandidateSelected = true;
             championModel = CreateParallelPolicyValueModel(
                 qualifiedBest.Model,
                 request,
                 parallelism);
         }
 
-        if (result.Champion == null)
+        if (qualifiedBest == null)
         {
             result.CompletedCampaigns = Volatile.Read(ref completedCampaigns);
             result.Message = result.Iterations.Any(item =>
@@ -5971,7 +6256,7 @@ public sealed class CombatCampaignFoundationTrainer
             result.CapabilityProbe = RunCapabilityProbe(
                 request,
                 ruleset,
-                result.Champion,
+                qualifiedBest.Model,
                 telemetry,
                 capabilityProbeCampaigns,
                 governance.CapabilityProbeTeacherCampaignsPerDifficulty,
@@ -6279,6 +6564,21 @@ public sealed class CombatCampaignFoundationTrainer
                                        advancedValidationCampaigns,
                                        advancedAcceptanceRate);
         result.AcceptancePassed = result.Validation.Passed;
+        if (result.AcceptancePassed)
+        {
+            var acceptedIteration = result.Iterations.FirstOrDefault(item =>
+                item.QualifiedCandidateSelected
+                || item.Iteration == result.SelectedQualifiedCandidateIteration
+                && string.Equals(
+                    item.CandidateModelId,
+                    result.SelectedQualifiedCandidateModelId,
+                    StringComparison.Ordinal));
+            if (acceptedIteration != null)
+            {
+                acceptedIteration.CandidateQualificationState =
+                    CombatFoundationPromotionProtocol.Accepted;
+            }
+        }
         result.Success = true;
         result.GeneratedReplayEpisodes = Math.Max(
             result.GeneratedReplayEpisodes,
@@ -7033,6 +7333,30 @@ public sealed class CombatCampaignFoundationTrainer
         return source.NextEncounterIndex is >= 2 and <= 5
             ? "early-build-check"
             : "";
+    }
+
+    internal static int PolicyTeacherFreshnessAge(
+        int iterationNumber,
+        CombatTransformerTeacherReport report,
+        IReadOnlyList<CombatCampaignFoundationIteration>? iterations)
+    {
+        if (report == null
+            || !report.Requested
+            || report.PolicyTeacherApplied)
+        {
+            return 0;
+        }
+        var lastAppliedIteration = (iterations
+                                    ?? Array.Empty<
+                                        CombatCampaignFoundationIteration>())
+            .Where(item => item?.TransformerTeacher?.PolicyTeacherApplied
+                           == true)
+            .Select(item => item.Iteration)
+            .DefaultIfEmpty(0)
+            .Max();
+        return Math.Max(
+            1,
+            Math.Max(1, iterationNumber) - lastAppliedIteration);
     }
 
     internal static DistillationWeightDecision
@@ -8863,6 +9187,20 @@ public sealed class CombatCampaignFoundationTrainer
             }
         }
         EvaluateCapabilityBaselineGate(request, report);
+        if (request.EnableCapabilityDecisionDifferenceDiagnostics)
+        {
+            report.DecisionDifferences.AddRange(
+                RunCapabilityDecisionDifferenceDiagnostics(
+                    request,
+                    ruleset,
+                    model,
+                    telemetry,
+                    report.Pairs,
+                    parallelism,
+                    ref completedCampaigns,
+                    totalCampaigns,
+                    cancellationToken));
+        }
         return report;
     }
 
@@ -8949,6 +9287,283 @@ public sealed class CombatCampaignFoundationTrainer
         }
         EvaluateCapabilityBaselineGate(request, report);
         return report;
+    }
+
+    private IReadOnlyList<CombatFoundationDecisionDifferenceCase>
+        RunCapabilityDecisionDifferenceDiagnostics(
+            CombatCampaignFoundationTrainingRequest request,
+            CombatRuleset ruleset,
+            ICombatPolicyValueModel championModel,
+            FoundationTelemetryTracker telemetry,
+            IReadOnlyList<CombatFoundationCapabilityProbePair> pairs,
+            int parallelism,
+            ref int completedCampaigns,
+            int totalCampaigns,
+            CancellationToken cancellationToken)
+    {
+        var maximumCases = Math.Max(
+            0,
+            request.MaximumCapabilityDecisionDifferenceCases);
+        if (maximumCases <= 0)
+        {
+            return Array.Empty<CombatFoundationDecisionDifferenceCase>();
+        }
+        var selected = (pairs
+                        ?? Array.Empty<CombatFoundationCapabilityProbePair>())
+            .Where(pair => !pair.BaselineInvalid
+                           && !pair.ChampionInvalid
+                           && pair.BaselineVictory != pair.ChampionVictory)
+            .OrderByDescending(pair => string.Equals(
+                pair.DifficultyId,
+                "advanced",
+                StringComparison.Ordinal))
+            .ThenByDescending(pair => pair.BaselineVictory
+                                      && !pair.ChampionVictory)
+            .ThenBy(pair => pair.WorldSeed)
+            .Take(maximumCases)
+            .ToArray();
+        if (selected.Length == 0)
+        {
+            return Array.Empty<CombatFoundationDecisionDifferenceCase>();
+        }
+
+        telemetry.BeginPhase("capability-decision-difference");
+        var deploymentProfile = CombatSearchBudgetPolicy.WithContext(
+            request.Profile,
+            "deployment");
+        var cases = new CombatFoundationDecisionDifferenceCase?[selected.Length];
+        var completed = completedCampaigns;
+        CombatFoundationWorkScheduler.For(
+            selected.Length,
+            Math.Max(1, Math.Min(parallelism, selected.Length)),
+            cancellationToken,
+            index =>
+            {
+                var pair = selected[index];
+                var baselineFactory = new RecordingCampaignPolicyFactory(
+                    deploymentProfile,
+                    NullCombatPolicyValueModel.Instance,
+                    "capability-rule-baseline-diagnostic",
+                    0d,
+                    1d,
+                    pair.WorldSeed,
+                    0d,
+                    campaignRunner.SimulationEngine,
+                    request.ContentSetHash,
+                    request.OwnerModSetHash,
+                    recordWorldModelObservations: false);
+                var baseline = RunCampaign(
+                    request.ValidationCampaign,
+                    pair.DifficultyId,
+                    pair.WorldSeed,
+                    ruleset,
+                    baselineFactory,
+                    telemetry,
+                    "capability-decision-difference:rule-baseline",
+                    cancellationToken);
+                var baselineEpisodes = baselineFactory.Complete(
+                    baseline,
+                    journeyRunSuffix: ":decision-difference:baseline");
+                ReportProgress(
+                    request,
+                    telemetry,
+                    baseline,
+                    ref completed,
+                    totalCampaigns,
+                    "能力失败决策差异：规则基线");
+
+                var championFactory = new RecordingCampaignPolicyFactory(
+                    deploymentProfile,
+                    championModel,
+                    "capability-champion-diagnostic",
+                    0d,
+                    1d,
+                    pair.WorldSeed,
+                    0d,
+                    campaignRunner.SimulationEngine,
+                    request.ContentSetHash,
+                    request.OwnerModSetHash,
+                    recordWorldModelObservations: false);
+                var champion = RunCampaign(
+                    request.ValidationCampaign,
+                    pair.DifficultyId,
+                    pair.WorldSeed,
+                    ruleset,
+                    championFactory,
+                    telemetry,
+                    "capability-decision-difference:champion",
+                    cancellationToken);
+                var championEpisodes = championFactory.Complete(
+                    champion,
+                    journeyRunSuffix: ":decision-difference:champion");
+                ReportProgress(
+                    request,
+                    telemetry,
+                    champion,
+                    ref completed,
+                    totalCampaigns,
+                    "能力失败决策差异：候选模型");
+                cases[index] = FindFirstDecisionDifference(
+                    pair,
+                    baselineEpisodes,
+                    championEpisodes);
+                ReleaseTransientEpisodeStorage(baselineEpisodes);
+                ReleaseTransientEpisodeStorage(championEpisodes);
+            },
+            telemetry.SchedulerProgress);
+        completedCampaigns = completed;
+        return cases.Where(item => item != null)
+            .Select(item => item!)
+            .ToArray();
+    }
+
+    internal static CombatFoundationDecisionDifferenceCase?
+        FindFirstDecisionDifference(
+            CombatFoundationCapabilityProbePair pair,
+            IReadOnlyList<CombatEpisode> baselineEpisodes,
+            IReadOnlyList<CombatEpisode> championEpisodes)
+    {
+        if (pair == null)
+        {
+            return null;
+        }
+        var championByState = (championEpisodes ?? Array.Empty<CombatEpisode>())
+            .SelectMany(episode => (episode.Frames
+                                    ?? new List<CombatEpisodeFrame>())
+                .Select(frame => new
+                {
+                    episode.JourneyBattleIndex,
+                    Frame = frame
+                }))
+            .GroupBy(item => (
+                item.JourneyBattleIndex,
+                item.Frame.DecisionSequence,
+                item.Frame.StateFingerprint ?? ""))
+            .ToDictionary(group => group.Key, group => group.First().Frame);
+        foreach (var baselineEpisode in (baselineEpisodes
+                     ?? Array.Empty<CombatEpisode>())
+                 .OrderBy(episode => episode.JourneyBattleIndex))
+        {
+            foreach (var baselineFrame in baselineEpisode.Frames
+                         ?? new List<CombatEpisodeFrame>())
+            {
+                var key = (
+                    baselineEpisode.JourneyBattleIndex,
+                    baselineFrame.DecisionSequence,
+                    baselineFrame.StateFingerprint ?? "");
+                if (!championByState.TryGetValue(key, out var championFrame)
+                    || string.Equals(
+                        baselineFrame.ExecutedCandidateId,
+                        championFrame.ExecutedCandidateId,
+                        StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                var championViewOfBaseline = (championFrame.Candidates
+                                              ?? new List<CombatEpisodeCandidate>())
+                    .FirstOrDefault(candidate => string.Equals(
+                        candidate.CandidateId,
+                        baselineFrame.ExecutedCandidateId,
+                        StringComparison.Ordinal));
+                var championSelected = (championFrame.Candidates
+                                        ?? new List<CombatEpisodeCandidate>())
+                    .FirstOrDefault(candidate => string.Equals(
+                        candidate.CandidateId,
+                        championFrame.ExecutedCandidateId,
+                        StringComparison.Ordinal));
+                var baselineSelected = (baselineFrame.Candidates
+                                        ?? new List<CombatEpisodeCandidate>())
+                    .FirstOrDefault(candidate => string.Equals(
+                        candidate.CandidateId,
+                        baselineFrame.ExecutedCandidateId,
+                        StringComparison.Ordinal));
+                var preferred = pair.BaselineVictory != pair.ChampionVictory
+                    ? pair.BaselineVictory
+                        ? baselineFrame.ExecutedCandidateId
+                        : championFrame.ExecutedCandidateId
+                    : pair.BaselineCompletedBattles
+                      >= pair.ChampionCompletedBattles
+                        ? baselineFrame.ExecutedCandidateId
+                        : championFrame.ExecutedCandidateId;
+                return new CombatFoundationDecisionDifferenceCase
+                {
+                    DataPartition = CombatFoundationDecisionDifferenceProtocol
+                        .AcceptanceDiagnosticPartition,
+                    TrainingEligible = false,
+                    AcceptanceSeedRetired = false,
+                    DifficultyId = pair.DifficultyId,
+                    WorldSeed = pair.WorldSeed,
+                    JourneyBattleIndex = baselineEpisode.JourneyBattleIndex,
+                    DecisionSequence = baselineFrame.DecisionSequence,
+                    StateFingerprint = baselineFrame.StateFingerprint ?? "",
+                    BaselineVictory = pair.BaselineVictory,
+                    ChampionVictory = pair.ChampionVictory,
+                    BaselineCompletedBattles = pair.BaselineCompletedBattles,
+                    ChampionCompletedBattles = pair.ChampionCompletedBattles,
+                    PreferredCandidateId = preferred,
+                    FailureCategory = DecisionDifferenceCategory(
+                        pair,
+                        championSelected,
+                        championViewOfBaseline),
+                    Confidence = pair.BaselineVictory != pair.ChampionVictory
+                        ? 1d
+                        : Math.Min(
+                            1d,
+                            Math.Abs(
+                                pair.BaselineCompletedBattles
+                                - pair.ChampionCompletedBattles) / 10d),
+                    BaselineDecision = CandidateTrace(baselineSelected),
+                    ChampionDecision = CandidateTrace(championSelected),
+                    ChampionViewOfBaselineAction = CandidateTrace(
+                        championViewOfBaseline)
+                };
+            }
+        }
+        return null;
+    }
+
+    private static string DecisionDifferenceCategory(
+        CombatFoundationCapabilityProbePair pair,
+        CombatEpisodeCandidate? championSelected,
+        CombatEpisodeCandidate? championViewOfBaseline)
+    {
+        if (pair.ChampionVictory && !pair.BaselineVictory)
+        {
+            return "model-improvement";
+        }
+        if (championSelected == null || championViewOfBaseline == null)
+        {
+            return "candidate-set-divergence";
+        }
+        if (championViewOfBaseline.SearchValue
+            > championSelected.SearchValue + 0.000001d)
+        {
+            return "search-selection";
+        }
+        if (championSelected.SearchDeathRisk
+            > championViewOfBaseline.SearchDeathRisk + 0.10d)
+        {
+            return "risk-calibration";
+        }
+        return "policy-value-ranking";
+    }
+
+    private static CombatFoundationDecisionCandidateTrace CandidateTrace(
+        CombatEpisodeCandidate? candidate)
+    {
+        return candidate == null
+            ? new CombatFoundationDecisionCandidateTrace()
+            : new CombatFoundationDecisionCandidateTrace
+            {
+                CandidateId = candidate.CandidateId,
+                SearchVisits = candidate.SearchVisits,
+                SearchPrior = candidate.SearchPrior,
+                SearchValue = candidate.SearchValue,
+                SearchDeathRisk = candidate.SearchDeathRisk,
+                SearchMeanReturn = candidate.SearchMeanReturn,
+                SearchReturnStandardError =
+                    candidate.SearchReturnStandardError
+            };
     }
 
     private static CombatFoundationCapabilityProbeArm BuildCapabilityProbeArm(
@@ -10748,23 +11363,50 @@ public sealed class CombatCampaignFoundationTrainer
                     out var validationLoss)
                     ? validationLoss
                     : double.MaxValue,
-                Model = trained.Model
+                Model = trained.Model,
+                TrainingMetrics =
+                    CloneMetricSnapshot(trained.TrainingMetrics),
+                ValidationMetrics =
+                    CloneMetricSnapshot(trained.ValidationMetrics),
+                TestMetrics = CloneMetricSnapshot(trained.TestMetrics)
             });
         }
         var originalCandidateCount = candidates.Count;
         var offlineRejectedCandidates = 0;
-        if (request.EnableOfflineTuningGate && candidates.Count > 1)
+        var allCandidatesRejectedOffline = false;
+        if (request.EnableOfflineTuningGate && candidates.Count > 0)
         {
-            var bestOffline = candidates[0];
-            candidates = candidates
-                .Where(candidate => ReferenceEquals(candidate, bestOffline)
-                                    || !OfflineDominated(
-                                        candidate,
-                                        bestOffline))
+            var rankedCandidates = candidates;
+            candidates = rankedCandidates
+                .Where(candidate => OfflineHeadRegressionPassed(
+                    trained.BaselineValidationMetrics,
+                    candidate.ValidationMetrics,
+                    request.MaximumOfflineHeadRegression))
                 .ToList();
             offlineRejectedCandidates = Math.Max(
                 0,
-                originalCandidateCount - candidates.Count);
+                rankedCandidates.Count - candidates.Count);
+            allCandidatesRejectedOffline = candidates.Count == 0;
+            if (allCandidatesRejectedOffline)
+            {
+                // Keep one model only as a diagnostic/training-continuation
+                // object. The explicit flag prevents tuning and Arena from
+                // treating it as a promotable business candidate.
+                candidates = rankedCandidates.Take(1).ToList();
+            }
+            else if (candidates.Count > 1)
+            {
+                var bestOffline = candidates[0];
+                candidates = candidates
+                    .Where(candidate => ReferenceEquals(candidate, bestOffline)
+                                        || !OfflineDominated(
+                                            candidate,
+                                            bestOffline))
+                    .ToList();
+                offlineRejectedCandidates = Math.Max(
+                    0,
+                    originalCandidateCount - candidates.Count);
+            }
         }
         if (!request.EnableTuningArena
             || normalCampaigns + advancedCampaigns <= 0
@@ -10778,8 +11420,11 @@ public sealed class CombatCampaignFoundationTrainer
                 Score = -only.ValidationLoss,
                 CandidateCount = originalCandidateCount,
                 OfflineRejectedCandidates = offlineRejectedCandidates,
+                AllCandidatesRejectedOffline = allCandidatesRejectedOffline,
                 FinalistCount = candidates.Count,
                 EvaluationRan = false,
+                CampaignsSaved = offlineRejectedCandidates
+                                 * (normalCampaigns + advancedCampaigns),
                 TrainingMetrics =
                     CloneMetricSnapshot(only.TrainingMetrics),
                 ValidationMetrics =
@@ -10912,6 +11557,7 @@ public sealed class CombatCampaignFoundationTrainer
                 ValidationLoss = candidate.ValidationLoss,
                 CandidateCount = originalCandidateCount,
                 OfflineRejectedCandidates = offlineRejectedCandidates,
+                AllCandidatesRejectedOffline = allCandidatesRejectedOffline,
                 FinalistCount = finalists.Count,
                 EvaluationRan = true,
                 CampaignsExecuted = campaignsExecuted,
@@ -10937,6 +11583,7 @@ public sealed class CombatCampaignFoundationTrainer
             Epoch = trained.BestEpoch,
             CandidateCount = originalCandidateCount,
             OfflineRejectedCandidates = offlineRejectedCandidates,
+            AllCandidatesRejectedOffline = allCandidatesRejectedOffline,
             FinalistCount = finalists.Count,
             EvaluationRan = true,
             CampaignsExecuted = campaignsExecuted,
@@ -11818,10 +12465,28 @@ public sealed class CombatCampaignFoundationTrainer
         int confirmationPairsPerDifficulty,
         bool confirmationRan)
     {
-        return (Math.Max(0, screeningPairsPerDifficulty)
-                + (confirmationRan
-                    ? Math.Max(0, confirmationPairsPerDifficulty)
-                    : 0)) * 2;
+        var confirmation = Math.Max(0, confirmationPairsPerDifficulty);
+        if (!confirmationRan || confirmation <= 0)
+        {
+            // Screening is diagnostic evidence. Absolute qualification fails
+            // closed until the configured formal confirmation is complete.
+            return -1;
+        }
+        return (Math.Max(0, screeningPairsPerDifficulty) + confirmation) * 2;
+    }
+
+    internal static bool ConfirmedQualificationEvidence(
+        CombatCampaignFoundationIteration? evidence,
+        int confirmationPairsPerDifficulty)
+    {
+        var requiredConfirmationPairs = Math.Max(
+            0,
+            confirmationPairsPerDifficulty) * 2;
+        return evidence != null
+               && requiredConfirmationPairs > 0
+               && evidence.ArenaConfirmationPairs
+                  == requiredConfirmationPairs
+               && !evidence.ArenaConfirmationStoppedEarly;
     }
 
     internal static bool NonInferiorityGatePassed(
@@ -14291,6 +14956,8 @@ public sealed class CombatCampaignFoundationTrainer
         public int CandidateCount { get; set; }
 
         public int OfflineRejectedCandidates { get; set; }
+
+        public bool AllCandidatesRejectedOffline { get; set; }
 
         public bool EvaluationRan { get; set; }
 

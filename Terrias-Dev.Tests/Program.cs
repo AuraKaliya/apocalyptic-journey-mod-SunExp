@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -45,8 +46,58 @@ internal static class Program
         TestDimensionShopRandom();
         TestEndlessAbyssEnemyScaling();
         TestEndlessAbyssEvacuationDepth();
+        TestWitchArchiveSelectionPolicy();
+        TestWitchArchiveTextLoader();
 
         Console.WriteLine("Terrias C# tests passed: " + assertions + " assertions.");
+    }
+
+    private static void TestWitchArchiveSelectionPolicy()
+    {
+        Equal(-1, WitchArchiveSelectionPolicy.Move(0, 0, 1), "Witch Archive selection rejects an empty catalog");
+        Equal(1, WitchArchiveSelectionPolicy.Move(0, 3, 1), "Witch Archive moves to the next character");
+        Equal(0, WitchArchiveSelectionPolicy.Move(2, 3, 1), "Witch Archive wraps forward at the end of the rail");
+        Equal(2, WitchArchiveSelectionPolicy.Move(0, 3, -1), "Witch Archive wraps backward at the start of the rail");
+        Equal(1, WitchArchiveSelectionPolicy.Move(99, 3, -1), "Witch Archive normalizes a stale selected index");
+    }
+
+    private static void TestWitchArchiveTextLoader()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "terrias-witch-archive-" + Guid.NewGuid().ToString("N"));
+        var textDirectory = Path.Combine(root, "Text");
+        Directory.CreateDirectory(textDirectory);
+        try
+        {
+            File.WriteAllText(Path.Combine(textDirectory, "valid.txt"), "  first\r\n\r\nsecond\rthird  ");
+            File.WriteAllText(Path.Combine(textDirectory, "empty.txt"), " \r\n\t ");
+            File.WriteAllText(Path.Combine(textDirectory, "wrong.json"), "not text");
+
+            True(
+                WitchArchiveTextLoader.TryRead(root, "Text/valid.txt", out var text, out var error),
+                "Witch Archive loads an in-root UTF-8 text file");
+            Equal("first\n\nsecond\nthird", text, "Witch Archive normalizes line endings and trims only outer whitespace");
+            Equal("", error, "Witch Archive leaves no error after a successful text load");
+
+            False(
+                WitchArchiveTextLoader.TryRead(root, "../outside.txt", out _, out _),
+                "Witch Archive rejects a path that escapes the mod directory");
+            False(
+                WitchArchiveTextLoader.TryRead(root, Path.Combine(textDirectory, "valid.txt"), out _, out _),
+                "Witch Archive rejects absolute text paths");
+            False(
+                WitchArchiveTextLoader.TryRead(root, "Text/wrong.json", out _, out _),
+                "Witch Archive rejects non-text resources");
+            False(
+                WitchArchiveTextLoader.TryRead(root, "Text/missing.txt", out _, out _),
+                "Witch Archive rejects missing text resources");
+            False(
+                WitchArchiveTextLoader.TryRead(root, "Text/empty.txt", out _, out _),
+                "Witch Archive rejects whitespace-only text resources");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
     }
 
     private static void TestDictionaryUtil()

@@ -164,6 +164,57 @@ public sealed class CombatFoundationParallelismDecision
     public string Reason { get; set; } = "";
 }
 
+public static class CombatFoundationMemoryExecutionPolicy
+{
+    private const long Gibibyte = 1024L * 1024L * 1024L;
+
+    public static int SelectIterationsPerProcess(
+        int configuredIterations,
+        CombatFoundationResourceSnapshot resources)
+    {
+        resources ??= new CombatFoundationResourceSnapshot();
+        var configured = Math.Max(1, Math.Min(6, configuredIterations));
+        var total = Math.Max(0L, resources.TotalPhysicalMemoryBytes);
+        var available = Math.Max(0L, resources.AvailablePhysicalMemoryBytes);
+        if ((total > 0L && total <= 40L * Gibibyte)
+            || (available > 0L && available <= 12L * Gibibyte))
+        {
+            return 1;
+        }
+        if ((total > 0L && total <= 64L * Gibibyte)
+            || (available > 0L && available <= 24L * Gibibyte))
+        {
+            return Math.Min(2, configured);
+        }
+        return configured;
+    }
+
+    public static int SelectModelTrainingParallelism(
+        int configuredParallelism,
+        CombatFoundationResourceSnapshot resources)
+    {
+        resources ??= new CombatFoundationResourceSnapshot();
+        var configured = Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                configuredParallelism));
+        var total = Math.Max(0L, resources.TotalPhysicalMemoryBytes);
+        var available = Math.Max(0L, resources.AvailablePhysicalMemoryBytes);
+        if ((total > 0L && total <= 40L * Gibibyte)
+            || (available > 0L && available <= 12L * Gibibyte))
+        {
+            return Math.Min(12, configured);
+        }
+        if ((total > 0L && total <= 64L * Gibibyte)
+            || (available > 0L && available <= 24L * Gibibyte))
+        {
+            return Math.Min(20, configured);
+        }
+        return configured;
+    }
+}
+
 public static class CombatFoundationParallelismPlanner
 {
     public static CombatFoundationParallelismDecision Select(

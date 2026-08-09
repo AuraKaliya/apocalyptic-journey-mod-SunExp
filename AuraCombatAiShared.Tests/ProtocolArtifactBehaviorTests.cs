@@ -1680,6 +1680,32 @@ internal static class CombatAiProtocolArtifactBehaviorTests
         Assert(ReferenceEquals(pooledActionModel, reusedActionModel)
                && pooledActionJson == JsonSerializer.Serialize(reusedActionModel),
             "action semantic arena reuses its compiled model graph on the next search");
+        var boundedStateArena = new CombatSimulationStateArena();
+        boundedStateArena.BeginSearch();
+        _ = boundedStateArena.Clone(
+            new CombatSimulationState(),
+            cloneCardPiles: true,
+            cloneFeatures: true,
+            cloneThreats: true);
+        _ = boundedStateArena.Clone(
+            new CombatSimulationState(),
+            cloneCardPiles: true,
+            cloneFeatures: true,
+            cloneThreats: true);
+        boundedStateArena.TrimRetainedToMaximum(1);
+        actionArena.BeginSearch();
+        _ = actionArena.RentModel();
+        _ = actionArena.RentModel();
+        _ = actionArena.RentOutcome();
+        _ = actionArena.RentOutcome();
+        _ = actionArena.RentEffect();
+        _ = actionArena.RentEffect();
+        actionArena.TrimRetainedToMaximum(1, 1, 1);
+        Assert(boundedStateArena.Capacity == 1
+               && actionArena.ModelCapacity == 1
+               && actionArena.OutcomeCapacity == 1
+               && actionArena.EffectCapacity == 1,
+            "search arenas discard high-water slots and break pooled model graphs above their retention budget");
 
         const long gib = 1024L * 1024L * 1024L;
         var capacity32 = CombatFoundationParallelismPlanner.Select(

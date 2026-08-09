@@ -61,6 +61,10 @@
       <HintPath>$(DllPath)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(DllPath)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.UnityWebRequestModule">
       <HintPath>$(DllPath)\UnityEngine.UnityWebRequestModule.dll</HintPath>
       <Private>false</Private>
