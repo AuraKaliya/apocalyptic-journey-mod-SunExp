@@ -676,6 +676,63 @@ Resolve the AuraTF runtime before directly invoking Transformer self-tests.
 - Reproducible: yes
 - Related Files: tools/transformer-teacher/train_teacher.py
 
+---
+
+## [ERR-20260810-A26] smoke-expected-retired-three-point-auto-tune
+
+**Logged**: 2026-08-10T18:25:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first packaged Worker smoke measured the new two-candidate Auto-Tune correctly but the PowerShell acceptance script still required the retired 50%/75%/100% probe set.
+
+### Error
+```text
+Adaptive parallelism campaign probes are incomplete: actual=4,8, expected=4,6,8.
+```
+
+### Context
+- The production change intentionally compares maximum and half parallelism, or maximum and the compatible cached candidate.
+- The stale assertion would reject the intended wall-clock optimization even though the Worker emitted valid evidence.
+
+### Suggested Fix
+Bind smoke assertions to `CampaignCalibrationKind`: require max+half for cold short calibration, at most two points including max for compatible verification, and require a non-empty cache miss diagnostic.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1, AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+
+---
+
+## [ERR-20260810-A27] final-publish-blocked-by-open-simulation-viewer
+
+**Logged**: 2026-08-10T18:28:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+The final package refresh correctly refused to replace a mapped Simulation Viewer executable that was still running after smoke verification.
+
+### Error
+```text
+Foundation trainer binaries are currently running and Windows will not allow them to be replaced.
+PID=772, name=AuraFoundationTrainer.SimulationViewer.exe
+```
+
+### Context
+- The build script intentionally avoids terminating Trainer processes unless `-StopRunningTrainer` is explicit.
+- Training had already completed; only the read-only viewer held the package file.
+
+### Suggested Fix
+Use the script's explicit `-StopRunningTrainer` path for a final coordinated package refresh after verifying that no training Worker is active.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-AuraFoundationTrainer.ps1
+
 ### Resolution
 - **Resolved**: 2026-08-06T13:21:00+08:00
 - **Notes**: Re-ran with AuraTF CPU; the two-epoch self-test passed.
@@ -5395,3 +5452,31 @@ Test configuration files through the production loader and resolver, not only th
 ### Metadata
 - Reproducible: yes
 - Related Files: Terrias-Dev/Mechanics/SpiritGrowthRegistry.cs, Terrias-Dev.SpiritTests/Program.cs
+
+---
+
+## [ERR-20260810-A25] sqlite-context-manager-does-not-close-connection
+
+**Logged**: 2026-08-10T18:23:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The Transformer annotation-cache self-test passed its assertions but Windows could not remove the temporary SQLite file because Python's `sqlite3.Connection` context manager commits or rolls back without closing the connection.
+
+### Error
+```text
+PermissionError: [WinError 32] another process is using annotation-cache.sqlite
+```
+
+### Context
+- `with sqlite3.connect(...) as connection` manages the transaction, not the connection lifetime.
+- The leaked handle also made a production cache harder to replace or clean up on Windows.
+
+### Suggested Fix
+Wrap SQLite connections with `contextlib.closing(...)` or close them explicitly in `finally`, then retain the transaction context inside that lifetime.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/transformer-teacher/train_teacher.py

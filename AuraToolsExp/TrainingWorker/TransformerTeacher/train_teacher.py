@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import OrderedDict, deque
+from contextlib import closing
 import copy
 import ctypes
 import gc
@@ -14,6 +15,8 @@ import math
 import os
 import platform
 import random
+import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -69,10 +72,12 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--mixed-precision", type=int, choices=(0, 1), default=1)
     parser.add_argument("--deterministic", type=int, choices=(0, 1), default=1)
     parser.add_argument("--runtime-cache", default="")
+    parser.add_argument("--annotation-cache", default="")
     parser.add_argument("--anchor", default="")
     parser.add_argument("--fixed-anchor", type=int, choices=(0, 1), default=1)
     parser.add_argument("--maximum-head-regression", type=float, default=0.05)
     parser.add_argument("--resume-model", default="")
+    parser.add_argument("--prior-report", default="")
     parser.add_argument("--training-selection", default="")
     parser.add_argument("--annotation-selection", default="")
     parser.add_argument("--training-enabled", type=int, choices=(0, 1), default=1)
@@ -546,8 +551,30 @@ def read_row_selection(path: str) -> set[int] | None:
         for line in stream:
             value = line.strip()
             if value:
-                selected.add(int(value))
+                if value.startswith("{"):
+                    selected.add(int(json.loads(value)["I"]))
+                else:
+                    selected.add(int(value))
     return selected
+
+
+def read_row_identities(path: str) -> dict[int, str]:
+    if not path:
+        return {}
+    source = Path(path)
+    if not source.exists():
+        return {}
+    identities: dict[int, str] = {}
+    with source.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            value = line.strip()
+            if not value.startswith("{"):
+                continue
+            payload = json.loads(value)
+            identity = str(payload.get("K", ""))
+            if identity:
+                identities[int(payload["I"])] = identity
+    return identities
 
 
 def load_rows(
@@ -1677,6 +1704,14 @@ def loader_options(plan: dict, device: torch.device) -> dict:
     return result
 
 
+def capacity_bucket(value: int) -> int:
+    value = max(1, int(value))
+    bucket = 1
+    while bucket < value:
+        bucket <<= 1
+    return bucket
+
+
 def runtime_cache_key(
     args: argparse.Namespace,
     device: torch.device,
@@ -1690,7 +1725,7 @@ def runtime_cache_key(
     payload = "|".join(
         str(value)
         for value in (
-            "transformer-runtime-auto-tune-v5-memory-plan",
+            "transformer-runtime-auto-tune-v6-capacity-envelope",
             platform.system(),
             platform.machine(),
             platform.processor(),
@@ -1699,10 +1734,10 @@ def runtime_cache_key(
             device.type,
             device_name,
             int(sample_raw["states"].shape[1]),
-            int(sample_raw["actions"].shape[1]),
+            capacity_bucket(int(sample_raw["actions"].shape[1])),
             int(sample_raw["actions"].shape[2]),
-            int(sample_raw["object_tokens"].shape[1]),
-            int(sample_raw["history_states"].shape[1]),
+            capacity_bucket(int(sample_raw["object_tokens"].shape[1])),
+            capacity_bucket(int(sample_raw["history_states"].shape[1])),
             args.hidden,
             args.layers,
             args.heads,
@@ -1754,7 +1789,7 @@ def save_runtime_cache(path: str, key: str, plan: dict) -> None:
         "precision": str(plan["precision"]),
         "measured_utc": time.time(),
     }
-    payload["protocol"] = "transformer-runtime-auto-tune-v4-shape-envelope"
+    payload["protocol"] = "transformer-runtime-auto-tune-v6-capacity-envelope"
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -1878,6 +1913,7 @@ def resolve_runtime_plan(
     args: argparse.Namespace,
     device: torch.device,
     runtime: dict,
+    allow_training_probe: bool = True,
 ) -> dict:
     started = time.perf_counter()
     key = runtime_cache_key(args, device, sample_raw)
@@ -1907,6 +1943,7 @@ def resolve_runtime_plan(
         "auto_tuned": False,
         "cache_hit": cached is not None,
         "runtime_cache_key": key,
+        "calibration_kind": "cache-hit" if cached is not None else "default",
     }
     if cached is not None:
         used_cache = False
@@ -1929,10 +1966,16 @@ def resolve_runtime_plan(
             used_cache = True
         plan["cache_hit"] = used_cache
         plan["auto_tuned"] = used_cache
-    elif not args.self_test:
+        plan["calibration_kind"] = (
+            "cache-hit" if used_cache else "explicit-options"
+        )
+    elif not args.self_test and allow_training_probe:
         if device.type == "cpu" and args.cpu_threads <= 0:
             plan["cpu_threads"] = benchmark_cpu_threads(model, sample_raw, runtime)
             plan["auto_tuned"] = True
+        plan["calibration_kind"] = "training-probe"
+    elif cached is None:
+        plan["calibration_kind"] = "annotation-default"
         if device.type == "cuda" and args.micro_batch_size <= 0:
             plan["micro_batch_size"] = choose_gpu_micro_batch(
                 model,
@@ -1966,7 +2009,7 @@ def resolve_runtime_plan(
         else 0
     )
     plan["calibration_seconds"] = time.perf_counter() - started
-    if cached is None and not args.self_test:
+    if cached is None and not args.self_test and allow_training_probe:
         save_runtime_cache(args.runtime_cache, key, plan)
     return plan
 
@@ -2486,6 +2529,39 @@ def composite_score(metrics: dict[str, float]) -> float:
     )
 
 
+def prior_evaluation_snapshot(args: argparse.Namespace) -> dict | None:
+    if args.training_enabled or not args.prior_report:
+        return None
+    try:
+        payload = json.loads(Path(args.prior_report).read_text(encoding="utf-8"))
+        metrics = {
+            "policy_ce": float(payload["ValidationPolicyCrossEntropy"]),
+            "uniform_policy_ce": float(
+                payload["ValidationUniformPolicyCrossEntropy"]
+            ),
+            "policy_accuracy": float(payload["ValidationPolicyTop1Accuracy"]),
+            "value_mae": float(payload["ValidationValueMae"]),
+            "phase_accuracy": float(payload["ValidationPhaseAccuracy"]),
+            "strategy_accuracy": float(payload["ValidationStrategyAccuracy"]),
+            "dynamics_mse": float(payload["ValidationDynamicsMse"]),
+            "dynamics_frames": int(payload.get("DynamicsValidationFrames", 0)),
+            "outcome_mae": float(payload["ValidationOutcomeMae"]),
+            "death_brier": float(payload["ValidationDeathBrier"]),
+            "terminal_accuracy": float(payload["ValidationTerminalAccuracy"]),
+        }
+        if not all(math.isfinite(float(value)) for value in metrics.values()):
+            return None
+        return {
+            "metrics": metrics,
+            "validation_frames": int(payload.get("ValidationFrames", 0)),
+            "anchor_frames": int(payload.get("AnchorValidationFrames", 0)),
+            "anchor_created": bool(payload.get("AnchorCreated", False)),
+            "teacher_generation": int(payload.get("TeacherGeneration", 0)),
+        }
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
 def head_regression_passed(
     baseline: dict[str, float],
     candidate: dict[str, float],
@@ -2508,10 +2584,15 @@ def train(
     progress: ProgressReporter,
     calibration_rows=None,
 ) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict, dict]:
+    prior_evaluation = prior_evaluation_snapshot(args)
     if args.training_enabled:
         training_rows, validation_rows, anchor_created = training_and_anchor_rows(
             rows, args
         )
+    elif prior_evaluation is not None:
+        # AnchorCreated means created by this invocation, not merely present
+        # in the reused report.
+        training_rows, validation_rows, anchor_created = rows, [], False
     else:
         training_rows, validation_rows, anchor_created = evaluation_and_anchor_rows(
             rows, args
@@ -2543,7 +2624,14 @@ def train(
         max(args.batch_size, 512 if device.type == "cuda" else args.batch_size),
     )
     sample_raw = calibration_batch(calibration_source, calibration_batch_size)
-    plan = resolve_runtime_plan(model, sample_raw, args, device, runtime)
+    plan = resolve_runtime_plan(
+        model,
+        sample_raw,
+        args,
+        device,
+        runtime,
+        allow_training_probe=bool(args.training_enabled),
+    )
     # Calibration may run dropout-bearing train-mode probes and may take a
     # different path on cache hits. Reset all RNGs so host-local tuning cannot
     # alter model initialization-to-training reproducibility.
@@ -2553,25 +2641,36 @@ def train(
     if base_dataset is not None:
         base_dataset.clear_cache()
     validation_loader = None
-    progress.update(
-        Stage="evaluating",
-        TotalEpochs=max(0, args.epochs) if args.training_enabled else 0,
-        TotalFrames=len(validation_metadata),
-        Message=(
-            "正在评估固定锚点基线"
-            if args.training_enabled
-            else "正在评估复用的 Transformer 教师"
-        ),
-    )
     evaluation_started = time.perf_counter()
-    best_metrics, validation_loader = evaluate_with_cuda_backoff(
-        model,
-        validation_rows,
-        args,
-        device,
-        plan,
-        validation_loader,
-    )
+    if prior_evaluation is not None:
+        progress.update(
+            Stage="evaluating",
+            TotalEpochs=0,
+            TotalFrames=int(prior_evaluation["validation_frames"]),
+            Message="正在复用稳定教师的固定锚点评估",
+        )
+        best_metrics = dict(prior_evaluation["metrics"])
+        plan["evaluation_reused"] = True
+    else:
+        progress.update(
+            Stage="evaluating",
+            TotalEpochs=max(0, args.epochs) if args.training_enabled else 0,
+            TotalFrames=len(validation_metadata),
+            Message=(
+                "正在评估固定锚点基线"
+                if args.training_enabled
+                else "正在评估复用的 Transformer 教师"
+            ),
+        )
+        best_metrics, validation_loader = evaluate_with_cuda_backoff(
+            model,
+            validation_rows,
+            args,
+            device,
+            plan,
+            validation_loader,
+        )
+        plan["evaluation_reused"] = False
     baseline_metrics = dict(best_metrics)
     evaluation_seconds = time.perf_counter() - evaluation_started
     best_loss = composite_score(best_metrics)
@@ -2581,7 +2680,9 @@ def train(
             best_metrics,
             0,
             0,
-            len(validation_metadata),
+            int(prior_evaluation["validation_frames"])
+            if prior_evaluation is not None
+            else len(validation_metadata),
             plan,
             0.0,
             warm_started,
@@ -2595,8 +2696,16 @@ def train(
                 "validation_score": best_loss,
                 "update_accepted": False,
                 "head_gate_passed": True,
-                "teacher_generation": prior_generation,
-                "anchor_frames": len(validation_metadata),
+                "teacher_generation": (
+                    int(prior_evaluation["teacher_generation"])
+                    if prior_evaluation is not None
+                    else prior_generation
+                ),
+                "anchor_frames": (
+                    int(prior_evaluation["anchor_frames"])
+                    if prior_evaluation is not None
+                    else len(validation_metadata)
+                ),
                 "anchor_created": anchor_created,
             },
         )
@@ -2839,6 +2948,90 @@ def annotate_once(
     return elapsed, completed / elapsed
 
 
+def annotation_model_key(args: argparse.Namespace) -> str:
+    if args.training_enabled or not args.resume_model:
+        return ""
+    source = Path(args.resume_model)
+    if not source.exists():
+        return ""
+    digest = hashlib.sha256()
+    with source.open("rb") as stream:
+        while True:
+            block = stream.read(1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def read_annotation_cache(
+    path: str,
+    model_key: str,
+    expected_counts: dict[str, int],
+) -> dict[str, list[float]]:
+    if not path or not model_key or not expected_counts or not Path(path).exists():
+        return {}
+    cached: dict[str, list[float]] = {}
+    try:
+        with closing(sqlite3.connect(path, timeout=10.0)) as connection:
+            for identity, expected_count in expected_counts.items():
+                row = connection.execute(
+                    "SELECT probabilities_json FROM annotations "
+                    "WHERE model_key=? AND frame_identity=?",
+                    (model_key, identity),
+                ).fetchone()
+                if row is not None:
+                    values = json.loads(str(row[0]))
+                    if isinstance(values, list) and len(values) == expected_count:
+                        cached[identity] = [float(value) for value in values]
+    except (OSError, sqlite3.Error, ValueError, TypeError):
+        return {}
+    return cached
+
+
+def write_annotation_cache(
+    path: str,
+    model_key: str,
+    identities_by_row: dict[int, str],
+    annotations_path: Path,
+) -> None:
+    if not path or not model_key or not identities_by_row:
+        return
+    values: list[tuple[str, str, str, float]] = []
+    with annotations_path.open("r", encoding="utf-8") as stream:
+        for line in stream:
+            payload = json.loads(line)
+            identity = identities_by_row.get(int(payload["I"]), "")
+            if identity:
+                values.append(
+                    (
+                        model_key,
+                        identity,
+                        json.dumps(payload["P"], separators=(",", ":")),
+                        time.time(),
+                    )
+                )
+    if not values:
+        return
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(destination, timeout=10.0)) as connection:
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS annotations("
+            "model_key TEXT NOT NULL, frame_identity TEXT NOT NULL, "
+            "probabilities_json TEXT NOT NULL, updated_utc REAL NOT NULL, "
+            "PRIMARY KEY(model_key, frame_identity))"
+        )
+        connection.executemany(
+            "INSERT INTO annotations VALUES(?,?,?,?) "
+            "ON CONFLICT(model_key, frame_identity) DO UPDATE SET "
+            "probabilities_json=excluded.probabilities_json, "
+            "updated_utc=excluded.updated_utc",
+            values,
+        )
+        connection.commit()
+
+
 def annotate(
     model: StrategyTransformer,
     rows,
@@ -2849,12 +3042,74 @@ def annotate(
     progress: ProgressReporter,
 ) -> tuple[float, float]:
     temporary = path.with_suffix(path.suffix + ".tmp")
+    plan["annotation_cache_hits"] = 0
+    plan["annotation_cache_misses"] = len(rows)
+    identities_by_row = read_row_identities(args.annotation_selection)
+    metadata = dataset_metadata(rows)
+    ordered = []
+    for row in metadata:
+        row_id = int(row.get("I", -1))
+        action_count = int(
+            row.get(
+                "_action_count",
+                row["_action_tensor"].shape[0]
+                if "_action_tensor" in row
+                else 0,
+            )
+        )
+        ordered.append(
+            (row_id, identities_by_row.get(row_id, ""), action_count)
+        )
+    model_key = annotation_model_key(args)
+    cache = read_annotation_cache(
+        args.annotation_cache,
+        model_key,
+        {
+            identity: action_count
+            for _, identity, action_count in ordered
+            if identity and action_count > 0
+        },
+    )
+    if ordered and all(
+        identity and identity in cache
+        for _, identity, _ in ordered
+    ):
+        started = time.perf_counter()
+        progress.update(
+            Stage="annotating",
+            CompletedFrames=0,
+            TotalFrames=len(rows),
+            Message="正在复用 Transformer 蒸馏标注缓存",
+        )
+        with temporary.open("w", encoding="utf-8", newline="\n") as stream:
+            for row_id, identity, _ in ordered:
+                stream.write(
+                    json.dumps(
+                        {"I": row_id, "P": cache[identity]},
+                        separators=(",", ":"),
+                    )
+                    + "\n"
+                )
+        temporary.replace(path)
+        elapsed = max(1.0e-6, time.perf_counter() - started)
+        plan["annotation_cache_hits"] = len(ordered)
+        plan["annotation_cache_misses"] = 0
+        return elapsed, len(ordered) / elapsed
     while True:
         try:
             result = annotate_once(
                 model, rows, plan, device, temporary, progress
             )
             temporary.replace(path)
+            try:
+                write_annotation_cache(
+                    args.annotation_cache,
+                    model_key,
+                    identities_by_row,
+                    path,
+                )
+            except (OSError, sqlite3.Error, ValueError, TypeError):
+                pass
             return result
         except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
             try:
@@ -3069,10 +3324,19 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         assert single_run_validation is single_run_rows
         assert not single_anchor_created
         sample_shape = collate(rows[:8])
+        bucket_shape = dict(sample_shape)
+        bucket_shape["actions"] = torch.zeros(
+            sample_shape["actions"].shape[0],
+            capacity_bucket(sample_shape["actions"].shape[1]),
+            sample_shape["actions"].shape[2],
+        )
+        assert runtime_cache_key(args, device, sample_shape) == runtime_cache_key(
+            args, device, bucket_shape
+        )
         wider_shape = dict(sample_shape)
         wider_shape["actions"] = torch.zeros(
             sample_shape["actions"].shape[0],
-            sample_shape["actions"].shape[1] + 1,
+            capacity_bucket(sample_shape["actions"].shape[1]) + 1,
             sample_shape["actions"].shape[2],
         )
         assert runtime_cache_key(args, device, sample_shape) != runtime_cache_key(
@@ -3227,6 +3491,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             prior_epochs = args.epochs
             prior_anchor = args.anchor
             prior_fixed_anchor = args.fixed_anchor
+            prior_report_path = args.prior_report
             try:
                 args.resume_model = str(checkpoint_path)
                 args.training_enabled = 0
@@ -3239,7 +3504,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                     warm_executed,
                     _,
                     _,
-                    _,
+                    warm_plan,
                     _,
                     warm_started,
                     _,
@@ -3247,9 +3512,50 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 ) = train(rows, args, device, runtime, progress)
                 assert warm_started and warm_executed == 0
                 assert not warm_gate["update_accepted"]
+                assert warm_plan["calibration_kind"] == "annotation-default"
                 assert warm_gate["anchor_created"]
                 assert Path(args.anchor).exists()
                 assert math.isfinite(warm_metrics["policy_ce"])
+                reused_report_path = Path(root) / "prior-report.json"
+                reused_report_path.write_text(
+                    json.dumps(
+                        {
+                            "ValidationPolicyCrossEntropy": warm_metrics["policy_ce"],
+                            "ValidationUniformPolicyCrossEntropy": warm_metrics["uniform_policy_ce"],
+                            "ValidationPolicyTop1Accuracy": warm_metrics["policy_accuracy"],
+                            "ValidationValueMae": warm_metrics["value_mae"],
+                            "ValidationPhaseAccuracy": warm_metrics["phase_accuracy"],
+                            "ValidationStrategyAccuracy": warm_metrics["strategy_accuracy"],
+                            "ValidationDynamicsMse": warm_metrics["dynamics_mse"],
+                            "DynamicsValidationFrames": warm_metrics["dynamics_frames"],
+                            "ValidationOutcomeMae": warm_metrics["outcome_mae"],
+                            "ValidationDeathBrier": warm_metrics["death_brier"],
+                            "ValidationTerminalAccuracy": warm_metrics["terminal_accuracy"],
+                            "ValidationFrames": len(rows),
+                            "AnchorValidationFrames": len(rows),
+                            "AnchorCreated": True,
+                            "TeacherGeneration": 1,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                args.prior_report = str(reused_report_path)
+                (
+                    _,
+                    reused_metrics,
+                    _,
+                    _,
+                    _,
+                    reused_plan,
+                    _,
+                    _,
+                    _,
+                    reused_gate,
+                ) = train(rows, args, device, runtime, progress)
+                assert reused_plan["evaluation_reused"]
+                assert not reused_gate["anchor_created"]
+                assert reused_metrics == warm_metrics
+                args.prior_report = ""
                 args.anchor = ""
                 (
                     _,
@@ -3273,12 +3579,37 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 assert single_training_count == 0
                 assert single_validation_count == len(single_run_rows)
                 assert math.isfinite(single_metrics["policy_ce"])
+                annotation_cache_path = str(
+                    Path(root) / "annotation-cache.sqlite"
+                )
+                annotation_output_path = Path(root) / "annotations.jsonl"
+                annotation_output_path.write_text(
+                    '{"I":7,"P":[0.25,0.75]}\n',
+                    encoding="utf-8",
+                )
+                write_annotation_cache(
+                    annotation_cache_path,
+                    "model-key",
+                    {7: "frame-key"},
+                    annotation_output_path,
+                )
+                assert read_annotation_cache(
+                    annotation_cache_path,
+                    "model-key",
+                    {"frame-key": 2},
+                )["frame-key"] == [0.25, 0.75]
+                assert not read_annotation_cache(
+                    annotation_cache_path,
+                    "model-key",
+                    {"frame-key": 3},
+                )
             finally:
                 args.resume_model = prior_resume
                 args.training_enabled = prior_training_enabled
                 args.epochs = prior_epochs
                 args.anchor = prior_anchor
                 args.fixed_anchor = prior_fixed_anchor
+                args.prior_report = prior_report_path
         if os.name == "nt":
             assert working_set_bytes() > 0
         assert plan["loader_workers"] == 0
@@ -3461,7 +3792,10 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "teacher_generation": int(training_gate["teacher_generation"]),
         "state_dict": model.state_dict(),
     }
-    torch.save(checkpoint, args.model)
+    if not args.training_enabled and warm_started and args.resume_model:
+        shutil.copy2(args.resume_model, args.model)
+    else:
+        torch.save(checkpoint, args.model)
     saving_seconds = time.perf_counter() - saving_started
     device_name = (
         torch.cuda.get_device_name(device) if device.type == "cuda" else platform.processor()
@@ -3488,6 +3822,9 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "NumpyVersion": __import__("numpy").__version__,
         "RuntimeAutoTuned": bool(plan["auto_tuned"]),
         "RuntimeAutoTuneCacheHit": bool(plan["cache_hit"]),
+        "RuntimeCalibrationKind": str(plan["calibration_kind"]),
+        "RuntimeCacheKey": str(plan["runtime_cache_key"]),
+        "ReusedPriorEvaluation": bool(plan.get("evaluation_reused", False)),
         "CudaFallbackTriggered": bool(cuda_fallback_reason),
         "CudaFallbackReason": cuda_fallback_reason,
         "EffectiveCpuThreads": int(plan["cpu_threads"]),
@@ -3562,6 +3899,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             len(training_rows) if args.training_enabled else 0
         ),
         "AnnotationSelectionFrames": len(annotation_rows),
+        "AnnotationCacheHits": int(plan.get("annotation_cache_hits", 0)),
+        "AnnotationCacheMisses": int(plan.get("annotation_cache_misses", 0)),
         "DenseFeatureSlots": int(data_audit["dense_slots"]),
         "NonZeroFeatureValues": int(data_audit["nonzero_values"]),
         "SparseFeatureDensity": float(data_audit["density"]),

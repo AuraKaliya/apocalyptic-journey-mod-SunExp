@@ -1213,7 +1213,6 @@ try {
                         $MaximumDegreeOfParallelism)))
             $expectedCampaignPoints = @(
                 [Math]::Ceiling($calibrationMaximum * 0.50),
-                [Math]::Ceiling($calibrationMaximum * 0.75),
                 $calibrationMaximum
             ) | ForEach-Object { [int]$_ } | Sort-Object -Unique
             $disabledMultiProcessCacheReuse = -not $PreflightOnly `
@@ -1227,12 +1226,28 @@ try {
                     + "actual=$($actualCampaignPoints -join ',').")
             }
             if (-not $disabledMultiProcessCacheReuse `
+                -and -not [bool]$result.Training.AutoTune.CacheHit `
+                -and ([string]$result.Training.AutoTune.CampaignCalibrationKind `
+                        -eq "short-two-candidate-v1") `
                 -and ($actualCampaignPoints -join ",") `
                     -ne ($expectedCampaignPoints -join ",")) {
                 throw (
                     "Adaptive parallelism campaign probes are incomplete: " `
                     + "actual=$($actualCampaignPoints -join ','), " `
                     + "expected=$($expectedCampaignPoints -join ',').")
+            }
+            if (-not $disabledMultiProcessCacheReuse `
+                -and -not [bool]$result.Training.AutoTune.CacheHit `
+                -and ([string]::IsNullOrWhiteSpace(
+                        [string]$result.Training.AutoTune.CacheMissReason) `
+                    -or [string]::IsNullOrWhiteSpace(
+                        [string]$result.Training.AutoTune.CampaignCalibrationKind) `
+                    -or $actualCampaignPoints.Count -gt 2 `
+                    -or -not ($actualCampaignPoints -contains $calibrationMaximum))) {
+                throw (
+                    "Short auto-tune diagnostics are incomplete: " `
+                    + ($result.Training.AutoTune `
+                        | ConvertTo-Json -Depth 8 -Compress))
             }
             if (-not $PreflightOnly `
                 -and ($Iterations -le 1 `

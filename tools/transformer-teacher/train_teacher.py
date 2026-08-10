@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import OrderedDict, deque
+from contextlib import closing
 import copy
 import ctypes
 import gc
@@ -2972,7 +2973,7 @@ def read_annotation_cache(
         return {}
     cached: dict[str, list[float]] = {}
     try:
-        with sqlite3.connect(path, timeout=10.0) as connection:
+        with closing(sqlite3.connect(path, timeout=10.0)) as connection:
             for identity, expected_count in expected_counts.items():
                 row = connection.execute(
                     "SELECT probabilities_json FROM annotations "
@@ -3014,7 +3015,7 @@ def write_annotation_cache(
         return
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(destination, timeout=10.0) as connection:
+    with closing(sqlite3.connect(destination, timeout=10.0)) as connection:
         connection.execute(
             "CREATE TABLE IF NOT EXISTS annotations("
             "model_key TEXT NOT NULL, frame_identity TEXT NOT NULL, "
