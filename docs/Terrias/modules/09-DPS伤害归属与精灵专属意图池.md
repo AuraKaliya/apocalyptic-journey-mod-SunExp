@@ -26,7 +26,7 @@
 
 ### 2.2 精灵轮换
 
-- 投影仍然占用共享投影位置；投影存在时不能召唤精灵。
+- 投影占正式友方阵位，精灵占右上角固定附着位，两者可以同时存在。
 - 精灵存在时可以使用第二张精灵卡，用新精灵替换旧精灵。
 - 被换下的精灵只生成一张对应精灵卡加入当前手牌，不会再次加入 `RoleTable.cardList` 冒险卡组。
 - 每次精灵被换下时，该精灵卡的耗费增加 1。
@@ -177,7 +177,7 @@ sequenceDiagram
 
 ### 5.4 联机同步
 
-精灵召唤协议版本当前为 `6`。`RpcSpiritSummonRequest` 和 `SpiritCompanionSnapshot` 同步：
+精灵召唤协议版本当前为 `8`。`RpcSpiritSummonRequest` 和 `SpiritCompanionSnapshot` 同步：
 
 - 新精灵卡携带的 `TurnIndex` 与 `ReadyOnTurn`；
 - 场上精灵当前回合、revision 和冷却表；

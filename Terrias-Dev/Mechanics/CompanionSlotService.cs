@@ -24,14 +24,6 @@ public static class CompanionSlotService
             occupied.Add(i);
         }
 
-        foreach (var slotIndex in HeartChangeControlService.ActiveSlotIndexes())
-        {
-            if (slotIndex >= 0)
-            {
-                occupied.Add(slotIndex);
-            }
-        }
-
         for (var i = 0; i < MaxFriendlySlots; i++)
         {
             if (!occupied.Contains(i))
@@ -88,14 +80,22 @@ public static class CompanionSlotService
         var result = new List<FriendlyEntry>();
         var statusIds = new HashSet<string>(StringComparer.Ordinal);
         var playerSlot = 0;
-        foreach (var status in CompanionFriendlyRosterService.Snapshot(includeControlled: false))
+        foreach (var status in CompanionFriendlyRosterService.Snapshot(
+                     includeCompanions: false))
         {
             Add(result, statusIds, status, playerSlot++, isNativePlayer: true);
         }
 
-        foreach (var entry in HeartChangeControlService.ActiveSlotStatuses().OrderBy(entry => entry.Key).ThenBy(entry => entry.Value?.InstanceId, StringComparer.Ordinal))
+        foreach (var state in ProjectionStateStore.Active()
+                     .OrderBy(entry => entry.OwnerPlayerId, StringComparer.Ordinal)
+                     .ThenBy(entry => entry.StatusId, StringComparer.Ordinal))
         {
-            Add(result, statusIds, entry.Value, entry.Key, isNativePlayer: false);
+            Add(
+                result,
+                statusIds,
+                state.Projection?.Status,
+                playerSlot++,
+                isNativePlayer: false);
         }
 
         Add(result, statusIds, pendingStatus, pendingSlot, isNativePlayer: false);

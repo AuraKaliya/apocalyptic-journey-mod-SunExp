@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraCombatAi.Shared;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -12,11 +13,16 @@ namespace Terrias.Dll.Hooks;
 public static class ProjectionRuntime
 {
     private static readonly Dictionary<string, bool> ProjectionUseGate = new(StringComparer.Ordinal);
+    private static IDisposable? automationRegistration;
 
     public static void Initialize(ModConfig modConfig)
     {
         ProjectionAttachmentPresenter.Initialize();
-        ProjectionIntentPresenter.Initialize();
+        automationRegistration ??= CombatActionAutomationRegistry.Register(
+            TerriasIds.ModId,
+            "projection-card-runtime",
+            new ProjectionCardAutomationProvider(),
+            priority: 100);
         RegisterBefore(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
             context => GateDuplicateProjectionUseBefore(context, "OnBeginDrag"));
         RegisterAfter(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
@@ -38,9 +44,6 @@ public static class ProjectionRuntime
             context => ProjectionTurnCoordinator.BeginPlayerRound("Fight_PlayerTurn.Init"));
         TerriasStatusLifecycleRouter.Register("Projection", new TerriasStatusLifecycleSubscription
         {
-            AfterAddBuff = RefreshOwnerProjectionAfterBuffChange,
-            AfterRemoveBuff = RefreshOwnerProjectionAfterBuffChange,
-            AfterBuffLevelChanged = RefreshOwnerProjectionAfterBuffLevelChange,
             AfterHit = RetireProjectionAfterDamage,
             AfterCurHpChanged = RetireProjectionAfterHpChange,
             AfterMaxHpChanged = RetireProjectionAfterHpChange
@@ -60,7 +63,7 @@ public static class ProjectionRuntime
 
     internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
     {
-        RunCleanupStep("TurnCoordinator", source, () => ProjectionTurnCoordinator.ClearBattle(source, sweepVisualOrphans));
+        RunCleanupStep("TurnCoordinator", source, () => ProjectionTurnCoordinator.ClearBattle(source));
         RunCleanupStep("StateStore", source, () => ProjectionActivationService.ClearBattle(source));
         RunCleanupStep("VisualProxies", source, () => ProjectionAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
         RunCleanupStep("RoleSelection", source, () => ProjectionUiApi.CloseRoleSelection(source));
@@ -100,7 +103,7 @@ public static class ProjectionRuntime
 
         var owner = FightPlayer.Instance?.Status;
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner?.InstanceId ?? "");
-        if (owner != null && CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, owner.InstanceId))
+        if (owner != null && ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
         {
             ProjectionUseGate[UseGateKey(card, source)] = CardItem.canUse;
             CardItem.canUse = false;
@@ -168,41 +171,4 @@ public static class ProjectionRuntime
         }
     }
 
-    private static void RefreshOwnerProjectionAfterBuffChange(ModHookContext context)
-    {
-        if (!CompanionAuthorityService.IsAuthoritative()
-            || context.Target is not IStatusManager owner
-            || ProjectionStateStore.IsProjection(owner))
-        {
-            return;
-        }
-
-        QueueOwnerIntentRefresh(owner);
-    }
-
-    private static void RefreshOwnerProjectionAfterBuffLevelChange(ModHookContext context)
-    {
-        if (!CompanionAuthorityService.IsAuthoritative()
-            || context.Target is not BuffItemConfig config
-            || config.status == null
-            || ProjectionStateStore.IsProjection(config.status))
-        {
-            return;
-        }
-
-        QueueOwnerIntentRefresh(config.status);
-    }
-
-    private static void QueueOwnerIntentRefresh(IStatusManager owner)
-    {
-        var state = ProjectionStateStore.FindByOwner("", owner.InstanceId);
-        if (state?.Projection == null)
-        {
-            return;
-        }
-
-        TerriasFrameScheduler.RunOnceNextFrame(
-            "ProjectionIntent.OwnerBuff." + owner.InstanceId,
-            () => state.Projection.RefreshCommittedIntentValues("OwnerBuffChanged"));
-    }
 }

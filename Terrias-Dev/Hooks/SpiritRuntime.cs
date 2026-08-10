@@ -12,7 +12,6 @@ namespace Terrias.Dll.Hooks;
 
 public static class SpiritRuntime
 {
-    private static readonly Func<CommonCardItem, bool> SpiritCardUseChecker = CanUseSpiritCard;
     private static readonly Dictionary<int, bool> AttackUseGate = new();
     private static IDisposable? autoBattlePreflightRegistration;
 
@@ -21,7 +20,6 @@ public static class SpiritRuntime
         ProjectionIntentPresenter.Initialize();
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
-        RegisterSpiritCardUseChecker();
         autoBattlePreflightRegistration ??= CombatAiRegistry.RegisterRuntimePreflightRule(
             TerriasIds.ModId,
             "SpiritCards",
@@ -73,40 +71,6 @@ public static class SpiritRuntime
     private static void ResetUseGates()
     {
         AttackUseGate.Clear();
-    }
-
-    private static void RegisterSpiritCardUseChecker()
-    {
-        if (!CommonCardItem.UseChecker.Contains(SpiritCardUseChecker))
-        {
-            CommonCardItem.UseChecker.Add(SpiritCardUseChecker);
-        }
-    }
-
-    private static bool CanUseSpiritCard(CommonCardItem card)
-    {
-        try
-        {
-            if (card == null || !SpiritCardFactory.IsSpiritCard(card.dataConfig))
-            {
-                return true;
-            }
-
-            var owner = card.status ?? FightPlayer.Instance?.Status;
-            if (owner == null || !ProjectionStateStore.HasForOwner("", owner.InstanceId))
-            {
-                return true;
-            }
-
-            PlayerApi.ShowCaption("精灵：投影位置已被占用。");
-            TerriasPerformanceCounters.Record("Spirit.CardUseRejected.ProjectionOccupied");
-            return false;
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("Spirit card use preflight failed: " + ex.Message);
-            return true;
-        }
     }
 
     private static void GateCaptureUse(ModHookContext context)
@@ -179,16 +143,6 @@ public static class SpiritRuntime
             {
                 reason = "";
                 return true;
-            }
-
-            if (SpiritCardFactory.IsSpiritCard(card.dataConfig))
-            {
-                var owner = card.status ?? FightPlayer.Instance?.Status;
-                if (owner != null && ProjectionStateStore.HasForOwner("", owner.InstanceId))
-                {
-                    reason = "spirit projection position is occupied";
-                    return false;
-                }
             }
 
             if (SpiritCardFactory.IsSpiritBall(card.dataConfig))

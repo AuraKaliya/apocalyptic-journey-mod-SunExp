@@ -4,21 +4,20 @@ using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Network;
+using AuraCombatAi.Shared;
+using AuraCombatAi.Shared.GameApi;
 using UnityEngine;
 
 namespace Terrias.Dll.Mechanics;
 
 public static class HeartChangeControlService
 {
-    private const int ExistingTargetWeight = 100;
-    private const int ControlledTargetWeight = 90;
     private const string ReasonNoCaster = "NoCaster";
     private const string ReasonCombatOnly = "CombatOnly";
     private const string ReasonChooseEnemy = "ChooseEnemy";
     private const string ReasonTargetDead = "TargetDead";
     private const string ReasonAlreadyControlled = "AlreadyControlled";
     private const string ReasonNeedTwoEnemies = "NeedTwoEnemies";
-    private const string ReasonNoFriendlySlot = "NoFriendlySlot";
     private const string ReasonTargetMissing = "TargetMissing";
     private const string ReasonMissingSender = "MissingSender";
     private const string ReasonSenderOutsideLobby = "SenderOutsideLobby";
@@ -26,7 +25,6 @@ public static class HeartChangeControlService
 
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, HeartChangeState> Active = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, int> ReservedSlots = new(StringComparer.Ordinal);
     private static readonly HashSet<string> ResolvedNetworkTokens = new(StringComparer.Ordinal);
     private static readonly HashSet<string> RemovingBuffs = new(StringComparer.Ordinal);
 
@@ -95,23 +93,20 @@ public static class HeartChangeControlService
 
         try
         {
-            CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
-            ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
-            QueueProxyAction(state, "Apply");
             BroadcastState(state, active: true, accepted: true, token: "");
             TerriasPerformanceCounters.Record("HeartChange.Controlled");
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[HeartChange] positioning failed: " + ex.Message);
-            EndControl(state.Status, "ApplyPositionFailed", removeBuff: true, consumeNativeAction: false);
+            TerriasLog.Warn("[HeartChange] control state activation failed: " + ex.Message);
+            EndControl(state.Status, "ApplyStateFailed", removeBuff: true);
         }
     }
 
     public static void Clear(ScriptExecutor? executor, string source)
     {
-        EndControl(executor?.Self, source, removeBuff: false, consumeNativeAction: false);
+        EndControl(executor?.Self, source, removeBuff: false);
     }
 
     public static void ClearBattle(string source)
@@ -124,7 +119,7 @@ public static class HeartChangeControlService
 
         foreach (var state in snapshot)
         {
-            EndControl(state.Status, source, removeBuff: true, consumeNativeAction: false);
+            EndControl(state.Status, source, removeBuff: true);
         }
     }
 
@@ -154,16 +149,6 @@ public static class HeartChangeControlService
             return;
         }
 
-        var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
-        if (slotIndex == null)
-        {
-            TerriasNetworkRuntime.Send(
-                new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, ReasonNoFriendlySlot),
-                "HeartChangeControlService.ResolveNetworkControl.NoSlot");
-            return;
-        }
-
-        ReserveSlot(targetStatusId, slotIndex.Value);
         try
         {
             target!.AddBuff(TerriasIds.HeartChangeBuffId, 1);
@@ -173,10 +158,10 @@ public static class HeartChangeControlService
                     new RpcHeartChangeControlState(
                         targetStatusId,
                         token,
-                        slotIndex.Value,
+                        -1,
                         active: true,
                         accepted: true,
-                        intentCount: HeartChangeActionProxyObj.ResolveIntentCount(target!.fatherObject as Enemy ?? throw new InvalidOperationException("Heart-change target enemy is unavailable."))),
+                        intentCount: 0),
                     "HeartChangeControlService.ResolveNetworkControl.AfterBuff");
                 var state = Snapshot(target);
                 if (state != null)
@@ -192,12 +177,10 @@ public static class HeartChangeControlService
                 new RpcHeartChangeControlState(
                     targetStatusId,
                     token,
-                    slotIndex.Value,
+                    -1,
                     active: true,
                     accepted: true,
-                    intentCount: target?.fatherObject is Enemy targetEnemy
-                        ? HeartChangeActionProxyObj.ResolveIntentCount(targetEnemy)
-                        : 1),
+                    intentCount: 0),
                 "HeartChangeControlService.ResolveNetworkControl.Fallback");
         }
     }
@@ -240,19 +223,17 @@ public static class HeartChangeControlService
 
         if (!command.Active)
         {
-            EndControl(status, source + ".RemoteClear", removeBuff: false, consumeNativeAction: false, broadcast: false);
+            EndControl(status, source + ".RemoteClear", removeBuff: false, broadcast: false);
             return;
         }
 
         if (IsControlled(status))
         {
-            RefreshNetworkIntentCount(status, command.IntentCount, source + ".Duplicate");
             TerriasPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
             return;
         }
 
-        ReserveSlot(command.TargetStatusId, command.SlotIndex);
-        ApplyWithReservedSlot(status, source, command.IntentCount);
+        ApplyRemoteState(status, source);
     }
 
     public static void BeginEnemyAction(Enemy? enemy, int actionIndex, bool isSingle)
@@ -266,19 +247,10 @@ public static class HeartChangeControlService
 
         if (!IsAlive(status))
         {
-            EndControl(status, "BeginEnemyAction.Dead", removeBuff: true, consumeNativeAction: false);
+            EndControl(status, "BeginEnemyAction.Dead", removeBuff: true);
             return;
         }
 
-        state.IsActing = true;
-        ResolveProxyBeforeNativeFallback(state, "UnexpectedNativeAction");
-        if (!IsAlive(status))
-        {
-            EndControl(status, "BeginEnemyAction.DeadAfterProxy", removeBuff: true, consumeNativeAction: false);
-            return;
-        }
-
-        SuppressNativeAction(state, "UnexpectedNativeAction");
         TerriasPerformanceCounters.Record("HeartChange.ActionBegin");
     }
 
@@ -291,23 +263,16 @@ public static class HeartChangeControlService
             return;
         }
 
-        state.IsActing = false;
-        RestoreSuppressedNativeState(state, "EndEnemyAction");
-        EndControl(status, "EndEnemyAction.NativeFallback", removeBuff: true, consumeNativeAction: true);
+        EndControl(status, "EndEnemyAction", removeBuff: true);
 
         TerriasPerformanceCounters.Record("HeartChange.ActionEnd");
-    }
-
-    public static void CompleteProxyAction(IStatusManager? status, string source)
-    {
-        EndControl(status, source, removeBuff: true, consumeNativeAction: true);
     }
 
     public static void CleanupIfDead(IStatusManager? status, string source)
     {
         if (IsControlled(status) && !IsAlive(status))
         {
-            EndControl(status, source + ".Dead", removeBuff: true, consumeNativeAction: false);
+            EndControl(status, source + ".Dead", removeBuff: true);
         }
     }
 
@@ -326,13 +291,7 @@ public static class HeartChangeControlService
             return;
         }
 
-        if (executor.Self.fatherObject is Enemy)
-        {
-            AddControlledTargetsForEnemy(executor, clean);
-            return;
-        }
-
-        RemoveControlledTargetsForPlayers(executor, clean);
+        // Non-controlled actors retain the game's native faction targeting.
     }
 
     public static void HandleRunScript(ScriptExecutor? executor, string scriptName)
@@ -345,6 +304,24 @@ public static class HeartChangeControlService
         }
 
         RetargetControlledUseScript(executor);
+    }
+
+    public static void RewritePreparedIntent(Enemy? enemy)
+    {
+        if (enemy?.Status == null || !IsControlled(enemy.Status))
+        {
+            return;
+        }
+
+        foreach (var card in enemy.ActionCards ?? new List<ObjectCard>())
+        {
+            if (card?.dataConfig?.scriptExecutor is not ScriptExecutor executor)
+            {
+                continue;
+            }
+            RetargetControlledUseScript(executor);
+        }
+        TerriasPerformanceCounters.Record("HeartChange.IntentTargetRewritten");
     }
 
     public static bool IsControlled(IStatusManager? status)
@@ -363,21 +340,12 @@ public static class HeartChangeControlService
 
     public static IEnumerable<int> ActiveSlotIndexes()
     {
-        lock (SyncRoot)
-        {
-            return Active.Values.Select(state => state.SlotIndex).ToArray();
-        }
+        return Array.Empty<int>();
     }
 
     public static IEnumerable<KeyValuePair<int, IStatusManager>> ActiveSlotStatuses()
     {
-        lock (SyncRoot)
-        {
-            return Active.Values
-                .Where(state => IsAlive(state.Status))
-                .Select(state => new KeyValuePair<int, IStatusManager>(state.SlotIndex, state.Status))
-                .ToArray();
-        }
+        return Array.Empty<KeyValuePair<int, IStatusManager>>();
     }
 
     public static IEnumerable<IStatusManager> ActiveStatuses()
@@ -435,12 +403,6 @@ public static class HeartChangeControlService
             return false;
         }
 
-        if (CompanionSlotService.FindOpenPlayerSlot() == null)
-        {
-            reason = ReasonNoFriendlySlot;
-            return false;
-        }
-
         return true;
     }
 
@@ -480,7 +442,7 @@ public static class HeartChangeControlService
         return true;
     }
 
-    private static void ApplyWithReservedSlot(IStatusManager status, string source, int authoritativeIntentCount)
+    private static void ApplyRemoteState(IStatusManager status, string source)
     {
         if (IsControlled(status))
         {
@@ -506,16 +468,13 @@ public static class HeartChangeControlService
 
         try
         {
-            CompanionSlotService.PositionStatusInPlayerSlot(state.Status, state.SlotIndex);
-            ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
-            QueueProxyAction(state, source, authoritativeIntentCount);
             TerriasPerformanceCounters.Record("HeartChange.Controlled.Network");
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[HeartChange] network positioning failed from " + source + ": " + ex.Message);
-            EndControl(state.Status, source + ".PositionFailed", removeBuff: false, consumeNativeAction: false, broadcast: false);
+            TerriasLog.Warn("[HeartChange] remote state activation failed from " + source + ": " + ex.Message);
+            EndControl(state.Status, source + ".ActivationFailed", removeBuff: false, broadcast: false);
         }
     }
 
@@ -523,7 +482,7 @@ public static class HeartChangeControlService
     {
         state = HeartChangeState.Empty;
         reason = "";
-        if (status == null || status.fatherObject is not Enemy enemy)
+        if (status == null || status.fatherObject is not Enemy)
         {
             reason = ReasonChooseEnemy;
             return false;
@@ -547,28 +506,15 @@ public static class HeartChangeControlService
             return false;
         }
 
-        var slotIndex = TakeReservedSlot(StatusId(status)) ?? CompanionSlotService.FindOpenPlayerSlot();
-        if (slotIndex == null)
-        {
-            reason = ReasonNoFriendlySlot;
-            return false;
-        }
-
-        var transform = status.transform;
-        var bodyRenderer = transform?.Find("body")?.GetComponent<SpriteRenderer>();
-        state = new HeartChangeState(
-            StatusId(status),
-            status,
-            enemy,
-            slotIndex.Value,
-            transform == null ? Vector3.zero : transform.position,
-            transform == null ? Vector3.one : transform.localScale,
-            bodyRenderer,
-            bodyRenderer?.flipX ?? false);
+        state = new HeartChangeState(StatusId(status), status);
         return true;
     }
 
-    private static void EndControl(IStatusManager? status, string source, bool removeBuff, bool consumeNativeAction, bool broadcast = true)
+    private static void EndControl(
+        IStatusManager? status,
+        string source,
+        bool removeBuff,
+        bool broadcast = true)
     {
         var state = TakeState(status);
         if (state == null)
@@ -583,19 +529,12 @@ public static class HeartChangeControlService
 
         try
         {
-            state.IsActing = false;
-            RestoreSuppressedNativeState(state, source);
-            RestorePosition(state);
-            RestoreNativeQueueNow(state, source, consumeNativeAction);
-
             state.Status.UpdateStatus(true);
         }
         catch (Exception ex)
         {
             TerriasLog.Warn("[HeartChange] restore failed from " + source + ": " + ex.Message);
         }
-
-        CompanionSlotService.ReflowFriendlyLineup(source + ".Cleared");
 
         if (removeBuff)
         {
@@ -610,280 +549,6 @@ public static class HeartChangeControlService
         TerriasPerformanceCounters.Record("HeartChange.Cleared");
     }
 
-    private static void RestorePosition(HeartChangeState state)
-    {
-        if (state.Status?.transform == null)
-        {
-            return;
-        }
-
-        var restoredScale = state.OriginalScale;
-        restoredScale.x = Math.Max(0.001f, Math.Abs(restoredScale.x));
-        state.Status.transform.localScale = restoredScale;
-        if (state.BodyRenderer != null)
-        {
-            var bodyMirrored = state.BodyRenderer.transform.localScale.x < 0f;
-            var originalEffectiveMirrored = state.OriginalScale.x < 0f
-                ^ bodyMirrored
-                ^ state.OriginalBodyFlipX;
-            state.BodyRenderer.flipX = originalEffectiveMirrored ^ bodyMirrored;
-        }
-
-        state.Status.SetPosition(state.OriginalPosition);
-    }
-
-    private static void ApplyFriendlyFacing(HeartChangeState state)
-    {
-        try
-        {
-            var transform = state.Status?.transform;
-            if (transform == null)
-            {
-                return;
-            }
-
-            var scale = transform.localScale;
-            scale.x = Math.Max(0.001f, Math.Abs(scale.x));
-            transform.localScale = scale;
-            if (state.BodyRenderer != null)
-            {
-                var bodyMirrored = state.BodyRenderer.transform.localScale.x < 0f;
-                var originalRootMirrored = state.OriginalScale.x < 0f;
-                var originalEffectiveMirrored = originalRootMirrored ^ bodyMirrored ^ state.OriginalBodyFlipX;
-                var desiredEffectiveMirrored = !originalEffectiveMirrored;
-                state.BodyRenderer.flipX = desiredEffectiveMirrored ^ bodyMirrored;
-            }
-
-            TerriasPerformanceCounters.Record("HeartChange.FacingMirrored");
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] facing mirror failed: " + ex.Message);
-        }
-    }
-
-    private static void QueueProxyAction(HeartChangeState state, string source, int authoritativeIntentCount = 0)
-    {
-        try
-        {
-            var manager = FightManager.Instance;
-            if (manager?.ActionQueue == null || state.Enemy == null)
-            {
-                return;
-            }
-
-            var proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
-                ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
-            state.Proxy = proxy;
-            proxy.Configure(state.Enemy, authoritativeIntentCount);
-            state.IntentCount = proxy.IntentCount;
-
-            // Keep the native Enemy as the synchronized queue identity. The
-            // proxy resolves from the Enemy action hooks, so Witch's intent
-            // batch always targets the same fatherObject/allCards on every
-            // peer instead of resolving this proxy through the Enemy status id.
-            manager.ActionQueue.RemoveAll(obj => obj == null
-                || ReferenceEquals(obj, proxy)
-                || obj is HeartChangeActionProxyObj heartProxy
-                    && string.Equals(heartProxy.InstanceId, state.StatusId, StringComparison.Ordinal));
-            var enemyQueued = manager.ActionQueue.Any(obj => ReferenceEquals(obj, state.Enemy)
-                || obj is Enemy enemy && string.Equals(enemy.InstanceId, state.StatusId, StringComparison.Ordinal));
-            if (!enemyQueued)
-            {
-                manager.ActionQueue.Add(state.Enemy);
-            }
-            TerriasLog.Info("[HeartChange] prepared controlled enemy proxy action: status="
-                + state.StatusId
-                + ", intentCount="
-                + proxy.IntentCount
-                + ", queueIdentity=Enemy");
-            TerriasPerformanceCounters.Record("HeartChange.QueueIdentityPreserved");
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] queue move failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static void ResolveProxyBeforeNativeFallback(HeartChangeState state, string source)
-    {
-        try
-        {
-            var proxy = state.Proxy;
-            if (proxy == null && state.Enemy != null)
-            {
-                proxy = state.Enemy.GetComponent<HeartChangeActionProxyObj>()
-                    ?? state.Enemy.gameObject.AddComponent<HeartChangeActionProxyObj>();
-                proxy.Configure(state.Enemy, state.IntentCount);
-                state.Proxy = proxy;
-            }
-
-            if (proxy == null)
-            {
-                TerriasLog.Warn("[HeartChange] native fallback has no proxy: status=" + state.StatusId);
-                return;
-            }
-
-            if (proxy.ResolveNow("NativeFallback." + source))
-            {
-                TerriasPerformanceCounters.Record("HeartChange.ProxyNativeFallbackResolved");
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] native fallback proxy resolve failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static bool IsNativeOrProxyAction(HeartChangeState state, FightObject? obj)
-    {
-        return obj == null
-            || ReferenceEquals(obj, state.Enemy)
-            || ReferenceEquals(obj, state.Proxy)
-            || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal))
-            || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal));
-    }
-
-    private static void SuppressNativeAction(HeartChangeState state, string reason)
-    {
-        try
-        {
-            state.SuppressedState = state.Status.state;
-            state.NativeActionSuppressed = true;
-            state.Status.ChangeState(IStatusManager.State.NoAction);
-            TerriasLog.Info("[HeartChange] suppressed native enemy action: status="
-                + state.StatusId
-                + ", reason="
-                + reason);
-            TerriasPerformanceCounters.Record("HeartChange.ActionSuppressed." + reason);
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] suppress failed from " + reason + ": " + ex.Message);
-        }
-    }
-
-    private static void RestoreSuppressedNativeState(HeartChangeState state, string source)
-    {
-        try
-        {
-            if (state.NativeActionSuppressed && IsAlive(state.Status))
-            {
-                state.Status.ChangeState(state.SuppressedState == IStatusManager.State.NoAction
-                    ? IStatusManager.State.Default
-                    : state.SuppressedState);
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] native action state restore failed from " + source + ": " + ex.Message);
-        }
-        finally
-        {
-            state.NativeActionSuppressed = false;
-            state.SuppressedState = IStatusManager.State.Default;
-        }
-    }
-
-    private static void RestoreNativeQueueNow(HeartChangeState state, string source, bool afterConsumedAction)
-    {
-        try
-        {
-            var manager = FightManager.Instance;
-            if (manager?.ActionQueue == null)
-            {
-                return;
-            }
-
-            RemoveControlledQueueEntries(state, source);
-
-            if (!IsAlive(state.Status) || state.Enemy == null || !CanRestoreQueue(manager))
-            {
-                return;
-            }
-
-            RestoreNativeVisibleState(state, source);
-
-            var alreadyQueued = manager.ActionQueue.Any(obj =>
-                ReferenceEquals(obj, state.Enemy)
-                || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
-            if (!alreadyQueued)
-            {
-                manager.ActionQueue.Add(state.Enemy);
-                TerriasLog.Info("[HeartChange] restored native enemy to action queue: status="
-                    + state.StatusId
-                    + ", source="
-                    + source
-                    + ", afterConsumedAction="
-                    + afterConsumedAction);
-                TerriasPerformanceCounters.Record("HeartChange.NativeRestoreApplied");
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] native queue restore failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static void RestoreNativeVisibleState(HeartChangeState state, string source)
-    {
-        try
-        {
-            if (IsAlive(state.Status) && state.Status.state == IStatusManager.State.NoAction)
-            {
-                state.Status.ChangeState(IStatusManager.State.Default);
-                TerriasLog.Info("[HeartChange] restored native visible state from NoAction: status="
-                    + state.StatusId
-                    + ", source="
-                    + source);
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] native visible state restore failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static void RemoveControlledQueueEntries(HeartChangeState state, string source)
-    {
-        try
-        {
-            var manager = FightManager.Instance;
-            if (manager?.ActionQueue == null)
-            {
-                return;
-            }
-
-            var removed = manager.ActionQueue.RemoveAll(obj =>
-                obj == null
-                || ReferenceEquals(obj, state.Proxy)
-                || ReferenceEquals(obj, state.Enemy)
-                || (obj is HeartChangeActionProxyObj && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal))
-                || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
-            if (removed > 0)
-            {
-                TerriasLog.Info("[HeartChange] removed controlled queue entries: status="
-                    + state.StatusId
-                    + ", count="
-                    + removed
-                    + ", source="
-                    + source);
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[HeartChange] controlled queue removal failed from " + source + ": " + ex.Message);
-        }
-    }
-
-    private static bool CanRestoreQueue(FightManager manager)
-    {
-        return manager.fightType != FightType.None
-            && manager.fightType != FightType.Win
-            && manager.fightType != FightType.Loss
-            && manager.fightType != FightType.Escape;
-    }
-
     private static void RetargetControlledActor(ScriptExecutor executor, string rawFilter, string clean)
     {
         if (!IsTargetFilter(clean) && !string.Equals(clean, "All", StringComparison.Ordinal))
@@ -891,8 +556,8 @@ public static class HeartChangeControlService
             return;
         }
 
-        var opponents = ControlledOpponents(executor.Self).ToList();
-        if (opponents.Count == 0)
+        var targets = ControlledActionTargets(executor).ToList();
+        if (targets.Count == 0)
         {
             ReplaceTargets(executor, Enumerable.Empty<IStatusManager>());
             return;
@@ -900,32 +565,38 @@ public static class HeartChangeControlService
 
         if (IsSingleTargetFilter(clean))
         {
-            ReplaceTargets(executor, new[] { opponents[UnityEngine.Random.Range(0, opponents.Count)] });
+            ReplaceTargets(executor, new[] { targets[UnityEngine.Random.Range(0, targets.Count)] });
             return;
         }
 
         if (clean.StartsWith("AllRandom", StringComparison.Ordinal))
         {
-            ReplaceTargets(executor, PickRandomTargets(opponents, RandomTargetCount(rawFilter)));
+            ReplaceTargets(executor, PickRandomTargets(targets, RandomTargetCount(rawFilter)));
             return;
         }
 
-        ReplaceTargets(executor, opponents);
+        ReplaceTargets(executor, targets);
     }
 
     private static void RetargetControlledUseScript(ScriptExecutor executor)
     {
-        var opponents = ControlledOpponents(executor.Self).ToList();
-        if (opponents.Count == 0)
+        var requestedTargets = RequestedTargetShape(executor);
+        if (requestedTargets.Count > 0
+            && requestedTargets.All(target => SameStatus(target, executor.Self)))
+        {
+            return;
+        }
+
+        var targets = ControlledActionTargets(executor).ToList();
+        if (targets.Count == 0)
         {
             ReplaceTargets(executor, Enumerable.Empty<IStatusManager>());
             TerriasPerformanceCounters.Record("HeartChange.UseScriptNoTarget");
             return;
         }
 
-        var requestedTargets = RequestedTargetShape(executor);
         var preferredTargets = requestedTargets
-            .Where(target => opponents.Any(opponent => SameStatus(opponent, target)))
+            .Where(target => targets.Any(candidate => SameStatus(candidate, target)))
             .ToList();
         if (preferredTargets.Count > 0)
         {
@@ -936,101 +607,14 @@ public static class HeartChangeControlService
 
         if (requestedTargets.Count > 1)
         {
-            ReplaceTargets(executor, opponents);
+            ReplaceTargets(executor, targets);
         }
         else
         {
-            ReplaceTargets(executor, new[] { opponents[UnityEngine.Random.Range(0, opponents.Count)] });
+            ReplaceTargets(executor, new[] { targets[UnityEngine.Random.Range(0, targets.Count)] });
         }
 
         TerriasPerformanceCounters.Record("HeartChange.UseScriptRetargeted");
-    }
-
-    private static void AddControlledTargetsForEnemy(ScriptExecutor executor, string clean)
-    {
-        if (!IsTargetFilter(clean))
-        {
-            return;
-        }
-
-        if (IsSingleTargetFilter(clean))
-        {
-            TryRedirectEnemySingleTargetToControlled(executor);
-            return;
-        }
-
-        if (clean.StartsWith("AllRandom", StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        AddActiveControlledToObject(executor);
-    }
-
-    private static void RemoveControlledTargetsForPlayers(ScriptExecutor executor, string clean)
-    {
-        if (!IsTargetFilter(clean) || executor.Object == null)
-        {
-            return;
-        }
-
-        var filtered = executor.Object
-            .Where(target => target != null && !IsControlled(target))
-            .ToList();
-        if (filtered.Count == executor.Object.Count && !IsControlled(executor.Target))
-        {
-            return;
-        }
-
-        ReplaceTargets(executor, filtered);
-    }
-
-    private static void TryRedirectEnemySingleTargetToControlled(ScriptExecutor executor)
-    {
-        var controlled = ActiveStatuses().ToList();
-        if (controlled.Count == 0)
-        {
-            return;
-        }
-
-        var existingTargets = executor.Object?
-            .Where(target => target != null && !IsControlled(target))
-            .ToList() ?? new List<IStatusManager>();
-        var totalWeight = existingTargets.Count * ExistingTargetWeight + controlled.Count * ControlledTargetWeight;
-        if (totalWeight <= 0)
-        {
-            return;
-        }
-
-        var roll = UnityEngine.Random.Range(0, totalWeight);
-        if (roll < existingTargets.Count * ExistingTargetWeight)
-        {
-            return;
-        }
-
-        var index = (roll - existingTargets.Count * ExistingTargetWeight) / ControlledTargetWeight;
-        index = Math.Max(0, Math.Min(controlled.Count - 1, index));
-        ReplaceTargets(executor, new[] { controlled[index] });
-        TerriasPerformanceCounters.Record("HeartChange.TargetedByEnemy");
-    }
-
-    private static void AddActiveControlledToObject(ScriptExecutor executor)
-    {
-        if (executor.Object == null)
-        {
-            executor.Object = new List<IStatusManager>();
-        }
-
-        var seen = new HashSet<string>(
-            executor.Object.Where(target => target != null).Select(target => target.InstanceId),
-            StringComparer.Ordinal);
-        foreach (var status in ActiveStatuses())
-        {
-            if (seen.Add(status.InstanceId))
-            {
-                executor.Object.Add(status);
-            }
-        }
     }
 
     private static void ReplaceTargets(ScriptExecutor executor, IEnumerable<IStatusManager> targets)
@@ -1177,38 +761,6 @@ public static class HeartChangeControlService
         }
     }
 
-    private static void ReserveSlot(string statusId, int slotIndex)
-    {
-        if (string.IsNullOrWhiteSpace(statusId) || slotIndex < 0)
-        {
-            return;
-        }
-
-        lock (SyncRoot)
-        {
-            ReservedSlots[statusId] = slotIndex;
-        }
-    }
-
-    private static int? TakeReservedSlot(string statusId)
-    {
-        if (string.IsNullOrWhiteSpace(statusId))
-        {
-            return null;
-        }
-
-        lock (SyncRoot)
-        {
-            if (!ReservedSlots.TryGetValue(statusId, out var slotIndex))
-            {
-                return null;
-            }
-
-            ReservedSlots.Remove(statusId);
-            return slotIndex;
-        }
-    }
-
     private static bool ClaimNetworkToken(string token)
     {
         if (string.IsNullOrWhiteSpace(token))
@@ -1253,27 +805,11 @@ public static class HeartChangeControlService
             new RpcHeartChangeControlState(
                 state.StatusId,
                 token,
-                state.SlotIndex,
+                -1,
                 active,
                 accepted,
-                intentCount: state.IntentCount),
+                intentCount: 0),
             "HeartChangeControlService.BroadcastState");
-    }
-
-    private static void RefreshNetworkIntentCount(IStatusManager? status, int intentCount, string source)
-    {
-        if (intentCount <= 0)
-        {
-            return;
-        }
-
-        var state = Snapshot(status);
-        if (state?.Enemy == null || state.IntentCount == intentCount)
-        {
-            return;
-        }
-
-        QueueProxyAction(state, source, intentCount);
     }
 
     private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
@@ -1306,7 +842,6 @@ public static class HeartChangeControlService
             ReasonTargetDead => "目标已无法行动。",
             ReasonAlreadyControlled => "该目标已处于心变控制中。",
             ReasonNeedTwoEnemies => "敌方至少需要两名未被控制的存活敌人。",
-            ReasonNoFriendlySlot => "己方没有可用空位。",
             ReasonTargetMissing => "目标已离开战场。",
             ReasonMissingSender => "无法确认操作玩家。",
             ReasonSenderOutsideLobby => "操作玩家不在当前房间中。",
@@ -1371,6 +906,33 @@ public static class HeartChangeControlService
             .Where(status => !IsControlled(status));
     }
 
+    private static IEnumerable<IStatusManager> ControlledActionTargets(
+        ScriptExecutor executor)
+    {
+        var semantics = WitchCombatValueEstimator.Estimate(
+            executor.dataConfig,
+            forceAttack: false,
+            CombatTargetKind.Enemy);
+        var harmful = semantics.Damage
+                      + semantics.TrueDamage
+                      + semantics.DamageOverTime
+                      + semantics.Debuff;
+        var beneficial = semantics.Heal
+                         + semantics.Defend
+                         + semantics.Buff
+                         + semantics.Cleanse;
+        if (beneficial > harmful)
+        {
+            return CompanionFriendlyRosterService.Snapshot(
+                    includeCompanions: true)
+                .Where(IsAlive)
+                .Where(status => !SameStatus(status, executor.Self))
+                .ToArray();
+        }
+
+        return ControlledOpponents(executor.Self).ToArray();
+    }
+
     private static bool IsTargetFilter(string clean)
     {
         return clean.Contains("Target");
@@ -1417,52 +979,19 @@ public static class HeartChangeControlService
 
     private sealed class HeartChangeState
     {
-        public static readonly HeartChangeState Empty = new("", null!, null!, -1, Vector3.zero, Vector3.one, null, false);
+        public static readonly HeartChangeState Empty = new("", null!);
 
         public HeartChangeState(
             string statusId,
-            IStatusManager status,
-            Enemy enemy,
-            int slotIndex,
-            Vector3 originalPosition,
-            Vector3 originalScale,
-            SpriteRenderer? bodyRenderer,
-            bool originalBodyFlipX)
+            IStatusManager status)
         {
             StatusId = statusId ?? "";
             Status = status;
-            Enemy = enemy;
-            SlotIndex = slotIndex;
-            OriginalPosition = originalPosition;
-            OriginalScale = originalScale;
-            BodyRenderer = bodyRenderer;
-            OriginalBodyFlipX = originalBodyFlipX;
         }
 
         public string StatusId { get; }
 
         public IStatusManager Status { get; }
 
-        public Enemy Enemy { get; }
-
-        public int SlotIndex { get; }
-
-        public Vector3 OriginalPosition { get; }
-
-        public Vector3 OriginalScale { get; }
-
-        public SpriteRenderer? BodyRenderer { get; }
-
-        public bool OriginalBodyFlipX { get; }
-
-        public bool IsActing { get; set; }
-
-        public HeartChangeActionProxyObj? Proxy { get; set; }
-
-        public int IntentCount { get; set; } = 1;
-
-        public bool NativeActionSuppressed { get; set; }
-
-        public IStatusManager.State SuppressedState { get; set; } = IStatusManager.State.Default;
     }
 }

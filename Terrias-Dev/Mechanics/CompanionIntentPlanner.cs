@@ -169,7 +169,7 @@ public static class CompanionIntentPlanner
                 + (effect.RepeatCount > 1 ? "/hits=" + effect.RepeatCount : "")));
         var targets = string.Join(",", plan.OrderedTargetIds ?? new List<string>());
         var intent = CompanionIntentResolver.Find(state, plan.IntentId);
-        var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot(includeControlled: true)
+        var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot()
             .Where(CompanionTargetPolicyRegistry.IsAlive)
             .Select(status => status.InstanceId));
         TerriasLog.Info("[ProjectionPlan] committed"

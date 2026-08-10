@@ -40,6 +40,7 @@ Terrias 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明�
 | --- | --- | --- |
 | `AuraSharedCore` | Aura 核心层 | 路径、存储、注册、包、Hook、调度、日志、通用同步和权限基础 |
 | `AuraJourneyShared` | 共享领域层 | Journey 定义、route graph、状态 reducer、地图投影和同步投影 |
+| `AuraCombatAiShared` | 共享领域层 | Actor 自动回合、候选屏蔽、失败/超时终止、卡牌状态快照和自动化能力注册 |
 | `AuraAudioShared` | 共享领域适配 | 音频共享运行时初始化 |
 | `AudioArbiterShared` | 共享领域层 | 音频 provider、匹配、优先级、原音抑制和表现 RPC |
 | `BattleBgmArbiterShared` | 共享领域层 | 冒险/战斗 BGM provider 与切换仲裁 |

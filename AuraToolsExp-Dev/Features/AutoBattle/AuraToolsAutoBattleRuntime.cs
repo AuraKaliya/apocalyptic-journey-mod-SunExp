@@ -29,6 +29,7 @@ public static class AuraToolsAutoBattleRuntime
     private static AuraToolsAutoBattleController? controller;
     private static IDisposable? lifecycleSubscription;
     private static IDisposable? trainingSinkRegistration;
+    private static IDisposable? automationCapabilityRegistration;
 
     internal static bool ModuleEnabled =>
         AuraToolsConfigService.Root.MatchExperience.Enabled
@@ -46,6 +47,11 @@ public static class AuraToolsAutoBattleRuntime
         initialized = true;
         AuraToolsCombatContentRuntime.Initialize();
         AuraToolsCombatKnowledgeRuntime.Initialize();
+        automationCapabilityRegistration ??= CombatActionAutomationRegistry.Register(
+            AuraToolsIds.ModId,
+            "player-ui-runtime",
+            new AuraToolsPlayerActionAutomationProvider(),
+            priority: 10);
         AuraToolsBundledFoundationModelRuntime.Initialize(modConfig);
         AuraToolsAutoBattleJourneyRuntime.Initialize(modConfig);
         EnsureController();
@@ -296,6 +302,34 @@ public static class AuraToolsAutoBattleRuntime
         Object.DontDestroyOnLoad(host);
         controller = host.AddComponent<AuraToolsAutoBattleController>();
         return controller;
+    }
+}
+
+internal sealed class AuraToolsPlayerActionAutomationProvider :
+    ICombatActionAutomationProvider
+{
+    public bool TryDescribe(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionAutomationDescriptor descriptor)
+    {
+        descriptor = new CombatActionAutomationDescriptor();
+        if (action == null
+            || action.Kind is not (CombatActionKind.PlayCard
+                or CombatActionKind.UseSkill
+                or CombatActionKind.EndTurn
+                or CombatActionKind.ResolvePrompt))
+        {
+            return false;
+        }
+
+        descriptor = new CombatActionAutomationDescriptor
+        {
+            HeadlessSupported = false,
+            FailureScope = CombatAgentFailureScope.Candidate,
+            Reason = "AuraTools player automation requires the visible player UI"
+        };
+        return true;
     }
 }
 

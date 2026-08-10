@@ -28,20 +28,12 @@ public static class ProjectionAttachmentPresenter
 
     public static void RefreshByOwner(IStatusManager? owner, string source)
     {
-        if (owner == null)
-        {
-            return;
-        }
-
         foreach (var state in ProjectionStateStore.Active())
         {
-            if (!string.Equals(state.OwnerStatusId, owner.InstanceId, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            var active = owner.CurHp > 0 && owner.state != IStatusManager.State.Dead;
-            state.SetSuspended(!active);
+            var active = state.Projection?.Status != null
+                         && state.Projection.Status.CurHp > 0
+                         && state.Projection.Status.state != IStatusManager.State.Dead;
+            state.SetSuspended(false);
             if (state.Projection?.gameObject != null)
             {
                 state.Projection.gameObject.SetActive(active);
@@ -52,77 +44,37 @@ public static class ProjectionAttachmentPresenter
                 proxy.SetActive(active);
             }
 
-            TerriasLog.Debug("[ProjectionAttachment] owner visibility=" + active
-                + ", owner=" + owner.InstanceId + ", source=" + source);
+            TerriasLog.Debug("[ProjectionFormation] visibility=" + active
+                + ", status=" + state.StatusId + ", source=" + source);
         }
     }
 
     private static void Attach(ProjectionState state)
     {
-        GameObject? proxy = null;
         try
         {
-            var owner = StatusById(state.OwnerStatusId);
             var projection = state.Projection;
-            if (owner?.transform == null || projection?.transform == null)
+            if (projection?.transform == null)
             {
                 return;
             }
 
             RemoveProxy(state.StatusId, restoreSource: true);
-            var ownerRenderer = owner.transform.Find("body")?.GetComponent<SpriteRenderer>();
-            var sourceRenderer = projection.transform.Find("body")?.GetComponent<SpriteRenderer>();
-            var ownerCollider = owner.transform.GetComponent<BoxCollider>();
-            var projectionCollider = projection.transform.GetComponent<BoxCollider>();
-            if (ownerRenderer == null || sourceRenderer == null || projectionCollider == null)
-            {
-                TerriasLog.Warn("[ProjectionAttachment] visual proxy prerequisites unavailable: status="
-                    + state.StatusId);
-                return;
-            }
-
             var status = projection.Status as StatusManager;
-            status?.statusBarObj?.SetActive(false);
-
-            proxy = new GameObject("Terrias_ProjectionVisualProxy:" + state.StatusId);
-            CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "ProjectionAttachment.Attach");
-            proxy.transform.position = Vector3.zero;
-            proxy.transform.rotation = Quaternion.identity;
-            proxy.transform.localScale = Vector3.one;
-            proxy.layer = ownerRenderer.gameObject.layer;
-            var proxyRenderer = proxy.AddComponent<SpriteRenderer>();
-            var visualProxy = proxy.AddComponent<ProjectionVisualProxy>();
-            if (!visualProxy.Configure(
-                    owner.transform,
-                    ownerCollider,
-                    ownerRenderer,
-                    projection.transform,
-                    projectionCollider,
-                    sourceRenderer,
-                    projection.transform.Find("Reflection")?.gameObject,
-                    projection.transform.Find("bottom")?.gameObject,
-                    status,
-                    proxyRenderer))
+            if (status?.statusBarObj != null)
             {
-                visualProxy.RestoreSourcePresentation();
-                UnityEngine.Object.Destroy(proxy);
-                return;
+                status.statusBarObj.SetActive(true);
             }
-
-            Proxies[state.StatusId] = proxy;
-            RefreshByOwner(owner, "Attach");
-            TerriasPerformanceCounters.Record("ProjectionAttachment.ProxyAttached");
+            if (status?.effectListObj != null)
+            {
+                status.effectListObj.SetActive(true);
+            }
+            CompanionSlotService.ReflowFriendlyLineup("ProjectionFormation.Attach");
+            TerriasPerformanceCounters.Record("ProjectionFormation.Attached");
         }
         catch (Exception ex)
         {
-            Proxies.Remove(state.StatusId);
-            if (proxy != null)
-            {
-                proxy.GetComponent<ProjectionVisualProxy>()?.RestoreSourcePresentation();
-                UnityEngine.Object.Destroy(proxy);
-            }
-
-            TerriasLog.Warn("[ProjectionAttachment] proxy attach failed: " + ex.Message);
+            TerriasLog.Warn("[ProjectionFormation] attach failed: " + ex.Message);
         }
     }
 
@@ -131,6 +83,7 @@ public static class ProjectionAttachmentPresenter
         if (state != null)
         {
             RemoveProxy(state.StatusId, restoreSource: false);
+            CompanionSlotService.ReflowFriendlyLineup("ProjectionFormation.Detach");
         }
     }
 
@@ -194,12 +147,7 @@ public static class ProjectionAttachmentPresenter
 
     private static void PlayActionFocus(ProjectionState state)
     {
-        if (state != null
-            && Proxies.TryGetValue(state.StatusId, out var proxy)
-            && proxy != null)
-        {
-            proxy.GetComponent<ProjectionVisualProxy>()?.PlayActionFocus(state.StatusId);
-        }
+        // Projection card actions are headless and have no persistent intent icon.
     }
 
     private static IStatusManager? StatusById(string statusId)

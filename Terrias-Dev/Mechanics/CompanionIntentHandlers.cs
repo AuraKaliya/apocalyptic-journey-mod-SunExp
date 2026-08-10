@@ -435,7 +435,7 @@ public static class CompanionTargetPolicyRegistry
             case "Self":
                 return string.Equals(target!.InstanceId, state.OwnerStatusId, StringComparison.Ordinal);
             case "Friendly":
-                return CompanionFriendlyRosterService.Contains(target, includeControlled: true);
+                return CompanionFriendlyRosterService.Contains(target);
             case "Enemy":
                 return !HeartChangeControlService.IsControlled(target)
                     && EnemyManager.Instance?.enemyList?.Any(enemy =>
@@ -481,7 +481,7 @@ public static class CompanionTargetPolicyRegistry
 
     private static IEnumerable<IStatusManager> FriendlyStatuses()
     {
-        return CompanionFriendlyRosterService.Snapshot(includeControlled: true)
+        return CompanionFriendlyRosterService.Snapshot()
             .Where(IsAlive)
             .OrderBy(target => target.InstanceId, StringComparer.Ordinal);
     }

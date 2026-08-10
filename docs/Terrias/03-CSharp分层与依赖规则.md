@@ -85,7 +85,7 @@ Entry 不实现卡牌效果、地图算法或 UI 细节。新增独立运行时�
 - `RelicScripts.Fight`；
 - `BossScripts.InitEnemy/ApplyTrait/ClearTrait/InitCard/Target/UseCard`；
 - `WunaScripts`、`LoneerScripts` 的职业和专属卡入口；
-- `ProjectionScripts`、`HeartChangeScripts` 的意图入口；
+- `ProjectionScripts` 的召唤入口；心变由 `HeartChangeControlRuntime` 改写原生 Enemy 目标，不再提供代理意图脚本；
 - `EventScripts` 的日耀回忆事件 facade；
 - `FamiliarGrowthScripts` 的面板和经验入口；
 - `DuskPartnerScripts`、`StarClayDollScripts` 的伙伴特性入口。

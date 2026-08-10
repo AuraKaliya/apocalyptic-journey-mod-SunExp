@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Network.Command;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
+using AuraCombatAi.Shared;
 using Witch.Core;
 
 namespace Terrias.Dll.Network;
@@ -52,6 +53,8 @@ public sealed class ProjectionCompanionSnapshot
 
     public CompanionIntentPlan? IntentPlan { get; set; }
 
+    public CombatActorCardStateSnapshot? CardState { get; set; }
+
     public string RejectionReason { get; set; } = "";
 
 }
@@ -83,7 +86,7 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
-        RegistryHash = CompanionIntentRegistry.RegistryHash;
+        RegistryHash = ProjectionCardBattleState.ProtocolIdentity;
     }
 
     public void BindServerSender(TerriasRpcSender sender)

@@ -21,6 +21,7 @@ public static class HeartChangeControlRuntime
         RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
         RegisterAfter(modConfig, "ScriptExecutor.SetStatus", RetargetAfterSetStatus);
         RegisterBefore(modConfig, "ScriptExecutor.RunScript", RetargetBeforeRunScript);
+        RegisterAfter(modConfig, TerriasHookTargets.OtherObjSetAction, RewritePreparedIntent);
         TerriasCombatActionRouter.Register("HeartChange", new TerriasCombatActionSubscription
         {
             BeforeOtherObjAction = BeginEnemyAction,
@@ -94,6 +95,21 @@ public static class HeartChangeControlRuntime
         catch (Exception ex)
         {
             TerriasLog.Warn("[HeartChange] use-script retarget failed: " + ex.Message);
+        }
+    }
+
+    private static void RewritePreparedIntent(ModHookContext context)
+    {
+        try
+        {
+            if (context.Target is Enemy enemy)
+            {
+                HeartChangeControlService.RewritePreparedIntent(enemy);
+            }
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[HeartChange] prepared intent rewrite failed: " + ex.Message);
         }
     }
 

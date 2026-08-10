@@ -59,6 +59,7 @@ public static class TerriasHookTargets
     public const string EnemyInit = "Enemy.Init";
     public const string EnemyManagerAddEnemy = "EnemyManager.AddEnemy";
     public const string OtherObjDoOneAction = "OtherObj.DoOneAction";
+    public const string OtherObjSetAction = "OtherObj.SetAction";
     public const string SkillItemTrueUse = "SkillItem.TrueUse";
     public const string SkillItemTryUse = "SkillItem.TryUse";
     public const string ScriptExecutorUpdateSkillTime = "ScriptExecutor.UpdateSkillTime";

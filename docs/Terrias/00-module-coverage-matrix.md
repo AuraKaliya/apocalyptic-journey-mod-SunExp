@@ -62,7 +62,7 @@
 | 百变 | polymorph 配置、卡牌/Buff | `Polymorph*Service/Runtime`、Role registry、UI、RPC visual state | shared hooks、UI safety | `SkillItem.TrueUse`、战斗结束边界、角色/UI 对象 | 模块 09 | P1 |
 | 投影 | 投影卡牌、EnemyCard、伙伴意图 | `ProjectionScripts`、Projection* services/runtime、RPC companion | shared hooks、online patterns | `CommonCardItem.OnBeginDrag/UseCardDirectly`、`FightPlayer.TurnInit`、战斗边界 | 模块 09 | P1 |
 | 精灵球与精灵 | 精灵球、动态精灵卡、精灵意图/捕获注册表 | `SpiritCapture*`、`SpiritCardFactory`、`SpiritSummon*`、Spirit runtime/RPC | shared hooks、online authority、payload budget | `AttackCardItem.TrueUse`、`StatusManager.CheckDead/EnemyDead`、`EnemyManager.AddEnemy`、`DictionaryUI`、战斗边界 | 模块 08 | P0 |
-| 心变 | 心变卡牌、Buff、EnemyCard | `HeartChangeScripts`、Control/Intent services/runtime | shared hooks | `ScriptExecutor.SetStatus/RunScript`、战斗边界 | 模块 09 | P1 |
+| 心变 | 心变卡牌、Buff | `HeartChangeControlService`、`HeartChangeControlRuntime` | shared hooks | `OtherObj.SetAction`、`ScriptExecutor.SetStatus/RunScript`、战斗边界 | 模块 09 | P1 |
 | 地图事件与对话 | EventList、Map、Dialogue | `EventScripts`、DialogueFlow*、MapItem API | shared hooks、Journey 仅模式路径 | `MapItem.Init`、`DialogueUI.ChooseOption`、`MapSelectUI` | 模块 10 | P1 |
 | Boss、敌人意图与奖励 | Enemy、EnemyCard、Buff、Level | `BossScripts`、BattleReward*、敌人池/意图服务 | BGM arbiter、shared hooks | `BattleRewardsUI.Entry/ModeSetReward`、敌人 Card/Status 流程 | 模块 10 | P1 |
 | 卡牌表现与卡框 | visual registry、图片、VisualBundle | CardVisual registries、presentation routers、`Hooks/Visual` | shared scheduler/log/UI | `CardChoiceItem.Initialize`、CardItem 生命周期、`FightUI.UpdateCardItemPos` | 模块 11 | P1 |

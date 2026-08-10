@@ -295,8 +295,6 @@ public static class TerriasIds
     public const string HeartChangeBuffShortId = "heart_change_control";
     public const string HeartChangeBuffId = "Terrias_terrias_heart_change_control";
     public const string HeartChangeCardIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/xin_bian";
-    public const string HeartChangeActionStrike = "heart_change_strike";
-    public const string HeartChangeActionStrikeCardId = "Terrias_terrias_enemycard_heart_change_strike";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
     public const string ProjectionActionStaffCombo = "staff_combo";

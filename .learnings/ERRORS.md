@@ -33,6 +33,79 @@ a shared helper before referencing them.
 - **Notes**: Added the derivation inside `BuildFoundationHtml`; the net472 build passed.
 
 ---
+## [ERR-20260810-001] decompile-root-layout
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A decompile audit assumed the snapshot had an `output` wrapper directory, but the assembly project folders live directly under the version root.
+
+### Error
+```text
+rg: .\开发参考资料\反编译文件夹v1.0.24605918\output: 系统找不到指定的文件。
+```
+
+### Context
+- `Test-GameManagedDecompile.ps1` accepts the version root as `-DecompilePath`.
+- Decompiled projects such as `Witch`, `Witch.Core`, and `AllScripts` are immediate children of that root.
+
+### Suggested Fix
+Search from the version root and avoid appending `output` unless the manifest explicitly records that layout.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-GameManagedDecompile.ps1
+
+---
+## [ERR-20260810-002] ripgrep-context-flag
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+An audit passed PowerShell's `-Context` syntax to ripgrep, whose context flag is `-C <number>`.
+
+### Error
+```text
+rg: error parsing flag -C: value is not a valid number
+```
+
+### Suggested Fix
+Use `rg -C 5 PATTERN PATH`, or pipe to `Select-String -Context 5,12` when asymmetric context is useful.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+---
+## [ERR-20260810-003] policy-blocked-temp-delete
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A verified non-recursive `Remove-Item` cleanup was rejected by the command policy.
+
+### Error
+```text
+rejected: blocked by policy
+```
+
+### Suggested Fix
+Use `apply_patch` with `Delete File` for temporary files created during the current task.
+
+### Metadata
+- Reproducible: unknown
+- Related Files: tmp/game-managed-api-1.0.23816797-to-1.0.24605918.json, tmp/game-managed-api-1.0.23816797-to-1.0.24605918.md
+
+---
 ## [ERR-20260807-035] powershell-foreach-pipeline
 
 **Logged**: 2026-08-07T19:45:00+08:00
@@ -4904,5 +4977,64 @@ For exploratory searches that may legitimately find nothing, normalize ripgrep e
 - Reproducible: yes
 - Related Files: none
 - Recurrence-Count: 2
+
+---
+
+## [ERR-20260810-004] combat-ai-foundation-package-validation
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: medium
+**Status**: pending
+**Area**: tests
+
+### Summary
+The `combat-ai` shared release gate passed behavior and knowledge checks but failed on a bundled foundation model package with an invalid FP32 weight manifest.
+
+### Error
+```text
+Bundled foundation package protocol validation failed:
+AuraToolsExp/ModResource/Model/阿米莉娅 [career_1]/报丧偈羽 [Partner_10001]/通用底模/foundation-model-package-v5.json:
+底模网络为空或 FP32 权重清单无效：FP32 权重清单字段或尺寸无效
+```
+
+### Context
+- Command: `tools/Test-SharedReleaseGate.ps1 -Profile combat-ai`
+- `shared-runtime-build`, `combat-ai-behavior` (655 assertions), and `combat-ai-knowledge` passed first.
+- The failure occurred in `combat-ai-training-artifacts`, outside the Projection/Spirit/HeartChange runtime code path.
+
+### Suggested Fix
+Inspect or regenerate the bundled `foundation-model-package-v5.json` and verify that its network metadata and FP32 tensor manifest agree on field names and dimensions.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp/ModResource/Model/阿米莉娅 [career_1]/报丧偈羽 [Partner_10001]/通用底模/foundation-model-package-v5.json
+
+---
+
+## [ERR-20260810-005] terrias-validator-path
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The Terrias content validator was invoked from `tools/`, but the script belongs to the project-local Terrias skill.
+
+### Error
+```text
+The term '.\tools\validate-terrias.ps1' is not recognized as a name of a cmdlet, function, script file, or executable program.
+```
+
+### Context
+- Incorrect command: `tools/validate-terrias.ps1`
+- Actual path: `.codex/skills/terrias-mod-dev/scripts/validate-terrias.ps1`
+
+### Suggested Fix
+Run the validator from its project-local skill path.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .codex/skills/terrias-mod-dev/scripts/validate-terrias.ps1
 
 ---

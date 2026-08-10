@@ -154,7 +154,6 @@ public static class CompanionSceneLifecycleRuntime
     {
         DestroyAll<ProjectionOtherObj>();
         DestroyAll<SpiritOtherObj>();
-        DestroyAll<ProjectionTurnAnchorObj>();
     }
 
     private static void DestroyAll<T>()
@@ -181,7 +180,7 @@ public static class CompanionSceneLifecycleRuntime
             return new CompanionArtifactSnapshot(
                 CountSceneObjects<ProjectionOtherObj>(),
                 CountSceneObjects<SpiritOtherObj>(),
-                CountSceneObjects<ProjectionTurnAnchorObj>(),
+                0,
                 CountSceneObjects<ProjectionVisualProxy>(component =>
                     component.gameObject.name.StartsWith(
                         "Terrias_ProjectionVisualProxy:",

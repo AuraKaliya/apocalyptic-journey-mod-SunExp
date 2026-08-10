@@ -36,20 +36,29 @@
 
 ## Projection、Spirit 与 HeartChange 联机行动
 
-- 主客机同时拥有 Projection turn anchor；其 status ID、队列位置和
-  `ObjectAction.allCards` 顺序一致。只有主机执行同伴逻辑，客户端只消费原生意图。
-- Projection 在整场战斗中保持完整、稳定排序的卡牌目录，只用冷却选择本回合卡；
-  Spirit 保持同一个行动牌槽位，不通过替换 `FightAction` 改变目录。
-- 同轮创建 Projection/Spirit 后，主机发送意图前客户端必须已建立相同卡牌 ID；
-  不得出现 revision 已消费但解析为空，或 pending batch 永久等待。
-- HeartChange 保持原生 Enemy 作为 `ActionQueue` 与批量意图身份，proxy 只在
-  before-action hook 执行。主机下发的 intent count 在客机复用，不能由客机竞争计算。
-- 重连、重开战斗和连续两次 HeartChange 后，不得残留旧 anchor、proxy、statusData
-  或重复行动；协议版本不匹配时必须拒绝并记录日志。
+- Projection 与 Spirit 本体都以 `Partner` 进入第一个 Enemy 之前，不再创建 turn anchor；
+  官方 Partner、Projection、Spirit 均遵循宿主原生 Partner 队列快照。
+- Projection 在召唤卡完整结算后深复制玩家当前能量、手牌、等待区、抽牌堆、弃牌堆、
+  焚毁区、卡牌运行时数据和附加物。第一回合不刷新能量且不额外抽牌。
+- Projection 不展示意图，只有主机运行 Actor 自动决策。目标失效只屏蔽对应候选，
+  卡牌或无界面行为失败按更大作用域屏蔽；无合法动作、连续失败 3 次或超时后必须结束，
+  不能等待玩家接管。已提交动作不得重放。
+- 每次 Projection 卡牌提交、回合完成和回合推进都广播牌局快照；客机只水合状态，
+  且卡牌 revision 必须单调，乱序旧快照不得覆盖新状态。客机在伙伴 `TurnIndex`
+  推进前不得进入下一行动；断线或丢包时必须由等待上限释放，不能永久卡住。
+- Spirit 保留独立属性、生命、资源和意图池，固定显示在拥有者右上角；右侧竖向生命条
+  自下而上填充，常驻 Buff 列表隐藏，鼠标悬停时显示游戏原生状态面板。
+- Projection 与 Spirit 可以同时存在。Projection 占正式友方阵位，Spirit 使用固定附着位；
+  两者都是独立友方目标，且各自在原生 Partner 阶段行动。
+- HeartChange 保持原生 Enemy 的对象、位置、队列身份、卡池、冷却和行动次数，不创建
+  proxy 或友方槽。原生意图生成后只改写目标：有害行动指向其他未受控敌人，有益行动
+  指向玩家、Projection 或 Spirit，Self 行动保持自身；完成一次原生行动后解除控制。
+- 重连、重开战斗后不得残留旧 anchor、HeartChange proxy 或重复行动；协议版本不匹配、
+  战斗 epoch 失效和投影牌局协议不一致时必须拒绝并记录日志。
 
 ## 主客机回归
 
 - 分别覆盖主机一人、主机加一名客户端、两名客户端三个场景。
-- 每轮记录 `ActionQueue` status ID、revision、card ID 和 allCards 哈希，确认所有节点一致。
+- 每轮记录 `ActionQueue` status ID、伙伴 revision 和 Projection card-state revision，确认所有节点一致。
 - 覆盖官方 Partner、Projection、Spirit、HeartChange 两两组合以及三者同时存在。
 - 断线重连后重新建立目录与 revision；不得接受旧战斗或其他玩家的意图。

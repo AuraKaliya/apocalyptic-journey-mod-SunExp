@@ -6,8 +6,7 @@ public static class CompanionPositionOwnershipService
 {
     public static bool HasForOwner(string ownerPlayerId, string ownerStatusId = "")
     {
-        return ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId)
-            || SpiritStateStore.HasForOwner(ownerPlayerId, ownerStatusId);
+        return ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId);
     }
 
     public static bool IsCompanion(IStatusManager? status)

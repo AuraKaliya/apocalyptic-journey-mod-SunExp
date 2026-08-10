@@ -10,7 +10,7 @@ using Witch.UI;
 
 namespace Terrias.Dll.Mechanics;
 
-public sealed class SpiritOtherObj : OtherObj
+public sealed class SpiritOtherObj : Partner
 {
     private static readonly object PresentationCacheLock = new();
     private static readonly Dictionary<string, Dictionary<string, string>> PresentationTemplates =
@@ -48,8 +48,8 @@ public sealed class SpiritOtherObj : OtherObj
         base.Init(config, 0f, Math.Max(0, slotIndex));
         Attack = stats.Attack;
         Defend = 0;
-        MaxHp = 1;
-        CurHp = 1;
+        MaxHp = stats.MaxHp;
+        CurHp = stats.MaxHp;
         MaxActionCount = 1;
         ActionCount = 1;
         InstanceId = string.IsNullOrWhiteSpace(statusId) ? SpiritStateStore.NextStatusId() : statusId.Trim();
@@ -109,12 +109,18 @@ public sealed class SpiritOtherObj : OtherObj
 
     public override IEnumerator DoAction()
     {
-        if (!CompanionAuthorityService.IsAuthoritative() || !ProjectionEffectContextService.IsOwnerAvailable(battleState))
+        FightManager.Instance?.ChangeUnit(FightType.Partner);
+        if (!CompanionAuthorityService.IsAuthoritative())
         {
+            yield return WaitForAuthoritativeTurnCompletion();
+            yield break;
+        }
+        if (!ProjectionEffectContextService.IsOwnerAvailable(battleState))
+        {
+            CompleteSkippedTurn("OwnerUnavailable");
             yield break;
         }
 
-        FightManager.Instance?.ChangeUnit(FightType.Partner);
         if (Status.state == IStatusManager.State.Dead)
         {
             yield break;
@@ -128,6 +134,8 @@ public sealed class SpiritOtherObj : OtherObj
         var plan = battleState?.CurrentPlan;
         if (plan == null || plan.IsWait || !CompanionIntentExecutor.CanExecute(plan))
         {
+            battleState?.Stats.RecoverMagic(1);
+            battleState?.AdvanceTurn();
             RefreshIntent("DoAction.NoExecutableIntent");
             yield break;
         }
@@ -175,6 +183,36 @@ public sealed class SpiritOtherObj : OtherObj
         {
             TerriasLog.Warn("[Spirit] intent refresh failed from " + source + ": " + ex.Message);
         }
+    }
+
+    private IEnumerator WaitForAuthoritativeTurnCompletion()
+    {
+        var expectedTurn = (battleState?.TurnIndex ?? 0) + 1;
+        var deadline = Time.unscaledTime + 15f;
+        while (Time.unscaledTime < deadline
+               && (battleState?.TurnIndex ?? 0) < expectedTurn
+               && Status != null
+               && Status.state != IStatusManager.State.Dead
+               && FightManager.Instance != null
+               && FightManager.Instance.fightType is not (FightType.None
+                   or FightType.Win
+                   or FightType.Loss
+                   or FightType.Escape))
+        {
+            yield return null;
+        }
+        if ((battleState?.TurnIndex ?? 0) < expectedTurn)
+        {
+            TerriasLog.Warn("[Spirit] remote turn wait timed out: " + InstanceId);
+        }
+    }
+
+    private void CompleteSkippedTurn(string source)
+    {
+        battleState?.AdvanceTurn();
+        SpiritSummonService.BroadcastRuntimeState(
+            this,
+            "ActorTurnSkipped." + source);
     }
 
     private void RebuildAction(string cardId, int priority)

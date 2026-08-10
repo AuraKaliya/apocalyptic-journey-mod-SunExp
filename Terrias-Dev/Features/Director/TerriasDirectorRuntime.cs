@@ -49,7 +49,7 @@ public static class TerriasDirectorRuntime
                 return null;
             }
 
-            var friendlyStatuses = CompanionFriendlyRosterService.Snapshot(includeControlled: false);
+            var friendlyStatuses = CompanionFriendlyRosterService.Snapshot();
             var enemies = EnemyManager.Instance?.enemyList;
             if (friendlyStatuses.Count == 0 || enemies == null || enemies.Count == 0)
             {

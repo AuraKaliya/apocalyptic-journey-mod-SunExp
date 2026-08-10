@@ -226,13 +226,6 @@ public static class SpiritSummonService
             return false;
         }
 
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner.InstanceId);
-        if (ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
-        {
-            reason = "投影位置已被占用。";
-            return false;
-        }
-
         reason = "";
         return true;
     }
@@ -249,12 +242,6 @@ public static class SpiritSummonService
         ScriptExecutor? preferredExecutor = null)
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
-        if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
-        {
-            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, "position-occupied", broadcast, source, preferredExecutor);
-            return false;
-        }
-
         var outgoing = SpiritStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
         var generation = NextGeneration(ownerPlayerId, ownerStatusId);
         var statusId = SpiritStateStore.NextStatusId();
@@ -495,6 +482,8 @@ public static class SpiritSummonService
             OwnerStatusId = spirit.OwnerStatusId,
             OwnerPlayerId = spirit.OwnerPlayerId,
             StatusId = spirit.InstanceId,
+            MaxHp = spirit.MaxHp,
+            CurrentHp = spirit.CurHp,
             Attack = spirit.Attack,
             Armor = state?.Stats.Armor ?? 1,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
@@ -519,6 +508,11 @@ public static class SpiritSummonService
         state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
         state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
         state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
+        spirit.MaxHp = Math.Max(1, snapshot.MaxHp);
+        spirit.CurHp = Math.Max(0, Math.Min(spirit.MaxHp, snapshot.CurrentHp));
+        spirit.Attack = snapshot.Attack;
+        spirit.Defend = Math.Max(0, snapshot.Armor);
+        spirit.Status?.UpdateStatus(true);
         CompanionThreatService.ApplyAuthoritative(snapshot.Threat);
         spirit.ActivateAfterHydration(snapshot.IntentPlan, source);
     }
@@ -812,7 +806,6 @@ public static class SpiritSummonService
     {
         return (reason ?? "") switch
         {
-            "position-occupied" => "投影位置已被占用。",
             "protocol-mismatch" => "召唤协议版本不一致。",
             "battle-epoch-mismatch" => "当前战斗状态已失效，请重新使用。",
             "registry-mismatch" => "精灵行动配置不一致。",

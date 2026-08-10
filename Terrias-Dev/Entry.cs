@@ -144,7 +144,6 @@ public static class Entry
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.EventScripts'), 'Terrias EventScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.BossScripts'), 'Terrias BossScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.ProjectionScripts'), 'Terrias ProjectionScripts unavailable');"
-                + "assert(xlua.import_type('Terrias.Dll.Scripting.HeartChangeScripts'), 'Terrias HeartChangeScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.BuffScripts'), 'Terrias BuffScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.RelicScripts'), 'Terrias RelicScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.FamiliarGrowthScripts'), 'Terrias FamiliarGrowthScripts unavailable');"

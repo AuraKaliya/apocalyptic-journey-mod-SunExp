@@ -18,7 +18,6 @@ internal static class CompanionPresentationCleanup
 
         SuppressActors<ProjectionOtherObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.Projection);
         SuppressActors<SpiritOtherObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.Spirit);
-        SuppressActors<ProjectionTurnAnchorObj>(suppressedRoots, suppressedUi, result, CompanionArtifactKind.TurnAnchor);
         SuppressVisualProxies(suppressedRoots, result);
 
         return new CompanionPresentationSuppression(

@@ -34,18 +34,14 @@ public readonly struct ProjectionTurnQueueSnapshot
 
     public int DirectSpiritCount { get; }
 
-    public bool IsIsolated => AnchorCount == 1
-                              && DirectProjectionCount == 0
-                              && DirectSpiritCount == 0;
+    public bool IsIsolated => AnchorCount == 0;
 }
 
 public static class ProjectionTurnQueuePolicy
 {
-    public static bool ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind kind)
+    public static bool ShouldRemoveLegacyAnchor(ProjectionTurnQueueKind kind)
     {
-        return kind == ProjectionTurnQueueKind.TerriasAnchor
-               || kind == ProjectionTurnQueueKind.TerriasProjection
-               || kind == ProjectionTurnQueueKind.TerriasSpirit;
+        return kind == ProjectionTurnQueueKind.TerriasAnchor;
     }
 
     public static ProjectionTurnQueueSnapshot Analyze(IEnumerable<ProjectionTurnQueueKind>? kinds)

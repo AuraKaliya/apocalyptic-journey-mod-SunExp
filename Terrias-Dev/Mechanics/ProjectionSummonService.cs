@@ -15,7 +15,7 @@ public static class ProjectionSummonService
 {
     private const string RejectProtocolMismatch = "projection protocol mismatch";
     private const string RejectBattleEpochMismatch = "projection battle epoch mismatch";
-    private const string RejectIntentRegistryMismatch = "projection intent registry mismatch";
+    private const string RejectIntentRegistryMismatch = "projection card runtime mismatch";
     private const string RejectUnknownRolePrefix = "unknown role:";
     private const string RejectOwnerAlreadyHasProjection = "owner already has projection";
     private const string RejectMissingOwnerStatus = "missing owner status";
@@ -89,7 +89,7 @@ public static class ProjectionSummonService
         {
             rejection = RejectBattleEpochMismatch;
         }
-        else if (!string.Equals(registryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
+        else if (!string.Equals(registryHash, ProjectionCardBattleState.ProtocolIdentity, StringComparison.Ordinal))
         {
             rejection = RejectIntentRegistryMismatch;
         }
@@ -145,7 +145,7 @@ public static class ProjectionSummonService
 
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || !string.Equals(snapshot.RegistryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
+            || !string.Equals(snapshot.RegistryHash, ProjectionCardBattleState.ProtocolIdentity, StringComparison.Ordinal))
         {
             TerriasLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
                 + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
@@ -185,19 +185,10 @@ public static class ProjectionSummonService
                 ["Name_en"] = role.DisplayName + " Projection",
                 ["Name_ja"] = role.DisplayName + "の投影",
                 ["Attack"] = activeStats.Attack.ToString(),
-                ["Defend"] = "0",
-                ["Hp"] = "1",
-                ["ActionCount"] = "1",
-                ["CardList"] = string.Join(",", new[]
-                {
-                    TerriasIds.ProjectionActionStaffTapCardId,
-                    TerriasIds.ProjectionActionShieldBlessingCardId,
-                    TerriasIds.ProjectionActionStaffComboCardId,
-                    TerriasIds.ProjectionActionMagicInterferenceCardId,
-                    TerriasIds.ProjectionActionYouAreEnhancedCardId,
-                    TerriasIds.ProjectionActionChargeCardId,
-                    TerriasIds.ProjectionActionHolyHealCardId
-                })
+                ["Defend"] = activeStats.Armor.ToString(),
+                ["Hp"] = activeStats.MaxHp.ToString(),
+                ["ActionCount"] = "0",
+                ["CardList"] = ""
             }
         });
         return result.Instance as DataConfig
@@ -234,7 +225,7 @@ public static class ProjectionSummonService
         string preferredOwnerPlayerId = "")
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
-        if (CompanionPositionOwnershipService.HasForOwner(ownerPlayerId, ownerStatusId))
+        if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
         {
             var sent = BroadcastRejectIfNeeded(
                 role.Id,
@@ -336,8 +327,8 @@ public static class ProjectionSummonService
             if (snapshot == null)
             {
                 projection.Status.UpdateStatus(true);
-                CompanionThreatService.Register(CompanionBattleStateStore.Find(projection.InstanceId)!);
                 projection.ActivateAfterHydration(null, source + ".AuthoritativeInit");
+                projection.BeginCardStateCapture();
             }
             else
             {
@@ -428,7 +419,7 @@ public static class ProjectionSummonService
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            RegistryHash = CompanionIntentRegistry.RegistryHash,
+            RegistryHash = ProjectionCardBattleState.ProtocolIdentity,
             Revision = state?.Revision ?? 0,
             Accepted = true,
             RoleId = projection.RoleId,
@@ -436,18 +427,17 @@ public static class ProjectionSummonService
             OwnerStatusId = projection.OwnerStatusId,
             StatusId = projection.InstanceId,
             SlotIndex = state?.SlotIndex ?? -1,
-            MaxHp = 1,
-            CurrentHp = 1,
+            MaxHp = projection.MaxHp,
+            CurrentHp = projection.CurHp,
             Attack = projection.Attack,
-            Armor = 0,
+            Armor = projection.Defend,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
             CurrentMagic = state?.Stats.CurrentMagic ?? 0,
             TurnIndex = state?.TurnIndex ?? 0,
             ReadyOnTurn = state == null
                 ? new Dictionary<string, int>()
                 : state.ReadyOnTurnSnapshot().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
-            Threat = CompanionThreatService.Export(projection.InstanceId),
-            IntentPlan = state?.CurrentPlan
+            CardState = projection.ExportCardState()
         };
     }
 
@@ -464,11 +454,14 @@ public static class ProjectionSummonService
         state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
         if (projection.Status != null)
         {
-            projection.Status.CurHp = 1;
+            projection.MaxHp = Math.Max(1, snapshot.MaxHp);
+            projection.CurHp = Math.Max(0, Math.Min(projection.MaxHp, snapshot.CurrentHp));
+            projection.Attack = snapshot.Attack;
+            projection.Defend = Math.Max(0, snapshot.Armor);
             projection.Status.UpdateStatus(true);
         }
-        CompanionThreatService.ApplyAuthoritative(snapshot.Threat);
-        projection.ActivateAfterHydration(snapshot.IntentPlan, source);
+        projection.HydrateCardState(snapshot.CardState, source);
+        projection.ActivateAfterHydration(null, source);
     }
 
     private static IStatusManager? StatusById(string statusId)

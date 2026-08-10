@@ -188,14 +188,14 @@ internal static class Program
     private static void TestProjectionTurnQueuePolicy()
     {
         var nativePartner = ProjectionTurnQueueKind.NativePartner;
-        False(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(nativePartner),
-            "Terrias anchor installation never removes a native Partner action unit");
-        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasProjection),
-            "Terrias projections execute through the anchor instead of the native queue");
-        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasSpirit),
-            "Terrias spirits execute through the anchor instead of the native queue");
-        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasAnchor),
-            "anchor installation replaces stale Terrias anchors");
+        False(ProjectionTurnQueuePolicy.ShouldRemoveLegacyAnchor(nativePartner),
+            "native Partner action units remain in the native queue");
+        False(ProjectionTurnQueuePolicy.ShouldRemoveLegacyAnchor(ProjectionTurnQueueKind.TerriasProjection),
+            "Terrias projections remain directly queued in the Partner phase");
+        False(ProjectionTurnQueuePolicy.ShouldRemoveLegacyAnchor(ProjectionTurnQueueKind.TerriasSpirit),
+            "Terrias spirits remain directly queued in the Partner phase");
+        True(ProjectionTurnQueuePolicy.ShouldRemoveLegacyAnchor(ProjectionTurnQueueKind.TerriasAnchor),
+            "native Partner queue cleanup removes stale Terrias anchors");
 
         var isolated = ProjectionTurnQueuePolicy.Analyze(new[]
         {
@@ -203,22 +203,24 @@ internal static class Program
             ProjectionTurnQueueKind.NativePartner,
             ProjectionTurnQueueKind.NativePartner,
             ProjectionTurnQueueKind.Other,
-            ProjectionTurnQueueKind.TerriasAnchor
+            ProjectionTurnQueueKind.TerriasProjection,
+            ProjectionTurnQueueKind.TerriasSpirit
         });
-        True(isolated.IsIsolated, "one Terrias anchor can coexist with native partners without queue ownership overlap");
+        True(isolated.IsIsolated, "direct Terrias partners coexist without a hidden anchor");
         Equal(2, isolated.NativePartnerCount, "queue diagnostics preserve all native Partner action units");
+        Equal(1, isolated.DirectProjectionCount, "queue diagnostics preserve the direct projection actor");
+        Equal(1, isolated.DirectSpiritCount, "queue diagnostics preserve the direct spirit actor");
 
         var conflicted = ProjectionTurnQueuePolicy.Analyze(new[]
         {
             ProjectionTurnQueueKind.NativePartner,
-            ProjectionTurnQueueKind.TerriasAnchor,
             ProjectionTurnQueueKind.TerriasProjection,
             ProjectionTurnQueueKind.TerriasSpirit,
             ProjectionTurnQueueKind.TerriasAnchor
         });
-        False(conflicted.IsIsolated, "duplicate anchors and directly queued Terrias actors are reported as conflicts");
+        False(conflicted.IsIsolated, "any stale anchor is reported as a native Partner queue conflict");
         Equal(1, conflicted.NativePartnerCount, "conflict diagnostics do not classify native Partner as a Terrias actor");
-        Equal(2, conflicted.AnchorCount, "conflict diagnostics expose duplicate Terrias anchors");
+        Equal(1, conflicted.AnchorCount, "conflict diagnostics expose the stale Terrias anchor");
     }
 
     private static void TestSolarMemoryRoleCommitPendingState()

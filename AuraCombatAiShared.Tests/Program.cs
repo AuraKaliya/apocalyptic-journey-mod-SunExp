@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using static CombatAiTestFixtures;
 
 ResetAssertions();
+CombatAgentRuntimeBehaviorTests.Run();
 CombatAiDecisionBehaviorTests.Run();
 RuntimeDecisionSafetyBehaviorTests.Run();
 SemanticCausalityBehaviorTests.Run();

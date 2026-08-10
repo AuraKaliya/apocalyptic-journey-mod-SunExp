@@ -20,6 +20,8 @@ public sealed class SpiritCompanionSnapshot
     public string OwnerPlayerId { get; set; } = "";
     public string StatusId { get; set; } = "";
     public bool Accepted { get; set; }
+    public int MaxHp { get; set; }
+    public int CurrentHp { get; set; }
     public int Attack { get; set; }
     public int Armor { get; set; }
     public int MaxMagic { get; set; }

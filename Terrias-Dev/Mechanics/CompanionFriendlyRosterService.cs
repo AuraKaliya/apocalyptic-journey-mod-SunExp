@@ -13,7 +13,8 @@ public static class CompanionFriendlyRosterService
 {
     private const int InitialCapacity = 4;
 
-    public static IReadOnlyList<IStatusManager> Snapshot(bool includeControlled = true)
+    public static IReadOnlyList<IStatusManager> Snapshot(
+        bool includeCompanions = true)
     {
         var result = new List<IStatusManager>(InitialCapacity);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -39,27 +40,35 @@ public static class CompanionFriendlyRosterService
         }
 
         Add(result, seen, FightPlayer.Instance?.Status);
-        if (includeControlled)
+        if (includeCompanions)
         {
-            foreach (var entry in HeartChangeControlService.ActiveSlotStatuses()
-                         .OrderBy(entry => entry.Key)
-                         .ThenBy(entry => entry.Value?.InstanceId, StringComparer.Ordinal))
+            foreach (var state in ProjectionStateStore.Active()
+                         .OrderBy(entry => entry.OwnerPlayerId, StringComparer.Ordinal)
+                         .ThenBy(entry => entry.StatusId, StringComparer.Ordinal))
             {
-                Add(result, seen, entry.Value);
+                Add(result, seen, state.Projection?.Status);
+            }
+            foreach (var state in SpiritStateStore.Active()
+                         .OrderBy(entry => entry.OwnerPlayerId, StringComparer.Ordinal)
+                         .ThenBy(entry => entry.StatusId, StringComparer.Ordinal))
+            {
+                Add(result, seen, state.Spirit?.Status);
             }
         }
 
         return result;
     }
 
-    public static bool Contains(IStatusManager? target, bool includeControlled = true)
+    public static bool Contains(
+        IStatusManager? target,
+        bool includeCompanions = true)
     {
         if (target == null || string.IsNullOrWhiteSpace(target.InstanceId))
         {
             return false;
         }
 
-        return Snapshot(includeControlled).Any(candidate =>
+        return Snapshot(includeCompanions).Any(candidate =>
             string.Equals(candidate.InstanceId, target.InstanceId, StringComparison.Ordinal));
     }
 
