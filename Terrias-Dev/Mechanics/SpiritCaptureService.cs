@@ -134,23 +134,16 @@ public static class SpiritCaptureService
             return;
         }
 
-        var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
-        if (executor == null || FightPlayer.Instance?.Status == null)
+        var recorded = SpiritCollectionApi.RecordCapture(state.CapturedEnemy, state.Token);
+        if (!recorded.Success)
         {
-            TerriasLog.Warn("[SpiritCapture] owner executor unavailable while applying " + source + ".");
+            PlayerApi.ShowCaption("精灵球：捕获已结算，但精灵档案同步失败。");
+            TerriasLog.Warn("[SpiritCapture] network collection write failed: " + recorded.Reason);
             return;
         }
 
-        executor.Self = FightPlayer.Instance.Status;
-        var granted = SpiritCardFactory.GrantCapturedToHand(executor, state.CapturedEnemy);
-        if (!granted.Success)
-        {
-            PlayerApi.ShowCaption("精灵球：捕获已结算，但精灵卡同步失败。");
-            TerriasLog.Warn("[SpiritCapture] network card grant failed: " + granted.FailureReason);
-            return;
-        }
-
-        PlayerApi.ShowCaption("精灵球：成功捕获【" + state.CapturedEnemy.DisplayName + "】。");
+        PlayerApi.ShowCaption("精灵球：成功捕获【" + state.CapturedEnemy.DisplayName + "】，已进入"
+                              + (recorded.AddedToParty ? "携带背包。" : "精灵仓库。"));
     }
 
     private static bool ResolveLocal(
@@ -167,11 +160,11 @@ public static class SpiritCaptureService
             return false;
         }
 
-        var granted = SpiritCardFactory.GrantCapturedToHand(self, snapshot);
-        if (!granted.Success)
+        var recorded = SpiritCollectionApi.RecordCapture(snapshot, seed);
+        if (!recorded.Success)
         {
-            PlayerApi.ShowCaption("精灵球：精灵卡生成失败，本次捕获未结算。");
-            TerriasLog.Warn("[SpiritCapture] card grant failed: step=" + granted.FailureStep + ", reason=" + granted.FailureReason);
+            PlayerApi.ShowCaption("精灵球：精灵档案写入失败，本次捕获未结算。");
+            TerriasLog.Warn("[SpiritCapture] collection write failed: " + recorded.Reason);
             return false;
         }
 
@@ -179,8 +172,9 @@ public static class SpiritCaptureService
         LogProfileResolution(snapshot, resolution, "local");
         var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile);
         PlayerApi.ShowCaption(settled
-            ? "精灵球：成功捕获【" + snapshot.DisplayName + "】。"
-            : "精灵球：已获得精灵卡，但敌人结算使用了兼容兜底。");
+            ? "精灵球：成功捕获【" + snapshot.DisplayName + "】，已进入"
+              + (recorded.AddedToParty ? "携带背包。" : "精灵仓库。")
+            : "精灵球：精灵已记录，但敌人离场结算使用了兼容兜底。");
         return true;
     }
 

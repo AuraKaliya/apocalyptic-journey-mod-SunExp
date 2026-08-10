@@ -71,6 +71,48 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && CombatFoundationMemoryExecutionPolicy
                    .SelectModelTrainingParallelism(32, ampleMemory) == 32,
             "memory-first execution restarts constrained workers every iteration and bounds model-training concurrency without penalizing ample-memory hosts");
+        var recoveredMemory = new CombatFoundationResourceSnapshot
+        {
+            TotalPhysicalMemoryBytes = 32L * 1024L * 1024L * 1024L,
+            AvailablePhysicalMemoryBytes = 20L * 1024L * 1024L * 1024L
+        };
+        var healthyRamp = CombatFoundationMemoryExecutionPolicy.SelectAdaptive(
+            3,
+            32,
+            recoveredMemory,
+            new CombatFoundationSegmentResourceObservation
+            {
+                IterationsPerProcess = 1,
+                ModelTrainingParallelism = 12,
+                WorkerPeakWorkingSetBytes = 3L * 1024L * 1024L * 1024L,
+                TransformerPeakWorkingSetBytes =
+                    2L * 1024L * 1024L * 1024L,
+                GcHeapSizeBytes = 2L * 1024L * 1024L * 1024L,
+                GcFragmentedBytes = 128L * 1024L * 1024L
+            });
+        var pressureBackoff = CombatFoundationMemoryExecutionPolicy
+            .SelectAdaptive(
+                3,
+                32,
+                recoveredMemory,
+                new CombatFoundationSegmentResourceObservation
+                {
+                    IterationsPerProcess = 2,
+                    ModelTrainingParallelism = 20,
+                    WorkerPeakWorkingSetBytes =
+                        3L * 1024L * 1024L * 1024L,
+                    TransformerPeakWorkingSetBytes =
+                        2L * 1024L * 1024L * 1024L,
+                    GcHeapSizeBytes = 2L * 1024L * 1024L * 1024L,
+                    GcFragmentedBytes = 1L * 1024L * 1024L * 1024L
+                });
+        Assert(healthyRamp.IterationsPerProcess == 2
+               && healthyRamp.ModelTrainingParallelism == 20
+               && healthyRamp.Mode == "observed-healthy-ramp"
+               && pressureBackoff.IterationsPerProcess == 1
+               && pressureBackoff.ModelTrainingParallelism == 12
+               && pressureBackoff.Mode == "pressure-backoff",
+            "process isolation ramps from measured healthy segments and immediately backs off under fragmentation pressure");
         var signedTransformerSeedPlan = CombatFoundationSeedPlan.Create(
             signedTransformerRunSeed,
             2_000_000UL);
@@ -2620,7 +2662,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         };
         Assert(workerProtocolJob.SchemaVersion
                    == CombatFoundationWorkerProtocol.SchemaVersion
-               && CombatFoundationWorkerProtocol.SchemaVersion == 16
+               && CombatFoundationWorkerProtocol.SchemaVersion == 17
                && CombatFoundationTerminalCreditProtocol.Version
                   == "terminal-credit-v2"
                && CombatFoundationCounterfactualProtocol.Version
@@ -4557,7 +4599,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             TuningScreeningAdvancedCampaigns = 16,
             TuningFinalistCount = 2
         }.EstimatedCampaigns();
-        Assert(efficientCampaignEstimate == 2340,
+        Assert(efficientCampaignEstimate == 2084,
             "development campaign estimate counts only scheduled Arena, final confirmation and final tuning work");
         var rebalancedDevelopmentCampaignEstimate = new CombatFoundationTrainingParameters
         {
@@ -4580,7 +4622,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             TuningScreeningAdvancedCampaigns = 16,
             TuningFinalistCount = 2
         }.EstimatedCampaigns();
-        Assert(rebalancedDevelopmentCampaignEstimate == 2004,
+        Assert(rebalancedDevelopmentCampaignEstimate == 1748,
             "development estimate reserves the adaptive capability ceiling while retaining sparse formal evaluation");
         var arenaChampionRuns = new List<CombatCampaignResult>
         {
@@ -4820,6 +4862,43 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                                    40d,
                                    phaseEstimateActive: true) - 40d) < 0.000001d,
             "phase ETA remains a sub-estimate and no longer replaces a larger end-to-end training ETA");
+        var stageAwareEta = CombatCampaignFoundationTrainer.StageAwareEta(
+            elapsedSeconds: 1_000d,
+            completedBattles: 5_000,
+            remainingBattleWork: 2_000d,
+            phaseElapsedSeconds: new Dictionary<string, double>
+            {
+                ["transformer-teacher"] = 300d,
+                ["model-training"] = 100d
+            },
+            currentIteration: 2,
+            totalIterations: 4,
+            currentPhase: "transformer-teacher",
+            currentPhaseRemainingSeconds: 25d);
+        Assert(stageAwareEta.ExpectedSeconds > 600d
+               && stageAwareEta.StageSeconds["simulation"] < 250d
+               && stageAwareEta.StageSeconds["recurring-training"] == 400d
+               && stageAwareEta.StageSeconds["current-phase"] == 25d
+               && stageAwareEta.LowerSeconds < stageAwareEta.ExpectedSeconds
+               && stageAwareEta.UpperSeconds > stageAwareEta.ExpectedSeconds,
+            "stage-aware ETA separates simulation throughput, recurring training, and the active non-simulation phase");
+        Assert(CombatCampaignFoundationTrainer.AutoTuneCacheMissReason(
+                   null,
+                   "expected",
+                   20,
+                   "hardware") == "cache-not-found"
+               && CombatCampaignFoundationTrainer.AutoTuneCacheMissReason(
+                   new CombatFoundationAutoTuneResult
+                   {
+                       HardwareKey = "hardware",
+                       CampaignCacheKey = "old-signature",
+                       SelectedParallelism = 20,
+                       MeasuredUtc = DateTime.UtcNow
+                   },
+                   "expected",
+                   20,
+                   "hardware") == "campaign-signature-changed",
+            "auto-tune cache misses expose an actionable diagnostic instead of a silent full calibration");
         Assert(CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
                    workingCheckpoint: true,
                    bootstrapPromotion: false,
@@ -5728,6 +5807,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         foundationRequest.MaximumDegreeOfParallelism = 4;
         foundationRequest.ValidationCampaign = failingValidationCampaign;
         foundationRequest.RetainValidationRunDetails = false;
+        foundationRequest.EnableEarlyValidationStop = true;
         var priorAdditionalIterationsOnResume =
             foundationRequest.AdditionalIterationsOnResume;
         foundationRequest.AdditionalIterationsOnResume = 0;
@@ -5764,6 +5844,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             campaignRules.Ruleset,
             foundationTraining.Champion);
         foundationRequest.Resume = null;
+        foundationRequest.EnableEarlyValidationStop = false;
         foundationRequest.AdditionalIterationsOnResume =
             priorAdditionalIterationsOnResume;
         Assert(earlyStoppedFoundationTraining.Success

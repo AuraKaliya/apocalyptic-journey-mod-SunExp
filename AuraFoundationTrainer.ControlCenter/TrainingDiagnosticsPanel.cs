@@ -123,7 +123,15 @@ internal sealed class TrainingDiagnosticsPanel
                 + "\r\n派生分析 "
                 + (string.IsNullOrWhiteSpace(result.TrainingAnalysisPath)
                     ? "—"
-                    : result.TrainingAnalysisPath);
+                    : result.TrainingAnalysisPath)
+                + "\r\n能力报告 "
+                + (string.IsNullOrWhiteSpace(result.CapabilityReportPath)
+                    ? "—"
+                    : result.CapabilityReportPath)
+                + "\r\n模拟数据库 "
+                + (string.IsNullOrWhiteSpace(result.SimulationDatabasePath)
+                    ? "—"
+                    : result.SimulationDatabasePath);
         }
         PresentData(training, latestIteration);
         PresentArena(training);
@@ -503,6 +511,10 @@ internal sealed class TrainingDiagnosticsPanel
             + $" · 新待训 {iteration.TransformerTeacher.RefreshFreshPendingFrames:N0}/"
             + $"{iteration.TransformerTeacher.RefreshMinimumFreshFrames:N0}"
             + $" · 最大间隔 {iteration.TransformerTeacher.RefreshInterval} 轮\r\n"
+            + $"教师复用：运行计划 {iteration.TransformerTeacher.RuntimeCalibrationKind}"
+            + $" · 固定锚点评估 {(iteration.TransformerTeacher.ReusedPriorEvaluation ? "复用" : "执行")}"
+            + $" · 标注缓存 {iteration.TransformerTeacher.AnnotationCacheHits:N0}/"
+            + $"{iteration.TransformerTeacher.AnnotationCacheHits + iteration.TransformerTeacher.AnnotationCacheMisses:N0}\r\n"
             + $"策略配额缺口：{strategyShortfall}\r\n"
             + $"行为进展：{(iteration.BehavioralProductiveProgress ? "是" : "否")} · "
             + $"数据管线进展：{(iteration.DataPipelineProgress ? "是" : "否")} · "

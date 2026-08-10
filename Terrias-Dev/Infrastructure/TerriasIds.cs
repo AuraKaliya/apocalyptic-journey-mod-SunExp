@@ -24,6 +24,8 @@ public static class TerriasIds
     public const string WitchArchiveResourceCategory = "ui.witch-archive";
     public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
     public const string FamiliarRunActivePartnerKey = "Terrias_FamiliarRunActivePartner";
+    public const string SpiritProfileDirectory = "SpiritCollectionProfiles";
+    public const string SpiritAdventurePartyKey = "Terrias_SpiritAdventureParty";
 
     public const string SunCardVisualSkinId = "terrias.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "terrias.card_visual.morning_star";
@@ -267,6 +269,7 @@ public static class TerriasIds
     public const string SpiritBallIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/spirit_ball";
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
     public const string SpiritCaptureRegistryFile = "spirit.capture.registry.json";
+    public const string SpiritGrowthRegistryFile = "spirit.growth.registry.json";
     public const string MoreDimensionsCardPackId = "Terrias_terrias_cardpack_more_dimensions";
     public const string DimensionShopConfigSystem = "DimensionShop";
     public const string DimensionShopConfigFile = "settings.json";

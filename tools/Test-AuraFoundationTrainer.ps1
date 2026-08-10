@@ -562,7 +562,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 16
+    $protocolVersion = 17
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -1292,6 +1292,19 @@ try {
                             $checkpointSnapshotPath) `
                         -and (Test-Path -LiteralPath $checkpointSnapshotPath `
                             -PathType Leaf)
+    if (-not $PreflightOnly `
+        -and ([string]::IsNullOrWhiteSpace(
+                [string]$result.ArtifactBundleDirectory) `
+             -or -not (Test-Path -LiteralPath (
+                [string]$result.ArtifactManifestPath) -PathType Leaf) `
+             -or -not (Test-Path -LiteralPath (
+                [string]$result.CapabilityReportPath) -PathType Leaf) `
+             -or -not (Test-Path -LiteralPath (
+                [string]$result.SimulationDatabasePath) -PathType Leaf) `
+             -or -not (Test-Path -LiteralPath (
+                [string]$result.ModelNodeGraphPath) -PathType Leaf))) {
+        throw "Training did not publish the required model/report/process artifact bundle."
+    }
     if ($checkpointExists `
         -and ([UInt64]$checkpoint.Resume.RunSeed -ne $RunSeed `
             -or [int]$checkpoint.Resume.ModelRandomSeed `

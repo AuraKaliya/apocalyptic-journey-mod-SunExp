@@ -698,6 +698,12 @@ public sealed class CombatTransformerTeacherReport
 
     public bool RuntimeAutoTuneCacheHit { get; set; }
 
+    public string RuntimeCalibrationKind { get; set; } = "";
+
+    public string RuntimeCacheKey { get; set; } = "";
+
+    public bool ReusedPriorEvaluation { get; set; }
+
     public bool CudaFallbackTriggered { get; set; }
 
     public string CudaFallbackReason { get; set; } = "";
@@ -963,6 +969,10 @@ public sealed class CombatTransformerTeacherReport
     public int IncrementalReplayEscalationLevel { get; set; }
 
     public int AnnotationSelectionFrames { get; set; }
+
+    public int AnnotationCacheHits { get; set; }
+
+    public int AnnotationCacheMisses { get; set; }
 
     public long DenseFeatureSlots { get; set; }
 

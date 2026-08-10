@@ -122,6 +122,10 @@ public sealed class CombatFoundationAutoTuneResult
 
     public bool CacheHit { get; set; }
 
+    public string CacheMissReason { get; set; } = "";
+
+    public string CampaignCalibrationKind { get; set; } = "";
+
     public bool LowConfidence { get; set; }
 
     public int SelectedParallelism { get; set; }

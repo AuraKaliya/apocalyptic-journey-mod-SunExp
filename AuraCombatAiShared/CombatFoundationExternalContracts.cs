@@ -35,15 +35,15 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool ArenaConfirmationFinalIterationOnly { get; set; } = true;
 
-    public int NormalValidationCampaigns { get; set; } = 64;
+    public int NormalValidationCampaigns { get; set; } = 50;
 
-    public int AdvancedValidationCampaigns { get; set; } = 128;
+    public int AdvancedValidationCampaigns { get; set; } = 50;
 
-    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 32;
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
 
-    public int CapabilityProbeTeacherCampaignsPerDifficulty { get; set; } = 8;
+    public int CapabilityProbeTeacherCampaignsPerDifficulty { get; set; } = 4;
 
-    public int CapabilityProbeBatchSize { get; set; } = 16;
+    public int CapabilityProbeBatchSize { get; set; } = 8;
 
     public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
 
@@ -93,7 +93,7 @@ public sealed class CombatFoundationTrainingParameters
     public string AutoTuneObjective { get; set; } =
         CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
 
-    public bool EnableEarlyValidationStop { get; set; } = true;
+    public bool EnableEarlyValidationStop { get; set; }
 
     public int ValidationEarlyStopBatchSize { get; set; } = 32;
 
@@ -371,7 +371,10 @@ public sealed class CombatFoundationTrainingParameters
             Math.Min(1000, AdvancedValidationCampaigns));
         CapabilityProbeCampaignsPerDifficulty = Math.Max(
             0,
-            Math.Min(128, CapabilityProbeCampaignsPerDifficulty));
+            Math.Min(
+                CombatFoundationTrainingProtocol
+                    .MaximumAdaptiveCapabilityProbeCampaignsPerDifficulty,
+                CapabilityProbeCampaignsPerDifficulty));
         CapabilityProbeTeacherCampaignsPerDifficulty = Math.Max(
             0,
             Math.Min(128, CapabilityProbeTeacherCampaignsPerDifficulty));
@@ -992,7 +995,7 @@ public static class CombatFoundationWorkerJobFactory
                 AutoTuneThroughputTolerance =
                     parameters.AutoTuneThroughputTolerance,
                 AutoTuneObjective = parameters.AutoTuneObjective,
-                RetainValidationRunDetails = false,
+                RetainValidationRunDetails = true,
                 EnableEarlyValidationStop =
                     parameters.EnableEarlyValidationStop,
                 ValidationEarlyStopBatchSize =

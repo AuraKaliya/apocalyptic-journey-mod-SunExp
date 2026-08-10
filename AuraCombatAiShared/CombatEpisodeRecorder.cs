@@ -108,6 +108,13 @@ public sealed class CombatEpisodeRecordingPolicy :
                 Finite(evaluation.SearchReturnStandardError);
             recorded.SearchLowerTailMean =
                 Finite(evaluation.SearchLowerTailMean);
+            recorded.BaseRuleScore = Finite(evaluation.BaseRuleScore);
+            recorded.RawResidualScore = Finite(evaluation.RawResidualScore);
+            recorded.ResidualApplicability =
+                Finite(evaluation.ResidualApplicability);
+            recorded.AppliedResidualScore =
+                Finite(evaluation.AppliedResidualScore);
+            recorded.RuleScore = Finite(evaluation.RuleScore);
             recorded.SetCompactFeatures(
                 CombatPolicyValueEncoding.BuildCompactCandidateFeatures(
                     evaluation));
@@ -222,6 +229,13 @@ public sealed class CombatEpisodeRecordingPolicy :
                 SearchReturnStandardError =
                     Finite(candidate.SearchReturnStandardError),
                 SearchLowerTailMean = Finite(candidate.SearchLowerTailMean),
+                BaseRuleScore = Finite(candidate.BaseRuleScore),
+                RawResidualScore = Finite(candidate.RawResidualScore),
+                ResidualApplicability =
+                    Finite(candidate.ResidualApplicability),
+                AppliedResidualScore =
+                    Finite(candidate.AppliedResidualScore),
+                RuleScore = Finite(candidate.RuleScore),
                 SearchReturnQuantiles = candidate.SearchReturnQuantiles
                     .Select(Finite)
                     .Take(16)

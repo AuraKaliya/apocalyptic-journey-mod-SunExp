@@ -213,6 +213,141 @@ public static class CombatFoundationMemoryExecutionPolicy
         }
         return configured;
     }
+
+    public static CombatFoundationMemoryExecutionDecision SelectAdaptive(
+        int configuredIterations,
+        int configuredModelParallelism,
+        CombatFoundationResourceSnapshot resources,
+        CombatFoundationSegmentResourceObservation? previous)
+    {
+        resources ??= new CombatFoundationResourceSnapshot();
+        var iterations = SelectIterationsPerProcess(
+            configuredIterations,
+            resources);
+        var modelParallelism = SelectModelTrainingParallelism(
+            configuredModelParallelism,
+            resources);
+        if (previous == null)
+        {
+            return new CombatFoundationMemoryExecutionDecision
+            {
+                IterationsPerProcess = iterations,
+                ModelTrainingParallelism = modelParallelism,
+                Mode = "cold-start-conservative",
+                Reason = "no prior isolated-segment memory observation"
+            };
+        }
+
+        var workerPeak = Math.Max(
+            previous.WorkerPeakWorkingSetBytes,
+            previous.EndPrivateMemoryBytes);
+        var observedTreePeak = SaturatingAdd(
+            workerPeak,
+            previous.TransformerPeakWorkingSetBytes);
+        var total = Math.Max(0L, resources.TotalPhysicalMemoryBytes);
+        var available = Math.Max(0L, resources.AvailablePhysicalMemoryBytes);
+        var reserve = Math.Max(4L * Gibibyte, total / 8L);
+        var fragmented = Math.Max(0L, previous.GcFragmentedBytes);
+        var heap = Math.Max(1L, previous.GcHeapSizeBytes);
+        var fragmentationPressure = fragmented > 512L * 1024L * 1024L
+                                    && fragmented * 4L > heap;
+        var predictedNextPeak = observedTreePeak <= 0L
+            ? 0L
+            : SaturatingAdd(observedTreePeak, observedTreePeak / 4L);
+        var healthy = !previous.ResourceFailure
+                      && !fragmentationPressure
+                      && (available <= 0L
+                          || predictedNextPeak <= Math.Max(
+                              0L,
+                              available - reserve));
+        if (!healthy)
+        {
+            return new CombatFoundationMemoryExecutionDecision
+            {
+                IterationsPerProcess = 1,
+                ModelTrainingParallelism = Math.Min(
+                    12,
+                    Math.Max(1, configuredModelParallelism)),
+                Mode = "pressure-backoff",
+                ObservedProcessTreePeakBytes = observedTreePeak,
+                PredictedNextPeakBytes = predictedNextPeak,
+                ReserveBytes = reserve,
+                Reason = previous.ResourceFailure
+                    ? "previous segment reported a resource failure"
+                    : fragmentationPressure
+                        ? "managed heap fragmentation exceeded the safety ratio"
+                        : "observed process-tree peak does not fit current headroom"
+            };
+        }
+
+        var configuredIterationLimit = Math.Max(
+            1,
+            Math.Min(6, configuredIterations));
+        iterations = Math.Min(
+            configuredIterationLimit,
+            Math.Max(2, previous.IterationsPerProcess + 1));
+        var configuredModelLimit = Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                configuredModelParallelism));
+        modelParallelism = Math.Min(
+            configuredModelLimit,
+            Math.Max(20, previous.ModelTrainingParallelism + 8));
+        return new CombatFoundationMemoryExecutionDecision
+        {
+            IterationsPerProcess = iterations,
+            ModelTrainingParallelism = modelParallelism,
+            Mode = "observed-healthy-ramp",
+            ObservedProcessTreePeakBytes = observedTreePeak,
+            PredictedNextPeakBytes = predictedNextPeak,
+            ReserveBytes = reserve,
+            Reason = "prior segment completed within measured memory headroom"
+        };
+    }
+
+    private static long SaturatingAdd(long left, long right)
+    {
+        if (left <= 0L) return Math.Max(0L, right);
+        if (right <= 0L) return left;
+        return left > long.MaxValue - right ? long.MaxValue : left + right;
+    }
+}
+
+public sealed class CombatFoundationSegmentResourceObservation
+{
+    public int IterationsPerProcess { get; set; } = 1;
+
+    public int ModelTrainingParallelism { get; set; } = 1;
+
+    public long WorkerPeakWorkingSetBytes { get; set; }
+
+    public long EndPrivateMemoryBytes { get; set; }
+
+    public long TransformerPeakWorkingSetBytes { get; set; }
+
+    public long GcHeapSizeBytes { get; set; }
+
+    public long GcFragmentedBytes { get; set; }
+
+    public bool ResourceFailure { get; set; }
+}
+
+public sealed class CombatFoundationMemoryExecutionDecision
+{
+    public int IterationsPerProcess { get; set; } = 1;
+
+    public int ModelTrainingParallelism { get; set; } = 1;
+
+    public string Mode { get; set; } = "";
+
+    public long ObservedProcessTreePeakBytes { get; set; }
+
+    public long PredictedNextPeakBytes { get; set; }
+
+    public long ReserveBytes { get; set; }
+
+    public string Reason { get; set; } = "";
 }
 
 public static class CombatFoundationParallelismPlanner

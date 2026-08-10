@@ -79,10 +79,8 @@ try
     job.Request.AutoTuneCampaignKey =
         CombatCampaignFoundationTrainer.CampaignFingerprint(
             job.Request.TrainingCampaign);
-    // The external worker persists validation aggregates and case artifacts.
-    // Full validation battle graphs are process-local diagnostics and must not
-    // accumulate across hundreds of validation campaigns.
-    job.Request.RetainValidationRunDetails = false;
+    // The final 50 + 50 sample is the auditable process record for this run.
+    job.Request.RetainValidationRunDetails = true;
     CombatFoundationPathRuntime.CreateDirectory(job.ResultDirectory);
     File.Delete(Path.Combine(
         job.ResultDirectory,
@@ -868,6 +866,8 @@ try
             ?? Array.Empty<string>());
     }
 
+    LoadPinnedSeedHistory(job);
+
     ICombatTransformerTeacher? transformerTeacher = null;
     var transformerOptions = (job.Request.TransformerTeacher
                               ?? new CombatTransformerTeacherOptions())
@@ -1116,6 +1116,36 @@ try
         ResumeProvenance = resumeProvenance,
         Training = training
     };
+    try
+    {
+        var artifacts = string.Equals(
+                completionKind,
+                "iteration-boundary",
+                StringComparison.Ordinal)
+            ? FoundationArtifactBundleWriter.WriteBoundarySnapshot(job, training)
+            : FoundationArtifactBundleWriter.WriteTerminalBundle(
+                job,
+                training,
+                trainingAnalysis,
+                completionKind);
+        workerResult.CandidateArtifactProduced = artifacts.ModelProduced;
+        workerResult.ArtifactBundleDirectory = artifacts.BundleDirectory;
+        workerResult.ArtifactManifestPath = artifacts.ManifestPath;
+        workerResult.CandidateModelPath = artifacts.CandidateModelPath;
+        workerResult.CapabilityReportPath = artifacts.CapabilityReportPath;
+        workerResult.CapabilityReportHtmlPath =
+            artifacts.CapabilityReportHtmlPath;
+        workerResult.SimulationDatabasePath =
+            artifacts.SimulationDatabasePath;
+        workerResult.SeedRegistryPath = artifacts.SeedRegistryPath;
+        workerResult.ModelNodeGraphPath = artifacts.ModelNodeGraphPath;
+    }
+    catch (Exception ex)
+    {
+        workerResult.ArtifactWarning = ex.ToString();
+        Console.Error.WriteLine(
+            "Foundation artifact bundle export failed: " + ex);
+    }
     if (string.Equals(
             completionKind,
             "training-accepted",
@@ -1125,11 +1155,16 @@ try
             job,
             workerResult,
             workerBinarySha256);
+        var deploymentModelDirectory = string.IsNullOrWhiteSpace(
+            workerResult.ArtifactBundleDirectory)
+            ? job.ResultDirectory
+            : Path.Combine(workerResult.ArtifactBundleDirectory, "model");
+        Directory.CreateDirectory(deploymentModelDirectory);
         workerResult.ModelPackagePath = Path.Combine(
-            job.ResultDirectory,
+            deploymentModelDirectory,
             CombatFoundationModelPackageProtocol.FileName);
         var weightsPath = Path.Combine(
-            job.ResultDirectory,
+            deploymentModelDirectory,
             CombatFoundationModelPackageProtocol.WeightsFileName);
         try
         {
@@ -1152,7 +1187,7 @@ try
                     reloaded,
                     out var artifactDiagnostic)
                 || !CombatPolicyValueArtifactProtocol.TryLoad(
-                    job.ResultDirectory,
+                    deploymentModelDirectory,
                     reloaded?.ModelArtifact,
                     out var runtimeModel,
                     out artifactDiagnostic))
@@ -1171,6 +1206,14 @@ try
                 throw new InvalidOperationException(packageSizeDiagnostic);
             }
             workerResult.ModelPackageSizeWarning = packageSizeDiagnostic;
+            if (!string.IsNullOrWhiteSpace(
+                    workerResult.ArtifactBundleDirectory))
+            {
+                FoundationArtifactBundleWriter.AttachDeploymentPackage(
+                    workerResult.ArtifactBundleDirectory,
+                    workerResult.ModelPackagePath,
+                    weightsPath);
+            }
         }
         catch
         {
@@ -3576,6 +3619,7 @@ static int RunIterationSupervisor(
         sourceJob.JobId + ".result.json");
     var segment = 0;
     var resolvedIterationLimit = 0;
+    CombatFoundationSegmentResourceObservation? previousResources = null;
     sourceJob.ResumeProvenance ??= new CombatFoundationResumeProvenance();
     if (!sourceJob.ResumeProvenance.ExternalRequestCaptured)
     {
@@ -3631,25 +3675,31 @@ static int RunIterationSupervisor(
                 sourceJob.Request.MaximumIterationsPerProcess > 0
                     ? sourceJob.Request.MaximumIterationsPerProcess
                     : 3;
+            var memoryDecision = CombatFoundationMemoryExecutionPolicy
+                .SelectAdaptive(
+                    configuredIterationsPerProcess,
+                    sourceJob.Request.ModelTrainingParallelism,
+                    segmentResources,
+                    previousResources);
             childJob.Request.MaximumIterationsPerProcess =
-                CombatFoundationMemoryExecutionPolicy
-                    .SelectIterationsPerProcess(
-                        configuredIterationsPerProcess,
-                        segmentResources);
+                memoryDecision.IterationsPerProcess;
             childJob.Request.ModelTrainingParallelism =
-                CombatFoundationMemoryExecutionPolicy
-                    .SelectModelTrainingParallelism(
-                        sourceJob.Request.ModelTrainingParallelism,
-                        segmentResources);
+                memoryDecision.ModelTrainingParallelism;
             Console.WriteLine(
-                "内存优先隔离计划：每进程迭代="
+                "自适应隔离计划：模式="
+                + memoryDecision.Mode
+                + "，每进程迭代="
                 + childJob.Request.MaximumIterationsPerProcess
                 + "，模型训练并行="
                 + childJob.Request.ModelTrainingParallelism
                 + "，物理内存="
                 + segmentResources.TotalPhysicalMemoryBytes
                 + "，当前可用="
-                + segmentResources.AvailablePhysicalMemoryBytes);
+                + segmentResources.AvailablePhysicalMemoryBytes
+                + "，观测进程树峰值="
+                + memoryDecision.ObservedProcessTreePeakBytes
+                + "，原因="
+                + memoryDecision.Reason);
             if (segment > 1)
             {
                 childJob.ResumeFromCheckpoint = true;
@@ -3688,7 +3738,32 @@ static int RunIterationSupervisor(
             using var child = Process.Start(startInfo)
                               ?? throw new InvalidOperationException(
                                   "无法启动轮次训练子进程。");
-            child.WaitForExit();
+            var childPeakWorkingSetBytes = 0L;
+            while (!child.WaitForExit(500))
+            {
+                try
+                {
+                    child.Refresh();
+                    childPeakWorkingSetBytes = Math.Max(
+                        childPeakWorkingSetBytes,
+                        child.WorkingSet64);
+                }
+                catch (InvalidOperationException)
+                {
+                    // The child can exit between WaitForExit and Refresh.
+                }
+            }
+            try
+            {
+                child.Refresh();
+                childPeakWorkingSetBytes = Math.Max(
+                    childPeakWorkingSetBytes,
+                    child.PeakWorkingSet64);
+            }
+            catch (InvalidOperationException)
+            {
+                // Exit status and the segment result remain authoritative.
+            }
             if (!CombatFoundationPathRuntime.FileExists(segmentResultPath))
             {
                 throw new InvalidOperationException(
@@ -3717,6 +3792,29 @@ static int RunIterationSupervisor(
                 CopyAtomic(segmentResultPath, finalResultPath);
                 return child.ExitCode;
             }
+
+            previousResources = new CombatFoundationSegmentResourceObservation
+            {
+                IterationsPerProcess =
+                    childJob.Request.MaximumIterationsPerProcess,
+                ModelTrainingParallelism =
+                    childJob.Request.ModelTrainingParallelism,
+                WorkerPeakWorkingSetBytes = childPeakWorkingSetBytes,
+                EndPrivateMemoryBytes = Math.Max(
+                    0L,
+                    status.Training?.PrivateMemoryBytes ?? 0L),
+                TransformerPeakWorkingSetBytes = Math.Max(
+                    0L,
+                    status.Training?.TransformerTeacherPeakWorkingSetBytes
+                    ?? 0L),
+                GcHeapSizeBytes = Math.Max(
+                    0L,
+                    status.Training?.GcHeapSizeBytes ?? 0L),
+                GcFragmentedBytes = Math.Max(
+                    0L,
+                    status.Training?.GcFragmentedBytes ?? 0L),
+                ResourceFailure = child.ExitCode != 0
+            };
 
             var nextIteration = status.Training?.NextIteration ?? 0;
             resolvedIterationLimit = status.Training
@@ -3880,7 +3978,76 @@ static T? Deserialize<T>(string json)
         new JsonSerializerSettings
         {
             ObjectCreationHandling = ObjectCreationHandling.Replace
-        });
+    });
+}
+
+static void LoadPinnedSeedHistory(CombatFoundationWorkerJob job)
+{
+    var path = Path.Combine(
+        string.IsNullOrWhiteSpace(job.SuccessArchiveDirectory)
+            ? job.ResultDirectory
+            : job.SuccessArchiveDirectory,
+        "foundation-seed-registry-v1.jsonl");
+    if (!File.Exists(path))
+    {
+        return;
+    }
+    var pinned = new List<FoundationSeedTag>();
+    foreach (var line in File.ReadLines(path))
+    {
+        if (string.IsNullOrWhiteSpace(line)) continue;
+        try
+        {
+            var tag = Deserialize<FoundationSeedTag>(line);
+            if (tag != null
+                && tag.WorldSeed > 0UL
+                && tag.Tag.StartsWith(
+                    "problem-",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                pinned.Add(tag);
+            }
+        }
+        catch (JsonException)
+        {
+            // Keep valid historical lines useful when one line is damaged.
+        }
+    }
+    job.Request.PinnedSeedHistory = pinned
+        .GroupBy(item => new
+        {
+            item.WorldSeed,
+            Difficulty = string.Equals(
+                item.DifficultyId,
+                "advanced",
+                StringComparison.OrdinalIgnoreCase)
+                ? "advanced"
+                : "normal"
+        })
+        .Select(group => group
+            .OrderByDescending(item => item.Priority)
+            .ThenBy(item => item.Tag, StringComparer.Ordinal)
+            .First())
+        .OrderByDescending(item => item.Priority)
+        .ThenBy(item => item.DifficultyId, StringComparer.Ordinal)
+        .ThenBy(item => item.WorldSeed)
+        .Take(256)
+        .Select(item => new CombatFoundationHardSeedHistoryEntry
+        {
+            WorldSeed = item.WorldSeed,
+            DifficultyId = string.Equals(
+                item.DifficultyId,
+                "advanced",
+                StringComparison.OrdinalIgnoreCase)
+                ? "advanced"
+                : "normal",
+            FirstSeenIteration = 1,
+            FailureOccurrences = 1,
+            TerminalScenarioId = "pinned:" + item.Tag,
+            SolvabilityClass = "unknown",
+            Resolved = false
+        })
+        .ToList();
 }
 
 static void PersistBuildLimitedSeeds(
@@ -4449,4 +4616,12 @@ internal sealed class IterationSegmentTrainingStatus
     public int NextIteration { get; set; }
 
     public int ResolvedIterationLimit { get; set; }
+
+    public long PrivateMemoryBytes { get; set; }
+
+    public long GcHeapSizeBytes { get; set; }
+
+    public long GcFragmentedBytes { get; set; }
+
+    public long TransformerTeacherPeakWorkingSetBytes { get; set; }
 }

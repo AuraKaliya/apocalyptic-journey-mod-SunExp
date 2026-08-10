@@ -174,6 +174,13 @@ public static class CombatLiveEpisodeAssembler
                 SearchReturnStandardError =
                     Finite(candidate.SearchReturnStandardError),
                 SearchLowerTailMean = Finite(candidate.SearchLowerTailMean),
+                BaseRuleScore = Finite(candidate.BaseRuleScore),
+                RawResidualScore = Finite(candidate.RawResidualScore),
+                ResidualApplicability =
+                    Finite(candidate.ResidualApplicability),
+                AppliedResidualScore =
+                    Finite(candidate.AppliedResidualScore),
+                RuleScore = Finite(candidate.RuleScore),
                 SearchReturnQuantiles = candidate.SearchReturnQuantiles
                     .Select(Finite)
                     .Take(16)

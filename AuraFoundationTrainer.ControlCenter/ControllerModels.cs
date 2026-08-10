@@ -6,9 +6,9 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public const int PreviousSchemaVersion = 20;
+    public const int PreviousSchemaVersion = 21;
 
-    public const int CurrentSchemaVersion = 21;
+    public const int CurrentSchemaVersion = 22;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -52,10 +52,10 @@ internal sealed class ControllerSettings
                 Parameters.ArenaCampaignsPerDifficulty = 8;
                 Parameters.ArenaEvaluationInterval = 6;
                 Parameters.ArenaConfirmationFinalIterationOnly = true;
-                Parameters.NormalValidationCampaigns = 64;
-                Parameters.AdvancedValidationCampaigns = 128;
-                Parameters.CapabilityProbeCampaignsPerDifficulty = 32;
-                Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 8;
+                Parameters.NormalValidationCampaigns = 50;
+                Parameters.AdvancedValidationCampaigns = 50;
+                Parameters.CapabilityProbeCampaignsPerDifficulty = 16;
+                Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 4;
                 Parameters.PreflightCampaignsPerDifficulty = 8;
                 Parameters.TuningInterval = 6;
                 Parameters.TuningNormalCampaigns = 8;
@@ -106,6 +106,22 @@ internal sealed class ControllerSettings
         {
             Parameters.MaximumStateFeatureCollisionRate = 0.05d;
         }
+        // v22 makes the final audit a complete random 50 + 50 sample. The
+        // capability probe and Arena remain separate evidence stages.
+        if (Parameters.NormalValidationCampaigns == 64
+            && Parameters.AdvancedValidationCampaigns == 128)
+        {
+            Parameters.NormalValidationCampaigns = 50;
+            Parameters.AdvancedValidationCampaigns = 50;
+            Parameters.EnableEarlyValidationStop = false;
+        }
+        if (Parameters.CapabilityProbeCampaignsPerDifficulty == 32
+            && Parameters.CapabilityProbeTeacherCampaignsPerDifficulty == 8)
+        {
+            Parameters.CapabilityProbeCampaignsPerDifficulty = 16;
+            Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 4;
+            Parameters.CapabilityProbeBatchSize = 8;
+        }
         SchemaVersion = CurrentSchemaVersion;
         return true;
     }
@@ -127,11 +143,12 @@ internal sealed class ControllerSettings
             ArenaConfirmationCampaignsPerDifficulty = 56,
             ArenaEvaluationInterval = 6,
             ArenaConfirmationFinalIterationOnly = true,
-            NormalValidationCampaigns = 64,
-            AdvancedValidationCampaigns = 128,
-            CapabilityProbeCampaignsPerDifficulty = 32,
-            CapabilityProbeTeacherCampaignsPerDifficulty = 8,
-            CapabilityProbeBatchSize = 16,
+            NormalValidationCampaigns = 50,
+            AdvancedValidationCampaigns = 50,
+            EnableEarlyValidationStop = false,
+            CapabilityProbeCampaignsPerDifficulty = 16,
+            CapabilityProbeTeacherCampaignsPerDifficulty = 4,
+            CapabilityProbeBatchSize = 8,
             PreflightCampaignsPerDifficulty = 8,
             TuningInterval = 6,
             ParallelismProfile =
@@ -300,6 +317,18 @@ internal sealed class ControllerWorkerResultSummary
     public string CheckpointPath { get; set; } = "";
 
     public string ModelPackagePath { get; set; } = "";
+
+    public bool CandidateArtifactProduced { get; set; }
+
+    public string ArtifactBundleDirectory { get; set; } = "";
+
+    public string CapabilityReportPath { get; set; } = "";
+
+    public string SimulationDatabasePath { get; set; } = "";
+
+    public string ModelNodeGraphPath { get; set; } = "";
+
+    public string ArtifactWarning { get; set; } = "";
 
     public string TrainingMetricsPath { get; set; } = "";
 

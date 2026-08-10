@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "enemyId": "boss_orbit_mirror_array",
+      "variantId": "*",
+      "tier": "Boss",
+      "baseOrigins": { "magic": 13, "spirit": 13, "luck": 8, "perception": 10 },
+      "growthOrigins": { "magic": 28, "spirit": 30, "luck": 18, "perception": 24 }
+    },
+    {
+      "enemyId": "boss_second_sun_last_day",
+      "variantId": "*",
+      "tier": "FinalBoss",
+      "baseOrigins": { "magic": 17, "spirit": 16, "luck": 9, "perception": 12 },
+      "growthOrigins": { "magic": 36, "spirit": 35, "luck": 20, "perception": 29 }
+    },
+    {
+      "enemyId": "boss_saint_wuna",
+      "variantId": "*",
+      "tier": "FinalBoss",
+      "baseOrigins": { "magic": 18, "spirit": 18, "luck": 8, "perception": 10 },
+      "growthOrigins": { "magic": 38, "spirit": 38, "luck": 18, "perception": 26 }
+    }
+  ]
+}

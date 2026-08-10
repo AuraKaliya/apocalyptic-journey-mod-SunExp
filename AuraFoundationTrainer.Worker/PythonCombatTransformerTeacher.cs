@@ -27,6 +27,7 @@ internal sealed class PythonCombatTransformerTeacher :
     private readonly string resultDirectory;
     private readonly string scriptPath;
     private readonly string runtimeCachePath;
+    private readonly string annotationCachePath;
     private readonly string corpusRoot;
     private readonly object runtimeProbeGate = new();
     private CombatTransformerRuntimeProbe? cachedRuntimeProbe;
@@ -47,6 +48,9 @@ internal sealed class PythonCombatTransformerTeacher :
                     "transformer-teacher",
                     "runtime-auto-tune-v4.json")
                 : runtimeCachePath);
+        this.annotationCachePath = Path.Combine(
+            Path.GetDirectoryName(this.runtimeCachePath)!,
+            "transformer-annotation-cache-v1.sqlite");
         this.corpusRoot = Path.GetFullPath(
             string.IsNullOrWhiteSpace(corpusRoot)
                 ? Path.Combine(this.resultDirectory, "transformer-teacher-corpus")
@@ -351,6 +355,11 @@ internal sealed class PythonCombatTransformerTeacher :
             : persistentPreviousApplied
                 ? persistentModelPath
                 : "";
+        var previousReportPath = iterationPreviousApplied
+            ? iterationPreviousReportPath
+            : persistentPreviousApplied
+                ? persistentReportPath
+                : "";
         var previousReport = iterationPreviousApplied
             ? iterationPreviousReport
             : persistentPreviousApplied
@@ -445,15 +454,17 @@ internal sealed class PythonCombatTransformerTeacher :
         var annotationSelectionPath = Path.Combine(
             iterationDirectory,
             "annotation-row-selection-v1.txt");
-        var annotationRows = bindings
+        var annotationBindings = bindings
             .Where(binding => binding.RowIndex >= 0)
-            .Select(binding => binding.RowIndex)
-            .Distinct()
-            .OrderBy(index => index)
+            .GroupBy(binding => binding.RowIndex)
+            .Select(group => group.First())
+            .OrderBy(binding => binding.RowIndex)
             .ToArray();
-        WriteRowSelection(annotationSelectionPath, annotationRows);
-        report.AnnotationSelectionFrames = annotationRows.Length;
-        if (annotationRows.Length == 0)
+        WriteAnnotationRowSelection(
+            annotationSelectionPath,
+            annotationBindings);
+        report.AnnotationSelectionFrames = annotationBindings.Length;
+        if (annotationBindings.Length == 0)
         {
             report.Message =
                 "Transformer teacher skipped: the current iteration has no "
@@ -615,6 +626,7 @@ internal sealed class PythonCombatTransformerTeacher :
             modelPath,
             reportPath,
             warmStarted ? previousModelPath : "",
+            warmStarted ? previousReportPath : "",
             trainingEnabled,
             effectiveEpochs,
             anchorPath,
@@ -2757,6 +2769,36 @@ internal sealed class PythonCombatTransformerTeacher :
         }
     }
 
+    private static void WriteAnnotationRowSelection(
+        string path,
+        IEnumerable<FrameBinding> bindings)
+    {
+        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllLines(
+                temporaryPath,
+                bindings
+                    .Where(binding => binding.RowIndex >= 0)
+                    .GroupBy(binding => binding.RowIndex)
+                    .Select(group => group.First())
+                    .OrderBy(binding => binding.RowIndex)
+                    .Select(binding => JsonConvert.SerializeObject(
+                        new
+                        {
+                            I = binding.RowIndex,
+                            K = binding.Identity
+                        },
+                        Formatting.None)),
+                new UTF8Encoding(false));
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        finally
+        {
+            TryDelete(temporaryPath);
+        }
+    }
+
     private static string CorpusStratum(CorpusFrameDescriptor item)
     {
         return item.Difficulty
@@ -2967,6 +3009,7 @@ internal sealed class PythonCombatTransformerTeacher :
         string modelPath,
         string reportPath,
         string resumeModelPath,
+        string priorReportPath,
         bool trainingEnabled,
         int effectiveEpochs,
         string anchorPath,
@@ -3053,6 +3096,11 @@ internal sealed class PythonCombatTransformerTeacher :
             CombatFoundationPathRuntime.ForExternalProcess(runtimeCachePath));
         Add(
             start,
+            "--annotation-cache",
+            CombatFoundationPathRuntime.ForExternalProcess(
+                annotationCachePath));
+        Add(
+            start,
             "--anchor",
             CombatFoundationPathRuntime.ForExternalProcess(anchorPath));
         Add(
@@ -3070,6 +3118,14 @@ internal sealed class PythonCombatTransformerTeacher :
                 "--resume-model",
                 CombatFoundationPathRuntime.ForExternalProcess(
                     resumeModelPath));
+        }
+        if (!string.IsNullOrWhiteSpace(priorReportPath))
+        {
+            Add(
+                start,
+                "--prior-report",
+                CombatFoundationPathRuntime.ForExternalProcess(
+                    priorReportPath));
         }
         if (!string.IsNullOrWhiteSpace(trainingSelectionPath))
         {
@@ -3211,6 +3267,9 @@ internal sealed class PythonCombatTransformerTeacher :
         target.NumpyVersion = source.NumpyVersion;
         target.RuntimeAutoTuned = source.RuntimeAutoTuned;
         target.RuntimeAutoTuneCacheHit = source.RuntimeAutoTuneCacheHit;
+        target.RuntimeCalibrationKind = source.RuntimeCalibrationKind;
+        target.RuntimeCacheKey = source.RuntimeCacheKey;
+        target.ReusedPriorEvaluation = source.ReusedPriorEvaluation;
         target.CudaFallbackTriggered = source.CudaFallbackTriggered;
         target.CudaFallbackReason = source.CudaFallbackReason;
         target.EffectiveCpuThreads = source.EffectiveCpuThreads;
@@ -3292,6 +3351,8 @@ internal sealed class PythonCombatTransformerTeacher :
             source.IncrementalTrainingSelection;
         target.IncrementalTrainingFrames = source.IncrementalTrainingFrames;
         target.AnnotationSelectionFrames = source.AnnotationSelectionFrames;
+        target.AnnotationCacheHits = source.AnnotationCacheHits;
+        target.AnnotationCacheMisses = source.AnnotationCacheMisses;
         target.DenseFeatureSlots = source.DenseFeatureSlots;
         target.NonZeroFeatureValues = source.NonZeroFeatureValues;
         target.SparseFeatureDensity = source.SparseFeatureDensity;

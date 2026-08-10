@@ -146,6 +146,8 @@ public static class SpiritSummonService
             return;
         }
 
+        SpiritBattleDeploymentService.MarkSummoned(snapshot.OwnerStatusId);
+
         QueueReturnedCard(snapshot, null, source);
 
         var existing = SpiritStateStore.Find(snapshot.StatusId);
@@ -226,6 +228,11 @@ public static class SpiritSummonService
             return false;
         }
 
+        if (!SpiritBattleDeploymentService.CanSummon(snapshot, owner.InstanceId, acceptRemotePayload: false, out reason))
+        {
+            return false;
+        }
+
         reason = "";
         return true;
     }
@@ -243,6 +250,17 @@ public static class SpiritSummonService
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         var outgoing = SpiritStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
+        if (outgoing != null)
+        {
+            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, "already-deployed", broadcast, source, preferredExecutor);
+            return false;
+        }
+        var acceptRemotePayload = preferredExecutor == null && !string.IsNullOrWhiteSpace(preferredOwnerPlayerId);
+        if (!SpiritBattleDeploymentService.CanSummon(snapshot, ownerStatusId, acceptRemotePayload, out var deploymentReason))
+        {
+            BroadcastRejection(snapshot, ownerStatusId, token, exchangeCount, incomingBattleState, deploymentReason, broadcast, source, preferredExecutor);
+            return false;
+        }
         var generation = NextGeneration(ownerPlayerId, ownerStatusId);
         var statusId = SpiritStateStore.NextStatusId();
         var spawned = Spawn(snapshot, ownerStatusId, ownerPlayerId, statusId, source, exchangeCount, generation, null, incomingBattleState);
@@ -262,18 +280,7 @@ public static class SpiritSummonService
 
         var networkState = BuildSnapshot(spirit);
         networkState.Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
-        if (outgoing != null)
-        {
-            var returnedBattleState = SpiritCardBattleState.From(CompanionBattleStateStore.Find(outgoing.StatusId));
-            networkState.ReplacedStatusId = outgoing.StatusId;
-            networkState.ReturnedCard = outgoing.Snapshot;
-            networkState.ReturnedExchangeCount = Math.Min(MaxExchangeCount, outgoing.ExchangeCount + 1);
-            networkState.ReturnedTurnIndex = returnedBattleState.TurnIndex;
-            networkState.ReturnedReadyOnTurn = returnedBattleState.ReadyOnTurn;
-            networkState.CardGrantEventId = networkState.Token + ":return";
-            SpiritStateStore.Withdraw(outgoing.StatusId, source + ".ExchangeOut");
-            QueueReturnedCard(networkState, preferredExecutor, source);
-        }
+        SpiritBattleDeploymentService.MarkSummoned(ownerStatusId);
 
         if (broadcast)
         {
@@ -337,7 +344,7 @@ public static class SpiritSummonService
                 TerriasLog.InfoAlways(profileMessage);
             }
             var stats = networkState == null
-                ? CompanionStatsService.SpiritStats(profile)
+                ? CompanionStatsService.SpiritStats(snapshot, profile)
                 : new CompanionStats(1, Math.Max(1, networkState.MaxMagic), Math.Max(1, networkState.Attack), Math.Max(1, networkState.Armor));
             if (networkState != null)
             {
@@ -418,7 +425,7 @@ public static class SpiritSummonService
                 ["Name"] = snapshot.DisplayName,
                 ["Animation"] = snapshot.AnimationPath,
                 ["Attack"] = stats.Attack.ToString(),
-                ["Defend"] = "0",
+                ["Defend"] = stats.Armor.ToString(),
                 ["Hp"] = "1",
                 ["ActionCount"] = "1",
                 ["CardList"] = string.Join(",", new[]
@@ -558,6 +565,10 @@ public static class SpiritSummonService
         if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.EnemyId) || !HasIdle(snapshot.IdlePath))
         {
             return "snapshot-invalid";
+        }
+        if (!SpiritBattleDeploymentService.CanSummon(snapshot, ownerStatusId, acceptRemotePayload: true, out var deploymentReason))
+        {
+            return deploymentReason;
         }
         return "";
     }
@@ -735,9 +746,7 @@ public static class SpiritSummonService
             GrantedCardEvents.Add(pending.EventId);
             PendingCardGrants.Remove(pending.EventId);
         }
-        PlayerApi.ShowCaption("\u7cbe\u7075\uff1a\u3010" + pending.Card.DisplayName
-            + "\u3011\u5df2\u8fd4\u56de\u624b\u724c\uff0c\u8017\u8d39\u63d0\u5347\u81f3"
-            + pending.ExchangeCount + "\u3002");
+        PlayerApi.ShowCaption("精灵：【" + pending.Card.DisplayName + "】的出战卡已返回手牌。");
         TerriasPerformanceCounters.Record("Spirit.Card.ReturnedToHand");
         return true;
     }

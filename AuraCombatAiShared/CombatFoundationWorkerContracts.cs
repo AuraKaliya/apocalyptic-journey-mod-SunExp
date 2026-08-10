@@ -7,9 +7,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 16;
+    public const int SchemaVersion = 17;
 
-    public const int PreviousSchemaVersion = 15;
+    public const int PreviousSchemaVersion = 16;
 
     public const int RepairMigratableSchemaVersion = 13;
     public const int TrainingMetricsSchemaVersion = 1;
@@ -327,6 +327,26 @@ public sealed class CombatFoundationWorkerResult
     public long ModelPackageBytes { get; set; }
 
     public string ModelPackageSizeWarning { get; set; } = "";
+
+    public bool CandidateArtifactProduced { get; set; }
+
+    public string ArtifactBundleDirectory { get; set; } = "";
+
+    public string ArtifactManifestPath { get; set; } = "";
+
+    public string CandidateModelPath { get; set; } = "";
+
+    public string CapabilityReportPath { get; set; } = "";
+
+    public string CapabilityReportHtmlPath { get; set; } = "";
+
+    public string SimulationDatabasePath { get; set; } = "";
+
+    public string SeedRegistryPath { get; set; } = "";
+
+    public string ModelNodeGraphPath { get; set; } = "";
+
+    public string ArtifactWarning { get; set; } = "";
 
     public string TrainingMetricsPath { get; set; } = "";
 

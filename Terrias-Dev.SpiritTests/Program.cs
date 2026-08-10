@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.IO;
 using Terrias.Dll.Mechanics;
 
 var assertions = 0;
@@ -90,6 +92,97 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
 
+Assert(SpiritGrowthService.ExperienceToNextLevel(1) == 20
+       && SpiritGrowthService.TotalExperienceToLevel(50) == 4904,
+    "spirit level curve matches the locked level-one and level-fifty totals");
+var aptitude = SpiritGrowthService.RollAptitude("capture-token");
+Assert(aptitude == SpiritGrowthService.RollAptitude("capture-token") && aptitude is >= 0 and <= 100,
+    "spirit aptitude is deterministic and bounded");
+var aptitudeSamples = new List<int>();
+for (var index = 0; index < 1000; index++) aptitudeSamples.Add(SpiritGrowthService.RollAptitude("sample-" + index));
+Assert(aptitudeSamples.Average() is > 56d and < 64d
+       && aptitudeSamples.All(value => value is >= 0 and <= 100),
+    "truncated aptitude samples remain centered without invalid tails");
+
+var growthProfile = new SpiritSpeciesGrowthProfile
+{
+    BaseOrigins = new SpiritOriginVector { Magic = 10, Spirit = 10, Luck = 10, Perception = 10 },
+    GrowthOrigins = new SpiritOriginVector { Magic = 20, Spirit = 20, Luck = 20, Perception = 20 }
+};
+var origins = SpiritGrowthService.OriginsAt(growthProfile, 50, 60);
+Assert(origins.Magic == 31 && origins.Spirit == 31 && origins.Luck == 31 && origins.Perception == 31,
+    "spirit origins apply the smooth aptitude multiplier at max level");
+var growthStats = SpiritGrowthService.BattleStats(origins);
+Assert(growthStats.MaxHp == 119 && growthStats.Attack == 40 && growthStats.Armor == 27,
+    "spirit origins convert into the locked HP, attack, and armor formulas");
+var fallbackProfile = SpiritGrowthRegistry.Resolve(new CapturedEnemySnapshot
+{
+    EnemyId = "extreme-species",
+    VariantId = "extreme-species",
+    BaseAttack = 10000,
+    BaseHp = 1,
+    BaseArmor = 0,
+    Rarity = 1
+});
+Assert(fallbackProfile.BaseOrigins.Total == 28
+       && new[] { fallbackProfile.BaseOrigins.Magic, fallbackProfile.BaseOrigins.Spirit, fallbackProfile.BaseOrigins.Luck, fallbackProfile.BaseOrigins.Perception }
+           .All(value => value is >= 3 and <= 12),
+    "fallback species budgets keep every origin within the ten-to-forty-five-percent envelope");
+
+var memoryStore = new MemorySpiritStore();
+SpiritCollectionService.Configure(memoryStore);
+var party = new SpiritAdventureParty();
+for (var index = 0; index < 7; index++)
+{
+    var result = SpiritCollectionService.Capture(
+        Captured("same-species", "uid-" + index),
+        "capture-" + index,
+        party,
+        60);
+    Assert(result.Success && result.Instance?.Level == 1 && result.Instance.Aptitude == 60,
+        "captured spirit creates an independent level-one individual");
+}
+Assert(SpiritCollectionService.Snapshot().Instances.Count == 7
+       && party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid)) == 6,
+    "duplicate species persist independently while the adventure party remains capped at six");
+var duplicateCapture = SpiritCollectionService.Capture(Captured("same-species", "different"), "capture-0", party, 99);
+Assert(duplicateCapture.Success && duplicateCapture.DuplicateOperation
+       && SpiritCollectionService.Snapshot().Instances.Count == 7,
+    "capture operation tokens make persistence idempotent");
+memoryStore.FailNextSave = true;
+var failedDurableCapture = false;
+try { SpiritCollectionService.Capture(Captured("same-species", "uid-failed"), "capture-failed", party, 60); }
+catch (IOException) { failedDurableCapture = true; }
+Assert(failedDurableCapture
+       && SpiritCollectionService.Snapshot().Instances.Count == 7
+       && party.PartySlots.All(uid => uid != "uid-failed"),
+    "failed durable writes do not commit the captured individual or mutate the run party");
+party.ActiveSpiritUid = "uid-0";
+var experience = SpiritCollectionService.GrantBattleExperience(
+    party.PartySlots,
+    party.ActiveSpiritUid,
+    20,
+    "battle-1");
+Assert(experience.Count == 6
+       && experience.Single(result => result.Instance.SpiritUid == "uid-0").GainedExperience == 20
+       && experience.Where(result => result.Instance.SpiritUid != "uid-0").All(result => result.GainedExperience == 5),
+    "battle experience grants 100 percent to active and 25 percent to other carried spirits");
+Assert(SpiritCollectionService.GrantBattleExperience(party.PartySlots, party.ActiveSpiritUid, 20, "battle-1").Count == 0,
+    "battle experience tokens prevent duplicate settlement");
+SpiritBattleDeploymentService.Begin(party, SpiritCollectionService.Snapshot(), 10, 20);
+var deployment = SpiritBattleDeploymentService.DeploymentCardSnapshot();
+Assert(deployment?.SpiritUid == "uid-0"
+       && deployment.SpiritLevel == 2
+       && deployment.SpiritAptitude == 60
+       && !string.IsNullOrWhiteSpace(deployment.DeploymentToken),
+    "battle start freezes the active individual into one deployment card payload");
+Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
+    "the frozen deployment card is initially legal");
+SpiritBattleDeploymentService.MarkSummoned("owner");
+Assert(!SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
+    "one successful deployment blocks copied cards for the same owner");
+SpiritBattleDeploymentService.Clear();
+
 Console.WriteLine($"Terrias spirit runtime tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string message)
@@ -100,4 +193,37 @@ void Assert(bool condition, string message)
     }
 
     assertions++;
+}
+
+CapturedEnemySnapshot Captured(string enemyId, string uid)
+{
+    return new CapturedEnemySnapshot
+    {
+        SpiritUid = uid,
+        EnemyId = enemyId,
+        VariantId = enemyId,
+        DisplayName = enemyId,
+        IdlePath = "idle",
+        DictPath = "dict",
+        Rarity = 1
+    };
+}
+
+sealed class MemorySpiritStore : ISpiritCollectionStore
+{
+    private SpiritCollectionDocument document = new();
+
+    public bool FailNextSave { get; set; }
+
+    public SpiritCollectionDocument Load() => document;
+
+    public void Save(SpiritCollectionDocument value)
+    {
+        if (FailNextSave)
+        {
+            FailNextSave = false;
+            throw new IOException("simulated durable write failure");
+        }
+        document = value;
+    }
 }

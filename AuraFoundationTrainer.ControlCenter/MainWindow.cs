@@ -1703,7 +1703,7 @@ internal sealed class MainWindow : Window
                       : "复用权重标注"
                   : "全量初始化训练")
               + " · ETA "
-              + FormatDuration(telemetry.EstimatedRemainingSeconds)
+              + FormatEtaRange(telemetry)
             : executionSummary + " · "
               + $"阶段 CPU {telemetry.CurrentPhaseCpuUtilizationPercent:0.0}% · "
               + $"阶段分配 {telemetry.CurrentPhaseAllocationMegabytesPerSecond:0} MB/s · "
@@ -1717,7 +1717,8 @@ internal sealed class MainWindow : Window
               + FormatDuration(
                   phaseCampaignProgress
                       ? telemetry.PhaseEstimatedRemainingSeconds
-                      : telemetry.EstimatedRemainingSeconds);
+                      : telemetry.EstimatedRemainingSeconds)
+              + (phaseCampaignProgress ? "" : " (" + FormatEtaRange(telemetry) + ")");
         logBox.Text =
             $"阶段：{telemetry.Stage} / {telemetry.Phase}\r\n"
             + $"计数：正式={telemetry.RunCompletedCampaigns}/"
@@ -1761,6 +1762,35 @@ internal sealed class MainWindow : Window
              + $"sparse={telemetry.InferenceAverageSparseFeatureCount:0.0}，"
              + $"density={telemetry.InferenceSparseFeatureDensity:P1}，"
              + $"mulSaved={telemetry.InferenceWeightMultiplicationReduction:P1}\r\n"
+            + "ETA分解：模拟="
+            + FormatDuration(telemetry.EtaStageSeconds.GetValueOrDefault(
+                "simulation"))
+            + "，后续训练="
+            + FormatDuration(telemetry.EtaStageSeconds.GetValueOrDefault(
+                "recurring-training"))
+            + "，当前阶段="
+            + FormatDuration(telemetry.EtaStageSeconds.GetValueOrDefault(
+                "current-phase"))
+            + "，区间="
+            + FormatEtaRange(telemetry)
+            + "\r\n"
+            + "自动调优："
+            + (telemetry.AutoTune.CacheHit
+                ? "缓存命中"
+                : string.IsNullOrWhiteSpace(
+                    telemetry.AutoTune.CampaignCalibrationKind)
+                    ? string.IsNullOrWhiteSpace(
+                        telemetry.AutoTune.CacheMissReason)
+                        ? "未启用或等待校准"
+                        : "缓存未命中（"
+                          + telemetry.AutoTune.CacheMissReason
+                          + "）"
+                    : "校准 "
+                      + telemetry.AutoTune.CampaignCalibrationKind
+                      + "（"
+                      + telemetry.AutoTune.CacheMissReason
+                      + "）")
+            + "\r\n"
             + PerformanceProbeSummary(telemetry)
             + "\r\n"
             + $"GC：{telemetry.Gen0Collections}/"
@@ -1912,6 +1942,14 @@ internal sealed class MainWindow : Window
                 ? ""
                 : $"指标提示：{result.TrainingMetricWarning}\r\n")
             + $"待验底模包：{result.ModelPackagePath}\r\n"
+            + $"候选模型产物：{result.CandidateArtifactProduced}\r\n"
+            + $"训练产物目录：{result.ArtifactBundleDirectory}\r\n"
+            + $"模型能力报告：{result.CapabilityReportPath}\r\n"
+            + $"模拟过程数据库：{result.SimulationDatabasePath}\r\n"
+            + $"模型节点图：{result.ModelNodeGraphPath}\r\n"
+            + (string.IsNullOrWhiteSpace(result.ArtifactWarning)
+                ? ""
+                : $"产物提示：{result.ArtifactWarning}\r\n")
             + $"结果目录：{session?.ResultDirectory}";
         recentResultStatus.Text = runStatus.Text;
         recentResultStatus.Foreground = runStatus.Foreground;
@@ -2090,6 +2128,15 @@ internal sealed class MainWindow : Window
                   + teacher.EffectiveDataLoaderWorkers
                   + " · "
                   + teacher.NumericPrecision
+                  + " · 运行计划 "
+                  + teacher.RuntimeCalibrationKind
+                  + " · 锚点评估 "
+                  + (teacher.ReusedPriorEvaluation ? "复用" : "执行")
+                  + " · 标注缓存 "
+                  + teacher.AnnotationCacheHits
+                  + "/"
+                  + (teacher.AnnotationCacheHits
+                     + teacher.AnnotationCacheMisses)
                   + " · "
                   + (teacher.WarmStarted
                       ? teacher.TrainingRefreshed
@@ -3407,6 +3454,41 @@ internal sealed class MainWindow : Window
                                                   CultureInfo.InvariantCulture)
                                               ?? "";
                     break;
+                case nameof(ControllerWorkerResultSummary.CandidateArtifactProduced):
+                    summary.CandidateArtifactProduced = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.ArtifactBundleDirectory):
+                    summary.ArtifactBundleDirectory = Convert.ToString(
+                                                          reader.Value,
+                                                          CultureInfo.InvariantCulture)
+                                                      ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.CapabilityReportPath):
+                    summary.CapabilityReportPath = Convert.ToString(
+                                                       reader.Value,
+                                                       CultureInfo.InvariantCulture)
+                                                   ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.SimulationDatabasePath):
+                    summary.SimulationDatabasePath = Convert.ToString(
+                                                         reader.Value,
+                                                         CultureInfo.InvariantCulture)
+                                                     ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.ModelNodeGraphPath):
+                    summary.ModelNodeGraphPath = Convert.ToString(
+                                                    reader.Value,
+                                                    CultureInfo.InvariantCulture)
+                                                ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.ArtifactWarning):
+                    summary.ArtifactWarning = Convert.ToString(
+                                                  reader.Value,
+                                                  CultureInfo.InvariantCulture)
+                                              ?? "";
+                    break;
                 case nameof(ControllerWorkerResultSummary.TrainingMetricsPath):
                     summary.TrainingMetricsPath = Convert.ToString(
                                                       reader.Value,
@@ -4144,6 +4226,19 @@ internal sealed class MainWindow : Window
         }
         return TimeSpan.FromSeconds(seconds).ToString(
             seconds >= 3600d ? @"hh\:mm\:ss" : @"mm\:ss");
+    }
+
+    private static string FormatEtaRange(
+        CombatCampaignFoundationTelemetry telemetry)
+    {
+        if (telemetry.EstimatedRemainingLowerSeconds <= 0d
+            || telemetry.EstimatedRemainingUpperSeconds <= 0d)
+        {
+            return FormatDuration(telemetry.EstimatedRemainingSeconds);
+        }
+        return FormatDuration(telemetry.EstimatedRemainingLowerSeconds)
+               + "~"
+               + FormatDuration(telemetry.EstimatedRemainingUpperSeconds);
     }
 
     private TextBox AddPathRow(

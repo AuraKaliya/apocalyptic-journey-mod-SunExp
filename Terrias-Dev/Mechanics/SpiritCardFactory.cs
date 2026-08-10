@@ -11,9 +11,9 @@ public static class SpiritCardFactory
 {
     private const int MaxExchangeCount = 999;
 
-    public static CardGrantResult GrantCapturedToHand(ScriptExecutor self, CapturedEnemySnapshot snapshot)
+    public static CardGrantResult GrantDeploymentToHand(ScriptExecutor self, CapturedEnemySnapshot snapshot)
     {
-        return Grant(self, snapshot, 0, new SpiritCardBattleState(), persistToAdventureDeck: true, "spirit-capture");
+        return Grant(self, snapshot, 0, new SpiritCardBattleState(), "spirit-deployment");
     }
 
     public static CardGrantResult GrantReturnedToHand(
@@ -23,7 +23,7 @@ public static class SpiritCardFactory
         SpiritCardBattleState battleState,
         string source)
     {
-        return Grant(self, snapshot, exchangeCount, battleState, persistToAdventureDeck: false, source);
+        return Grant(self, snapshot, exchangeCount, battleState, source);
     }
 
     private static CardGrantResult Grant(
@@ -31,7 +31,6 @@ public static class SpiritCardFactory
         CapturedEnemySnapshot snapshot,
         int exchangeCount,
         SpiritCardBattleState battleState,
-        bool persistToAdventureDeck,
         string source)
     {
         var started = TerriasPerformanceCounters.Timestamp();
@@ -39,13 +38,6 @@ public static class SpiritCardFactory
         var failureStep = "";
         try
         {
-            var adventureDeck = persistToAdventureDeck ? RoleTable.Instance?.cardList : null;
-            if (persistToAdventureDeck && adventureDeck == null)
-            {
-                failureStep = "adventure-deck";
-                return CardGrantResult.Fail(TerriasIds.SpiritCardTemplateId, null, failureStep, "RoleTable cardList unavailable");
-            }
-
             var normalizedExchangeCount = NormalizeExchangeCount(exchangeCount);
             var runtime = BuildRuntime(snapshot, normalizedExchangeCount, battleState);
             var request = CardGrantRequest
@@ -58,15 +50,6 @@ public static class SpiritCardFactory
             var result = CardApi.GrantCardToHand(self, request);
             success = result.Success;
             failureStep = result.FailureStep;
-            if (persistToAdventureDeck
-                && result.Success
-                && result.Config != null
-                && adventureDeck != null
-                && !adventureDeck.Contains(result.Config))
-            {
-                adventureDeck.Add(result.Config);
-            }
-
             return result;
         }
         finally
@@ -76,7 +59,7 @@ public static class SpiritCardFactory
                 started,
                 "enemy=" + (snapshot?.EnemyId ?? "<none>")
                 + ", exchangeCount=" + NormalizeExchangeCount(exchangeCount)
-                + ", persistent=" + persistToAdventureDeck
+                + ", persistent=False"
                 + ", success=" + success
                 + (failureStep.Length == 0 ? "" : ", failureStep=" + failureStep),
                 logFirstSample: true);
@@ -154,7 +137,14 @@ public static class SpiritCardFactory
             BaseAttack = RuntimeInt(runtimeConfig, "TerriasSpiritBaseAttack"),
             BaseArmor = RuntimeInt(runtimeConfig, "TerriasSpiritBaseArmor"),
             Rarity = RuntimeInt(runtimeConfig, "TerriasSpiritEnemyRarity"),
-            SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritSourceEnemyCardIds"))
+            SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritSourceEnemyCardIds")),
+            SpiritLevel = RuntimeInt(runtimeConfig, "TerriasSpiritLevel"),
+            SpiritAptitude = RuntimeInt(runtimeConfig, "TerriasSpiritAptitude"),
+            OriginMagic = RuntimeInt(runtimeConfig, "TerriasSpiritOriginMagic"),
+            OriginSpirit = RuntimeInt(runtimeConfig, "TerriasSpiritOriginSpirit"),
+            OriginLuck = RuntimeInt(runtimeConfig, "TerriasSpiritOriginLuck"),
+            OriginPerception = RuntimeInt(runtimeConfig, "TerriasSpiritOriginPerception"),
+            DeploymentToken = RuntimeValue(runtimeConfig, "TerriasSpiritDeploymentToken")
         };
     }
 
@@ -218,6 +208,13 @@ public static class SpiritCardFactory
         Set(runtime, "TerriasSpiritBaseArmor", snapshot.BaseArmor.ToString());
         Set(runtime, "TerriasSpiritEnemyRarity", snapshot.Rarity.ToString());
         Set(runtime, "TerriasSpiritSourceEnemyCardIds", string.Join(",", snapshot.SourceEnemyCardIds ?? new List<string>()));
+        Set(runtime, "TerriasSpiritLevel", snapshot.SpiritLevel.ToString());
+        Set(runtime, "TerriasSpiritAptitude", snapshot.SpiritAptitude.ToString());
+        Set(runtime, "TerriasSpiritOriginMagic", snapshot.OriginMagic.ToString());
+        Set(runtime, "TerriasSpiritOriginSpirit", snapshot.OriginSpirit.ToString());
+        Set(runtime, "TerriasSpiritOriginLuck", snapshot.OriginLuck.ToString());
+        Set(runtime, "TerriasSpiritOriginPerception", snapshot.OriginPerception.ToString());
+        Set(runtime, "TerriasSpiritDeploymentToken", snapshot.DeploymentToken);
 
         return runtime;
     }

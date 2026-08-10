@@ -41,10 +41,13 @@ Assert-True ($null -ne $courtPurification -and $courtPurification.Tag -eq $court
 
 $intentPath = Join-Path $repoRoot "Terrias\spirit.intent.registry.json"
 $capturePath = Join-Path $repoRoot "Terrias\spirit.capture.registry.json"
+$growthPath = Join-Path $repoRoot "Terrias\spirit.growth.registry.json"
 $intent = Get-Content -LiteralPath $intentPath -Raw | ConvertFrom-Json
 $capture = Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json
+$growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
+Assert-True ($growth.schemaVersion -eq 1) "spirit growth registry schema must be 1."
 
 $intentProfileListFields = @(
     "sourceEnemyCardIds",
@@ -112,4 +115,25 @@ $expectedFallbackSources = @("enemycard_Charge1", "enemycard_Charge2", "enemycar
 Assert-True (($pvpSources -join "|") -eq ($expectedPvpSources -join "|")) "PvP source reservation set drifted."
 Assert-True (($fallbackSources -join "|") -eq ($expectedFallbackSources -join "|")) "unsupported fallback source set drifted."
 
-Write-Host "Spirit content assertions passed: profiles=$($explicitIntents.Count)."
+$tierRanges = @{
+    Normal = @(24, 32, 56, 72)
+    Elite = @(32, 40, 72, 88)
+    Boss = @(40, 48, 88, 108)
+    FinalBoss = @(48, 60, 108, 132)
+}
+foreach ($profile in @($growth.profiles)) {
+    Assert-True ($tierRanges.ContainsKey([string]$profile.tier)) "growth profile $($profile.enemyId) has an invalid tier."
+    $range = $tierRanges[[string]$profile.tier]
+    $baseValues = @([int]$profile.baseOrigins.magic, [int]$profile.baseOrigins.spirit, [int]$profile.baseOrigins.luck, [int]$profile.baseOrigins.perception)
+    $growthValues = @([int]$profile.growthOrigins.magic, [int]$profile.growthOrigins.spirit, [int]$profile.growthOrigins.luck, [int]$profile.growthOrigins.perception)
+    $baseTotal = ($baseValues | Measure-Object -Sum).Sum
+    $growthTotal = ($growthValues | Measure-Object -Sum).Sum
+    Assert-True ($baseTotal -ge $range[0] -and $baseTotal -le $range[1]) "growth profile $($profile.enemyId) base budget is outside its tier."
+    Assert-True ($growthTotal -ge $range[2] -and $growthTotal -le $range[3]) "growth profile $($profile.enemyId) growth budget is outside its tier."
+    foreach ($value in $baseValues) { Assert-True ($value / $baseTotal -ge 0.10 -and $value / $baseTotal -le 0.45) "growth profile $($profile.enemyId) base origin share is invalid." }
+    foreach ($value in $growthValues) { Assert-True ($value / $growthTotal -ge 0.10 -and $value / $growthTotal -le 0.45) "growth profile $($profile.enemyId) growth origin share is invalid." }
+}
+Assert-True ((@($growth.profiles | Where-Object { $_.enemyId -eq "boss_second_sun_last_day" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Second Sun must use the explicit final-boss tier."
+Assert-True ((@($growth.profiles | Where-Object { $_.enemyId -eq "boss_saint_wuna" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Saint Wuna must use the explicit final-boss tier."
+
+Write-Host "Spirit content assertions passed: profiles=$($explicitIntents.Count), growthProfiles=$(@($growth.profiles).Count)."

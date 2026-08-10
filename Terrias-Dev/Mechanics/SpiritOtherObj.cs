@@ -47,7 +47,7 @@ public sealed class SpiritOtherObj : Partner
         var config = SpiritSummonService.CreateSpiritDataConfig(snapshot, stats);
         base.Init(config, 0f, Math.Max(0, slotIndex));
         Attack = stats.Attack;
-        Defend = 0;
+        Defend = stats.Armor;
         MaxHp = stats.MaxHp;
         CurHp = stats.MaxHp;
         MaxActionCount = 1;

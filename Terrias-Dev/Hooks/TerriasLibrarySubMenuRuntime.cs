@@ -16,7 +16,8 @@ namespace Terrias.Dll.Hooks;
 public enum TerriasLibrarySubMenuSlot
 {
     TopLeft,
-    BottomRight
+    BottomRight,
+    TopLeftUpper
 }
 
 public sealed class TerriasLibrarySubMenuEntry
@@ -281,25 +282,34 @@ public static class TerriasLibrarySubMenuRuntime
             && cardRect.parent == rollRect.parent
             && rect.parent == cardRect.parent)
         {
-            rect.anchoredPosition = slot == TerriasLibrarySubMenuSlot.TopLeft
-                ? new Vector2(cardRect.anchoredPosition.x, rollRect.anchoredPosition.y)
-                : new Vector2(rollRect.anchoredPosition.x, cardRect.anchoredPosition.y);
+            rect.anchoredPosition = slot switch
+            {
+                TerriasLibrarySubMenuSlot.TopLeft => new Vector2(cardRect.anchoredPosition.x, rollRect.anchoredPosition.y),
+                TerriasLibrarySubMenuSlot.TopLeftUpper => new Vector2(
+                    cardRect.anchoredPosition.x,
+                    rollRect.anchoredPosition.y + Math.Max(FallbackButtonHeight, rollRect.rect.height) + ButtonGap),
+                _ => new Vector2(rollRect.anchoredPosition.x, cardRect.anchoredPosition.y)
+            };
             return;
         }
 
-        if (slot == TerriasLibrarySubMenuSlot.TopLeft)
+        if (slot is TerriasLibrarySubMenuSlot.TopLeft or TerriasLibrarySubMenuSlot.TopLeftUpper)
         {
             if (rollRect != null && rect.parent == rollRect.parent)
             {
                 var width = Math.Max(FallbackButtonWidth, rollRect.rect.width);
-                rect.anchoredPosition = rollRect.anchoredPosition + new Vector2(-width - ButtonGap, 0f);
+                rect.anchoredPosition = rollRect.anchoredPosition + new Vector2(
+                    -width - ButtonGap,
+                    slot == TerriasLibrarySubMenuSlot.TopLeftUpper ? Math.Max(FallbackButtonHeight, rollRect.rect.height) + ButtonGap : 0f);
                 return;
             }
 
             if (cardRect != null && rect.parent == cardRect.parent)
             {
                 var height = Math.Max(FallbackButtonHeight, cardRect.rect.height);
-                rect.anchoredPosition = cardRect.anchoredPosition + new Vector2(0f, height + ButtonGap);
+                rect.anchoredPosition = cardRect.anchoredPosition + new Vector2(
+                    0f,
+                    (slot == TerriasLibrarySubMenuSlot.TopLeftUpper ? 2f : 1f) * (height + ButtonGap));
                 return;
             }
         }
@@ -325,15 +335,19 @@ public static class TerriasLibrarySubMenuRuntime
             var width = Math.Max(FallbackButtonWidth, templateRect.rect.width);
             var height = Math.Max(FallbackButtonHeight, templateRect.rect.height);
             rect.anchoredPosition = templateRect.anchoredPosition
-                                    + (slot == TerriasLibrarySubMenuSlot.TopLeft
-                                        ? new Vector2(-width - ButtonGap, 0f)
+                                    + (slot is TerriasLibrarySubMenuSlot.TopLeft or TerriasLibrarySubMenuSlot.TopLeftUpper
+                                        ? new Vector2(-width - ButtonGap,
+                                            slot == TerriasLibrarySubMenuSlot.TopLeftUpper ? height + ButtonGap : 0f)
                                         : new Vector2(0f, -height - ButtonGap));
             return;
         }
 
-        rect.anchoredPosition = slot == TerriasLibrarySubMenuSlot.TopLeft
-            ? new Vector2(-FallbackButtonWidth - ButtonGap, FallbackButtonHeight + ButtonGap)
-            : new Vector2(-18f, 18f);
+        rect.anchoredPosition = slot switch
+        {
+            TerriasLibrarySubMenuSlot.TopLeft => new Vector2(-FallbackButtonWidth - ButtonGap, FallbackButtonHeight + ButtonGap),
+            TerriasLibrarySubMenuSlot.TopLeftUpper => new Vector2(-FallbackButtonWidth - ButtonGap, 2f * (FallbackButtonHeight + ButtonGap)),
+            _ => new Vector2(-18f, 18f)
+        };
     }
 
     private static void CopyRectSettings(RectTransform target, RectTransform source)

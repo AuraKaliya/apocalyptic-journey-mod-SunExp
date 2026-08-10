@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraCombatAi.Shared;
 using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Hooks.Visual;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -17,6 +19,14 @@ public static class SpiritRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        SpiritCollectionApi.Initialize(modConfig);
+        SpiritAdventureButtonRuntime.Initialize(modConfig);
+        TerriasLibrarySubMenuRuntime.Register(new TerriasLibrarySubMenuEntry(
+            "spirit-warehouse",
+            "Terrias_SpiritWarehouseLibraryButton",
+            () => "精灵仓库",
+            TerriasLibrarySubMenuSlot.TopLeftUpper,
+            SpiritManagementPanel.OpenWarehouse));
         ProjectionIntentPresenter.Initialize();
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
@@ -30,12 +40,15 @@ public static class SpiritRuntime
         RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
         TerriasBattleLifecycleRouter.Register("Spirit", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => ClearBattle("FightStarted"),
+            AdventureStarting = _ => SpiritCollectionApi.BeginAdventure(),
+            FightInitializing = _ => ClearBattle("FightInitializing"),
+            FightInitialized = BeginBattle,
             PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
             FightRestarting = _ => ClearBattle("FightRestarting"),
             FightEnding = _ => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, _ => ClearBattle("Fight_Win.Init:before"));
+        RegisterAfter(modConfig, "GameEntryUI.NormalGame", _ => SpiritCollectionApi.BeginAdventure());
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, GrantBattleExperienceAndClear);
         RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, _ => ClearBattle("Fight_Loss.Init:before"));
         RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, _ => ClearBattle("Fight_Escape.Init:before"));
         TerriasStatusLifecycleRouter.Register("Spirit", new TerriasStatusLifecycleSubscription
@@ -51,6 +64,7 @@ public static class SpiritRuntime
     {
         RunCleanupStep("SummonDedupe", source, SpiritSummonService.ResetBattleSynchronization);
         RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
+        RunCleanupStep("BattleDeployment", source, SpiritBattleDeploymentService.Clear);
         RunCleanupStep("StateStore", source, () => SpiritStateStore.ClearAll(source));
         RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
         RunCleanupStep("UseGates", source, ResetUseGates);
@@ -71,6 +85,84 @@ public static class SpiritRuntime
     private static void ResetUseGates()
     {
         AttackUseGate.Clear();
+    }
+
+    private static void BeginBattle(ModHookContext context)
+    {
+        try
+        {
+            var party = SpiritCollectionApi.CurrentParty();
+            var collection = SpiritCollectionApi.Collection();
+            SpiritBattleDeploymentService.Begin(
+                party,
+                collection,
+                CompanionAuthorityService.BattleEpoch,
+                ResolveBattleExperience());
+            var snapshot = SpiritBattleDeploymentService.DeploymentCardSnapshot();
+            var status = FightPlayer.Instance?.Status;
+            var executor = status?.MirrorSc as ScriptExecutor;
+            if (snapshot == null || status == null || executor == null)
+            {
+                return;
+            }
+
+            executor.Self = status;
+            var grant = SpiritCardFactory.GrantDeploymentToHand(executor, snapshot);
+            if (!grant.Success)
+            {
+                TerriasLog.Warn("[SpiritCollection] deployment card grant failed: " + grant.FailureReason);
+                PlayerApi.ShowCaption("精灵：出战卡生成失败。");
+            }
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[SpiritCollection] battle snapshot failed: " + ex.Message);
+        }
+    }
+
+    private static void GrantBattleExperienceAndClear(ModHookContext context)
+    {
+        try
+        {
+            var snapshot = SpiritBattleDeploymentService.ExperienceSnapshot();
+            var results = SpiritCollectionApi.GrantBattleExperience(
+                snapshot.PartyUids,
+                snapshot.ActiveUid,
+                snapshot.Experience,
+                snapshot.BattleToken);
+            foreach (var result in results)
+            {
+                if (result.LeveledUp)
+                {
+                    PlayerApi.ShowCaption("精灵成长：" + result.Instance.Snapshot.DisplayName + " Lv." + result.Instance.Level);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[SpiritCollection] battle experience failed: " + ex.Message);
+        }
+        finally
+        {
+            ClearBattle("Fight_Win.Init:before");
+        }
+    }
+
+    private static int ResolveBattleExperience()
+    {
+        try
+        {
+            var rarity = EnemyManager.Instance?.enemyList?
+                .Where(enemy => enemy?.dataConfig?.data != null)
+                .Select(enemy => DictionaryUtil.GetInt(enemy.dataConfig.data, "Rarity"))
+                .DefaultIfEmpty(1)
+                .Max() ?? 1;
+            return rarity >= 3 ? 80 : rarity == 2 ? 40 : 20;
+        }
+        catch
+        {
+            return 20;
+        }
     }
 
     private static void GateCaptureUse(ModHookContext context)
@@ -108,6 +200,7 @@ public static class SpiritRuntime
             ? Convert.ToString(context.Arguments[0]) ?? ""
             : "";
         EnemyCaptureSettlementApi.ObserveEnemyAdded(enemyId);
+        SpiritBattleDeploymentService.RaiseExperienceReward(ResolveBattleExperience());
     }
 
     private static void RetireIfDead(ModHookContext context, string source)

@@ -258,6 +258,7 @@ public static class CardScripts
     private static void InitSpiritCard(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        CardApi.MarkForAdventureRemoval(self?.dataConfig);
     }
 
     private static void InitDrawFlame(ScriptExecutor self)

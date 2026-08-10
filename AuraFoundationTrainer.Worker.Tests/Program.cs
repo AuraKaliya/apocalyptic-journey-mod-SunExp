@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AuraCombatAi.Shared;
 using AuraFoundationTrainer.Worker;
+using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
 
 var assertions = 0;
@@ -103,6 +104,120 @@ var root = Path.Combine(
 Directory.CreateDirectory(root);
 try
 {
+    var shippedDefaults = new CombatFoundationTrainingParameters();
+    Assert(shippedDefaults.NormalValidationCampaigns == 50
+           && shippedDefaults.AdvancedValidationCampaigns == 50
+           && !shippedDefaults.EnableEarlyValidationStop,
+        "final validation defaults to complete random 50 normal plus 50 advanced samples");
+    var validationSeeds = CombatFoundationValidationSeedSampler.Create(
+        20260810UL,
+        2_000_000UL,
+        50,
+        50);
+    var repeatedValidationSeeds = CombatFoundationValidationSeedSampler.Create(
+        20260810UL,
+        2_000_000UL,
+        50,
+        50);
+    Assert(validationSeeds.NormalWorldSeeds.Count == 50
+           && validationSeeds.AdvancedWorldSeeds.Count == 50
+           && validationSeeds.NormalWorldSeeds
+               .Concat(validationSeeds.AdvancedWorldSeeds)
+               .Distinct()
+               .Count() == 100
+           && validationSeeds.PlanHash == repeatedValidationSeeds.PlanHash
+           && validationSeeds.NormalWorldSeeds.SequenceEqual(
+               repeatedValidationSeeds.NormalWorldSeeds),
+        "validation seed sampling is deterministic, random-looking, unique, and auditable");
+
+    var emptyArtifactRoot = Path.Combine(root, "empty-artifact");
+    var emptyArtifact = FoundationArtifactBundleWriter.Write(
+        new CombatFoundationWorkerJob
+        {
+            JobId = "artifact-smoke",
+            ResultDirectory = emptyArtifactRoot,
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+        },
+        new CombatCampaignFoundationTrainingResult
+        {
+            Success = true,
+            AcceptancePassed = false,
+            Message = "diagnostic-only"
+        },
+        new CombatFoundationTrainingAnalysis
+        {
+            JobId = "artifact-smoke"
+        },
+        "training-rejected");
+    using (var artifactDatabase = new SqliteConnection(
+               "Data Source=" + emptyArtifact.SimulationDatabasePath
+               + ";Mode=ReadOnly;Pooling=False"))
+    {
+        artifactDatabase.Open();
+        using var schema = artifactDatabase.CreateCommand();
+        schema.CommandText =
+            "SELECT value FROM metadata WHERE key='protocol'";
+        Assert(!emptyArtifact.ModelProduced
+               && File.Exists(emptyArtifact.ManifestPath)
+               && File.Exists(emptyArtifact.CapabilityReportPath)
+               && File.Exists(emptyArtifact.CapabilityReportHtmlPath)
+               && File.Exists(emptyArtifact.SimulationDatabasePath)
+               && Convert.ToString(schema.ExecuteScalar())
+                  == "aura.foundation-simulation-process.v1",
+            "artifact bundle persists reports and a queryable process database even without an accepted model");
+    }
+    var deploymentPackage = Path.Combine(
+        emptyArtifact.BundleDirectory,
+        "model",
+        "deployment-package.json");
+    var deploymentWeights = Path.Combine(
+        emptyArtifact.BundleDirectory,
+        "model",
+        "deployment-weights.bin");
+    File.WriteAllText(deploymentPackage, "{}", new UTF8Encoding(false));
+    File.WriteAllBytes(deploymentWeights, new byte[] { 1, 2, 3, 4 });
+    FoundationArtifactBundleWriter.AttachDeploymentPackage(
+        emptyArtifact.BundleDirectory,
+        deploymentPackage,
+        deploymentWeights);
+    var attachedManifest = JsonConvert.DeserializeObject<
+        FoundationArtifactBundleManifest>(
+        File.ReadAllText(emptyArtifact.ManifestPath));
+    Assert(attachedManifest?.DeploymentModelPackage
+               == "model/deployment-package.json"
+           && attachedManifest.DeploymentModelWeights
+               == "model/deployment-weights.bin"
+           && attachedManifest.Sha256.ContainsKey(
+               attachedManifest.DeploymentModelPackage)
+           && attachedManifest.Sha256.ContainsKey(
+               attachedManifest.DeploymentModelWeights),
+        "accepted deployment package paths and hashes attach to the shared artifact manifest");
+
+    var boundaryRoot = Path.Combine(root, "boundary-artifact");
+    var boundaryArtifact = FoundationArtifactBundleWriter.WriteBoundarySnapshot(
+        new CombatFoundationWorkerJob
+        {
+            JobId = "boundary-smoke",
+            ResultDirectory = boundaryRoot,
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+        },
+        new CombatCampaignFoundationTrainingResult
+        {
+            Success = true,
+            ContinuationRequired = true,
+            NextIteration = 2,
+            Message = "iteration-boundary"
+        });
+    Assert(File.Exists(boundaryArtifact.ManifestPath)
+           && File.Exists(boundaryArtifact.ModelNodeGraphPath)
+           && !File.Exists(Path.Combine(
+               boundaryArtifact.BundleDirectory,
+               FoundationArtifactBundleWriter.ReportFileName))
+           && !File.Exists(Path.Combine(
+               boundaryArtifact.BundleDirectory,
+               FoundationArtifactBundleWriter.DatabaseFileName)),
+        "iteration boundaries only write the lightweight live snapshot");
+
     var teacherRuntimeOptions = new CombatTransformerTeacherOptions
     {
         BatchSize = 128,

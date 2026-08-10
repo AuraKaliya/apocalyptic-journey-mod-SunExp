@@ -14,13 +14,18 @@ public static class CompanionStatsService
 
     public static CompanionStats SpiritStats(SpiritIntentProfile? profile)
     {
-        var source = BaseStats();
-        var active = profile ?? new SpiritIntentProfile();
-        return new CompanionStats(
-            Scale(source.MaxHp, active.HpMultiplier),
-            Scale(source.MaxMagic, active.MagicMultiplier),
-            Scale(source.Attack, active.AttackMultiplier),
-            Scale(source.Armor, active.ArmorMultiplier));
+        return SpiritGrowthService.BattleStats(new SpiritOriginVector(), profile);
+    }
+
+    public static CompanionStats SpiritStats(CapturedEnemySnapshot snapshot, SpiritIntentProfile? profile)
+    {
+        return SpiritGrowthService.BattleStats(new SpiritOriginVector
+        {
+            Magic = Math.Max(0, snapshot?.OriginMagic ?? 0),
+            Spirit = Math.Max(0, snapshot?.OriginSpirit ?? 0),
+            Luck = Math.Max(0, snapshot?.OriginLuck ?? 0),
+            Perception = Math.Max(0, snapshot?.OriginPerception ?? 0)
+        }, profile);
     }
 
     private static CompanionStats BaseStats()
@@ -32,12 +37,6 @@ public static class CompanionStatsService
         var attack = Round((5 + origins.Magic * 1.2f) * multiplier);
         var armor = Round((4 + origins.Spirit * 0.7f + origins.Perception * 0.8f) * multiplier);
         return new CompanionStats(maxHp, maxMagic, attack, armor);
-    }
-
-    private static int Scale(int value, float multiplier)
-    {
-        var safe = Math.Max(0.25f, Math.Min(2.5f, multiplier <= 0f ? 1f : multiplier));
-        return Math.Max(1, (int)Math.Round(value * safe, MidpointRounding.AwayFromZero));
     }
 
     private static CompanionOriginStats CurrentOrigins()

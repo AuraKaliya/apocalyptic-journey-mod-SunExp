@@ -25,6 +25,16 @@ public sealed class CapturedEnemySnapshot
     public int Rarity { get; set; }
     public List<string> SourceEnemyCardIds { get; set; } = new();
 
+    // Populated only on the temporary battle deployment card/network payload.
+    // Permanent collection snapshots keep these fields at their defaults.
+    public int SpiritLevel { get; set; }
+    public int SpiritAptitude { get; set; }
+    public int OriginMagic { get; set; }
+    public int OriginSpirit { get; set; }
+    public int OriginLuck { get; set; }
+    public int OriginPerception { get; set; }
+    public string DeploymentToken { get; set; } = "";
+
     public string ProfileKey => SpiritProfileKey.Create(EnemyId, VariantId);
 }
 

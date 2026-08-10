@@ -33,6 +33,38 @@ a shared helper before referencing them.
 - **Notes**: Added the derivation inside `BuildFoundationHtml`; the net472 build passed.
 
 ---
+
+## [ERR-20260810-007] powershell-replace-precedence
+
+**Logged**: 2026-08-10T14:05:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A PowerShell `-replace` expression was parsed as an argument to `Split-Path` instead of operating on its result.
+
+### Error
+```text
+A parameter cannot be found that matches parameter name 'replace'.
+```
+
+### Context
+- Incorrect form: `Split-Path $path -Leaf -replace '\D',''`.
+- The command was extracting iteration numbers before hashing model artifacts.
+
+### Suggested Fix
+Parenthesize the cmdlet result: `(Split-Path $path -Leaf) -replace '\D',''`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+
+### Resolution
+- **Resolved**: 2026-08-10T14:05:00+08:00
+- **Notes**: Re-ran with explicit parentheses and obtained all model hashes.
+
+---
 ## [ERR-20260810-001] decompile-root-layout
 
 **Logged**: 2026-08-10T00:00:00+08:00
@@ -5038,3 +5070,156 @@ Run the validator from its project-local skill path.
 - Related Files: .codex/skills/terrias-mod-dev/scripts/validate-terrias.ps1
 
 ---
+
+## [ERR-20260810-006] powershell-foreach-pipeline
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A PowerShell link check piped directly after a `foreach` statement and failed to parse.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- The command attempted `foreach (...) { ... } | Format-Table` in statement form.
+- The corrected command assigns the `foreach` output to `$rows` and pipes `$rows` afterward.
+
+### Suggested Fix
+Capture statement-form `foreach` output in a variable before piping, or wrap the expression explicitly.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/Terrias/modules/11-投影精灵与心变的Partner战斗流程.md
+
+---
+
+## [ERR-20260810-008] foundation-result-schema-assumption
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A diagnostic parser assumed foundation iterations were top-level and indexed a null array; a follow-up tool script also used invalid JavaScript block syntax.
+
+### Error
+```text
+Cannot index into a null array.
+SyntaxError: Unexpected identifier 'r'
+```
+
+### Context
+- `foundation-worker-result.json` stores the training payload under `Training`, not `Result` or at the document root.
+- The orchestration body is JavaScript; `let{...}` is invalid block syntax.
+
+### Suggested Fix
+Inspect top-level JSON property names before selecting nested payloads, and use a plain JavaScript block or declarations in tool orchestration.
+
+### Metadata
+- Reproducible: yes
+- Related Files: ModsData/AuraShared/Logs/AuraToolsExp/FoundationTrainer/combat-simulation-results/foundation-controller-20260810-012407859/foundation-worker-result.json
+
+---
+
+## [ERR-20260810-009] optional-project-rg-path
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A repository search passed a guessed `AuraFoundationTrainer` directory that does not exist, causing ripgrep to return an error after otherwise useful matches.
+
+### Error
+```text
+rg: AuraFoundationTrainer: The system cannot find the file specified. (os error 2)
+```
+
+### Context
+- The actual projects are `AuraFoundationTrainer.Worker` and `AuraFoundationTrainer.ControlCenter`.
+- The follow-up used `rg --files` to discover concrete project paths before searching them.
+
+### Suggested Fix
+Discover optional or uncertain repository paths with `rg --files` before passing them as positional roots to ripgrep.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+---
+# SQLite artifact hashing retained a pooled file handle
+
+- Date: 2026-08-10
+- Symptom: the artifact smoke test could not hash `simulation-process-v1.sqlite` immediately after export because Microsoft.Data.Sqlite still held the database open.
+- Cause: disposing a pooled SQLite connection returns it to the pool rather than closing the underlying file handle.
+- Fix: artifact-export connections set `Pooling = false` before hashing or atomically publishing the database.
+
+---
+
+## [ERR-20260810-A17] powershell-numeric-array-expression
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A PowerShell analysis command parsed comma-separated arithmetic expressions as array operations, then overflowed while reproducing a 32-bit FNV hash.
+
+### Error
+```text
+System.Object[] does not contain a method named 'op_Addition'.
+Arithmetic operation resulted in an overflow.
+```
+
+### Context
+- The command generated a review-only species-stat table from current enemy data.
+- Arithmetic entries in `@(...)` needed individual parentheses.
+- FNV multiplication needed `BigInteger` plus an explicit decimal `4294967295` mask; PowerShell treated `0xffffffff` as signed `-1`.
+
+### Suggested Fix
+Parenthesize each arithmetic array element and use an explicitly typed unsigned mask when emulating unchecked 32-bit arithmetic in PowerShell.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/Terrias/design/04-游戏主体精灵种族值表.csv
+
+---
+
+## [ERR-20260810-A18] powershell-review-query-assumptions
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+Initial review queries assumed numeric enemy IDs, guessed a nested README path, and piped directly from a `foreach` statement.
+
+### Error
+```text
+Cannot convert value "enemy_10001" to type "System.Int32".
+Cannot find path 'docs/Terrias/design/README.md'.
+An empty pipe element is not allowed.
+```
+
+### Context
+- Game-table enemy IDs include the `enemy_` prefix and must be compared as strings.
+- The Terrias documentation index is `docs/Terrias/README.md`.
+- PowerShell requires collecting `foreach` output into a variable, or wrapping the statement, before piping it.
+- PowerShell comparison operators require token separation; `-eq$id` is parsed as a parameter name rather than `-eq $id`.
+
+### Suggested Fix
+Inspect one source row and discover index files before composing the full query; preserve source identifier types, materialize loop output before formatting, and keep spaces around comparison operators.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/游戏主体内容/combat-knowledge/table-exports/witch-tables-20260807-134623.json, docs/Terrias/README.md

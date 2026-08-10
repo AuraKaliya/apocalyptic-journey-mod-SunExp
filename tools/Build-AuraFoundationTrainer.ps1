@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
 $controlCenterProject = Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\AuraFoundationTrainer.ControlCenter.csproj"
+$simulationViewerProject = Join-Path $repoRoot "AuraFoundationTrainer.SimulationViewer\AuraFoundationTrainer.SimulationViewer.csproj"
 $transformerTeacherSource = Join-Path $repoRoot "tools\transformer-teacher"
 $transformerSetupSource = Join-Path $repoRoot "tools\Setup-AuraTransformerTeacher.ps1"
 $transformerInstallerSource = Join-Path $repoRoot "tools\Install-AuraPyTorch.cmd"
@@ -50,7 +51,8 @@ function Get-RunningTrainerProcesses {
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
             Where-Object {
                 $_.Name -eq "AuraFoundationTrainer.Worker.exe" -or
-                $_.Name -eq "AuraFoundationTrainer.ControlCenter.exe"
+                $_.Name -eq "AuraFoundationTrainer.ControlCenter.exe" -or
+                $_.Name -eq "AuraFoundationTrainer.SimulationViewer.exe"
             }
     )
     return @(
@@ -83,7 +85,8 @@ function Format-TrainerProcesses {
 
 $worker = Join-Path $resolvedOutput "AuraFoundationTrainer.Worker.exe"
 $controlCenter = Join-Path $resolvedOutput "AuraFoundationTrainer.ControlCenter.exe"
-$trainerTargets = @($worker, $controlCenter)
+$simulationViewer = Join-Path $resolvedOutput "AuraFoundationTrainer.SimulationViewer.exe"
+$trainerTargets = @($worker, $controlCenter, $simulationViewer)
 
 function Get-FoundationFileSha256 {
     param(
@@ -245,7 +248,8 @@ function Stop-RunningTrainerProcesses {
     $controlCenters = @(
         Get-RunningTrainerProcesses -TargetPaths $TargetPaths |
             Where-Object {
-                $_.Name -eq "AuraFoundationTrainer.ControlCenter.exe"
+                $_.Name -eq "AuraFoundationTrainer.ControlCenter.exe" -or
+                $_.Name -eq "AuraFoundationTrainer.SimulationViewer.exe"
             }
     )
     foreach ($processInfo in $controlCenters) {
@@ -259,7 +263,9 @@ function Stop-RunningTrainerProcesses {
     $remainingControlCenters = @(
         Wait-TrainerProcessesExit `
             -TargetPaths $TargetPaths `
-            -Names @("AuraFoundationTrainer.ControlCenter.exe") `
+            -Names @(
+                "AuraFoundationTrainer.ControlCenter.exe",
+                "AuraFoundationTrainer.SimulationViewer.exe") `
             -TimeoutSeconds $TimeoutSeconds
     )
     if ($remainingControlCenters.Count -gt 0) {
@@ -359,11 +365,14 @@ $stageRoot = Join-Path $stageBase (
     [System.Guid]::NewGuid().ToString("N"))
 $workerStage = Join-Path $stageRoot "worker"
 $controlCenterStage = Join-Path $stageRoot "control-center"
+$simulationViewerStage = Join-Path $stageRoot "simulation-viewer"
 
 try {
     New-Item -ItemType Directory -Force -Path $workerStage |
         Out-Null
     New-Item -ItemType Directory -Force -Path $controlCenterStage |
+        Out-Null
+    New-Item -ItemType Directory -Force -Path $simulationViewerStage |
         Out-Null
     Invoke-FoundationPublish `
         -ProjectPath $project `
@@ -373,12 +382,17 @@ try {
         -ProjectPath $controlCenterProject `
         -StageDirectory $controlCenterStage `
         -DisplayName "Aura foundation trainer control center"
+    Invoke-FoundationPublish `
+        -ProjectPath $simulationViewerProject `
+        -StageDirectory $simulationViewerStage `
+        -DisplayName "Aura foundation trainer simulation viewer"
 
     New-Item -ItemType Directory -Force -Path $resolvedOutput |
         Out-Null
     foreach ($file in @(
         Get-ChildItem -LiteralPath $workerStage -File
         Get-ChildItem -LiteralPath $controlCenterStage -File
+        Get-ChildItem -LiteralPath $simulationViewerStage -File
     )) {
         Copy-PublishedFileWithRetry `
             -Source $file.FullName `
@@ -427,6 +441,9 @@ if (-not (Test-Path -LiteralPath $worker -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $controlCenter -PathType Leaf)) {
     throw "Published foundation trainer control center is missing: $controlCenter"
 }
+if (-not (Test-Path -LiteralPath $simulationViewer -PathType Leaf)) {
+    throw "Published foundation trainer simulation viewer is missing: $simulationViewer"
+}
 $publishedTeacher = Join-Path `
     $resolvedOutput `
     "TransformerTeacher\train_teacher.py"
@@ -447,3 +464,4 @@ if (-not (Test-Path -LiteralPath $publishedInstaller -PathType Leaf)) {
 }
 Write-Host "Aura foundation trainer published: $worker"
 Write-Host "Aura foundation trainer control center published: $controlCenter"
+Write-Host "Aura foundation trainer simulation viewer published: $simulationViewer"

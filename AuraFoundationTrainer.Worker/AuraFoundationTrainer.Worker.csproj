@@ -38,6 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.29" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
       <Private>true</Private>

@@ -77,6 +77,7 @@ public static class RuntimeHooks
         RunHookStep("companion intent registry", () => CompanionIntentRegistry.Load(modConfig));
         RunHookStep("spirit intent registry", () => SpiritIntentRegistry.Load(modConfig));
         RunHookStep("spirit capture registry", () => SpiritCaptureRegistry.Load(modConfig));
+        RunHookStep("spirit growth registry", () => SpiritGrowthRegistry.Load(modConfig));
         RunHookStep("companion threat runtime", () => CompanionThreatRuntime.Initialize(modConfig));
         RunHookStep("heart change control", () => HeartChangeControlRuntime.Initialize(modConfig));
         RunHookStep("projection runtime", () => ProjectionRuntime.Initialize(modConfig));

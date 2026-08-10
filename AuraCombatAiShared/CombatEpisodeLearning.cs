@@ -616,6 +616,16 @@ public sealed class CombatEpisodeCandidate
 
     public double SearchLowerTailMean { get; set; }
 
+    public double BaseRuleScore { get; set; }
+
+    public double RawResidualScore { get; set; }
+
+    public double ResidualApplicability { get; set; }
+
+    public double AppliedResidualScore { get; set; }
+
+    public double RuleScore { get; set; }
+
     public List<double> SearchReturnQuantiles { get; set; } = new();
 
     public double TransformerTeacherProbability { get; set; } = -1d;
