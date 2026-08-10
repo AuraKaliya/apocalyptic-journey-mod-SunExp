@@ -47,7 +47,8 @@ $capture = Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json
 $growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
-Assert-True ($growth.schemaVersion -eq 1) "spirit growth registry schema must be 1."
+Assert-True ($growth.schemaVersion -eq 2) "spirit growth registry schema must be 2."
+Assert-True ($growth.defaults.maxLevel -eq 50) "spirit level cap must remain 50."
 
 $intentProfileListFields = @(
     "sourceEnemyCardIds",
@@ -68,6 +69,9 @@ foreach ($profile in @($intent.profiles)) {
         Assert-True ($property.Value -is [System.Array]) "spirit profile $($profile.enemyId) field $field must be a JSON array, actual=$actualType."
     }
 }
+$explicitIntentProfileIds = @($intent.profiles | Where-Object enemyId -ne "*" | ForEach-Object { [string]$_.profileId })
+Assert-True ((@($explicitIntentProfileIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "every explicit intent profile must expose a stable profileId."
+Assert-True ((@($explicitIntentProfileIds | Sort-Object -Unique)).Count -eq $explicitIntentProfileIds.Count) "intent profileId values must be unique."
 foreach ($profile in @($capture.profiles)) {
     Assert-True ($profile.suppressedSuccessorIds -is [System.Array]) "capture profile $($profile.enemyId) suppressedSuccessorIds must be a JSON array."
 }
@@ -121,19 +125,59 @@ $tierRanges = @{
     Boss = @(40, 48, 88, 108)
     FinalBoss = @(48, 60, 108, 132)
 }
+$growthProfileIds = @($growth.profiles | ForEach-Object { [string]$_.profileId })
+$growthSpeciesIds = @($growth.profiles | ForEach-Object { [string]$_.speciesId })
+Assert-True (@($growth.profiles).Count -eq 58) "growth registry must contain 55 base-game forms and 3 Terrias species."
+Assert-True ((@($growthProfileIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable profileId values."
+Assert-True ((@($growthSpeciesIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable speciesId values."
+Assert-True ((@($growthProfileIds | Sort-Object -Unique)).Count -eq $growthProfileIds.Count) "growth profileId values must be unique."
+Assert-True ((@($growth.profiles | Where-Object { $_.match.sourceModId -eq "base-game" })).Count -eq 55) "all 55 reviewed base-game forms must be data-backed."
+$identityDiff = @(Compare-Object $growthProfileIds $explicitIntentProfileIds)
+Assert-True ($identityDiff.Count -eq 1 -and @($identityDiff | Where-Object InputObject -eq "base-game.99999").Count -eq 1) "growth and intent identities may differ only by the uncapturable test profile base-game.99999."
+
+$requiredDefinitions = @(
+    @($growth.levelCurves.id),
+    @($growth.aptitudeRollProfiles.id),
+    @($growth.aptitudeCurves.id),
+    @($growth.experienceCurves.id),
+    @($growth.battleConversions.id),
+    @($growth.radarScaleSets.id)
+)
+$defaultReferences = @(
+    [string]$growth.defaults.levelCurveId,
+    [string]$growth.defaults.aptitudeRollProfileId,
+    [string]$growth.defaults.aptitudeCurveId,
+    [string]$growth.defaults.experienceCurveId,
+    [string]$growth.defaults.battleConversionId,
+    [string]$growth.defaults.radarScaleId
+)
+for ($index = 0; $index -lt $defaultReferences.Count; $index++) {
+    Assert-True ($requiredDefinitions[$index] -contains $defaultReferences[$index]) "growth default reference $($defaultReferences[$index]) is unresolved."
+}
+$radar = @($growth.radarScaleSets | Where-Object id -eq $growth.defaults.radarScaleId)[0]
+Assert-True ((@($radar.axes.key) -join ",") -eq "magic,perception,spirit,luck") "radar axes must retain the canonical four-origin order."
+Assert-True ((@($radar.axes | Where-Object cap -ne 80)).Count -eq 0) "global radar axes must use the stable cap of 80."
+
 foreach ($profile in @($growth.profiles)) {
-    Assert-True ($tierRanges.ContainsKey([string]$profile.tier)) "growth profile $($profile.enemyId) has an invalid tier."
+    Assert-True ($tierRanges.ContainsKey([string]$profile.tier)) "growth profile $($profile.profileId) has an invalid tier."
     $range = $tierRanges[[string]$profile.tier]
     $baseValues = @([int]$profile.baseOrigins.magic, [int]$profile.baseOrigins.spirit, [int]$profile.baseOrigins.luck, [int]$profile.baseOrigins.perception)
     $growthValues = @([int]$profile.growthOrigins.magic, [int]$profile.growthOrigins.spirit, [int]$profile.growthOrigins.luck, [int]$profile.growthOrigins.perception)
     $baseTotal = ($baseValues | Measure-Object -Sum).Sum
     $growthTotal = ($growthValues | Measure-Object -Sum).Sum
-    Assert-True ($baseTotal -ge $range[0] -and $baseTotal -le $range[1]) "growth profile $($profile.enemyId) base budget is outside its tier."
-    Assert-True ($growthTotal -ge $range[2] -and $growthTotal -le $range[3]) "growth profile $($profile.enemyId) growth budget is outside its tier."
-    foreach ($value in $baseValues) { Assert-True ($value / $baseTotal -ge 0.10 -and $value / $baseTotal -le 0.45) "growth profile $($profile.enemyId) base origin share is invalid." }
-    foreach ($value in $growthValues) { Assert-True ($value / $growthTotal -ge 0.10 -and $value / $growthTotal -le 0.45) "growth profile $($profile.enemyId) growth origin share is invalid." }
+    Assert-True ($baseTotal -ge $range[0] -and $baseTotal -le $range[1]) "growth profile $($profile.profileId) base budget is outside its tier."
+    Assert-True ($growthTotal -ge $range[2] -and $growthTotal -le $range[3]) "growth profile $($profile.profileId) growth budget is outside its tier."
+    foreach ($value in $baseValues) { Assert-True ($value / $baseTotal -ge 0.10 -and $value / $baseTotal -le 0.45) "growth profile $($profile.profileId) base origin share is invalid." }
+    foreach ($value in $growthValues) { Assert-True ($value / $growthTotal -ge 0.10 -and $value / $growthTotal -le 0.45) "growth profile $($profile.profileId) growth origin share is invalid." }
 }
-Assert-True ((@($growth.profiles | Where-Object { $_.enemyId -eq "boss_second_sun_last_day" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Second Sun must use the explicit final-boss tier."
-Assert-True ((@($growth.profiles | Where-Object { $_.enemyId -eq "boss_saint_wuna" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Saint Wuna must use the explicit final-boss tier."
+Assert-True ((@($growth.profiles | Where-Object { $_.match.enemyId -eq "boss_second_sun_last_day" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Second Sun must use the explicit final-boss tier."
+Assert-True ((@($growth.profiles | Where-Object { $_.match.enemyId -eq "boss_saint_wuna" -and $_.tier -eq "FinalBoss" })).Count -eq 1) "Saint Wuna must use the explicit final-boss tier."
+
+$multiFormSpecies = @($growth.profiles | Group-Object speciesId | Where-Object Count -gt 1)
+Assert-True ($multiFormSpecies.Count -eq 5) "the five reviewed multi-form species must share speciesId while keeping fixed profileId forms."
+foreach ($group in $multiFormSpecies) {
+    Assert-True ((@($group.Group.formKey | Sort-Object -Unique)).Count -eq $group.Count) "multi-form species $($group.Name) has duplicate form keys."
+    Assert-True ((@($group.Group.formOrder | Sort-Object -Unique)).Count -eq $group.Count) "multi-form species $($group.Name) has duplicate form order values."
+}
 
 Write-Host "Spirit content assertions passed: profiles=$($explicitIntents.Count), growthProfiles=$(@($growth.profiles).Count)."

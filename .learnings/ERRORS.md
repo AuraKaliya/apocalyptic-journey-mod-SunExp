@@ -5223,3 +5223,175 @@ Inspect one source row and discover index files before composing the full query;
 ### Metadata
 - Reproducible: yes
 - Related Files: docs/游戏主体内容/combat-knowledge/table-exports/witch-tables-20260807-134623.json, docs/Terrias/README.md
+
+---
+
+## [ERR-20260810-A19] powershell-interpolated-colon
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A PowerShell diagnostic label placed a colon immediately after an interpolated variable name.
+
+### Error
+```text
+Variable reference is not valid. ':' was not followed by a valid variable name character.
+```
+
+### Context
+PowerShell interpreted `$f:` as a scoped-variable token while printing a file-and-line heading.
+
+### Suggested Fix
+Delimit the variable explicitly when punctuation follows it: `${f}:$start`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev/Mechanics/SpiritModels.cs
+
+---
+
+## [ERR-20260810-A20] powershell-glob-and-null-last-exit-code
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+PowerShell passed wildcard path roots directly to ripgrep on Windows, and a later combined test command treated an unset `$LASTEXITCODE` as failure after a successful PowerShell script.
+
+### Error
+```text
+rg: tools/Test-Spirit*.ps1: The filename, directory name, or volume label syntax is incorrect.
+```
+
+### Context
+- Ripgrep should receive a concrete directory plus `-g "Test-Spirit*.ps1"`, not a wildcard positional root.
+- PowerShell scripts that do not launch native processes may leave `$LASTEXITCODE` unset; `$null -ne 0` evaluates true.
+- The follow-up ran each script as an independent command and relied on the tool exit code.
+
+### Suggested Fix
+Use ripgrep `-g` filters for Windows globs, and do not gate consecutive PowerShell scripts on `$LASTEXITCODE` unless the called script explicitly sets it.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-SpiritCapture.ps1, tools/Test-SpiritRegistry.ps1
+
+---
+
+## [ERR-20260810-A21] guessed-validation-entrypoints
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Validation initially used guessed project and aggregate-script paths that do not exist in this repository.
+
+### Error
+```text
+Cannot find path 'Terrias-Dev/Terrias-Dev.csproj'.
+The term '.\tools\Test-All.ps1' is not recognized.
+```
+
+### Context
+- The actual project is `Terrias-Dev/Terrias.Dll.csproj`.
+- The aggregate entry point is `tools/Test-TerriasGate.ps1`, with discoverable profiles from `-List`.
+
+### Suggested Fix
+Discover `*.csproj` and validation scripts with `rg --files` or `Get-ChildItem` before invoking them.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev/Terrias.Dll.csproj, tools/Test-TerriasGate.ps1
+
+---
+
+## [ERR-20260810-A22] full-release-branding-scans-generated-diagnostics
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: low
+**Status**: open
+**Area**: tests
+
+### Summary
+The full Terrias release matrix passed every build, behavior, architecture, content, resource, event, spirit and domain step, then failed branding because a pre-existing tracked diagnostic JSON contains absolute workspace paths with the legacy repository folder name.
+
+### Error
+```text
+Legacy brand remains in tracked text: tmp/resume-diagnostic/job.json
+```
+
+### Context
+- The failure is unrelated to the spirit schema 2 implementation.
+- The offending `tmp/resume-diagnostic` files predate this change and were not modified during this task.
+- The targeted `spirit` profile passes all three spirit steps.
+
+### Suggested Fix
+Decide separately whether generated diagnostic fixtures should be excluded from branding scans or normalized to repository-relative paths.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tmp/resume-diagnostic/job.json, tools/Test-TerriasBranding.ps1
+
+---
+
+## [ERR-20260810-A23] net472-hex-api-and-powershell-assert-expression
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: build
+
+### Summary
+The first full build exposed a .NET 5+ hex API in the net472 shared runtime, and the first schema 2 content test used a multiline PowerShell assertion whose parentheses were ambiguous to the parser.
+
+### Error
+```text
+Convert does not contain a definition for ToHexString.
+Missing closing ')' in expression.
+```
+
+### Context
+- `AuraSharedRuntime-Dev` targets net472, so hash formatting must use `BitConverter.ToString(...).Replace("-", "")`.
+- The profile identity comparison became clearer and parser-safe after assigning `Compare-Object` output to `$identityDiff` before asserting.
+
+### Suggested Fix
+Keep shared-runtime APIs within the target framework surface, and materialize nontrivial PowerShell pipeline expressions before passing them to assertion functions.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs, tools/Test-SpiritCapture.ps1
+
+---
+
+## [ERR-20260810-A24] wildcard-variant-normalized-to-empty
+
+**Logged**: 2026-08-10T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: runtime
+
+### Summary
+Schema 2 loaded successfully but every profile with `variantId: "*"` missed at runtime because generic identifier normalization stripped the wildcard into an empty string.
+
+### Error
+```text
+Explicit base-game profile resolved as deterministic fallback despite registryState=ready.
+```
+
+### Context
+- Structural JSON tests could not detect the runtime matching failure.
+- A new runtime test loads the actual shipped growth registry and resolves `enemy_10048` / `enemy_10051` into their fixed multi-form identities.
+- Variant normalization now preserves `*` before applying runtime-prefix cleanup.
+
+### Suggested Fix
+Test configuration files through the production loader and resolver, not only through deserialization and structural assertions. Treat wildcard tokens as grammar before generic identifier sanitation.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev/Mechanics/SpiritGrowthRegistry.cs, Terrias-Dev.SpiritTests/Program.cs

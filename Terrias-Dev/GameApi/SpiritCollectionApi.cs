@@ -130,6 +130,18 @@ public static class SpiritCollectionApi
         return SpiritCollectionService.SetDefaultParty(party.PartySlots, party.ActiveSpiritUid);
     }
 
+    public static bool AddToDefaultParty(string uid)
+    {
+        var party = SpiritCollectionService.DefaultParty();
+        uid = (uid ?? "").Trim();
+        if (uid.Length == 0 || SpiritCollectionService.Find(uid) == null) return false;
+        if (party.PartySlots.Contains(uid, StringComparer.Ordinal)) return true;
+        var slot = party.PartySlots.FindIndex(string.IsNullOrWhiteSpace);
+        if (slot < 0) return false;
+        party.PartySlots[slot] = uid;
+        return SpiritCollectionService.SetDefaultParty(party.PartySlots, party.ActiveSpiritUid);
+    }
+
     public static bool SetDefaultActive(string uid)
     {
         var party = SpiritCollectionService.DefaultParty();
@@ -140,13 +152,24 @@ public static class SpiritCollectionApi
 
     public static SpiritOriginVector Origins(SpiritInstance instance)
     {
-        return SpiritGrowthService.OriginsAt(SpiritGrowthRegistry.Resolve(instance.Snapshot), instance.Level, instance.Aptitude);
+        var profile = SpiritGrowthRegistry.Resolve(instance);
+        return SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude);
     }
 
     public static CompanionStats Stats(SpiritInstance instance)
     {
-        return SpiritGrowthService.BattleStats(Origins(instance), SpiritIntentRegistry.ProfileFor(instance.Snapshot.ProfileKey));
+        var profile = SpiritGrowthRegistry.Resolve(instance);
+        return SpiritGrowthService.BattleStats(
+            profile,
+            SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude),
+            SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot.ProfileKey));
     }
+
+    public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance) => SpiritGrowthQueryService.Build(instance);
+
+    public static bool ToggleFavorite(string uid) => SpiritCollectionService.ToggleFavorite(uid);
+
+    public static bool ToggleLocked(string uid) => SpiritCollectionService.ToggleLocked(uid);
 
     public static IReadOnlyList<SpiritExperienceResult> GrantBattleExperience(
         IReadOnlyList<string> partyUids,

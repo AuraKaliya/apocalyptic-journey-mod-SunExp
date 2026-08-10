@@ -1637,8 +1637,9 @@ public static class CombatFoundationValidationSeedSampler
                         + "|"
                         + string.Join(",", advanced);
         using var sha256 = SHA256.Create();
-        var hash = Convert.ToHexString(
+        var hash = BitConverter.ToString(
                 sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical)))
+            .Replace("-", "")
             .ToLowerInvariant();
         return new CombatFoundationValidationSeedPlan
         {

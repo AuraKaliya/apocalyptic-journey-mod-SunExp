@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCollectionService
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
     public const int PartyCapacity = 6;
     public const int LegacyCardMigrationVersion = 1;
     private const int OperationHistoryLimit = 512;
@@ -76,17 +77,30 @@ public static class SpiritCollectionService
             normalizedSnapshot.OriginLuck = 0;
             normalizedSnapshot.OriginPerception = 0;
             normalizedSnapshot.DeploymentToken = "";
+            normalizedSnapshot.SpeciesId = "";
+            normalizedSnapshot.ProfileId = "";
+            var identity = SpiritGrowthRegistry.ResolveIdentity(normalizedSnapshot);
+            var aptitudeRoll = SpiritGrowthRegistry.AptitudeRollFor(identity.Profile);
             var instance = new SpiritInstance
             {
                 SpiritUid = normalizedSnapshot.SpiritUid,
+                SpeciesId = identity.SpeciesId,
+                ProfileId = identity.ProfileId,
                 Snapshot = normalizedSnapshot,
                 Level = 1,
                 Experience = 0,
-                Aptitude = Math.Max(0, Math.Min(100, fixedAptitude ?? SpiritGrowthService.RollAptitude(token + ":" + normalizedSnapshot.SpiritUid))),
+                Aptitude = Math.Max(aptitudeRoll.Minimum, Math.Min(aptitudeRoll.Maximum,
+                    fixedAptitude ?? SpiritGrowthService.RollAptitude(identity.Profile, token + ":" + normalizedSnapshot.SpiritUid))),
                 CapturedAt = string.IsNullOrWhiteSpace(normalizedSnapshot.CapturedAt)
                     ? DateTimeOffset.UtcNow.ToString("O")
                     : normalizedSnapshot.CapturedAt
             };
+            if (identity.UsedFallback && IsOwnedSource(normalizedSnapshot.SourceModId))
+            {
+                TerriasLog.Warn("[SpiritGrowthRegistry] owned capture used fallback profileId=" + identity.ProfileId
+                                + ", sourceModId=" + normalizedSnapshot.SourceModId
+                                + ", enemyId=" + normalizedSnapshot.EnemyId);
+            }
             candidate.Instances.Add(instance);
             if (token.Length > 0)
             {
@@ -135,6 +149,16 @@ public static class SpiritCollectionService
                 ActiveSpiritUid = document.DefaultActiveSpiritUid
             }, document);
         }
+    }
+
+    public static bool ToggleFavorite(string spiritUid)
+    {
+        return ToggleFlag(spiritUid, true);
+    }
+
+    public static bool ToggleLocked(string spiritUid)
+    {
+        return ToggleFlag(spiritUid, false);
     }
 
     public static SpiritExperienceResult? GrantExperience(string spiritUid, int amount, string battleToken)
@@ -218,9 +242,14 @@ public static class SpiritCollectionService
 
                 var snapshot = SpiritModelCloner.CloneSnapshot(source);
                 snapshot.SpiritUid = UniqueUid(candidate, snapshot.SpiritUid);
+                snapshot.SpeciesId = "";
+                snapshot.ProfileId = "";
+                var identity = SpiritGrowthRegistry.ResolveIdentity(snapshot);
                 candidate.Instances.Add(new SpiritInstance
                 {
                     SpiritUid = snapshot.SpiritUid,
+                    SpeciesId = identity.SpeciesId,
+                    ProfileId = identity.ProfileId,
                     Snapshot = snapshot,
                     Level = 1,
                     Aptitude = SpiritGrowthService.LegacyAptitude,
@@ -258,11 +287,20 @@ public static class SpiritCollectionService
                 item.SpiritUid = string.IsNullOrWhiteSpace(item.SpiritUid) ? Guid.NewGuid().ToString("N") : item.SpiritUid.Trim();
                 while (!seen.Add(item.SpiritUid)) item.SpiritUid = Guid.NewGuid().ToString("N");
                 item.Snapshot.SpiritUid = item.SpiritUid;
-                item.Level = Math.Max(1, Math.Min(SpiritGrowthService.MaxLevel, item.Level));
-                item.Experience = item.Level >= SpiritGrowthService.MaxLevel
+                if (string.IsNullOrWhiteSpace(item.SpeciesId) || string.IsNullOrWhiteSpace(item.ProfileId))
+                {
+                    var identity = SpiritGrowthRegistry.ResolveIdentity(item.Snapshot);
+                    item.SpeciesId = identity.SpeciesId;
+                    item.ProfileId = identity.ProfileId;
+                }
+                var profile = SpiritGrowthRegistry.Resolve(item);
+                var maxLevel = SpiritGrowthService.MaxLevelFor(profile);
+                var roll = SpiritGrowthRegistry.AptitudeRollFor(profile);
+                item.Level = Math.Max(1, Math.Min(maxLevel, item.Level));
+                item.Experience = item.Level >= maxLevel
                     ? 0
-                    : Math.Max(0, Math.Min(SpiritGrowthService.ExperienceToNextLevel(item.Level) - 1, item.Experience));
-                item.Aptitude = Math.Max(0, Math.Min(100, item.Aptitude));
+                    : Math.Max(0, Math.Min(SpiritGrowthService.ExperienceToNextLevel(profile, item.Level) - 1, item.Experience));
+                item.Aptitude = Math.Max(roll.Minimum, Math.Min(roll.Maximum, item.Aptitude));
                 return item;
             }).ToList();
         source.DefaultPartySlots = NormalizeSlots(source.DefaultPartySlots, source);
@@ -348,6 +386,21 @@ public static class SpiritCollectionService
         store.Save(candidate);
     }
 
+    private static bool ToggleFlag(string spiritUid, bool favorite)
+    {
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
+            if (instance == null) return false;
+            if (favorite) instance.Favorite = !instance.Favorite;
+            else instance.Locked = !instance.Locked;
+            SaveUnlocked(candidate);
+            document = candidate;
+            return favorite ? instance.Favorite : instance.Locked;
+        }
+    }
+
     private static SpiritCollectionDocument CloneDocument(SpiritCollectionDocument source)
     {
         return new SpiritCollectionDocument
@@ -363,4 +416,11 @@ public static class SpiritCollectionService
     }
 
     private static bool Same(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
+
+    private static bool IsOwnedSource(string sourceModId)
+    {
+        return string.Equals(sourceModId, "BaseGame", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(sourceModId, "base-game", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(sourceModId, "Terrias", StringComparison.OrdinalIgnoreCase);
+    }
 }

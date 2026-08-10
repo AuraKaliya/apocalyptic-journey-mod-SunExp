@@ -27,6 +27,8 @@ public sealed class CapturedEnemySnapshot
 
     // Populated only on the temporary battle deployment card/network payload.
     // Permanent collection snapshots keep these fields at their defaults.
+    public string SpeciesId { get; set; } = "";
+    public string ProfileId { get; set; } = "";
     public int SpiritLevel { get; set; }
     public int SpiritAptitude { get; set; }
     public int OriginMagic { get; set; }
@@ -36,6 +38,8 @@ public sealed class CapturedEnemySnapshot
     public string DeploymentToken { get; set; } = "";
 
     public string ProfileKey => SpiritProfileKey.Create(EnemyId, VariantId);
+
+    public string IntentProfileKey => string.IsNullOrWhiteSpace(ProfileId) ? ProfileKey : ProfileId;
 }
 
 [Serializable]
@@ -91,6 +95,8 @@ public static class SpiritProfileKey
 [Serializable]
 public sealed class SpiritIntentProfile
 {
+    public string ProfileId { get; set; } = "";
+
     public string EnemyId { get; set; } = "*";
     public string VariantId { get; set; } = "*";
     public List<string> SourceEnemyCardIds { get; set; } = new();

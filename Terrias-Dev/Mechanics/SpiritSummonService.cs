@@ -322,9 +322,10 @@ public static class SpiritSummonService
                 owner?.transform?.gameObject,
                 source + ".SpiritSpawn");
             var spirit = root.AddComponent<SpiritOtherObj>();
-            var profileResolution = SpiritIntentRegistry.ResolveProfile(snapshot.ProfileKey);
+            var profileResolution = SpiritIntentRegistry.ResolveProfileIdentity(snapshot.ProfileId, snapshot.ProfileKey);
             var profile = profileResolution.Profile;
             var profileMessage = "[SpiritProfile] summon resolve: raw=" + snapshot.ProfileKey
+                + ", fixedProfileId=" + snapshot.ProfileId
                 + ", matched=" + profileResolution.MatchedProfileKey
                 + ", kind=" + profileResolution.MatchKind
                 + ", pveAttack=" + profile.PveAttackTendency.Count

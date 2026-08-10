@@ -27,6 +27,7 @@ public static class SpiritIntentRegistry
     };
     private static SpiritIntentRegistryDocument document = BuiltInDocument();
     private static Dictionary<string, CompanionIntentDefinition> intentById = new(StringComparer.Ordinal);
+    private static Dictionary<string, SpiritIntentProfile> profileById = new(StringComparer.Ordinal);
     private static string registryHash = "00000000";
 
     static SpiritIntentRegistry()
@@ -95,8 +96,32 @@ public static class SpiritIntentRegistry
         return ResolveProfile(profileKey).Profile;
     }
 
+    public static SpiritIntentProfile ProfileForIdentity(string profileId, string fallbackProfileKey)
+    {
+        return ResolveProfileIdentity(profileId, fallbackProfileKey).Profile;
+    }
+
+    public static SpiritProfileResolution<SpiritIntentProfile> ResolveProfileIdentity(string profileId, string fallbackProfileKey)
+    {
+        lock (SyncRoot)
+        {
+            if (!string.IsNullOrWhiteSpace(profileId) && profileById.TryGetValue(profileId.Trim(), out var fixedProfile))
+            {
+                return DirectProfileIdResolution(fixedProfile, profileId);
+            }
+        }
+        return ResolveProfile(fallbackProfileKey);
+    }
+
     public static SpiritProfileResolution<SpiritIntentProfile> ResolveProfile(string profileKey)
     {
+        lock (SyncRoot)
+        {
+            if (!string.IsNullOrWhiteSpace(profileKey) && profileById.TryGetValue(profileKey.Trim(), out var fixedProfile))
+            {
+                return DirectProfileIdResolution(fixedProfile, profileKey);
+            }
+        }
         SpiritProfileIdentityResolver.ParseProfileKey(profileKey, out var enemyId, out var variantId);
         lock (SyncRoot)
         {
@@ -375,6 +400,7 @@ public static class SpiritIntentRegistry
             profiles.RemoveAll(existing => Same(existing.EnemyId, enemyId) && Same(existing.VariantId, variantId));
             profiles.Add(new SpiritIntentProfile
             {
+                ProfileId = (profile.ProfileId ?? "").Trim(),
                 EnemyId = enemyId,
                 VariantId = variantId,
                 SourceEnemyCardIds = Clean(profile.SourceEnemyCardIds),
@@ -495,6 +521,10 @@ public static class SpiritIntentRegistry
         intentById = (document.Intents ?? new List<CompanionIntentDefinition>())
             .Where(intent => !string.IsNullOrWhiteSpace(intent.Id))
             .ToDictionary(intent => intent.Id, intent => intent, StringComparer.Ordinal);
+        profileById = (document.Profiles ?? new List<SpiritIntentProfile>())
+            .Where(profile => !string.IsNullOrWhiteSpace(profile.ProfileId))
+            .GroupBy(profile => profile.ProfileId.Trim(), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         unchecked
         {
             uint hash = 2166136261;
@@ -516,6 +546,7 @@ public static class SpiritIntentRegistry
     {
         return new SpiritIntentProfile
         {
+            ProfileId = "",
             EnemyId = "*",
             VariantId = "*",
             PveAttackTendency = new List<string>(),
@@ -529,6 +560,20 @@ public static class SpiritIntentRegistry
             AttackMultiplier = 1f,
             ArmorMultiplier = 1f
         };
+    }
+
+    private static SpiritProfileResolution<SpiritIntentProfile> DirectProfileIdResolution(SpiritIntentProfile profile, string profileId)
+    {
+        return new SpiritProfileResolution<SpiritIntentProfile>(
+            profile,
+            profileId ?? "",
+            "",
+            profile.EnemyId,
+            profile.VariantId,
+            "profile-id",
+            false,
+            false,
+            false);
     }
 
     private sealed class RegistryReadResult

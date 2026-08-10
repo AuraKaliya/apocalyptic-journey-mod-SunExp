@@ -35,7 +35,9 @@ public static class SpiritManagementPanel
     private static PanelMode mode;
     private static string selectedUid = "";
     private static int warehouseFilter;
-    private static bool sortByAptitude;
+    private static int warehouseSort;
+    private static int detailTab;
+    private static int growthAxis;
 
     public static bool IsOpen => root != null;
 
@@ -65,7 +67,9 @@ public static class SpiritManagementPanel
             Close();
             mode = requestedMode;
             warehouseFilter = 0;
-            sortByAptitude = false;
+            warehouseSort = 0;
+            detailTab = 0;
+            growthAxis = 0;
             var party = Party();
             selectedUid = party.ActiveSpiritUid;
             if (string.IsNullOrWhiteSpace(selectedUid))
@@ -187,9 +191,13 @@ public static class SpiritManagementPanel
         if (mode == PanelMode.Adventure) items = items.Where(item => carried.Contains(item.SpiritUid));
         else if (warehouseFilter == 1) items = items.Where(item => carried.Contains(item.SpiritUid));
         else if (warehouseFilter == 2) items = items.Where(item => !carried.Contains(item.SpiritUid));
-        IOrderedEnumerable<SpiritInstance> ordered = sortByAptitude
-            ? items.OrderByDescending(item => item.Aptitude).ThenByDescending(item => item.Level)
-            : items.OrderByDescending(item => item.Level).ThenByDescending(item => item.Aptitude);
+        IOrderedEnumerable<SpiritInstance> ordered = warehouseSort switch
+        {
+            1 => items.OrderByDescending(item => item.Favorite).ThenByDescending(item => item.Aptitude).ThenByDescending(item => item.Level),
+            2 => items.OrderByDescending(item => item.Favorite).ThenByDescending(SpiritGrowthRegistry.TierFor).ThenByDescending(item => item.Level),
+            3 => items.OrderByDescending(item => item.Favorite).ThenByDescending(item => item.CapturedAt, StringComparer.Ordinal),
+            _ => items.OrderByDescending(item => item.Favorite).ThenByDescending(item => item.Level).ThenByDescending(item => item.Aptitude)
+        };
         foreach (var item in ordered.ThenBy(item => item.Snapshot.DisplayName, StringComparer.Ordinal))
         {
             CreateSpiritCell(gridContent, item, carried.Contains(item.SpiritUid), Same(item.SpiritUid, party.ActiveSpiritUid));
@@ -211,7 +219,8 @@ public static class SpiritManagementPanel
         image.color = image.sprite == null ? new Color(0.18f, 0.20f, 0.24f, 1f) : Color.white;
         image.preserveAspect = true;
         image.raycastTarget = false;
-        var markers = (active ? "出战 " : "") + (carried ? "携带" : "仓库");
+        var markers = (active ? "出战 " : "") + (carried ? "携带" : "仓库")
+                      + (item.Favorite ? " 收藏" : "") + (item.Locked ? " 锁定" : "");
         TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 13, TextAnchor.MiddleCenter, Pale, 22f);
         TerriasUiComponents.AddTextBlock(cell.transform,
             "Lv." + item.Level + " 资质" + item.Aptitude + "  " + markers,
@@ -254,33 +263,19 @@ public static class SpiritManagementPanel
         image.raycastTarget = false;
         imageRoot.AddComponent<SpiritPreviewAnimator>().Configure(item.Snapshot.IdlePath, Portrait(item.Snapshot));
 
-        var origins = SpiritCollectionApi.Origins(item);
-        var stats = SpiritCollectionApi.Stats(item);
-        var tier = SpiritGrowthRegistry.TierFor(item.Snapshot);
+        var growth = SpiritCollectionApi.GrowthView(item);
         TerriasUiComponents.AddTextBlock(detailContent,
             item.Snapshot.DisplayName + "  Lv." + item.Level,
-            23, TextAnchor.MiddleLeft, Gold, 38f);
+            22, TextAnchor.MiddleLeft, Gold, 34f);
         TerriasUiComponents.AddTextBlock(detailContent,
-            "个体 " + ShortUid(item.SpiritUid) + "    " + TierName(tier),
-            13, TextAnchor.MiddleLeft, Pale, 24f);
-        TerriasUiComponents.AddTextBlock(detailContent,
-            "经验  " + (item.Level >= SpiritGrowthService.MaxLevel
-                ? "MAX"
-                : item.Experience + " / " + SpiritGrowthService.ExperienceToNextLevel(item.Level)),
-            14, TextAnchor.MiddleLeft, Pale, 27f);
-        TerriasUiComponents.AddTextBlock(detailContent, "资质  " + item.Aptitude + " / 100", 15, TextAnchor.MiddleLeft, Green, 29f);
-        AddStat(detailContent, "魔力本源", origins.Magic);
-        AddStat(detailContent, "精神本源", origins.Spirit);
-        AddStat(detailContent, "幸运本源", origins.Luck);
-        AddStat(detailContent, "感知本源", origins.Perception);
-        TerriasUiComponents.AddTextBlock(detailContent, "战斗基础值", 16, TextAnchor.MiddleLeft, Gold, 30f);
-        AddStat(detailContent, "生命", stats.MaxHp);
-        AddStat(detailContent, "攻击", stats.Attack);
-        AddStat(detailContent, "护甲", stats.Armor);
-        if (!string.IsNullOrWhiteSpace(item.Snapshot.Description))
-        {
-            TerriasUiComponents.AddTextBlock(detailContent, item.Snapshot.Description, 12, TextAnchor.UpperLeft, Pale, 70f, 1f);
-        }
+            "个体 " + ShortUid(item.SpiritUid) + "    " + TierName(growth.Tier)
+            + (string.IsNullOrWhiteSpace(growth.FormLabel) ? "" : " · " + growth.FormLabel),
+            13, TextAnchor.MiddleLeft, Pale, 22f);
+        CreateDetailTabs(detailContent);
+        var scroll = TerriasUiComponents.CreateVerticalScrollArea(
+            detailContent, "GrowthDetail", 230f, 1f, 5f, 24f, new Color(0f, 0f, 0f, 0.08f));
+        if (detailTab == 0) BuildAttributeView(scroll.Content, item, growth);
+        else BuildGrowthView(scroll.Content, growth);
     }
 
     private static void RefreshParty()
@@ -323,9 +318,20 @@ public static class SpiritManagementPanel
         {
             TerriasUiComponents.CreateTextButton(actionContent, "出战", new Vector2(104f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, SetActive);
         }
+        if (mode == PanelMode.Warehouse && selected != null
+            && !party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal)
+            && party.PartySlots.Any(string.IsNullOrWhiteSpace))
+        {
+            TerriasUiComponents.CreateTextButton(actionContent, "加入携带", new Vector2(112f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, AddSelected);
+        }
         if (mode == PanelMode.Warehouse && selected != null && party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal))
         {
             TerriasUiComponents.CreateTextButton(actionContent, "移出携带", new Vector2(116f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, RemoveSelected);
+        }
+        if (selected != null)
+        {
+            TerriasUiComponents.CreateTextButton(actionContent, selected.Favorite ? "取消收藏" : "收藏", new Vector2(104f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, ToggleFavorite);
+            TerriasUiComponents.CreateTextButton(actionContent, selected.Locked ? "解除锁定" : "锁定", new Vector2(104f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, ToggleLocked);
         }
         TerriasUiComponents.CreateTextButton(actionContent, "关闭", new Vector2(96f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, Close);
     }
@@ -334,14 +340,14 @@ public static class SpiritManagementPanel
     {
         var bar = LayoutObject("Filters", parent, 34f);
         TerriasUiComponents.ConfigureHorizontalLayout(bar, new RectOffset(0, 0, 0, 0), 6f);
-        TerriasUiComponents.CreateTextButton(bar.transform, FilterName(), new Vector2(118f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
+        TerriasUiComponents.CreateTextButton(bar.transform, FilterName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
         {
             warehouseFilter = (warehouseFilter + 1) % 3;
             Rebuild();
         });
-        TerriasUiComponents.CreateTextButton(bar.transform, sortByAptitude ? "排序：资质" : "排序：等级", new Vector2(118f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
+        TerriasUiComponents.CreateTextButton(bar.transform, SortName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
         {
-            sortByAptitude = !sortByAptitude;
+            warehouseSort = (warehouseSort + 1) % 4;
             Rebuild();
         });
     }
@@ -372,17 +378,39 @@ public static class SpiritManagementPanel
         Refresh();
     }
 
+    private static void AddSelected()
+    {
+        SpiritCollectionApi.AddToDefaultParty(selectedUid);
+        Refresh();
+    }
+
+    private static void ToggleFavorite()
+    {
+        SpiritCollectionApi.ToggleFavorite(selectedUid);
+        Refresh();
+    }
+
+    private static void ToggleLocked()
+    {
+        SpiritCollectionApi.ToggleLocked(selectedUid);
+        Refresh();
+    }
+
     private static void Rebuild()
     {
         var rememberedMode = mode;
         var rememberedSelection = selectedUid;
         var rememberedFilter = warehouseFilter;
-        var rememberedSort = sortByAptitude;
+        var rememberedSort = warehouseSort;
+        var rememberedTab = detailTab;
+        var rememberedAxis = growthAxis;
         Close();
         mode = rememberedMode;
         selectedUid = rememberedSelection;
         warehouseFilter = rememberedFilter;
-        sortByAptitude = rememberedSort;
+        warehouseSort = rememberedSort;
+        detailTab = rememberedTab;
+        growthAxis = rememberedAxis;
         Build();
     }
 
@@ -397,6 +425,119 @@ public static class SpiritManagementPanel
         TerriasUiComponents.ConfigureHorizontalLayout(row, new RectOffset(0, 0, 0, 0), 8f);
         TerriasUiComponents.AddTextBlock(row.transform, label, 13, TextAnchor.MiddleLeft, Pale, 25f, 0f, 120f);
         TerriasUiComponents.AddTextBlock(row.transform, value.ToString(), 14, TextAnchor.MiddleRight, Gold, 25f, 1f);
+    }
+
+    private static void CreateDetailTabs(Transform parent)
+    {
+        var tabs = LayoutObject("DetailTabs", parent, 32f);
+        TerriasUiComponents.ConfigureHorizontalLayout(tabs, new RectOffset(0, 0, 0, 0), 6f);
+        TerriasUiComponents.CreateTextButton(tabs.transform, detailTab == 0 ? "属性 ·" : "属性", new Vector2(92f, 30f), TerriasUiSprites.Button("[SpiritManagement]"), detailTab == 0 ? SelectedTint : BandTint, Pale, 13, () =>
+        {
+            detailTab = 0;
+            RefreshPreviewAndDetail();
+        });
+        TerriasUiComponents.CreateTextButton(tabs.transform, detailTab == 1 ? "成长 ·" : "成长", new Vector2(92f, 30f), TerriasUiSprites.Button("[SpiritManagement]"), detailTab == 1 ? SelectedTint : BandTint, Pale, 13, () =>
+        {
+            detailTab = 1;
+            RefreshPreviewAndDetail();
+        });
+    }
+
+    private static void BuildAttributeView(Transform parent, SpiritInstance item, SpiritGrowthViewSnapshot growth)
+    {
+        var radarRoot = LayoutObject("Radar", parent, 178f);
+        ApplyPanel(radarRoot, new Color(0.035f, 0.055f, 0.075f, 0.92f));
+        var radarSurface = TerriasUiComponents.CreateFillRect("RadarSurface", radarRoot.transform);
+        var graphic = radarSurface.AddComponent<SpiritRadarGraphic>();
+        graphic.color = Color.white;
+        AddOverlayLabel(radarRoot.transform, "魔力", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(56f, 20f), new Vector2(0f, -2f));
+        AddOverlayLabel(radarRoot.transform, "感知", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(48f, 20f), new Vector2(-3f, 0f));
+        AddOverlayLabel(radarRoot.transform, "精神", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(56f, 20f), new Vector2(0f, 2f));
+        AddOverlayLabel(radarRoot.transform, "幸运", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(48f, 20f), new Vector2(3f, 0f));
+        var hover = TerriasUiComponents.AddTextBlock(parent, "悬停雷达轴查看数值", 12, TextAnchor.MiddleCenter, Pale, 24f);
+        graphic.Configure(growth.RadarAxes, index =>
+        {
+            hover.text = index.HasValue && index.Value < growth.RadarAxes.Count
+                ? AxisSummary(growth.RadarAxes[index.Value])
+                : "当前值 / 当前资质下的满级潜力";
+        });
+        TerriasUiComponents.AddTextBlock(parent,
+            "当前 " + FormatOrigins(growth.CurrentOrigins) + "\n潜力 " + FormatOrigins(growth.MaxLevelOriginsAtCurrentAptitude),
+            12, TextAnchor.MiddleLeft, Pale, 44f, 1f);
+        TerriasUiComponents.AddTextBlock(parent,
+            "资质 " + growth.Aptitude + " / 100    经验 "
+            + (growth.Level >= growth.MaxLevel ? "MAX" : growth.Experience + " / " + growth.ExperienceToNextLevel),
+            13, TextAnchor.MiddleLeft, Green, 26f, 1f);
+        TerriasUiComponents.AddTextBlock(parent, "战斗基础值", 15, TextAnchor.MiddleLeft, Gold, 25f);
+        TerriasUiComponents.AddTextBlock(parent,
+            "生命 " + growth.BattleStats.MaxHp + "    攻击 " + growth.BattleStats.Attack
+            + "    护甲 " + growth.BattleStats.Armor + "    意图能量 " + growth.BattleStats.MaxMagic,
+            13, TextAnchor.MiddleLeft, Pale, 30f, 1f);
+        if (!string.IsNullOrWhiteSpace(item.Snapshot.Description))
+        {
+            TerriasUiComponents.AddTextBlock(parent, item.Snapshot.Description, 12, TextAnchor.UpperLeft, Pale, 62f, 1f);
+        }
+    }
+
+    private static void BuildGrowthView(Transform parent, SpiritGrowthViewSnapshot growth)
+    {
+        var selector = LayoutObject("GrowthAxis", parent, 31f);
+        TerriasUiComponents.ConfigureHorizontalLayout(selector, new RectOffset(0, 0, 0, 0), 4f);
+        var keys = new[] { "total", "magic", "spirit", "luck", "perception" };
+        for (var index = 0; index < keys.Length; index++)
+        {
+            var selectedIndex = index;
+            TerriasUiComponents.CreateTextButton(selector.transform,
+                SpiritGrowthQueryService.Label(keys[index]) + (growthAxis == index ? " ·" : ""),
+                new Vector2(36f, 29f), TerriasUiSprites.Button("[SpiritManagement]"),
+                growthAxis == index ? SelectedTint : BandTint, Pale, 11, () =>
+                {
+                    growthAxis = selectedIndex;
+                    RefreshPreviewAndDetail();
+                });
+        }
+
+        var chartRoot = LayoutObject("GrowthCurve", parent, 184f);
+        ApplyPanel(chartRoot, new Color(0.035f, 0.055f, 0.075f, 0.92f));
+        var chartSurface = TerriasUiComponents.CreateFillRect("GrowthCurveSurface", chartRoot.transform);
+        var chart = chartSurface.AddComponent<SpiritGrowthCurveGraphic>();
+        chart.color = Color.white;
+        chart.Configure(growth.CurrentAptitudeCurve, growth.StandardAptitudeCurve, growth.TheoreticalAptitudeCurve,
+            keys[Math.Max(0, Math.Min(keys.Length - 1, growthAxis))], growth.Level);
+        AddOverlayLabel(chartRoot.transform, "Lv.1", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(42f, 18f), new Vector2(5f, 1f));
+        AddOverlayLabel(chartRoot.transform, "Lv.50", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(48f, 18f), new Vector2(-4f, 1f));
+        TerriasUiComponents.AddTextBlock(parent,
+            "绿色 当前资质    金色 标准资质60    灰色 理论资质100",
+            11, TextAnchor.MiddleCenter, Pale, 22f, 1f);
+        TerriasUiComponents.AddTextBlock(parent,
+            "种族基础 " + FormatOrigins(growth.BaseOrigins) + "\n成长预算 " + FormatOrigins(growth.GrowthOrigins),
+            12, TextAnchor.MiddleLeft, Pale, 42f, 1f);
+        TerriasUiComponents.AddTextBlock(parent,
+            "Lv." + growth.MaxLevel + " 当前资质潜力 " + FormatOrigins(growth.MaxLevelOriginsAtCurrentAptitude)
+            + "\nLv.50 / 资质60基准 " + FormatOrigins(growth.StandardOriginsAtLevel50Aptitude60),
+            12, TextAnchor.MiddleLeft, Gold, 46f, 1f);
+        TerriasUiComponents.AddTextBlock(parent,
+            "SpeciesId  " + growth.SpeciesId + "\nProfileId  " + growth.ProfileId,
+            11, TextAnchor.MiddleLeft, new Color(0.68f, 0.74f, 0.80f), 40f, 1f);
+    }
+
+    private static string AxisSummary(SpiritRadarAxisSnapshot axis)
+    {
+        return axis.Label + "  当前 " + axis.RawCurrent + " / 潜力 " + axis.RawPotential
+               + " / 雷达上限 " + axis.Cap + "    基础 " + axis.BaseValue + " + 成长 " + axis.GrowthBudget;
+    }
+
+    private static string FormatOrigins(SpiritOriginVector value)
+    {
+        return "魔" + value.Magic + " 精" + value.Spirit + " 运" + value.Luck + " 感" + value.Perception + " 总" + value.Total;
+    }
+
+    private static void AddOverlayLabel(Transform parent, string value, Vector2 anchor, Vector2 pivot, Vector2 size, Vector2 offset)
+    {
+        var root = TerriasUiComponents.CreateRect("Label-" + value, parent, anchor, anchor, pivot, size);
+        root.GetComponent<RectTransform>().anchoredPosition = offset;
+        var label = TerriasUiComponents.AddTextFill(root.transform, value, 11, TextAnchor.MiddleCenter, Pale);
+        label.raycastTarget = false;
     }
 
     private static Sprite? Portrait(CapturedEnemySnapshot snapshot)
@@ -441,9 +582,16 @@ public static class SpiritManagementPanel
         return new Vector2(Mathf.Clamp(Screen.width - 48f, 760f, 1320f), Mathf.Clamp(Screen.height - 48f, 620f, 820f));
     }
 
-    private static float PartySlotWidth() => Mathf.Clamp((ResolveWindowSize().x - 86f) / 6f, 104f, 168f);
+    private static float PartySlotWidth() => Mathf.Clamp((ResolveWindowSize().x - 106f) / 6f, 104f, 168f);
 
     private static string FilterName() => warehouseFilter == 1 ? "筛选：携带" : warehouseFilter == 2 ? "筛选：仓库" : "筛选：全部";
+    private static string SortName() => warehouseSort switch
+    {
+        1 => "排序：资质",
+        2 => "排序：阶级",
+        3 => "排序：捕获",
+        _ => "排序：等级"
+    };
     private static string ShortUid(string uid) => string.IsNullOrWhiteSpace(uid) ? "----" : uid.Substring(Math.Max(0, uid.Length - 6));
     private static bool Same(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
     private static string TierName(SpiritSpeciesTier tier) => tier switch

@@ -92,6 +92,33 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
 
+var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+SpiritGrowthRegistry.Load(new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") });
+var demonKingPhaseOne = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
+{
+    SourceModId = "BaseGame",
+    EnemyId = "enemy_10048",
+    VariantId = "enemy_10048"
+});
+var demonKingPhaseTwo = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
+{
+    SourceModId = "BaseGame",
+    EnemyId = "enemy_10051",
+    VariantId = "enemy_10051"
+});
+Assert(demonKingPhaseOne.ProfileId == "base-game.10048"
+       && demonKingPhaseTwo.ProfileId == "base-game.10051"
+       && demonKingPhaseOne.SpeciesId == "base-game.demon-king"
+       && demonKingPhaseOne.SpeciesId == demonKingPhaseTwo.SpeciesId
+       && SpiritGrowthRegistry.FormLabel(demonKingPhaseOne.Profile) == "第一形态"
+       && demonKingPhaseOne.Profile.Tier == nameof(SpiritSpeciesTier.FinalBoss)
+       && !demonKingPhaseOne.UsedFallback
+       && SpiritGrowthRegistry.RegistryHash != "00000000",
+    "schema-two registry resolves runtime aliases into fixed multi-form identities: "
+    + demonKingPhaseOne.ProfileId + "/" + demonKingPhaseOne.SpeciesId + "/" + demonKingPhaseOne.UsedFallback
+    + ", " + demonKingPhaseTwo.ProfileId + "/" + demonKingPhaseTwo.SpeciesId + "/" + demonKingPhaseTwo.UsedFallback
+    + ", hash=" + SpiritGrowthRegistry.RegistryHash + ", diagnostic=" + SpiritGrowthRegistry.LastLoadDiagnostic);
+
 Assert(SpiritGrowthService.ExperienceToNextLevel(1) == 20
        && SpiritGrowthService.TotalExperienceToLevel(50) == 4904,
     "spirit level curve matches the locked level-one and level-fifty totals");
@@ -128,6 +155,35 @@ Assert(fallbackProfile.BaseOrigins.Total == 28
        && new[] { fallbackProfile.BaseOrigins.Magic, fallbackProfile.BaseOrigins.Spirit, fallbackProfile.BaseOrigins.Luck, fallbackProfile.BaseOrigins.Perception }
            .All(value => value is >= 3 and <= 12),
     "fallback species budgets keep every origin within the ten-to-forty-five-percent envelope");
+var fallbackIdentityA = SpiritGrowthRegistry.ResolveIdentity(Captured("identity-species", "identity-a"));
+var fallbackIdentityB = SpiritGrowthRegistry.ResolveIdentity(Captured("identity-species", "identity-b"));
+Assert(fallbackIdentityA.UsedFallback
+       && fallbackIdentityA.SpeciesId == fallbackIdentityB.SpeciesId
+       && fallbackIdentityA.ProfileId == fallbackIdentityB.ProfileId,
+    "unregistered species receive deterministic stable identities independent of individual uid");
+
+var legacyStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Version = 2,
+    Instances = new List<SpiritInstance>
+    {
+        new()
+        {
+            SpiritUid = "legacy-uid",
+            Snapshot = Captured("legacy-species", "legacy-uid"),
+            Level = 7,
+            Experience = 5,
+            Aptitude = 60
+        }
+    }
+});
+SpiritCollectionService.Configure(legacyStore);
+var migratedCollection = SpiritCollectionService.Snapshot();
+Assert(migratedCollection.Version == 3
+       && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].SpeciesId)
+       && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].ProfileId)
+       && migratedCollection.Instances[0].Level == 7,
+    "schema-two collections migrate stable species and profile identities without losing progression");
 
 var memoryStore = new MemorySpiritStore();
 SpiritCollectionService.Configure(memoryStore);
@@ -145,6 +201,20 @@ for (var index = 0; index < 7; index++)
 Assert(SpiritCollectionService.Snapshot().Instances.Count == 7
        && party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid)) == 6,
     "duplicate species persist independently while the adventure party remains capped at six");
+var capturedInstance = SpiritCollectionService.Find("uid-0")!;
+var growthView = SpiritGrowthQueryService.Build(capturedInstance);
+Assert(!string.IsNullOrWhiteSpace(capturedInstance.SpeciesId)
+       && !string.IsNullOrWhiteSpace(capturedInstance.ProfileId)
+       && growthView.RadarAxes.Count == 4
+       && growthView.CurrentAptitudeCurve.Count == 50
+       && growthView.StandardAptitudeCurve.Count == 50
+       && growthView.TheoreticalAptitudeCurve.Count == 50
+       && growthView.RadarAxes.All(axis => axis.Cap == 80),
+    "growth query exposes stable identity, four-axis radar data, and all comparison curves");
+Assert(SpiritCollectionService.ToggleFavorite("uid-0")
+       && SpiritCollectionService.ToggleLocked("uid-0")
+       && SpiritCollectionService.Find("uid-0") is { Favorite: true, Locked: true },
+    "favorite and lock flags persist through collection mutation");
 var duplicateCapture = SpiritCollectionService.Capture(Captured("same-species", "different"), "capture-0", party, 99);
 Assert(duplicateCapture.Success && duplicateCapture.DuplicateOperation
        && SpiritCollectionService.Snapshot().Instances.Count == 7,
@@ -172,6 +242,8 @@ Assert(SpiritCollectionService.GrantBattleExperience(party.PartySlots, party.Act
 SpiritBattleDeploymentService.Begin(party, SpiritCollectionService.Snapshot(), 10, 20);
 var deployment = SpiritBattleDeploymentService.DeploymentCardSnapshot();
 Assert(deployment?.SpiritUid == "uid-0"
+       && deployment.SpeciesId == capturedInstance.SpeciesId
+       && deployment.ProfileId == capturedInstance.ProfileId
        && deployment.SpiritLevel == 2
        && deployment.SpiritAptitude == 60
        && !string.IsNullOrWhiteSpace(deployment.DeploymentToken),
@@ -211,7 +283,12 @@ CapturedEnemySnapshot Captured(string enemyId, string uid)
 
 sealed class MemorySpiritStore : ISpiritCollectionStore
 {
-    private SpiritCollectionDocument document = new();
+    private SpiritCollectionDocument document;
+
+    public MemorySpiritStore(SpiritCollectionDocument? initial = null)
+    {
+        document = initial ?? new SpiritCollectionDocument();
+    }
 
     public bool FailNextSave { get; set; }
 

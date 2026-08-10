@@ -1,26 +1,1907 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "defaults": {
+    "maxLevel": 50,
+    "levelCurveId": "level-linear-1-50",
+    "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+    "aptitudeCurveId": "aptitude-smoothstep-080-120",
+    "experienceCurveId": "xp-standard-1-50",
+    "battleConversionId": "origins-battle-standard-v1",
+    "radarScaleId": "origins-global-v1"
+  },
+  "formLabels": {
+    "form.default": "",
+    "form.black": "黑色形态",
+    "form.white": "白色形态",
+    "form.derived": "派生形态",
+    "form.final": "最终形态",
+    "form.right": "右剑",
+    "form.left": "左剑",
+    "form.phase-1": "第一形态",
+    "form.phase-2": "第二形态",
+    "form.phase-3": "第三形态",
+    "form.complete-angel": "完全天使"
+  },
+  "levelCurves": [
+    {
+      "id": "level-linear-1-50",
+      "type": "normalizedLinear",
+      "minLevel": 1,
+      "maxLevel": 50
+    }
+  ],
+  "aptitudeRollProfiles": [
+    {
+      "id": "aptitude-roll-normal-60-15",
+      "type": "truncatedNormal",
+      "mean": 60.0,
+      "standardDeviation": 15.0,
+      "minimum": 0,
+      "maximum": 100,
+      "fallback": 60,
+      "maximumAttempts": 64
+    }
+  ],
+  "aptitudeCurves": [
+    {
+      "id": "aptitude-smoothstep-080-120",
+      "type": "smoothstep",
+      "inputMin": 0,
+      "inputMax": 100,
+      "outputMin": 0.8,
+      "outputMax": 1.2
+    }
+  ],
+  "experienceCurves": [
+    {
+      "id": "xp-standard-1-50",
+      "type": "quadraticStep",
+      "base": 20,
+      "linear": 2,
+      "quadraticDivisor": 24
+    }
+  ],
+  "battleConversions": [
+    {
+      "id": "origins-battle-standard-v1",
+      "hpBase": 20.0,
+      "hpSpirit": 2.4,
+      "hpLuck": 0.8,
+      "attackBase": 3.0,
+      "attackMagic": 0.8,
+      "attackPerception": 0.25,
+      "attackLuck": 0.15,
+      "armorBase": 1.0,
+      "armorPerception": 0.55,
+      "armorSpirit": 0.2,
+      "armorLuck": 0.1,
+      "intentEnergyBase": 3.0,
+      "intentEnergyMagic": 0.15,
+      "intentEnergyPerception": 0.1
+    }
+  ],
+  "radarScaleSets": [
+    {
+      "id": "origins-global-v1",
+      "mode": "absoluteCaps",
+      "axes": [
+        {
+          "key": "magic",
+          "cap": 80
+        },
+        {
+          "key": "perception",
+          "cap": 80
+        },
+        {
+          "key": "spirit",
+          "cap": 80
+        },
+        {
+          "key": "luck",
+          "cap": 80
+        }
+      ]
+    }
+  ],
   "profiles": [
     {
-      "enemyId": "boss_orbit_mirror_array",
-      "variantId": "*",
+      "speciesId": "base-game.10001",
+      "profileId": "base-game.10001",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10001",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 5,
+        "luck": 8,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 12,
+        "luck": 20,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10002",
+      "profileId": "base-game.10002",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10002",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 12,
+        "spirit": 9,
+        "luck": 8,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 25,
+        "spirit": 19,
+        "luck": 21,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10003",
+      "profileId": "base-game.10003",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10003",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 6,
+        "luck": 11,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 14,
+        "luck": 27,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10004",
+      "profileId": "base-game.10004",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10004",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 6,
+        "luck": 6,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 19,
+        "spirit": 15,
+        "luck": 13,
+        "perception": 15
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10005",
+      "profileId": "base-game.10005",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10005",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 6,
+        "luck": 6,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 17,
+        "spirit": 14,
+        "luck": 13,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10007",
+      "profileId": "base-game.10007",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10007",
+        "variantId": "*"
+      },
       "tier": "Boss",
-      "baseOrigins": { "magic": 13, "spirit": 13, "luck": 8, "perception": 10 },
-      "growthOrigins": { "magic": 28, "spirit": 30, "luck": 18, "perception": 24 }
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 9,
+        "luck": 12,
+        "perception": 13
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 20,
+        "luck": 29,
+        "perception": 29
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
     },
     {
-      "enemyId": "boss_second_sun_last_day",
-      "variantId": "*",
-      "tier": "FinalBoss",
-      "baseOrigins": { "magic": 17, "spirit": 16, "luck": 9, "perception": 12 },
-      "growthOrigins": { "magic": 36, "spirit": 35, "luck": 20, "perception": 29 }
+      "speciesId": "base-game.10008",
+      "profileId": "base-game.10008",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10008",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 6,
+        "luck": 5,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 21,
+        "spirit": 13,
+        "luck": 13,
+        "perception": 17
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
     },
     {
-      "enemyId": "boss_saint_wuna",
-      "variantId": "*",
+      "speciesId": "base-game.10009",
+      "profileId": "base-game.10009",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10009",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 8,
+        "luck": 8,
+        "perception": 11
+      },
+      "growthOrigins": {
+        "magic": 25,
+        "spirit": 16,
+        "luck": 18,
+        "perception": 22
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10010",
+      "profileId": "base-game.10010",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10010",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 8,
+        "luck": 9,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 17,
+        "luck": 21,
+        "perception": 18
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10014",
+      "profileId": "base-game.10014",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10014",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 7,
+        "luck": 9,
+        "perception": 10
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 15,
+        "luck": 22,
+        "perception": 20
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10015",
+      "profileId": "base-game.10015",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10015",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 14,
+        "spirit": 8,
+        "luck": 13,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 32,
+        "spirit": 17,
+        "luck": 29,
+        "perception": 21
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10016",
+      "profileId": "base-game.10016",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10016",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 9,
+        "luck": 6,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 16,
+        "spirit": 19,
+        "luck": 14,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10017",
+      "profileId": "base-game.10017",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10017",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 8,
+        "luck": 6,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 16,
+        "luck": 15,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10018",
+      "profileId": "base-game.10018",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10018",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 11,
+        "spirit": 12,
+        "luck": 6,
+        "perception": 11
+      },
+      "growthOrigins": {
+        "magic": 22,
+        "spirit": 24,
+        "luck": 13,
+        "perception": 23
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10019",
+      "profileId": "base-game.10019",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10019",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 8,
+        "luck": 6,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 19,
+        "spirit": 16,
+        "luck": 13,
+        "perception": 15
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10020",
+      "profileId": "base-game.10020",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10020",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 13,
+        "luck": 15,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 27,
+        "luck": 39,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10021",
+      "profileId": "base-game.10021",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10021",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 7,
+        "luck": 7,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 17,
+        "spirit": 16,
+        "luck": 19,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10022",
+      "profileId": "base-game.10022",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10022",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 14,
+        "luck": 12,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 31,
+        "luck": 27,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10023",
+      "profileId": "base-game.10023",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10023",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 8,
+        "luck": 5,
+        "perception": 10
+      },
+      "growthOrigins": {
+        "magic": 14,
+        "spirit": 17,
+        "luck": 13,
+        "perception": 20
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10024",
+      "profileId": "base-game.10024",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10024",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 10,
+        "luck": 9,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 24,
+        "spirit": 19,
+        "luck": 24,
+        "perception": 13
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10025",
+      "profileId": "base-game.10025",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10025",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 7,
+        "spirit": 6,
+        "luck": 7,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 12,
+        "luck": 19,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10026",
+      "profileId": "base-game.10026",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10026",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 6,
+        "luck": 8,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 13,
+        "luck": 21,
+        "perception": 12
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.evernight-incarnation",
+      "profileId": "base-game.10027",
+      "formKey": "final",
+      "formOrder": 1,
+      "formLabelKey": "form.final",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10027",
+        "variantId": "*"
+      },
       "tier": "FinalBoss",
-      "baseOrigins": { "magic": 18, "spirit": 18, "luck": 8, "perception": 10 },
-      "growthOrigins": { "magic": 38, "spirit": 38, "luck": 18, "perception": 26 }
+      "baseOrigins": {
+        "magic": 11,
+        "spirit": 15,
+        "luck": 16,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 25,
+        "spirit": 36,
+        "luck": 39,
+        "perception": 26
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10028",
+      "profileId": "base-game.10028",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10028",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 9,
+        "luck": 4,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 19,
+        "spirit": 19,
+        "luck": 8,
+        "perception": 17
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10029",
+      "profileId": "base-game.10029",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10029",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 16,
+        "spirit": 12,
+        "luck": 8,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 36,
+        "spirit": 27,
+        "luck": 17,
+        "perception": 15
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10032",
+      "profileId": "base-game.10032",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10032",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 14,
+        "spirit": 14,
+        "luck": 11,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 32,
+        "spirit": 31,
+        "luck": 26,
+        "perception": 19
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10033",
+      "profileId": "base-game.10033",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10033",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 12,
+        "spirit": 10,
+        "luck": 12,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 28,
+        "spirit": 22,
+        "luck": 29,
+        "perception": 18
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10034",
+      "profileId": "base-game.10034",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10034",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 9,
+        "luck": 6,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 17,
+        "luck": 17,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10035",
+      "profileId": "base-game.10035",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10035",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 10,
+        "luck": 9,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 21,
+        "spirit": 20,
+        "luck": 23,
+        "perception": 19
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.lesser-joker",
+      "profileId": "base-game.10036",
+      "formKey": "black",
+      "formOrder": 0,
+      "formLabelKey": "form.black",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10036",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 9,
+        "spirit": 10,
+        "luck": 8,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 21,
+        "luck": 20,
+        "perception": 19
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.lesser-joker",
+      "profileId": "base-game.10037",
+      "formKey": "white",
+      "formOrder": 1,
+      "formLabelKey": "form.white",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10037",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 13,
+        "spirit": 8,
+        "luck": 7,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 28,
+        "spirit": 17,
+        "luck": 16,
+        "perception": 18
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10038",
+      "profileId": "base-game.10038",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10038",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 7,
+        "luck": 5,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 19,
+        "spirit": 15,
+        "luck": 12,
+        "perception": 18
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10039",
+      "profileId": "base-game.10039",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10039",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 9,
+        "luck": 7,
+        "perception": 4
+      },
+      "growthOrigins": {
+        "magic": 22,
+        "spirit": 18,
+        "luck": 18,
+        "perception": 10
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10040",
+      "profileId": "base-game.10040",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10040",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 6,
+        "luck": 7,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 15,
+        "luck": 20,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10041",
+      "profileId": "base-game.10041",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10041",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 5,
+        "luck": 7,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 16,
+        "spirit": 13,
+        "luck": 18,
+        "perception": 16
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10042",
+      "profileId": "base-game.10042",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10042",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 7,
+        "luck": 6,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 13,
+        "spirit": 17,
+        "luck": 16,
+        "perception": 17
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10043",
+      "profileId": "base-game.10043",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10043",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 8,
+        "luck": 6,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 19,
+        "spirit": 16,
+        "luck": 15,
+        "perception": 15
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10044",
+      "profileId": "base-game.10044",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10044",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 8,
+        "luck": 8,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 14,
+        "spirit": 19,
+        "luck": 20,
+        "perception": 25
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10045",
+      "profileId": "base-game.10045",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10045",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 10,
+        "luck": 9,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 24,
+        "spirit": 20,
+        "luck": 22,
+        "perception": 18
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10046",
+      "profileId": "base-game.10046",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10046",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 14,
+        "luck": 7,
+        "perception": 14
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 31,
+        "luck": 15,
+        "perception": 29
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10047",
+      "profileId": "base-game.10047",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10047",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 11,
+        "spirit": 9,
+        "luck": 16,
+        "perception": 7
+      },
+      "growthOrigins": {
+        "magic": 24,
+        "spirit": 21,
+        "luck": 41,
+        "perception": 15
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10048",
+      "formKey": "phase-1",
+      "formOrder": 1,
+      "formLabelKey": "form.phase-1",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10048",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 12,
+        "spirit": 15,
+        "luck": 11,
+        "perception": 14
+      },
+      "growthOrigins": {
+        "magic": 26,
+        "spirit": 34,
+        "luck": 24,
+        "perception": 32
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.demon-king-sword",
+      "profileId": "base-game.10049",
+      "formKey": "right",
+      "formOrder": 0,
+      "formLabelKey": "form.right",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10049",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 11,
+        "luck": 6,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 20,
+        "spirit": 23,
+        "luck": 13,
+        "perception": 23
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.demon-king-sword",
+      "profileId": "base-game.10050",
+      "formKey": "left",
+      "formOrder": 1,
+      "formLabelKey": "form.left",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10050",
+        "variantId": "*"
+      },
+      "tier": "Elite",
+      "baseOrigins": {
+        "magic": 12,
+        "spirit": 12,
+        "luck": 6,
+        "perception": 8
+      },
+      "growthOrigins": {
+        "magic": 26,
+        "spirit": 23,
+        "luck": 13,
+        "perception": 17
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10051",
+      "formKey": "phase-2",
+      "formOrder": 2,
+      "formLabelKey": "form.phase-2",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10051",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 15,
+        "spirit": 15,
+        "luck": 12,
+        "perception": 13
+      },
+      "growthOrigins": {
+        "magic": 34,
+        "spirit": 33,
+        "luck": 27,
+        "perception": 28
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10052",
+      "formKey": "phase-3",
+      "formOrder": 3,
+      "formLabelKey": "form.phase-3",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10052",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 18,
+        "spirit": 14,
+        "luck": 15,
+        "perception": 11
+      },
+      "growthOrigins": {
+        "magic": 41,
+        "spirit": 31,
+        "luck": 34,
+        "perception": 22
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.evernight-incarnation",
+      "profileId": "base-game.10053",
+      "formKey": "derived",
+      "formOrder": 0,
+      "formLabelKey": "form.derived",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10053",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 7,
+        "luck": 14,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 13,
+        "luck": 35,
+        "perception": 19
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10054",
+      "profileId": "base-game.10054",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10054",
+        "variantId": "*"
+      },
+      "tier": "Normal",
+      "baseOrigins": {
+        "magic": 6,
+        "spirit": 6,
+        "luck": 7,
+        "perception": 6
+      },
+      "growthOrigins": {
+        "magic": 16,
+        "spirit": 14,
+        "luck": 14,
+        "perception": 14
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10055",
+      "profileId": "base-game.10055",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10055",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 8,
+        "spirit": 17,
+        "luck": 18,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 18,
+        "spirit": 39,
+        "luck": 42,
+        "perception": 25
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10056",
+      "formKey": "phase-1",
+      "formOrder": 1,
+      "formLabelKey": "form.phase-1",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10056",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 13,
+        "spirit": 10,
+        "luck": 7,
+        "perception": 14
+      },
+      "growthOrigins": {
+        "magic": 29,
+        "spirit": 21,
+        "luck": 15,
+        "perception": 29
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10057",
+      "formKey": "phase-2",
+      "formOrder": 2,
+      "formLabelKey": "form.phase-2",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10057",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 14,
+        "spirit": 11,
+        "luck": 7,
+        "perception": 14
+      },
+      "growthOrigins": {
+        "magic": 31,
+        "spirit": 25,
+        "luck": 16,
+        "perception": 29
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10058",
+      "formKey": "complete-angel",
+      "formOrder": 3,
+      "formLabelKey": "form.complete-angel",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10058",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 17,
+        "spirit": 14,
+        "luck": 12,
+        "perception": 15
+      },
+      "growthOrigins": {
+        "magic": 38,
+        "spirit": 31,
+        "luck": 27,
+        "perception": 34
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10059",
+      "profileId": "base-game.10059",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10059",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 13,
+        "spirit": 15,
+        "luck": 6,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 29,
+        "spirit": 34,
+        "luck": 14,
+        "perception": 23
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10060",
+      "profileId": "base-game.10060",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10060",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 10,
+        "spirit": 10,
+        "luck": 16,
+        "perception": 10
+      },
+      "growthOrigins": {
+        "magic": 23,
+        "spirit": 21,
+        "luck": 36,
+        "perception": 19
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "base-game.10061",
+      "profileId": "base-game.10061",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "base-game",
+        "enemyId": "10061",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 14,
+        "spirit": 13,
+        "luck": 11,
+        "perception": 9
+      },
+      "growthOrigins": {
+        "magic": 31,
+        "spirit": 28,
+        "luck": 25,
+        "perception": 17
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "terrias.boss_orbit_mirror_array",
+      "profileId": "terrias.boss_orbit_mirror_array",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "terrias",
+        "enemyId": "boss_orbit_mirror_array",
+        "variantId": "*"
+      },
+      "tier": "Boss",
+      "baseOrigins": {
+        "magic": 13,
+        "spirit": 13,
+        "luck": 8,
+        "perception": 10
+      },
+      "growthOrigins": {
+        "magic": 28,
+        "spirit": 30,
+        "luck": 18,
+        "perception": 24
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "terrias.boss_saint_wuna",
+      "profileId": "terrias.boss_saint_wuna",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "terrias",
+        "enemyId": "boss_saint_wuna",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 18,
+        "spirit": 18,
+        "luck": 8,
+        "perception": 10
+      },
+      "growthOrigins": {
+        "magic": 38,
+        "spirit": 38,
+        "luck": 18,
+        "perception": 26
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
+    },
+    {
+      "speciesId": "terrias.boss_second_sun_last_day",
+      "profileId": "terrias.boss_second_sun_last_day",
+      "formKey": "default",
+      "formOrder": 0,
+      "formLabelKey": "form.default",
+      "match": {
+        "sourceModId": "terrias",
+        "enemyId": "boss_second_sun_last_day",
+        "variantId": "*"
+      },
+      "tier": "FinalBoss",
+      "baseOrigins": {
+        "magic": 17,
+        "spirit": 16,
+        "luck": 9,
+        "perception": 12
+      },
+      "growthOrigins": {
+        "magic": 36,
+        "spirit": 35,
+        "luck": 20,
+        "perception": 29
+      },
+      "levelCurveId": "level-linear-1-50",
+      "aptitudeRollProfileId": "aptitude-roll-normal-60-15",
+      "aptitudeCurveId": "aptitude-smoothstep-080-120",
+      "experienceCurveId": "xp-standard-1-50",
+      "battleConversionId": "origins-battle-standard-v1",
+      "radarScaleId": "origins-global-v1"
     }
   ]
 }

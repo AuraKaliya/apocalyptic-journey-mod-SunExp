@@ -41,9 +41,11 @@ public static class SpiritBattleDeploymentService
         lock (SyncRoot)
         {
             if (active == null) return null;
-            var profile = SpiritGrowthRegistry.Resolve(active.Snapshot);
+            var profile = SpiritGrowthRegistry.Resolve(active);
             var origins = SpiritGrowthService.OriginsAt(profile, active.Level, active.Aptitude);
             var snapshot = SpiritModelCloner.CloneSnapshot(active.Snapshot);
+            snapshot.SpeciesId = active.SpeciesId;
+            snapshot.ProfileId = active.ProfileId;
             snapshot.SpiritLevel = active.Level;
             snapshot.SpiritAptitude = active.Aptitude;
             snapshot.OriginMagic = origins.Magic;

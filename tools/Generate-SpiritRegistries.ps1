@@ -21,6 +21,14 @@ function Get-CardKey([string]$Id) {
     $value.ToLowerInvariant()
 }
 
+function Get-SpiritProfileId([string]$EnemyId) {
+    $raw = ([string]$EnemyId).Trim()
+    if ($raw -eq '*') { return '' }
+    $id = $raw.TrimStart('*')
+    if ($id -match '^\d+$') { return "base-game.$id" }
+    "terrias.$id"
+}
+
 function Get-Number([string]$Script, [string]$Name, [int]$Default) {
     if (([string]$Script) -match ('Vars\["' + [regex]::Escape($Name) + '"\]\s*=\s*"(\d+)"')) {
         return [int]$Matches[1]
@@ -218,7 +226,7 @@ function Get-IntentProfile($Row) {
     $scale = switch ($rarity) { 3 { 1.15 } 2 { 1.0 } default { 0.9 } }
     $attackWeight = if ($pveAttack.Count -gt $pveDefense.Count) { 65 } elseif ($pveDefense.Count -gt $pveAttack.Count) { 45 } else { 55 }
     [ordered]@{
-        enemyId = $enemyId; variantId = '*'; sourceEnemyCardIds = $cards
+        profileId = (Get-SpiritProfileId $enemyId); enemyId = $enemyId; variantId = '*'; sourceEnemyCardIds = $cards
         pveAttackTendency = @($pveAttack | Select-Object -Unique); pveDefenseTendency = @($pveDefense | Select-Object -Unique)
         pvpAttackTendency = @($pvpAttack | Select-Object -Unique); pvpDefenseTendency = @($pvpDefense | Select-Object -Unique)
         fallbackAttackTendency = @('staff_tap'); fallbackDefenseTendency = @('shield_blessing')
@@ -303,7 +311,7 @@ function Remap-Tendency($Values, $IdMap) {
 
 $profiles = @($enemyRows | ForEach-Object { Get-IntentProfile $_ } | Sort-Object { $_.enemyId })
 $profiles += [ordered]@{
-    enemyId = '*'; variantId = '*'; sourceEnemyCardIds = @()
+    profileId = ''; enemyId = '*'; variantId = '*'; sourceEnemyCardIds = @()
     pveAttackTendency = @(); pveDefenseTendency = @(); pvpAttackTendency = @(); pvpDefenseTendency = @()
     fallbackAttackTendency = @('staff_tap'); fallbackDefenseTendency = @('shield_blessing')
     pvpSourceEnemyCardIds = @(); fallbackSourceEnemyCardIds = @()

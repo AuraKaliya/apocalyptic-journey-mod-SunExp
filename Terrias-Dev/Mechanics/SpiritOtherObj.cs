@@ -63,7 +63,7 @@ public sealed class SpiritOtherObj : Partner
         Status = status;
         battleState = CompanionBattleStateStore.Create(
             InstanceId,
-            snapshot.ProfileKey,
+            snapshot.IntentProfileKey,
             OwnerStatusId,
             slotIndex,
             stats,

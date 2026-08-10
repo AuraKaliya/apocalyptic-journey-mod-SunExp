@@ -19,12 +19,17 @@ public static class CompanionStatsService
 
     public static CompanionStats SpiritStats(CapturedEnemySnapshot snapshot, SpiritIntentProfile? profile)
     {
-        return SpiritGrowthService.BattleStats(new SpiritOriginVector
+        snapshot ??= new CapturedEnemySnapshot();
+        var growthProfile = !string.IsNullOrWhiteSpace(snapshot.ProfileId)
+                            && SpiritGrowthRegistry.TryFind(snapshot.ProfileId, out var fixedProfile)
+            ? fixedProfile
+            : SpiritGrowthRegistry.Resolve(snapshot);
+        return SpiritGrowthService.BattleStats(growthProfile, new SpiritOriginVector
         {
-            Magic = Math.Max(0, snapshot?.OriginMagic ?? 0),
-            Spirit = Math.Max(0, snapshot?.OriginSpirit ?? 0),
-            Luck = Math.Max(0, snapshot?.OriginLuck ?? 0),
-            Perception = Math.Max(0, snapshot?.OriginPerception ?? 0)
+            Magic = Math.Max(0, snapshot.OriginMagic),
+            Spirit = Math.Max(0, snapshot.OriginSpirit),
+            Luck = Math.Max(0, snapshot.OriginLuck),
+            Perception = Math.Max(0, snapshot.OriginPerception)
         }, profile);
     }
 
