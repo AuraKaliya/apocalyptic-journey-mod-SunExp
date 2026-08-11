@@ -142,10 +142,22 @@ public static class SpiritCardFactory
             SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritSourceEnemyCardIds")),
             SpiritLevel = RuntimeInt(runtimeConfig, "TerriasSpiritLevel"),
             SpiritAptitude = RuntimeInt(runtimeConfig, "TerriasSpiritAptitude"),
+            SpiritGuiyuanValue = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanValue"),
+            SpiritStarRank = RuntimeInt(runtimeConfig, "TerriasSpiritStarRank"),
+            GuiyuanAllocationMagic = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationMagic"),
+            GuiyuanAllocationSpirit = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationSpirit"),
+            GuiyuanAllocationLuck = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationLuck"),
+            GuiyuanAllocationPerception = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationPerception"),
             OriginMagic = RuntimeInt(runtimeConfig, "TerriasSpiritOriginMagic"),
             OriginSpirit = RuntimeInt(runtimeConfig, "TerriasSpiritOriginSpirit"),
             OriginLuck = RuntimeInt(runtimeConfig, "TerriasSpiritOriginLuck"),
             OriginPerception = RuntimeInt(runtimeConfig, "TerriasSpiritOriginPerception"),
+            SpiritSpeed = RuntimeInt(runtimeConfig, "TerriasSpiritSpeed", 100),
+            EquippedIntentIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritEquippedIntentIds")),
+            EquippedPassiveId = RuntimeValue(runtimeConfig, "TerriasSpiritEquippedPassiveId"),
+            LoadoutRevision = RuntimeInt(runtimeConfig, "TerriasSpiritLoadoutRevision"),
+            LoadoutHash = RuntimeValue(runtimeConfig, "TerriasSpiritLoadoutHash"),
+            TrainingRegistryHash = RuntimeValue(runtimeConfig, "TerriasSpiritTrainingRegistryHash"),
             DeploymentToken = RuntimeValue(runtimeConfig, "TerriasSpiritDeploymentToken")
         };
     }
@@ -214,10 +226,22 @@ public static class SpiritCardFactory
         Set(runtime, "TerriasSpiritSourceEnemyCardIds", string.Join(",", snapshot.SourceEnemyCardIds ?? new List<string>()));
         Set(runtime, "TerriasSpiritLevel", snapshot.SpiritLevel.ToString());
         Set(runtime, "TerriasSpiritAptitude", snapshot.SpiritAptitude.ToString());
+        Set(runtime, "TerriasSpiritGuiyuanValue", snapshot.SpiritGuiyuanValue.ToString());
+        Set(runtime, "TerriasSpiritStarRank", snapshot.SpiritStarRank.ToString());
+        Set(runtime, "TerriasSpiritGuiyuanAllocationMagic", snapshot.GuiyuanAllocationMagic.ToString());
+        Set(runtime, "TerriasSpiritGuiyuanAllocationSpirit", snapshot.GuiyuanAllocationSpirit.ToString());
+        Set(runtime, "TerriasSpiritGuiyuanAllocationLuck", snapshot.GuiyuanAllocationLuck.ToString());
+        Set(runtime, "TerriasSpiritGuiyuanAllocationPerception", snapshot.GuiyuanAllocationPerception.ToString());
         Set(runtime, "TerriasSpiritOriginMagic", snapshot.OriginMagic.ToString());
         Set(runtime, "TerriasSpiritOriginSpirit", snapshot.OriginSpirit.ToString());
         Set(runtime, "TerriasSpiritOriginLuck", snapshot.OriginLuck.ToString());
         Set(runtime, "TerriasSpiritOriginPerception", snapshot.OriginPerception.ToString());
+        Set(runtime, "TerriasSpiritSpeed", snapshot.SpiritSpeed.ToString());
+        Set(runtime, "TerriasSpiritEquippedIntentIds", string.Join(",", snapshot.EquippedIntentIds ?? new List<string>()));
+        Set(runtime, "TerriasSpiritEquippedPassiveId", snapshot.EquippedPassiveId);
+        Set(runtime, "TerriasSpiritLoadoutRevision", snapshot.LoadoutRevision.ToString());
+        Set(runtime, "TerriasSpiritLoadoutHash", snapshot.LoadoutHash);
+        Set(runtime, "TerriasSpiritTrainingRegistryHash", snapshot.TrainingRegistryHash);
         Set(runtime, "TerriasSpiritDeploymentToken", snapshot.DeploymentToken);
 
         return runtime;

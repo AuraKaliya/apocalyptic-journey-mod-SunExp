@@ -129,7 +129,51 @@ Assert(legacyProfileKeys.Contains("SaveData")
     "legacy profile recovery ignores empty fallbacks and never replaces an existing stable profile");
 
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-SpiritGrowthRegistry.Load(new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") });
+var terriasModConfig = new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") };
+SpiritGrowthRegistry.Load(terriasModConfig);
+SpiritTrainingRegistry.Load(terriasModConfig);
+SpiritIntentRegistry.Load(terriasModConfig);
+var commonIntentIds = SpiritTrainingRegistry.CommonIntentIds("Common.Basic")
+    .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Tactical"))
+    .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Advanced"))
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
+var commonPassiveIds = SpiritTrainingRegistry.CommonPassiveIds("Common.Core")
+    .Concat(SpiritTrainingRegistry.CommonPassiveIds("Common.Advanced"))
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
+Assert(commonIntentIds.Length == 15
+       && commonPassiveIds.Length == 12
+       && commonIntentIds.All(id => SpiritIntentRegistry.Find(id) != null)
+       && SpiritTrainingRegistry.RegistryHash != "00000000",
+    "training registries load fifteen common intents, twelve common passives, and merge executable intent definitions");
+var equippedOnlyState = new CompanionBattleState(
+    "spirit-equipped", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
+equippedOnlyState.ConfigureLoadout(commonIntentIds.Take(3), commonPassiveIds[0], 1, "test");
+var executableLoadout = CompanionIntentResolver.IntentsFor(equippedOnlyState, CompanionIntentTendency.Attack)
+    .Concat(CompanionIntentResolver.IntentsFor(equippedOnlyState, CompanionIntentTendency.Defense))
+    .Select(intent => intent.Id)
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
+var emptyLoadoutState = new CompanionBattleState(
+    "spirit-empty", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
+Assert(executableLoadout.Length == 3
+       && executableLoadout.All(id => equippedOnlyState.EquippedIntentIds.Contains(id, StringComparer.Ordinal))
+       && CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Attack).Count == 0
+       && CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Defense).Count == 0,
+    "spirit battle selection is restricted to the frozen three-slot loadout and never falls back to the full native pool");
+var compactLoadout = new SpiritInstance
+{
+    SpiritUid = "compact-loadout",
+    LearnedIntentIds = commonIntentIds.Take(3).ToList(),
+    EquippedIntentIds = new List<string> { commonIntentIds[0] },
+    LoadoutRevision = 1
+};
+Assert(SpiritTrainingService.EquipIntent(compactLoadout, 1, commonIntentIds[1])
+       && SpiritTrainingService.EquipIntent(compactLoadout, 2, commonIntentIds[2])
+       && compactLoadout.EquippedIntentIds.SequenceEqual(commonIntentIds.Take(3))
+       && !SpiritTrainingService.EquipIntent(compactLoadout, 3, commonIntentIds[0]),
+    "empty intent slots append contiguously without persisting blank gaps or exceeding the three-slot capacity");
 var demonKingPhaseOne = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
 {
     SourceModId = "BaseGame",
@@ -178,6 +222,30 @@ Assert(origins.Magic == 31 && origins.Spirit == 31 && origins.Luck == 31 && orig
 var growthStats = SpiritGrowthService.BattleStats(origins);
 Assert(growthStats.MaxHp == 119 && growthStats.Attack == 40 && growthStats.Armor == 27,
     "spirit origins convert into the locked HP, attack, and armor formulas");
+Assert(SpiritAscensionService.StarRankFor(0) == 0
+       && SpiritAscensionService.StarRankFor(1) == 1
+       && SpiritAscensionService.StarRankFor(2) == 2
+       && SpiritAscensionService.StarRankFor(4) == 3
+       && SpiritAscensionService.StarRankFor(8) == 4
+       && SpiritAscensionService.StarRankFor(16) == 5
+       && Enumerable.Range(0, 6).Select(SpiritAscensionService.PointBudgetForStar)
+           .SequenceEqual(new[] { 0, 2, 6, 12, 20, 30 }),
+    "guiyuan thresholds and cumulative origin budgets match the locked five-stage progression");
+var normalizedAllocation = SpiritAscensionService.NormalizeAllocations(
+    new SpiritOriginVector { Magic = 12, Perception = 10, Spirit = 10, Luck = 10 }, 4);
+Assert(normalizedAllocation.Magic == 10
+       && normalizedAllocation.Perception == 2
+       && normalizedAllocation.Spirit == 0
+       && normalizedAllocation.Luck == 0
+       && normalizedAllocation.Total == 12,
+    "guiyuan allocation normalization enforces ten points per axis and the cumulative star budget");
+var fiveStarStats = SpiritAscensionService.ApplyStarBonus(new CompanionStats(119, 12, 40, 27, 84), 5);
+Assert(fiveStarStats.MaxHp == 238
+       && fiveStarStats.Attack == 80
+       && fiveStarStats.Armor == 54
+       && fiveStarStats.MaxMagic == 12
+       && fiveStarStats.Speed == 84,
+    "five stars double HP, attack, and armor without modifying magic energy or speed");
 var fallbackProfile = SpiritGrowthRegistry.Resolve(new CapturedEnemySnapshot
 {
     EnemyId = "extreme-species",
@@ -215,12 +283,14 @@ var legacyStore = new MemorySpiritStore(new SpiritCollectionDocument
 });
 SpiritCollectionService.Configure(legacyStore);
 var migratedCollection = SpiritCollectionService.Snapshot();
-Assert(migratedCollection.Version == 3
+Assert(migratedCollection.Version == 5
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].SpeciesId)
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].ProfileId)
        && migratedCollection.Instances[0].Level == 7
+       && migratedCollection.Instances[0].Speed is >= 80 and <= 120
+       && migratedCollection.Instances[0].LoadoutRevision >= 1
        && legacyStore.SaveCount == 0,
-    "schema-two collections migrate in memory without rewriting a profile merely because it was opened");
+    "legacy collections gain deterministic training state in memory without rewriting a profile merely because it was opened");
 
 var memoryStore = new MemorySpiritStore();
 SpiritCollectionService.Configure(memoryStore);
@@ -274,6 +344,22 @@ Assert(!string.IsNullOrWhiteSpace(capturedInstance.SpeciesId)
        && growthView.TheoreticalAptitudeCurve.Count == 50
        && growthView.RadarAxes.All(axis => axis.Cap == 80),
     "growth query exposes stable identity, four-axis radar data, and all comparison curves");
+Assert(capturedInstance.Speed is >= 80 and <= 120
+       && capturedInstance.TrainingPlanVersion == SpiritTrainingService.TrainingPlanVersion
+       && capturedInstance.UnlockPlan.Count == 5
+       && capturedInstance.UnlockPlan.Select(node => node.Stage).SequenceEqual(new[] { 1, 2, 3, 4, 5 })
+       && capturedInstance.UnlockPlan[0].RequiredLevel is >= 6 and <= 10
+       && capturedInstance.UnlockPlan[1].RequiredLevel is >= 14 and <= 18
+       && capturedInstance.UnlockPlan[2].RequiredLevel is >= 23 and <= 28
+       && capturedInstance.UnlockPlan[3].RequiredLevel is >= 32 and <= 38
+       && capturedInstance.UnlockPlan[4].RequiredLevel is >= 42 and <= 47
+       && capturedInstance.UnlockPlan.Select(node => node.AbilityId).Distinct(StringComparer.Ordinal).Count() == 5
+       && capturedInstance.UnlockPlan.All(node => !node.Unlocked
+                                                  && !capturedInstance.LearnedIntentIds.Contains(node.AbilityId, StringComparer.Ordinal)
+                                                  && !capturedInstance.LearnedPassiveIds.Contains(node.AbilityId, StringComparer.Ordinal))
+       && capturedInstance.LoadoutRevision >= 1
+       && !string.IsNullOrWhiteSpace(capturedInstance.LoadoutHash),
+    "capture freezes uniform speed and five hidden, deterministic, non-duplicated future unlock nodes into the individual record");
 Assert(SpiritCollectionService.ToggleFavorite("uid-0")
        && SpiritCollectionService.ToggleLocked("uid-0")
        && SpiritCollectionService.Find("uid-0") is { Favorite: true, Locked: true },
@@ -309,13 +395,170 @@ Assert(deployment?.SpiritUid == "uid-0"
        && deployment.ProfileId == capturedInstance.ProfileId
        && deployment.SpiritLevel == 2
        && deployment.SpiritAptitude == 60
+       && deployment.SpiritSpeed == capturedInstance.Speed
+       && deployment.LoadoutRevision == capturedInstance.LoadoutRevision
+       && deployment.TrainingRegistryHash == SpiritTrainingRegistry.RegistryHash
+       && deployment.LoadoutHash == SpiritTrainingService.LoadoutHash(deployment)
        && !string.IsNullOrWhiteSpace(deployment.DeploymentToken),
-    "battle start freezes the active individual into one deployment card payload");
+    "battle start freezes speed, loadout revision, and registry identity into one deployment card payload");
 Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
     "the frozen deployment card is initially legal");
+var forgedSpeed = SpiritModelCloner.CloneSnapshot(deployment!);
+forgedSpeed.SpiritSpeed = forgedSpeed.SpiritSpeed == SpiritTrainingService.MaximumSpeed
+    ? SpiritTrainingService.MinimumSpeed
+    : forgedSpeed.SpiritSpeed + 1;
+forgedSpeed.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedSpeed);
+Assert(!SpiritBattleDeploymentService.CanSummon(forgedSpeed, "owner", true, out _),
+    "remote deployment rejects a client-rehashed speed that differs from the captured individual's deterministic roll");
+var forgedAbility = SpiritModelCloner.CloneSnapshot(deployment!);
+forgedAbility.EquippedIntentIds = new List<string> { commonIntentIds[0] };
+forgedAbility.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedAbility);
+Assert(!SpiritBattleDeploymentService.CanSummon(forgedAbility, "owner", true, out _),
+    "remote deployment reconstructs hidden progression and rejects an equipped ability that is not unlocked at this level");
 SpiritBattleDeploymentService.MarkSummoned("owner");
 Assert(!SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
     "one successful deployment blocks copied cards for the same owner");
+SpiritBattleDeploymentService.Clear();
+
+var guiyuanStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Instances = new List<SpiritInstance>
+    {
+        new()
+        {
+            SpiritUid = "guiyuan-target",
+            SpeciesId = "species-shared",
+            ProfileId = "profile-target",
+            Snapshot = Captured("guiyuan-species", "guiyuan-target"),
+            Aptitude = 60
+        },
+        new()
+        {
+            SpiritUid = "guiyuan-donor",
+            SpeciesId = "species-shared",
+            ProfileId = "profile-donor-form",
+            Snapshot = Captured("guiyuan-species", "guiyuan-donor"),
+            Aptitude = 60,
+            GuiyuanValue = 3
+        }
+    }
+});
+SpiritCollectionService.Configure(guiyuanStore);
+var protectedResult = SpiritCollectionService.Guiyuan(
+    "guiyuan-target",
+    new[] { "guiyuan-donor" },
+    new[] { "guiyuan-donor" });
+Assert(!protectedResult.Success
+       && SpiritCollectionService.Snapshot().Instances.Count == 2,
+    "guiyuan rejects party-protected donors without mutating the collection");
+var guiyuanResult = SpiritCollectionService.Guiyuan(
+    "guiyuan-target",
+    new[] { "guiyuan-donor" },
+    Array.Empty<string>());
+Assert(guiyuanResult.Success
+       && guiyuanResult.Preview.OfferedValue == 4
+       && guiyuanResult.Target?.GuiyuanValue == 4
+       && guiyuanResult.Target.GuiyuanAllocations.Total == 0
+       && SpiritCollectionService.Find("guiyuan-donor") == null,
+    "same-species forms can be consumed atomically and carry forward one plus their historical guiyuan value");
+Assert(SpiritCollectionService.SetGuiyuanAllocations(
+           "guiyuan-target",
+           new SpiritOriginVector { Magic = 10, Perception = 2 })
+       && !SpiritCollectionService.SetGuiyuanAllocations(
+           "guiyuan-target",
+           new SpiritOriginVector { Magic = 10, Perception = 3 }),
+    "origin reallocation is free but cannot exceed the target's cumulative point budget");
+
+var overflowTarget = new SpiritInstance
+{
+    SpiritUid = "overflow-target",
+    SpeciesId = "species-overflow",
+    ProfileId = "profile-overflow",
+    Snapshot = Captured("overflow-species", "overflow-target"),
+    Aptitude = 60,
+    GuiyuanValue = 15
+};
+var overflowDonor = new SpiritInstance
+{
+    SpiritUid = "overflow-donor",
+    SpeciesId = "species-overflow",
+    ProfileId = "profile-overflow-form",
+    Snapshot = Captured("overflow-species", "overflow-donor"),
+    Aptitude = 60,
+    GuiyuanValue = 3
+};
+var overflowPreview = SpiritAscensionService.Preview(overflowTarget, new[] { overflowDonor });
+Assert(overflowPreview.OfferedValue == 4
+       && overflowPreview.AppliedValue == 1
+       && overflowPreview.OverflowValue == 3
+       && overflowPreview.ResultStarRank == 5,
+    "guiyuan preview explicitly separates effective value from overflow loss");
+var failingGuiyuanStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Instances = new List<SpiritInstance> { overflowTarget, overflowDonor }
+});
+SpiritCollectionService.Configure(failingGuiyuanStore);
+failingGuiyuanStore.FailNextSave = true;
+var guiyuanWriteFailed = false;
+try { SpiritCollectionService.Guiyuan("overflow-target", new[] { "overflow-donor" }, Array.Empty<string>()); }
+catch (IOException) { guiyuanWriteFailed = true; }
+Assert(guiyuanWriteFailed
+       && SpiritCollectionService.Find("overflow-target")?.GuiyuanValue == 15
+       && SpiritCollectionService.Find("overflow-donor") != null,
+    "a failed guiyuan save preserves both the target value and every permanent donor");
+
+var starDeploymentStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Instances = new List<SpiritInstance>
+    {
+        new()
+        {
+            SpiritUid = "star-deployment",
+            SpeciesId = "species-star",
+            ProfileId = "profile-star",
+            Snapshot = Captured("star-species", "star-deployment"),
+            Aptitude = 60,
+            GuiyuanValue = 16,
+            GuiyuanAllocations = new SpiritOriginVector { Magic = 10, Perception = 10, Spirit = 10 }
+        }
+    }
+});
+SpiritCollectionService.Configure(starDeploymentStore);
+var starParty = new SpiritAdventureParty
+{
+    PartySlots = new List<string> { "star-deployment", "", "", "", "", "" },
+    ActiveSpiritUid = "star-deployment"
+};
+SpiritBattleDeploymentService.Begin(starParty, SpiritCollectionService.Snapshot(), 11, 20);
+var starDeployment = SpiritBattleDeploymentService.DeploymentCardSnapshot()!;
+var starProfile = SpiritGrowthRegistry.Resolve(SpiritCollectionService.Find("star-deployment")!);
+var unstarredDeploymentStats = SpiritGrowthService.BattleStats(
+    starProfile,
+    new SpiritOriginVector
+    {
+        Magic = starDeployment.OriginMagic,
+        Perception = starDeployment.OriginPerception,
+        Spirit = starDeployment.OriginSpirit,
+        Luck = starDeployment.OriginLuck
+    },
+    SpiritIntentRegistry.ProfileForIdentity(starDeployment.ProfileId, starDeployment.ProfileKey),
+    starDeployment.SpiritSpeed);
+var frozenStarStats = CompanionStatsService.SpiritStats(
+    starDeployment,
+    SpiritIntentRegistry.ProfileForIdentity(starDeployment.ProfileId, starDeployment.ProfileKey));
+Assert(starDeployment.SpiritStarRank == 5
+       && starDeployment.SpiritGuiyuanValue == 16
+       && frozenStarStats.MaxHp == unstarredDeploymentStats.MaxHp * 2
+       && frozenStarStats.Attack == unstarredDeploymentStats.Attack * 2
+       && frozenStarStats.Armor == unstarredDeploymentStats.Armor * 2
+       && frozenStarStats.MaxMagic == unstarredDeploymentStats.MaxMagic,
+    "battle deployment freezes allocated origins and star rank while applying only the three permitted final-stat bonuses");
+Assert(SpiritBattleDeploymentService.CanSummon(starDeployment, "star-owner", false, out _),
+    "a consistent frozen guiyuan deployment snapshot passes authority validation");
+var forgedAllocation = SpiritModelCloner.CloneSnapshot(starDeployment);
+forgedAllocation.GuiyuanAllocationLuck++;
+Assert(!SpiritBattleDeploymentService.CanSummon(forgedAllocation, "star-owner", true, out _),
+    "remote deployment rejects guiyuan allocations that do not match the frozen effective origins");
 SpiritBattleDeploymentService.Clear();
 
 Console.WriteLine($"Terrias spirit runtime tests passed: {assertions} assertions.");

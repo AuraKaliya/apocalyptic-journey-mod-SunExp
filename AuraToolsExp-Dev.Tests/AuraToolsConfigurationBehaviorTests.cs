@@ -99,6 +99,7 @@ internal static partial class AuraToolsTestSuite
         Assert(root.SchemaVersion == 1
                && root.Audio.ConfigFile == "AudioSettings.json"
                && root.MatchExperience.ConfigFile == "MatchExperienceSettings.json"
+               && root.PixelEmoji.ConfigFile == "PixelEmojiSettings.json"
                && root.SkillCg.ConfigFile == "SkillCgSettings.json"
                && root.Skin.ConfigFile == "SkinSettings.json"
                && root.Logging.ConfigFile == "LoggingSettings.json",
@@ -109,6 +110,7 @@ internal static partial class AuraToolsTestSuite
         Assert(restoredRoot.Audio.Enabled
                && restoredRoot.Logging.Enabled
                && rootJson.Contains("\"matchExperience\"")
+               && rootJson.Contains("\"pixelEmoji\"")
                && rootJson.Contains("\"configFile\""),
             "root config keeps its established JSON property contract across a round trip");
     

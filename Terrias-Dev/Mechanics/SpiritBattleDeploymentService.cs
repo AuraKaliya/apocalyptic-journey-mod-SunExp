@@ -41,17 +41,29 @@ public static class SpiritBattleDeploymentService
         lock (SyncRoot)
         {
             if (active == null) return null;
-            var profile = SpiritGrowthRegistry.Resolve(active);
-            var origins = SpiritGrowthService.OriginsAt(profile, active.Level, active.Aptitude);
+            var origins = SpiritAscensionService.EffectiveOrigins(active);
             var snapshot = SpiritModelCloner.CloneSnapshot(active.Snapshot);
             snapshot.SpeciesId = active.SpeciesId;
             snapshot.ProfileId = active.ProfileId;
             snapshot.SpiritLevel = active.Level;
             snapshot.SpiritAptitude = active.Aptitude;
+            snapshot.SpiritGuiyuanValue = active.GuiyuanValue;
+            snapshot.SpiritStarRank = SpiritAscensionService.StarRankFor(active.GuiyuanValue);
+            var allocations = SpiritAscensionService.NormalizeAllocations(active.GuiyuanAllocations, active.GuiyuanValue);
+            snapshot.GuiyuanAllocationMagic = allocations.Magic;
+            snapshot.GuiyuanAllocationSpirit = allocations.Spirit;
+            snapshot.GuiyuanAllocationLuck = allocations.Luck;
+            snapshot.GuiyuanAllocationPerception = allocations.Perception;
             snapshot.OriginMagic = origins.Magic;
             snapshot.OriginSpirit = origins.Spirit;
             snapshot.OriginLuck = origins.Luck;
             snapshot.OriginPerception = origins.Perception;
+            snapshot.SpiritSpeed = active.Speed;
+            snapshot.EquippedIntentIds = new List<string>(active.EquippedIntentIds ?? new List<string>());
+            snapshot.EquippedPassiveId = active.EquippedPassiveId;
+            snapshot.LoadoutRevision = active.LoadoutRevision;
+            snapshot.LoadoutHash = active.LoadoutHash;
+            snapshot.TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
             snapshot.DeploymentToken = deploymentToken;
             return snapshot;
         }
@@ -64,6 +76,14 @@ public static class SpiritBattleDeploymentService
             if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.DeploymentToken))
             {
                 reason = "这张精灵卡不属于本场战斗的出战快照。";
+                return false;
+            }
+            if (!SpiritTrainingService.ValidateDeploymentSnapshot(snapshot, out reason))
+            {
+                return false;
+            }
+            if (!SpiritAscensionService.ValidateDeploymentSnapshot(snapshot, out reason))
+            {
                 return false;
             }
             if (ConsumedOwners.Contains(ownerStatusId ?? ""))

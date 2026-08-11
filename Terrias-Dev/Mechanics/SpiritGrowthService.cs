@@ -84,15 +84,16 @@ public static class SpiritGrowthService
         };
     }
 
-    public static CompanionStats BattleStats(SpiritOriginVector origins, SpiritIntentProfile? intentProfile = null)
+    public static CompanionStats BattleStats(SpiritOriginVector origins, SpiritIntentProfile? intentProfile = null, int speed = 100)
     {
-        return BattleStats(new SpiritSpeciesGrowthProfile(), origins, intentProfile);
+        return BattleStats(new SpiritSpeciesGrowthProfile(), origins, intentProfile, speed);
     }
 
     public static CompanionStats BattleStats(
         SpiritSpeciesGrowthProfile growthProfile,
         SpiritOriginVector origins,
-        SpiritIntentProfile? intentProfile = null)
+        SpiritIntentProfile? intentProfile = null,
+        int speed = 100)
     {
         origins ??= new SpiritOriginVector();
         var conversion = SpiritGrowthRegistry.BattleConversionFor(growthProfile);
@@ -108,7 +109,8 @@ public static class SpiritGrowthService
             Scale(hp, profile.HpMultiplier),
             Scale(intentEnergy, profile.MagicMultiplier),
             Scale(attack, profile.AttackMultiplier),
-            Scale(armor, profile.ArmorMultiplier));
+            Scale(armor, profile.ArmorMultiplier),
+            Math.Max(1, speed));
     }
 
     public static SpiritExperienceResult GrantExperience(SpiritInstance instance, int amount)
@@ -135,12 +137,15 @@ public static class SpiritGrowthService
             instance.Level = maxLevel;
             instance.Experience = 0;
         }
+        var unlocked = SpiritTrainingService.ApplyUnlockedNodes(instance);
+        instance.LoadoutHash = SpiritTrainingService.LoadoutHash(instance);
         return new SpiritExperienceResult
         {
             Instance = instance.Clone(),
             OldLevel = oldLevel,
             OldExperience = oldExperience,
-            GainedExperience = Math.Max(0, amount) - remaining
+            GainedExperience = Math.Max(0, amount) - remaining,
+            UnlockedAbilityIds = new System.Collections.Generic.List<string>(unlocked)
         };
     }
 

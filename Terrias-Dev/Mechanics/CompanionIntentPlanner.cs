@@ -105,6 +105,13 @@ public static class CompanionIntentPlanner
         }
 
         var primaryEffect = resolvedEffects[0];
+        SpiritTrainingBattleRuntime.ApplyPlanModifiers(
+            state,
+            intent,
+            resolvedEffects,
+            out var numericBonusPercent,
+            out var appliedModifierKeys,
+            out var effectiveCost);
         var plan = new CompanionIntentPlan
         {
             PlanId = CompanionSystemPlans.PlanId(state),
@@ -116,12 +123,14 @@ public static class CompanionIntentPlanner
                 .Distinct(StringComparer.Ordinal)
                 .ToList(),
             ResolvedValue = primaryEffect.Value,
-            Cost = Math.Max(0, intent.Cost),
+            Cost = effectiveCost,
             ReadyOnTurn = state.TurnIndex + Math.Max(0, intent.Cooldown) + 1,
             PreviewThreat = Math.Max(0, Math.Min(CompanionThreatService.MaxPreviewThreat, intent.Threat?.Preview ?? 0)),
             Priority = choice.Value.Priority,
             StateRevision = state.Revision + 1,
             IsWait = false,
+            NumericBonusPercent = numericBonusPercent,
+            AppliedModifierKeys = appliedModifierKeys,
             ResolvedEffects = resolvedEffects
         };
         return ProjectionEffectContextService.RefreshLockedPlan(projection, state, plan);

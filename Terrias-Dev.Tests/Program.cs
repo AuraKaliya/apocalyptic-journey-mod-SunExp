@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
@@ -37,11 +38,13 @@ internal static class Program
         TestCardVisualInterestIndex();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
+        TestSpiritManagementSelectionState();
         TestSpiritAdventurePartyRemoval();
         TestSpiritStatusBarText();
         TestPolymorphCooldownSnapshots();
         TestSpiritProfileIdentityResolver();
         TestProjectionTurnQueuePolicy();
+        TestPartnerTurnOrderPolicy();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
@@ -175,6 +178,50 @@ internal static class Program
         Equal("beta", slots[1], "Returning one spirit preserves the remaining current-adventure party");
     }
 
+    private static void TestSpiritManagementSelectionState()
+    {
+        var selection = new SpiritTrainingSelectionState();
+        selection.EnsureInitialized(Array.Empty<string>());
+        Equal(SpiritTrainingTargetKind.IntentSlot, selection.TargetKind,
+            "Training UI initializes with an explicit intent-slot target");
+        Equal(0, selection.IntentSlotIndex,
+            "Training UI initializes the first intent slot when no intent is equipped");
+        Equal("", selection.FocusedAbilityId,
+            "An empty intent slot does not fall back to the equipped passive");
+
+        selection.SelectIntentSlot(2, null);
+        True(selection.TargetsIntentSlot(2),
+            "Selecting an empty intent slot preserves it as the replacement target");
+        Equal("", selection.FocusedAbilityId,
+            "Selecting an empty intent slot keeps the detail focus empty");
+
+        selection.PreviewAbility("passive-candidate");
+        True(selection.TargetsIntentSlot(2),
+            "Previewing an ability does not implicitly change the replacement target");
+        Equal("passive-candidate", selection.FocusedAbilityId,
+            "Previewing an ability changes only the detail focus");
+
+        selection.SelectPassiveSlot("species-passive");
+        True(selection.TargetsPassiveSlot,
+            "Selecting the passive slot makes it the sole replacement target");
+        False(selection.TargetsIntentSlot(2),
+            "Selecting the passive slot clears the previous intent-slot target");
+        Equal(-1, selection.IntentSlotIndex,
+            "The passive target does not retain a hidden intent-slot index");
+
+        selection.PreviewAbility("intent-candidate");
+        True(selection.TargetsPassiveSlot,
+            "Previewing an intent does not silently switch away from the passive target");
+
+        False(SpiritPartySlotInteraction.TrySelectOccupant("  ", out var emptyUid),
+            "Clicking an empty party slot performs no selection or mutation");
+        Equal("", emptyUid, "An empty party slot exposes no synthetic spirit id");
+        True(SpiritPartySlotInteraction.TrySelectOccupant("  spirit-a  ", out var occupantUid),
+            "Clicking an occupied party slot selects its occupant");
+        Equal("spirit-a", occupantUid,
+            "Party-slot selection normalizes the occupant id without changing party data");
+    }
+
     private static void TestSpiritStatusBarText()
     {
         Equal("1\n3\n9", SpiritStatusBarText.FormatVerticalDigits(139), "Spirit health shows exactly one horizontal digit per vertical line");
@@ -266,6 +313,26 @@ internal static class Program
         False(conflicted.IsIsolated, "any stale anchor is reported as a native Partner queue conflict");
         Equal(1, conflicted.NativePartnerCount, "conflict diagnostics do not classify native Partner as a Terrias actor");
         Equal(1, conflicted.AnchorCount, "conflict diagnostics expose the stale Terrias anchor");
+    }
+
+    private static void TestPartnerTurnOrderPolicy()
+    {
+        var source = new[]
+        {
+            new TurnEntry("player", false, 100),
+            new TurnEntry("slow", true, 80),
+            new TurnEntry("enemy", false, 100),
+            new TurnEntry("fast-a", true, 120),
+            new TurnEntry("fast-b", true, 120),
+            new TurnEntry("tail", false, 100)
+        };
+        var ordered = PartnerTurnOrderPolicy.ReorderPartnerSubsequence(
+            source,
+            value => value.IsPartner,
+            value => value.Speed,
+            value => value.Id);
+        Equal("player,fast-a,enemy,fast-b,slow,tail", string.Join(",", ordered.Select(value => value.Id)),
+            "Partner speed sorting preserves all non-Partner positions and keeps equal-speed Partners stable");
     }
 
     private static void TestSolarMemoryRoleCommitPendingState()
@@ -1386,6 +1453,22 @@ internal static class Program
         {
             throw new InvalidOperationException("Assertion failed: " + message + ". Did not expect <" + actual + ">.");
         }
+    }
+
+    private sealed class TurnEntry
+    {
+        public TurnEntry(string id, bool isPartner, int speed)
+        {
+            Id = id;
+            IsPartner = isPartner;
+            Speed = speed;
+        }
+
+        public string Id { get; }
+
+        public bool IsPartner { get; }
+
+        public int Speed { get; }
     }
 
     private sealed class FakeDataConfig : IDataConfig

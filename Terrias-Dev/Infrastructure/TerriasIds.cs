@@ -272,6 +272,7 @@ public static class TerriasIds
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
     public const string SpiritCaptureRegistryFile = "spirit.capture.registry.json";
     public const string SpiritGrowthRegistryFile = "spirit.growth.registry.json";
+    public const string SpiritTrainingRegistryFile = "spirit.training.registry.json";
     public const string MoreDimensionsCardPackId = "Terrias_terrias_cardpack_more_dimensions";
     public const string DimensionShopConfigSystem = "DimensionShop";
     public const string DimensionShopConfigFile = "settings.json";

@@ -90,14 +90,16 @@ public static class SpiritSummonService
         TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
-        string registryHash)
+        string registryHash,
+        string trainingRegistryHash)
     {
         if (!ClaimToken(token))
         {
             return;
         }
 
-        var rejection = ValidateNetworkRequest(snapshot, ownerStatusId, exchangeCount, battleState, sender, protocolVersion, battleEpoch, registryHash);
+        var rejection = ValidateNetworkRequest(snapshot, ownerStatusId, exchangeCount, battleState, sender,
+            protocolVersion, battleEpoch, registryHash, trainingRegistryHash);
         if (rejection.Length > 0)
         {
             Broadcast(CreateRejection(snapshot, ownerStatusId, token, exchangeCount, battleState, rejection), "SpiritSummonService.ResolveNetworkSummon.Reject");
@@ -142,7 +144,8 @@ public static class SpiritSummonService
 
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || !string.Equals(snapshot.RegistryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal))
+            || !string.Equals(snapshot.RegistryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal)
+            || !string.Equals(snapshot.TrainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal))
         {
             TerriasLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
             return;
@@ -358,7 +361,8 @@ public static class SpiritSummonService
                     Math.Max(1, networkState.MaxHp),
                     Math.Max(1, networkState.MaxMagic),
                     Math.Max(1, networkState.Attack),
-                    Math.Max(1, networkState.Armor));
+                    Math.Max(1, networkState.Armor),
+                    Math.Max(1, networkState.Speed));
             if (networkState != null)
             {
                 stats.SetCurrentMagic(networkState.CurrentMagic);
@@ -553,6 +557,7 @@ public static class SpiritSummonService
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             RegistryHash = SpiritIntentRegistry.RegistryHash,
+            TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash,
             Revision = state?.Revision ?? 0,
             Generation = spiritState?.Generation ?? 1,
             ExchangeCount = spiritState?.ExchangeCount ?? 0,
@@ -570,6 +575,14 @@ public static class SpiritSummonService
             Armor = state?.Stats.Armor ?? 1,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
             CurrentMagic = state?.Stats.CurrentMagic ?? 0,
+            Speed = state?.Stats.Speed ?? spirit.Snapshot.SpiritSpeed,
+            EquippedIntentIds = state == null ? new List<string>() : new List<string>(state.EquippedIntentIds),
+            EquippedPassiveId = state?.EquippedPassiveId ?? "",
+            LoadoutRevision = state?.LoadoutRevision ?? 0,
+            LoadoutHash = state?.LoadoutHash ?? "",
+            PassiveState = state == null
+                ? new Dictionary<string, int>()
+                : state.PassiveStateSnapshot().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
             TurnIndex = state?.TurnIndex ?? 0,
             ReadyOnTurn = state == null
                 ? new Dictionary<string, int>()
@@ -588,6 +601,12 @@ public static class SpiritSummonService
         }
 
         state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
+        state.ConfigureLoadout(
+            snapshot.EquippedIntentIds,
+            snapshot.EquippedPassiveId,
+            snapshot.LoadoutRevision,
+            snapshot.LoadoutHash);
+        state.ApplyPassiveState(snapshot.PassiveState);
         state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
         state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
         if (spirit.Status is StatusManager status)
@@ -644,7 +663,8 @@ public static class SpiritSummonService
         TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
-        string registryHash)
+        string registryHash,
+        string trainingRegistryHash)
     {
         if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
         {
@@ -657,6 +677,10 @@ public static class SpiritSummonService
         if (!string.Equals(registryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
             return "registry-mismatch";
+        }
+        if (!string.Equals(trainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal))
+        {
+            return "training-registry-mismatch";
         }
         if (!sender.IsAvailable || !sender.IsLobbyMember)
         {

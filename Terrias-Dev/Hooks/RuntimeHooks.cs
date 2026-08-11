@@ -76,6 +76,7 @@ public static class RuntimeHooks
         RunHookStep("map node card art", () => MapNodeCardArtRuntime.Initialize(modConfig));
         RunHookStep("polymorph runtime", () => PolymorphRuntime.Initialize(modConfig));
         RunHookStep("companion intent registry", () => CompanionIntentRegistry.Load(modConfig));
+        RunHookStep("spirit training registry", () => SpiritTrainingRegistry.Load(modConfig));
         RunHookStep("spirit intent registry", () => SpiritIntentRegistry.Load(modConfig));
         RunHookStep("spirit capture registry", () => SpiritCaptureRegistry.Load(modConfig));
         RunHookStep("spirit growth registry", () => SpiritGrowthRegistry.Load(modConfig));

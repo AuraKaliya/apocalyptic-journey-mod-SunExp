@@ -8,6 +8,10 @@
     "enabled": true,
     "configFile": "MatchExperienceSettings.json"
   },
+  "pixelEmoji": {
+    "enabled": true,
+    "configFile": "PixelEmojiSettings.json"
+  },
   "skillCg": {
     "enabled": true,
     "configFile": "SkillCgSettings.json"

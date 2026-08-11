@@ -7,7 +7,7 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 3,
       "handlerId": "buff.apply",
@@ -46,7 +46,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "蹈火之域：一阶",
+      "description": "为目标敌人施加4层灼烧。"
     },
     {
       "id": "spirit.pve.enemycard_burn1.intent",
@@ -54,8 +56,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 4,
       "handlerId": "buff.apply",
       "target": {
@@ -93,7 +95,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "蹈火之域：二阶",
+      "description": "为目标敌人施加3层灼烧。"
     },
     {
       "id": "spirit.pve.enemycard_burn2.intent",
@@ -101,8 +105,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 3,
       "handlerId": "buff.apply",
       "target": {
@@ -140,7 +144,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "蹈火之域：三阶",
+      "description": "为目标敌人施加6层灼烧。"
     },
     {
       "id": "spirit.pve.enemycard_car_hammer.intent",
@@ -148,8 +154,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native defense redirected to the friendly roster",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 5,
       "handlerId": "damage.single",
       "target": {
@@ -203,7 +209,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "圣锤：乌尔加农",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_car_shield.intent",
@@ -211,8 +219,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 3,
       "handlerId": "buff.apply",
       "target": {
@@ -266,7 +274,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "圣盾：瓦尔特洛斯",
+      "description": "为自身施加1层坚毅；为自身施加1层活力。"
     },
     {
       "id": "spirit.pve.enemycard_car_spear.intent",
@@ -274,7 +284,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
       "type": "Attack",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 4,
       "handlerId": "damage.single",
@@ -329,7 +339,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "圣枪：迦耶伯格",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为目标敌人施加2层易伤。"
     },
     {
       "id": "spirit.pve.enemycard_car_sword.intent",
@@ -337,8 +349,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 8,
       "handlerId": "damage.single",
       "target": {
@@ -376,7 +388,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "圣剑：瑟兰提尔",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_charmed.intent",
@@ -384,8 +398,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -423,7 +437,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "时序魔法：停滞",
+      "description": "为目标敌人施加1层时停。"
     },
     {
       "id": "spirit.pve.enemycard_defence.intent",
@@ -431,8 +447,8 @@
       "pool": "Pve",
       "adaptationNote": "native defense redirected to the friendly roster",
       "type": "Defense",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 1,
       "handlerId": "block.single",
       "target": {
@@ -470,7 +486,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "魔力屏障",
+      "description": "为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_despair.intent",
@@ -478,7 +496,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
       "type": "Attack",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 5,
       "handlerId": "damage.single",
@@ -533,7 +551,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "绝望",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为目标敌人施加3层毒素。"
     },
     {
       "id": "spirit.pve.enemycard_fallendragon.intent",
@@ -541,8 +561,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 4,
       "handlerId": "buff.apply",
       "target": {
@@ -580,7 +600,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "激怒战吼",
+      "description": "为自身施加20层超凡。"
     },
     {
       "id": "spirit.pve.enemycard_fearless.intent",
@@ -588,8 +610,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -627,7 +649,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "适应屏障",
+      "description": "为自身施加4层活力。"
     },
     {
       "id": "spirit.pve.enemycard_fivehit.intent",
@@ -635,7 +659,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
+      "cost": 3,
       "cooldown": 2,
       "basePriority": 3,
       "handlerId": "damage.multi",
@@ -674,7 +698,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "寂灭黑星",
+      "description": "对目标敌人连续5次，每次造成2+攻击×0.35点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_foraging.intent",
@@ -682,7 +708,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 3,
       "handlerId": "damage.single",
@@ -721,7 +747,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "法杖敲头",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_fullsupport.intent",
@@ -729,7 +757,7 @@
       "pool": "Pve",
       "adaptationNote": "native defense redirected to the friendly roster",
       "type": "Defense",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 1,
       "handlerId": "block.single",
@@ -768,7 +796,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "防护结界",
+      "description": "为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_giantclawstrike.intent",
@@ -776,8 +806,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "damage.single",
       "target": {
@@ -831,7 +861,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "巨力爪击",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为目标敌人施加2层流血。"
     },
     {
       "id": "spirit.pve.enemycard_highfly.intent",
@@ -839,8 +871,8 @@
       "pool": "Pve",
       "adaptationNote": "native defense redirected to the friendly roster",
       "type": "Defense",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "block.single",
       "target": {
@@ -878,7 +910,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "浴火",
+      "description": "为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_iceshield.intent",
@@ -886,8 +920,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 4,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 5,
       "handlerId": "buff.apply",
       "target": {
@@ -925,7 +959,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "幻景",
+      "description": "为目标敌人施加2层残废。"
     },
     {
       "id": "spirit.pve.enemycard_licking.intent",
@@ -933,8 +969,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -972,7 +1008,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "溃烂术",
+      "description": "为目标敌人施加2层腐烂。"
     },
     {
       "id": "spirit.pve.enemycard_limepowder.intent",
@@ -980,8 +1018,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 3,
       "handlerId": "buff.apply",
       "target": {
@@ -1019,7 +1057,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "思维侵入",
+      "description": "为目标敌人施加1层遗忘。"
     },
     {
       "id": "spirit.pve.enemycard_makeineffectiverays1.intent",
@@ -1027,8 +1067,8 @@
       "pool": "Pve",
       "adaptationNote": "native defense redirected to the friendly roster; native buff/debuff preserved with a safe target adapter",
       "type": "Defense",
-      "cost": 0,
-      "cooldown": 4,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 3,
       "handlerId": "block.single",
       "target": {
@@ -1082,7 +1122,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "结晶化",
+      "description": "为自身获得4+护甲×0.8点护盾；为自身施加2层坚毅。"
     },
     {
       "id": "spirit.pve.enemycard_mt1.intent",
@@ -1090,8 +1132,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 9,
       "handlerId": "buff.apply",
       "target": {
@@ -1129,7 +1171,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "操偶术:保护",
+      "description": "为自身施加2层生命链接。"
     },
     {
       "id": "spirit.pve.enemycard_mt2.intent",
@@ -1137,8 +1181,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -1176,7 +1220,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "操偶术:狂暴",
+      "description": "为自身施加10层超凡。"
     },
     {
       "id": "spirit.pve.enemycard_nervereflexes.intent",
@@ -1184,8 +1230,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -1223,7 +1269,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "狂暴化",
+      "description": "为自身施加1层狂暴。"
     },
     {
       "id": "spirit.pve.enemycard_neverdead.intent",
@@ -1231,7 +1279,7 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
+      "cost": 3,
       "cooldown": 2,
       "basePriority": 1,
       "handlerId": "buff.apply",
@@ -1270,7 +1318,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "活性化",
+      "description": "为自身施加5层自愈。"
     },
     {
       "id": "spirit.pve.enemycard_observe.intent",
@@ -1278,8 +1328,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -1317,7 +1367,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "涣散",
+      "description": "为目标敌人施加2层衰退。"
     },
     {
       "id": "spirit.pve.enemycard_obtainmoney.intent",
@@ -1325,8 +1377,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 4,
       "handlerId": "damage.single",
       "target": {
@@ -1364,7 +1416,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "探囊取物",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_ordinaryfivehit.intent",
@@ -1372,8 +1426,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 1,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 3,
       "handlerId": "damage.multi",
       "target": {
@@ -1411,7 +1465,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "蝶翼复切",
+      "description": "对目标敌人连续5次，每次造成2+攻击×0.35点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_ordinaryhit.intent",
@@ -1419,8 +1475,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 1,
       "handlerId": "damage.single",
       "target": {
@@ -1458,7 +1514,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "断脊",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_overrunworkouts.intent",
@@ -1466,8 +1524,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -1505,7 +1563,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "刃契",
+      "description": "为自身施加1层锋锐。"
     },
     {
       "id": "spirit.pve.enemycard_poisonthrowing.intent",
@@ -1513,8 +1573,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -1568,7 +1628,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "圣械断骨",
+      "description": "为目标敌人施加1层遗忘；为目标敌人施加3层毒素。"
     },
     {
       "id": "spirit.pve.enemycard_psychologicalshock.intent",
@@ -1576,8 +1638,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 4,
       "handlerId": "damage.single",
       "target": {
@@ -1615,7 +1677,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "震颤",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_quadruplehits.intent",
@@ -1623,7 +1687,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
+      "cost": 3,
       "cooldown": 2,
       "basePriority": 2,
       "handlerId": "damage.multi",
@@ -1662,7 +1726,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "破灭",
+      "description": "对目标敌人连续4次，每次造成2+攻击×0.35点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_rejuvenation.intent",
@@ -1670,8 +1736,8 @@
       "pool": "Pve",
       "adaptationNote": "native self-heal redirected to the most wounded ally",
       "type": "Recovery",
-      "cost": 0,
-      "cooldown": 1,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 1,
       "handlerId": "heal.single",
       "target": {
@@ -1709,7 +1775,9 @@
           "magicScale": 0.6,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "基础再生",
+      "description": "为目标友方恢复4+最大魔能×0.6点生命。"
     },
     {
       "id": "spirit.pve.enemycard_royalbarrier.intent",
@@ -1717,7 +1785,7 @@
       "pool": "Pve",
       "adaptationNote": "native defense redirected to the friendly roster",
       "type": "Defense",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 2,
       "handlerId": "block.single",
@@ -1756,7 +1824,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "王族壁垒",
+      "description": "为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_seduce.intent",
@@ -1764,7 +1834,7 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
       "type": "Attack",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 3,
       "handlerId": "damage.single",
@@ -1819,7 +1889,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "龙吼",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为目标敌人施加2层易伤。"
     },
     {
       "id": "spirit.pve.enemycard_specialattack.intent",
@@ -1827,8 +1899,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native defense redirected to the friendly roster",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 3,
       "handlerId": "damage.single",
       "target": {
@@ -1882,7 +1954,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "神之福音",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为自身获得4+护甲×0.8点护盾。"
     },
     {
       "id": "spirit.pve.enemycard_spreadwings.intent",
@@ -1890,8 +1964,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling; native buff/debuff preserved with a safe target adapter",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "damage.single",
       "target": {
@@ -1945,7 +2019,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "熔炎重刃",
+      "description": "对目标敌人造成2+攻击×0.8点伤害；为自身施加1层灼烧。"
     },
     {
       "id": "spirit.pve.enemycard_superfireball.intent",
@@ -1953,8 +2029,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "damage.multi",
       "target": {
@@ -1992,7 +2068,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "魔爆术",
+      "description": "对目标敌人连续2次，每次造成2+攻击×0.35点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_toxin1.intent",
@@ -2000,7 +2078,7 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 3,
       "handlerId": "buff.apply",
@@ -2039,7 +2117,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "腐渊之息：一阶",
+      "description": "为目标敌人施加3层毒素。"
     },
     {
       "id": "spirit.pve.enemycard_toxin2.intent",
@@ -2047,7 +2127,7 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
+      "cost": 2,
       "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
@@ -2086,7 +2166,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "腐渊之息：二阶",
+      "description": "为目标敌人施加4层毒素。"
     },
     {
       "id": "spirit.pve.enemycard_toxin3.intent",
@@ -2094,54 +2176,7 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 1,
-      "basePriority": 1,
-      "handlerId": "buff.apply",
-      "target": {
-        "scope": "Enemy",
-        "mode": "Single",
-        "policy": "enemy.lowest_hp"
-      },
-      "hitCount": 1,
-      "buffId": "buff_toxin",
-      "buffStacks": 5,
-      "flatValue": 0,
-      "attackScale": 0.0,
-      "armorScale": 0.0,
-      "magicScale": 0.0,
-      "priorityBonus": "",
-      "threat": {
-        "preview": 0,
-        "onUse": 0,
-        "decay": 4
-      },
-      "effects": [
-        {
-          "handlerId": "buff.apply",
-          "target": {
-            "scope": "Enemy",
-            "mode": "Single",
-            "policy": "enemy.lowest_hp"
-          },
-          "hitCount": 1,
-          "buffId": "buff_toxin",
-          "buffStacks": 5,
-          "flatValue": 0,
-          "attackScale": 0.0,
-          "armorScale": 0.0,
-          "magicScale": 0.0,
-          "displayIndex": 1
-        }
-      ]
-    },
-    {
-      "id": "spirit.pve.enemycard_toxin4.intent",
-      "enemyCardId": "enemycard_Toxin4",
-      "pool": "Pve",
-      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
-      "type": "Interference",
-      "cost": 0,
+      "cost": 3,
       "cooldown": 2,
       "basePriority": 1,
       "handlerId": "buff.apply",
@@ -2180,7 +2215,58 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "蚀髓之刻：一阶",
+      "description": "为目标敌人施加5层毒素。"
+    },
+    {
+      "id": "spirit.pve.enemycard_toxin4.intent",
+      "enemyCardId": "enemycard_Toxin4",
+      "pool": "Pve",
+      "adaptationNote": "native buff/debuff preserved with a safe target adapter",
+      "type": "Interference",
+      "cost": 3,
+      "cooldown": 2,
+      "basePriority": 1,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "mode": "Single",
+        "policy": "enemy.lowest_hp"
+      },
+      "hitCount": 1,
+      "buffId": "buff_toxin",
+      "buffStacks": 5,
+      "flatValue": 0,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "mode": "Single",
+            "policy": "enemy.lowest_hp"
+          },
+          "hitCount": 1,
+          "buffId": "buff_toxin",
+          "buffStacks": 5,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "displayIndex": 1
+        }
+      ],
+      "displayName": "蚀髓之刻：二阶",
+      "description": "为目标敌人施加5层毒素。"
     },
     {
       "id": "spirit.pve.enemycard_venomspray.intent",
@@ -2188,8 +2274,8 @@
       "pool": "Pve",
       "adaptationNote": "native damage shape adapted to spirit attack scaling",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 3,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 4,
       "handlerId": "damage.single",
       "target": {
@@ -2227,7 +2313,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "剧毒因子",
+      "description": "对目标敌人造成2+攻击×0.8点伤害。"
     },
     {
       "id": "spirit.pve.enemycard_vulnerabilitylight.intent",
@@ -2235,8 +2323,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 5,
       "handlerId": "buff.apply",
       "target": {
@@ -2274,7 +2362,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "看破",
+      "description": "为目标敌人施加3层易伤。"
     },
     {
       "id": "spirit.pve.enemycard_weak.intent",
@@ -2282,8 +2372,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 1,
+      "cooldown": 0,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -2321,7 +2411,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "无力化：二阶",
+      "description": "为自身施加1层无力。"
     },
     {
       "id": "spirit.pve.enemycard_weaklight.intent",
@@ -2329,8 +2421,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 4,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -2368,7 +2460,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "无力化：一阶",
+      "description": "为目标敌人施加2层无力。"
     },
     {
       "id": "spirit.pve.enemycard_witness.intent",
@@ -2376,8 +2470,8 @@
       "pool": "Pve",
       "adaptationNote": "native buff/debuff preserved with a safe target adapter",
       "type": "Support",
-      "cost": 0,
-      "cooldown": 2,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 2,
       "handlerId": "buff.apply",
       "target": {
@@ -2415,7 +2509,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "硬质化",
+      "description": "为自身施加2层坚毅。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_last_day_morning_prayer.intent",
@@ -2423,8 +2519,8 @@
       "pool": "Pve",
       "adaptationNote": "all-enemy burn adapted from morning prayer; self gathered flame redirected to the owner",
       "type": "Interference",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 1,
       "handlerId": "buff.apply",
       "target": {
@@ -2478,7 +2574,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "晨祷校准",
+      "description": "为所有敌人施加5层灼烧；为自身施加10层聚集之火。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_last_day_noon_burn.intent",
@@ -2486,8 +2584,8 @@
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; boss phase trigger omitted",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 1,
       "handlerId": "damage.single",
       "target": {
@@ -2525,7 +2623,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "正午断脊",
+      "description": "对目标敌人造成12+攻击×1点伤害。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_mirror_calibration.intent",
@@ -2533,8 +2633,8 @@
       "pool": "Pve",
       "adaptationNote": "self block redirected to the owner; all-enemy burn adapted from mirror calibration",
       "type": "Defense",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 1,
       "handlerId": "block.single",
       "target": {
@@ -2588,7 +2688,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "校准光照",
+      "description": "为自身获得10点护盾；为所有敌人施加5层灼烧。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_orbit_refraction.intent",
@@ -2596,8 +2698,8 @@
       "pool": "Pve",
       "adaptationNote": "damage component; burn trigger remains safely omitted; burn component adapted without native boss trigger",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 3,
+      "cooldown": 2,
       "basePriority": 1,
       "handlerId": "damage.single",
       "target": {
@@ -2651,7 +2753,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "环日折射",
+      "description": "对目标敌人造成8+攻击×0.9点伤害；为目标敌人施加10层灼烧。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_saint_purification.intent",
@@ -2659,8 +2763,8 @@
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; global coronation logic omitted; body burn component adapted safely",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 1,
       "handlerId": "damage.single",
       "target": {
@@ -2714,7 +2818,9 @@
           "magicScale": 0.0,
           "displayIndex": 2
         }
-      ]
+      ],
+      "displayName": "圣女净祷",
+      "description": "对目标敌人造成10+攻击×0.9点伤害；为目标敌人施加2层躯体灼烧。"
     },
     {
       "id": "spirit.pve.terrias_terrias_enemycard_saint_return_to_court.intent",
@@ -2722,8 +2828,8 @@
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; saved-name global mechanic omitted",
       "type": "Attack",
-      "cost": 0,
-      "cooldown": 0,
+      "cost": 2,
+      "cooldown": 1,
       "basePriority": 1,
       "handlerId": "damage.single",
       "target": {
@@ -2761,7 +2867,9 @@
           "magicScale": 0.0,
           "displayIndex": 1
         }
-      ]
+      ],
+      "displayName": "刻名归庭",
+      "description": "对目标敌人造成9+攻击×0.85点伤害。"
     },
     {
       "id": "spirit.pvp.enemycard_dragon_smajesty.reserved",

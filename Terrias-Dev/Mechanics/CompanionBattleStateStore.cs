@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
@@ -72,5 +73,10 @@ public static class CompanionBattleStateStore
 
         CompanionThreatService.Clear();
         CompanionOwnershipService.Clear();
+    }
+
+    public static IReadOnlyList<CompanionBattleState> Snapshot()
+    {
+        lock (SyncRoot) return States.Values.ToArray();
     }
 }

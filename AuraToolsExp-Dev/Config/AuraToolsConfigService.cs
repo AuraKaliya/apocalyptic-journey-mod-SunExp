@@ -21,6 +21,8 @@ public static class AuraToolsConfigService
 
     public static AuraToolsMatchExperienceSettings MatchExperience { get; private set; } = new();
 
+    public static AuraToolsPixelEmojiSettings PixelEmoji { get; private set; } = new();
+
     public static AuraToolsSkillCgSettings SkillCg { get; private set; } = new();
 
     public static AuraToolsSkinSettings Skin { get; private set; } = new();
@@ -86,6 +88,13 @@ public static class AuraToolsConfigService
         Changed?.Invoke();
     }
 
+    public static void SavePixelEmoji()
+    {
+        PixelEmoji.Normalize();
+        SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile);
+        Changed?.Invoke();
+    }
+
     public static void SaveSkillCg()
     {
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
@@ -131,12 +140,14 @@ public static class AuraToolsConfigService
         Root.Normalize();
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
         MatchExperience = LoadOrDefault(Root.MatchExperience.ConfigFile, new AuraToolsMatchExperienceSettings());
+        PixelEmoji = LoadOrDefault(Root.PixelEmoji.ConfigFile, new AuraToolsPixelEmojiSettings());
         SkillCg = LoadOrDefault(Root.SkillCg.ConfigFile, new AuraToolsSkillCgSettings());
         Skin = LoadOrDefault(Root.Skin.ConfigFile, new AuraToolsSkinSettings());
         Logging = LoadOrDefault(Root.Logging.ConfigFile, new AuraToolsLoggingSettings());
 
         Audio.Normalize();
         MatchExperience.Normalize();
+        PixelEmoji.Normalize();
         SkillCg.Normalize();
         ImportRegisteredSkillCgDefaultsNoLock();
         SkillCg.Normalize();
@@ -170,6 +181,7 @@ public static class AuraToolsConfigService
         SaveModule(Root, AuraToolsIds.RootConfigFileName);
         SaveModule(Audio, Root.Audio.ConfigFile);
         SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
+        SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile);
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
         SaveModule(Skin, Root.Skin.ConfigFile);
         SaveModule(Logging, Root.Logging.ConfigFile);
