@@ -1143,9 +1143,13 @@ try {
             else {
                 $availableValidationWork
             }))
-        $expectedInferenceMode = if ($ParallelismProfile -eq "auto" `
-            -and [bool]$result.Training.AutoTune.InferenceCalibrated) {
-            [string]$result.Training.AutoTune.SelectedInferenceMode
+        $expectedInferenceMode = if ($ParallelismProfile -eq "auto") {
+            if ([bool]$result.Training.AutoTune.InferenceCalibrated) {
+                [string]$result.Training.AutoTune.SelectedInferenceMode
+            }
+            else {
+                "direct"
+            }
         }
         else {
             $InferenceExecutionMode
@@ -1161,7 +1165,9 @@ try {
                 + "effective=$($result.Training.EffectiveParallelism)/" `
                 + "$expectedParallelism, peak=" `
                 + "$($result.Training.PeakConcurrentCampaigns)/" `
-                + "$expectedValidationPeak.")
+                + "$expectedValidationPeak, inference=" `
+                + "$($result.Training.InferenceExecutionMode)/" `
+                + "$expectedInferenceMode.")
         }
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)

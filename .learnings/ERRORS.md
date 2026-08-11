@@ -34,6 +34,187 @@ a shared helper before referencing them.
 
 ---
 
+## [ERR-20260811-A29] reflection-audit-type-and-overload-selection
+
+**Logged**: 2026-08-11T13:57:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first reflection-based trainer audit used the wrong namespace for `CombatCampaignDefinition` and selected overloaded methods ambiguously.
+
+### Error
+```text
+Could not resolve type 'AuraCombatAi.Shared.CombatCampaignDefinition'.
+Multiple ambiguous overloads found for DeserializeObject.
+Ambiguous match found for CombatSimulationRegistry.BuildRuleset.
+```
+
+### Context
+- Campaign contracts live in `AuraCombatSimulation.Shared`, not `AuraCombatAi.Shared`.
+- PowerShell reflection needs exact parameter types when methods are overloaded.
+
+### Suggested Fix
+Resolve the actual assembly type first and select overloads with explicit `Type[]` signatures.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatSimulationShared/CombatCampaignSimulation.cs
+
+---
+
+## [ERR-20260811-A31] preflight-parallelism-message-hides-inference-mismatch
+
+**Logged**: 2026-08-11T14:19:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The default foundation preflight failed a combined parallelism/inference assertion even though its displayed parallelism values satisfied the expected bound.
+
+### Error
+```text
+Foundation worker did not sustain configured parallelism: effective=8/8, peak=8/3.
+```
+
+### Context
+- `effective=8/8` and `peak=8/3` both pass the numeric conditions.
+- The same condition also compares `InferenceExecutionMode`, but the failure message does not print the actual or expected inference mode.
+- A fixed `custom/direct` preflight passed, so this is separate from trainer packaging and native program coverage.
+
+### Suggested Fix
+Include actual and expected inference modes in the assertion message, then investigate the default auto-profile mismatch independently.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-11T14:21:00+08:00
+- **Notes**: The auto profile now expects the runtime's intentional `direct` fallback when no inference calibration samples exist, and the assertion reports actual/expected inference modes. The default preflight passes.
+
+---
+
+## [ERR-20260811-A30] publish-single-file-reinferred-self-contained
+
+**Logged**: 2026-08-11T14:15:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: build
+
+### Summary
+.NET SDK 10 produced self-contained-sized trainer bundles because `PublishSingleFile=true` inferred publish-time self-containment while `PublishSelfContained` remained unset.
+
+### Error
+```text
+Foundation trainer executables exceed the framework-dependent single-file size ceiling: actual=384.41 MiB, ceiling=32 MiB.
+```
+
+### Context
+- The command already passed `--self-contained false`, and the evaluated `SelfContained` property was false.
+- The evaluated `PublishSelfContained` property was empty.
+- Explicitly passing both `SelfContained=false` and `PublishSelfContained=false` reduced the three published executables to 11.69 MiB total while preserving one-file outputs.
+
+### Suggested Fix
+Keep both publish properties explicit whenever `PublishSingleFile=true` is used for the framework-dependent trainer package.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-11T14:18:00+08:00
+- **Notes**: Added explicit publish-time self-containment properties; rebuild and fixed-mode preflight passed.
+
+---
+
+## [ERR-20260811-A28] naive-binary-subsequence-scan-timeout
+
+**Logged**: 2026-08-11T13:54:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A nested PowerShell byte-by-byte substring scan was too slow for 35-70 MiB single-file .NET executables.
+
+### Error
+```text
+command timed out after 60022 milliseconds
+```
+
+### Context
+- The scan compared every possible file offset with every byte in five UTF-16 hash strings.
+- The same check is fast when the binary is decoded once and searched with the runtime string implementation.
+
+### Suggested Fix
+Decode once with the expected encoding and use `String.Contains`, or use a compiled linear-time/boyer-moore byte search.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp/TrainingWorker/AuraFoundationTrainer.ControlCenter.exe
+
+---
+
+## [ERR-20260811-A26] powershell-rg-wildcard-directory-arguments
+
+**Logged**: 2026-08-11T13:48:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Passing unexpanded wildcard directory names such as `AuraFoundationTrainer*` directly to `rg` fails on Windows.
+
+### Error
+```text
+rg: AuraFoundationTrainer*: The filename, directory name, or volume label syntax is incorrect. (os error 123)
+```
+
+### Context
+- A repository search passed wildcard directory arguments directly to `rg` from PowerShell.
+- PowerShell did not expand those arguments before `rg` received them.
+
+### Suggested Fix
+Pass explicit directories, search from the repository root with `--glob`, or expand paths with `Get-ChildItem` before invoking `rg`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+
+---
+
+## [ERR-20260811-A27] powershell-foreach-pipeline-parser
+
+**Logged**: 2026-08-11T13:50:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A PowerShell `foreach` statement cannot be piped directly without wrapping its output as an expression.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- An artifact inventory command ended `foreach (...) { ... } | Format-List`.
+- The parser rejected the pipeline before any inspection ran.
+
+### Suggested Fix
+Wrap the statement as `@(foreach (...) { ... }) | Format-List` or assign the loop output to a variable first.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+- Recurrence-Count: 4
+
+---
+
 ## [ERR-20260810-007] powershell-replace-precedence
 
 **Logged**: 2026-08-10T14:05:00+08:00

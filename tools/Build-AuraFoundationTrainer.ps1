@@ -316,6 +316,8 @@ function Invoke-FoundationPublish {
         --self-contained false `
         --nologo `
         -v:minimal `
+        -p:SelfContained=false `
+        -p:PublishSelfContained=false `
         -p:PublishSingleFile=true `
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=None `
