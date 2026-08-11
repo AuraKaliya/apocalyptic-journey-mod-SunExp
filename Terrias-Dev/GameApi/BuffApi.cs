@@ -39,6 +39,16 @@ public static class BuffApi
         return status?.GetBuff(buffId)?.buffConfig?.Level ?? 0;
     }
 
+    public static int ReducePerTurn(IStatusManager? status, string buffId)
+    {
+        return Math.Max(0, status?.GetBuff(buffId)?.buffConfig?.ReducePerTurn ?? 0);
+    }
+
+    public static ScriptExecutor? Executor(IStatusManager? status, string buffId)
+    {
+        return status?.GetBuff(buffId)?.buffConfig?.dataConfig?.scriptExecutor as ScriptExecutor;
+    }
+
     public static bool Has(IStatusManager? status, string buffId)
     {
         return status?.GetBuff(buffId) != null;

@@ -855,7 +855,11 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 report.Message = report.TrainingRefreshed
                                  && !report.UpdateAccepted
-                    ? "Transformer update rejected by the fixed-anchor gate; stable teacher annotations applied."
+                    ? "Transformer update rejected by the dual-anchor gate ("
+                      + (string.IsNullOrWhiteSpace(report.UpdateRejectionReason)
+                          ? "candidate did not qualify"
+                          : report.UpdateRejectionReason)
+                      + "); stable teacher annotations applied."
                     : "Transformer teacher annotations applied.";
             }
             else if (report.Success && !report.TeacherSourceGatePassed)
@@ -3111,6 +3115,22 @@ internal sealed class PythonCombatTransformerTeacher :
             start,
             "--maximum-head-regression",
             options.MaximumHeadRegression);
+        Add(
+            start,
+            "--rolling-anchor",
+            options.EnableRollingAnchorValidation ? 1 : 0);
+        Add(
+            start,
+            "--rolling-anchor-minimum-frames",
+            options.RollingAnchorMinimumFrames);
+        Add(
+            start,
+            "--rolling-anchor-maximum-frames",
+            options.RollingAnchorMaximumFrames);
+        Add(
+            start,
+            "--minimum-rolling-improvement",
+            options.MinimumRollingCompositeImprovement);
         if (!string.IsNullOrWhiteSpace(resumeModelPath))
         {
             Add(
@@ -3302,13 +3322,63 @@ internal sealed class PythonCombatTransformerTeacher :
         target.BaselinePolicyCrossEntropy =
             source.BaselinePolicyCrossEntropy;
         target.BaselineValueMae = source.BaselineValueMae;
+        target.BaselineValueMse = source.BaselineValueMse;
+        target.BaselinePhaseCrossEntropy =
+            source.BaselinePhaseCrossEntropy;
+        target.BaselineStrategyBinaryCrossEntropy =
+            source.BaselineStrategyBinaryCrossEntropy;
         target.BaselineOutcomeMae = source.BaselineOutcomeMae;
+        target.BaselineOutcomeMse = source.BaselineOutcomeMse;
         target.BaselineDeathBrier = source.BaselineDeathBrier;
+        target.BaselineTerminalBinaryCrossEntropy =
+            source.BaselineTerminalBinaryCrossEntropy;
         target.ValidationCompositeScore = source.ValidationCompositeScore;
         target.BaselineCompositeScore = source.BaselineCompositeScore;
         target.CompositeImprovement = source.CompositeImprovement;
         target.HeadRegressionGatePassed =
             source.HeadRegressionGatePassed;
+        target.RollingAnchorValidationFrames =
+            source.RollingAnchorValidationFrames;
+        target.RollingAnchorAvailable = source.RollingAnchorAvailable;
+        target.RollingBaselineCompositeScore =
+            source.RollingBaselineCompositeScore;
+        target.RollingValidationCompositeScore =
+            source.RollingValidationCompositeScore;
+        target.RollingCompositeImprovement =
+            source.RollingCompositeImprovement;
+        target.FixedAnchorSafetyGatePassed =
+            source.FixedAnchorSafetyGatePassed;
+        target.RollingAnchorImprovementGatePassed =
+            source.RollingAnchorImprovementGatePassed;
+        target.BestAttemptedEpoch = source.BestAttemptedEpoch;
+        target.BestAttemptedFixedCompositeScore =
+            source.BestAttemptedFixedCompositeScore;
+        target.BestAttemptedRollingCompositeScore =
+            source.BestAttemptedRollingCompositeScore;
+        target.UpdateRejectionReason = source.UpdateRejectionReason;
+        target.CandidateEpochs = (source.CandidateEpochs
+                                  ?? new List<
+                                      CombatTransformerTeacherCandidateEpochMetrics>())
+            .Select(epoch => new CombatTransformerTeacherCandidateEpochMetrics
+            {
+                Epoch = epoch.Epoch,
+                FixedCompositeScore = epoch.FixedCompositeScore,
+                FixedCompositeImprovement = epoch.FixedCompositeImprovement,
+                RollingCompositeScore = epoch.RollingCompositeScore,
+                RollingCompositeImprovement = epoch.RollingCompositeImprovement,
+                FixedAnchorSafetyGatePassed =
+                    epoch.FixedAnchorSafetyGatePassed,
+                RollingAnchorImprovementGatePassed =
+                    epoch.RollingAnchorImprovementGatePassed,
+                AcceptanceEligible = epoch.AcceptanceEligible,
+                FixedMetrics = new Dictionary<string, double>(
+                    epoch.FixedMetrics ?? new Dictionary<string, double>(),
+                    StringComparer.Ordinal),
+                RollingMetrics = new Dictionary<string, double>(
+                    epoch.RollingMetrics ?? new Dictionary<string, double>(),
+                    StringComparer.Ordinal)
+            })
+            .ToList();
         target.ResumeModelPath = source.ResumeModelPath;
         target.ValidationPolicyCrossEntropy =
             source.ValidationPolicyCrossEntropy;
@@ -3317,9 +3387,14 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ValidationPolicyTop1Accuracy =
             source.ValidationPolicyTop1Accuracy;
         target.ValidationValueMae = source.ValidationValueMae;
+        target.ValidationValueMse = source.ValidationValueMse;
         target.ValidationPhaseAccuracy = source.ValidationPhaseAccuracy;
+        target.ValidationPhaseCrossEntropy =
+            source.ValidationPhaseCrossEntropy;
         target.ValidationStrategyAccuracy =
             source.ValidationStrategyAccuracy;
+        target.ValidationStrategyBinaryCrossEntropy =
+            source.ValidationStrategyBinaryCrossEntropy;
         target.ValidationDynamicsMse = source.ValidationDynamicsMse;
         target.DynamicsTrainingFrames = source.DynamicsTrainingFrames;
         target.DynamicsValidationFrames = source.DynamicsValidationFrames;
@@ -3338,8 +3413,11 @@ internal sealed class PythonCombatTransformerTeacher :
             StringComparer.Ordinal);
         target.StrategyQualityGatePassed = source.StrategyQualityGatePassed;
         target.ValidationOutcomeMae = source.ValidationOutcomeMae;
+        target.ValidationOutcomeMse = source.ValidationOutcomeMse;
         target.ValidationDeathBrier = source.ValidationDeathBrier;
         target.ValidationTerminalAccuracy = source.ValidationTerminalAccuracy;
+        target.ValidationTerminalBinaryCrossEntropy =
+            source.ValidationTerminalBinaryCrossEntropy;
         target.ElapsedSeconds = source.ElapsedSeconds;
         target.ProcessCpuSeconds = source.ProcessCpuSeconds;
         target.PeakWorkingSetBytes = source.PeakWorkingSetBytes;

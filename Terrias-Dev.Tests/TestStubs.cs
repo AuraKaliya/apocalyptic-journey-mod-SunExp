@@ -276,6 +276,8 @@ public sealed class FightCardManager
 
     public List<DataConfig> usedCardList { get; } = new();
 
+    public Dictionary<DataConfig, HashSet<string>> CardTags { get; } = new();
+
     public void RefreshTag(IDataConfig config)
     {
     }

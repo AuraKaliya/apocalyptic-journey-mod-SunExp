@@ -365,22 +365,22 @@ public static class CardApi
             return Fail(resolved, null, "manager", "combat card manager unavailable", warnings);
         }
 
-        var existingCards = new HashSet<DataConfig>(cards);
+        DataConfig? added = null;
         try
         {
-            self.SetStatus("Self");
-            self.AddCardByData(resolved, request?.RuntimeTags ?? "");
+            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, resolved);
+            var materialized = handle == null
+                ? null
+                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle });
+            added = materialized?.Instance as DataConfig
+                    ?? throw new InvalidOperationException("combat card materialization failed: definition unavailable");
+            cards.Add(added);
+            RegisterCardTags(added, request?.RuntimeTags ?? "");
         }
         catch (Exception ex)
         {
+            CleanupCreatedCard(cards, added);
             return Fail(resolved, null, "create", ex.Message, warnings);
-        }
-
-        var added = cards.LastOrDefault(card => !existingCards.Contains(card)
-            && string.Equals(CardConfigApi.Id(card), resolved, StringComparison.Ordinal));
-        if (added == null)
-        {
-            return Fail(resolved, null, "locate", "created card not found", warnings);
         }
 
         if (NeedsWritableRuntimeConfig(request))
@@ -540,6 +540,25 @@ public static class CardApi
         {
             TerriasLog.Debug("AddCardToHand card tag replacement skipped: " + ex.Message);
         }
+    }
+
+    private static void RegisterCardTags(DataConfig card, string runtimeTags)
+    {
+        var tagText = DictionaryUtil.Get(card.Vars, "Tag");
+        if (!string.IsNullOrWhiteSpace(runtimeTags))
+        {
+            tagText = string.IsNullOrWhiteSpace(tagText) ? runtimeTags : tagText + "," + runtimeTags;
+        }
+
+        tagText = (tagText ?? "").Replace(" ", "");
+        DictionaryUtil.Set(card.Vars, "Tag", tagText);
+        var tags = new HashSet<string>(
+            tagText.Split('|', ',', '，', ' ', ';', '；')
+                .Where(tag => !string.IsNullOrWhiteSpace(tag)),
+            StringComparer.Ordinal);
+        var catalog = ReadCardTags()
+                      ?? throw new InvalidOperationException("combat card tag catalog unavailable");
+        catalog[card] = tags;
     }
 
     private static void CleanupCreatedCard(IList<DataConfig> cards, DataConfig? card)

@@ -51,7 +51,10 @@
     <Compile Include="..\Terrias-Dev\Mechanics\MapNodeTextureBounds.cs" Link="Source\MapNodeTextureBounds.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\MapNodeTextureFitService.cs" Link="Source\MapNodeTextureFitService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ModeChoiceDragRange.cs" Link="Source\ModeChoiceDragRange.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SpiritAdventurePartyRules.cs" Link="Source\SpiritAdventurePartyRules.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs" Link="Source\SpiritProfileIdentityResolver.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SpiritStatusBarText.cs" Link="Source\SpiritStatusBarText.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\PolymorphCooldownSnapshotPolicy.cs" Link="Source\PolymorphCooldownSnapshotPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionTurnQueuePolicy.cs" Link="Source\ProjectionTurnQueuePolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\DimensionShopRandom.cs" Link="Source\DimensionShopRandom.cs" />

@@ -49,7 +49,7 @@ public sealed class StarStonePouchState
 
     public bool Initialized { get; set; }
 
-    public bool RecycleWhenEmpty { get; set; }
+    public StarStonePouchResetPolicy ResetPolicy { get; set; }
 
     public IReadOnlyList<string> Stones => stones;
 
@@ -81,7 +81,7 @@ public sealed class StarStonePouchState
         stones.Clear();
         BlackStoneMax = 0;
         Initialized = false;
-        RecycleWhenEmpty = false;
+        ResetPolicy = StarStonePouchResetPolicy.RemoveWhenExhausted;
     }
 }
 
@@ -156,18 +156,21 @@ public static class StarStonePouchService
 
     public static void GrantInitial(ScriptExecutor self)
     {
-        GrantInitial(self, CareerChannel, recycleWhenEmpty: true);
+        GrantInitial(self, CareerChannel, StarStonePouchResetPolicy.NaturalMorningStar);
     }
 
     public static void GrantRelicInitial(ScriptExecutor self)
     {
-        GrantInitial(
-            self,
-            RelicChannel,
-            MorningStarRelicFormula.RelicPouchRecycles(LoneerMiracleService.IsActive()));
+        if (self?.Self == null)
+        {
+            return;
+        }
+
+        var ownerIsLoneer = PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, TerriasIds.LoneerCareerId);
+        GrantInitial(self, RelicChannel, MorningStarRelicFormula.RelicPouchResetPolicy(ownerIsLoneer));
     }
 
-    private static void GrantInitial(ScriptExecutor self, string channelId, bool recycleWhenEmpty)
+    private static void GrantInitial(ScriptExecutor self, string channelId, StarStonePouchResetPolicy resetPolicy)
     {
         if (self?.Self == null)
         {
@@ -180,7 +183,7 @@ public static class StarStonePouchService
             return;
         }
 
-        InitializeState(state, recycleWhenEmpty);
+        InitializeState(state, resetPolicy);
         self.SetStatus("Self");
         self.AddBuff(BuffId(channelId), InitialBlackStones.ToString());
         SyncBuff(self, state, channelId);
@@ -199,17 +202,16 @@ public static class StarStonePouchService
             return false;
         }
 
-        EnsureInitialized(state, recycleWhenEmpty: true);
+        EnsureInitialized(state, StarStonePouchResetPolicy.NaturalMorningStar);
+        if (state.Stones.Count == 0)
+        {
+            // Natural Morning Star normally performs the reset. This recovery
+            // covers a form change that cancelled the already-triggered frame
+            // sequence before the reset step could run.
+            ResetStoneBag(state);
+        }
         if (!BuffApi.Has(self.Self, TerriasIds.StarStonePouch))
         {
-            // A missing buff cannot represent an exhausted zero-level pouch.
-            // Rebuild only this invalid recovery state; an existing buff and
-            // its autonomous ActionAfter listener are otherwise left intact.
-            if (state.Stones.Count == 0)
-            {
-                ResetStoneBag(state);
-            }
-
             self.SetStatus("Self");
             self.AddBuff(TerriasIds.StarStonePouch, Math.Max(1, state.BlackStoneCount()).ToString());
         }
@@ -220,7 +222,7 @@ public static class StarStonePouchService
 
     public static void Apply(ScriptExecutor self)
     {
-        Apply(self, CareerChannel, recycleWhenEmpty: true);
+        Apply(self, CareerChannel, StarStonePouchResetPolicy.NaturalMorningStar);
     }
 
     public static void ApplyRelic(ScriptExecutor self)
@@ -231,10 +233,11 @@ public static class StarStonePouchService
         }
 
         var state = StarStonePouchStateStore.Get(self.Self, RelicChannel);
-        Apply(self, RelicChannel, state?.RecycleWhenEmpty ?? LoneerMiracleService.IsActive());
+        var ownerIsLoneer = PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, TerriasIds.LoneerCareerId);
+        Apply(self, RelicChannel, state?.ResetPolicy ?? MorningStarRelicFormula.RelicPouchResetPolicy(ownerIsLoneer));
     }
 
-    private static void Apply(ScriptExecutor self, string channelId, bool recycleWhenEmpty)
+    private static void Apply(ScriptExecutor self, string channelId, StarStonePouchResetPolicy resetPolicy)
     {
         if (self?.Self == null)
         {
@@ -247,7 +250,7 @@ public static class StarStonePouchService
             return;
         }
 
-        EnsureInitialized(state, recycleWhenEmpty);
+        EnsureInitialized(state, resetPolicy);
         SyncBuff(self, state, channelId);
 
         var hookKey = HookKey(channelId);
@@ -301,20 +304,11 @@ public static class StarStonePouchService
             return 0;
         }
 
-        EnsureInitialized(state, recycleWhenEmpty: true);
+        EnsureInitialized(state, StarStonePouchResetPolicy.NaturalMorningStar);
         var beforeMax = CurrentBlackStoneMax(state);
         state.BlackStoneMax = Math.Max(MinBlackStones, beforeMax - Math.Max(0, amount));
         TrimBlackStonesToMax(state);
         SyncBuff(self, state, CareerChannel);
-
-        var relicState = StarStonePouchStateStore.Get(self.Self, RelicChannel);
-        if (relicState != null && relicState.Initialized)
-        {
-            var relicBeforeMax = CurrentBlackStoneMax(relicState);
-            relicState.BlackStoneMax = Math.Max(MinBlackStones, relicBeforeMax - Math.Max(0, amount));
-            TrimBlackStonesToMax(relicState);
-            SyncBuff(self, relicState, RelicChannel);
-        }
 
         return state.BlackStoneMax;
     }
@@ -332,7 +326,7 @@ public static class StarStonePouchService
             return;
         }
 
-        EnsureInitialized(state, recycleWhenEmpty: true);
+        EnsureInitialized(state, StarStonePouchResetPolicy.NaturalMorningStar);
         ResetStoneBag(state);
         SyncBuff(self, state, CareerChannel);
     }
@@ -368,22 +362,27 @@ public static class StarStonePouchService
             return;
         }
 
+        if (MorningStarRelicFormula.ParticipatesInStarStoneOrbit(channelId)
+            && !PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, TerriasIds.LoneerCareerId))
+        {
+            return;
+        }
+
         var state = StarStonePouchStateStore.GetOrCreate(self.Self, channelId);
         if (state == null)
         {
             return;
         }
 
-        EnsureInitialized(state, channelId == CareerChannel || LoneerMiracleService.IsActive());
+        var fallbackPolicy = channelId == CareerChannel
+            ? StarStonePouchResetPolicy.NaturalMorningStar
+            : MorningStarRelicFormula.RelicPouchResetPolicy(
+                PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, TerriasIds.LoneerCareerId));
+        EnsureInitialized(state, fallbackPolicy);
         if (state.Stones.Count == 0)
         {
-            if (!state.RecycleWhenEmpty)
-            {
-                SyncBuff(self, state, channelId);
-                return;
-            }
-
-            ResetStoneBag(state);
+            ResolveExhaustedPouch(self, state, channelId);
+            return;
         }
 
         var stone = state.DrawStone();
@@ -395,15 +394,15 @@ public static class StarStonePouchService
         var blackStonesRemaining = state.BlackStoneCount();
         var starlightGain = stone == WhiteStone ? blackStonesRemaining : 1;
         StarScoreService.AddStarlight(self, starlightGain);
-        SyncBuff(self, state, channelId);
 
+        var pouchName = channelId == RelicChannel ? "备用星石袋" : "星石袋";
         if (stone == WhiteStone)
         {
-            PlayerApi.ShowCaption("\u661f\u77f3\u888b\uff1a\u62bd\u51fa\u767d\u77f3\uff0c\u661f\u8f89+" + starlightGain + "\u3002");
+            PlayerApi.ShowCaption(pouchName + "：抽出白石，星辉+" + starlightGain + "。");
         }
         else
         {
-            PlayerApi.ShowCaption("\u661f\u77f3\u888b\uff1a\u62bd\u51fa\u9ed1\u77f3\uff0c\u661f\u8f89+1\u3002");
+            PlayerApi.ShowCaption(pouchName + "：抽出黑石，星辉+1。");
         }
 
         PublishDrawn(self, new StarStonePouchDrawResult(
@@ -413,6 +412,15 @@ public static class StarStonePouchService
             stone,
             blackStonesRemaining,
             starlightGain));
+
+        if (state.Stones.Count == 0)
+        {
+            ResolveExhaustedPouch(self, state, channelId);
+        }
+        else
+        {
+            SyncBuff(self, state, channelId);
+        }
     }
 
     private static void PublishDrawn(ScriptExecutor self, StarStonePouchDrawResult result)
@@ -436,22 +444,43 @@ public static class StarStonePouchService
         }
     }
 
-    private static void EnsureInitialized(StarStonePouchState state, bool recycleWhenEmpty)
+    private static void EnsureInitialized(StarStonePouchState state, StarStonePouchResetPolicy resetPolicy)
     {
         if (state.Initialized)
         {
             return;
         }
 
-        InitializeState(state, recycleWhenEmpty);
+        InitializeState(state, resetPolicy);
     }
 
-    private static void InitializeState(StarStonePouchState state, bool recycleWhenEmpty)
+    private static void InitializeState(StarStonePouchState state, StarStonePouchResetPolicy resetPolicy)
     {
         state.BlackStoneMax = InitialBlackStones;
-        state.RecycleWhenEmpty = recycleWhenEmpty;
+        state.ResetPolicy = resetPolicy;
         ResetStoneBag(state);
         state.Initialized = true;
+    }
+
+    private static void ResolveExhaustedPouch(ScriptExecutor self, StarStonePouchState state, string channelId)
+    {
+        if (state.ResetPolicy == StarStonePouchResetPolicy.WhenExhausted)
+        {
+            ResetStoneBag(state);
+            SyncBuff(self, state, channelId);
+            PlayerApi.ShowCaption("备用星石袋已重新装填。");
+            return;
+        }
+
+        if (state.ResetPolicy == StarStonePouchResetPolicy.RemoveWhenExhausted)
+        {
+            BuffApi.SetExactLevel(self.Self, BuffId(channelId), 0);
+            Clear(self, channelId);
+            PlayerApi.ShowCaption("备用星石袋已经用尽。");
+            return;
+        }
+
+        SyncBuff(self, state, channelId);
     }
 
     private static void ResetStoneBag(StarStonePouchState state)

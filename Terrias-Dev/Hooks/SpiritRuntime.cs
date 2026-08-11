@@ -54,8 +54,7 @@ public static class SpiritRuntime
         TerriasStatusLifecycleRouter.Register("Spirit", new TerriasStatusLifecycleSubscription
         {
             AfterHit = context => RetireIfDead(context, "StatusManager.Hit"),
-            AfterCurHpChanged = context => RetireIfDead(context, "StatusManager.CurHp"),
-            AfterMaxHpChanged = context => RetireIfDead(context, "StatusManager.MaxHp")
+            AfterStateChanged = context => RetireIfDead(context, "StatusManager.State")
         });
         TerriasLog.Info("Spirit runtime initialized");
     }
@@ -64,6 +63,7 @@ public static class SpiritRuntime
     {
         RunCleanupStep("SummonDedupe", source, SpiritSummonService.ResetBattleSynchronization);
         RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
+        RunCleanupStep("CaptureSettlement", source, EnemyCaptureSettlementApi.ResetBattleSynchronization);
         RunCleanupStep("BattleDeployment", source, SpiritBattleDeploymentService.Clear);
         RunCleanupStep("StateStore", source, () => SpiritStateStore.ClearAll(source));
         RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
@@ -210,8 +210,11 @@ public static class SpiritRuntime
             return;
         }
 
-        SpiritStateStore.RetireIfDead(status, source);
-        SpiritAttachmentPresenter.RefreshByOwner(status, source);
+        var retired = SpiritStateStore.RetireIfDead(status, source);
+        if (!retired && !SpiritStateStore.IsSpirit(status))
+        {
+            SpiritAttachmentPresenter.RefreshByOwner(status, source);
+        }
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)

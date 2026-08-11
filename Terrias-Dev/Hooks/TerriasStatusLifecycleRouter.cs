@@ -18,6 +18,7 @@ public sealed class TerriasStatusLifecycleSubscription
     public Action<ModHookContext>? AfterEnemyDead { get; set; }
     public Action<ModHookContext>? AfterCurHpChanged { get; set; }
     public Action<ModHookContext>? AfterMaxHpChanged { get; set; }
+    public Action<ModHookContext>? AfterStateChanged { get; set; }
     public Action<ModHookContext>? AfterEnemyInit { get; set; }
     public Action<ModHookContext>? AfterInitAnimator { get; set; }
     public Action<ModHookContext>? AfterSetSprite { get; set; }
@@ -49,6 +50,7 @@ public static class TerriasStatusLifecycleRouter
         After(modConfig, TerriasHookTargets.StatusManagerEnemyDead, subscription => subscription.AfterEnemyDead);
         After(modConfig, TerriasHookTargets.StatusManagerSetCurHp, subscription => subscription.AfterCurHpChanged);
         After(modConfig, TerriasHookTargets.StatusManagerSetMaxHp, subscription => subscription.AfterMaxHpChanged);
+        After(modConfig, TerriasHookTargets.StatusManagerSetState, subscription => subscription.AfterStateChanged);
         After(modConfig, TerriasHookTargets.EnemyInit, subscription => subscription.AfterEnemyInit);
         After(modConfig, TerriasHookTargets.StatusManagerInitAnimator, subscription => subscription.AfterInitAnimator);
         After(modConfig, TerriasHookTargets.StatusManagerSetSprite, subscription => subscription.AfterSetSprite);

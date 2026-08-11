@@ -1375,8 +1375,12 @@ try {
         if ([int]$modelPackage.SchemaVersion -ne 5 `
             -or [string]$modelPackage.ArtifactKind `
                 -ne "aura.foundation-model-package" `
-            -or [string]$modelPackage.ModelVersion -ne "5.0.0" `
-            -or [string]$modelPackage.CompletionKind `
+             -or [string]$modelPackage.ModelVersion -ne "5.0.0" `
+             -or [string]$modelPackage.DeploymentTier -ne "formal" `
+             -or [string]$modelPackage.QualityCertification -ne "passed" `
+             -or -not [bool]$modelPackage.SameModelEvidenceBound `
+             -or [string]$modelPackage.CapabilityStatus -ne "pass" `
+             -or [string]$modelPackage.CompletionKind `
                 -ne "training-accepted" `
             -or [string]$modelPackage.JobId -ne [string]$job.JobId `
             -or [string]$modelPackage.RulesetHash `
@@ -1417,6 +1421,44 @@ try {
                 + "path=$($result.ModelPackagePath)")
         }
     }
+    elseif ([bool]$result.Training.ExperimentalEligibilityPassed) {
+        $expectedExperimentalCompletion = if ([bool]$result.Resumable) {
+            "training-experimental-resumable"
+        }
+        else {
+            "training-experimental"
+        }
+        if ([string]$result.CompletionKind `
+                -ne $expectedExperimentalCompletion `
+            -or [bool]$result.ModelAccepted `
+            -or -not [bool]$result.BusinessModelIncluded `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$result.ModelPackagePath) `
+            -or -not (Test-Path -LiteralPath (
+                [string]$result.ModelPackagePath) -PathType Leaf) `
+            -or ([bool]$result.Resumable -and -not $checkpointExists)) {
+            throw "Experimental foundation training did not preserve its loadable package and recovery contract."
+        }
+        $modelPackage = Read-FoundationJson (
+            [string]$result.ModelPackagePath)
+        if ([int]$modelPackage.SchemaVersion -ne 5 `
+            -or [string]$modelPackage.DeploymentTier -ne "experimental" `
+            -or [string]$modelPackage.QualityCertification -ne "incomplete" `
+            -or -not [bool]$modelPackage.SameModelEvidenceBound `
+            -or [string]$modelPackage.CompletionKind `
+                -ne $expectedExperimentalCompletion `
+            -or [string]$modelPackage.Acceptance.Classification `
+                -ne "experimental-runtime-test" `
+            -or [int]$modelPackage.Acceptance.SchemaVersion -ne 2 `
+            -or -not [bool]$modelPackage.Acceptance.RuntimeSafetyPassed `
+            -or $null -ne $modelPackage.Model `
+            -or $null -eq $modelPackage.ModelArtifact `
+            -or -not (Test-Path -LiteralPath (Join-Path (
+                    Split-Path -Parent ([string]$result.ModelPackagePath)) (
+                    [string]$modelPackage.ModelArtifact.WeightsFile)) -PathType Leaf)) {
+            throw "Experimental foundation model package is invalid."
+        }
+    }
     elseif ($result.CompletionKind -ne "training-rejected-resumable" `
         -or (-not $checkpointExists `
              -or -not $result.Resumable `
@@ -1425,7 +1467,8 @@ try {
     }
     if (-not $PreflightOnly `
         -and -not $semanticRejected `
-        -and -not $result.Training.AcceptancePassed) {
+        -and -not $result.Training.AcceptancePassed `
+        -and [bool]$result.Resumable) {
         $checkpointFirstEpisode = Read-FoundationSnapshotFirstRecord `
             $checkpointSnapshotPath
         if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `

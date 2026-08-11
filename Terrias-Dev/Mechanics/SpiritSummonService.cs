@@ -20,6 +20,7 @@ public static class SpiritSummonService
     private static readonly HashSet<string> GrantedCardEvents = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PendingCardGrant> PendingCardGrants = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> OwnerGenerations = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> RemovalGenerations = new(StringComparer.Ordinal);
 
     public static void ResetBattleSynchronization()
     {
@@ -29,6 +30,7 @@ public static class SpiritSummonService
             GrantedCardEvents.Clear();
             PendingCardGrants.Clear();
             OwnerGenerations.Clear();
+            RemovalGenerations.Clear();
         }
     }
 
@@ -149,6 +151,12 @@ public static class SpiritSummonService
         SpiritBattleDeploymentService.MarkSummoned(snapshot.OwnerStatusId);
 
         QueueReturnedCard(snapshot, null, source);
+
+        if (IsRemovedSnapshot(snapshot))
+        {
+            TerriasLog.Debug("[Spirit] ignored removed companion snapshot from " + source + ": " + snapshot.StatusId);
+            return;
+        }
 
         var existing = SpiritStateStore.Find(snapshot.StatusId);
         if (existing != null)
@@ -346,7 +354,11 @@ public static class SpiritSummonService
             }
             var stats = networkState == null
                 ? CompanionStatsService.SpiritStats(snapshot, profile)
-                : new CompanionStats(1, Math.Max(1, networkState.MaxMagic), Math.Max(1, networkState.Attack), Math.Max(1, networkState.Armor));
+                : new CompanionStats(
+                    Math.Max(1, networkState.MaxHp),
+                    Math.Max(1, networkState.MaxMagic),
+                    Math.Max(1, networkState.Attack),
+                    Math.Max(1, networkState.Armor));
             if (networkState != null)
             {
                 stats.SetCurrentMagic(networkState.CurrentMagic);
@@ -427,7 +439,7 @@ public static class SpiritSummonService
                 ["Animation"] = snapshot.AnimationPath,
                 ["Attack"] = stats.Attack.ToString(),
                 ["Defend"] = stats.Armor.ToString(),
-                ["Hp"] = "1",
+                ["Hp"] = Math.Max(1, stats.MaxHp).ToString(),
                 ["ActionCount"] = "1",
                 ["CardList"] = string.Join(",", new[]
                 {
@@ -455,7 +467,7 @@ public static class SpiritSummonService
         }
 
         manager.statuses[spirit.InstanceId] = status;
-        if (manager.netIdentity != null && manager.isServer)
+        if (manager.netIdentity != null && manager.isServer && !manager.statusData.ContainsKey(spirit.InstanceId))
         {
             manager.statusData[spirit.InstanceId] = new StatusDataTransfer(status);
         }
@@ -473,10 +485,69 @@ public static class SpiritSummonService
         Broadcast(BuildSnapshot(spirit), "SpiritRuntime." + source);
     }
 
+    public static void BroadcastRemoval(SpiritState state, string source, bool playDeathEffect)
+    {
+        if (state == null || string.IsNullOrWhiteSpace(state.StatusId))
+        {
+            return;
+        }
+
+        var manager = FightManager.Instance;
+        var version = manager?.statusData?.TryGetValue(state.StatusId, out var statusData) == true
+            ? statusData.Version
+            : state.Spirit?.Status is StatusManager status
+                ? status.LastStatusDataVersion
+                : 0;
+        var removal = new SpiritCompanionRemovalSnapshot
+        {
+            ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
+            BattleEpoch = CompanionAuthorityService.BattleEpoch,
+            StatusId = state.StatusId,
+            OwnerStatusId = state.OwnerStatusId,
+            OwnerPlayerId = state.OwnerPlayerId,
+            Generation = state.Generation,
+            StatusDataVersion = Math.Max(0, version),
+            PlayDeathEffect = playDeathEffect,
+            Reason = source ?? ""
+        };
+        ObserveRemoval(removal);
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && CompanionAuthorityService.IsAuthoritative())
+        {
+            TerriasNetworkRuntime.Send(new RpcSpiritCompanionRemoved(removal), "SpiritSummonService.BroadcastRemoval");
+        }
+    }
+
+    public static void ApplyNetworkRemoval(SpiritCompanionRemovalSnapshot? removal, string source)
+    {
+        if (removal == null
+            || removal.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
+            || removal.BattleEpoch != CompanionAuthorityService.BattleEpoch
+            || string.IsNullOrWhiteSpace(removal.StatusId))
+        {
+            return;
+        }
+
+        ObserveRemoval(removal);
+        var existing = SpiritStateStore.Find(removal.StatusId);
+        if (existing == null || existing.Generation > removal.Generation)
+        {
+            return;
+        }
+
+        SpiritStateStore.RemoveAuthoritative(
+            removal.StatusId,
+            source + "." + removal.Reason,
+            removal.PlayDeathEffect);
+    }
+
     private static SpiritCompanionSnapshot BuildSnapshot(SpiritOtherObj spirit)
     {
         var state = CompanionBattleStateStore.Find(spirit.InstanceId);
         var spiritState = SpiritStateStore.Find(spirit.InstanceId);
+        var status = spirit.Status as StatusManager;
+        var statusDataVersion = FightManager.Instance?.statusData?.TryGetValue(spirit.InstanceId, out var statusData) == true
+            ? statusData.Version
+            : status?.LastStatusDataVersion ?? 0;
         return new SpiritCompanionSnapshot
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
@@ -490,8 +561,11 @@ public static class SpiritSummonService
             OwnerStatusId = spirit.OwnerStatusId,
             OwnerPlayerId = spirit.OwnerPlayerId,
             StatusId = spirit.InstanceId,
-            MaxHp = spirit.MaxHp,
-            CurrentHp = spirit.CurHp,
+            MaxHp = status?.MaxHp ?? spirit.MaxHp,
+            CurrentHp = status?.CurHp ?? spirit.CurHp,
+            CurrentDefend = status?.Defend ?? spirit.Defend,
+            StatusDataVersion = Math.Max(0, statusDataVersion),
+            StatusState = (int)(status?.state ?? IStatusManager.State.Default),
             Attack = spirit.Attack,
             Armor = state?.Stats.Armor ?? 1,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
@@ -516,13 +590,50 @@ public static class SpiritSummonService
         state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
         state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
         state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
-        spirit.MaxHp = Math.Max(1, snapshot.MaxHp);
-        spirit.CurHp = Math.Max(0, Math.Min(spirit.MaxHp, snapshot.CurrentHp));
+        if (spirit.Status is StatusManager status)
+        {
+            var statusState = Enum.IsDefined(typeof(IStatusManager.State), snapshot.StatusState)
+                ? (IStatusManager.State)snapshot.StatusState
+                : IStatusManager.State.Default;
+            new StatusDataTransfer
+            {
+                maxHp = Math.Max(1, snapshot.MaxHp),
+                curHp = Math.Max(0, Math.Min(Math.Max(1, snapshot.MaxHp), snapshot.CurrentHp)),
+                defend = Math.Max(0, snapshot.CurrentDefend),
+                InstanceId = spirit.InstanceId,
+                state = statusState,
+                Version = Math.Max(0, snapshot.StatusDataVersion)
+            }.Populate(status);
+            spirit.MaxHp = status.MaxHp;
+            spirit.CurHp = status.CurHp;
+            spirit.Defend = status.Defend;
+        }
         spirit.Attack = snapshot.Attack;
-        spirit.Defend = Math.Max(0, snapshot.Armor);
         spirit.Status?.UpdateStatus(true);
         CompanionThreatService.ApplyAuthoritative(snapshot.Threat);
         spirit.ActivateAfterHydration(snapshot.IntentPlan, source);
+    }
+
+    private static bool IsRemovedSnapshot(SpiritCompanionSnapshot snapshot)
+    {
+        lock (NetworkSync)
+        {
+            return !string.IsNullOrWhiteSpace(snapshot.StatusId)
+                && RemovalGenerations.TryGetValue(snapshot.StatusId, out var generation)
+                && generation >= snapshot.Generation;
+        }
+    }
+
+    private static void ObserveRemoval(SpiritCompanionRemovalSnapshot removal)
+    {
+        lock (NetworkSync)
+        {
+            if (!RemovalGenerations.TryGetValue(removal.StatusId, out var generation)
+                || removal.Generation > generation)
+            {
+                RemovalGenerations[removal.StatusId] = removal.Generation;
+            }
+        }
     }
 
     private static string ValidateNetworkRequest(

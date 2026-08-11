@@ -846,23 +846,19 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveMatchExperience();
         }, content =>
         {
-            CreateSectionLabel(content, "底模配置");
-            CreateAutoBattleModelManagementSection(content, autoBattle);
-            CreateGameParametersSection(content);
+            CreateSectionLabel(content, "当前策略");
+            CreateAutoBattleModelApplicationRows(content);
             AuraToolsUi.AddText(
                 content,
-                "底模只在独立训练器中生成；游戏内负责选择、导入、兼容校验与内容范围绑定。",
+                "应用模式下，可执行的模型决策不会被规则评分、低置信度或质量门禁替换。只有模型未能加载、推理超时或连续无进展时，才会临时使用技术兜底。",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
                 AuraToolsUi.TextMinHeight,
                 1f);
-
-            CreateSectionLabel(content, "自动战斗");
-            CreateAutoBattleModelApplicationRows(content);
             CreateAutoBattleToggleRow(
                 content,
-                "进入战斗时自动接管",
+                "完整应用时进入战斗自动接管",
                 autoBattle.StartActive,
                 value =>
                 {
@@ -879,172 +875,24 @@ public static class AuraToolsSettingsRuntime
                     AuraToolsConfigService.SaveMatchExperience();
                 });
 
-            CreateSectionLabel(content, "自动战斗类型与决策");
-            var profileRow = CreateInlineRow(content, "AutoBattleProfileRow");
-            var profileText = AuraToolsUi.AddText(
-                profileRow.transform,
-                "决策风格：" + AutoBattleProfileLabel(autoBattle.Profile),
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var profileButton = AuraToolsUi.AddButton(profileRow.transform, "切换风格", () =>
-            {
-                autoBattle.Profile = NextAutoBattleProfile(autoBattle.Profile);
-                autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
-                profileText.text =
-                    "决策风格：" + AutoBattleProfileLabel(autoBattle.Profile);
-                AuraToolsAutoBattleRuntime.ReloadModels();
-                AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
-                    autoBattle.Profile,
-                    autoBattle.SelectedModelId,
-                    force: true);
-            }, 96f);
-            AttachAutoBattleWorkLock(profileRow, profileButton);
-
-            var policyRow = CreateInlineRow(content, "AutoBattleUnknownPolicyRow");
-            var unknownPolicyText = AuraToolsUi.AddText(
-                policyRow.transform,
-                "未知动作：" + AutoBattleUnknownPolicyLabel(autoBattle.UnknownActionPolicy),
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var unknownPolicyButton = AuraToolsUi.AddButton(policyRow.transform, "切换策略", () =>
-            {
-                autoBattle.UnknownActionPolicy = NextAutoBattleUnknownPolicy(autoBattle.UnknownActionPolicy);
-                autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
-                unknownPolicyText.text =
-                    "未知动作："
-                    + AutoBattleUnknownPolicyLabel(
-                        autoBattle.UnknownActionPolicy);
-            }, 96f);
-            AttachAutoBattleWorkLock(policyRow, unknownPolicyButton);
-
-            var searchQualityRow = CreateInlineRow(
+            var modelLibrary = CreateCompactFoldout(
                 content,
-                "AutoBattleSearchQualityRow");
-            AuraToolsUi.AddText(
-                searchQualityRow.transform,
-                "搜索质量",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var searchQualityButton = AuraToolsUi.AddSelectButton(
-                searchQualityRow.transform,
-                new[] { "快速", "均衡", "深入" },
-                string.Equals(autoBattle.SearchQuality, "fast", StringComparison.Ordinal)
-                    ? 0
-                    : string.Equals(autoBattle.SearchQuality, "deep", StringComparison.Ordinal)
-                        ? 2
-                        : 1,
-                index =>
-                {
-                    autoBattle.SearchQuality = index switch
-                    {
-                        0 => "fast",
-                        2 => "deep",
-                        _ => "balanced"
-                    };
-                    autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
-                    AuraToolsAutoBattleRuntime.ReloadModels();
-                },
-                160f);
-            AttachAutoBattleWorkLock(searchQualityRow, searchQualityButton);
+                "模型库与导入",
+                "AutoBattle.ModelLibrary");
+            CreateAutoBattleModelManagementSection(modelLibrary, autoBattle);
 
-            var timeBudgetRow = CreateInlineRow(
+            var developerTools = CreateCompactFoldout(
                 content,
-                "AutoBattleDecisionTimeBudgetRow");
-            AuraToolsUi.AddText(
-                timeBudgetRow.transform,
-                "单工作器时间预算",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var timeBudgets = new[] { 100, 250, 400, 600 };
-            var timeBudgetIndex = Array.IndexOf(
-                timeBudgets,
-                autoBattle.DecisionTimeBudgetMs);
-            if (timeBudgetIndex < 0)
-            {
-                timeBudgetIndex = 1;
-            }
-            var timeBudgetButton = AuraToolsUi.AddSelectButton(
-                timeBudgetRow.transform,
-                new[] { "100 ms", "250 ms", "400 ms", "600 ms" },
-                timeBudgetIndex,
-                index =>
-                {
-                    autoBattle.DecisionTimeBudgetMs = timeBudgets[Math.Max(
-                        0,
-                        Math.Min(timeBudgets.Length - 1, index))];
-                    autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
-                    AuraToolsAutoBattleRuntime.ReloadModels();
-                },
-                160f);
-            AttachAutoBattleWorkLock(timeBudgetRow, timeBudgetButton);
-
-            var parallelRow = CreateInlineRow(
-                content,
-                "AutoBattleInferenceParallelismRow");
-            AuraToolsUi.AddText(
-                parallelRow.transform,
-                "并行推理工作器",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var parallelButton = AuraToolsUi.AddSelectButton(
-                parallelRow.transform,
-                new[] { "1（省资源）", "2（推荐）" },
-                autoBattle.InferenceParallelism > 1 ? 1 : 0,
-                index =>
-                {
-                    autoBattle.InferenceParallelism = index > 0 ? 2 : 1;
-                    autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
-                    AuraToolsAutoBattleRuntime.ReloadModels();
-                },
-                160f);
-            AttachAutoBattleWorkLock(parallelRow, parallelButton);
-
-            CreateAutoBattleToggleRow(
-                content,
-                "低置信度时使用保守回退",
-                autoBattle.LowConfidenceFallback,
-                value =>
-                {
-                    autoBattle.LowConfidenceFallback = value;
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
-            AuraToolsUi.AddText(
-                content,
-                "并行只用于后台纯推理；Unity 状态采集、动作校验与执行仍在主线程。时间预算耗尽且根证据不足时，保守回退会优先避开诅咒与高不确定动作。",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-
-            CreateSectionLabel(content, "玩家适配");
-            CreateAutoBattlePlayerAdaptationSection(content, autoBattle);
-            var diagnostics = CreateCompactFoldout(
-                content,
-                "高级与诊断",
-                "AutoBattle.AdvancedAndDiagnostics");
+                "训练、评估与开发者工具",
+                "AutoBattle.DeveloperTools");
+            CreateGameParametersSection(developerTools);
+            CreateSectionLabel(developerTools, "玩家适配");
+            CreateAutoBattlePlayerAdaptationSection(
+                developerTools,
+                autoBattle);
+            CreateSectionLabel(developerTools, "评估与诊断");
             CreateAutoBattleAdvancedDiagnosticsSection(
-                diagnostics,
+                developerTools,
                 autoBattle);
         }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
@@ -2447,6 +2295,8 @@ public static class AuraToolsSettingsRuntime
                        + "|"
                        + autoBattle.SelectedModelId
                        + "|"
+                       + autoBattle.ExperimentalModelAcknowledgement
+                       + "|"
                        + (external?.PackageSha256 ?? "none");
             },
             Build);
@@ -2500,16 +2350,16 @@ public static class AuraToolsSettingsRuntime
                 },
                 104f);
         }
-        var offButton = AddModeButton("off", "关闭");
         var shadowButton = AddModeButton("shadow", "影子评估");
-        var activeButton = AddModeButton("active", "受限应用");
+        var trialButton = AddModeButton("trial", "实机试用");
+        var fullButton = AddModeButton("full", "完整应用");
         view = row.AddComponent<
             AuraToolsAutoBattleModelApplicationStatusView>();
         view.Configure(
             statusText,
-            offButton,
             shadowButton,
-            activeButton);
+            trialButton,
+            fullButton);
     }
 
     private static void CreateAutoBattleEvaluationSection(
@@ -2599,7 +2449,19 @@ public static class AuraToolsSettingsRuntime
             0f,
             64f);
         var modelLabels = new List<string> { "未选择底模" };
-        modelLabels.AddRange(library.Select(item => item.DisplayName));
+        modelLabels.AddRange(library.Select(item =>
+            (string.Equals(
+                item.DeploymentTier,
+                CombatFoundationDeploymentTier.Experimental,
+                StringComparison.OrdinalIgnoreCase)
+                ? string.Equals(
+                    item.CapabilityStatus,
+                    CombatFoundationModelPackageProtocol.CapabilityStatusFail,
+                    StringComparison.Ordinal)
+                    ? "【实验·回退】"
+                    : "【实验】"
+                : "【正式】")
+            + item.DisplayName));
         var selectedModelIndex = library.FindIndex(item => string.Equals(
             item.ModelId,
             autoBattle.SelectedModelId,
@@ -2614,6 +2476,15 @@ public static class AuraToolsSettingsRuntime
                     ? ""
                     : library[index - 1].ModelId;
                 autoBattle.EvaluationModelId = "";
+                if (AuraToolsAutoBattleModelRuntime
+                    .IsExperimentalFoundationModel(
+                        autoBattle.SelectedModelId)
+                    && !AuraToolsAutoBattleModelRuntime
+                        .IsExperimentalFoundationAcknowledged(
+                            autoBattle.SelectedModelId))
+                {
+                    autoBattle.TrainedModelMode = "shadow";
+                }
                 autoBattle.Normalize();
                 AuraToolsConfigService.SaveMatchExperience();
                 AuraToolsAutoBattleRuntime.ReloadModels();
@@ -2699,6 +2570,20 @@ public static class AuraToolsSettingsRuntime
                                              "foundation",
                                              StringComparison.Ordinal);
         renameRow.SetActive(selectedModelIndex >= 0);
+        var selectedEntry = selectedModelIndex >= 0
+            ? library[selectedModelIndex]
+            : null;
+        var selectedExperimental = selectedEntry != null
+                                   && string.Equals(
+                                       selectedEntry.DeploymentTier,
+                                       CombatFoundationDeploymentTier.Experimental,
+                                       StringComparison.OrdinalIgnoreCase);
+        var selectedCapabilityRegression = selectedExperimental
+                                           && string.Equals(
+                                               selectedEntry!.CapabilityStatus,
+                                               CombatFoundationModelPackageProtocol
+                                                   .CapabilityStatusFail,
+                                               StringComparison.Ordinal);
         AuraToolsUi.AddText(
             parent,
             library.Count == 0
@@ -2715,12 +2600,71 @@ public static class AuraToolsSettingsRuntime
                       + " · "
                       + (library[selectedModelIndex].CoverageLevel == "full"
                           ? "完全覆盖"
-                          : "部分覆盖"),
+                          : "部分覆盖")
+                      + " · "
+                      + (selectedCapabilityRegression
+                          ? "实验底模（能力回退）"
+                          : selectedExperimental ? "实验底模" : "正式底模")
+                      + " · 来源 "
+                      + (string.IsNullOrWhiteSpace(
+                            library[selectedModelIndex].DistributionOrigin)
+                          ? "未知"
+                          : library[selectedModelIndex].DistributionOrigin),
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
+        if (selectedExperimental)
+        {
+            var acknowledged = AuraToolsAutoBattleModelRuntime
+                .IsExperimentalFoundationAcknowledged(
+                    autoBattle.SelectedModelId);
+            AuraToolsUi.AddText(
+                parent,
+                selectedCapabilityRegression
+                    ? acknowledged
+                        ? "⚠ 高风险实验底模：能力探针已检测到相对基线回退，已确认仅用于实机配置测试与问题收集。"
+                        : "⚠ 高风险实验底模：能力探针已检测到相对基线回退；确认前不能主动接管战斗。"
+                    : acknowledged
+                        ? "⚠ 实验底模：已确认效果可能与正式底模存在差异；主动运行期间持续按实验模型标识。"
+                        : "⚠ 实验底模：技术格式与运行安全已通过，但尚未取得正式质量认证；确认前不能主动接管战斗。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.WarningText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var acknowledgementRow = CreateInlineRow(
+                parent,
+                "AutoBattleExperimentalFoundationAcknowledgement");
+            AuraToolsUi.AddText(
+                acknowledgementRow.transform,
+                acknowledged ? "实验风险已确认" : "需要显式确认",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.WarningText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var acknowledgementButton = AuraToolsUi.AddButton(
+                acknowledgementRow.transform,
+                acknowledged ? "已确认" : "确认使用实验底模",
+                () =>
+                {
+                    AuraToolsAutoBattleModelRuntime
+                        .TryAcknowledgeExperimentalFoundation(
+                            autoBattle.SelectedModelId,
+                            out var acknowledgementMessage);
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][ExperimentalFoundation] "
+                        + acknowledgementMessage);
+                    AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                        autoBattle.Profile,
+                        autoBattle.SelectedModelId,
+                        force: true);
+                },
+                156f);
+            acknowledgementButton.interactable = !acknowledged;
+        }
 
         var bundledStatus =
             AuraToolsBundledFoundationModelRuntime.SnapshotStatus();
@@ -3624,21 +3568,21 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
     MonoBehaviour
 {
     private Text? statusText;
-    private Button? offButton;
     private Button? shadowButton;
-    private Button? activeButton;
+    private Button? trialButton;
+    private Button? fullButton;
     private float nextRefreshAt;
 
     public void Configure(
         Text text,
-        Button off,
         Button shadow,
-        Button active)
+        Button trial,
+        Button full)
     {
         statusText = text;
-        offButton = off;
         shadowButton = shadow;
-        activeButton = active;
+        trialButton = trial;
+        fullButton = full;
         RefreshNow();
     }
 
@@ -3671,18 +3615,51 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
                 status.ConfiguredMode,
                 status.EffectiveMode,
                 StringComparison.Ordinal);
-            statusText.text = mismatch
-                ? "配置 "
-                  + Label(status.ConfiguredMode)
-                  + " / 运行 "
-                  + Label(status.EffectiveMode)
-                  + " · "
-                  + CompactDiagnostic(status.Diagnostic)
-                : "运行："
-                  + Label(status.EffectiveMode)
-                  + " · 模型："
-                  + CompactModelId(status.SelectedModelId);
-            statusText.color = mismatch
+            var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+            var snapshot = AuraToolsAutoBattleUiSnapshotRuntime.Snapshot(
+                settings.Profile,
+                status.SelectedModelId);
+            var entry = snapshot.Models.FirstOrDefault(item => string.Equals(
+                item.ModelId,
+                status.SelectedModelId,
+                StringComparison.Ordinal));
+            var modelName = entry?.DisplayName;
+            if (string.IsNullOrWhiteSpace(modelName))
+            {
+                modelName = status.ModelLoading || snapshot.Loading
+                    ? "正在读取模型"
+                    : string.IsNullOrWhiteSpace(status.SelectedModelId)
+                        ? "尚未选择"
+                        : "已选择模型";
+            }
+            var tier = entry == null
+                ? ""
+                : string.Equals(
+                    entry.DeploymentTier,
+                    CombatFoundationDeploymentTier.Experimental,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "（实验底模）"
+                    : "（正式底模）";
+            var details = status.ModelLoading
+                ? "模型正在加载，接管前会等待加载完成"
+                : status.EmergencyFallbackCount > 0
+                    ? "技术兜底 "
+                      + status.EmergencyFallbackCount
+                      + " 次 · "
+                      + CompactDiagnostic(status.LastFallbackReason)
+                    : mismatch
+                        ? CompactDiagnostic(status.Diagnostic)
+                        : "模型正常时，决策完全由模型输出";
+            statusText.text = "当前："
+                              + Label(status.EffectiveMode)
+                              + " · "
+                              + DecisionOwnerLabel(status.DecisionOwner)
+                              + "\n模型："
+                              + modelName
+                              + tier
+                              + " · "
+                              + details;
+            statusText.color = mismatch || status.ModelIsolatedForBattle
                 ? AuraToolsUi.WarningText
                 : string.Equals(
                     status.EffectiveMode,
@@ -3690,14 +3667,6 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
                     StringComparison.Ordinal)
                     ? AuraToolsUi.MutedText
                     : AuraToolsUi.SuccessText;
-        }
-        if (offButton != null)
-        {
-            offButton.interactable = !busy
-                                     && !string.Equals(
-                                         status.ConfiguredMode,
-                                         "off",
-                                         StringComparison.Ordinal);
         }
         if (shadowButton != null)
         {
@@ -3709,15 +3678,25 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
                                             "shadow",
                                             StringComparison.Ordinal);
         }
-        if (activeButton != null)
+        if (trialButton != null)
         {
-            activeButton.interactable = !busy
-                                        && !string.IsNullOrWhiteSpace(
-                                            status.SelectedModelId)
-                                        && !string.Equals(
-                                            status.ConfiguredMode,
-                                            "active",
-                                            StringComparison.Ordinal);
+            trialButton.interactable = !busy
+                                       && !string.IsNullOrWhiteSpace(
+                                           status.SelectedModelId)
+                                       && !string.Equals(
+                                           status.ConfiguredMode,
+                                           "trial",
+                                           StringComparison.Ordinal);
+        }
+        if (fullButton != null)
+        {
+            fullButton.interactable = !busy
+                                      && !string.IsNullOrWhiteSpace(
+                                          status.SelectedModelId)
+                                      && !string.Equals(
+                                          status.ConfiguredMode,
+                                          "full",
+                                          StringComparison.Ordinal);
         }
     }
 
@@ -3726,21 +3705,20 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
         return mode switch
         {
             "shadow" => "影子评估",
-            "active" => "受限应用",
+            "trial" => "实机试用",
+            "full" => "完整应用",
             _ => "关闭"
         };
     }
 
-    private static string CompactModelId(string modelId)
+    private static string DecisionOwnerLabel(string owner)
     {
-        if (string.IsNullOrWhiteSpace(modelId)
-            || string.Equals(modelId, "none", StringComparison.Ordinal))
+        return owner switch
         {
-            return "无";
-        }
-        return modelId.Length <= 28
-            ? modelId
-            : modelId.Substring(0, 25) + "...";
+            "model" => "模型决策",
+            "emergency-baseline" => "技术兜底",
+            _ => "观察/基础策略"
+        };
     }
 
     private static string CompactDiagnostic(string value)
@@ -4147,7 +4125,9 @@ internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
         return mode switch
         {
             "shadow" => "，正在影子评估",
-            "active" => "，正在受限应用",
+            "trial" => "，正在实机试用",
+            "full" => "，正在完整应用",
+            "active" => "，正在实机试用",
             _ => "，尚未启用"
         };
     }

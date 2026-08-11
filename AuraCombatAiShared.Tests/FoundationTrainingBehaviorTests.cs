@@ -891,6 +891,12 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && strategyClassWindow.StrategyQuotaShortfalls.Count == 0
                && strategyClassWindow.RequiredStrategyClassFrames.Count == 2,
             "targeted replay selection distinguishes positive and negative growth supervision instead of relying only on a single strategy stratum");
+        var firstIterationRequirements = CombatCampaignFoundationTrainer
+            .RequiredStrategyClassFrames(null, strategyClassReplay);
+        Assert(firstIterationRequirements.Count == 2
+               && firstIterationRequirements["strategy-growth"] == 4
+               && firstIterationRequirements["strategy-growth-negative"] == 4,
+            "current replay activates strategy supervision quotas during the first teacher iteration before a prior audit report exists");
         var targetedRequirements = CombatCampaignFoundationTrainer
             .RequiredStrategyClassFrames(
                 new CombatTransformerTeacherReport
@@ -912,6 +918,24 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         Assert(targetedRequirements.Count == 1
                && targetedRequirements["strategy-growth"] == 4,
             "teacher applicability telemetry requests missing growth positives but does not launch futile transform collection when no transform opportunity exists");
+        var coldStartRequirements = CombatCampaignFoundationTrainer
+            .RequiredStrategyClassFrames(
+                new CombatTransformerTeacherReport
+                {
+                    StrategyApplicableCounts = new Dictionary<string, int>
+                    {
+                        ["growth"] = 1,
+                        ["transform"] = 0
+                    },
+                    StrategyLabelCounts = new Dictionary<string, int>
+                    {
+                        ["growth"] = 1
+                    }
+                });
+        Assert(coldStartRequirements.Count == 2
+               && coldStartRequirements["strategy-growth"] == 4
+               && coldStartRequirements["strategy-growth-negative"] == 4,
+            "the first observed strategy opportunity activates positive and negative cold-start replay quotas without inventing an inapplicable transform quota");
         var forcedDecisionReplay = new[] { quotaReplay[0] };
         forcedDecisionReplay[0].Frames[0].Candidates.RemoveAt(1);
         var forcedDecisionWindow = CombatTrainingReplayWindowSelector.Select(
@@ -2550,7 +2574,12 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                        TotalIterations = 8,
                        FinalRefreshRequested = true
                    }),
-            "continuation boundaries do not force a Transformer final refresh unless the run explicitly requests finalization");
+            "the final-refresh context flag remains authoritative once the campaign has resolved whether its current iteration is terminal");
+        Assert(CombatTransformerTeacherRefreshProtocol.ShouldRequestFinalRefresh(
+                   false, 12, 12)
+               && !CombatTransformerTeacherRefreshProtocol
+                   .ShouldRequestFinalRefresh(false, 11, 12),
+            "an isolated continuation refreshes the Transformer teacher when its own final iteration is reached");
         var refreshOptions = new CombatTransformerTeacherOptions
         {
             CpuRefreshInterval = 4,
@@ -2569,9 +2598,13 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             .ShouldRefresh(
                 true, false, false, 4, 1, 0, 0, 64, 64, false,
                 refreshOptions, out var intervalRefreshReason);
-        var rejectionBackoff = !CombatTransformerTeacherRefreshProtocol
+        var evidenceOverride = CombatTransformerTeacherRefreshProtocol
             .ShouldRefresh(
                 true, false, false, 5, 1, 4, 1, 4096, 4096, true,
+                refreshOptions, out var evidenceOverrideReason);
+        var rejectionBackoff = !CombatTransformerTeacherRefreshProtocol
+            .ShouldRefresh(
+                true, false, false, 5, 1, 4, 1, 512, 512, false,
                 refreshOptions, out var rejectionBackoffReason);
         Assert(stableTeacherReuse
                && stableTeacherReason == "stable-teacher-reuse"
@@ -2579,9 +2612,11 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && thresholdRefreshReason == "fresh-frame-threshold"
                && intervalRefresh
                && intervalRefreshReason == "maximum-staleness"
+               && evidenceOverride
+               && evidenceOverrideReason == "dataset-drift-after-rejection"
                && rejectionBackoff
                && rejectionBackoffReason == "rejected-update-backoff:6",
-            "accelerator teacher annotation reuses stable weights until fresh-frame or maximum-staleness gates fire and backs off after rejected updates");
+            "teacher refresh backs off repeated low-evidence rejections while material fresh or drift evidence can trigger an earlier retry");
         var unhealthyInference = CombatFoundationInferenceHealthProtocol.Evaluate(
             new CombatCampaignFoundationTelemetry
             {
@@ -2710,6 +2745,25 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                 }
             }
         };
+        var experimentalWorkerResult = new CombatFoundationWorkerResult
+        {
+            ModelAccepted = false,
+            Training = new CombatCampaignFoundationTrainingResult
+            {
+                ExperimentalEligibilityPassed = true,
+                Champion = rejectedPayloadModel,
+                WorkingChampion = rejectedPayloadModel,
+                LatestTrainingModel = rejectedPayloadModel,
+                AbsoluteQualifiedBestModel = rejectedPayloadModel
+            }
+        };
+        CombatFoundationWorkerResultProjection.StripRejectedBusinessPayload(
+            experimentalWorkerResult);
+        Assert(experimentalWorkerResult.BusinessModelIncluded
+               && !experimentalWorkerResult.HeavyTrainingPayloadOmitted
+               && experimentalWorkerResult.Training?.AbsoluteQualifiedBestModel
+                  == rejectedPayloadModel,
+            "experimental worker output retains its loadable model payload for controlled continuation");
         CombatFoundationWorkerResultProjection.StripRejectedBusinessPayload(
             rejectedWorkerResult);
         Assert(!rejectedWorkerResult.BusinessModelIncluded
@@ -3508,6 +3562,9 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         // export contract rather than the trainer's final-state wiring.
         foundationTraining.Success = true;
         foundationTraining.AcceptancePassed = true;
+        foundationTraining.RuntimeSafetyPassed = true;
+        foundationTraining.RawIsolationPassed = true;
+        foundationTraining.SameModelEvidenceBound = true;
         foundationTraining.Champion = foundationTraining.WorkingChampion;
         foundationTraining.Validation.Passed = true;
         foundationTraining.Validation.BehaviorPassed = true;
@@ -3539,12 +3596,79 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                && foundationPackage.DeclaredCoverage?.EntityCoverageKnown == true
                && foundationPackage.SchemaVersion
                   == CombatFoundationModelPackageProtocol.SchemaVersion
+               && foundationPackage.DeploymentTier
+                  == CombatFoundationDeploymentTier.Formal
+               && foundationPackage.QualityCertification
+                  == CombatFoundationModelPackageProtocol
+                      .QualityCertificationPassed
                && foundationPackage.Acceptance?.FormalIsolationPassed == true
                && foundationPackage.Acceptance.Classification
                   == CombatFoundationPromotionProtocol.AbsoluteQualifiedBest
                && foundationPackage.Acceptance.AbsoluteQualified
                && foundationPackage.Validation.Passed,
             "accepted worker results create a validated v5 foundation package draft");
+        var formalAcceptanceKind = foundationTraining.AcceptanceKind;
+        var formalDeploymentTier = foundationTraining.DeploymentTier;
+        var formalDeploymentTierReason = foundationTraining.DeploymentTierReason;
+        var formalCapabilityVerdict =
+            foundationTraining.CapabilityProbe.BaselineGateVerdict;
+        foundationTraining.AcceptancePassed = false;
+        foundationTraining.ExperimentalEligibilityPassed = true;
+        foundationTraining.RuntimeSafetyPassed = true;
+        foundationTraining.RawIsolationPassed = false;
+        foundationTraining.DeploymentTier =
+            CombatFoundationDeploymentTier.Experimental;
+        foundationTraining.DeploymentTierReason =
+            "能力探针尚未形成结论性正式认证";
+        foundationTraining.AcceptanceKind =
+            CombatFoundationPromotionProtocol.ExperimentalRuntimeTest;
+        foundationTraining.AbsoluteQualifiedBestModel =
+            foundationTraining.Champion;
+        foundationTraining.CapabilityProbe.BaselineGateVerdict =
+            CombatFoundationModelPackageProtocol.CapabilityStatusFail;
+        foundationTraining.Validation.Passed = false;
+        packageResult.CompletionKind = "training-experimental-recovered";
+        var experimentalPackage = CombatFoundationModelPackageProtocol.Create(
+            packageJob,
+            packageResult,
+            "ABCDEF");
+        Assert(CombatFoundationModelPackageProtocol.TryValidate(
+                   experimentalPackage,
+                   out var experimentalPackageDiagnostic)
+               && string.IsNullOrEmpty(experimentalPackageDiagnostic)
+               && experimentalPackage.DeploymentTier
+                  == CombatFoundationDeploymentTier.Experimental
+               && experimentalPackage.QualityCertification
+                  == CombatFoundationModelPackageProtocol
+                      .QualityCertificationIncomplete
+               && experimentalPackage.SameModelEvidenceBound
+               && experimentalPackage.CapabilityStatus
+                  == CombatFoundationModelPackageProtocol
+                      .CapabilityStatusFail
+               && experimentalPackage.Model?.ModelId
+                  == foundationTraining.AbsoluteQualifiedBestModel?.ModelId
+               && CombatFoundationModelPackageProtocol
+                   .IsValidLoadableAcceptance(experimentalPackage)
+               && CombatFoundationModelPackageProtocol
+                   .IsValidExperimentalAcceptance(
+                       experimentalPackage.Acceptance)
+               && !CombatFoundationModelPackageProtocol.IsValidAcceptance(
+                   experimentalPackage.Acceptance),
+            "runtime-safe experimental worker results remain loadable when formal Wilson and capability gates fail");
+        experimentalPackage.SameModelEvidenceBound = false;
+        Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+                experimentalPackage,
+                out _),
+            "experimental packages reject evidence assembled from different models");
+        foundationTraining.AcceptancePassed = true;
+        foundationTraining.ExperimentalEligibilityPassed = false;
+        foundationTraining.DeploymentTier = formalDeploymentTier;
+        foundationTraining.DeploymentTierReason = formalDeploymentTierReason;
+        foundationTraining.AcceptanceKind = formalAcceptanceKind;
+        foundationTraining.CapabilityProbe.BaselineGateVerdict =
+            formalCapabilityVerdict;
+        foundationTraining.Validation.Passed = true;
+        packageResult.CompletionKind = "training-accepted";
         var artifactModel = foundationPackage.Model!;
         var artifactDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -3642,9 +3766,9 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    foundationPackage,
                    out var weakNonInferiorityPackageDiagnostic)
                && weakNonInferiorityPackageDiagnostic.Contains(
-                   "验收证明",
+                   "质量证明",
                    StringComparison.Ordinal),
-            "v4 model packages reject non-inferiority claims without the required paired evidence");
+            "v5 model packages reject non-inferiority claims without the required paired evidence");
         foundationPackage.Acceptance.Classification = "retained-champion";
         foundationPackage.Acceptance.EquivalentNonInferior = false;
         foundationPackage.Acceptance.ValidNormalPairs = 0;
@@ -3860,7 +3984,7 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    foundationPackage,
                    out var rejectedFoundationPackageDiagnostic)
                && rejectedFoundationPackageDiagnostic.Contains(
-                   "已验收",
+                   "部署等级",
                    StringComparison.Ordinal),
             "external foundation package validation rejects non-accepted training results");
         foundationPackage.CompletionKind = "training-accepted";

@@ -37,6 +37,9 @@ internal static class Program
         TestCardVisualInterestIndex();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
+        TestSpiritAdventurePartyRemoval();
+        TestSpiritStatusBarText();
+        TestPolymorphCooldownSnapshots();
         TestSpiritProfileIdentityResolver();
         TestProjectionTurnQueuePolicy();
         TestSolarMemoryRoleCommitPendingState();
@@ -151,12 +154,54 @@ internal static class Program
         False(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "player", false, true), "Fox-Woman's Harp ignores self-applied debuffs");
         False(MorningStarRelicFormula.ShouldCountNegativeBuffApplication("player", "player", true, false), "Fox-Woman's Harp ignores positive buffs");
 
-        False(MorningStarRelicFormula.RelicPouchRecycles(false), "A non-Loneer relic pouch is one-shot");
-        True(MorningStarRelicFormula.RelicPouchRecycles(true), "A Loneer relic pouch refills after it is emptied");
+        Equal(StarStonePouchResetPolicy.RemoveWhenExhausted, MorningStarRelicFormula.RelicPouchResetPolicy(false), "A non-Loneer backup pouch is removed when exhausted");
+        Equal(StarStonePouchResetPolicy.WhenExhausted, MorningStarRelicFormula.RelicPouchResetPolicy(true), "A Loneer backup pouch refills when exhausted");
+        True(MorningStarRelicFormula.ParticipatesInStarStoneOrbit(MorningStarRelicFormula.CareerPouchChannel), "The career pouch participates in Star Stone Orbit");
+        False(MorningStarRelicFormula.ParticipatesInStarStoneOrbit(MorningStarRelicFormula.RelicPouchChannel), "The backup pouch never participates in Star Stone Orbit");
         var careerKey = MorningStarRelicFormula.PouchStateKey("player", MorningStarRelicFormula.CareerPouchChannel);
         var relicKey = MorningStarRelicFormula.PouchStateKey("player", MorningStarRelicFormula.RelicPouchChannel);
         False(string.Equals(careerKey, relicKey, StringComparison.Ordinal), "Career and relic pouches use independent owner-channel state keys");
         Equal("", MorningStarRelicFormula.PouchStateKey("", MorningStarRelicFormula.RelicPouchChannel), "Pouch state rejects an empty owner identity");
+    }
+
+    private static void TestSpiritAdventurePartyRemoval()
+    {
+        var slots = new List<string> { "alpha", "beta", "alpha", "", "", "" };
+        var active = "alpha";
+        True(SpiritAdventurePartyRules.Remove(slots, ref active, "alpha"), "Returning a spirit removes it from every current-adventure slot");
+        True(slots.All(uid => uid != "alpha"), "Returned spirit no longer appears in the current-adventure party");
+        Equal("", active, "Returning the active spirit clears the current-adventure active selection");
+        False(SpiritAdventurePartyRules.Remove(slots, ref active, "missing"), "Returning a spirit not in the current party is a no-op");
+        Equal("beta", slots[1], "Returning one spirit preserves the remaining current-adventure party");
+    }
+
+    private static void TestSpiritStatusBarText()
+    {
+        Equal("1\n3\n9", SpiritStatusBarText.FormatVerticalDigits(139), "Spirit health shows exactly one horizontal digit per vertical line");
+        Equal("7", SpiritStatusBarText.FormatVerticalDigits(7), "Single-digit spirit health remains on one line");
+        Equal("0", SpiritStatusBarText.FormatVerticalDigits(-5), "Spirit health text clamps invalid negative values");
+    }
+
+    private static void TestPolymorphCooldownSnapshots()
+    {
+        var initialized = new Dictionary<string, int>
+        {
+            ["skill_a"] = 2,
+            ["skill_b"] = -3
+        };
+        var firstEntry = PolymorphCooldownSnapshotPolicy.ResolveEntry(
+            new[] { "skill_a", "skill_b" },
+            initialized,
+            null);
+        Equal(2, firstEntry["skill_a"], "A first polymorph entry keeps the target role's configured initial cooldown");
+        Equal(0, firstEntry["skill_b"], "Polymorph cooldown snapshots clamp invalid negative values");
+
+        var revisit = PolymorphCooldownSnapshotPolicy.ResolveEntry(
+            new[] { "skill_a", "skill_b" },
+            initialized,
+            new Dictionary<string, int> { ["skill_a"] = 5 });
+        Equal(5, revisit["skill_a"], "Re-entering a form restores that form's saved cooldown");
+        Equal(0, revisit["skill_b"], "A missing saved skill falls back to the role's initialized cooldown");
     }
 
     private static void TestMorningStarBlessingFormula()

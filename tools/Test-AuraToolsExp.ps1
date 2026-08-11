@@ -49,7 +49,8 @@ if ($officialSummerSkins.Count -ne 1) {
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
 $standardPreset = @($matchSettings.autoBattle.gameParameters.presets | Where-Object id -eq "standard")
-if ($matchSettings.schemaVersion -ne 26 `
+if ($matchSettings.schemaVersion -ne 28 `
+        -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `
         -or $matchSettings.autoBattle.training.preset -ne "steady" `

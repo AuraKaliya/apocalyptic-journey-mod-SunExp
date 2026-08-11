@@ -350,6 +350,15 @@ public sealed class SpiritAdventureParty
 
     public string ActiveSpiritUid { get; set; } = "";
 
+    public bool Remove(string uid)
+    {
+        PartySlots ??= new List<string>();
+        var active = ActiveSpiritUid;
+        var changed = SpiritAdventurePartyRules.Remove(PartySlots, ref active, uid);
+        ActiveSpiritUid = active;
+        return changed;
+    }
+
     public SpiritAdventureParty Clone()
     {
         return new SpiritAdventureParty

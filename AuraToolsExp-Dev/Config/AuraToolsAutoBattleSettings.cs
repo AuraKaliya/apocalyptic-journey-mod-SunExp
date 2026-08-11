@@ -37,6 +37,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("selectedModelId")]
     public string SelectedModelId { get; set; } = "";
 
+    [JsonProperty("experimentalModelAcknowledgement")]
+    public string ExperimentalModelAcknowledgement { get; set; } = "";
+
     [JsonProperty("evaluationModelId")]
     public string EvaluationModelId { get; set; } = "";
 
@@ -103,8 +106,28 @@ public sealed class AutoBattleSettings
             "allow",
             "handoff");
         TrainingMode = NormalizeChoice(TrainingMode, "auto", "shadow", "hybrid");
-        TrainedModelMode = NormalizeChoice(TrainedModelMode, "off", "shadow", "active");
+        var normalizedModelMode = (TrainedModelMode ?? "")
+            .Trim()
+            .ToLowerInvariant();
+        // Schema 27 exposed one ambiguous active mode. Preserve it as the
+        // narrower current-battle trial instead of silently enabling every
+        // future battle.
+        if (string.Equals(
+                normalizedModelMode,
+                "active",
+                StringComparison.Ordinal))
+        {
+            normalizedModelMode = "trial";
+        }
+        TrainedModelMode = NormalizeChoice(
+            normalizedModelMode,
+            "off",
+            "shadow",
+            "trial",
+            "full");
         SelectedModelId = SelectedModelId?.Trim() ?? "";
+        ExperimentalModelAcknowledgement =
+            ExperimentalModelAcknowledgement?.Trim() ?? "";
         EvaluationModelId = EvaluationModelId?.Trim() ?? "";
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));

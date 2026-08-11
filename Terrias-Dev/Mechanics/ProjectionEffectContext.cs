@@ -181,9 +181,20 @@ public static class ProjectionEffectContextService
         }
 
         var owner = StatusById(state.OwnerStatusId);
-        return owner == null || intent == null
-            ? null
-            : new ProjectionEffectContext(actor, owner, owner, intent);
+        if (intent == null)
+        {
+            return null;
+        }
+
+        if (string.Equals(state.EntityKind, "SpiritAttachment", StringComparison.Ordinal))
+        {
+            var spiritStatus = actor.Status;
+            return spiritStatus == null
+                ? null
+                : new ProjectionEffectContext(actor, spiritStatus, owner ?? spiritStatus, intent);
+        }
+
+        return owner == null ? null : new ProjectionEffectContext(actor, owner, owner, intent);
     }
 
     public static CompanionIntentPlan RefreshLockedPlan(

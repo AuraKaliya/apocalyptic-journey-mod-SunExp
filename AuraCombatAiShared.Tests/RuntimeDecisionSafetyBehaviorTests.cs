@@ -10,10 +10,14 @@ internal static class RuntimeDecisionSafetyBehaviorTests
         ForwardModelUsesObservedDamageVariables();
         StrategicTargetsAreWorthRemovingFirst();
         CompletedLowConfidenceSearchUsesSafeFallback();
+        ModelAuthorityDoesNotUseQualityFallback();
+        ModelAuthorityKeepsHeuristicallyRejectedAction();
+        ModelAuthorityKeepsEquivalentCandidateInstances();
         MinimumSearchTimeRequiresMoreEvidence();
         SearchReportsRawNetworkPrediction();
         FatalAndRepeatableSelfHarmCannotBeOverridden();
         NegativeFallbackRequiresMinimumLossProof();
+        SaturatedRiskFallbackRequiresSearchEvidence();
         DynamicInstanceCostAndSuppressionRevisionTrackEligibility();
         RealizedTransitionCarriesHpMaximumHpAndStatusDeltas();
         InteractiveSettlementUsesTransactionDeadline();
@@ -237,6 +241,202 @@ internal static class RuntimeDecisionSafetyBehaviorTests
             profile);
         Assert(optOut.Decision == CombatGovernanceDecision.Accept,
             "profiles may explicitly opt out of low-confidence fallback");
+    }
+
+    private static void ModelAuthorityDoesNotUseQualityFallback()
+    {
+        var proposedAction = new CombatActionObservation
+        {
+            CandidateId = "model-choice",
+            Kind = CombatActionKind.PlayCard,
+            Legal = true
+        };
+        var saferAction = new CombatActionObservation
+        {
+            CandidateId = "heuristic-choice",
+            Kind = CombatActionKind.PlayCard,
+            Legal = true
+        };
+        var proposed = new CombatCandidateEvaluation
+        {
+            Action = proposedAction,
+            Legal = true,
+            RuleScore = -10d,
+            SearchDeathRisk = 1d
+        };
+        var safer = new CombatCandidateEvaluation
+        {
+            Action = saferAction,
+            Legal = true,
+            RuleScore = 10d,
+            SearchDeathRisk = 0d
+        };
+        var verdict = CombatDecisionGovernance.ReviewSearch(
+            new CombatStateObservation(),
+            new[] { proposed, safer },
+            new CombatEndTurnAssessment { Prohibited = true },
+            new CombatSearchResult
+            {
+                HasAction = true,
+                Action = proposedAction,
+                Confidence = 0d,
+                StoppedByTime = true,
+                StoppedByModelBudget = true
+            },
+            new CombatDecisionProfile
+            {
+                ModelOwnsActionSelection = true,
+                UseLowConfidenceFallback = true,
+                MinimumSearchConfidence = 0.8d
+            });
+        Assert(verdict.Decision == CombatGovernanceDecision.Accept
+               && ReferenceEquals(verdict.Candidate, proposed),
+            "model authority accepts its legal proposal despite low confidence, negative rule score and safer heuristic alternatives");
+    }
+
+    private static void ModelAuthorityKeepsHeuristicallyRejectedAction()
+    {
+        var attack = new CombatActionObservation
+        {
+            CandidateId = "safe-attack",
+            SourceId = "safe-attack",
+            Kind = CombatActionKind.PlayCard,
+            Legal = true,
+            Cost = 1,
+            TargetRuntimeId = 2,
+            Semantics = new CombatActionSemantics { Damage = 5d }
+        };
+        var modelChoice = new CombatActionObservation
+        {
+            CandidateId = "model-visible-fake",
+            SourceId = "model-visible-fake",
+            Kind = CombatActionKind.PlayCard,
+            Legal = true,
+            Cost = 1,
+            TargetRuntimeId = 2,
+            Semantics = new CombatActionSemantics { Damage = 1d },
+            Features = { ["visibleFake"] = 1d }
+        };
+        var state = new CombatStateObservation
+        {
+            Player = new CombatUnitObservation
+            {
+                RuntimeId = 1,
+                CurrentHp = 30,
+                MaxHp = 30
+            },
+            Enemies =
+            {
+                new CombatUnitObservation
+                {
+                    RuntimeId = 2,
+                    CurrentHp = 30,
+                    MaxHp = 30
+                }
+            },
+            CurrentPower = 3,
+            MaxPower = 3,
+            HandCount = 2,
+            HandCardIds = { "safe-attack", "model-visible-fake" },
+            Actions = { attack, modelChoice },
+            IsPlayerActionWindow = true,
+            Fingerprint = "model-authority-end-turn"
+        };
+        var profile = new CombatDecisionProfile
+        {
+            ModelOwnsActionSelection = true,
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 1,
+            SearchNodeBudget = 16,
+            SearchMaxPly = 1,
+            SearchMinimumSimulations = 1,
+            SearchStabilityWindow = 1,
+            SearchStableChecks = 1,
+            SearchTimeBudgetMilliseconds = 0,
+            SearchMinimumTimeMilliseconds = 0,
+            UseLowConfidenceFallback = true,
+            MinimumSearchConfidence = 0.8d
+        };
+        var decision = new CombatDecisionEngine(
+                useRuntimeRegistries: false,
+                policyValueModel: new PreferredPolicyValueModel(
+                    modelChoice.CandidateId))
+            .Choose(state, profile);
+        Assert(decision.HasAction
+               && decision.Action?.CandidateId == modelChoice.CandidateId
+               && decision.DecisionPath == "model-authority-accepted"
+               && !decision.GovernanceFallbackApplied,
+            "model authority keeps and may select an engine-legal action that heuristic visibility policy would reject");
+    }
+
+    private static void ModelAuthorityKeepsEquivalentCandidateInstances()
+    {
+        CombatActionObservation Candidate(string id, int handIndex)
+        {
+            var action = new CombatActionObservation
+            {
+                CandidateId = id,
+                SourceId = "duplicate-card",
+                Kind = CombatActionKind.PlayCard,
+                Legal = true,
+                Cost = 1,
+                TargetRuntimeId = 2,
+                Semantics = new CombatActionSemantics { Damage = 5d }
+            };
+            action.Features["handIndex"] = handIndex;
+            return action;
+        }
+
+        var first = Candidate("a-card-instance", 0);
+        var preferred = Candidate("z-card-instance", 1);
+        var state = new CombatStateObservation
+        {
+            Player = new CombatUnitObservation
+            {
+                RuntimeId = 1,
+                CurrentHp = 30,
+                MaxHp = 30
+            },
+            Enemies =
+            {
+                new CombatUnitObservation
+                {
+                    RuntimeId = 2,
+                    CurrentHp = 30,
+                    MaxHp = 30
+                }
+            },
+            CurrentPower = 3,
+            MaxPower = 3,
+            HandCount = 2,
+            HandCardIds = { "duplicate-card", "duplicate-card" },
+            Actions = { first, preferred },
+            IsPlayerActionWindow = true,
+            Fingerprint = "model-authority-equivalent-instances"
+        };
+        var decision = new CombatDecisionEngine(
+                useRuntimeRegistries: false,
+                policyValueModel: new PreferredPolicyValueModel(
+                    preferred.CandidateId))
+            .Choose(
+                state,
+                new CombatDecisionProfile
+                {
+                    ModelOwnsActionSelection = true,
+                    SearchBudgetMode = "fixed",
+                    SearchSimulationBudget = 1,
+                    SearchNodeBudget = 16,
+                    SearchMaxPly = 1,
+                    SearchMinimumSimulations = 1,
+                    SearchStabilityWindow = 1,
+                    SearchStableChecks = 1,
+                    SearchTimeBudgetMilliseconds = 0,
+                    SearchMinimumTimeMilliseconds = 0
+                });
+        Assert(decision.Action?.CandidateId == preferred.CandidateId
+               && decision.SearchOriginalCandidateCount == 2
+               && decision.SearchCandidateCount == 2,
+            "model authority preserves mechanically equivalent card instances so the network can choose between them");
     }
 
     private static void MinimumSearchTimeRequiresMoreEvidence()
@@ -529,6 +729,72 @@ internal static class RuntimeDecisionSafetyBehaviorTests
                && !CombatActionSafetyPolicy.HasMinimumLossCertificate(
                    costly.Action),
             "negative fallback is legal only for the proven minimum-loss candidate");
+    }
+
+    private static void SaturatedRiskFallbackRequiresSearchEvidence()
+    {
+        var state = new CombatStateObservation
+        {
+            Player = new CombatUnitObservation
+            {
+                CurrentHp = 20,
+                MaxHp = 20
+            }
+        };
+        var noisyMinimum = new CombatCandidateEvaluation
+        {
+            Legal = true,
+            RuleScore = 1d,
+            SearchVisits = 4,
+            SearchDeathRisk = 0.30d,
+            SearchMeanReturn = -1d,
+            SearchLowerTailMean = -2d,
+            Action = new CombatActionObservation
+            {
+                CandidateId = "noisy-minimum-risk",
+                Semantics = new CombatActionSemantics { Damage = 1d },
+                Features = { ["effectiveDamage"] = 1d }
+            }
+        };
+        var evidenced = new CombatCandidateEvaluation
+        {
+            Legal = true,
+            RuleScore = 2d,
+            SearchVisits = 128,
+            SearchDeathRisk = 0.33d,
+            SearchMeanReturn = 1d,
+            SearchLowerTailMean = -0.5d,
+            Action = new CombatActionObservation
+            {
+                CandidateId = "evidence-backed-branch",
+                Semantics = new CombatActionSemantics { Damage = 4d },
+                Features = { ["effectiveDamage"] = 4d }
+            }
+        };
+        var selected = CombatDecisionGovernance.SelectSafeFallback(
+            state,
+            new[] { noisyMinimum, evidenced },
+            new CombatDecisionProfile
+            {
+                DeathRiskLimit = 0.20d,
+                MinimumActionScore = 0.05d,
+                SearchMinimumChallengerVisits = 4
+            });
+        Assert(ReferenceEquals(selected, evidenced),
+            "saturated-risk fallback does not let a four-visit minimum erase a deeply searched close-risk branch");
+
+        evidenced.SearchDeathRisk = 0.37d;
+        selected = CombatDecisionGovernance.SelectSafeFallback(
+            state,
+            new[] { noisyMinimum, evidenced },
+            new CombatDecisionProfile
+            {
+                DeathRiskLimit = 0.20d,
+                MinimumActionScore = 0.05d,
+                SearchMinimumChallengerVisits = 4
+            });
+        Assert(ReferenceEquals(selected, noisyMinimum),
+            "evidence fallback preserves the minimum-risk branch when the risk gap is material");
     }
 
     private static void DynamicInstanceCostAndSuppressionRevisionTrackEligibility()

@@ -250,7 +250,7 @@
 | `Terrias_terrias_dusk_afterheat_recovery_trait` | 余热回收 | 2 | 1 | 0／0／0 | 每当敌人{buff_burn}触发时，获得其{buff_burn}层数1/3的{Terrias_terrias_ember}与{Terrias_terrias_gathered_flame}。 |
 | `Terrias_terrias_heart_change_control` | 心变 | 3 | 1 | 0／0／0 | 你的场做的很好，现在是我的了~ |
 | `Terrias_terrias_miracle_clock` | 奇迹时钟 | 2 | 12 | 0／0／0 | 当奇迹时钟恢复至上限时，获得上限层数的{Terrias_terrias_starlight}。 |
-| `Terrias_terrias_polymorph_trait` | 百变 | 3 | 99 | 1／0／0 | 变身成为目标角色。 |
+| `Terrias_terrias_polymorph_trait` | 百变 | 3 | 1 | 1／0／0 | 变身成为目标角色。百变结束时恢复原角色；原角色的职业状态与技能冷却在此期间冻结。 |
 | `Terrias_terrias_sandrone_cat_trait` | 哥！伦！比！娅！ | 2 | 1 | 0／0／0 | 每场战斗结束时，增加自身1+4%生命值上限。 |
 | `Terrias_terrias_star_clay_doll_trait` | 星泥人傀 | 2 | 1 | 0／0／0 | 战斗开始时，获得1层{Terrias_terrias_star_clay_body}。每次行动后，获得1层{Terrias_terrias_starlight}。 |
 | `Terrias_terrias_star_stone_pouch` | 星石袋 | 2 | 9 | 0／0／0 | 初始内置9个黑石和1个白石。每次行动后抽取一个星石；若抽中黑石，获得1层{Terrias_terrias_starlight}；若抽中白石，获得当前黑石数量的{Terrias_terrias_starlight}。 |

@@ -24,6 +24,11 @@ $generatedProgramsPath = Join-Path $root (
 $workerProject = Join-Path $root (
     "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj")
 $installer = Join-Path $root "tools\Install-AuraPyTorch.cmd"
+$runtimeChecker = Join-Path $root "tools\Test-AuraDotNetDesktopRuntime.ps1"
+$runtimeInstaller = Join-Path $root "tools\Install-AuraDotNetDesktopRuntime.cmd"
+$trainerLauncher = Join-Path $root "tools\Start-AuraFoundationTrainer.cmd"
+$simulationViewerLauncher = Join-Path $root (
+    "tools\Start-AuraFoundationSimulationViewer.cmd")
 $bundledModelDirectory = Join-Path $root "AuraToolsExp\ModResource\Model"
 $foundationAllowlistPath = Join-Path $root (
     "AuraToolsExp\Config\aura-director.foundation-model-allowlist.json")
@@ -36,6 +41,10 @@ foreach ($requiredPath in @(
     $generatedProgramsPath,
     $workerProject,
     $installer,
+    $runtimeChecker,
+    $runtimeInstaller,
+    $trainerLauncher,
+    $simulationViewerLauncher,
     $foundationAllowlistPath,
     $sharedRuntimeAssembly,
     $newtonsoftAssembly
@@ -46,6 +55,36 @@ foreach ($requiredPath in @(
 }
 if (-not (Test-Path -LiteralPath $bundledModelDirectory -PathType Container)) {
     throw "Bundled foundation model directory is missing: $bundledModelDirectory"
+}
+
+$powerShellHost = (Get-Process -Id $PID).Path
+& $powerShellHost `
+    -NoLogo `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File $runtimeChecker
+if ($LASTEXITCODE -ne 0) {
+    throw (
+        "Aura trainer runtime checker did not accept the installed .NET 8 " +
+        "Desktop Runtime x64: exitCode=$LASTEXITCODE")
+}
+$missingDotNet = Join-Path (
+    [System.IO.Path]::GetTempPath()) (
+    "aura-missing-dotnet-" + [System.Guid]::NewGuid().ToString("N") + ".exe")
+$missingRuntimeOutput = @(
+    & $powerShellHost `
+        -NoLogo `
+        -NoProfile `
+        -ExecutionPolicy Bypass `
+        -File $runtimeChecker `
+        -DotNetExecutable $missingDotNet
+)
+$missingRuntimeExitCode = $LASTEXITCODE
+if ($missingRuntimeExitCode -ne 10) {
+    throw (
+        "Aura trainer runtime checker must return 10 for a missing runtime: " +
+        "exitCode=$missingRuntimeExitCode, output=" +
+        ($missingRuntimeOutput -join [System.Environment]::NewLine))
 }
 
 function Assert-BundledModelDirectorySegment {
@@ -410,7 +449,7 @@ function Assert-CurrentArtifactFields {
             -or ([int]$Artifact.ProtocolVersion -ne 2) `
             -or ([int]$Artifact.FeatureSchemaVersion -ne `
                 [AuraCombatAi.Shared.CombatPolicyValueProtocol]::FeatureSchemaVersion) `
-            -or ([string]$Artifact.FeatureEncodingMode -cne "partitioned-v3") `
+            -or ([string]$Artifact.FeatureEncodingMode -cne "partitioned-v4") `
             -or ([int]$Artifact.StateDimensions -lt 16) `
             -or ([int]$Artifact.ActionDimensions -lt 16) `
             -or ([int]$Artifact.HiddenDimensions -lt 8) `

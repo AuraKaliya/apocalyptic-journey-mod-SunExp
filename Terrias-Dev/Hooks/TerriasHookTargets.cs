@@ -41,6 +41,7 @@ public static class TerriasHookTargets
     public const string CardChoiceUiSelect = "CardChoiceUI.Select";
     public const string ScriptExecutorGetCardFromDeck = "ScriptExecutor.GetCardFromDeck";
     public const string ScriptExecutorRandomAddCard = "ScriptExecutor.RandomAddCard";
+    public const string ObjTargetActionInternalExecute = "ObjTargetAction.InternalExecute";
 
     public const string DictItemInit = "DictItem.Init";
     public const string DictionaryShowItemInit = "DictionaryShowItem.Init";
@@ -72,6 +73,7 @@ public static class TerriasHookTargets
     public const string StatusManagerEnemyDead = "StatusManager.EnemyDead";
     public const string StatusManagerSetCurHp = "StatusManager.set_CurHp";
     public const string StatusManagerSetMaxHp = "StatusManager.set_MaxHp";
+    public const string StatusManagerSetState = "StatusManager.set_state";
     public const string StatusManagerInitAnimator = "StatusManager.InitAnimator";
     public const string StatusManagerSetSprite = "StatusManager.SetSprite";
 }

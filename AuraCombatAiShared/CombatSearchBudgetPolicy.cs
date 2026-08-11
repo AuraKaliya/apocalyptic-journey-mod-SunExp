@@ -47,6 +47,7 @@ public static class CombatSearchBudgetPolicy
             Id = profile.Id,
             Weights = profile.Weights,
             Graph = profile.Graph,
+            ModelOwnsActionSelection = profile.ModelOwnsActionSelection,
             MinimumActionScore = profile.MinimumActionScore,
             UnknownActionPenalty = profile.UnknownActionPenalty,
             EmergencyHpRatio = profile.EmergencyHpRatio,

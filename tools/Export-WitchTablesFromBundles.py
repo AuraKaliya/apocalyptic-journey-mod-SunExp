@@ -96,7 +96,8 @@ def read_bundle_rows(root: str, bundle_name: str) -> list[OrderedDict[str, str]]
                 # Every game CSV has a human-readable schema explanation on row 1.
                 if index == 0:
                     continue
-                source_id = (source.get("Id") or "").strip().lstrip("*")
+                authored_id = (source.get("Id") or "").strip()
+                source_id = authored_id.lstrip("*")
                 if not source_id:
                     continue
                 full_id = (
@@ -109,6 +110,15 @@ def read_bundle_rows(root: str, bundle_name: str) -> list[OrderedDict[str, str]]
                     if key:
                         row[key] = value or ""
                 row["Id"] = full_id
+                # The loader removes a leading `*` from runtime table IDs, but the
+                # marker still distinguishes internal/non-pool rows in the source
+                # CSV.  Preserve both forms so documentation can filter by the
+                # authored marker while runtime joins continue to use `Id`.
+                row["SourceId"] = (
+                    authored_id
+                    if authored_id.lower().startswith(prefix.lower() + "_")
+                    else prefix + "_" + authored_id
+                )
     if not rows_by_id:
         raise RuntimeError(f"no table rows extracted for {bundle_name}")
     return list(rows_by_id.values())

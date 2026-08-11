@@ -38,3 +38,5 @@ ModsData/*
 
 /AuraToolsExp/TrainingWorker/*.exe
 !/AuraToolsExp/TrainingWorker/AuraFoundationTrainer.SimulationViewer.exe
+
+/tmp/*

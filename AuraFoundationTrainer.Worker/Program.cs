@@ -9,6 +9,11 @@ using AuraToolsExp.Dll.Features.AutoBattle;
 using Newtonsoft.Json;
 
 Console.OutputEncoding = Encoding.UTF8;
+var recoveryRoot = ResolveArgument(args, "--recover-artifacts");
+if (!string.IsNullOrWhiteSpace(recoveryRoot))
+{
+    return FoundationArtifactRecovery.Run(recoveryRoot);
+}
 var jobPath = ResolveArgument(args, "--job");
 var replaySeedArgument = ResolveOptionValue(args, "--replay-seed");
 var roundChild = args.Any(argument => string.Equals(
@@ -23,7 +28,10 @@ if (string.IsNullOrWhiteSpace(jobPath)
         + "[--replay-seed <ulong> --difficulty <id> "
         + "--checkpoint <checkpoint.json> --output <result.json> "
         + "--trace none|summary|full --exploration <0..1> "
-        + "--exact-branch <0..1>]");
+        + "--exact-branch <0..1>]"
+        + Environment.NewLine
+        + "   or: AuraFoundationTrainer.Worker --recover-artifacts "
+        + "<historical-result-directory>");
     return 2;
 }
 
@@ -32,6 +40,7 @@ var checkpointWriteFailures = 0;
 var checkpointWarning = "";
 var trainingMetricWriteFailures = 0;
 var trainingMetricWarning = "";
+Action<string>? writeTerminalProgress = null;
 try
 {
     job = Deserialize<CombatFoundationWorkerJob>(
@@ -466,6 +475,31 @@ try
                     TelemetrySequence = sequence,
                     HeartbeatOnly = false,
                     Telemetry = telemetry
+                }));
+        }
+    };
+    writeTerminalProgress = terminalStage =>
+    {
+        lock (progressGate)
+        {
+            latestTelemetry = FoundationWorkerProgressFinalizer.Normalize(
+                latestTelemetry,
+                terminalStage);
+            var terminalUtc = DateTime.UtcNow;
+            latestTelemetryUpdatedUtc = terminalUtc;
+            lastProgressMilliseconds = progressClock.ElapsedMilliseconds;
+            lastProgressStage = latestTelemetry.Stage;
+            var sequence = Interlocked.Increment(ref telemetrySequence);
+            TryWriteAuxiliary(
+                job.ProgressPath,
+                Serialize(new CombatFoundationWorkerProgress
+                {
+                    JobId = job.JobId,
+                    UpdatedUtc = terminalUtc,
+                    TelemetryUpdatedUtc = terminalUtc,
+                    TelemetrySequence = sequence,
+                    HeartbeatOnly = false,
+                    Telemetry = latestTelemetry
                 }));
         }
     };
@@ -949,6 +983,9 @@ try
     {
         training.Success = false;
         training.AcceptancePassed = false;
+        training.ExperimentalEligibilityPassed = false;
+        training.DeploymentTier = CombatFoundationDeploymentTier.Diagnostic;
+        training.DeploymentTierReason = roleStrategyGateFailureReason;
         training.Message = string.IsNullOrWhiteSpace(training.Message)
             ? roleStrategyGateFailureReason
             : training.Message + " " + roleStrategyGateFailureReason;
@@ -1049,18 +1086,15 @@ try
             ? "iteration-boundary"
         : training.AcceptancePassed
             ? "training-accepted"
+            : training.ExperimentalEligibilityPassed
+                ? resumable
+                    ? "training-experimental-resumable"
+                    : "training-experimental"
             : resumable
                 ? "training-rejected-resumable"
                 : "training-rejected";
-    var finalIteration = training.Iterations.LastOrDefault();
-    var bestValidationEpoch = finalIteration?.ModelEpochHistory
-        .Where(item => !item.Calibrated)
-        .OrderBy(item => item.Validation?.CompositeLoss ?? double.MaxValue)
-        .ThenBy(item => item.Epoch)
-        .Select(item => item.Epoch)
-        .FirstOrDefault() ?? training.ModelBestEpoch;
-    var deploymentSelectedEpoch = finalIteration?.TuningSelectedEpoch
-                                  ?? training.ModelBestEpoch;
+    var evaluatedModelMetadata = FoundationWorkerResultMetadata.Resolve(
+        training);
     var workerResult = new CombatFoundationWorkerResult
     {
         JobId = job.JobId,
@@ -1068,11 +1102,13 @@ try
         WorkerCompleted = true,
         TrainingSucceeded = training.Success,
         ModelAccepted = training.AcceptancePassed,
-        EpochsExecuted = training.ModelEpochHistory.Count(item =>
-            !item.Calibrated),
-        SelectedEpoch = deploymentSelectedEpoch,
-        BestValidationEpoch = bestValidationEpoch,
-        DeploymentSelectedEpoch = deploymentSelectedEpoch,
+        EvaluatedModelId = evaluatedModelMetadata.ModelId,
+        EvaluatedModelIteration = evaluatedModelMetadata.Iteration,
+        EpochsExecuted = evaluatedModelMetadata.EpochsExecuted,
+        SelectedEpoch = evaluatedModelMetadata.SelectedEpoch,
+        BestValidationEpoch = evaluatedModelMetadata.BestValidationEpoch,
+        DeploymentSelectedEpoch =
+            evaluatedModelMetadata.DeploymentSelectedEpoch,
         PersistedReplayEpisodes = training.PersistedReplayEpisodes,
         CheckpointBytes = resumable
             ? new[] { job.CheckpointPath, resumableEpisodesPath }
@@ -1139,6 +1175,7 @@ try
             artifacts.SimulationDatabasePath;
         workerResult.SeedRegistryPath = artifacts.SeedRegistryPath;
         workerResult.ModelNodeGraphPath = artifacts.ModelNodeGraphPath;
+        workerResult.ArtifactWarning = artifacts.Warning;
     }
     catch (Exception ex)
     {
@@ -1146,9 +1183,11 @@ try
         Console.Error.WriteLine(
             "Foundation artifact bundle export failed: " + ex);
     }
-    if (string.Equals(
+    if ((training.AcceptancePassed
+         || training.ExperimentalEligibilityPassed)
+        && !string.Equals(
             completionKind,
-            "training-accepted",
+            "iteration-boundary",
             StringComparison.Ordinal))
     {
         var modelPackage = CombatFoundationModelPackageProtocol.Create(
@@ -1158,7 +1197,9 @@ try
         var deploymentModelDirectory = string.IsNullOrWhiteSpace(
             workerResult.ArtifactBundleDirectory)
             ? job.ResultDirectory
-            : Path.Combine(workerResult.ArtifactBundleDirectory, "model");
+            : Path.Combine(
+                workerResult.ArtifactBundleDirectory,
+                "deployment");
         Directory.CreateDirectory(deploymentModelDirectory);
         workerResult.ModelPackagePath = Path.Combine(
             deploymentModelDirectory,
@@ -1230,6 +1271,7 @@ try
     CombatFoundationWorkerResultProjection.StripRejectedBusinessPayload(
         workerResult);
     WriteAtomicJson(job.ResultPath, workerResult);
+    writeTerminalProgress("completed");
     Console.WriteLine(
         "Foundation worker completed: campaigns="
         + training.CompletedCampaigns
@@ -1291,6 +1333,7 @@ catch (OperationCanceledException)
                     terminalResume.ExternalEffectiveStartMode,
                 ResumeProvenance = terminalResume
             });
+        writeTerminalProgress?.Invoke("cancelled");
     }
     return 3;
 }
@@ -1346,6 +1389,7 @@ catch (Exception ex)
                     terminalResume.ExternalEffectiveStartMode,
                 ResumeProvenance = terminalResume
             });
+        writeTerminalProgress?.Invoke("failed");
     }
     return 1;
 }
@@ -2713,15 +2757,17 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
         : ReplayIdentity(
             job.Request.ModelSelectionAnchorEpisodes
             ?? new List<CombatEpisode>());
+    var previousRecommendedCheckpointId =
+        catalog.RecommendedCheckpointId;
     catalog.Entries.RemoveAll(item => string.Equals(
         item.Id,
         entry.Id,
         StringComparison.Ordinal));
     catalog.Entries.Add(entry);
-    catalog.Entries = catalog.Entries
-        .OrderByDescending(item => item.CreatedUtc)
-        .Take(CombatFoundationCheckpointCatalogProtocol.MaximumEntries)
-        .ToList();
+    catalog.Entries = FoundationCheckpointRetentionPolicy.Select(
+        catalog.Entries,
+        entry.Id,
+        previousRecommendedCheckpointId);
     var recommended = CombatFoundationCheckpointCatalogProtocol.Recommend(
         catalog.Entries);
     catalog.RecommendedCheckpointId = recommended?.Id ?? "";

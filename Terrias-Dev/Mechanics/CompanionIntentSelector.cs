@@ -201,7 +201,10 @@ public static class CompanionIntentSelector
 
     private static int HighThreatLowHpPenalty(CompanionBattleState state)
     {
-        var status = FightManager.Instance?.statuses?.TryGetValue(state.OwnerStatusId, out var value) == true ? value : null;
+        var statusId = string.Equals(state.EntityKind, "SpiritAttachment", StringComparison.Ordinal)
+            ? state.StatusId
+            : state.OwnerStatusId;
+        var status = FightManager.Instance?.statuses?.TryGetValue(statusId, out var value) == true ? value : null;
         if (HpPercent(status) > 35)
         {
             return 0;

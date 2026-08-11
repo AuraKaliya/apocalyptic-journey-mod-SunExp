@@ -192,13 +192,19 @@ public sealed class CombatFoundationInferenceHealth
 public static class CombatFoundationPromotionProtocol
 {
     public const string Version =
-        "paired-evidence-v7-conclusive-baseline";
+        "paired-evidence-v8-tiered-same-model";
 
     public const string SignificantImprovement = "significant-improvement";
 
     public const string EquivalentNonInferior = "equivalent-noninferior";
 
     public const string AbsoluteQualifiedBest = "absolute-qualified-best";
+
+    public const string ExperimentalAbsoluteQualified =
+        "experimental-absolute-qualified";
+
+    public const string ExperimentalRuntimeTest =
+        "experimental-runtime-test";
 
     public const string OfflineRejected = "offline-rejected";
 
@@ -233,6 +239,15 @@ public static class CombatFoundationPromotionProtocol
     public const double TargetStateFeatureCollisionRate = 0.03d;
 
     public const double DefaultMaximumActionFeatureCollisionRate = 0.06d;
+}
+
+public static class CombatFoundationDeploymentTier
+{
+    public const string Formal = "formal";
+
+    public const string Experimental = "experimental";
+
+    public const string Diagnostic = "diagnostic";
 }
 
 public static class CombatFoundationSemanticGateProtocol
@@ -1876,6 +1891,10 @@ public sealed class CombatFoundationDecisionCandidateTrace
 {
     public string CandidateId { get; set; } = "";
 
+    public string SourceId { get; set; } = "";
+
+    public string OwnerModId { get; set; } = "";
+
     public int SearchVisits { get; set; }
 
     public double SearchPrior { get; set; }
@@ -2056,6 +2075,23 @@ public sealed class CombatCampaignFoundationTrainingResult
     public bool Success { get; set; }
 
     public bool AcceptancePassed { get; set; }
+
+    public bool ExperimentalEligibilityPassed { get; set; }
+
+    public bool RuntimeSafetyPassed { get; set; }
+
+    public bool RawIsolationPassed { get; set; }
+
+    public string DeploymentTier { get; set; } =
+        CombatFoundationDeploymentTier.Diagnostic;
+
+    public string DeploymentTierReason { get; set; } = "";
+
+    public bool SameModelEvidenceBound { get; set; }
+
+    public string ValidationModelId { get; set; } = "";
+
+    public string CapabilityProbeModelId { get; set; } = "";
 
     public bool FormalModelBlocked { get; set; }
 
@@ -4272,7 +4308,8 @@ public sealed class CombatCampaignFoundationTrainer
                     RequiredStrategyClassFrames =
                         RequiredStrategyClassFrames(
                             result.Iterations.LastOrDefault()
-                                ?.TransformerTeacher),
+                                ?.TransformerTeacher,
+                            replayWindow),
                     MaximumUnsafeEndTurnShare = Math.Min(
                         0.80d,
                         foundationTrainingOptions
@@ -4519,8 +4556,11 @@ public sealed class CombatCampaignFoundationTrainer
                                     Iteration = iterationNumber,
                                     TotalIterations = iterations,
                                     FinalRefreshRequested =
-                                        request.Resume == null
-                                        || request.FinalizeTransformerTeacher,
+                                        CombatTransformerTeacherRefreshProtocol
+                                            .ShouldRequestFinalRefresh(
+                                                request.FinalizeTransformerTeacher,
+                                                iterationNumber,
+                                                iterations),
                                     DecisionProfile = request.DecisionProfile,
                                     Episodes = trainingReplayWindow,
                                     Options = transformerTeacherOptions,
@@ -6369,15 +6409,11 @@ public sealed class CombatCampaignFoundationTrainer
         }
 
         var qualifiedBest = workingModelBank.QualifiedBest;
-        result.QualifiedCandidateCount = result.Iterations.Count(item =>
-            item.AbsoluteQualificationGatePassed
-            && (item.NonInferiorityGatePassed
-                || !item.HadIncumbentModel));
+        result.QualifiedCandidateCount = result.Iterations.Count(
+            EligibleForAbsoluteQualifiedSlot);
         if (qualifiedBest != null
             && !result.Iterations.Any(item =>
-                item.AbsoluteQualificationGatePassed
-                && (item.NonInferiorityGatePassed
-                    || !item.HadIncumbentModel)
+                EligibleForAbsoluteQualifiedSlot(item)
                 && string.Equals(
                     item.CandidateModelId,
                     qualifiedBest.Model.ModelId,
@@ -6417,9 +6453,9 @@ public sealed class CombatCampaignFoundationTrainer
         }
 
         var evaluationModel = qualifiedBest?.Model
+                              ?? result.WorkingChampion
                               ?? result.BestPendingArenaCandidate?.Model
                               ?? result.LatestTrainingModel
-                              ?? result.WorkingChampion
                               ?? result.Champion;
         if (evaluationModel == null)
         {
@@ -6430,6 +6466,7 @@ public sealed class CombatCampaignFoundationTrainer
             return result;
         }
         result.EvaluatedModelId = evaluationModel.ModelId;
+        result.ValidationModelId = evaluationModel.ModelId;
         result.EvaluatedModelIteration = result.Iterations
             .Where(item => string.Equals(
                 item.CandidateModelId,
@@ -6454,6 +6491,7 @@ public sealed class CombatCampaignFoundationTrainer
 
         if (capabilityProbeCampaigns > 0)
         {
+            result.CapabilityProbeModelId = evaluationModel.ModelId;
             result.CapabilityProbe = RunCapabilityProbe(
                 request,
                 ruleset,
@@ -6770,9 +6808,53 @@ public sealed class CombatCampaignFoundationTrainer
             !request.RequireCapabilityProbeBaselineGain
             || capabilityProbeCampaigns <= 0
             || result.CapabilityProbe.PassedBaselineGate;
+        result.RuntimeSafetyPassed = RuntimeSafetyPassed(
+            result.Validation,
+            result.TerminalConsistencyViolations,
+            result.FeatureLeakageViolations,
+            result.SemanticGatePassed,
+            normalValidationCampaigns,
+            advancedValidationCampaigns);
+        result.RawIsolationPassed = RawIsolationPassed(
+            result.Validation,
+            result.RuntimeSafetyPassed);
+        result.SameModelEvidenceBound = SameModelEvidenceBound(
+            evaluationModel.ModelId,
+            result.EvaluatedModelId,
+            result.ValidationModelId,
+            capabilityProbeCampaigns > 0
+                ? result.CapabilityProbeModelId
+                : null);
         result.AcceptancePassed = result.Validation.Passed
                                   && qualifiedBest != null
-                                  && capabilityGatePassed;
+                                  && string.Equals(
+                                      evaluationModel.ModelId,
+                                      qualifiedBest.Model.ModelId,
+                                      StringComparison.Ordinal)
+                                  && capabilityGatePassed
+                                  && result.SameModelEvidenceBound;
+        result.ExperimentalEligibilityPassed = !result.AcceptancePassed
+                                                  && result.RuntimeSafetyPassed
+                                                  && result.SameModelEvidenceBound;
+        result.DeploymentTier = result.AcceptancePassed
+            ? CombatFoundationDeploymentTier.Formal
+            : result.ExperimentalEligibilityPassed
+                ? CombatFoundationDeploymentTier.Experimental
+                : CombatFoundationDeploymentTier.Diagnostic;
+        result.DeploymentTierReason = result.AcceptancePassed
+            ? "绝对资格、能力探针与最终隔离验证均由同一模型通过"
+            : result.ExperimentalEligibilityPassed
+                ? ExperimentalTierReason(result)
+                : !result.SameModelEvidenceBound
+                        ? "竞技场、能力探针与最终隔离验证没有绑定到同一模型"
+                        : !result.RuntimeSafetyPassed
+                            ? "运行时安全、语义完整性或验证样本完整性未通过"
+                            : "没有可加载的评估模型";
+        if (result.ExperimentalEligibilityPassed && !result.AcceptancePassed)
+        {
+            result.AcceptanceKind =
+                CombatFoundationPromotionProtocol.ExperimentalRuntimeTest;
+        }
         if (result.AcceptancePassed)
         {
             var acceptedIteration = result.Iterations.FirstOrDefault(item =>
@@ -6819,6 +6901,16 @@ public sealed class CombatCampaignFoundationTrainer
               + result.Validation.AdvancedVictories
               + "/"
               + advancedValidationCampaigns
+            : result.ExperimentalEligibilityPassed
+                ? "训练完成，模型已进入可加载的实验底模层：普通 "
+                  + result.Validation.NormalVictories
+                  + "/"
+                  + result.Validation.NormalCampaigns
+                  + "，高级 "
+                  + result.Validation.AdvancedVictories
+                  + "/"
+                  + result.Validation.AdvancedCampaigns
+                  + "；该模型仅完成技术兼容与运行时安全准入，实机效果可能回退，必须显式确认后使用。"
             : "底模尚未达到隔离验收线：普通 "
               + result.Validation.NormalVictories
               + "/"
@@ -9850,6 +9942,8 @@ public sealed class CombatCampaignFoundationTrainer
             : new CombatFoundationDecisionCandidateTrace
             {
                 CandidateId = candidate.CandidateId,
+                SourceId = candidate.SourceId,
+                OwnerModId = candidate.OwnerModId,
                 SearchVisits = candidate.SearchVisits,
                 SearchPrior = candidate.SearchPrior,
                 SearchValue = candidate.SearchValue,
@@ -12452,23 +12546,38 @@ public sealed class CombatCampaignFoundationTrainer
     }
 
     internal static Dictionary<string, int> RequiredStrategyClassFrames(
-        CombatTransformerTeacherReport? report)
+        CombatTransformerTeacherReport? report,
+        IEnumerable<CombatEpisode>? currentReplay = null)
     {
         var required = new Dictionary<string, int>(StringComparer.Ordinal);
-        if (report == null) return required;
+        var replayFrames = currentReplay?
+            .SelectMany(episode => episode.Frames
+                                   ?? new List<CombatEpisodeFrame>())
+            .ToArray() ?? Array.Empty<CombatEpisodeFrame>();
         foreach (var label in new[] { "transform", "growth" })
         {
             var applicable = StrategyReportCount(
-                report.StrategyApplicableCounts,
+                report?.StrategyApplicableCounts,
                 label);
-            if (applicable < 8) continue;
-            if (StrategyReportCount(report.StrategyLabelCounts, label) < 4)
+            var positiveClass = "strategy-" + label;
+            var negativeClass = positiveClass + "-negative";
+            var replayHasOpportunity = replayFrames.Any(frame =>
+                CombatTrainingReplayWindowSelector.FrameMatchesStrategyClass(
+                    frame,
+                    positiveClass)
+                || CombatTrainingReplayWindowSelector
+                    .FrameMatchesStrategyClass(frame, negativeClass));
+            // Once a strategy opportunity is observable, sparse supervision is
+            // evidence that targeted replay is needed rather than a reason to
+            // postpone its quota. A truly inapplicable head remains omitted.
+            if (applicable <= 0 && !replayHasOpportunity) continue;
+            if (StrategyReportCount(report?.StrategyLabelCounts, label) < 4)
             {
-                required["strategy-" + label] = 4;
+                required[positiveClass] = 4;
             }
-            if (StrategyReportCount(report.StrategyNegativeCounts, label) < 4)
+            if (StrategyReportCount(report?.StrategyNegativeCounts, label) < 4)
             {
-                required["strategy-" + label + "-negative"] = 4;
+                required[negativeClass] = 4;
             }
         }
         return required;
@@ -13173,11 +13282,9 @@ public sealed class CombatCampaignFoundationTrainer
                 AddCandidate(fallbackModel, fallbackEvidence);
             }
             if (qualifiedModel != null
-                && qualifiedEvidence?.AbsoluteQualificationGatePassed == true
-                && (qualifiedEvidence.NonInferiorityGatePassed
-                    || !qualifiedEvidence.HadIncumbentModel)
+                && EligibleForAbsoluteQualifiedSlot(qualifiedEvidence)
                 && string.Equals(
-                    qualifiedEvidence.CandidateModelId,
+                    qualifiedEvidence!.CandidateModelId,
                     qualifiedModel.ModelId,
                     StringComparison.Ordinal))
             {
@@ -13212,9 +13319,7 @@ public sealed class CombatCampaignFoundationTrainer
             TryUpdate("normal-best", candidate, updated);
             TryUpdate("advanced-best", candidate, updated);
             TryUpdate("balanced-best", candidate, updated);
-            if (iteration.AbsoluteQualificationGatePassed
-                && (iteration.NonInferiorityGatePassed
-                    || !iteration.HadIncumbentModel))
+            if (EligibleForAbsoluteQualifiedSlot(iteration))
             {
                 TryUpdate(
                     CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
@@ -13275,6 +13380,116 @@ public sealed class CombatCampaignFoundationTrainer
             slots[slot] = candidate;
             updated.Add(slot);
         }
+    }
+
+    internal static bool EligibleForAbsoluteQualifiedSlot(
+        CombatCampaignFoundationIteration? iteration)
+    {
+        // Absolute qualification is the stable single-model quality floor.
+        // Paired non-inferiority remains a stronger relative diagnostic and
+        // publication signal; it must not erase an otherwise absolute-qualified
+        // candidate from the working bank.
+        return iteration?.AbsoluteQualificationGatePassed == true;
+    }
+
+    internal static bool SameModelEvidenceBound(
+        string? selectedModelId,
+        string? evaluatedModelId,
+        string? validationModelId,
+        string? capabilityProbeModelId)
+    {
+        if (string.IsNullOrWhiteSpace(selectedModelId)
+            || !string.Equals(
+                selectedModelId,
+                evaluatedModelId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                selectedModelId,
+                validationModelId,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+        return string.IsNullOrWhiteSpace(capabilityProbeModelId)
+               || string.Equals(
+                   selectedModelId,
+                   capabilityProbeModelId,
+                   StringComparison.Ordinal);
+    }
+
+    internal static bool RuntimeSafetyPassed(
+        CombatCampaignFoundationValidation? validation,
+        int terminalConsistencyViolations,
+        int featureLeakageViolations,
+        bool semanticGatePassed,
+        int expectedNormalCampaigns,
+        int expectedAdvancedCampaigns)
+    {
+        return validation != null
+               && semanticGatePassed
+               && terminalConsistencyViolations == 0
+               && featureLeakageViolations == 0
+               && validation.InvalidCampaigns == 0
+               && validation.BehaviorPassed
+               && validation.SevereEndTurnMistakes == 0
+               && validation.DominatedEndTurns == 0
+               && validation.EndTurnsIntoAvoidableLethal == 0
+               && validation.EndTurnsWithCertifiedCycle == 0
+               && validation.AvoidableEndTurnsWithUnusedEnergy == 0
+               && validation.NoEffectActionAttempts == 0
+               && validation.RepeatedNoEffectActionAttempts == 0
+               && validation.GuaranteedNoEffectActionAttempts == 0
+               && validation.InteractiveActionContractFailures == 0
+               && expectedNormalCampaigns > 0
+               && expectedAdvancedCampaigns > 0
+               && validation.NormalCampaigns == expectedNormalCampaigns
+               && validation.AdvancedCampaigns == expectedAdvancedCampaigns;
+    }
+
+    internal static bool RawIsolationPassed(
+        CombatCampaignFoundationValidation? validation,
+        bool runtimeSafetyPassed)
+    {
+        return runtimeSafetyPassed
+               && validation != null
+               && validation.NormalCampaigns > 0
+               && validation.AdvancedCampaigns > 0
+               && validation.NormalWinRate + 0.0000001d
+                  >= validation.RequiredNormalWinRate
+               && validation.AdvancedWinRate + 0.0000001d
+                  >= validation.RequiredAdvancedWinRate;
+    }
+
+    private static string ExperimentalTierReason(
+        CombatCampaignFoundationTrainingResult result)
+    {
+        var reasons = new List<string>();
+        if (!result.Validation.Passed)
+        {
+            reasons.Add("未通过正式 Wilson 置信下界");
+        }
+        if (!result.RawIsolationPassed)
+        {
+            reasons.Add("原始胜率未达到配置目标");
+        }
+        if (string.Equals(
+                result.CapabilityProbe.BaselineGateVerdict,
+                "fail",
+                StringComparison.Ordinal))
+        {
+            reasons.Add("能力探针检测到相对基线回退");
+        }
+        else if (!result.CapabilityProbe.PassedBaselineGate)
+        {
+            reasons.Add("能力探针尚无结论性增益证据");
+        }
+        if (reasons.Count == 0)
+        {
+            reasons.Add("尚未完成正式效果认证");
+        }
+        return "技术兼容与运行时安全验证通过；"
+               + string.Join("；", reasons)
+               + "，仅供实机配置测试和问题收集";
     }
 
     internal static int CompareAbsoluteQualifiedCandidates(

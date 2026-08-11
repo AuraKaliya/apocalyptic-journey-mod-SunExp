@@ -40,9 +40,16 @@ public static class MorningStarRelicFormula
             && isNegativeBuff;
     }
 
-    public static bool RelicPouchRecycles(bool loneerActiveAtCombatStart)
+    public static StarStonePouchResetPolicy RelicPouchResetPolicy(bool loneerActiveAtCombatStart)
     {
-        return loneerActiveAtCombatStart;
+        return loneerActiveAtCombatStart
+            ? StarStonePouchResetPolicy.WhenExhausted
+            : StarStonePouchResetPolicy.RemoveWhenExhausted;
+    }
+
+    public static bool ParticipatesInStarStoneOrbit(string channelId)
+    {
+        return string.Equals(channelId, CareerPouchChannel, StringComparison.Ordinal);
     }
 
     public static string PouchStateKey(string ownerStatusId, string channelId)
@@ -57,4 +64,11 @@ public static class MorningStarRelicFormula
             : channelId.Trim();
         return ownerStatusId + "\u001f" + channel;
     }
+}
+
+public enum StarStonePouchResetPolicy
+{
+    NaturalMorningStar,
+    WhenExhausted,
+    RemoveWhenExhausted
 }

@@ -105,7 +105,7 @@ public static class SpiritCaptureService
         {
             var resolution = SpiritCaptureRegistry.ResolveProfile(snapshot.EnemyId, snapshot.VariantId);
             LogProfileResolution(snapshot, resolution, "network");
-            state.Success = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile);
+            state.Success = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile, token ?? "");
             if (!state.Success)
             {
                 state.Reason = "敌人离场结算失败。";
@@ -170,7 +170,7 @@ public static class SpiritCaptureService
 
         var resolution = SpiritCaptureRegistry.ResolveProfile(snapshot.EnemyId, snapshot.VariantId);
         LogProfileResolution(snapshot, resolution, "local");
-        var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile);
+        var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile, seed);
         PlayerApi.ShowCaption(settled
             ? "精灵球：成功捕获【" + snapshot.DisplayName + "】，已进入"
               + (recorded.AddedToParty ? "携带背包。" : "精灵仓库。")

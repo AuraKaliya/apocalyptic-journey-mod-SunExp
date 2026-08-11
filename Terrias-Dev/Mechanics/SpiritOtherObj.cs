@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.Infrastructure;
 using TMPro;
@@ -12,10 +13,12 @@ namespace Terrias.Dll.Mechanics;
 
 public sealed class SpiritOtherObj : Partner
 {
+    private const int NativePartnerIndexBase = 10000;
     private static readonly object PresentationCacheLock = new();
     private static readonly Dictionary<string, Dictionary<string, string>> PresentationTemplates =
         new(StringComparer.Ordinal);
     private static Dictionary<string, string>? presentationAdapterData;
+    private static int nextNativePartnerIndex;
 
     private CompanionBattleState? battleState;
     private ObjectCard? intentCard;
@@ -44,23 +47,27 @@ public sealed class SpiritOtherObj : Partner
         Snapshot = snapshot;
         OwnerStatusId = ownerStatusId ?? "";
         OwnerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(OwnerStatusId, ownerPlayerId);
+        var finalStatusId = string.IsNullOrWhiteSpace(statusId) ? SpiritStateStore.NextStatusId() : statusId.Trim();
+        var nativeIndex = NativePartnerIndexBase + Interlocked.Increment(ref nextNativePartnerIndex);
         var config = SpiritSummonService.CreateSpiritDataConfig(snapshot, stats);
-        base.Init(config, 0f, Math.Max(0, slotIndex));
-        Attack = stats.Attack;
-        Defend = stats.Armor;
-        MaxHp = stats.MaxHp;
-        CurHp = stats.MaxHp;
-        MaxActionCount = 1;
-        ActionCount = 1;
-        InstanceId = string.IsNullOrWhiteSpace(statusId) ? SpiritStateStore.NextStatusId() : statusId.Trim();
-        gameObject.name = "TerriasSpirit:" + snapshot.DisplayName + ":" + InstanceId;
-        var status = transform.gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;
+        base.Init(config, 1f, nativeIndex);
+        var nativeStatusId = InstanceId;
+        var status = Status as StatusManager;
         if (status == null)
         {
+            RemoveNativeRegistration(nativeStatusId);
             return false;
         }
 
-        Status = status;
+        Attack = stats.Attack;
+        Defend = stats.Armor;
+        MaxHp = Math.Max(1, stats.MaxHp);
+        CurHp = MaxHp;
+        MaxActionCount = 1;
+        ActionCount = 1;
+        InstanceId = finalStatusId;
+        MigrateNativeStatus(status, nativeStatusId, finalStatusId);
+        gameObject.name = "TerriasSpirit:" + snapshot.DisplayName + ":" + InstanceId;
         battleState = CompanionBattleStateStore.Create(
             InstanceId,
             snapshot.IntentProfileKey,
@@ -73,9 +80,8 @@ public sealed class SpiritOtherObj : Partner
         SpiritSummonService.RegisterFightState(this);
         dataConfig.scriptExecutor.Self = Status;
         dataConfig.scriptExecutor.SetStatus("Self");
-        AddCardList();
         status.animatedState = IStatusManager.AnimatedState.Idle;
-        InitBound(null, true);
+        status.UpdateStatus(true);
         return true;
     }
 
@@ -115,12 +121,6 @@ public sealed class SpiritOtherObj : Partner
             yield return WaitForAuthoritativeTurnCompletion();
             yield break;
         }
-        if (!ProjectionEffectContextService.IsOwnerAvailable(battleState))
-        {
-            CompleteSkippedTurn("OwnerUnavailable");
-            yield break;
-        }
-
         if (Status.state == IStatusManager.State.Dead)
         {
             yield break;
@@ -334,5 +334,50 @@ public sealed class SpiritOtherObj : Partner
                 valueText.text = "";
             }
         }
+    }
+
+    private void MigrateNativeStatus(StatusManager status, string nativeStatusId, string finalStatusId)
+    {
+        var manager = FightManager.Instance;
+        manager?.statuses?.Remove(nativeStatusId);
+        manager?.statusData?.Remove(nativeStatusId);
+
+        Status = status;
+        status.MiDataConfig?.Vars?.Remove("Online");
+        status.MiDataConfig?.Vars?.Add("Online", finalStatusId);
+        status.GetComponent<DialogueBoxIdentity>()?.SetInstanceId(finalStatusId);
+
+        new StatusDataTransfer
+        {
+            maxHp = MaxHp,
+            curHp = CurHp,
+            defend = Defend,
+            InstanceId = finalStatusId,
+            state = IStatusManager.State.Default,
+            Version = 0
+        }.Populate(status);
+
+        if (manager == null)
+        {
+            return;
+        }
+
+        manager.statuses[finalStatusId] = status;
+        if (manager.netIdentity != null && manager.isServer)
+        {
+            manager.statusData[finalStatusId] = new StatusDataTransfer(status);
+        }
+    }
+
+    private static void RemoveNativeRegistration(string nativeStatusId)
+    {
+        if (string.IsNullOrWhiteSpace(nativeStatusId))
+        {
+            return;
+        }
+
+        FightManager.Instance?.statuses?.Remove(nativeStatusId);
+        FightManager.Instance?.statusData?.Remove(nativeStatusId);
+        FightManager.Instance?.ActionQueue?.RemoveAll(item => item == null || item.InstanceId == nativeStatusId);
     }
 }

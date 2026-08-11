@@ -159,6 +159,7 @@ public static class ProjectionAttachmentPresenter
     }
 }
 
+[DefaultExecutionOrder(9999)]
 internal sealed class ProjectionVisualProxy : MonoBehaviour
 {
     private const float ProjectionHeightAt1080 = 120f;
@@ -185,6 +186,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
     private bool sourceColliderWasEnabled;
     private bool sourceReflectionWasActive;
     private bool sourceBottomWasActive;
+    private bool sourceActionContentWasActive;
+    private bool keepVisibleWhenOwnerInactive;
     private bool sourcePresentationRestored;
     private bool hasLocalAabb;
     private Vector3 localAabbCenter;
@@ -208,6 +211,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
     private float focusPeakScale = 1.08f;
     private Vector2 lastDisplayedScreenCenter;
     private bool hasDisplayedScreenCenter;
+    private Bounds lastDisplayedBounds;
+    private Rect lastDisplayedScreen;
     private bool warnedInvalidLayout;
     private bool hasValidLayout;
     private bool hasLayoutSnapshot;
@@ -234,7 +239,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         GameObject? reflection,
         GameObject? bottom,
         StatusManager? status,
-        SpriteRenderer outputRenderer)
+        SpriteRenderer outputRenderer,
+        bool allowInactiveOwner = false)
     {
         ownerRoot = owner;
         ownerCollider = ownerBoundsCollider;
@@ -246,6 +252,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         sourceBottom = bottom;
         projectionStatus = status;
         proxyRenderer = outputRenderer;
+        keepVisibleWhenOwnerInactive = allowInactiveOwner;
         proxyRenderer.enabled = false;
         layoutCamera = Camera.main;
 
@@ -253,6 +260,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         sourceColliderWasEnabled = projectionBoundsCollider.enabled;
         sourceReflectionWasActive = reflection != null && reflection.activeSelf;
         sourceBottomWasActive = bottom != null && bottom.activeSelf;
+        sourceActionContentWasActive = status?.actionContent?.activeSelf == true;
         sourcePresentationRestored = false;
         RefreshLocalAabb();
         if (!hasLocalAabb)
@@ -326,6 +334,35 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         {
             sourceBottom.SetActive(sourceBottomWasActive);
         }
+
+        if (projectionStatus?.actionContent != null)
+        {
+            if (scaledActionContent == projectionStatus.actionContent)
+            {
+                projectionStatus.actionContent.transform.localScale = actionContentBaseScale;
+            }
+            projectionStatus.actionContent.SetActive(sourceActionContentWasActive);
+        }
+    }
+
+    public void RefreshNativeUiAnchors(bool visible)
+    {
+        var actionContent = projectionStatus?.actionContent;
+        if (actionContent == null)
+        {
+            return;
+        }
+
+        var show = visible && hasValidLayout && hasLayoutSnapshot;
+        if (actionContent.activeSelf != show)
+        {
+            actionContent.SetActive(show);
+        }
+
+        if (show)
+        {
+            AnchorIntent(lastDisplayedBounds, lastDisplayedScreen);
+        }
     }
 
     private void LateUpdate()
@@ -350,7 +387,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         var localAabbChanged = RefreshLocalAabb();
         if (!hasLocalAabb
             || !sourceRoot.gameObject.activeInHierarchy
-            || !ownerRoot.gameObject.activeInHierarchy)
+            || !ownerRoot.gameObject.activeInHierarchy && !keepVisibleWhenOwnerInactive)
         {
             proxyRenderer.enabled = false;
             hasLayoutSnapshot = false;
@@ -376,6 +413,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         layoutCamera = camera;
         var sourceXDirection = sourceRenderer.transform.localScale.x < 0f ? -1f : 1f;
         var sourceYDirection = sourceRenderer.transform.localScale.y < 0f ? -1f : 1f;
+        proxyRenderer.flipX = sourceRenderer.flipX ^ (sourceXDirection < 0f);
+        proxyRenderer.flipY = sourceRenderer.flipY ^ (sourceYDirection < 0f);
         var actionContent = projectionStatus?.actionContent;
         var actionContentActive = actionContent != null && actionContent.activeInHierarchy;
         var layoutChanged = !hasLayoutSnapshot
@@ -397,6 +436,10 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         if (!layoutChanged)
         {
             proxyRenderer.enabled = hasValidLayout;
+            if (hasValidLayout)
+            {
+                AnchorIntent(lastDisplayedBounds, lastDisplayedScreen);
+            }
             return;
         }
 
@@ -445,8 +488,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         var desiredAabbCenter = camera.ScreenToWorldPoint(desiredScreenPoint);
         var localCenterOffset = localAabbCenter - localBodyPosition;
         var desiredBodyOrigin = desiredAabbCenter - new Vector3(
-            localCenterOffset.x * displayScale,
-            localCenterOffset.y * displayScale,
+            localCenterOffset.x * displayScale * sourceXDirection,
+            localCenterOffset.y * displayScale * sourceYDirection,
             0f);
         if (!IsFinite(desiredAabbCenter) || !IsFinite(desiredBodyOrigin))
         {
@@ -455,10 +498,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         }
 
         transform.position = desiredBodyOrigin;
-        transform.localScale = new Vector3(
-            displayScale * sourceXDirection,
-            displayScale * sourceYDirection,
-            1f);
+        transform.localScale = new Vector3(displayScale, displayScale, 1f);
         proxyRenderer.sortingLayerID = ownerRenderer.sortingLayerID;
         proxyRenderer.sortingOrder = ownerRenderer.sortingOrder - 1;
 
@@ -475,6 +515,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
             desiredScreenCenter.y + targetScreenHeight * 0.5f);
         warnedInvalidLayout = false;
         hasValidLayout = true;
+        lastDisplayedBounds = displayedBounds;
+        lastDisplayedScreen = displayedScreen;
         lastDisplayedScreenCenter = desiredScreenCenter;
         hasDisplayedScreenCenter = true;
         proxyRenderer.enabled = true;
@@ -509,10 +551,6 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
             sourceBottom.SetActive(false);
         }
 
-        if (projectionStatus?.statusBarObj?.activeSelf == true)
-        {
-            projectionStatus.statusBarObj.SetActive(false);
-        }
     }
 
     private void SynchronizeVisual()
@@ -536,8 +574,6 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         }
 
         proxyRenderer.color = sourceRenderer.color;
-        proxyRenderer.flipX = sourceRenderer.flipX;
-        proxyRenderer.flipY = sourceRenderer.flipY;
     }
 
     private bool RefreshLocalAabb()

@@ -24,6 +24,7 @@ public sealed class CompanionThreatSnapshot
 public static class CompanionThreatService
 {
     private const int RealPlayerTargetWeight = 100;
+    private const int SpiritBaseTargetWeight = 20;
     public const int MinCompanionTargetWeight = 0;
     public const int MaxCompanionTargetWeight = 160;
     public const int MaxBaseThreat = 0;
@@ -45,7 +46,11 @@ public static class CompanionThreatService
 
         lock (SyncRoot)
         {
-            Threats[state.StatusId] = new CompanionThreatState(state.StatusId, 0);
+            Threats[state.StatusId] = new CompanionThreatState(
+                state.StatusId,
+                string.Equals(state.EntityKind, "SpiritAttachment", StringComparison.Ordinal)
+                    ? SpiritBaseTargetWeight
+                    : 0);
         }
 
         TerriasPerformanceCounters.Record("Companion.Threat.Registered");
@@ -246,8 +251,22 @@ public static class CompanionThreatService
 
     public static void AddActiveCompanionsToAllTargets(ScriptExecutor executor)
     {
-        // Owner-bound projections are never ordinary targets. All-target
-        // effects retain the native formal-friendly target set unchanged.
+        if (executor?.Object == null)
+        {
+            return;
+        }
+
+        var known = new HashSet<string>(
+            executor.Object.Where(status => status != null && IsAlive(status)).Select(status => status!.InstanceId),
+            StringComparer.Ordinal);
+        foreach (var state in SpiritStateStore.Active())
+        {
+            var status = state.Spirit?.Status;
+            if (status != null && IsAlive(status) && known.Add(status.InstanceId))
+            {
+                executor.Object.Add(status);
+            }
+        }
     }
 
     public static bool TryRedirectEnemySingleTarget(ScriptExecutor executor)
@@ -258,11 +277,20 @@ public static class CompanionThreatService
         }
 
         var realTargets = executor.Object
-            .Where(target => target != null && !ProjectionStateStore.IsProjection(target))
+            .Where(target => IsAlive(target)
+                             && !ProjectionStateStore.IsProjection(target)
+                             && !SpiritStateStore.IsSpirit(target))
             .GroupBy(target => target.InstanceId, StringComparer.Ordinal)
             .Select(group => group.First())
             .ToList();
-        if (realTargets.Count == 0)
+        var spiritTargets = SpiritStateStore.Active()
+            .Select(state => state.Spirit?.Status)
+            .Where(IsAlive)
+            .Cast<IStatusManager>()
+            .GroupBy(target => target.InstanceId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+        if (realTargets.Count == 0 && spiritTargets.Count == 0)
         {
             return false;
         }
@@ -271,7 +299,7 @@ public static class CompanionThreatService
             target => target.InstanceId,
             target => OwnerThreat(target.InstanceId),
             StringComparer.Ordinal);
-        if (ownerBonuses.Values.All(value => value <= 0))
+        if (spiritTargets.Count == 0 && ownerBonuses.Values.All(value => value <= 0))
         {
             return false;
         }
@@ -279,6 +307,9 @@ public static class CompanionThreatService
         var weighted = realTargets
             .Select(target => new CompanionTargetCandidate(target, RealPlayerTargetWeight + ownerBonuses[target.InstanceId]))
             .ToList();
+        weighted.AddRange(spiritTargets.Select(target => new CompanionTargetCandidate(
+            target,
+            Math.Max(SpiritBaseTargetWeight, Snapshot(target.InstanceId)?.Value ?? SpiritBaseTargetWeight))));
         var totalWeight = weighted.Sum(candidate => candidate.Weight);
         if (totalWeight <= 0)
         {
@@ -299,10 +330,19 @@ public static class CompanionThreatService
             executor.Target = candidate.Status;
             executor.Object.Clear();
             executor.Object.Add(candidate.Status);
-            MarkOwnerTargeted(candidate.Status.InstanceId);
+            if (SpiritStateStore.IsSpirit(candidate.Status))
+            {
+                MarkSpiritTargeted(candidate.Status.InstanceId);
+            }
+            else
+            {
+                MarkOwnerTargeted(candidate.Status.InstanceId);
+            }
             if (changed)
             {
-                TerriasPerformanceCounters.Record("Companion.Threat.RedirectedToOwner");
+                TerriasPerformanceCounters.Record(SpiritStateStore.IsSpirit(candidate.Status)
+                    ? "Companion.Threat.RedirectedToSpirit"
+                    : "Companion.Threat.RedirectedToOwner");
             }
             return changed;
         }
@@ -341,6 +381,24 @@ public static class CompanionThreatService
             {
                 threat.RecentThreat = Math.Max(0, threat.RecentThreat - threat.DecayPerRound);
             }
+        }
+    }
+
+    private static void MarkSpiritTargeted(string statusId)
+    {
+        var threat = FindMutable(statusId);
+        if (threat != null)
+        {
+            lock (SyncRoot)
+            {
+                threat.RecentThreat = Math.Max(0, threat.RecentThreat - threat.DecayPerRound);
+            }
+        }
+
+        var spirit = SpiritStateStore.Find(statusId)?.Spirit;
+        if (spirit != null)
+        {
+            SpiritSummonService.BroadcastRuntimeState(spirit, "ThreatTargeted");
         }
     }
 
@@ -387,7 +445,7 @@ public static class CompanionThreatService
         public CompanionThreatState(string statusId, int baseThreat)
         {
             StatusId = statusId;
-            BaseThreat = 0;
+            BaseThreat = Clamp(baseThreat, 0, MaxCompanionTargetWeight);
         }
 
         public string StatusId { get; }
@@ -400,7 +458,7 @@ public static class CompanionThreatService
 
         public int DecayPerRound { get; set; } = 4;
 
-        public int Value => Clamp(PreviewThreat + RecentThreat, 0, MaxCompanionTargetWeight);
+        public int Value => Clamp(BaseThreat + PreviewThreat + RecentThreat, 0, MaxCompanionTargetWeight);
     }
 
     private readonly struct CompanionThreatValueSnapshot

@@ -151,14 +151,15 @@ public static class AuraToolsAutoBattleRuntime
             message = "请先从模型库选择一个模型";
             return false;
         }
-        if (string.Equals(mode, "active", StringComparison.Ordinal)
-            && !AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
+        if (IsModelApplicationMode(mode)
+            && !AuraToolsAutoBattleModelRuntime
+                .PortableFoundationMeetsActivationGate(
                 settings.Profile,
                 selectedModelId,
                 out var gateReason))
         {
             status = SnapshotModelApplicationStatus();
-            message = "所选模型尚不能受限应用：" + gateReason;
+            message = "所选模型尚不能应用：" + gateReason;
             return false;
         }
 
@@ -208,12 +209,21 @@ public static class AuraToolsAutoBattleRuntime
 
     private static string NormalizeModelApplicationMode(string value)
     {
-        return value switch
+        return (value ?? "").Trim().ToLowerInvariant() switch
         {
             "shadow" => "shadow",
-            "active" => "active",
+            "trial" => "trial",
+            "full" => "full",
+            "active" => "trial",
             _ => "off"
         };
+    }
+
+    internal static bool IsModelApplicationMode(string value)
+    {
+        var mode = NormalizeModelApplicationMode(value);
+        return string.Equals(mode, "trial", StringComparison.Ordinal)
+               || string.Equals(mode, "full", StringComparison.Ordinal);
     }
 
     private static string ModelApplicationModeLabel(string value)
@@ -221,7 +231,8 @@ public static class AuraToolsAutoBattleRuntime
         return value switch
         {
             "shadow" => "影子评估",
-            "active" => "受限应用",
+            "trial" => "实机试用",
+            "full" => "完整应用",
             _ => "关闭"
         };
     }
@@ -239,8 +250,16 @@ public static class AuraToolsAutoBattleRuntime
     private static void ResetForBattle()
     {
         WitchCombatInteractionRuntime.Reset();
+        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+        var startActive = ModuleEnabled
+                          && string.Equals(
+                              NormalizeModelApplicationMode(
+                                  autoBattle.TrainedModelMode),
+                              "full",
+                              StringComparison.Ordinal)
+                          && autoBattle.StartActive;
         EnsureController().ResetForBattle(
-            ModuleEnabled && AuraToolsConfigService.MatchExperience.AutoBattle.StartActive);
+            startActive);
     }
 
     private static void EndBattle()
@@ -344,6 +363,18 @@ public sealed class AutoBattleModelApplicationStatus
     public string LoadedModelId { get; set; } = "none";
 
     public string Diagnostic { get; set; } = "";
+
+    public string DecisionOwner { get; set; } = "baseline";
+
+    public bool ModelLoaded { get; set; }
+
+    public bool ModelLoading { get; set; }
+
+    public bool ModelIsolatedForBattle { get; set; }
+
+    public int EmergencyFallbackCount { get; set; }
+
+    public string LastFallbackReason { get; set; } = "";
 }
 
 internal sealed class AuraToolsAutoBattleController : MonoBehaviour
@@ -398,6 +429,14 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private long lastResetBattleSessionId;
     private string noActionFingerprint = "";
     private float noActionSince = -1f;
+    private readonly AutoBattleTechnicalFallbackState technicalFallback = new();
+    private bool modelAvailable;
+    private bool modelLoadPending;
+    private string modelLoadFailureReason = "";
+    private float activeDecisionQueuedAt = -1f;
+    private bool pendingActiveDecisionLearned;
+    private string currentDecisionOwner = "baseline";
+    private string pendingDecisionOwner = "none";
 
     public bool Active { get; private set; }
 
@@ -411,7 +450,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             EffectiveMode = trainedModelMode,
             SelectedModelId = selectedModelId ?? "",
             LoadedModelId = trainedModelId,
-            Diagnostic = lastModelDiagnostic
+            Diagnostic = lastModelDiagnostic,
+            DecisionOwner = currentDecisionOwner,
+            ModelLoaded = modelAvailable,
+            ModelLoading = modelLoadPending,
+            ModelIsolatedForBattle = technicalFallback.IsolatedForBattle,
+            EmergencyFallbackCount = technicalFallback.FallbackDecisionCount,
+            LastFallbackReason = technicalFallback.LastReason
         };
     }
 
@@ -469,6 +514,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         persistentNoEffectActionKeys.Clear();
         ResetNoActionWatchdog();
         ClearContinuationHint();
+        technicalFallback.ResetBattle(modelAvailable, modelLoadFailureReason);
+        currentDecisionOwner = AuraToolsAutoBattleRuntime
+            .IsModelApplicationMode(trainedModelMode)
+            ? modelAvailable ? "model" : "emergency-baseline"
+            : "baseline";
         SetActive(startActive);
         DestroyButton();
         nextUiProbeAt = 0f;
@@ -503,6 +553,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         persistentNoEffectActionKeys.Clear();
         ResetNoActionWatchdog();
         ClearContinuationHint();
+        currentDecisionOwner = "baseline";
+        pendingDecisionOwner = "none";
         ClearTeacherAction();
         ClearPendingAction();
         ClearPredictionMarkers();
@@ -554,6 +606,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         ObserveTeacherSettlement();
         UpdateShadowPrediction();
 
+        if (HandleActiveDecisionWatchdog())
+        {
+            return;
+        }
+
         if (transaction.IsActive
             && Time.unscaledTime > transaction.Deadline)
         {
@@ -567,7 +624,22 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 CombatActionTransactionState.TimedOut.ToString(),
                 transaction.TerminalReason,
                 terminal: false);
-            DeactivateWithReason("action transaction timed out");
+            if (string.Equals(
+                    pendingDecisionOwner,
+                    "model",
+                    StringComparison.Ordinal))
+            {
+                ReportTechnicalModelFailure(
+                    "action-timeout",
+                    transaction.TerminalReason);
+                ClearPendingAction();
+                transaction.Reset();
+                nextDecisionAt = Time.unscaledTime + 0.05f;
+            }
+            else
+            {
+                DeactivateWithReason("action transaction timed out");
+            }
             return;
         }
 
@@ -596,7 +668,22 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 CombatActionTransactionState.Failed.ToString(),
                 transaction.TerminalReason,
                 terminal: false);
-            DeactivateWithReason(transaction.TerminalReason);
+            if (string.Equals(
+                    pendingDecisionOwner,
+                    "model",
+                    StringComparison.Ordinal))
+            {
+                ReportTechnicalModelFailure(
+                    "interaction-failed",
+                    transaction.TerminalReason);
+                ClearPendingAction();
+                transaction.Reset();
+                nextDecisionAt = Time.unscaledTime + 0.05f;
+            }
+            else
+            {
+                DeactivateWithReason(transaction.TerminalReason);
+            }
             return;
         }
         if (interaction == WitchInteractionResolveResult.HandedToPlayer)
@@ -606,7 +693,22 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 CombatActionTransactionState.HandedOff.ToString(),
                 transaction.TerminalReason,
                 terminal: false);
-            DeactivateWithReason(transaction.TerminalReason);
+            if (string.Equals(
+                    pendingDecisionOwner,
+                    "model",
+                    StringComparison.Ordinal))
+            {
+                ReportTechnicalModelFailure(
+                    "interaction-handed-off",
+                    transaction.TerminalReason);
+                ClearPendingAction();
+                transaction.Reset();
+                nextDecisionAt = Time.unscaledTime + 0.05f;
+            }
+            else
+            {
+                DeactivateWithReason(transaction.TerminalReason);
+            }
             return;
         }
         if (interaction == WitchInteractionResolveResult.Completed)
@@ -643,6 +745,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
     private void DecideAndExecute()
     {
+        if (modelLoadPending
+            && AuraToolsAutoBattleRuntime
+                .IsModelApplicationMode(trainedModelMode))
+        {
+            nextDecisionAt = Time.unscaledTime + 0.10f;
+            return;
+        }
         if (!TryCapturePlayerState(out var state, out _)
             || !state.IsPlayerActionWindow
             || state.UiBusy)
@@ -659,8 +768,20 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private void QueueActiveDecision(CombatStateObservation state)
     {
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        var engine = SelectExecutionEngine(
+            state,
+            out var learned,
+            out var phase);
         var profile = BuildProfile();
-        var cacheKey = DecisionCacheKey(state, profile);
+        if (learned)
+        {
+            profile.ModelOwnsActionSelection = true;
+            profile.UseLowConfidenceFallback = false;
+            profile.PreferDominantFreeSetup = false;
+        }
+        var cacheKey = DecisionCacheKey(state, profile)
+                       + "|" + phase
+                       + "|" + technicalFallback.FallbackDecisionCount;
         if (activeDecisionPending
             && string.Equals(
                 pendingActiveDecisionKey,
@@ -670,10 +791,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return;
         }
 
-        var engine = SelectExecutionEngine(
-            state,
-            out var learned,
-            out var phase);
         var preparedState = engine.PrepareStateForIsolatedWorker(state);
         var simulationRules =
             engine.SnapshotSimulationRulesForIsolatedWorker();
@@ -697,6 +814,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         activeDecisionPending = true;
         pendingActiveDecisionKey = cacheKey;
+        pendingActiveDecisionLearned = learned;
+        activeDecisionQueuedAt = Time.unscaledTime;
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ActiveDecisionResult>
             {
@@ -779,6 +898,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                         activeDecisionPending = false;
                         pendingActiveDecisionKey = "";
                     }
+                    activeDecisionQueuedAt = -1f;
+                    pendingActiveDecisionLearned = false;
                     if (result.Learned)
                     {
                         cachedLearnedDecision = result.Decision;
@@ -787,6 +908,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                     {
                         cachedBaselineDecision = result.Decision;
                     }
+                    currentDecisionOwner = result.Learned
+                        ? "model"
+                        : result.Phase.StartsWith(
+                            "emergency-",
+                            StringComparison.Ordinal)
+                            ? "emergency-baseline"
+                            : "baseline";
                     var totalMilliseconds = ElapsedMilliseconds(
                         result.QueuedTimestamp);
                     RecordDecisionTiming(
@@ -842,12 +970,20 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                         activeDecisionPending = false;
                         pendingActiveDecisionKey = "";
                     }
+                    activeDecisionQueuedAt = -1f;
+                    pendingActiveDecisionLearned = false;
                     nextDecisionAt = Time.unscaledTime + 0.1f;
                     if (!(ex is OperationCanceledException))
                     {
                         AuraToolsLog.Warn(
                             "[AutoBattle] background decision failed: "
                             + ex.Message);
+                        if (learned)
+                        {
+                            HandleLearnedInferenceFailure(
+                                "active",
+                                ex);
+                        }
                     }
                 }
             });
@@ -855,9 +991,17 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         {
             activeDecisionPending = false;
             pendingActiveDecisionKey = "";
+            activeDecisionQueuedAt = -1f;
+            pendingActiveDecisionLearned = false;
             nextDecisionAt = Time.unscaledTime + 0.1f;
             AuraToolsLog.Warn(
                 "[AutoBattle] background decision task could not be queued");
+            if (learned)
+            {
+                ReportTechnicalModelFailure(
+                    "inference-queue-failed",
+                    "background decision task could not be queued");
+            }
         }
     }
 
@@ -866,25 +1010,29 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         out bool learned,
         out string phase)
     {
-        learned = string.Equals(
-                      trainedModelMode,
-                      "active",
-                      StringComparison.OrdinalIgnoreCase)
+        var application = AuraToolsAutoBattleRuntime
+            .IsModelApplicationMode(trainedModelMode);
+        if (application && technicalFallback.TryConsumeEmergencyFallback())
+        {
+            learned = false;
+            phase = "emergency-baseline";
+            currentDecisionOwner = "emergency-baseline";
+            return baselineDecisionEngine;
+        }
+        learned = application
+                  && modelAvailable
+                  && !modelLoadPending
+                  && !technicalFallback.IsolatedForBattle
                   && !string.Equals(
                       trainedModelId,
                       "none",
                       StringComparison.Ordinal);
-        if (learned
-            && !AuraToolsCombatKnowledgeRuntime.HasPlayerEquivalentReadiness(
-                state,
-                out var coverageReason))
-        {
-            learned = false;
-            AuraToolsLog.Debug(
-                "[AutoBattle][Observation] active model fell back to baseline: "
-                + coverageReason);
-        }
         phase = learned ? "learned-active" : "baseline-active";
+        if (application && !learned)
+        {
+            phase = "emergency-baseline";
+            currentDecisionOwner = "emergency-baseline";
+        }
         return learned ? trainedDecisionEngine : baselineDecisionEngine;
     }
 
@@ -926,14 +1074,24 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             }
             AuraToolsAutoBattleGameValidationRuntime.RecordExecutionFailure(
                 "模型在事务看门狗期限内始终没有返回可执行动作");
-            StopWithReason("在动作事务期限内没有获得治理批准的合法动作");
+            if (result.Learned)
+            {
+                ReportTechnicalModelFailure(
+                    "model-no-action",
+                    "模型在动作看门狗期限内没有返回合法动作");
+                ResetNoActionWatchdog();
+                nextDecisionAt = Time.unscaledTime + 0.05f;
+                return;
+            }
+            StopWithReason("紧急策略也没有获得可执行动作");
             return;
         }
 
         ResetNoActionWatchdog();
 
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
-        if (string.Equals(settings.UnknownActionPolicy, "handoff", StringComparison.OrdinalIgnoreCase)
+        if (!result.Learned
+            && string.Equals(settings.UnknownActionPolicy, "handoff", StringComparison.OrdinalIgnoreCase)
             && decision.Action.Semantics.Uncertainty >= 1.5d)
         {
             StopWithReason("遇到未识别动作，已交还玩家");
@@ -987,6 +1145,12 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 "[AutoBattle] execution rejected after revalidation: "
                 + execution.Message);
             transaction.Reset();
+            if (result.Learned)
+            {
+                ReportTechnicalModelFailure(
+                    "action-binding-rejected",
+                    execution.Message);
+            }
             nextDecisionAt = Time.unscaledTime + 0.05f;
             return;
         }
@@ -996,6 +1160,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         AuraToolsAutoBattleGameValidationRuntime.RecordDecision(state, decision);
         beforeAction = state;
         pendingDecision = decision;
+        pendingDecisionOwner = result.Learned
+            ? "model"
+            : result.Phase.StartsWith(
+                "emergency-",
+                StringComparison.Ordinal)
+                ? "emergency-baseline"
+                : "baseline";
         pendingSampleRecorded = false;
         decisionIndex++;
         transaction.AwaitSettlement();
@@ -1315,6 +1486,14 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             }
             runtime.ConfirmSettledAction(pendingDecision.Action, after);
             transaction.Complete("action settled: " + settlementReason);
+            if (string.Equals(
+                    pendingDecisionOwner,
+                    "model",
+                    StringComparison.Ordinal))
+            {
+                technicalFallback.ReportModelProgress();
+                currentDecisionOwner = "model";
+            }
             RecordPendingTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
                 transaction.TerminalReason,
@@ -1344,6 +1523,14 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             runtime.ConfirmSettledAction(pendingDecision.Action, after);
             transaction.Complete(
                 "action settled at timeout boundary: " + progressReason);
+            if (string.Equals(
+                    pendingDecisionOwner,
+                    "model",
+                    StringComparison.Ordinal))
+            {
+                technicalFallback.ReportModelProgress();
+                currentDecisionOwner = "model";
+            }
             RecordPendingTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
                 transaction.TerminalReason,
@@ -1359,6 +1546,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         if (CombatActionExecutionPolicy.OpensFollowUpInteraction(
                 pendingDecision.Action))
         {
+            var modelOwnedInteraction = string.Equals(
+                pendingDecisionOwner,
+                "model",
+                StringComparison.Ordinal);
             transaction.HandOff(
                 "interactive action did not reach a terminal native prompt state before the transaction deadline");
             RecordPendingTrainingSample(
@@ -1368,8 +1559,18 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 after);
             ClearPendingAction();
             transaction.Reset();
-            DeactivateWithReason(
-                "交互动作在超时前未完成，已交还玩家，未将其误判为无效果动作");
+            if (modelOwnedInteraction)
+            {
+                ReportTechnicalModelFailure(
+                    "interaction-timeout",
+                    "交互动作在事务期限内没有完成");
+                nextDecisionAt = Time.unscaledTime + 0.05f;
+            }
+            else
+            {
+                DeactivateWithReason(
+                    "交互动作在超时前未完成，已交还玩家，未将其误判为无效果动作");
+            }
             return true;
         }
 
@@ -1425,6 +1626,38 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         noActionSince = -1f;
     }
 
+    private bool HandleActiveDecisionWatchdog()
+    {
+        if (!activeDecisionPending
+            || !pendingActiveDecisionLearned
+            || activeDecisionQueuedAt < 0f)
+        {
+            return false;
+        }
+
+        var decisionBudgetSeconds = Math.Max(
+            0.05f,
+            AuraToolsConfigService.MatchExperience.AutoBattle
+                .DecisionTimeBudgetMs / 1000f);
+        var hardTimeoutSeconds = Math.Max(
+            2f,
+            Math.Min(10f, decisionBudgetSeconds * 8f));
+        if (Time.unscaledTime - activeDecisionQueuedAt < hardTimeoutSeconds)
+        {
+            return false;
+        }
+
+        var elapsed = Time.unscaledTime - activeDecisionQueuedAt;
+        InvalidateDecisionWork();
+        activeDecisionQueuedAt = -1f;
+        pendingActiveDecisionLearned = false;
+        ReportTechnicalModelFailure(
+            "inference-timeout",
+            "推理超过硬看门狗 " + elapsed.ToString("0.00") + " 秒");
+        nextDecisionAt = Time.unscaledTime + 0.05f;
+        return true;
+    }
+
     private void SuppressNoEffectAction(
         CombatStateObservation? after,
         string diagnostic)
@@ -1437,6 +1670,15 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var suppressionState = after ?? beforeAction;
         persistentNoEffectActionKeys.Add(
             FailedActionStateKey(suppressionState, failedAction));
+        if (string.Equals(
+                pendingDecisionOwner,
+                "model",
+                StringComparison.Ordinal))
+        {
+            ReportTechnicalModelFailure(
+                "no-progress-loop",
+                diagnostic);
+        }
         RecordPendingTrainingSample(
             CombatActionTransactionState.Failed.ToString(),
             "action produced no causal game-state effect and was suppressed: "
@@ -1529,7 +1771,12 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             terminal,
             typeof(FightUI).Assembly.GetName().Version?.ToString() ?? "",
             typeof(CombatDecisionEngine).Assembly.GetName().Version?.ToString() ?? "",
-            demonstrator: "policy",
+            demonstrator: string.Equals(
+                pendingDecisionOwner,
+                "emergency-baseline",
+                StringComparison.Ordinal)
+                ? "emergency-baseline"
+                : "policy",
             recommendedCandidateId: pendingDecision.Action.CandidateId);
         sample.Interaction = CombatInteractionBroker.ConsumeCompletedTrace(
             pendingDecision.Action.ActionToken);
@@ -1540,6 +1787,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     {
         beforeAction = null;
         pendingDecision = null;
+        pendingDecisionOwner = "none";
         pendingSampleRecorded = false;
         lastInteractionDiagnostic = "";
         ClearPredictionMarkers();
@@ -1668,13 +1916,25 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             modelConfigurationKey = validationKey;
             modelLoadGeneration++;
             InvalidateDecisionWork();
-            trainedModelMode = "active";
+            trainedModelMode = "full";
             baselineDecisionEngine = new CombatDecisionEngine();
             trainedDecisionEngine = new CombatDecisionEngine(
                 validationResidual,
                 validationGuidance,
                 policyValueModel: validationPolicyValue);
             trainedModelId = validationModelId;
+            modelAvailable = !string.Equals(
+                validationPolicyValue.ModelId,
+                "none",
+                StringComparison.Ordinal);
+            modelLoadPending = false;
+            modelLoadFailureReason = modelAvailable
+                ? ""
+                : "游戏主体验证模型缺少策略价值网络";
+            if (modelAvailable)
+            {
+                technicalFallback.ModelRecovered();
+            }
             lastModelComparisonFingerprint = "";
             pendingShadowFingerprint = "";
             ClearDecisionCache();
@@ -1708,6 +1968,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         baselineDecisionEngine = new CombatDecisionEngine();
         trainedDecisionEngine = new CombatDecisionEngine();
         trainedModelId = "none";
+        modelAvailable = false;
+        modelLoadPending = false;
+        modelLoadFailureReason = "";
         lastModelComparisonFingerprint = "";
         pendingShadowFingerprint = "";
         ClearDecisionCache();
@@ -1719,10 +1982,12 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             trainedModelMode = "off";
             AuraToolsAutoBattleModelRuntime.UnloadResidentModels();
             lastModelDiagnostic = "模型应用已关闭，驻留权重已卸载";
+            currentDecisionOwner = "baseline";
             AuraToolsLog.Info("[AutoBattle] " + lastModelDiagnostic);
             return;
         }
-        trainedModelMode = "off";
+        trainedModelMode = configuredMode;
+        modelLoadPending = true;
         lastModelDiagnostic = "模型正在后台加载";
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<AutoBattleResidentModelSet>
@@ -1758,12 +2023,36 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                         return;
                     }
                     lastModelDiagnostic = "模型后台加载失败：" + ex.Message;
+                    modelLoadPending = false;
+                    modelAvailable = false;
+                    modelLoadFailureReason = ex.Message;
+                    if (AuraToolsAutoBattleRuntime
+                        .IsModelApplicationMode(configuredMode))
+                    {
+                        technicalFallback.ReportFailure(
+                            "model-load-failed",
+                            ex.Message,
+                            isolateImmediately: true);
+                        currentDecisionOwner = "emergency-baseline";
+                    }
                     AuraToolsLog.Warn("[AutoBattle] " + lastModelDiagnostic);
                 }
             });
         if (!queued)
         {
             lastModelDiagnostic = "模型后台加载任务未能提交";
+            modelLoadPending = false;
+            modelAvailable = false;
+            modelLoadFailureReason = lastModelDiagnostic;
+            if (AuraToolsAutoBattleRuntime
+                .IsModelApplicationMode(configuredMode))
+            {
+                technicalFallback.ReportFailure(
+                    "model-load-failed",
+                    lastModelDiagnostic,
+                    isolateImmediately: true);
+                currentDecisionOwner = "emergency-baseline";
+            }
             AuraToolsLog.Warn("[AutoBattle] " + lastModelDiagnostic);
         }
     }
@@ -1790,19 +2079,29 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             loaded.SearchGuidance,
             policyValueModel: loaded.PolicyValue);
         trainedModelId = loaded.ModelId;
+        modelLoadPending = false;
+        modelAvailable = loaded.PolicyValueLoaded;
+        modelLoadFailureReason = modelAvailable
+            ? ""
+            : "所选模型没有成功加载策略价值网络";
         var diagnostic = loaded.Diagnostic;
-        if (string.Equals(
-                trainedModelMode,
-                "active",
-                StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(trainedModelId, "none", StringComparison.Ordinal)
-            && !AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
-                profile,
-                trainedModelId,
-                out var gateReason))
+        if (modelAvailable)
         {
-            trainedModelMode = "shadow";
-            diagnostic += "；主动应用门禁未通过，已降级为影子评估：" + gateReason;
+            technicalFallback.ModelRecovered();
+            currentDecisionOwner = AuraToolsAutoBattleRuntime
+                .IsModelApplicationMode(configuredMode)
+                ? "model"
+                : "baseline";
+        }
+        else if (AuraToolsAutoBattleRuntime
+                 .IsModelApplicationMode(configuredMode))
+        {
+            technicalFallback.ReportFailure(
+                "model-load-failed",
+                modelLoadFailureReason,
+                isolateImmediately: true);
+            currentDecisionOwner = "emergency-baseline";
+            diagnostic += "；已进入技术兜底：" + modelLoadFailureReason;
         }
         lastModelComparisonFingerprint = "";
         pendingShadowFingerprint = "";
@@ -1820,21 +2119,15 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     {
         var profile = BuildProfile();
         var cacheKey = DecisionCacheKey(state, profile);
-        if (string.Equals(trainedModelMode, "active", StringComparison.OrdinalIgnoreCase)
+        if (AuraToolsAutoBattleRuntime.IsModelApplicationMode(trainedModelMode)
+            && modelAvailable
+            && !technicalFallback.ShouldUseEmergencyBaseline
             && !string.Equals(trainedModelId, "none", StringComparison.Ordinal))
         {
-            if (!AuraToolsCombatKnowledgeRuntime.HasPlayerEquivalentReadiness(
-                    state,
-                    out var coverageReason))
-            {
-                AuraToolsLog.Debug(
-                    "[AutoBattle][Observation] 主动模型已对当前状态降级为底模：" + coverageReason);
-                return RunDecisionEngine(
-                    baselineDecisionEngine,
-                    state,
-                    profile,
-                    "baseline-knowledge-fallback");
-            }
+            profile.ModelOwnsActionSelection = true;
+            profile.UseLowConfidenceFallback = false;
+            profile.PreferDominantFreeSetup = false;
+            cacheKey = DecisionCacheKey(state, profile);
             if (string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal)
                 && cachedLearnedDecision != null)
             {
@@ -1881,6 +2174,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             learned: false,
             "baseline-cache");
         if (!string.Equals(trainedModelMode, "shadow", StringComparison.OrdinalIgnoreCase)
+            || !modelAvailable
             || string.Equals(trainedModelId, "none", StringComparison.Ordinal)
             || string.Equals(
                 lastModelComparisonFingerprint,
@@ -1890,6 +2184,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return baseline;
         }
 
+        profile.ModelOwnsActionSelection = true;
+        profile.UseLowConfidenceFallback = false;
+        profile.PreferDominantFreeSetup = false;
         QueueShadowComparison(state, profile, baseline, cacheKey, source);
         return baseline;
     }
@@ -2004,6 +2301,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                     if (!(ex is OperationCanceledException))
                     {
                         AuraToolsLog.Warn("[AutoBattle][ModelShadow] 后台评估失败：" + ex.Message);
+                        HandleLearnedInferenceFailure("shadow", ex);
                     }
                 }
             });
@@ -2113,11 +2411,16 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 Confidence = group.Average(item => item.SearchConfidence),
                 Score = group.Average(item => item.Score)
             })
-            .OrderByDescending(group =>
-                group.Risk <= profile.DeathRiskLimit)
-            .ThenByDescending(group => group.Decisions.Count)
+            .OrderByDescending(group => profile.ModelOwnsActionSelection
+                ? group.Decisions.Count
+                : group.Risk <= profile.DeathRiskLimit ? 1 : 0)
+            .ThenByDescending(group => profile.ModelOwnsActionSelection
+                ? group.Score
+                : group.Decisions.Count)
             .ThenByDescending(group => group.Confidence)
-            .ThenBy(group => group.Risk)
+            .ThenBy(group => profile.ModelOwnsActionSelection
+                ? 0d
+                : group.Risk)
             .ThenByDescending(group => group.Score)
             .ThenBy(
                 group => group.Decisions[0].Action?.CandidateId ?? "",
@@ -2154,7 +2457,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         chosen.InferenceAgreement = agreement;
         chosen.Reason += agreement >= 1d
             ? "; parallel consensus"
-            : "; parallel safety arbitration";
+            : profile.ModelOwnsActionSelection
+                ? "; parallel model arbitration"
+                : "; parallel safety arbitration";
         chosen.PlanSummary += "; parallel="
                               + groups.Decisions.Count
                               + "/" + available.Count
@@ -2296,6 +2601,46 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         decisionWorkGeneration++;
         activeDecisionPending = false;
         pendingActiveDecisionKey = "";
+        activeDecisionQueuedAt = -1f;
+        pendingActiveDecisionLearned = false;
+    }
+
+    private void HandleLearnedInferenceFailure(
+        string source,
+        Exception exception)
+    {
+        if (AuraToolsAutoBattleRuntime
+            .IsModelApplicationMode(trainedModelMode))
+        {
+            ReportTechnicalModelFailure(
+                "inference-exception",
+                exception.Message);
+            return;
+        }
+
+        modelAvailable = false;
+        modelLoadFailureReason = exception.Message;
+        pendingShadowFingerprint = "";
+        lastModelDiagnostic = "影子模型推理异常：" + exception.Message;
+        AuraToolsLog.Warn(
+            "[AutoBattle][ModelFailure] source="
+            + source
+            + "；"
+            + lastModelDiagnostic);
+    }
+
+    private void ReportTechnicalModelFailure(string kind, string detail)
+    {
+        technicalFallback.ReportFailure(kind, detail);
+        currentDecisionOwner = "emergency-baseline";
+        lastModelDiagnostic = "模型技术故障，已启用可用性兜底："
+                              + technicalFallback.LastReason;
+        ClearDecisionCache();
+        AuraToolsLog.Warn(
+            "[AutoBattle][TechnicalFallback] reason="
+            + technicalFallback.LastReason
+            + " consecutive=" + technicalFallback.ConsecutiveFailures
+            + " isolated=" + technicalFallback.IsolatedForBattle);
     }
 
     private static string DecisionLabel(CombatDecision decision)

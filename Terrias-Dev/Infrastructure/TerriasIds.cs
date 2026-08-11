@@ -25,7 +25,7 @@ public static class TerriasIds
     public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
     public const string FamiliarRunActivePartnerKey = "Terrias_FamiliarRunActivePartner";
     public const string SpiritProfileDirectory = "SpiritCollectionProfiles";
-    public const string SpiritAdventurePartyKey = "Terrias_SpiritAdventureParty";
+    public const string SpiritAdventureSessionDirectory = "SpiritAdventureSessions";
 
     public const string SunCardVisualSkinId = "terrias.card_visual.sun";
     public const string MorningStarCardVisualSkinId = "terrias.card_visual.morning_star";

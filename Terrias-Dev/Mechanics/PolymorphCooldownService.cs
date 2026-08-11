@@ -26,6 +26,13 @@ public static class PolymorphCooldownService
         RefreshSkillUi(self, source);
     }
 
+    public static void BeginSession(IStatusManager? ownerStatus, int sessionId)
+    {
+        Clear(ownerStatus);
+        TerriasLog.Debug("[PolymorphCooldown] session started: owner=" + OwnerKey(ownerStatus)
+            + ", session=" + sessionId + ".");
+    }
+
     public static void CaptureCurrentRole(IStatusManager? ownerStatus, string source)
     {
         var active = PolymorphStateStore.ActiveFor(ownerStatus);
@@ -102,18 +109,14 @@ public static class PolymorphCooldownService
             }
         }
 
-        // Career scripts may seed a non-zero initial cooldown. Polymorph forms
-        // start ready on their first visit; revisits restore only cooldowns
-        // produced while that same form was active.
-        RoleSkillApi.SetCurrentCareerSkillTimes(0);
-        var realCooldowns = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var skillId in RoleSkillApi.CurrentCareerSkillIds())
+        // First entry keeps the target career's normal initialization. A revisit
+        // restores only the cooldowns produced while that same form was active.
+        var skillIds = RoleSkillApi.CurrentCareerSkillIds();
+        var initialized = RoleSkillApi.SnapshotCurrentCareerSkillTimes();
+        var realCooldowns = PolymorphCooldownSnapshotPolicy.ResolveEntry(skillIds, initialized, saved);
+        foreach (var pair in realCooldowns)
         {
-            var cooldown = saved != null && saved.TryGetValue(skillId, out var actual)
-                ? Math.Max(0, actual)
-                : 0;
-            PlayerApi.SetSkillTime(skillId, cooldown);
-            realCooldowns[skillId] = cooldown;
+            PlayerApi.SetSkillTime(pair.Key, pair.Value);
         }
 
         lock (SyncRoot)

@@ -3,6 +3,7 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
 using AuraFoundationTrainer.Worker;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
@@ -51,6 +52,34 @@ CombatEpisode Episode(int id, bool successful = true)
                 }
             }
         }
+    };
+}
+
+CombatPolicyValueNetworkDefinition TinyModel(string id)
+{
+    const int state = 16;
+    const int action = 16;
+    const int hidden = 8;
+    const int quantiles = 4;
+    return new CombatPolicyValueNetworkDefinition
+    {
+        ModelId = id,
+        StateDimensions = state,
+        ActionDimensions = action,
+        HiddenDimensions = hidden,
+        ActionQuantileCount = quantiles,
+        StateWeights = new double[state * hidden],
+        StateBias = new double[hidden],
+        ActionWeights = new double[action * hidden],
+        ActionBias = new double[hidden],
+        PolicyWeights = new double[hidden],
+        ActionQuantileWeights = new double[hidden * quantiles],
+        ActionQuantileBias = new double[quantiles],
+        ValueWeights = new double[hidden],
+        WinWeights = new double[hidden],
+        RiskWeights = new double[hidden],
+        HpWeights = new double[hidden],
+        TurnWeights = new double[hidden]
     };
 }
 
@@ -109,6 +138,178 @@ try
            && shippedDefaults.AdvancedValidationCampaigns == 50
            && !shippedDefaults.EnableEarlyValidationStop,
         "final validation defaults to complete random 50 normal plus 50 advanced samples");
+    var absoluteWithoutRelativeNonInferiority =
+        new CombatCampaignFoundationIteration
+        {
+            AbsoluteQualificationGatePassed = true,
+            NonInferiorityGatePassed = false,
+            HadIncumbentModel = true
+        };
+    Assert(CombatCampaignFoundationTrainer.EligibleForAbsoluteQualifiedSlot(
+               absoluteWithoutRelativeNonInferiority),
+        "absolute qualification retains a candidate even when paired non-inferiority is inconclusive");
+    Assert(CombatCampaignFoundationTrainer.SameModelEvidenceBound(
+               "model-a", "model-a", "model-a", "model-a")
+           && !CombatCampaignFoundationTrainer.SameModelEvidenceBound(
+               "model-a", "model-b", "model-b", "model-b"),
+        "arena, capability and validation evidence must bind to the exact same model");
+    var runtimeSafeValidation = new CombatCampaignFoundationValidation
+    {
+        NormalCampaigns = 50,
+        AdvancedCampaigns = 50,
+        NormalVictories = 47,
+        AdvancedVictories = 19,
+        NormalWinRate = 0.94d,
+        AdvancedWinRate = 0.38d,
+        RequiredNormalWinRate = 0.80d,
+        RequiredAdvancedWinRate = 0.30d,
+        BehaviorPassed = true,
+        Passed = false
+    };
+    Assert(CombatCampaignFoundationTrainer.RuntimeSafetyPassed(
+               runtimeSafeValidation,
+               0,
+               0,
+               semanticGatePassed: true,
+               expectedNormalCampaigns: 50,
+               expectedAdvancedCampaigns: 50)
+           && CombatCampaignFoundationTrainer.RawIsolationPassed(
+               runtimeSafeValidation,
+               runtimeSafetyPassed: true),
+        "runtime-safe raw-pass results remain eligible for experimental testing even when Wilson certification fails");
+
+    var retentionOrigin = DateTime.UtcNow.AddHours(-1);
+    var certifiedCheckpoint = new CombatFoundationCheckpointCatalogEntry
+    {
+        Id = "certified-iteration-6",
+        CreatedUtc = retentionOrigin,
+        Stage = "iteration-complete",
+        QualityGatesPassed = true,
+        SupportsModelBranch = true,
+        SelectionAnchorMetrics = new CombatPolicyValueMetricSnapshot
+        {
+            FrameCount = 64,
+            CompositeLoss = 0.266d,
+            CompositeLossStandardError = 0.002d
+        }
+    };
+    var retentionCandidates = new List<
+        CombatFoundationCheckpointCatalogEntry> { certifiedCheckpoint };
+    for (var index = 1; index <= 9; index++)
+    {
+        retentionCandidates.Add(new CombatFoundationCheckpointCatalogEntry
+        {
+            Id = "newer-" + index,
+            CreatedUtc = retentionOrigin.AddMinutes(index),
+            Stage = index % 3 == 0
+                ? "iteration-complete"
+                : "model-training",
+            QualityGatesPassed = false,
+            SupportsModelBranch = true,
+            SelectionAnchorMetrics = new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = 64,
+                CompositeLoss = index == 9 ? 0.258d : 0.270d + index / 1000d,
+                CompositeLossStandardError = index == 9 ? 0.010d : 0.002d
+            }
+        });
+    }
+    var retainedCheckpoints = FoundationCheckpointRetentionPolicy.Select(
+        retentionCandidates,
+        "newer-9",
+        certifiedCheckpoint.Id);
+    Assert(retainedCheckpoints.Count
+               == CombatFoundationCheckpointCatalogProtocol.MaximumEntries
+           && retainedCheckpoints.Any(item =>
+               item.Id == certifiedCheckpoint.Id)
+           && retainedCheckpoints.Any(item => item.Id == "newer-9")
+           && CombatFoundationCheckpointCatalogProtocol.Recommend(
+                  retainedCheckpoints)?.Id == certifiedCheckpoint.Id,
+        "checkpoint rollover pins the certified recommendation and current snapshot instead of evicting them by recency");
+
+    List<CombatPolicyValueEpochMetrics> EpochHistory(
+        int iteration,
+        int epochs,
+        int bestEpoch)
+    {
+        return Enumerable.Range(1, epochs)
+            .Select(epoch => new CombatPolicyValueEpochMetrics
+            {
+                Iteration = iteration,
+                Epoch = epoch,
+                Validation = new CombatPolicyValueMetricSnapshot
+                {
+                    FrameCount = 32,
+                    CompositeLoss = epoch == bestEpoch
+                        ? 0.1d
+                        : 0.2d + epoch / 1000d
+                }
+            })
+            .ToList();
+    }
+
+    var evaluatedHistory = EpochHistory(6, 8, 8);
+    var rejectedLatestHistory = EpochHistory(12, 3, 3);
+    var evaluatedMetadata = FoundationWorkerResultMetadata.Resolve(
+        new CombatCampaignFoundationTrainingResult
+        {
+            EvaluatedModelId = "accepted-iteration-6",
+            EvaluatedModelIteration = 6,
+            ModelBestEpoch = 3,
+            ModelEpochHistory = rejectedLatestHistory,
+            Iterations = new List<CombatCampaignFoundationIteration>
+            {
+                new()
+                {
+                    Iteration = 6,
+                    CandidateModelId = "accepted-iteration-6",
+                    TuningSelectedEpoch = 8,
+                    ModelEpochHistory = evaluatedHistory
+                },
+                new()
+                {
+                    Iteration = 12,
+                    CandidateModelId = "rejected-iteration-12",
+                    TuningSelectedEpoch = 3,
+                    ModelEpochHistory = rejectedLatestHistory
+                }
+            }
+        });
+    Assert(evaluatedMetadata.ModelId == "accepted-iteration-6"
+           && evaluatedMetadata.Iteration == 6
+           && evaluatedMetadata.EpochsExecuted == 8
+           && evaluatedMetadata.SelectedEpoch == 8
+           && evaluatedMetadata.BestValidationEpoch == 8
+           && evaluatedMetadata.DeploymentSelectedEpoch == 8,
+        "worker result epoch metadata binds to the evaluated model rather than the latest rejected candidate");
+
+    var terminalTelemetry = FoundationWorkerProgressFinalizer.Normalize(
+        new CombatCampaignFoundationTelemetry
+        {
+            Stage = "validation:advanced",
+            Phase = "validation",
+            ActiveCampaigns = 1,
+            SchedulerQueuedWork = 2,
+            SchedulerRunningWork = 1,
+            MaximumActiveBattleDepth = 17,
+            EstimatedRemainingSeconds = 12d,
+            EstimatedRemainingLowerSeconds = 8d,
+            EstimatedRemainingUpperSeconds = 20d,
+            PhaseEstimatedRemainingSeconds = 11d
+        },
+        "completed");
+    Assert(terminalTelemetry.Stage == "completed"
+           && terminalTelemetry.Phase == "completed"
+           && terminalTelemetry.ActiveCampaigns == 0
+           && terminalTelemetry.SchedulerQueuedWork == 0
+           && terminalTelemetry.SchedulerRunningWork == 0
+           && terminalTelemetry.MaximumActiveBattleDepth == 0
+           && terminalTelemetry.EstimatedRemainingSeconds == 0d
+           && terminalTelemetry.EstimatedRemainingLowerSeconds == 0d
+           && terminalTelemetry.EstimatedRemainingUpperSeconds == 0d
+           && terminalTelemetry.PhaseEstimatedRemainingSeconds == 0d,
+        "terminal worker progress closes active work and clears all ETA fields");
+
     var validationSeeds = CombatFoundationValidationSeedSampler.Create(
         20260810UL,
         2_000_000UL,
@@ -136,7 +337,21 @@ try
         {
             JobId = "artifact-smoke",
             ResultDirectory = emptyArtifactRoot,
-            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry"),
+            ContentDisplayCatalog = new CombatContentDisplayCatalog
+            {
+                CatalogId = "test-zh-cn",
+                Entries = new List<CombatContentDisplayCatalogEntry>
+                {
+                    new()
+                    {
+                        OwnerModId = "Witch",
+                        EntityType = "buff",
+                        EntityId = "buff_test",
+                        DisplayName = "测试增益"
+                    }
+                }
+            }
         },
         new CombatCampaignFoundationTrainingResult
         {
@@ -157,23 +372,159 @@ try
         using var schema = artifactDatabase.CreateCommand();
         schema.CommandText =
             "SELECT value FROM metadata WHERE key='protocol'";
+        var protocol = Convert.ToString(schema.ExecuteScalar());
+        schema.CommandText = "SELECT COUNT(*) FROM content_entities";
+        var contentCount = Convert.ToInt32(schema.ExecuteScalar());
         Assert(!emptyArtifact.ModelProduced
                && File.Exists(emptyArtifact.ManifestPath)
                && File.Exists(emptyArtifact.CapabilityReportPath)
                && File.Exists(emptyArtifact.CapabilityReportHtmlPath)
                && File.Exists(emptyArtifact.SimulationDatabasePath)
-               && Convert.ToString(schema.ExecuteScalar())
-                  == "aura.foundation-simulation-process.v1",
-            "artifact bundle persists reports and a queryable process database even without an accepted model");
+               && protocol == "aura.foundation-simulation-process.v2"
+               && contentCount == 1,
+            "artifact bundle persists a v2 queryable database with its frozen Chinese content catalog");
     }
+
+    var deepArtifactRoot = root;
+    while ((Path.Combine(
+                   deepArtifactRoot,
+                   FoundationArtifactBundleWriter.DirectoryName,
+                   FoundationArtifactBundleWriter.DatabaseFileName)
+               + ".tmp-"
+               + new string('0', 32)).Length <= 270)
+    {
+        deepArtifactRoot = Path.Combine(
+            deepArtifactRoot,
+            "deep-foundation-result-segment");
+    }
+    var deepArtifact = FoundationArtifactBundleWriter.Write(
+        new CombatFoundationWorkerJob
+        {
+            JobId = "deep-path-artifact",
+            ResultDirectory = deepArtifactRoot,
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+        },
+        new CombatCampaignFoundationTrainingResult
+        {
+            Success = true,
+            Message = "deep-path"
+        },
+        new CombatFoundationTrainingAnalysis { JobId = "deep-path-artifact" },
+        "training-rejected");
+    Assert(File.Exists(deepArtifact.SimulationDatabasePath)
+           && File.Exists(deepArtifact.ManifestPath)
+           && string.IsNullOrWhiteSpace(deepArtifact.Warning),
+        "SQLite export uses a short same-volume temporary path under deep result directories");
+
+    var isolatedFailureRoot = Path.Combine(root, "database-failure-isolation");
+    var blockedDatabasePath = Path.Combine(
+        isolatedFailureRoot,
+        FoundationArtifactBundleWriter.DirectoryName,
+        FoundationArtifactBundleWriter.DatabaseFileName);
+    Directory.CreateDirectory(blockedDatabasePath);
+    var isolatedFailureArtifact = FoundationArtifactBundleWriter.Write(
+        new CombatFoundationWorkerJob
+        {
+            JobId = "database-failure-isolation",
+            ResultDirectory = isolatedFailureRoot,
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+        },
+        new CombatCampaignFoundationTrainingResult
+        {
+            Success = true,
+            Message = "database-failure-isolation"
+        },
+        new CombatFoundationTrainingAnalysis
+        {
+            JobId = "database-failure-isolation"
+        },
+        "training-rejected");
+    var isolatedFailureManifest = JsonConvert.DeserializeObject<
+        FoundationArtifactBundleManifest>(File.ReadAllText(
+        isolatedFailureArtifact.ManifestPath));
+    Assert(File.Exists(isolatedFailureArtifact.ManifestPath)
+           && File.Exists(isolatedFailureArtifact.CapabilityReportPath)
+           && string.IsNullOrWhiteSpace(
+               isolatedFailureArtifact.SimulationDatabasePath)
+           && !string.IsNullOrWhiteSpace(isolatedFailureArtifact.Warning)
+           && isolatedFailureManifest?.Warnings.Count == 1
+           && string.IsNullOrWhiteSpace(
+               isolatedFailureManifest.SimulationDatabase),
+        "a terminal SQLite failure is isolated and leaves the candidate report plus warning manifest usable");
+
+    var absoluteArtifactRoot = Path.Combine(root, "absolute-artifact");
+    var absoluteModel = TinyModel("absolute-model");
+    var latestModel = TinyModel("latest-unverified-model");
+    var absoluteArtifact = FoundationArtifactBundleWriter.Write(
+        new CombatFoundationWorkerJob
+        {
+            JobId = "absolute-artifact",
+            ResultDirectory = absoluteArtifactRoot,
+            SuccessArchiveDirectory = Path.Combine(root, "seed-registry")
+        },
+        new CombatCampaignFoundationTrainingResult
+        {
+            Success = true,
+            ExperimentalEligibilityPassed = true,
+            DeploymentTier = CombatFoundationDeploymentTier.Experimental,
+            SameModelEvidenceBound = true,
+            EvaluatedModelId = absoluteModel.ModelId,
+            ValidationModelId = absoluteModel.ModelId,
+            CapabilityProbeModelId = absoluteModel.ModelId,
+            AbsoluteQualifiedBestModel = absoluteModel,
+            LatestTrainingModel = latestModel,
+            Iterations = new List<CombatCampaignFoundationIteration>
+            {
+                new()
+                {
+                    Iteration = 12,
+                    CandidateModelId = absoluteModel.ModelId,
+                    AbsoluteQualificationGatePassed = true,
+                    NonInferiorityGatePassed = false
+                }
+            }
+        },
+        new CombatFoundationTrainingAnalysis { JobId = "absolute-artifact" },
+        "training-experimental-resumable");
+    var absoluteManifest = JsonConvert.DeserializeObject<
+        FoundationArtifactBundleManifest>(File.ReadAllText(
+        absoluteArtifact.ManifestPath));
+    var absoluteCandidate = JsonConvert.DeserializeObject<
+        FoundationCandidateModelManifest>(File.ReadAllText(
+        absoluteArtifact.CandidateModelPath));
+    string? gameLoadableMetadata;
+    using (var absoluteDatabase = new SqliteConnection(
+               "Data Source=" + absoluteArtifact.SimulationDatabasePath
+               + ";Mode=ReadOnly;Pooling=False"))
+    {
+        absoluteDatabase.Open();
+        using var gameLoadable = absoluteDatabase.CreateCommand();
+        gameLoadable.CommandText =
+            "SELECT value FROM metadata WHERE key='game_loadable'";
+        gameLoadableMetadata = Convert.ToString(
+            gameLoadable.ExecuteScalar());
+    }
+    Assert(absoluteManifest?.EvaluatedModelId == absoluteModel.ModelId
+           && absoluteManifest.ExperimentalEligible
+           && absoluteManifest.GameLoadable
+           && absoluteManifest.DeploymentTier
+              == CombatFoundationDeploymentTier.Experimental
+           && absoluteCandidate?.ModelId == absoluteModel.ModelId
+           && absoluteCandidate.GameLoadable
+           && gameLoadableMetadata == "True",
+        "experimental artifact selection marks the arena-qualified same-model candidate as game-loadable instead of selecting the latest unverified model");
     var deploymentPackage = Path.Combine(
         emptyArtifact.BundleDirectory,
-        "model",
+        "deployment",
         "deployment-package.json");
     var deploymentWeights = Path.Combine(
         emptyArtifact.BundleDirectory,
-        "model",
+        "deployment",
         "deployment-weights.bin");
+    Directory.CreateDirectory(
+        Path.GetDirectoryName(deploymentPackage)
+        ?? throw new InvalidOperationException(
+            "deployment fixture directory is missing"));
     File.WriteAllText(deploymentPackage, "{}", new UTF8Encoding(false));
     File.WriteAllBytes(deploymentWeights, new byte[] { 1, 2, 3, 4 });
     FoundationArtifactBundleWriter.AttachDeploymentPackage(
@@ -184,14 +535,14 @@ try
         FoundationArtifactBundleManifest>(
         File.ReadAllText(emptyArtifact.ManifestPath));
     Assert(attachedManifest?.DeploymentModelPackage
-               == "model/deployment-package.json"
+               == "deployment/deployment-package.json"
            && attachedManifest.DeploymentModelWeights
-               == "model/deployment-weights.bin"
+               == "deployment/deployment-weights.bin"
            && attachedManifest.Sha256.ContainsKey(
                attachedManifest.DeploymentModelPackage)
            && attachedManifest.Sha256.ContainsKey(
                attachedManifest.DeploymentModelWeights),
-        "accepted deployment package paths and hashes attach to the shared artifact manifest");
+        "loadable formal or experimental deployment package paths and hashes attach to the shared artifact manifest");
 
     var boundaryRoot = Path.Combine(root, "boundary-artifact");
     var boundaryArtifact = FoundationArtifactBundleWriter.WriteBoundarySnapshot(

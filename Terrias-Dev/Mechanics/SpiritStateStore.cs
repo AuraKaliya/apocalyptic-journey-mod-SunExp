@@ -72,9 +72,12 @@ public static class SpiritStateStore
     {
         lock (SyncRoot)
         {
+            var hasPlayerId = !string.IsNullOrWhiteSpace(ownerPlayerId);
+            var hasStatusId = !string.IsNullOrWhiteSpace(ownerStatusId);
             return Spirits.Values.FirstOrDefault(state =>
-                (!string.IsNullOrWhiteSpace(ownerPlayerId) && string.Equals(state.OwnerPlayerId, ownerPlayerId, StringComparison.Ordinal))
-                || (!string.IsNullOrWhiteSpace(ownerStatusId) && string.Equals(state.OwnerStatusId, ownerStatusId, StringComparison.Ordinal)));
+                (hasPlayerId || hasStatusId)
+                && (!hasPlayerId || string.Equals(state.OwnerPlayerId, ownerPlayerId, StringComparison.Ordinal))
+                && (!hasStatusId || string.Equals(state.OwnerStatusId, ownerStatusId, StringComparison.Ordinal)));
         }
     }
 
@@ -118,57 +121,17 @@ public static class SpiritStateStore
             return;
         }
 
-        SpiritState? state;
-        lock (SyncRoot)
-        {
-            Spirits.TryGetValue(status.InstanceId, out state);
-            Spirits.Remove(status.InstanceId);
-        }
-
-        if (state == null)
-        {
-            return;
-        }
-
-        RemoveFightRecords(state.StatusId);
-        CompanionBattleStateStore.Remove(state.StatusId);
-        status.state = IStatusManager.State.Dead;
-        if (state.Spirit != null)
-        {
-            state.Spirit.DeadEffect();
-        }
-        Retired?.Invoke(state);
-        TerriasLog.Info("[Spirit] retired from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+        Remove(status.InstanceId, source, playDeathEffect: true, broadcast: true);
     }
 
     public static bool Withdraw(string statusId, string source)
     {
-        SpiritState? state;
-        lock (SyncRoot)
-        {
-            Spirits.TryGetValue(statusId ?? "", out state);
-            if (state != null)
-            {
-                Spirits.Remove(state.StatusId);
-            }
-        }
+        return Remove(statusId, source, playDeathEffect: false, broadcast: true);
+    }
 
-        if (state == null)
-        {
-            return false;
-        }
-
-        RemoveFightRecords(state.StatusId);
-        CompanionBattleStateStore.Remove(state.StatusId);
-        var spirit = state.Spirit;
-        if (spirit != null)
-        {
-            UnityEngine.Object.Destroy(spirit.gameObject);
-        }
-        Retired?.Invoke(state);
-        TerriasLog.Info("[Spirit] withdrawn from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
-        TerriasPerformanceCounters.Record("Spirit.Withdrawn");
-        return true;
+    public static bool RemoveAuthoritative(string statusId, string source, bool playDeathEffect)
+    {
+        return Remove(statusId, source, playDeathEffect, broadcast: false);
     }
 
     public static void ClearAll(string source)
@@ -205,6 +168,55 @@ public static class SpiritStateStore
 
         var status = spirit.Status;
         return status != null && status.CurHp > 0 && status.state != IStatusManager.State.Dead && spirit.gameObject != null;
+    }
+
+    private static bool Remove(string statusId, string source, bool playDeathEffect, bool broadcast)
+    {
+        SpiritState? state;
+        lock (SyncRoot)
+        {
+            Spirits.TryGetValue(statusId ?? "", out state);
+            if (state != null)
+            {
+                Spirits.Remove(state.StatusId);
+            }
+        }
+
+        if (state == null)
+        {
+            return false;
+        }
+
+        if (broadcast)
+        {
+            SpiritSummonService.BroadcastRemoval(state, source, playDeathEffect);
+        }
+
+        var spirit = state.Spirit;
+        if (spirit != null)
+        {
+            if (playDeathEffect)
+            {
+                if (spirit.Status != null && spirit.Status.state != IStatusManager.State.Dead)
+                {
+                    spirit.Status.state = IStatusManager.State.Dead;
+                }
+                spirit.DeadEffect();
+            }
+            else
+            {
+                UnityEngine.Object.Destroy(spirit.gameObject);
+            }
+        }
+
+        RemoveFightRecords(state.StatusId);
+        CompanionBattleStateStore.Remove(state.StatusId);
+
+        Retired?.Invoke(state);
+        TerriasLog.Info("[Spirit] " + (playDeathEffect ? "retired" : "withdrawn") + " from " + source
+            + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+        TerriasPerformanceCounters.Record(playDeathEffect ? "Spirit.Retired" : "Spirit.Withdrawn");
+        return true;
     }
 
     private static void RemoveFightRecords(string statusId)

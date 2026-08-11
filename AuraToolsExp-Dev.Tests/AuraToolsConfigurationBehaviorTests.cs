@@ -14,6 +14,38 @@ using AuraSkin.Shared.Models;
 using Newtonsoft.Json;
 internal static partial class AuraToolsTestSuite
 {
+    public static void TestAutoBattleTechnicalFallbackState()
+    {
+        var state = new AuraToolsExp.Dll.Features.AutoBattle
+            .AutoBattleTechnicalFallbackState();
+        state.ResetBattle(modelAvailable: true);
+        Assert(!state.ShouldUseEmergencyBaseline
+               && state.FallbackDecisionCount == 0,
+            "a healthy loaded model starts without emergency fallback");
+
+        state.ReportFailure("inference-timeout", "hard watchdog");
+        Assert(state.ShouldUseEmergencyBaseline
+               && state.TryConsumeEmergencyFallback()
+               && !state.ShouldUseEmergencyBaseline
+               && state.FallbackDecisionCount == 1,
+            "a transient technical failure schedules exactly one emergency decision");
+
+        state.ReportFailure("invalid-output", "candidate missing");
+        state.TryConsumeEmergencyFallback();
+        state.ReportFailure("no-progress-loop", "same state and action");
+        Assert(state.IsolatedForBattle
+               && state.ShouldUseEmergencyBaseline,
+            "three consecutive technical failures isolate the model for the battle");
+
+        state.ResetBattle(modelAvailable: false, "weights missing");
+        Assert(state.IsolatedForBattle
+               && state.LastReason.Contains("model-load-failed"),
+            "model load failure starts the battle in availability fallback");
+        state.ModelRecovered();
+        Assert(!state.ShouldUseEmergencyBaseline,
+            "a successfully reloaded model clears availability fallback");
+    }
+
     public static void TestDamageMeterSettingsNormalization()
     {
         var settings = new DamageMeterSettings
@@ -92,7 +124,7 @@ internal static partial class AuraToolsTestSuite
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
         matchExperience.Normalize();
-        Assert(matchExperience.SchemaVersion == 26
+        Assert(matchExperience.SchemaVersion == 28
                && matchExperience.StarterDeck.PreferRoleModProfile
                && matchExperience.SafeBox != null
                && matchExperience.ModSync != null
@@ -124,6 +156,8 @@ internal static partial class AuraToolsTestSuite
                && matchExperience.AutoBattle.Training.Epochs == 80
                && matchExperience.AutoBattle.Training.MaximumCorrection == 0.75d
                && matchExperience.AutoBattle.SelectedModelId == ""
+               && matchExperience.AutoBattle.ExperimentalModelAcknowledgement
+                  == ""
                && matchExperience.AutoBattle.EvaluationModelId == ""
                && matchExperience.AutoBattle.Simulation.ScenarioId
                == "witch.world-simulation.standard-v2"
@@ -145,10 +179,16 @@ internal static partial class AuraToolsTestSuite
             "auto-battle training presets apply a complete reproducible parameter set");
     
         var trainedModel = JsonConvert.DeserializeObject<AutoBattleSettings>(
-            "{\"trainedModelMode\":\"active\"}")!;
+            "{\"trainedModelMode\":\"active\",\"experimentalModelAcknowledgement\":\"  sha256:abc  \"}")!;
         trainedModel.Normalize();
-        Assert(trainedModel.TrainedModelMode == "active",
-            "current trained-model mode preserves bounded active state");
+        Assert(trainedModel.TrainedModelMode == "trial"
+               && trainedModel.ExperimentalModelAcknowledgement
+                  == "sha256:abc",
+            "legacy active mode migrates to current-battle trial while experimental acknowledgement survives normalization");
+        trainedModel.TrainedModelMode = "full";
+        trainedModel.Normalize();
+        Assert(trainedModel.TrainedModelMode == "full",
+            "full model application survives normalization");
         trainedModel.TrainedModelMode = "off";
         trainedModel.Normalize();
         Assert(trainedModel.TrainedModelMode == "off",
@@ -225,14 +265,14 @@ internal static partial class AuraToolsTestSuite
             CardRefresh = null!
         };
         settings.Normalize();
-        Assert(settings.SchemaVersion == 26, "match-experience settings migrate to the game-bound auto-battle schema");
+        Assert(settings.SchemaVersion == 28, "match-experience settings migrate to the model-authority application schema");
         Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
             "card refresh is restored with a disabled default during normalization");
         var removedFoundationConfig =
             JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
                 "{\"schemaVersion\":25,\"autoBattle\":{\"foundationTraining\":{\"parallelismProfile\":\"auto\",\"iterations\":8}}}")!;
         removedFoundationConfig.Normalize();
-        Assert(removedFoundationConfig.SchemaVersion == 26
+        Assert(removedFoundationConfig.SchemaVersion == 28
                && removedFoundationConfig.AutoBattle.Training.Preset
                   == AutoBattleTrainingSettings.SteadyPreset,
             "removed in-game foundation-training settings are ignored by the current config schema");

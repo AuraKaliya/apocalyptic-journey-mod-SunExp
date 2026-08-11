@@ -16,6 +16,11 @@ $simulationViewerProject = Join-Path $repoRoot "AuraFoundationTrainer.Simulation
 $transformerTeacherSource = Join-Path $repoRoot "tools\transformer-teacher"
 $transformerSetupSource = Join-Path $repoRoot "tools\Setup-AuraTransformerTeacher.ps1"
 $transformerInstallerSource = Join-Path $repoRoot "tools\Install-AuraPyTorch.cmd"
+$runtimeCheckerSource = Join-Path $repoRoot "tools\Test-AuraDotNetDesktopRuntime.ps1"
+$runtimeInstallerSource = Join-Path $repoRoot "tools\Install-AuraDotNetDesktopRuntime.cmd"
+$trainerLauncherSource = Join-Path $repoRoot "tools\Start-AuraFoundationTrainer.cmd"
+$simulationViewerLauncherSource = Join-Path $repoRoot (
+    "tools\Start-AuraFoundationSimulationViewer.cmd")
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "AuraToolsExp\TrainingWorker"
 }
@@ -308,12 +313,11 @@ function Invoke-FoundationPublish {
     & dotnet publish $ProjectPath `
         -c $Configuration `
         -r $RuntimeIdentifier `
-        --self-contained true `
+        --self-contained false `
         --nologo `
         -v:minimal `
         -p:PublishSingleFile=true `
         -p:IncludeNativeLibrariesForSelfExtract=true `
-        -p:EnableCompressionInSingleFile=true `
         -p:DebugType=None `
         -o $StageDirectory
     if ($LASTEXITCODE -ne 0) {
@@ -387,6 +391,50 @@ try {
         -StageDirectory $simulationViewerStage `
         -DisplayName "Aura foundation trainer simulation viewer"
 
+    foreach ($stageContract in @(
+        @{
+            Directory = $workerStage
+            ExpectedName = "AuraFoundationTrainer.Worker.exe"
+        },
+        @{
+            Directory = $controlCenterStage
+            ExpectedName = "AuraFoundationTrainer.ControlCenter.exe"
+        },
+        @{
+            Directory = $simulationViewerStage
+            ExpectedName = "AuraFoundationTrainer.SimulationViewer.exe"
+        }
+    )) {
+        $stageFiles = @(
+            Get-ChildItem -LiteralPath $stageContract.Directory -File
+        )
+        if ($stageFiles.Count -ne 1 `
+                -or $stageFiles[0].Name -ne $stageContract.ExpectedName) {
+            throw (
+                "Foundation trainer publish must produce exactly one " +
+                "framework-dependent executable: expected=" +
+                $stageContract.ExpectedName +
+                ", actual=" +
+                (($stageFiles | ForEach-Object Name) -join ", "))
+        }
+    }
+
+    $publishedExecutableBytes = @(
+        Get-ChildItem -LiteralPath $workerStage -File
+        Get-ChildItem -LiteralPath $controlCenterStage -File
+        Get-ChildItem -LiteralPath $simulationViewerStage -File
+    ) | Measure-Object Length -Sum
+    $frameworkDependentSizeCeiling = 32MB
+    if ($publishedExecutableBytes.Sum -gt $frameworkDependentSizeCeiling) {
+        throw (
+            "Foundation trainer executables exceed the framework-dependent " +
+            "single-file size ceiling: actual=" +
+            [Math]::Round($publishedExecutableBytes.Sum / 1MB, 2) +
+            " MiB, ceiling=" +
+            [Math]::Round($frameworkDependentSizeCeiling / 1MB, 2) +
+            " MiB. Check for accidental self-contained publishing.")
+    }
+
     New-Item -ItemType Directory -Force -Path $resolvedOutput |
         Out-Null
     foreach ($file in @(
@@ -424,6 +472,17 @@ try {
         -Source $transformerInstallerSource `
         -Destination (Join-Path $resolvedOutput (
             Split-Path -Leaf $transformerInstallerSource))
+    foreach ($toolSource in @(
+        $runtimeCheckerSource,
+        $runtimeInstallerSource,
+        $trainerLauncherSource,
+        $simulationViewerLauncherSource
+    )) {
+        Copy-PublishedFileWithRetry `
+            -Source $toolSource `
+            -Destination (Join-Path $resolvedOutput (
+                Split-Path -Leaf $toolSource))
+    }
 }
 finally {
     $resolvedStageRoot = [System.IO.Path]::GetFullPath($stageRoot)
@@ -462,6 +521,20 @@ $publishedInstaller = Join-Path $resolvedOutput "Install-AuraPyTorch.cmd"
 if (-not (Test-Path -LiteralPath $publishedInstaller -PathType Leaf)) {
     throw "Published PyTorch installer is missing: $publishedInstaller"
 }
+foreach ($publishedTool in @(
+    (Join-Path $resolvedOutput "Test-AuraDotNetDesktopRuntime.ps1"),
+    (Join-Path $resolvedOutput "Install-AuraDotNetDesktopRuntime.cmd"),
+    (Join-Path $resolvedOutput "Start-AuraFoundationTrainer.cmd"),
+    (Join-Path $resolvedOutput "Start-AuraFoundationSimulationViewer.cmd")
+)) {
+    if (-not (Test-Path -LiteralPath $publishedTool -PathType Leaf)) {
+        throw "Published foundation trainer launcher dependency is missing: $publishedTool"
+    }
+}
 Write-Host "Aura foundation trainer published: $worker"
 Write-Host "Aura foundation trainer control center published: $controlCenter"
 Write-Host "Aura foundation trainer simulation viewer published: $simulationViewer"
+Write-Host (
+    "Aura foundation trainer executable footprint: " +
+    [Math]::Round($publishedExecutableBytes.Sum / 1MB, 2) +
+    " MiB")

@@ -5,6 +5,8 @@ using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Witch.UI;
+using Witch.UI.Window;
 
 namespace Terrias.Dll.Hooks.Visual;
 
@@ -40,14 +42,21 @@ public static class SpiritAttachmentPresenter
                 continue;
             }
 
-            var active = owner.CurHp > 0 && owner.state != IStatusManager.State.Dead;
-            state.Spirit.gameObject.SetActive(active);
+            var spirit = state.Spirit;
+            var spiritStatus = spirit?.Status;
+            var active = spiritStatus != null
+                         && spiritStatus.CurHp > 0
+                         && spiritStatus.state != IStatusManager.State.Dead;
+            if (spirit != null)
+            {
+                spirit.gameObject.SetActive(active);
+            }
             if (Proxies.TryGetValue(state.StatusId, out var proxy) && proxy != null)
             {
                 proxy.SetActive(active);
             }
 
-            TerriasLog.Debug("[SpiritAttachment] owner visibility=" + active + ", source=" + source);
+            TerriasLog.Debug("[SpiritAttachment] spirit visibility=" + active + ", owner=" + owner.InstanceId + ", source=" + source);
         }
     }
 
@@ -69,7 +78,6 @@ public static class SpiritAttachmentPresenter
 
             RemoveProxy(state.StatusId, true);
             var status = spirit.Status as StatusManager;
-            status?.statusBarObj?.SetActive(false);
             proxy = new GameObject("Terrias_SpiritVisualProxy:" + state.StatusId);
             CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "SpiritAttachment.Attach");
             proxy.layer = ownerRenderer.gameObject.layer;
@@ -85,14 +93,15 @@ public static class SpiritAttachmentPresenter
                     spirit.transform.Find("Reflection")?.gameObject,
                     spirit.transform.Find("bottom")?.gameObject,
                     status,
-                    output))
+                    output,
+                    allowInactiveOwner: true))
             {
                 visual.RestoreSourcePresentation();
                 UnityEngine.Object.Destroy(proxy);
                 return;
             }
 
-            proxy.AddComponent<SpiritAttachedHealthBar>().Configure(status, output);
+            proxy.AddComponent<SpiritDetachedStatusBarPresenter>().Configure(status, output);
             proxy.AddComponent<SpiritStatusHoverRelay>().Configure(status, output);
 
             Proxies[state.StatusId] = proxy;
@@ -136,6 +145,7 @@ public static class SpiritAttachmentPresenter
 
         if (restore)
         {
+            proxy.GetComponent<SpiritDetachedStatusBarPresenter>()?.RestorePresentation();
             proxy.GetComponent<ProjectionVisualProxy>()?.RestoreSourcePresentation();
         }
 
@@ -184,102 +194,6 @@ public static class SpiritAttachmentPresenter
     }
 }
 
-internal sealed class SpiritAttachedHealthBar : MonoBehaviour
-{
-    private static Sprite? whiteSprite;
-    private StatusManager? status;
-    private SpriteRenderer? actorRenderer;
-    private SpriteRenderer? background;
-    private SpriteRenderer? fill;
-    private SpiritStatusHoverRelay? hoverRelay;
-
-    public void Configure(StatusManager? nextStatus, SpriteRenderer renderer)
-    {
-        status = nextStatus;
-        actorRenderer = renderer;
-        whiteSprite ??= Sprite.Create(
-            Texture2D.whiteTexture,
-            new Rect(0f, 0f, 1f, 1f),
-            new Vector2(0.5f, 0.5f),
-            1f);
-        background = CreatePart("SpiritHealthBackground", new Color(0.08f, 0.09f, 0.11f, 0.92f));
-        fill = CreatePart("SpiritHealthFill", new Color(0.31f, 0.86f, 0.48f, 1f));
-    }
-
-    private SpriteRenderer CreatePart(string name, Color color)
-    {
-        var child = new GameObject(name);
-        CompanionSceneApi.MoveToOwnerScene(child, gameObject, "SpiritAttachment.HealthBar");
-        child.transform.SetParent(transform, true);
-        var renderer = child.AddComponent<SpriteRenderer>();
-        renderer.sprite = whiteSprite;
-        renderer.color = color;
-        return renderer;
-    }
-
-    private void LateUpdate()
-    {
-        if (status == null || actorRenderer == null || background == null || fill == null)
-        {
-            return;
-        }
-
-        hoverRelay ??= GetComponent<SpiritStatusHoverRelay>();
-        var showNativeHover = hoverRelay?.IsHovered == true;
-        if (status.statusBarObj != null
-            && status.statusBarObj.activeSelf != showNativeHover)
-        {
-            status.statusBarObj.SetActive(showNativeHover);
-        }
-        if (status.effectListObj?.activeSelf == true)
-        {
-            status.effectListObj.SetActive(false);
-        }
-        if (!actorRenderer.enabled || actorRenderer.sprite == null)
-        {
-            background.enabled = false;
-            fill.enabled = false;
-            return;
-        }
-
-        var bounds = actorRenderer.bounds;
-        var width = Mathf.Max(0.025f, bounds.size.x * 0.055f);
-        var height = Mathf.Max(0.15f, bounds.size.y * 0.86f);
-        var x = bounds.max.x + width * 1.8f;
-        var ratio = status.MaxHp <= 0
-            ? 0f
-            : Mathf.Clamp01((float)status.CurHp / status.MaxHp);
-        var fillHeight = Mathf.Max(0.001f, height * ratio);
-
-        Apply(background, new Vector3(x, bounds.center.y, bounds.center.z), width, height, 20);
-        Apply(
-            fill,
-            new Vector3(x, bounds.min.y + fillHeight * 0.5f, bounds.center.z - 0.001f),
-            width * 0.62f,
-            fillHeight,
-            21);
-        background.enabled = true;
-        fill.enabled = ratio > 0f;
-    }
-
-    private void Apply(
-        SpriteRenderer renderer,
-        Vector3 position,
-        float width,
-        float height,
-        int sortingOffset)
-    {
-        renderer.transform.position = position;
-        var parentScale = transform.lossyScale;
-        renderer.transform.localScale = new Vector3(
-            width / Mathf.Max(0.0001f, Mathf.Abs(parentScale.x)),
-            height / Mathf.Max(0.0001f, Mathf.Abs(parentScale.y)),
-            1f);
-        renderer.sortingLayerID = actorRenderer?.sortingLayerID ?? 0;
-        renderer.sortingOrder = (actorRenderer?.sortingOrder ?? 0) + sortingOffset;
-    }
-}
-
 internal sealed class SpiritStatusHoverRelay : MonoBehaviour,
     IPointerEnterHandler,
     IPointerExitHandler
@@ -287,6 +201,8 @@ internal sealed class SpiritStatusHoverRelay : MonoBehaviour,
     private StatusManager? status;
     private SpriteRenderer? renderer;
     private BoxCollider? hitBox;
+    private KeywordDisplay? sourceDisplay;
+    private KeywordDisplay? proxyDisplay;
 
     public bool IsHovered { get; private set; }
 
@@ -295,27 +211,31 @@ internal sealed class SpiritStatusHoverRelay : MonoBehaviour,
         status = nextStatus;
         renderer = nextRenderer;
         hitBox = gameObject.GetComponent<BoxCollider>() ?? gameObject.AddComponent<BoxCollider>();
+        sourceDisplay = nextStatus?.GetComponent<KeywordDisplay>();
+        proxyDisplay = gameObject.GetComponent<KeywordDisplay>() ?? gameObject.AddComponent<KeywordDisplay>();
     }
 
     public void OnPointerEnter(PointerEventData eventData)
     {
         IsHovered = true;
         status?.UpdateStatus(false);
-        status?.statusBarObj?.SetActive(true);
-        if (status is IPointerEnterHandler handler)
+        if (sourceDisplay != null && proxyDisplay != null)
         {
-            handler.OnPointerEnter(eventData);
+            proxyDisplay.SetText(
+                sourceDisplay.title,
+                sourceDisplay.text,
+                sourceDisplay.keyWords,
+                sourceDisplay.msg,
+                sourceDisplay.icon,
+                sourceDisplay.type);
+            proxyDisplay.OnPointerEnter(eventData);
         }
     }
 
     public void OnPointerExit(PointerEventData eventData)
     {
-        if (status is IPointerExitHandler handler)
-        {
-            handler.OnPointerExit(eventData);
-        }
+        proxyDisplay?.OnPointerExit(eventData);
         IsHovered = false;
-        status?.statusBarObj?.SetActive(false);
     }
 
     private void LateUpdate()
@@ -332,27 +252,11 @@ internal sealed class SpiritStatusHoverRelay : MonoBehaviour,
             Mathf.Abs(localSize.y),
             Mathf.Max(0.1f, Mathf.Abs(localSize.z)));
 
-        if (IsHovered && status?.statusBarObj != null && Camera.main != null)
-        {
-            var canvas = GameObject.Find("Canvas")?.GetComponent<RectTransform>();
-            if (canvas != null)
-            {
-                var anchor = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
-                status.statusBarObj.transform.localPosition =
-                    PositionUtility.ScreenPointToCanvasPoint(
-                        canvas,
-                        Camera.main.WorldToScreenPoint(anchor));
-            }
-        }
     }
 
     private void OnDisable()
     {
         IsHovered = false;
-        status?.statusBarObj?.SetActive(false);
-        if (status is IPointerExitHandler handler)
-        {
-            handler.OnPointerExit(null!);
-        }
+        proxyDisplay?.OnPointerExit(null!);
     }
 }

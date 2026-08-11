@@ -451,6 +451,13 @@ $package = Get-Content -Raw -Encoding UTF8 -LiteralPath $sourcePackage `
 $modelId = [string]$package.modelArtifact.modelId
 $roleId = [string]$package.roleId
 $profile = [string]$package.profile
+$expectedDeploymentTier = if ([string]::IsNullOrWhiteSpace(
+    [string]$package.deploymentTier)) {
+    "formal"
+}
+else {
+    [string]$package.deploymentTier
+}
 $derivedRoleId = if ($roleId -ne "career_2") {
     "career_2"
 }
@@ -631,7 +638,7 @@ try {
         | Out-Null
     $configurationSentinel = @"
 {
-  "schemaVersion": 26,
+  "schemaVersion": 27,
   "autoBattle": {
     "selectedModelId": "keep-selected-model",
     "trainedModelMode": "shadow"
@@ -709,6 +716,8 @@ try {
         "Registration did not create models.json in temporary ModsData.")
     $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath `
         | ConvertFrom-Json
+    Assert-True ([int]$manifest.schemaVersion -eq 6) (
+        "models.json did not use the tier-aware schema 6 contract.")
     $manifestModels = @($manifest.models)
     Assert-True ($manifestModels.Count -eq 2) (
         "models.json expected two role-model entries after package deduplication.")
@@ -735,6 +744,10 @@ try {
         Assert-True (([string]$manifestEntry[0].distributionOrigin -eq $expectedOrigin)) (
             "models.json distribution origin does not match model '" `
                 + $expectedModelId + "'.")
+        Assert-True (([string]$manifestEntry[0].deploymentTier -eq (
+            $expectedDeploymentTier))) (
+            "models.json deployment tier does not match model '" `
+                + $expectedModelId + "'.")
 
         $bundlePath = Join-Path `
             $libraryDirectory `
@@ -747,6 +760,13 @@ try {
             -Encoding UTF8 `
             -LiteralPath $bundlePath `
             | ConvertFrom-Json
+        Assert-True ([int]$bundleJson.schemaVersion -eq 6) (
+            "Registered bundle did not use tier-aware schema 6 for model '" `
+                + $expectedModelId + "'.")
+        Assert-True (([string]$bundleJson.foundationDeploymentTier -eq (
+            $expectedDeploymentTier))) (
+            "Registered bundle lost deployment tier for model '" `
+                + $expectedModelId + "'.")
         $weightsPath = Join-Path `
             $libraryDirectory `
             ([string]$bundleJson.policyValueArtifact.weightsFile)

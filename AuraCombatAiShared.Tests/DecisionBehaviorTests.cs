@@ -1003,6 +1003,28 @@ internal static class CombatAiDecisionBehaviorTests
                && policyCandidate.IsPolicyPreselection,
             "human sample visibly separates the executed action from policy preselection");
 
+        var emergencySample = CombatTrainingSampleBuilder.Create(
+            state,
+            afterState,
+            combatDecision,
+            3,
+            44,
+            CombatActionTransactionState.Completed.ToString(),
+            "technical fallback settled",
+            terminal: false,
+            gameBuild: "test-game",
+            sharedBuild: "test-shared",
+            demonstrator: "emergency-baseline",
+            recommendedCandidateId: combatDecision.Action.CandidateId);
+        Assert(emergencySample.Selection.ExecutedBy == "emergency-baseline"
+               && emergencySample.Selection.LabelKind
+               == "technical-fallback-telemetry"
+               && string.IsNullOrWhiteSpace(
+                   emergencySample.Selection.PolicyPreselectedCandidateId)
+               && emergencySample.Candidates.All(candidate =>
+                   !candidate.IsPolicyPreselection),
+            "technical fallback is retained as telemetry without becoming a policy imitation label");
+
         var noThreatDefendFeatures = CombatDecisionEngine.BuildFeatures(
             state,
             state.Actions.Single(action => action.CandidateId == "guard"));

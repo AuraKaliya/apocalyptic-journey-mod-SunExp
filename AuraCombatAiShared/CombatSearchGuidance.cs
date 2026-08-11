@@ -176,7 +176,8 @@ public static class CombatSearchGuidanceTrainer
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
             .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
                              && string.Equals(sample.CompletionState, "Completed", StringComparison.OrdinalIgnoreCase)
-                             && string.Equals(NormalizeProfile(sample.DecisionProfile), profile, StringComparison.Ordinal))
+                             && string.Equals(NormalizeProfile(sample.DecisionProfile), profile, StringComparison.Ordinal)
+                             && IsLearningDemonstration(sample.Selection))
             .ToList();
         var policy = new List<TrainingExample>();
         var values = new List<TrainingExample>();
@@ -275,6 +276,19 @@ public static class CombatSearchGuidanceTrainer
         result.Model = model;
         result.Message = "已生成搜索策略、价值与风险树模型";
         return result;
+    }
+
+    private static bool IsLearningDemonstration(
+        CombatTrainingSelectionTrace? selection)
+    {
+        return string.Equals(
+                   selection?.ExecutedBy,
+                   "human",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   selection?.ExecutedBy,
+                   "policy",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static CombatTreeEnsemble Fit(

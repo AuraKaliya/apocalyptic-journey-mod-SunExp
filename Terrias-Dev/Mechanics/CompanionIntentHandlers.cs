@@ -113,7 +113,7 @@ public static class CompanionIntentHandlerRegistry
             {
                 for (var hit = 0; hit < Math.Max(1, effect.RepeatCount); hit++)
                 {
-                    ExecutorApi.DealDamageToTarget(executor, target, effect.Value);
+                    CompanionEffectCommitService.Damage(executor, target, effect.Value);
                     if (!CompanionTargetPolicyRegistry.IsAlive(target))
                     {
                         break;
@@ -157,8 +157,7 @@ public static class CompanionIntentHandlerRegistry
         {
             foreach (var target in CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
             {
-                ExecutorApi.SetStatusForTarget(executor, target, "Self");
-                executor.ChangeDefence(Math.Max(0, effect.Value).ToString());
+                CompanionEffectCommitService.Block(executor, target, Math.Max(0, effect.Value));
             }
         }
 
@@ -204,7 +203,11 @@ public static class CompanionIntentHandlerRegistry
         {
             foreach (var target in CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
             {
-                ExecutorApi.AddStatusBuff(executor, target, effect.BuffId, effect.BuffStacks);
+                CompanionEffectCommitService.ApplyBuff(
+                    executor,
+                    target,
+                    effect.BuffId,
+                    effect.BuffStacks);
             }
         }
 
@@ -239,8 +242,7 @@ public static class CompanionIntentHandlerRegistry
                 return;
             }
 
-            ExecutorApi.SetStatusForTarget(executor, target, "Self");
-            executor.ChangeHp(Math.Max(0, effect.Value).ToString());
+            CompanionEffectCommitService.Heal(executor, target, Math.Max(0, effect.Value));
         }
 
         public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
@@ -411,8 +413,8 @@ public static class CompanionTargetPolicyRegistry
                     .Take(1)
                     .ToArray();
             case Self:
-                var owner = StatusById(state.OwnerStatusId);
-                return IsAlive(owner) ? new[] { owner! } : Array.Empty<IStatusManager>();
+                var self = StatusById(SelfStatusId(state));
+                return IsAlive(self) ? new[] { self! } : Array.Empty<IStatusManager>();
             case PvpOpponent:
                 return Array.Empty<IStatusManager>();
             default:
@@ -433,7 +435,7 @@ public static class CompanionTargetPolicyRegistry
         switch (intent.Target.Scope)
         {
             case "Self":
-                return string.Equals(target!.InstanceId, state.OwnerStatusId, StringComparison.Ordinal);
+                return string.Equals(target!.InstanceId, SelfStatusId(state), StringComparison.Ordinal);
             case "Friendly":
                 return CompanionFriendlyRosterService.Contains(target);
             case "Enemy":
@@ -470,13 +472,13 @@ public static class CompanionTargetPolicyRegistry
 
     private static IReadOnlyList<IStatusManager> ResolveDefenseTarget(ScriptExecutor executor, CompanionBattleState state)
     {
-        var owner = StatusById(state.OwnerStatusId);
-        if (IsAlive(owner) && HpPercent(owner!) <= 45)
+        var self = StatusById(SelfStatusId(state));
+        if (IsAlive(self) && HpPercent(self!) <= 45)
         {
-            return new[] { owner! };
+            return new[] { self! };
         }
 
-        return IsAlive(owner) ? new[] { owner! } : Array.Empty<IStatusManager>();
+        return IsAlive(self) ? new[] { self! } : Array.Empty<IStatusManager>();
     }
 
     private static IEnumerable<IStatusManager> FriendlyStatuses()
@@ -492,6 +494,13 @@ public static class CompanionTargetPolicyRegistry
             && FightManager.Instance?.statuses?.TryGetValue(statusId, out var status) == true
                 ? status
                 : null;
+    }
+
+    private static string SelfStatusId(CompanionBattleState state)
+    {
+        return string.Equals(state.EntityKind, "SpiritAttachment", StringComparison.Ordinal)
+            ? state.StatusId
+            : state.OwnerStatusId;
     }
 
     private static int HpPercent(IStatusManager status)

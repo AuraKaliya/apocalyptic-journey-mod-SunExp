@@ -153,6 +153,36 @@ public static class RoleSkillApi
         }
     }
 
+    public static Dictionary<string, int> SnapshotCurrentCareerSkillTimes()
+    {
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var skillId in CurrentCareerSkillIds())
+        {
+            if (!string.IsNullOrWhiteSpace(skillId))
+            {
+                result[skillId] = Math.Max(0, PlayerApi.GetSkillTime(skillId));
+            }
+        }
+
+        return result;
+    }
+
+    public static void ApplyCurrentCareerSkillTimes(IReadOnlyDictionary<string, int>? cooldowns)
+    {
+        if (cooldowns == null)
+        {
+            return;
+        }
+
+        foreach (var skillId in CurrentCareerSkillIds())
+        {
+            if (cooldowns.TryGetValue(skillId, out var cooldown))
+            {
+                PlayerApi.SetSkillTime(skillId, Math.Max(0, cooldown));
+            }
+        }
+    }
+
     private static void EnsureSkillTime(string cardId)
     {
         if (string.IsNullOrWhiteSpace(cardId))

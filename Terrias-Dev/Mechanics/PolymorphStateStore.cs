@@ -13,6 +13,8 @@ public sealed class PolymorphState
         string displayName,
         string originalCareerId,
         DataConfig? originalCareer,
+        IReadOnlyDictionary<string, int>? originalCooldowns,
+        int sessionId,
         int version)
     {
         OwnerStatusId = ownerStatusId ?? "";
@@ -20,6 +22,8 @@ public sealed class PolymorphState
         DisplayName = displayName ?? "";
         OriginalCareerId = originalCareerId ?? "";
         OriginalCareer = originalCareer;
+        OriginalCooldowns = PolymorphCooldownSnapshotPolicy.Normalize(originalCooldowns);
+        SessionId = sessionId;
         Version = version;
     }
 
@@ -32,6 +36,10 @@ public sealed class PolymorphState
     public string OriginalCareerId { get; }
 
     public DataConfig? OriginalCareer { get; }
+
+    public IReadOnlyDictionary<string, int> OriginalCooldowns { get; }
+
+    public int SessionId { get; }
 
     public int Version { get; }
 }
@@ -67,6 +75,18 @@ public static class PolymorphStateStore
     {
         var active = ActiveFor(ownerStatus);
         return active != null && !RoleMatches(active.RoleId, roleId);
+    }
+
+    public static bool IsRoleActiveFor(IStatusManager? ownerStatus, string roleId)
+    {
+        var active = ActiveFor(ownerStatus);
+        return active != null && RoleMatches(active.RoleId, roleId);
+    }
+
+    public static bool IsCurrentSession(IStatusManager? ownerStatus, int sessionId)
+    {
+        var active = ActiveFor(ownerStatus);
+        return active != null && active.SessionId == sessionId;
     }
 
     public static string EffectiveCombatRoleIdFor(IStatusManager? ownerStatus)
@@ -156,13 +176,26 @@ public static class PolymorphStateStore
         {
             var originalCareer = SnapshotOriginalCareer(owner);
             var originalCareerId = DictionaryUtil.Get(originalCareer?.data, "Id");
+            IReadOnlyDictionary<string, int> originalCooldowns = RoleSkillApi.SnapshotCurrentCareerSkillTimes();
+            var nextVersion = ++version;
+            var sessionId = nextVersion;
             if (ActiveStates.TryGetValue(owner, out var existing) && existing.OriginalCareer != null)
             {
                 originalCareer = existing.OriginalCareer;
                 originalCareerId = existing.OriginalCareerId;
+                originalCooldowns = existing.OriginalCooldowns;
+                sessionId = existing.SessionId;
             }
 
-            var state = new PolymorphState(owner, role.Id, role.DisplayName, originalCareerId, originalCareer, ++version);
+            var state = new PolymorphState(
+                owner,
+                role.Id,
+                role.DisplayName,
+                originalCareerId,
+                originalCareer,
+                originalCooldowns,
+                sessionId,
+                nextVersion);
             ActiveStates[owner] = state;
             TerriasPerformanceCounters.Record("Polymorph.StateSet");
             return state;
@@ -251,8 +284,16 @@ public static class PolymorphStateStore
                 return;
             }
 
-            RoleTable.Instance.Career = state.OriginalCareer;
-            FightPlayer.Instance?.Status?.ResetAnimator(false);
+            var owner = FightPlayer.Instance?.Status;
+            if (!CareerApi.CommitLocalCareer(
+                    owner,
+                    state.OriginalCareer,
+                    "PolymorphStateStore.RestoreOriginalCareer:" + source))
+            {
+                TerriasLog.Warn("[Polymorph] failed to commit original career from " + source + ".");
+                return;
+            }
+
             PolymorphNetworkSync.BroadcastNativeCareerChange(
                 state.OwnerStatusId,
                 state.OriginalCareerId,
@@ -261,7 +302,9 @@ public static class PolymorphStateStore
             PolymorphRuntimeService.RestoreOriginalCareerRuntime(
                 state,
                 "PolymorphStateStore.RestoreOriginalCareer:" + source);
+            RoleSkillApi.ApplyCurrentCareerSkillTimes(state.OriginalCooldowns);
             RoleSkillApi.RefreshFightSkills("PolymorphStateStore.RestoreOriginalCareer:" + source);
+            RoleSkillApi.LogCurrentSkillDiagnostics("PolymorphStateStore.RestoreOriginalCareer:" + source);
             TerriasLog.Info("[Polymorph] restored career from " + source + ": "
                 + state.RoleId + " -> " + state.OriginalCareerId);
         }

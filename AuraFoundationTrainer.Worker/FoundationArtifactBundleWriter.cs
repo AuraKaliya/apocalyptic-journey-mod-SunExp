@@ -28,14 +28,16 @@ public sealed class FoundationArtifactBundleResult
     public string SeedRegistryPath { get; set; } = "";
 
     public string ModelNodeGraphPath { get; set; } = "";
+
+    public string Warning { get; set; } = "";
 }
 
 public sealed class FoundationArtifactBundleManifest
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public string ArtifactKind { get; set; } =
-        "aura.foundation-training-artifact-bundle.v1";
+        "aura.foundation-training-artifact-bundle.v2";
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
@@ -47,9 +49,30 @@ public sealed class FoundationArtifactBundleManifest
 
     public bool DeploymentEligible { get; set; }
 
+    public bool ExperimentalEligible { get; set; }
+
+    public bool GameLoadable { get; set; }
+
+    public string DeploymentTier { get; set; } =
+        CombatFoundationDeploymentTier.Diagnostic;
+
+    public bool SameModelEvidenceBound { get; set; }
+
+    public bool RuntimeSafetyPassed { get; set; }
+
+    public bool RawIsolationPassed { get; set; }
+
     public string EvaluatedModelId { get; set; } = "";
 
     public int EvaluatedModelIteration { get; set; }
+
+    public string ValidationModelId { get; set; } = "";
+
+    public string CapabilityProbeModelId { get; set; } = "";
+
+    public int ContentEntityCount { get; set; }
+
+    public string ContentCatalogHash { get; set; } = "";
 
     public string CandidateModelManifest { get; set; } = "";
 
@@ -71,6 +94,8 @@ public sealed class FoundationArtifactBundleManifest
 
     public Dictionary<string, string> Sha256 { get; set; } =
         new(StringComparer.Ordinal);
+
+    public List<string> Warnings { get; set; } = new();
 }
 
 public sealed class FoundationBoundaryArtifactManifest
@@ -102,10 +127,10 @@ public sealed class FoundationBoundaryArtifactManifest
 
 public sealed class FoundationCandidateModelManifest
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public string ArtifactKind { get; set; } =
-        "aura.foundation-training-candidate-model.v1";
+        "aura.foundation-training-candidate-model.v2";
 
     public string ModelId { get; set; } = "";
 
@@ -113,7 +138,21 @@ public sealed class FoundationCandidateModelManifest
 
     public bool DeploymentEligible { get; set; }
 
+    public bool ExperimentalEligible { get; set; }
+
+    public bool GameLoadable { get; set; }
+
+    public string DeploymentTier { get; set; } =
+        CombatFoundationDeploymentTier.Diagnostic;
+
     public string AcceptanceKind { get; set; } = "";
+
+    public bool RuntimeSafetyPassed { get; set; }
+
+    public bool RawIsolationPassed { get; set; }
+
+    public string CapabilityStatus { get; set; } =
+        CombatFoundationModelPackageProtocol.CapabilityStatusInconclusive;
 
     public string SelectionReason { get; set; } = "";
 
@@ -143,6 +182,15 @@ public sealed class FoundationSeedTag
 
 public static class FoundationArtifactBundleWriter
 {
+    private sealed record ContentEntityRow(
+        string OwnerModId,
+        string EntityType,
+        string EntityId,
+        string Locale,
+        string DisplayName,
+        string Description,
+        string Source,
+        string SourceHash);
     public const string DirectoryName = "training-artifacts-v1";
     public const string ManifestFileName = "artifact-manifest-v1.json";
     public const string ReportFileName = "model-capability-report-v1.json";
@@ -277,6 +325,8 @@ public static class FoundationArtifactBundleWriter
         }
 
         var selected = SelectModel(training);
+        var contentEntities = BuildContentEntities(job);
+        var contentCatalogHash = HashText(Json(contentEntities));
         var modelManifestPath = "";
         var modelWeightsPath = "";
         if (selected.Model != null)
@@ -297,7 +347,15 @@ public static class FoundationArtifactBundleWriter
                     ModelId = selected.Model.ModelId,
                     SourceIteration = selected.Iteration,
                     DeploymentEligible = training.AcceptancePassed,
+                    ExperimentalEligible =
+                        training.ExperimentalEligibilityPassed,
+                    GameLoadable = training.AcceptancePassed
+                                   || training.ExperimentalEligibilityPassed,
+                    DeploymentTier = training.DeploymentTier,
                     AcceptanceKind = training.AcceptanceKind,
+                    RuntimeSafetyPassed = training.RuntimeSafetyPassed,
+                    RawIsolationPassed = training.RawIsolationPassed,
+                    CapabilityStatus = CapabilityStatus(training),
                     SelectionReason = selected.Reason,
                     Artifact = artifact
                 });
@@ -328,13 +386,28 @@ public static class FoundationArtifactBundleWriter
         WriteHtmlReport(reportHtmlPath, training, trainingAnalysis, selected, seeds);
 
         var databasePath = Path.Combine(bundleDirectory, DatabaseFileName);
-        WriteSimulationDatabase(
-            databasePath,
-            job,
-            training,
-            completionKind,
-            selected,
-            seeds);
+        var warnings = new List<string>();
+        try
+        {
+            WriteSimulationDatabase(
+                databasePath,
+                job,
+                training,
+                completionKind,
+                selected,
+                seeds,
+                contentEntities,
+                contentCatalogHash);
+        }
+        catch (Exception ex)
+        {
+            databasePath = "";
+            warnings.Add(
+                "模拟过程数据库写入失败；候选模型、能力报告与清单仍已保留："
+                + ex.GetType().Name
+                + ": "
+                + ex.Message);
+        }
 
         var manifestPath = Path.Combine(bundleDirectory, ManifestFileName);
         var manifest = new FoundationArtifactBundleManifest
@@ -343,15 +416,27 @@ public static class FoundationArtifactBundleWriter
             CompletionKind = completionKind,
             TrainingSucceeded = training.Success,
             DeploymentEligible = training.AcceptancePassed,
+            ExperimentalEligible = training.ExperimentalEligibilityPassed,
+            GameLoadable = training.AcceptancePassed
+                           || training.ExperimentalEligibilityPassed,
+            DeploymentTier = training.DeploymentTier,
+            SameModelEvidenceBound = training.SameModelEvidenceBound,
+            RuntimeSafetyPassed = training.RuntimeSafetyPassed,
+            RawIsolationPassed = training.RawIsolationPassed,
             EvaluatedModelId = selected.Model?.ModelId ?? "",
             EvaluatedModelIteration = selected.Iteration,
+            ValidationModelId = training.ValidationModelId,
+            CapabilityProbeModelId = training.CapabilityProbeModelId,
+            ContentEntityCount = contentEntities.Count,
+            ContentCatalogHash = contentCatalogHash,
             CandidateModelManifest = Relative(bundleDirectory, modelManifestPath),
             CandidateModelWeights = Relative(bundleDirectory, modelWeightsPath),
             CapabilityReport = Relative(bundleDirectory, reportPath),
             CapabilityReportHtml = Relative(bundleDirectory, reportHtmlPath),
             SimulationDatabase = Relative(bundleDirectory, databasePath),
             SeedRegistry = Relative(bundleDirectory, seedRegistryPath),
-            ModelNodeGraph = Relative(bundleDirectory, modelNodeGraphPath)
+            ModelNodeGraph = Relative(bundleDirectory, modelNodeGraphPath),
+            Warnings = warnings
         };
         foreach (var path in new[]
                  {
@@ -396,7 +481,8 @@ public static class FoundationArtifactBundleWriter
             CapabilityReportHtmlPath = reportHtmlPath,
             SimulationDatabasePath = databasePath,
             SeedRegistryPath = seedRegistryPath,
-            ModelNodeGraphPath = modelNodeGraphPath
+            ModelNodeGraphPath = modelNodeGraphPath,
+            Warning = string.Join(Environment.NewLine, warnings)
         };
     }
 
@@ -422,17 +508,113 @@ public static class FoundationArtifactBundleWriter
         WriteJson(manifestPath, manifest);
     }
 
+    public static string WriteRecoveryManifest(
+        CombatFoundationWorkerJob job,
+        CombatCampaignFoundationTrainingResult training,
+        string completionKind,
+        IEnumerable<string>? recoveryWarnings = null)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+        ArgumentNullException.ThrowIfNull(training);
+        var bundleDirectory = Path.Combine(job.ResultDirectory, DirectoryName);
+        var modelDirectory = Path.Combine(bundleDirectory, "model");
+        Directory.CreateDirectory(modelDirectory);
+        var candidatePath = Path.Combine(
+            modelDirectory,
+            "candidate-model-v1.json");
+        var weightsPath = Path.Combine(
+            modelDirectory,
+            "candidate-model-weights-v1.bin");
+        var reportPath = Path.Combine(bundleDirectory, ReportFileName);
+        var reportHtmlPath = Path.Combine(bundleDirectory, ReportHtmlFileName);
+        var databasePath = Path.Combine(bundleDirectory, DatabaseFileName);
+        var seedRegistryPath = Path.Combine(bundleDirectory, SeedRegistryFileName);
+        var modelNodeGraphPath = Path.Combine(
+            bundleDirectory,
+            ModelNodeGraphFileName);
+        var contentEntities = BuildContentEntities(job);
+        var manifest = new FoundationArtifactBundleManifest
+        {
+            JobId = job.JobId,
+            CompletionKind = completionKind,
+            TrainingSucceeded = training.Success,
+            DeploymentEligible = false,
+            ExperimentalEligible = training.ExperimentalEligibilityPassed,
+            GameLoadable = training.ExperimentalEligibilityPassed,
+            DeploymentTier = training.DeploymentTier,
+            SameModelEvidenceBound = training.SameModelEvidenceBound,
+            RuntimeSafetyPassed = training.RuntimeSafetyPassed,
+            RawIsolationPassed = training.RawIsolationPassed,
+            EvaluatedModelId = training.EvaluatedModelId,
+            EvaluatedModelIteration = training.EvaluatedModelIteration,
+            ValidationModelId = training.ValidationModelId,
+            CapabilityProbeModelId = training.CapabilityProbeModelId,
+            ContentEntityCount = contentEntities.Count,
+            ContentCatalogHash = HashText(Json(contentEntities)),
+            CandidateModelManifest = File.Exists(candidatePath)
+                ? Relative(bundleDirectory, candidatePath)
+                : "",
+            CandidateModelWeights = File.Exists(weightsPath)
+                ? Relative(bundleDirectory, weightsPath)
+                : "",
+            CapabilityReport = File.Exists(reportPath)
+                ? Relative(bundleDirectory, reportPath)
+                : "",
+            CapabilityReportHtml = File.Exists(reportHtmlPath)
+                ? Relative(bundleDirectory, reportHtmlPath)
+                : "",
+            SimulationDatabase = File.Exists(databasePath)
+                ? Relative(bundleDirectory, databasePath)
+                : "",
+            SeedRegistry = File.Exists(seedRegistryPath)
+                ? Relative(bundleDirectory, seedRegistryPath)
+                : "",
+            ModelNodeGraph = File.Exists(modelNodeGraphPath)
+                ? Relative(bundleDirectory, modelNodeGraphPath)
+                : "",
+            Warnings = (recoveryWarnings ?? Array.Empty<string>())
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .Select(item => item.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
+        };
+        foreach (var path in new[]
+                 {
+                     candidatePath,
+                     weightsPath,
+                     reportPath,
+                     reportHtmlPath,
+                     databasePath,
+                     seedRegistryPath,
+                     modelNodeGraphPath
+                 }.Where(File.Exists))
+        {
+            manifest.Sha256[Relative(bundleDirectory, path)] = HashFile(path);
+        }
+        var manifestPath = Path.Combine(bundleDirectory, ManifestFileName);
+        WriteJson(manifestPath, manifest);
+        return manifestPath;
+    }
+
     private static (CombatPolicyValueNetworkDefinition? Model, int Iteration,
         string Reason) SelectModel(
         CombatCampaignFoundationTrainingResult training)
     {
-        var model = training.AcceptancePassed
-            ? training.Champion
-            : training.AbsoluteQualifiedBestModel
-              ?? training.BestPendingArenaCandidate?.Model
-              ?? training.LatestTrainingModel
-              ?? training.WorkingChampion
-              ?? training.Champion;
+        var candidates = new[]
+        {
+            training.Champion,
+            training.AbsoluteQualifiedBestModel,
+            training.WorkingChampion,
+            training.BestPendingArenaCandidate?.Model,
+            training.LatestTrainingModel
+        };
+        var model = candidates.FirstOrDefault(candidate =>
+                        candidate != null
+                        && string.Equals(
+                            candidate.ModelId,
+                            training.EvaluatedModelId,
+                            StringComparison.Ordinal))
+                    ?? candidates.FirstOrDefault(candidate => candidate != null);
         var iteration = training.Iterations
             .Where(item => string.Equals(
                 item.CandidateModelId,
@@ -446,15 +628,24 @@ public static class FoundationArtifactBundleWriter
         }
         var reason = training.AcceptancePassed
             ? "accepted-champion"
-            : ReferenceEquals(model, training.AbsoluteQualifiedBestModel)
-                ? "absolute-qualified-diagnostic"
-                : ReferenceEquals(model, training.BestPendingArenaCandidate?.Model)
-                    ? "best-pending-arena-candidate"
-                    : ReferenceEquals(model, training.LatestTrainingModel)
-                        ? "latest-training-model"
-                        : "retained-working-model";
+            : SameModel(model, training.AbsoluteQualifiedBestModel)
+                ? training.ExperimentalEligibilityPassed
+                    ? "absolute-qualified-experimental"
+                    : "absolute-qualified-diagnostic"
+                : SameModel(model, training.WorkingChampion)
+                    ? "retained-working-model"
+                    : SameModel(model, training.BestPendingArenaCandidate?.Model)
+                        ? "best-pending-arena-candidate"
+                        : "latest-training-model";
         return (model, iteration, reason);
     }
+
+    private static bool SameModel(
+        CombatPolicyValueNetworkDefinition? left,
+        CombatPolicyValueNetworkDefinition? right) =>
+        left != null
+        && right != null
+        && string.Equals(left.ModelId, right.ModelId, StringComparison.Ordinal);
 
     private static object BuildModelNodeGraph(
         CombatCampaignFoundationTrainingResult training,
@@ -519,6 +710,15 @@ public static class FoundationArtifactBundleWriter
                 sourceIteration = selected.Iteration,
                 selectionReason = selected.Reason,
                 deploymentEligible = training.AcceptancePassed,
+                experimentalEligible = training.ExperimentalEligibilityPassed,
+                deploymentTier = training.DeploymentTier,
+                deploymentTierReason = training.DeploymentTierReason,
+                sameModelEvidenceBound = training.SameModelEvidenceBound,
+                runtimeSafetyPassed = training.RuntimeSafetyPassed,
+                rawIsolationPassed = training.RawIsolationPassed,
+                capabilityStatus = CapabilityStatus(training),
+                validationModelId = training.ValidationModelId,
+                capabilityProbeModelId = training.CapabilityProbeModelId,
                 training.AcceptanceKind,
                 training.Message
             },
@@ -537,6 +737,8 @@ public static class FoundationArtifactBundleWriter
                 runs = training.ValidationRuns.Select(CampaignSummary).ToList()
             },
             decisionDifferences = training.CapabilityProbe.DecisionDifferences,
+            decisionRiskDiagnostics = BuildDecisionRiskDiagnostics(
+                training.CapabilityProbe.DecisionDifferences),
             seedTags = seeds,
             performance = trainingAnalysis
         };
@@ -693,6 +895,176 @@ public static class FoundationArtifactBundleWriter
         return values;
     }
 
+    private static object BuildDecisionRiskDiagnostics(
+        IReadOnlyList<CombatFoundationDecisionDifferenceCase>? differences)
+    {
+        var source = differences
+                     ?? Array.Empty<CombatFoundationDecisionDifferenceCase>();
+        return source
+            .GroupBy(item => new
+            {
+                difficulty = string.IsNullOrWhiteSpace(item.DifficultyId)
+                    ? "unknown"
+                    : item.DifficultyId,
+                failureCategory = string.IsNullOrWhiteSpace(item.FailureCategory)
+                    ? "unclassified"
+                    : item.FailureCategory
+            })
+            .OrderBy(group => group.Key.difficulty, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.failureCategory, StringComparer.Ordinal)
+            .Select(group => new
+            {
+                group.Key.difficulty,
+                group.Key.failureCategory,
+                cases = group.Count(),
+                meanSelectedDeathRisk = group.Average(item =>
+                    item.ChampionDecision.SearchDeathRisk),
+                meanPreferredDeathRisk = group.Average(item =>
+                    item.ChampionViewOfBaselineAction.SearchDeathRisk),
+                meanRiskDelta = group.Average(item =>
+                    item.ChampionDecision.SearchDeathRisk
+                    - item.ChampionViewOfBaselineAction.SearchDeathRisk),
+                meanSelectedVisits = group.Average(item =>
+                    item.ChampionDecision.SearchVisits),
+                meanPreferredVisits = group.Average(item =>
+                    item.ChampionViewOfBaselineAction.SearchVisits),
+                meanSearchValueRegret = group.Average(item =>
+                    Math.Max(
+                        0d,
+                        item.ChampionViewOfBaselineAction.SearchValue
+                        - item.ChampionDecision.SearchValue)),
+                lowEvidenceSelections = group.Count(item =>
+                    item.ChampionDecision.SearchVisits <= 4
+                    && item.ChampionViewOfBaselineAction.SearchVisits >= 16)
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<ContentEntityRow> BuildContentEntities(
+        CombatFoundationWorkerJob job)
+    {
+        var rows = new Dictionary<string, ContentEntityRow>(
+            StringComparer.OrdinalIgnoreCase);
+
+        void Add(
+            string owner,
+            string type,
+            string id,
+            string name,
+            string description,
+            string source,
+            string sourceHash)
+        {
+            if (string.IsNullOrWhiteSpace(type)
+                || string.IsNullOrWhiteSpace(id)
+                || string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+            var normalizedOwner = string.IsNullOrWhiteSpace(owner)
+                ? "Witch"
+                : owner.Trim();
+            var normalizedType = type.Trim().ToLowerInvariant();
+            var normalizedId = id.Trim();
+            var key = string.Join(
+                "|",
+                normalizedOwner,
+                normalizedType,
+                normalizedId,
+                CombatContentDisplayCatalogProtocol.Locale);
+            if (rows.ContainsKey(key))
+            {
+                return;
+            }
+            rows[key] = new ContentEntityRow(
+                normalizedOwner,
+                normalizedType,
+                normalizedId,
+                CombatContentDisplayCatalogProtocol.Locale,
+                name.Trim(),
+                description?.Trim() ?? "",
+                source?.Trim() ?? "",
+                sourceHash?.Trim() ?? "");
+        }
+
+        foreach (var entry in (job.ContentDisplayCatalog?.Entries
+                               ?? new List<CombatContentDisplayCatalogEntry>()))
+        {
+            Add(
+                entry.OwnerModId,
+                entry.EntityType,
+                entry.EntityId,
+                entry.DisplayName,
+                entry.Description,
+                entry.Source,
+                entry.SourceHash);
+        }
+        foreach (var card in job.Ruleset?.Cards ?? new List<CombatCardDefinition>())
+        {
+            Add(
+                card.OwnerModId,
+                "card",
+                card.CardId,
+                card.DisplayName,
+                "",
+                "embedded-ruleset",
+                HashText(Json(card)));
+        }
+        foreach (var enemy in job.Ruleset?.Enemies
+                     ?? new List<CombatEnemyDefinition>())
+        {
+            Add(
+                enemy.OwnerModId,
+                "enemy",
+                enemy.EnemyId,
+                enemy.DisplayName,
+                "",
+                "embedded-ruleset",
+                HashText(Json(enemy)));
+        }
+        foreach (var status in job.Ruleset?.Statuses
+                     ?? new List<CombatStatusDefinition>())
+        {
+            Add(
+                status.OwnerModId,
+                "buff",
+                status.StatusId,
+                status.DisplayName,
+                "",
+                "embedded-ruleset",
+                HashText(Json(status)));
+        }
+        var campaign = job.Request?.ValidationCampaign;
+        foreach (var reward in campaign?.Rewards
+                     ?? new List<CombatCampaignRewardDefinition>())
+        {
+            Add(
+                reward.OwnerModId,
+                reward.Kind.ToString(),
+                reward.RewardId,
+                reward.DisplayName,
+                "",
+                "embedded-campaign",
+                HashText(Json(reward)));
+        }
+        foreach (var encounter in campaign?.Encounters
+                     ?? new List<CombatCampaignEncounterDefinition>())
+        {
+            Add(
+                encounter.OwnerModId,
+                "encounter",
+                encounter.EncounterId,
+                encounter.DisplayName,
+                "",
+                "embedded-campaign",
+                HashText(Json(encounter)));
+        }
+        return rows.Values
+            .OrderBy(item => item.EntityType, StringComparer.Ordinal)
+            .ThenBy(item => item.EntityId, StringComparer.Ordinal)
+            .ToList();
+    }
+
     private static void WriteSimulationDatabase(
         string path,
         CombatFoundationWorkerJob job,
@@ -700,7 +1072,9 @@ public static class FoundationArtifactBundleWriter
         string completionKind,
         (CombatPolicyValueNetworkDefinition? Model, int Iteration,
             string Reason) selected,
-        IReadOnlyList<FoundationSeedTag> seeds)
+        IReadOnlyList<FoundationSeedTag> seeds,
+        IReadOnlyList<ContentEntityRow> contentEntities,
+        string contentCatalogHash)
     {
         var fullPath = Path.GetFullPath(path);
         var directory = Path.GetDirectoryName(fullPath);
@@ -708,7 +1082,11 @@ public static class FoundationArtifactBundleWriter
         {
             Directory.CreateDirectory(directory);
         }
-        var temporaryPath = fullPath + ".tmp-" + Guid.NewGuid().ToString("N");
+        var temporaryPath = Path.Combine(
+            Path.GetFullPath(job.ResultDirectory),
+            ".simdb-"
+            + Guid.NewGuid().ToString("N").Substring(0, 8)
+            + ".tmp");
         try
         {
             using (var connection = new SqliteConnection(
@@ -731,17 +1109,43 @@ public static class FoundationArtifactBundleWriter
                 using var transaction = connection.BeginTransaction();
                 InsertMetadata(connection, transaction, new Dictionary<string, string>
                 {
-                    ["schema_version"] = "1",
-                    ["protocol"] = "aura.foundation-simulation-process.v1",
+                    ["schema_version"] = "2",
+                    ["protocol"] = "aura.foundation-simulation-process.v2",
                     ["job_id"] = job.JobId,
                     ["completion_kind"] = completionKind,
                     ["model_id"] = selected.Model?.ModelId ?? "",
                     ["model_iteration"] = selected.Iteration.ToString(
                         CultureInfo.InvariantCulture),
                     ["deployment_eligible"] = training.AcceptancePassed.ToString(),
+                    ["experimental_eligible"] = training
+                        .ExperimentalEligibilityPassed.ToString(),
+                    ["game_loadable"] = (training.AcceptancePassed
+                                         || training.ExperimentalEligibilityPassed)
+                        .ToString(),
+                    ["deployment_tier"] = training.DeploymentTier,
+                    ["same_model_evidence_bound"] = training
+                        .SameModelEvidenceBound.ToString(),
+                    ["runtime_safety_passed"] = training
+                        .RuntimeSafetyPassed.ToString(),
+                    ["raw_isolation_passed"] = training
+                        .RawIsolationPassed.ToString(),
+                    ["capability_status"] = CapabilityStatus(training),
+                    ["validation_model_id"] = training.ValidationModelId,
+                    ["capability_probe_model_id"] = training
+                        .CapabilityProbeModelId,
+                    ["content_catalog_hash"] = contentCatalogHash,
+                    ["content_entity_count"] = contentEntities.Count.ToString(
+                        CultureInfo.InvariantCulture),
+                    ["content_locale"] = CombatContentDisplayCatalogProtocol
+                        .Locale,
                     ["validation_sample_plan_hash"] = training.Validation.SamplePlanHash,
                     ["generated_utc"] = DateTime.UtcNow.ToString("O")
                 });
+                InsertContentEntities(
+                    connection,
+                    transaction,
+                    contentEntities,
+                    job.Request.ValidationCampaign);
                 InsertModelNodes(
                     connection,
                     transaction,
@@ -755,6 +1159,19 @@ public static class FoundationArtifactBundleWriter
                 InsertArena(connection, transaction, training);
                 InsertSeedTags(connection, transaction, seeds);
                 transaction.Commit();
+                using var integrity = connection.CreateCommand();
+                integrity.CommandText = "PRAGMA quick_check;";
+                var integrityResult = Convert.ToString(
+                    integrity.ExecuteScalar(),
+                    CultureInfo.InvariantCulture);
+                if (!string.Equals(
+                        integrityResult,
+                        "ok",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        "SQLite quick_check failed: " + integrityResult);
+                }
             }
             File.Move(temporaryPath, fullPath, overwrite: true);
         }
@@ -772,6 +1189,16 @@ public static class FoundationArtifactBundleWriter
         using var command = connection.CreateCommand();
         command.CommandText = """
             CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE content_entities(
+              owner_mod_id TEXT NOT NULL, entity_type TEXT NOT NULL,
+              entity_id TEXT NOT NULL, locale TEXT NOT NULL,
+              display_name TEXT NOT NULL, description TEXT NOT NULL,
+              source TEXT NOT NULL, source_hash TEXT NOT NULL,
+              PRIMARY KEY(owner_mod_id,entity_type,entity_id,locale));
+            CREATE TABLE encounter_entities(
+              encounter_id TEXT NOT NULL, enemy_id TEXT NOT NULL,
+              ordinal INTEGER NOT NULL,
+              PRIMARY KEY(encounter_id,enemy_id,ordinal));
             CREATE TABLE model_nodes(
               iteration INTEGER PRIMARY KEY, model_id TEXT, parent_model_id TEXT,
               qualification_state TEXT, working_accepted INTEGER,
@@ -799,6 +1226,11 @@ public static class FoundationArtifactBundleWriter
               enemy_hp_start INTEGER, enemy_hp_end INTEGER, actions INTEGER,
               details_json TEXT NOT NULL,
               FOREIGN KEY(battle_id) REFERENCES battles(id));
+            CREATE TABLE battle_card_counts(
+              battle_id INTEGER NOT NULL, card_id TEXT NOT NULL,
+              play_count INTEGER NOT NULL,
+              PRIMARY KEY(battle_id,card_id),
+              FOREIGN KEY(battle_id) REFERENCES battles(id));
             CREATE TABLE reward_decisions(
               id INTEGER PRIMARY KEY, campaign_id INTEGER NOT NULL,
               encounter_index INTEGER, encounter_id TEXT, kind TEXT,
@@ -808,6 +1240,10 @@ public static class FoundationArtifactBundleWriter
             CREATE TABLE reward_candidates(
               id INTEGER PRIMARY KEY, reward_decision_id INTEGER NOT NULL,
               reward_id TEXT, total_score REAL, base_value REAL,
+              tier_value REAL, system_fit REAL, build_tendency REAL,
+              boss_fit REAL, bloat_penalty REAL, redundancy_penalty REAL,
+              archetype_fit REAL, survival_fit REAL, energy_fit REAL,
+              dilution_penalty REAL, risk_penalty REAL, configured_bias REAL,
               learned_residual REAL, conditional_residual REAL,
               strategy_fit REAL, details_json TEXT NOT NULL,
               FOREIGN KEY(reward_decision_id) REFERENCES reward_decisions(id));
@@ -822,6 +1258,14 @@ public static class FoundationArtifactBundleWriter
               battle_index INTEGER, decision_sequence INTEGER,
               failure_category TEXT, confidence REAL,
               preferred_candidate_id TEXT, details_json TEXT NOT NULL);
+            CREATE TABLE decision_candidates(
+              difference_id INTEGER NOT NULL, role TEXT NOT NULL,
+              candidate_id TEXT, owner_mod_id TEXT, source_id TEXT,
+              search_visits INTEGER, search_prior REAL, search_value REAL,
+              search_death_risk REAL, base_rule_score REAL,
+              applied_residual_score REAL, rule_score REAL,
+              PRIMARY KEY(difference_id,role),
+              FOREIGN KEY(difference_id) REFERENCES decision_differences(id));
             CREATE TABLE arena_iterations(
               iteration INTEGER PRIMARY KEY, candidate_model_id TEXT,
               normal_win_rate REAL, advanced_win_rate REAL,
@@ -837,6 +1281,8 @@ public static class FoundationArtifactBundleWriter
             CREATE INDEX ix_campaigns_seed ON campaigns(difficulty, world_seed);
             CREATE INDEX ix_battles_campaign ON battles(campaign_id, battle_index);
             CREATE INDEX ix_rewards_campaign ON reward_decisions(campaign_id, encounter_index);
+            CREATE INDEX ix_content_entity_id ON content_entities(entity_type, entity_id);
+            CREATE INDEX ix_card_counts_battle ON battle_card_counts(battle_id);
             CREATE INDEX ix_seed_tags_seed ON seed_tags(difficulty, world_seed);
             """;
         command.ExecuteNonQuery();
@@ -855,6 +1301,51 @@ public static class FoundationArtifactBundleWriter
                 "INSERT INTO metadata(key,value) VALUES($key,$value)",
                 ("$key", pair.Key),
                 ("$value", pair.Value));
+        }
+    }
+
+    private static void InsertContentEntities(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        IReadOnlyList<ContentEntityRow> rows,
+        CombatCampaignDefinition? campaign)
+    {
+        foreach (var row in rows)
+        {
+            Execute(
+                connection,
+                transaction,
+                """
+                INSERT INTO content_entities(
+                  owner_mod_id,entity_type,entity_id,locale,display_name,
+                  description,source,source_hash)
+                VALUES($owner,$type,$id,$locale,$name,$description,$source,$hash)
+                """,
+                ("$owner", row.OwnerModId),
+                ("$type", row.EntityType),
+                ("$id", row.EntityId),
+                ("$locale", row.Locale),
+                ("$name", row.DisplayName),
+                ("$description", row.Description),
+                ("$source", row.Source),
+                ("$hash", row.SourceHash));
+        }
+        foreach (var encounter in campaign?.Encounters
+                     ?? new List<CombatCampaignEncounterDefinition>())
+        {
+            for (var index = 0; index < encounter.EnemyIds.Count; index++)
+            {
+                Execute(
+                    connection,
+                    transaction,
+                    """
+                    INSERT INTO encounter_entities(encounter_id,enemy_id,ordinal)
+                    VALUES($encounter,$enemy,$ordinal)
+                    """,
+                    ("$encounter", encounter.EncounterId),
+                    ("$enemy", encounter.EnemyIds[index]),
+                    ("$ordinal", index));
+            }
         }
     }
 
@@ -986,6 +1477,20 @@ public static class FoundationArtifactBundleWriter
                     ("$actions", turn.Actions),
                     ("$json", Json(turn)));
             }
+            foreach (var pair in battle.Metrics?.CardPlayCounts
+                     ?? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase))
+            {
+                Execute(
+                    connection,
+                    transaction,
+                    """
+                    INSERT INTO battle_card_counts(battle_id,card_id,play_count)
+                    VALUES($battle,$card,$count)
+                    """,
+                    ("$battle", battleId),
+                    ("$card", pair.Key),
+                    ("$count", pair.Value));
+            }
         }
     }
 
@@ -1107,13 +1612,30 @@ public static class FoundationArtifactBundleWriter
                 """
                 INSERT INTO reward_candidates(
                   reward_decision_id,reward_id,total_score,base_value,
-                  learned_residual,conditional_residual,strategy_fit,details_json)
-                VALUES($decision,$reward,$total,$base,$learned,$conditional,$strategy,$json)
+                  tier_value,system_fit,build_tendency,boss_fit,bloat_penalty,
+                  redundancy_penalty,archetype_fit,survival_fit,energy_fit,
+                  dilution_penalty,risk_penalty,configured_bias,learned_residual,
+                  conditional_residual,strategy_fit,details_json)
+                VALUES($decision,$reward,$total,$base,$tier,$system,$build,$boss,
+                  $bloat,$redundancy,$archetype,$survival,$energy,$dilution,$risk,
+                  $bias,$learned,$conditional,$strategy,$json)
                 """,
                 ("$decision", rewardDecisionId),
                 ("$reward", score.RewardId),
                 ("$total", score.Total),
                 ("$base", score.BaseValue),
+                ("$tier", score.TierValue),
+                ("$system", score.SystemFit),
+                ("$build", score.BuildTendency),
+                ("$boss", score.BossFit),
+                ("$bloat", score.BloatPenalty),
+                ("$redundancy", score.RedundancyPenalty),
+                ("$archetype", score.ArchetypeFit),
+                ("$survival", score.SurvivalFit),
+                ("$energy", score.EnergyFit),
+                ("$dilution", score.DilutionPenalty),
+                ("$risk", score.RiskPenalty),
+                ("$bias", score.ConfiguredBias),
                 ("$learned", score.LearnedResidual),
                 ("$conditional", score.ConditionalResidual),
                 ("$strategy", score.StrategyFit),
@@ -1151,7 +1673,7 @@ public static class FoundationArtifactBundleWriter
         }
         foreach (var difference in probe.DecisionDifferences)
         {
-            Execute(
+            var differenceId = InsertReturningId(
                 connection,
                 transaction,
                 """
@@ -1160,6 +1682,7 @@ public static class FoundationArtifactBundleWriter
                   failure_category,confidence,preferred_candidate_id,details_json)
                 VALUES($difficulty,$seed,$battle,$sequence,$category,$confidence,
                   $preferred,$json)
+                ;SELECT last_insert_rowid();
                 """,
                 ("$difficulty", difference.DifficultyId),
                 ("$seed", difference.WorldSeed.ToString(CultureInfo.InvariantCulture)),
@@ -1169,7 +1692,57 @@ public static class FoundationArtifactBundleWriter
                 ("$confidence", difference.Confidence),
                 ("$preferred", difference.PreferredCandidateId),
                 ("$json", Json(difference)));
+            InsertDecisionCandidate(
+                connection,
+                transaction,
+                differenceId,
+                "baseline-selected",
+                difference.BaselineDecision);
+            InsertDecisionCandidate(
+                connection,
+                transaction,
+                differenceId,
+                "model-selected",
+                difference.ChampionDecision);
+            InsertDecisionCandidate(
+                connection,
+                transaction,
+                differenceId,
+                "model-view-of-baseline",
+                difference.ChampionViewOfBaselineAction);
         }
+    }
+
+    private static void InsertDecisionCandidate(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        long differenceId,
+        string role,
+        CombatFoundationDecisionCandidateTrace trace)
+    {
+        Execute(
+            connection,
+            transaction,
+            """
+            INSERT INTO decision_candidates(
+              difference_id,role,candidate_id,owner_mod_id,source_id,
+              search_visits,search_prior,search_value,search_death_risk,
+              base_rule_score,applied_residual_score,rule_score)
+            VALUES($difference,$role,$candidate,$owner,$source,$visits,$prior,
+              $value,$risk,$base,$residual,$rule)
+            """,
+            ("$difference", differenceId),
+            ("$role", role),
+            ("$candidate", trace?.CandidateId ?? ""),
+            ("$owner", trace?.OwnerModId ?? ""),
+            ("$source", trace?.SourceId ?? ""),
+            ("$visits", trace?.SearchVisits ?? 0),
+            ("$prior", trace?.SearchPrior ?? 0d),
+            ("$value", trace?.SearchValue ?? 0d),
+            ("$risk", trace?.SearchDeathRisk ?? 0d),
+            ("$base", trace?.BaseRuleScore ?? 0d),
+            ("$residual", trace?.AppliedResidualScore ?? 0d),
+            ("$rule", trace?.RuleScore ?? 0d));
     }
 
     private static void InsertArena(
@@ -1309,6 +1882,25 @@ public static class FoundationArtifactBundleWriter
         return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
+    private static string HashText(string value) =>
+        Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(value ?? "")))
+            .ToLowerInvariant();
+
+    private static string CapabilityStatus(
+        CombatCampaignFoundationTrainingResult training)
+    {
+        return (training.CapabilityProbe.BaselineGateVerdict ?? "")
+            .Trim()
+            .ToLowerInvariant() switch
+        {
+            "pass" => CombatFoundationModelPackageProtocol.CapabilityStatusPass,
+            "fail" => CombatFoundationModelPackageProtocol.CapabilityStatusFail,
+            _ => CombatFoundationModelPackageProtocol
+                .CapabilityStatusInconclusive
+        };
+    }
+
     private static void WriteHtmlReport(
         string path,
         CombatCampaignFoundationTrainingResult training,
@@ -1333,8 +1925,12 @@ public static class FoundationArtifactBundleWriter
             .Append(".pass{color:#137333}.fail{color:#b3261e}</style></head><body><main>")
             .Append("<h1>模型能力报告</h1><div class=\"summary\">")
             .Append("<div class=\"metric\">模型<b>").Append(E(selected.Model?.ModelId)).Append("</b>节点 ").Append(selected.Iteration).Append("</div>")
-            .Append("<div class=\"metric\">部署资格<b class=\"")
-            .Append(training.AcceptancePassed ? "pass\">通过" : "fail\">未通过")
+            .Append("<div class=\"metric\">部署层级<b class=\"")
+            .Append(training.AcceptancePassed
+                ? "pass\">正式发布"
+                : training.ExperimentalEligibilityPassed
+                    ? "pass\">实验底模（可加载）"
+                    : "fail\">仅诊断")
             .Append("</b></div>")
             .Append("<div class=\"metric\">普通模拟<b>").Append(training.Validation.NormalVictories).Append('/').Append(normal).Append("</b></div>")
             .Append("<div class=\"metric\">高级模拟<b>").Append(training.Validation.AdvancedVictories).Append('/').Append(advanced).Append("</b></div>")

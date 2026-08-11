@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using Terrias.Dll.GameApi;
 using Terrias.Dll.Mechanics;
 
 var assertions = 0;
@@ -91,6 +92,41 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
+
+var normalizedRemotePayload = RemoteTargetEventApi.ComposePayload(
+    "Terrias_Card_Spark",
+    new Dictionary<string, string> { ["Name"] = "Spark", ["Id"] = "stale-id" },
+    new Dictionary<string, string> { ["Value"] = "3" });
+Assert(normalizedRemotePayload["Id"] == "Terrias_Card_Spark"
+       && normalizedRemotePayload["Name"] == "Spark"
+       && normalizedRemotePayload["Value"] == "3",
+    "remote target payloads always retain their authoritative Terrias Id and merged card fields");
+Assert(SpiritStatusBarText.FormatVerticalDigits(120) == "1\n2\n0",
+    "vertical spirit status counters keep one upright digit per centered line");
+Assert(ExplicitStatusEffectApi.ResolveShieldAmount(8, 1f) == 8
+       && ExplicitStatusEffectApi.ResolveShieldAmount(8, 1.5f) == 12
+       && ExplicitStatusEffectApi.ResolveShieldAmount(8, float.NaN) == 0,
+    "explicit companion shield commits preserve native multipliers and reject invalid values");
+
+var stableProfileKey = SpiritProfileBindingPolicy.ResolveStableProfileKey("network-player", "runtime-player");
+var runtimeProfileKey = SpiritProfileBindingPolicy.ResolveStableProfileKey("", "runtime-player");
+Assert(stableProfileKey == "network-player"
+       && runtimeProfileKey == "runtime-player"
+       && SpiritProfileBindingPolicy.ResolveStableProfileKey("", "") == "",
+    "spirit persistence waits for a stable network or runtime player identity");
+var legacyProfileKeys = SpiritProfileBindingPolicy.LegacyProfileKeys(@"C:\Save\SaveData.json");
+Assert(legacyProfileKeys.Contains("SaveData")
+       && legacyProfileKeys.Contains("local")
+       && !SpiritProfileBindingPolicy.HasRecoverableContent(new SpiritCollectionDocument())
+       && SpiritProfileBindingPolicy.HasRecoverableContent(new SpiritCollectionDocument
+       {
+           Instances = new List<SpiritInstance> { new() }
+       })
+       && !SpiritProfileBindingPolicy.ShouldRecoverLegacy(true, new SpiritCollectionDocument
+       {
+           ProcessedCaptureTokens = new Dictionary<string, string> { ["capture"] = "uid" }
+       }),
+    "legacy profile recovery ignores empty fallbacks and never replaces an existing stable profile");
 
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 SpiritGrowthRegistry.Load(new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") });
@@ -182,11 +218,38 @@ var migratedCollection = SpiritCollectionService.Snapshot();
 Assert(migratedCollection.Version == 3
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].SpeciesId)
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].ProfileId)
-       && migratedCollection.Instances[0].Level == 7,
-    "schema-two collections migrate stable species and profile identities without losing progression");
+       && migratedCollection.Instances[0].Level == 7
+       && legacyStore.SaveCount == 0,
+    "schema-two collections migrate in memory without rewriting a profile merely because it was opened");
 
 var memoryStore = new MemorySpiritStore();
 SpiritCollectionService.Configure(memoryStore);
+var defaultSessionParty = new SpiritAdventureParty
+{
+    PartySlots = new List<string> { "uid-default", "", "", "", "", "" },
+    ActiveSpiritUid = "uid-default"
+};
+var sessionStore = new MemorySpiritPartySessionStore();
+SpiritAdventurePartySessionService.Configure(sessionStore);
+var sessionParty = SpiritAdventurePartySessionService.EnterJourney("journey-a", "player-a", defaultSessionParty);
+sessionParty.PartySlots[0] = "uid-captured";
+sessionParty.ActiveSpiritUid = "uid-captured";
+SpiritAdventurePartySessionService.SaveParty("journey-a", "player-a", sessionParty);
+SpiritAdventurePartySessionService.Configure(sessionStore);
+var resumedSessionParty = SpiritAdventurePartySessionService.EnterJourney("journey-a", "player-a", defaultSessionParty);
+Assert(resumedSessionParty.PartySlots[0] == "uid-captured"
+       && resumedSessionParty.ActiveSpiritUid == "uid-captured",
+    "player-local adventure party resumes after a reconnect to the same journey");
+resumedSessionParty.PartySlots[0] = "not-persisted";
+Assert(SpiritAdventurePartySessionService.CurrentOrBegin("journey-a", "player-a", defaultSessionParty).PartySlots[0] == "uid-captured",
+    "adventure party reads return defensive snapshots");
+var nextJourneyParty = SpiritAdventurePartySessionService.EnterJourney("journey-b", "player-a", defaultSessionParty);
+Assert(nextJourneyParty.PartySlots[0] == "uid-default" && nextJourneyParty.ActiveSpiritUid == "uid-default",
+    "a new journey initializes from the player's default party");
+var otherPlayerParty = SpiritAdventurePartySessionService.EnterJourney("journey-b", "player-b", new SpiritAdventureParty());
+Assert(otherPlayerParty.PartySlots.All(string.IsNullOrWhiteSpace),
+    "a persisted adventure party never crosses the player-owner boundary");
+
 var party = new SpiritAdventureParty();
 for (var index = 0; index < 7; index++)
 {
@@ -292,15 +355,30 @@ sealed class MemorySpiritStore : ISpiritCollectionStore
 
     public bool FailNextSave { get; set; }
 
+    public int SaveCount { get; private set; }
+
     public SpiritCollectionDocument Load() => document;
 
     public void Save(SpiritCollectionDocument value)
     {
+        SaveCount++;
         if (FailNextSave)
         {
             FailNextSave = false;
             throw new IOException("simulated durable write failure");
         }
         document = value;
+    }
+}
+
+sealed class MemorySpiritPartySessionStore : ISpiritAdventurePartySessionStore
+{
+    private SpiritAdventurePartySessionDocument document = new();
+
+    public SpiritAdventurePartySessionDocument Load() => document.Clone();
+
+    public void Save(SpiritAdventurePartySessionDocument value)
+    {
+        document = value.Clone();
     }
 }

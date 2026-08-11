@@ -683,6 +683,45 @@ sealed class RecordingPolicyValueModel : ICombatPolicyValueModel
     }
 }
 
+sealed class PreferredPolicyValueModel : ICombatPolicyValueModel
+{
+    private readonly string preferredCandidateId;
+
+    public PreferredPolicyValueModel(string preferredCandidateId)
+    {
+        this.preferredCandidateId = preferredCandidateId;
+    }
+
+    public string ModelId => "preferred-policy-value";
+
+    public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
+    {
+        var result = new CombatPolicyValuePrediction
+        {
+            ExpectedReturn = 0.25d,
+            WinProbability = 0.5d,
+            DeathProbability = 0.5d,
+            Uncertainty = 0.9d
+        };
+        foreach (var candidate in input.Candidates)
+        {
+            result.PolicyLogits[candidate.CandidateId] = string.Equals(
+                candidate.CandidateId,
+                preferredCandidateId,
+                StringComparison.Ordinal)
+                ? 4d
+                : -4d;
+        }
+        return result;
+    }
+
+    public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
+        IReadOnlyList<CombatPolicyValueInput> inputs)
+    {
+        return inputs.Select(Evaluate).ToList();
+    }
+}
+
 sealed class FixedSkillTimingProvider : ICombatSkillTimingProvider
 {
     public bool TryEnrich(CombatStateObservation state)

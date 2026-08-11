@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
+using Data.Save;
 using Newtonsoft.Json;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using Witch.Core;
 using Witch.Mod;
 
@@ -14,7 +16,10 @@ namespace Terrias.Dll.GameApi;
 
 public static class SpiritCollectionApi
 {
+    private static readonly object SyncRoot = new();
     private static bool initialized;
+    private static ModConfig? configuredMod;
+    private static string boundProfileKey = "";
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -23,43 +28,82 @@ public static class SpiritCollectionApi
             return;
         }
 
-        SpiritCollectionService.Configure(new SpiritSidecarProfileStore(modConfig));
+        configuredMod = modConfig ?? throw new ArgumentNullException(nameof(modConfig));
         initialized = true;
+        EnsureProfileBound();
     }
 
-    public static SpiritCollectionDocument Collection() => SpiritCollectionService.Snapshot();
+    public static SpiritCollectionDocument Collection()
+    {
+        return EnsureProfileBound()
+            ? SpiritCollectionService.Snapshot()
+            : new SpiritCollectionDocument();
+    }
 
-    public static SpiritInstance? Find(string uid) => SpiritCollectionService.Find(uid);
+    public static SpiritInstance? Find(string uid)
+    {
+        return EnsureProfileBound() ? SpiritCollectionService.Find(uid) : null;
+    }
+
+    public static SpiritAdventureParty DefaultParty()
+    {
+        return EnsureProfileBound() ? SpiritCollectionService.DefaultParty() : EmptyParty();
+    }
 
     public static SpiritAdventureParty CurrentParty()
     {
-        var json = PlayerApi.GetGameVar(TerriasIds.SpiritAdventurePartyKey, "");
-        if (string.IsNullOrWhiteSpace(json))
+        if (!EnsureProfileBound())
         {
-            return SpiritCollectionService.DefaultParty();
+            return EmptyParty();
         }
 
         try
         {
-            return SpiritCollectionService.NormalizeParty(
-                AuraSharedJson.Deserialize<SpiritAdventureParty>(json) ?? SpiritCollectionService.DefaultParty());
+            var party = SpiritAdventurePartySessionService.CurrentOrBegin(
+                CurrentJourneyId(),
+                LocalPlayerId(),
+                SpiritCollectionService.DefaultParty());
+            var normalized = SpiritCollectionService.NormalizeParty(party);
+            SaveCurrentParty(normalized);
+            return normalized;
         }
-        catch
+        catch (Exception ex)
         {
+            TerriasLog.Warn("[SpiritCollection] current adventure party recovery failed: " + ex.Message);
             return SpiritCollectionService.DefaultParty();
         }
     }
 
     public static SpiritAdventureParty BeginAdventure()
     {
+        if (!EnsureProfileBound())
+        {
+            TerriasLog.Warn("[SpiritCollection] adventure party deferred: stable player identity is unavailable.");
+            return EmptyParty();
+        }
+
         MigrateLegacyCards();
-        var party = SpiritCollectionService.DefaultParty();
+        var party = SpiritCollectionService.NormalizeParty(
+            SpiritAdventurePartySessionService.EnterJourney(
+                CurrentJourneyId(),
+                LocalPlayerId(),
+                SpiritCollectionService.DefaultParty()));
         SaveCurrentParty(party);
+        TerriasLog.Info("[SpiritCollection] local adventure party ready; slots="
+                        + party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid))
+                        + ", active="
+                        + (!string.IsNullOrWhiteSpace(party.ActiveSpiritUid))
+                        + ".");
         return party;
     }
 
     public static SpiritCaptureRecordResult RecordCapture(CapturedEnemySnapshot snapshot, string operationToken, int? aptitude = null)
     {
+        if (!EnsureProfileBound())
+        {
+            return new SpiritCaptureRecordResult { Reason = "玩家档案尚未就绪，请稍后重试。" };
+        }
+
         var party = CurrentParty();
         try
         {
@@ -79,6 +123,7 @@ public static class SpiritCollectionApi
 
     public static bool SetActiveForAdventure(string uid)
     {
+        if (!EnsureProfileBound()) return false;
         var party = CurrentParty();
         var normalizedUid = uid ?? "";
         party.ActiveSpiritUid = party.PartySlots.Contains(normalizedUid, StringComparer.Ordinal) ? normalizedUid : "";
@@ -88,6 +133,7 @@ public static class SpiritCollectionApi
 
     public static bool ConfigureDefaultPartySlot(int slot, string uid)
     {
+        if (!EnsureProfileBound()) return false;
         if (slot < 0 || slot >= SpiritCollectionService.PartyCapacity)
         {
             return false;
@@ -115,23 +161,28 @@ public static class SpiritCollectionApi
 
     public static bool RemoveFromDefaultParty(string uid)
     {
+        if (!EnsureProfileBound()) return false;
         var party = SpiritCollectionService.DefaultParty();
-        var changed = false;
-        for (var index = 0; index < party.PartySlots.Count; index++)
-        {
-            if (string.Equals(party.PartySlots[index], uid, StringComparison.Ordinal))
-            {
-                party.PartySlots[index] = "";
-                changed = true;
-            }
-        }
-        if (!changed) return false;
-        if (string.Equals(party.ActiveSpiritUid, uid, StringComparison.Ordinal)) party.ActiveSpiritUid = "";
+        if (!party.Remove(uid)) return false;
         return SpiritCollectionService.SetDefaultParty(party.PartySlots, party.ActiveSpiritUid);
+    }
+
+    public static bool RemoveFromCurrentAdventureParty(string uid)
+    {
+        if (!EnsureProfileBound()) return false;
+        var party = CurrentParty();
+        if (!party.Remove(uid))
+        {
+            return false;
+        }
+
+        SaveCurrentParty(party);
+        return true;
     }
 
     public static bool AddToDefaultParty(string uid)
     {
+        if (!EnsureProfileBound()) return false;
         var party = SpiritCollectionService.DefaultParty();
         uid = (uid ?? "").Trim();
         if (uid.Length == 0 || SpiritCollectionService.Find(uid) == null) return false;
@@ -144,6 +195,7 @@ public static class SpiritCollectionApi
 
     public static bool SetDefaultActive(string uid)
     {
+        if (!EnsureProfileBound()) return false;
         var party = SpiritCollectionService.DefaultParty();
         var normalizedUid = uid ?? "";
         party.ActiveSpiritUid = party.PartySlots.Contains(normalizedUid, StringComparer.Ordinal) ? normalizedUid : "";
@@ -167,9 +219,9 @@ public static class SpiritCollectionApi
 
     public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance) => SpiritGrowthQueryService.Build(instance);
 
-    public static bool ToggleFavorite(string uid) => SpiritCollectionService.ToggleFavorite(uid);
+    public static bool ToggleFavorite(string uid) => EnsureProfileBound() && SpiritCollectionService.ToggleFavorite(uid);
 
-    public static bool ToggleLocked(string uid) => SpiritCollectionService.ToggleLocked(uid);
+    public static bool ToggleLocked(string uid) => EnsureProfileBound() && SpiritCollectionService.ToggleLocked(uid);
 
     public static IReadOnlyList<SpiritExperienceResult> GrantBattleExperience(
         IReadOnlyList<string> partyUids,
@@ -177,11 +229,17 @@ public static class SpiritCollectionApi
         int baseExperience,
         string battleToken)
     {
+        if (!EnsureProfileBound()) return Array.Empty<SpiritExperienceResult>();
         return SpiritCollectionService.GrantBattleExperience(partyUids, activeUid, baseExperience, battleToken);
     }
 
     public static int MigrateLegacyCards()
     {
+        if (!EnsureProfileBound())
+        {
+            return 0;
+        }
+
         var role = RoleTable.Instance;
         if (role == null)
         {
@@ -218,22 +276,127 @@ public static class SpiritCollectionApi
 
     private static void SaveCurrentParty(SpiritAdventureParty party)
     {
-        PlayerApi.SetGameVar(TerriasIds.SpiritAdventurePartyKey, AuraSharedJson.Serialize(SpiritCollectionService.NormalizeParty(party)));
+        if (!EnsureProfileBound())
+        {
+            return;
+        }
+
+        SpiritAdventurePartySessionService.SaveParty(
+            CurrentJourneyId(),
+            LocalPlayerId(),
+            SpiritCollectionService.NormalizeParty(party));
+    }
+
+    private static bool EnsureProfileBound()
+    {
+        lock (SyncRoot)
+        {
+            if (!initialized || configuredMod == null)
+            {
+                return false;
+            }
+
+            var stableKey = StableProfileKey();
+            if (string.IsNullOrWhiteSpace(stableKey))
+            {
+                return boundProfileKey.Length > 0;
+            }
+
+            if (string.Equals(boundProfileKey, stableKey, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            try
+            {
+                var legacyKeys = SpiritProfileBindingPolicy.LegacyProfileKeys(
+                    RuntimeMember(Singleton<GameRuntimeData>.Instance, "savePath"));
+                SpiritCollectionService.Configure(new SpiritSidecarProfileStore(
+                    configuredMod.DirectoryName,
+                    stableKey,
+                    legacyKeys));
+                SpiritAdventurePartySessionService.Configure(new SpiritAdventurePartySidecarStore(
+                    configuredMod.DirectoryName,
+                    stableKey));
+                boundProfileKey = stableKey;
+                TerriasLog.Info("[SpiritCollection] profile bound to stable player=" + stableKey + ".");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                TerriasLog.Warn("[SpiritCollection] stable profile bind failed for " + stableKey + ": " + ex.Message);
+                return false;
+            }
+        }
+    }
+
+    private static SpiritAdventureParty EmptyParty()
+    {
+        return new SpiritAdventureParty
+        {
+            PartySlots = Enumerable.Repeat("", SpiritCollectionService.PartyCapacity).ToList(),
+            ActiveSpiritUid = ""
+        };
+    }
+
+    private static string CurrentJourneyId()
+    {
+        try
+        {
+            var save = GameSaveManager.GetNowSave();
+            if (save != null)
+            {
+                return "spirit-journey-v1|"
+                       + (save.modeType ?? "") + "|"
+                       + (save.Seed ?? "") + "|"
+                       + (save.CreatedTime ?? "") + "|"
+                       + (save.Name ?? "");
+            }
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Debug("[SpiritCollection] journey identity fallback: " + ex.Message);
+        }
+
+        return "spirit-journey-pending|" + (boundProfileKey.Length > 0 ? boundProfileKey : "unbound");
+    }
+
+    private static string LocalPlayerId()
+    {
+        var networkId = TerriasNetworkRuntime.LocalPlayerId();
+        if (!string.IsNullOrWhiteSpace(networkId))
+        {
+            return networkId;
+        }
+
+        var runtimeId = RuntimeMember(Singleton<GameRuntimeData>.Instance, "PlayerId");
+        return !string.IsNullOrWhiteSpace(runtimeId) ? runtimeId : boundProfileKey;
     }
 
     private sealed class SpiritSidecarProfileStore : ISpiritCollectionStore
     {
         private readonly string modDirectory;
+        private readonly string profileKey;
+        private readonly IReadOnlyList<string> legacyProfileKeys;
 
-        public SpiritSidecarProfileStore(ModConfig modConfig)
+        public SpiritSidecarProfileStore(
+            string modDirectory,
+            string profileKey,
+            IReadOnlyList<string> legacyProfileKeys)
         {
-            modDirectory = modConfig.DirectoryName;
+            this.modDirectory = modDirectory;
+            this.profileKey = profileKey;
+            this.legacyProfileKeys = legacyProfileKeys ?? Array.Empty<string>();
         }
 
         public SpiritCollectionDocument Load()
         {
             var path = ProfilePath();
-            if (!File.Exists(path)) return new SpiritCollectionDocument();
+            if (!File.Exists(path))
+            {
+                var recovered = TryRecoverLegacy(path);
+                return recovered ?? new SpiritCollectionDocument();
+            }
             try
             {
                 return JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(path))
@@ -272,18 +435,51 @@ public static class SpiritCollectionApi
 
         private string ProfilePath()
         {
-            var modsDirectory = Path.GetDirectoryName(modDirectory) ?? modDirectory;
-            var gameDirectory = Path.GetDirectoryName(modsDirectory) ?? modsDirectory;
-            var dataRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.ModsDataDirectory)
-                ? Path.Combine(gameDirectory, AuraSharedPaths.DefaultDataRootDirectoryName)
-                : AuraSharedPaths.ModsDataDirectory;
-            var sharedRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
-                ? Path.Combine(dataRoot, AuraSharedPaths.DefaultSharedDirectoryName)
-                : AuraSharedPaths.RootDirectory;
-            var profileDirectory = string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
-                ? Path.Combine(sharedRoot, "Data", "Owners", TerriasIds.ModId, TerriasIds.SpiritProfileDirectory)
-                : AuraSharedPaths.OwnerSystemDataDirectory(TerriasIds.ModId, TerriasIds.SpiritProfileDirectory);
-            return Path.Combine(profileDirectory, ProfileKey() + ".json");
+            return Path.Combine(
+                OwnerDataDirectory(modDirectory, TerriasIds.SpiritProfileDirectory),
+                profileKey + ".json");
+        }
+
+        private SpiritCollectionDocument? TryRecoverLegacy(string stablePath)
+        {
+            var directory = Path.GetDirectoryName(stablePath) ?? "";
+            foreach (var legacyKey in legacyProfileKeys
+                         .Where(key => !string.IsNullOrWhiteSpace(key))
+                         .Distinct(StringComparer.Ordinal)
+                         .Where(key => !string.Equals(key, profileKey, StringComparison.Ordinal)))
+            {
+                var legacyPath = Path.Combine(directory, legacyKey + ".json");
+                if (!File.Exists(legacyPath))
+                {
+                    continue;
+                }
+
+                SpiritCollectionDocument? legacy;
+                try
+                {
+                    legacy = JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(legacyPath));
+                }
+                catch (Exception ex)
+                {
+                    TerriasLog.Warn("[SpiritCollection] ignored invalid legacy profile " + legacyPath + ": " + ex.Message);
+                    continue;
+                }
+
+                if (!SpiritProfileBindingPolicy.ShouldRecoverLegacy(File.Exists(stablePath), legacy))
+                {
+                    continue;
+                }
+
+                Save(legacy!);
+                TerriasLog.Info("[SpiritCollection] recovered legacy profile "
+                                + legacyKey
+                                + " into stable player="
+                                + profileKey
+                                + "; legacy file retained.");
+                return legacy;
+            }
+
+            return null;
         }
 
         private static SpiritCollectionDocument? TryLoadBackup(string path)
@@ -297,22 +493,116 @@ public static class SpiritCollectionApi
             }
             catch { return null; }
         }
+    }
 
-        private static string ProfileKey()
+    private sealed class SpiritAdventurePartySidecarStore : ISpiritAdventurePartySessionStore
+    {
+        private readonly string modDirectory;
+        private readonly string profileKey;
+
+        public SpiritAdventurePartySidecarStore(string modDirectory, string profileKey)
         {
-            var playerId = RuntimeMember(Singleton<GameRuntimeData>.Instance, "PlayerId");
-            if (!string.IsNullOrWhiteSpace(playerId)) return FamiliarId.Sanitize(playerId);
-            var savePath = RuntimeMember(Singleton<GameRuntimeData>.Instance, "savePath");
-            return string.IsNullOrWhiteSpace(savePath) ? "local" : FamiliarId.Sanitize(Path.GetFileNameWithoutExtension(savePath));
+            this.modDirectory = modDirectory;
+            this.profileKey = profileKey;
         }
 
-        private static string RuntimeMember(object? target, string name)
+        public SpiritAdventurePartySessionDocument Load()
         {
-            if (target == null) return "";
-            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            var type = target.GetType();
-            return Convert.ToString(type.GetProperty(name, flags)?.GetValue(target)
-                                    ?? type.GetField(name, flags)?.GetValue(target)) ?? "";
+            var path = SessionPath();
+            if (!File.Exists(path))
+            {
+                return new SpiritAdventurePartySessionDocument();
+            }
+
+            try
+            {
+                return JsonConvert.DeserializeObject<SpiritAdventurePartySessionDocument>(File.ReadAllText(path))
+                       ?? new SpiritAdventurePartySessionDocument();
+            }
+            catch (Exception ex)
+            {
+                var recovered = TryLoadBackup(path);
+                if (recovered != null)
+                {
+                    TerriasLog.Warn("[SpiritCollection] recovered adventure party from backup " + path + ": " + ex.Message);
+                    return recovered;
+                }
+
+                try
+                {
+                    var invalidBackup = path + ".invalid.bak";
+                    if (!File.Exists(invalidBackup)) File.Copy(path, invalidBackup, overwrite: false);
+                }
+                catch
+                {
+                }
+
+                TerriasLog.Warn("[SpiritCollection] ignored invalid adventure party " + path + ": " + ex.Message);
+                return new SpiritAdventurePartySessionDocument();
+            }
         }
+
+        public void Save(SpiritAdventurePartySessionDocument document)
+        {
+            var path = SessionPath();
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
+            var temporary = path + ".tmp";
+            var backup = path + ".bak";
+            File.WriteAllText(temporary, JsonConvert.SerializeObject(document, Formatting.Indented));
+            if (File.Exists(path)) File.Replace(temporary, path, backup, ignoreMetadataErrors: true);
+            else File.Move(temporary, path);
+        }
+
+        private string SessionPath()
+        {
+            return Path.Combine(OwnerDataDirectory(modDirectory, TerriasIds.SpiritAdventureSessionDirectory), profileKey + ".json");
+        }
+
+        private static SpiritAdventurePartySessionDocument? TryLoadBackup(string path)
+        {
+            try
+            {
+                var backup = path + ".bak";
+                return File.Exists(backup)
+                    ? JsonConvert.DeserializeObject<SpiritAdventurePartySessionDocument>(File.ReadAllText(backup))
+                    : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
+
+    private static string OwnerDataDirectory(string modDirectory, string systemName)
+    {
+        var modsDirectory = Path.GetDirectoryName(modDirectory) ?? modDirectory;
+        var gameDirectory = Path.GetDirectoryName(modsDirectory) ?? modsDirectory;
+        var dataRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.ModsDataDirectory)
+            ? Path.Combine(gameDirectory, AuraSharedPaths.DefaultDataRootDirectoryName)
+            : AuraSharedPaths.ModsDataDirectory;
+        var sharedRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
+            ? Path.Combine(dataRoot, AuraSharedPaths.DefaultSharedDirectoryName)
+            : AuraSharedPaths.RootDirectory;
+        return string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
+            ? Path.Combine(sharedRoot, "Data", "Owners", TerriasIds.ModId, systemName)
+            : AuraSharedPaths.OwnerSystemDataDirectory(TerriasIds.ModId, systemName);
+    }
+
+    private static string StableProfileKey()
+    {
+        return SpiritProfileBindingPolicy.ResolveStableProfileKey(
+            TerriasNetworkRuntime.LocalPlayerId(),
+            RuntimeMember(Singleton<GameRuntimeData>.Instance, "PlayerId"));
+    }
+
+    private static string RuntimeMember(object? target, string name)
+    {
+        if (target == null) return "";
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        var type = target.GetType();
+        return Convert.ToString(type.GetProperty(name, flags)?.GetValue(target)
+                                ?? type.GetField(name, flags)?.GetValue(target)) ?? "";
     }
 }

@@ -319,6 +319,13 @@ internal sealed class TrainingDiagnosticsPanel
             verdict.Foreground = TrainerTheme.Success;
             verdictDetail.Text = training.Message;
         }
+        else if (training.ExperimentalEligibilityPassed)
+        {
+            verdict.Text = "训练通过：可进入实机配置测试";
+            verdict.Foreground = TrainerTheme.Warning;
+            verdictDetail.Text = training.Message
+                                 + " 当前产物不是正式发布底模；请通过实机反馈继续收集证据。";
+        }
         else if (training.QualifiedCandidateCount > 0
                  || training.AbsoluteQualifiedBestModel != null)
         {

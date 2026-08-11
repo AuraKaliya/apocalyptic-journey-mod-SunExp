@@ -288,6 +288,18 @@ public sealed class CombatFoundationTrainingParameters
     public double TransformerTeacherMaximumHeadRegression { get; set; } =
         0.05d;
 
+    public bool TransformerTeacherEnableRollingAnchorValidation { get; set; } =
+        true;
+
+    public int TransformerTeacherRollingAnchorMinimumFrames { get; set; } = 128;
+
+    public int TransformerTeacherRollingAnchorMaximumFrames { get; set; } = 512;
+
+    public double TransformerTeacherMinimumRollingCompositeImprovement {
+        get;
+        set;
+    } = 0.0001d;
+
     public int TransformerTeacherIncrementalEpochs { get; set; } = 4;
 
     public int TransformerTeacherFinalEpochs { get; set; } = 12;
@@ -664,6 +676,14 @@ public sealed class CombatFoundationTrainingParameters
                 TransformerTeacherEnableFixedAnchorValidation,
             MaximumHeadRegression =
                 TransformerTeacherMaximumHeadRegression,
+            EnableRollingAnchorValidation =
+                TransformerTeacherEnableRollingAnchorValidation,
+            RollingAnchorMinimumFrames =
+                TransformerTeacherRollingAnchorMinimumFrames,
+            RollingAnchorMaximumFrames =
+                TransformerTeacherRollingAnchorMaximumFrames,
+            MinimumRollingCompositeImprovement =
+                TransformerTeacherMinimumRollingCompositeImprovement,
             IncrementalEpochs = TransformerTeacherIncrementalEpochs,
             FinalEpochs = TransformerTeacherFinalEpochs,
             IncrementalReplayFrames =
@@ -720,6 +740,14 @@ public sealed class CombatFoundationTrainingParameters
             transformer.EnableFixedAnchorValidation;
         TransformerTeacherMaximumHeadRegression =
             transformer.MaximumHeadRegression;
+        TransformerTeacherEnableRollingAnchorValidation =
+            transformer.EnableRollingAnchorValidation;
+        TransformerTeacherRollingAnchorMinimumFrames =
+            transformer.RollingAnchorMinimumFrames;
+        TransformerTeacherRollingAnchorMaximumFrames =
+            transformer.RollingAnchorMaximumFrames;
+        TransformerTeacherMinimumRollingCompositeImprovement =
+            transformer.MinimumRollingCompositeImprovement;
         TransformerTeacherIncrementalEpochs = transformer.IncrementalEpochs;
         TransformerTeacherFinalEpochs = transformer.FinalEpochs;
         TransformerTeacherIncrementalReplayFrames =
@@ -858,6 +886,9 @@ public sealed class CombatFoundationWorkerJobBuildRequest
     public CombatCampaignDefinition ValidationCampaign { get; set; } = new();
 
     public CombatRulesetDocument Ruleset { get; set; } = new();
+
+    public CombatContentDisplayCatalog ContentDisplayCatalog { get; set; } =
+        new();
 
     public CombatPolicyValueNetworkDefinition? InitialChampion { get; set; }
 
@@ -1189,6 +1220,14 @@ public static class CombatFoundationWorkerJobFactory
                         .TransformerTeacherEnableFixedAnchorValidation,
                     MaximumHeadRegression = parameters
                         .TransformerTeacherMaximumHeadRegression,
+                    EnableRollingAnchorValidation = parameters
+                        .TransformerTeacherEnableRollingAnchorValidation,
+                    RollingAnchorMinimumFrames = parameters
+                        .TransformerTeacherRollingAnchorMinimumFrames,
+                    RollingAnchorMaximumFrames = parameters
+                        .TransformerTeacherRollingAnchorMaximumFrames,
+                    MinimumRollingCompositeImprovement = parameters
+                        .TransformerTeacherMinimumRollingCompositeImprovement,
                     IncrementalEpochs =
                         parameters.TransformerTeacherIncrementalEpochs,
                     FinalEpochs =
@@ -1229,6 +1268,9 @@ public static class CombatFoundationWorkerJobFactory
             },
             Ruleset = source.Ruleset
                       ?? throw new InvalidOperationException("底模规则集为空"),
+            ContentDisplayCatalog = (source.ContentDisplayCatalog
+                                     ?? new CombatContentDisplayCatalog())
+                .Normalize(),
             InitialChampion = source.InitialChampion
         };
     }
@@ -1285,6 +1327,16 @@ public static class CombatFoundationModelPackageProtocol
 
     public const string PreviousFoundationLineage = "Aura.Foundation.V1";
 
+    public const string QualityCertificationPassed = "passed";
+
+    public const string QualityCertificationIncomplete = "incomplete";
+
+    public const string CapabilityStatusPass = "pass";
+
+    public const string CapabilityStatusInconclusive = "inconclusive";
+
+    public const string CapabilityStatusFail = "fail";
+
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
         CombatFoundationWorkerResult result,
@@ -1295,30 +1347,45 @@ public static class CombatFoundationModelPackageProtocol
         var training = result.Training
                        ?? throw new InvalidOperationException(
                            "Worker 结果缺少底模训练结果");
+        var deploymentTier = training.AcceptancePassed
+            ? CombatFoundationDeploymentTier.Formal
+            : training.ExperimentalEligibilityPassed
+                ? CombatFoundationDeploymentTier.Experimental
+                : CombatFoundationDeploymentTier.Diagnostic;
+        var packageModel = ResolveEvaluatedModel(training);
+        var completionAccepted = string.Equals(
+            result.CompletionKind,
+            "training-accepted",
+            StringComparison.Ordinal);
+        var completionExperimental = string.Equals(
+                result.CompletionKind,
+                "training-experimental",
+                StringComparison.Ordinal)
+            || string.Equals(
+                result.CompletionKind,
+                "training-experimental-resumable",
+                StringComparison.Ordinal)
+            || string.Equals(
+                result.CompletionKind,
+                "training-experimental-recovered",
+                StringComparison.Ordinal);
         if (!result.Success
             || !training.Success
+            || deploymentTier == CombatFoundationDeploymentTier.Diagnostic
+            || !ValidationRuntimeSafe(training.Validation)
             || !training.AcceptancePassed
-            || !training.Validation.Passed
-            || !training.Validation.BehaviorPassed
-            || training.Validation.SevereEndTurnMistakes != 0
-            || training.Validation.DominatedEndTurns != 0
-            || training.Validation.EndTurnsIntoAvoidableLethal != 0
-            || training.Validation.EndTurnsWithCertifiedCycle != 0
-            || training.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
-            || training.Validation.NoEffectActionAttempts != 0
-            || training.Validation.RepeatedNoEffectActionAttempts != 0
-            || training.Validation.GuaranteedNoEffectActionAttempts != 0
-            || training.Validation.InteractiveActionContractFailures != 0
-            || training.Champion == null
-            || !string.Equals(
-                result.CompletionKind,
-                "training-accepted",
-                StringComparison.Ordinal))
+               && !training.RuntimeSafetyPassed
+            || packageModel == null
+            || training.AcceptancePassed && !completionAccepted
+            || training.ExperimentalEligibilityPassed
+               && !training.AcceptancePassed
+               && !completionExperimental
+            || !training.SameModelEvidenceBound)
         {
             throw new InvalidOperationException(
-                "只有通过正式隔离验收的 Worker 结果才能导出底模包");
+                "只有通过正式认证或实验准入且绑定同模型证据的 Worker 结果才能导出底模包");
         }
-        var model = training.Champion;
+        var model = packageModel;
         var campaign = job.Request.TrainingCampaign;
         var player = campaign.Player ?? new CombatPlayerSetup();
         var trainingSubject =
@@ -1347,6 +1414,16 @@ public static class CombatFoundationModelPackageProtocol
                           + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
             ModelVersion = CurrentModelVersion,
             FoundationLineage = CurrentFoundationLineage,
+            DeploymentTier = deploymentTier,
+            QualityCertification = training.AcceptancePassed
+                ? QualityCertificationPassed
+                : QualityCertificationIncomplete,
+            SameModelEvidenceBound = training.SameModelEvidenceBound,
+            CapabilityStatus = training.AcceptancePassed
+                ? CapabilityStatusPass
+                : NormalizeCapabilityStatus(
+                    training.CapabilityProbe.BaselineGateVerdict),
+            DeploymentTierReason = training.DeploymentTierReason,
             Profile = model.DecisionProfile,
             RoleId = player.RoleId ?? "",
             PartnerId = player.PartnerId ?? "",
@@ -1371,7 +1448,7 @@ public static class CombatFoundationModelPackageProtocol
             OwnerModSetHash = job.Request.OwnerModSetHash,
             Compatibility = training.Compatibility,
             Validation = training.Validation,
-            Acceptance = CreateAcceptance(training),
+            Acceptance = CreateAcceptance(training, model.ModelId),
             TrainingSubject = trainingSubject,
             DeclaredCoverage = declaredCoverage,
             Model = model
@@ -1408,6 +1485,38 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包缺少当前底模族标识";
             return false;
         }
+        var deploymentTier = ResolveDeploymentTier(package);
+        var formalPackage = string.Equals(
+            deploymentTier,
+            CombatFoundationDeploymentTier.Formal,
+            StringComparison.Ordinal);
+        var experimentalPackage = string.Equals(
+            deploymentTier,
+            CombatFoundationDeploymentTier.Experimental,
+            StringComparison.Ordinal);
+        if ((!formalPackage && !experimentalPackage)
+            || (legacy || previous) && !formalPackage)
+        {
+            diagnostic = "底模包部署等级无效";
+            return false;
+        }
+        var completionValid = formalPackage
+            ? string.Equals(
+                package.CompletionKind,
+                "training-accepted",
+                StringComparison.Ordinal)
+            : string.Equals(
+                  package.CompletionKind,
+                  "training-experimental",
+                  StringComparison.Ordinal)
+              || string.Equals(
+                  package.CompletionKind,
+                  "training-experimental-resumable",
+                  StringComparison.Ordinal)
+              || string.Equals(
+                  package.CompletionKind,
+                  "training-experimental-recovered",
+                  StringComparison.Ordinal);
         if (string.IsNullOrWhiteSpace(package.PackageId)
             || string.IsNullOrWhiteSpace(package.JobId)
             || !string.Equals(
@@ -1418,17 +1527,21 @@ public static class CombatFoundationModelPackageProtocol
                         ? PreviousModelVersion
                         : CurrentModelVersion,
                 StringComparison.Ordinal)
-            || !string.Equals(
-                package.CompletionKind,
-                "training-accepted",
-                StringComparison.Ordinal))
+            || !completionValid)
         {
-            diagnostic = "底模包缺少已验收训练来源";
+            diagnostic = "底模包缺少与部署等级匹配的训练来源";
             return false;
         }
-        if (!legacy && !ValidAcceptance(package.Acceptance))
+        if (package.RecoveredFromCandidateArtifact
+            && (!ValidHash(package.RecoverySourceResultSha256)
+                || !ValidHash(package.RecoverySourceCandidateSha256)))
         {
-            diagnostic = "底模包缺少有效的配对证据验收证明";
+            diagnostic = "历史恢复底模缺少可核验的源结果或候选模型哈希";
+            return false;
+        }
+        if (!legacy && !ValidLoadableAcceptance(package, deploymentTier))
+        {
+            diagnostic = "底模包缺少与部署等级匹配的质量证明";
             return false;
         }
         if (string.IsNullOrWhiteSpace(package.RoleId)
@@ -1459,20 +1572,10 @@ public static class CombatFoundationModelPackageProtocol
             return false;
         }
         if (package.Validation == null
-            || !package.Validation.Passed
-            || !package.Validation.BehaviorPassed
-            || package.Validation.SevereEndTurnMistakes != 0
-            || package.Validation.DominatedEndTurns != 0
-            || package.Validation.EndTurnsIntoAvoidableLethal != 0
-            || package.Validation.EndTurnsWithCertifiedCycle != 0
-            || package.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
-            || package.Validation.NoEffectActionAttempts != 0
-            || package.Validation.RepeatedNoEffectActionAttempts != 0
-            || package.Validation.GuaranteedNoEffectActionAttempts != 0
-            || package.Validation.InteractiveActionContractFailures != 0
-            || package.Validation.InvalidCampaigns != 0)
+            || formalPackage && !package.Validation.Passed
+            || !ValidationRuntimeSafe(package.Validation))
         {
-            diagnostic = "底模包没有通过正式隔离验证";
+            diagnostic = "底模包没有通过运行时安全验证";
             return false;
         }
         var model = package.Model;
@@ -1633,12 +1736,14 @@ public static class CombatFoundationModelPackageProtocol
         CombatFoundationModelPackage package)
     {
         if (package.Acceptance != null
-            && package.Acceptance.SchemaVersion == 1)
+            && (package.Acceptance.SchemaVersion == 1
+                || package.Acceptance.SchemaVersion == 2))
         {
             return package.Acceptance;
         }
         return new CombatFoundationModelAcceptance
         {
+            SchemaVersion = 1,
             Classification = "legacy-formal-acceptance",
             PromotionProtocolVersion = "legacy-v3",
             FormalIsolationPassed = package.Validation?.Passed == true
@@ -1648,19 +1753,61 @@ public static class CombatFoundationModelPackageProtocol
     public static bool IsValidAcceptance(
         CombatFoundationModelAcceptance? acceptance)
     {
-        return ValidAcceptance(acceptance);
+        return ValidFormalAcceptance(acceptance);
+    }
+
+    public static bool IsValidLoadableAcceptance(
+        CombatFoundationModelPackage? package)
+    {
+        return package != null
+               && ValidLoadableAcceptance(
+                   package,
+                   ResolveDeploymentTier(package));
+    }
+
+    public static bool IsValidExperimentalAcceptance(
+        CombatFoundationModelAcceptance? acceptance)
+    {
+        return ValidExperimentalAcceptance(acceptance);
+    }
+
+    public static string ResolveDeploymentTier(
+        CombatFoundationModelPackage? package)
+    {
+        if (package == null)
+        {
+            return CombatFoundationDeploymentTier.Diagnostic;
+        }
+        var tier = (package.DeploymentTier ?? "").Trim().ToLowerInvariant();
+        if (tier == CombatFoundationDeploymentTier.Experimental)
+        {
+            return tier;
+        }
+        return tier == CombatFoundationDeploymentTier.Formal
+               || package.SchemaVersion == LegacySchemaVersion
+               || package.SchemaVersion == PreviousSchemaVersion
+            ? CombatFoundationDeploymentTier.Formal
+            : CombatFoundationDeploymentTier.Diagnostic;
     }
 
     private static CombatFoundationModelAcceptance CreateAcceptance(
-        CombatCampaignFoundationTrainingResult training)
+        CombatCampaignFoundationTrainingResult training,
+        string modelId)
     {
         var evidence = training.Iterations.LastOrDefault(item =>
+                           string.Equals(
+                               item.CandidateModelId,
+                               modelId,
+                               StringComparison.Ordinal)
+                           && item.AbsoluteQualificationGatePassed)
+                       ?? training.Iterations.LastOrDefault(item =>
                            item.QualifiedCandidateSelected)
                        ?? training.Iterations.LastOrDefault(item =>
                            item.ProvisionalChampionSelected || item.Promoted)
                        ?? training.Iterations.LastOrDefault();
         return new CombatFoundationModelAcceptance
         {
+            SchemaVersion = 2,
             Classification = string.IsNullOrWhiteSpace(training.AcceptanceKind)
                 ? "retained-champion"
                 : training.AcceptanceKind,
@@ -1688,69 +1835,214 @@ public static class CombatFoundationModelPackageProtocol
             ChampionOnlyWins = evidence?.ChampionOnlyWins ?? 0,
             PairedRegressionWilsonUpperBound =
                 evidence?.PairedRegressionWilsonUpperBound ?? 0d,
-            FormalIsolationPassed = training.Validation.Passed
+            FormalIsolationPassed = training.Validation.Passed,
+            RuntimeSafetyPassed = training.RuntimeSafetyPassed,
+            RawIsolationPassed = training.RawIsolationPassed,
+            CapabilityRegressionDetected = string.Equals(
+                training.CapabilityProbe.BaselineGateVerdict,
+                "fail",
+                StringComparison.Ordinal),
+            RelativeEvidenceKind = evidence?.PairedEvidenceKind ?? ""
         };
     }
 
-    private static bool ValidAcceptance(
+    private static bool ValidLoadableAcceptance(
+        CombatFoundationModelPackage package,
+        string deploymentTier)
+    {
+        if (string.Equals(
+                deploymentTier,
+                CombatFoundationDeploymentTier.Formal,
+                StringComparison.Ordinal))
+        {
+            return string.Equals(
+                       package.QualityCertification,
+                       QualityCertificationPassed,
+                       StringComparison.Ordinal)
+                   && package.SameModelEvidenceBound
+                   && string.Equals(
+                       package.CapabilityStatus,
+                       CapabilityStatusPass,
+                       StringComparison.Ordinal)
+                   && ValidFormalAcceptance(package.Acceptance);
+        }
+        return string.Equals(
+                   deploymentTier,
+                   CombatFoundationDeploymentTier.Experimental,
+                   StringComparison.Ordinal)
+               && string.Equals(
+                   package.QualityCertification,
+                   QualityCertificationIncomplete,
+                   StringComparison.Ordinal)
+               && package.SameModelEvidenceBound
+               && (!string.Equals(
+                       package.CapabilityStatus,
+                       CapabilityStatusFail,
+                       StringComparison.Ordinal)
+                   || string.Equals(
+                       package.Acceptance?.Classification,
+                       CombatFoundationPromotionProtocol
+                           .ExperimentalRuntimeTest,
+                       StringComparison.Ordinal))
+               && ValidExperimentalAcceptance(package.Acceptance);
+    }
+
+    private static bool ValidExperimentalAcceptance(
         CombatFoundationModelAcceptance? acceptance)
     {
-        if (acceptance == null
-            || acceptance.SchemaVersion != 1
-            || !acceptance.FormalIsolationPassed
-            || string.IsNullOrWhiteSpace(acceptance.Classification)
-            || string.IsNullOrWhiteSpace(
-                acceptance.PromotionProtocolVersion))
+        if (!AcceptanceBaseValid(acceptance))
+        {
+            return false;
+        }
+        var value = acceptance!;
+        if (string.Equals(
+                value.Classification,
+                CombatFoundationPromotionProtocol.ExperimentalRuntimeTest,
+                StringComparison.Ordinal))
+        {
+            return value.SchemaVersion == 2
+                   && value.RuntimeSafetyPassed;
+        }
+        return string.Equals(
+                   value.Classification,
+                   CombatFoundationPromotionProtocol
+                       .ExperimentalAbsoluteQualified,
+                   StringComparison.Ordinal)
+               && value.FormalIsolationPassed
+               && value.AbsoluteQualified
+               && value.AbsoluteNormalPassed
+               && value.AbsoluteAdvancedPassed
+               && value.OfflineHeadRegressionPassed
+               && value.StrategyQuotaPassed
+               && value.FeatureCollisionPassed
+               && value.ValidNormalPairs > 0
+               && value.ValidAdvancedPairs > 0
+               && value.ValidPairedCampaigns
+                  == value.ValidNormalPairs
+                     + value.ValidAdvancedPairs;
+    }
+
+    private static bool ValidFormalAcceptance(
+        CombatFoundationModelAcceptance? acceptance)
+    {
+        if (!AcceptanceBaseValid(acceptance))
+        {
+            return false;
+        }
+        var value = acceptance!;
+        if (!value.FormalIsolationPassed)
         {
             return false;
         }
         if (string.Equals(
-                acceptance.Classification,
+                value.Classification,
                 CombatFoundationPromotionProtocol.SignificantImprovement,
                 StringComparison.Ordinal))
         {
-            return acceptance.SignificantImprovement;
+            return value.SignificantImprovement;
         }
         if (string.Equals(
-                acceptance.Classification,
+                value.Classification,
                 CombatFoundationPromotionProtocol.EquivalentNonInferior,
                 StringComparison.Ordinal))
         {
-            return acceptance.EquivalentNonInferior
-                   && acceptance.ValidNormalPairs
+            return value.EquivalentNonInferior
+                   && value.ValidNormalPairs
                       >= CombatFoundationPromotionProtocol
                           .MinimumNonInferiorityPairsPerDifficulty
-                   && acceptance.ValidAdvancedPairs
+                   && value.ValidAdvancedPairs
                       >= CombatFoundationPromotionProtocol
                           .MinimumNonInferiorityPairsPerDifficulty
-                   && acceptance.CandidateOnlyWins
-                      >= acceptance.ChampionOnlyWins
-                   && acceptance.PairedRegressionWilsonUpperBound
+                   && value.CandidateOnlyWins
+                      >= value.ChampionOnlyWins
+                   && value.PairedRegressionWilsonUpperBound
                       <= CombatFoundationPromotionProtocol
                              .MaximumPairedRegressionWilsonUpperBound
                           + 0.0000001d;
         }
         if (string.Equals(
-                acceptance.Classification,
+                value.Classification,
                 CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
                 StringComparison.Ordinal))
         {
-            return acceptance.AbsoluteQualified
-                   && acceptance.AbsoluteNormalPassed
-                   && acceptance.AbsoluteAdvancedPassed
-                   && acceptance.OfflineHeadRegressionPassed
-                   && acceptance.StrategyQuotaPassed
-                   && acceptance.FeatureCollisionPassed
-                   && acceptance.ValidNormalPairs > 0
-                   && acceptance.ValidAdvancedPairs > 0
-                   && acceptance.ValidPairedCampaigns
-                      == acceptance.ValidNormalPairs
-                         + acceptance.ValidAdvancedPairs;
+            return value.AbsoluteQualified
+                   && value.AbsoluteNormalPassed
+                   && value.AbsoluteAdvancedPassed
+                   && value.OfflineHeadRegressionPassed
+                   && value.StrategyQuotaPassed
+                   && value.FeatureCollisionPassed
+                   && value.ValidNormalPairs > 0
+                   && value.ValidAdvancedPairs > 0
+                   && value.ValidPairedCampaigns
+                      == value.ValidNormalPairs
+                         + value.ValidAdvancedPairs;
         }
         return string.Equals(
-            acceptance.Classification,
+            value.Classification,
             "retained-champion",
             StringComparison.Ordinal);
+    }
+
+    private static bool AcceptanceBaseValid(
+        CombatFoundationModelAcceptance? acceptance)
+    {
+        return acceptance != null
+               && (acceptance.SchemaVersion == 1
+                   || acceptance.SchemaVersion == 2)
+               && !string.IsNullOrWhiteSpace(acceptance.Classification)
+               && !string.IsNullOrWhiteSpace(
+                   acceptance.PromotionProtocolVersion);
+    }
+
+    private static string NormalizeCapabilityStatus(string value)
+    {
+        return (value ?? "").Trim().ToLowerInvariant() switch
+        {
+            CapabilityStatusPass => CapabilityStatusPass,
+            CapabilityStatusFail => CapabilityStatusFail,
+            _ => CapabilityStatusInconclusive
+        };
+    }
+
+    private static CombatPolicyValueNetworkDefinition? ResolveEvaluatedModel(
+        CombatCampaignFoundationTrainingResult training)
+    {
+        var modelId = (training.EvaluatedModelId ?? "").Trim();
+        var candidates = new[]
+        {
+            training.Champion,
+            training.AbsoluteQualifiedBestModel,
+            training.WorkingChampion,
+            training.BestPendingArenaCandidate?.Model,
+            training.LatestTrainingModel
+        };
+        if (!string.IsNullOrWhiteSpace(modelId))
+        {
+            return candidates.FirstOrDefault(model =>
+                model != null
+                && string.Equals(
+                    model.ModelId,
+                    modelId,
+                    StringComparison.Ordinal));
+        }
+        return candidates.FirstOrDefault(model => model != null);
+    }
+
+    private static bool ValidationRuntimeSafe(
+        CombatCampaignFoundationValidation? validation)
+    {
+        return validation != null
+               && validation.BehaviorPassed
+               && validation.SevereEndTurnMistakes == 0
+               && validation.DominatedEndTurns == 0
+               && validation.EndTurnsIntoAvoidableLethal == 0
+               && validation.EndTurnsWithCertifiedCycle == 0
+               && validation.AvoidableEndTurnsWithUnusedEnergy == 0
+               && validation.NoEffectActionAttempts == 0
+               && validation.RepeatedNoEffectActionAttempts == 0
+               && validation.GuaranteedNoEffectActionAttempts == 0
+               && validation.InteractiveActionContractFailures == 0
+               && validation.InvalidCampaigns == 0;
     }
 
     public static string BuildCardPoolScope(
@@ -1828,7 +2120,7 @@ public static class CombatFoundationModelPackageProtocol
 
 public sealed class CombatFoundationModelAcceptance
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public string Classification { get; set; } = "";
 
@@ -1867,6 +2159,14 @@ public sealed class CombatFoundationModelAcceptance
     public double PairedRegressionWilsonUpperBound { get; set; }
 
     public bool FormalIsolationPassed { get; set; }
+
+    public bool RuntimeSafetyPassed { get; set; }
+
+    public bool RawIsolationPassed { get; set; }
+
+    public bool CapabilityRegressionDetected { get; set; }
+
+    public string RelativeEvidenceKind { get; set; } = "";
 }
 
 public sealed class CombatFoundationModelPackage
@@ -1885,6 +2185,19 @@ public sealed class CombatFoundationModelPackage
 
     public string FoundationLineage { get; set; } =
         CombatFoundationModelPackageProtocol.CurrentFoundationLineage;
+
+    public string DeploymentTier { get; set; } =
+        CombatFoundationDeploymentTier.Formal;
+
+    public string QualityCertification { get; set; } =
+        CombatFoundationModelPackageProtocol.QualityCertificationPassed;
+
+    public bool SameModelEvidenceBound { get; set; } = true;
+
+    public string CapabilityStatus { get; set; } =
+        CombatFoundationModelPackageProtocol.CapabilityStatusPass;
+
+    public string DeploymentTierReason { get; set; } = "";
 
     public string ModelPurpose { get; set; } = "foundation";
 
@@ -1913,6 +2226,12 @@ public sealed class CombatFoundationModelPackage
     public string CompletionKind { get; set; } = "";
 
     public string WorkerSha256 { get; set; } = "";
+
+    public bool RecoveredFromCandidateArtifact { get; set; }
+
+    public string RecoverySourceResultSha256 { get; set; } = "";
+
+    public string RecoverySourceCandidateSha256 { get; set; } = "";
 
     public string RulesetHash { get; set; } = "";
 

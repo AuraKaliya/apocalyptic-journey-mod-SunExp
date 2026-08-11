@@ -652,6 +652,14 @@ public sealed class CombatDecisionProfile
 
     public DecisionGraph? Graph { get; set; }
 
+    /// <summary>
+    /// When enabled, the learned policy/value stack owns action selection.
+    /// Runtime legality and mechanical forward simulation still apply, but
+    /// heuristic dominance, quality governance and safety fallbacks may not
+    /// replace a legal model proposal.
+    /// </summary>
+    public bool ModelOwnsActionSelection { get; set; }
+
     public double MinimumActionScore { get; set; } = 0.05d;
 
     public double UnknownActionPenalty { get; set; } = 2d;

@@ -290,6 +290,10 @@ internal sealed class ControllerWorkerResultSummary
 
     public int OmittedHardSeedCheckpoints { get; set; }
 
+    public string EvaluatedModelId { get; set; } = "";
+
+    public int EvaluatedModelIteration { get; set; }
+
     public int EpochsExecuted { get; set; }
 
     public int SelectedEpoch { get; set; }
@@ -381,6 +385,23 @@ internal sealed class ControllerTrainingResultSummary
     public bool Success { get; set; }
 
     public bool AcceptancePassed { get; set; }
+
+    public bool ExperimentalEligibilityPassed { get; set; }
+
+    public bool RuntimeSafetyPassed { get; set; }
+
+    public bool RawIsolationPassed { get; set; }
+
+    public string DeploymentTier { get; set; } =
+        CombatFoundationDeploymentTier.Diagnostic;
+
+    public string DeploymentTierReason { get; set; } = "";
+
+    public bool SameModelEvidenceBound { get; set; }
+
+    public string ValidationModelId { get; set; } = "";
+
+    public string CapabilityProbeModelId { get; set; } = "";
 
     public string Message { get; set; } = "";
 

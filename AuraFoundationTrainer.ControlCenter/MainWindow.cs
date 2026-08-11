@@ -582,8 +582,8 @@ internal sealed class MainWindow : Window
             "连续拒绝停止阈值",
             0,
             8);
-        AddDouble(panel, "NormalAcceptanceRate", "普通验收率");
-        AddDouble(panel, "AdvancedAcceptanceRate", "高级验收率");
+        AddDouble(panel, "NormalAcceptanceRate", "普通正式 Wilson 下界目标");
+        AddDouble(panel, "AdvancedAcceptanceRate", "高级正式 Wilson 下界目标");
         AddNumber(panel, "MinimumArenaDiscordantPairs", "竞技场最少分歧对", 1, 128);
         AddDouble(panel, "MaximumOfflineHeadRegression", "离线单头最大回退");
         AddDouble(panel, "MaximumStateFeatureCollisionRate", "状态特征最大碰撞率");
@@ -1192,10 +1192,14 @@ internal sealed class MainWindow : Window
                 "training-accepted",
                 StringComparison.Ordinal);
             var rejectedResumable = result?.Resumable == true
-                                    && string.Equals(
-                                        result.CompletionKind,
-                                        "training-rejected-resumable",
-                                        StringComparison.Ordinal);
+                                    && (string.Equals(
+                                            result.CompletionKind,
+                                            "training-rejected-resumable",
+                                            StringComparison.Ordinal)
+                                        || string.Equals(
+                                            result.CompletionKind,
+                                            "training-experimental-resumable",
+                                            StringComparison.Ordinal));
             var training = result?.Training;
             var latestTrainingModel = training?.LatestTrainingModel
                                       ?? training?.WorkingChampion
@@ -1286,6 +1290,11 @@ internal sealed class MainWindow : Window
             "Config",
             "combat-simulation",
             "witch-base-evaluation-v2.ruleset.json");
+        var displayCatalogPath = Path.Combine(
+            settings.ModRoot,
+            "Config",
+            "combat-simulation",
+            "witch-content-display-catalog-v1.json");
         var trainingCampaign = Deserialize<CombatCampaignDefinition>(
                                    CombatFoundationCheckpointStorage
                                        .ReadAllTextShared(campaignPath))
@@ -1311,6 +1320,11 @@ internal sealed class MainWindow : Window
                                   CombatFoundationCheckpointStorage
                                       .ReadAllTextShared(rulesetPath))
                               ?? throw new InvalidOperationException("无法读取规则集");
+        var displayCatalog = Deserialize<CombatContentDisplayCatalog>(
+                                 CombatFoundationCheckpointStorage
+                                     .ReadAllTextShared(displayCatalogPath))
+                             ?? throw new InvalidOperationException(
+                                 "无法读取中文内容目录");
         var rulesetBuild = CombatSimulationRegistry.BuildRuleset(rulesetDocument);
         if (!rulesetBuild.Success)
         {
@@ -1393,6 +1407,7 @@ internal sealed class MainWindow : Window
                 TrainingCampaign = trainingCampaign,
                 ValidationCampaign = validationCampaign,
                 Ruleset = rulesetDocument,
+                ContentDisplayCatalog = displayCatalog,
                 InitialChampion = initialChampion
             });
         job.ResumeFromCheckpoint = resumeFromCheckpoint;
@@ -1878,16 +1893,29 @@ internal sealed class MainWindow : Window
                            "training-accepted",
                            StringComparison.Ordinal);
         var semanticRejected = result.Training?.SemanticGatePassed == false;
+        var experimental = result.Training?.ExperimentalEligibilityPassed == true;
+        var capabilityRegression = experimental
+                                   && string.Equals(
+                                       result.Training?.CapabilityProbe
+                                           .BaselineGateVerdict,
+                                       "fail",
+                                       StringComparison.Ordinal);
         runStatus.Text = accepted
-            ? "训练完成 · 底模已通过隔离验收"
+            ? "训练完成 · 正式底模已通过"
             : result.Cancelled
                 ? "训练已取消"
                 : semanticRejected
                     ? "训练已安全拒绝 · 语义门禁未通过"
-                    : "训练结束 · " + result.CompletionKind;
+                    : experimental
+                        ? capabilityRegression
+                            ? "训练完成 · 高风险实验底模已生成（能力回退）"
+                            : "训练完成 · 实验底模包已生成（未达正式发布线）"
+                        : result.TrainingSucceeded
+                            ? "训练完成 · 仅保留诊断候选"
+                            : "训练结束 · " + result.CompletionKind;
         runStatus.Foreground = accepted
             ? TrainerTheme.Success
-            : result.Cancelled
+            : result.Cancelled || experimental || result.TrainingSucceeded
                 ? TrainerTheme.Warning
                 : TrainerTheme.Danger;
         progressBar.Value = 100;
@@ -1915,12 +1943,23 @@ internal sealed class MainWindow : Window
             + $"Worker 已完成：{result.WorkerCompleted}\r\n"
             + $"训练成功：{result.TrainingSucceeded}\r\n"
             + $"模型已接受：{result.ModelAccepted}\r\n"
+            + (result.Training == null
+                ? ""
+                : $"部署层级：{result.Training.DeploymentTier}\r\n"
+                  + $"实验底模可加载：{result.Training.ExperimentalEligibilityPassed}\r\n"
+                  + $"运行时安全：{result.Training.RuntimeSafetyPassed}\r\n"
+                  + $"原始胜率目标：{result.Training.RawIsolationPassed}\r\n"
+                  + $"能力探针：{result.Training.CapabilityProbe.BaselineGateVerdict}\r\n"
+                  + $"同模型证据绑定：{result.Training.SameModelEvidenceBound}\r\n"
+                  + $"层级说明：{result.Training.DeploymentTierReason}\r\n")
             + $"业务模型已输出：{result.BusinessModelIncluded}\r\n"
             + $"失败重载已裁剪：{result.HeavyTrainingPayloadOmitted}"
             + $"（模型 {result.OmittedModelPayloads}，失败检查点 {result.OmittedHardSeedCheckpoints}）\r\n"
-            + $"执行 epoch：{result.EpochsExecuted}\r\n"
-            + $"验证最优 epoch：{(result.BestValidationEpoch > 0 ? result.BestValidationEpoch : result.SelectedEpoch)}\r\n"
-            + $"部署选择 epoch：{(result.DeploymentSelectedEpoch > 0 ? result.DeploymentSelectedEpoch : result.SelectedEpoch)}\r\n"
+            + $"实际评估模型：{result.EvaluatedModelId}\r\n"
+            + $"实际评估轮次：{result.EvaluatedModelIteration}\r\n"
+            + $"评估模型执行 epoch：{result.EpochsExecuted}\r\n"
+            + $"评估模型验证最优 epoch：{(result.BestValidationEpoch > 0 ? result.BestValidationEpoch : result.SelectedEpoch)}\r\n"
+            + $"评估模型部署选择 epoch：{(result.DeploymentSelectedEpoch > 0 ? result.DeploymentSelectedEpoch : result.SelectedEpoch)}\r\n"
             + $"持久化回放：{result.PersistedReplayEpisodes}\r\n"
             + $"检查点大小：{result.CheckpointBytes:N0} bytes\r\n"
             + $"运行时：{result.Runtime}\r\n"
@@ -1941,7 +1980,7 @@ internal sealed class MainWindow : Window
             + (string.IsNullOrWhiteSpace(result.TrainingMetricWarning)
                 ? ""
                 : $"指标提示：{result.TrainingMetricWarning}\r\n")
-            + $"待验底模包：{result.ModelPackagePath}\r\n"
+            + $"可加载底模包：{result.ModelPackagePath}\r\n"
             + $"候选模型产物：{result.CandidateArtifactProduced}\r\n"
             + $"训练产物目录：{result.ArtifactBundleDirectory}\r\n"
             + $"模型能力报告：{result.CapabilityReportPath}\r\n"
@@ -1974,8 +2013,20 @@ internal sealed class MainWindow : Window
             presentedResult.CompletionKind,
             "training-accepted",
             StringComparison.Ordinal);
+        var experimental = presentedResult.Training
+            ?.ExperimentalEligibilityPassed == true;
+        var capabilityRegression = experimental
+                                   && string.Equals(
+                                       presentedResult.Training?.CapabilityProbe
+                                           .BaselineGateVerdict,
+                                       "fail",
+                                       StringComparison.Ordinal);
         var title = accepted
             ? "训练完成并通过验收"
+            : experimental
+                ? capabilityRegression
+                    ? "训练完成：高风险实验底模已生成"
+                    : "训练完成：实验底模包已生成"
             : presentedResult.Cancelled
                 ? "训练已取消"
                 : presentedResult.Resumable
@@ -2195,7 +2246,9 @@ internal sealed class MainWindow : Window
                       : Environment.NewLine + teacher.Message);
         }
         var recoveryText = result.Resumable
-            ? "检查点已保存，可恢复训练。"
+            ? result.Training?.ExperimentalEligibilityPassed == true
+                ? "实验底模包已生成；检查点也已保存，可继续收集正式发布证据。"
+                : "检查点已保存，可恢复训练。"
             : string.Equals(
                 result.CompletionKind,
                 "training-accepted",
@@ -3184,7 +3237,12 @@ internal sealed class MainWindow : Window
                 modRoot,
                 "Config",
                 "combat-simulation",
-                "witch-game-subjects-v1.catalog.json")
+                "witch-game-subjects-v1.catalog.json"),
+            Path.Combine(
+                modRoot,
+                "Config",
+                "combat-simulation",
+                "witch-content-display-catalog-v1.json")
         };
         errors.AddRange(required.Where(path => !File.Exists(path)));
         if (string.IsNullOrWhiteSpace(dataRoot))
@@ -3374,6 +3432,16 @@ internal sealed class MainWindow : Window
                     break;
                 case nameof(ControllerWorkerResultSummary.OmittedHardSeedCheckpoints):
                     summary.OmittedHardSeedCheckpoints = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.EvaluatedModelId):
+                    summary.EvaluatedModelId = Convert.ToString(
+                        reader.Value,
+                        CultureInfo.InvariantCulture) ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.EvaluatedModelIteration):
+                    summary.EvaluatedModelIteration = Convert.ToInt32(
                         reader.Value,
                         CultureInfo.InvariantCulture);
                     break;
@@ -3665,6 +3733,41 @@ internal sealed class MainWindow : Window
                     summary.AcceptancePassed = Convert.ToBoolean(
                         reader.Value,
                         CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ExperimentalEligibilityPassed):
+                    summary.ExperimentalEligibilityPassed = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.DeploymentTier):
+                    summary.DeploymentTier = Convert.ToString(
+                                                 reader.Value,
+                                                 CultureInfo.InvariantCulture)
+                                             ?? CombatFoundationDeploymentTier
+                                                 .Diagnostic;
+                    break;
+                case nameof(ControllerTrainingResultSummary.DeploymentTierReason):
+                    summary.DeploymentTierReason = Convert.ToString(
+                                                       reader.Value,
+                                                       CultureInfo.InvariantCulture)
+                                                   ?? "";
+                    break;
+                case nameof(ControllerTrainingResultSummary.SameModelEvidenceBound):
+                    summary.SameModelEvidenceBound = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ValidationModelId):
+                    summary.ValidationModelId = Convert.ToString(
+                                                    reader.Value,
+                                                    CultureInfo.InvariantCulture)
+                                                ?? "";
+                    break;
+                case nameof(ControllerTrainingResultSummary.CapabilityProbeModelId):
+                    summary.CapabilityProbeModelId = Convert.ToString(
+                                                         reader.Value,
+                                                         CultureInfo.InvariantCulture)
+                                                     ?? "";
                     break;
                 case nameof(ControllerTrainingResultSummary.Message):
                     summary.Message = Convert.ToString(

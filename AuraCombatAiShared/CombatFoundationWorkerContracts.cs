@@ -218,6 +218,9 @@ public sealed class CombatFoundationWorkerJob
 
     public CombatRulesetDocument Ruleset { get; set; } = new();
 
+    public CombatContentDisplayCatalog ContentDisplayCatalog { get; set; } =
+        new();
+
     public CombatPolicyValueNetworkDefinition? InitialChampion { get; set; }
 }
 
@@ -288,6 +291,10 @@ public sealed class CombatFoundationWorkerResult
     public int OmittedModelPayloads { get; set; }
 
     public int OmittedHardSeedCheckpoints { get; set; }
+
+    public string EvaluatedModelId { get; set; } = "";
+
+    public int EvaluatedModelIteration { get; set; }
 
     public int EpochsExecuted { get; set; }
 
@@ -406,8 +413,12 @@ public static class CombatFoundationWorkerResultProjection
         {
             throw new ArgumentNullException(nameof(result));
         }
-        result.BusinessModelIncluded = result.ModelAccepted;
-        if (result.ModelAccepted || result.Training == null)
+        var loadableModelIncluded = result.ModelAccepted
+                                    || result.Training
+                                        ?.ExperimentalEligibilityPassed
+                                    == true;
+        result.BusinessModelIncluded = loadableModelIncluded;
+        if (loadableModelIncluded || result.Training == null)
         {
             return;
         }

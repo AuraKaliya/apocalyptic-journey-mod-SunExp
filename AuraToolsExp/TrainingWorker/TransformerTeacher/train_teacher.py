@@ -76,6 +76,10 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--anchor", default="")
     parser.add_argument("--fixed-anchor", type=int, choices=(0, 1), default=1)
     parser.add_argument("--maximum-head-regression", type=float, default=0.05)
+    parser.add_argument("--rolling-anchor", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--rolling-anchor-minimum-frames", type=int, default=128)
+    parser.add_argument("--rolling-anchor-maximum-frames", type=int, default=512)
+    parser.add_argument("--minimum-rolling-improvement", type=float, default=0.0001)
     parser.add_argument("--resume-model", default="")
     parser.add_argument("--prior-report", default="")
     parser.add_argument("--training-selection", default="")
@@ -1356,6 +1360,67 @@ def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
     return training, validation
 
 
+def subset_by_run_ids(rows, selected_ids: set[str], include: bool):
+    metadata = dataset_metadata(rows)
+    indices = [
+        index
+        for index, row in enumerate(metadata)
+        if (run_key(row) in selected_ids) == include
+    ]
+    if isinstance(rows, Dataset):
+        return ShardedDatasetView(rows, indices)
+    return [rows[index] for index in indices]
+
+
+def training_and_rolling_anchor_rows(rows, args: argparse.Namespace):
+    """Hold out recent-corpus runs without mutating the persisted fixed anchor."""
+    if not args.rolling_anchor:
+        return rows, []
+    metadata = dataset_metadata(rows)
+    run_ids = sorted({run_key(row) for row in metadata})
+    if len(run_ids) < 2:
+        return rows, []
+    frames_by_run: dict[str, int] = {}
+    for row in metadata:
+        key = run_key(row)
+        frames_by_run[key] = frames_by_run.get(key, 0) + 1
+    newest_row_by_run: dict[str, int] = {}
+    for row in metadata:
+        key = run_key(row)
+        newest_row_by_run[key] = max(
+            newest_row_by_run.get(key, -1), int(row.get("I", -1))
+        )
+    minimum = max(32, int(args.rolling_anchor_minimum_frames))
+    maximum = max(minimum, int(args.rolling_anchor_maximum_frames))
+    candidates = sorted(
+        run_ids,
+        key=lambda key: (
+            -newest_row_by_run.get(key, -1),
+            stable_partition_score(key, args.seed + 7919),
+            key,
+        ),
+    )
+    selected: set[str] = set()
+    selected_frames = 0
+    for key in candidates:
+        if len(selected) >= len(run_ids) - 1:
+            break
+        run_frames = frames_by_run[key]
+        if selected and selected_frames + run_frames > maximum:
+            continue
+        selected.add(key)
+        selected_frames += run_frames
+        if selected_frames >= minimum:
+            break
+    if not selected:
+        selected.add(candidates[0])
+    fit_rows = subset_by_run_ids(rows, selected, include=False)
+    rolling_rows = subset_by_run_ids(rows, selected, include=True)
+    if not len(fit_rows) or not len(rolling_rows):
+        return rows, []
+    return fit_rows, rolling_rows
+
+
 def write_anchor_rows(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -2286,7 +2351,7 @@ def evaluate(
     loader: DataLoader,
     device: torch.device,
     precision: str = "float32",
-) -> dict[str, float]:
+) -> dict[str, object]:
     model.eval()
     count = 0
     policy_count = 0
@@ -2294,17 +2359,25 @@ def evaluate(
     uniform_policy_cross_entropy = 0.0
     policy_correct = 0
     value_error = 0.0
+    value_squared_error = 0.0
     phase_count = 0
     phase_correct = 0
+    phase_cross_entropy = 0.0
     strategy_count = 0
     strategy_correct = 0
+    strategy_binary_cross_entropy = 0.0
+    strategy_head_counts: list[int] = []
+    strategy_head_binary_cross_entropy: list[float] = []
     dynamics_squared_error = 0.0
     dynamics_elements = 0
+    dynamics_frames = 0
     outcome_absolute_error = 0.0
+    outcome_squared_error = 0.0
     outcome_elements = 0
     death_squared_error = 0.0
     terminal_count = 0
     terminal_correct = 0
+    terminal_binary_cross_entropy = 0.0
     for raw in loader:
         batch = move(raw, device)
         with precision_context(device, precision):
@@ -2334,10 +2407,19 @@ def evaluate(
             uniform_policy_cross_entropy += float(
                 batch["action_mask"][policy_mask].sum(dim=-1).float().log().sum()
             )
-        value_error += float((values - batch["values"]).abs().sum())
+        value_difference = values - batch["values"]
+        value_error += float(value_difference.abs().sum())
+        value_squared_error += float((value_difference * value_difference).sum())
         valid_phase = batch["phases"] >= 0
         phase_count += int(valid_phase.sum())
         if valid_phase.any():
+            phase_cross_entropy += float(
+                torch.nn.functional.cross_entropy(
+                    phase_logits[valid_phase],
+                    batch["phases"][valid_phase],
+                    reduction="sum",
+                )
+            )
             phase_correct += int(
                 (
                     phase_logits[valid_phase].argmax(dim=-1)
@@ -2347,6 +2429,26 @@ def evaluate(
         valid_strategy = batch["strategy_mask"]
         strategy_count += int(valid_strategy.sum())
         if valid_strategy.any():
+            strategy_losses = torch.nn.functional.binary_cross_entropy_with_logits(
+                strategy_logits,
+                batch["strategy_labels"],
+                reduction="none",
+            )
+            strategy_binary_cross_entropy += float(
+                strategy_losses[valid_strategy].sum()
+            )
+            if not strategy_head_counts:
+                strategy_head_counts = [0] * int(strategy_logits.shape[1])
+                strategy_head_binary_cross_entropy = [0.0] * int(
+                    strategy_logits.shape[1]
+                )
+            for head in range(int(strategy_logits.shape[1])):
+                head_mask = valid_strategy[:, head]
+                strategy_head_counts[head] += int(head_mask.sum())
+                if head_mask.any():
+                    strategy_head_binary_cross_entropy[head] += float(
+                        strategy_losses[:, head][head_mask].sum()
+                    )
             strategy_correct += int(
                 (
                     (strategy_logits >= 0.0)[valid_strategy]
@@ -2355,6 +2457,7 @@ def evaluate(
             )
         transition_mask = batch["transition_mask"]
         if transition_mask.any():
+            dynamics_frames += int(transition_mask.sum())
             difference = (
                 predicted_next_states[transition_mask]
                 - batch["next_states"][transition_mask]
@@ -2363,11 +2466,19 @@ def evaluate(
             dynamics_elements += difference.numel()
         outcome_difference = predicted_outcomes - batch["outcomes"]
         outcome_absolute_error += float(outcome_difference.abs().sum())
+        outcome_squared_error += float((outcome_difference * outcome_difference).sum())
         outcome_elements += outcome_difference.numel()
         death_squared_error += float((outcome_difference[:, 1] ** 2).sum())
         terminal_mask = batch["terminal_mask"]
         terminal_count += int(terminal_mask.sum())
         if terminal_mask.any():
+            terminal_binary_cross_entropy += float(
+                torch.nn.functional.binary_cross_entropy_with_logits(
+                    terminal_logits[terminal_mask],
+                    batch["terminals"][terminal_mask],
+                    reduction="sum",
+                )
+            )
             terminal_correct += int(
                 (
                     (terminal_logits[terminal_mask] >= 0.0)
@@ -2379,16 +2490,28 @@ def evaluate(
         "policy_ce": policy_cross_entropy / max(1, policy_count),
         "uniform_policy_ce": uniform_policy_cross_entropy / max(1, policy_count),
         "policy_accuracy": policy_correct / max(1, policy_count),
+        "policy_frames": policy_count,
         "value_mae": value_error / max(1, count),
+        "value_mse": value_squared_error / max(1, count),
         "phase_accuracy": phase_correct / max(1, phase_count),
+        "phase_ce": phase_cross_entropy / max(1, phase_count),
+        "phase_frames": phase_count,
         "strategy_accuracy": strategy_correct / max(1, strategy_count),
+        "strategy_bce": strategy_binary_cross_entropy / max(1, strategy_count),
+        "strategy_frames": strategy_count,
+        "strategy_bce_by_head": [
+            strategy_head_binary_cross_entropy[index] / max(1, frames)
+            for index, frames in enumerate(strategy_head_counts)
+        ],
+        "strategy_frames_by_head": strategy_head_counts,
         "dynamics_mse": dynamics_squared_error / max(1, dynamics_elements),
-        "dynamics_frames": sum(
-            int(row.get("M", 0)) > 0 for row in loader.dataset.rows
-        ),
+        "dynamics_frames": dynamics_frames,
         "outcome_mae": outcome_absolute_error / max(1, outcome_elements),
+        "outcome_mse": outcome_squared_error / max(1, outcome_elements),
         "death_brier": death_squared_error / max(1, count),
         "terminal_accuracy": terminal_correct / max(1, terminal_count),
+        "terminal_bce": terminal_binary_cross_entropy / max(1, terminal_count),
+        "terminal_frames": terminal_count,
     }
 
 
@@ -2519,14 +2642,24 @@ def initialize_optimizer_state(
             group["lr"] = learning_rate
 
 
-def composite_score(metrics: dict[str, float]) -> float:
+def composite_score(metrics: dict[str, object]) -> float:
     return (
-        metrics["policy_ce"]
-        + metrics["value_mae"] * 0.35
-        + metrics["dynamics_mse"] * 0.15
-        + metrics["outcome_mae"] * 0.20
-        + metrics["death_brier"] * 0.20
+        float(metrics["policy_ce"])
+        + float(metrics["value_mse"]) * 0.35
+        + float(metrics["phase_ce"]) * 0.08
+        + float(metrics["strategy_bce"]) * 0.12
+        + float(metrics["dynamics_mse"]) * 0.15
+        + float(metrics["outcome_mse"]) * 0.20
+        + float(metrics["terminal_bce"]) * 0.10
     )
+
+
+def metric_snapshot(metrics: dict[str, object]) -> dict[str, float]:
+    return {
+        key: float(value)
+        for key, value in metrics.items()
+        if isinstance(value, (int, float))
+    }
 
 
 def prior_evaluation_snapshot(args: argparse.Namespace) -> dict | None:
@@ -2541,15 +2674,44 @@ def prior_evaluation_snapshot(args: argparse.Namespace) -> dict | None:
             ),
             "policy_accuracy": float(payload["ValidationPolicyTop1Accuracy"]),
             "value_mae": float(payload["ValidationValueMae"]),
+            "value_mse": float(
+                payload.get(
+                    "ValidationValueMse",
+                    float(payload["ValidationValueMae"]) ** 2,
+                )
+            ),
             "phase_accuracy": float(payload["ValidationPhaseAccuracy"]),
+            "phase_ce": float(payload.get("ValidationPhaseCrossEntropy", 0.0)),
+            "phase_frames": int(payload.get("ValidationFrames", 0)),
             "strategy_accuracy": float(payload["ValidationStrategyAccuracy"]),
+            "strategy_bce": float(
+                payload.get("ValidationStrategyBinaryCrossEntropy", 0.0)
+            ),
+            "strategy_frames": int(payload.get("StrategyApplicableFrames", 0)),
+            "strategy_bce_by_head": [],
+            "strategy_frames_by_head": [],
             "dynamics_mse": float(payload["ValidationDynamicsMse"]),
             "dynamics_frames": int(payload.get("DynamicsValidationFrames", 0)),
             "outcome_mae": float(payload["ValidationOutcomeMae"]),
+            "outcome_mse": float(
+                payload.get(
+                    "ValidationOutcomeMse",
+                    float(payload["ValidationOutcomeMae"]) ** 2,
+                )
+            ),
             "death_brier": float(payload["ValidationDeathBrier"]),
             "terminal_accuracy": float(payload["ValidationTerminalAccuracy"]),
+            "terminal_bce": float(
+                payload.get("ValidationTerminalBinaryCrossEntropy", 0.0)
+            ),
+            "terminal_frames": int(payload.get("TerminalKnownFrames", 0)),
+            "policy_frames": int(payload.get("ValidationFrames", 0)),
         }
-        if not all(math.isfinite(float(value)) for value in metrics.values()):
+        if not all(
+            math.isfinite(float(value))
+            for value in metrics.values()
+            if isinstance(value, (int, float))
+        ):
             return None
         return {
             "metrics": metrics,
@@ -2563,15 +2725,40 @@ def prior_evaluation_snapshot(args: argparse.Namespace) -> dict | None:
 
 
 def head_regression_passed(
-    baseline: dict[str, float],
-    candidate: dict[str, float],
+    baseline: dict[str, object],
+    candidate: dict[str, object],
     maximum_regression: float,
 ) -> bool:
     allowed = max(0.0, min(0.50, float(maximum_regression)))
-    for key in ("value_mae", "outcome_mae", "death_brier"):
+    supervised_metrics = (
+        ("policy_ce", "policy_frames"),
+        ("value_mse", None),
+        ("phase_ce", "phase_frames"),
+        ("strategy_bce", "strategy_frames"),
+        ("dynamics_mse", "dynamics_frames"),
+        ("outcome_mse", None),
+        ("terminal_bce", "terminal_frames"),
+    )
+    for key, count_key in supervised_metrics:
+        if count_key is not None and int(baseline.get(count_key, 0)) <= 0:
+            continue
         reference = float(baseline[key])
         tolerance = max(1.0e-6, abs(reference) * allowed)
-        if not math.isfinite(float(candidate[key])) or candidate[key] > reference + tolerance:
+        value = float(candidate[key])
+        if not math.isfinite(value) or value > reference + tolerance:
+            return False
+    baseline_strategy = list(baseline.get("strategy_bce_by_head", []))
+    candidate_strategy = list(candidate.get("strategy_bce_by_head", []))
+    strategy_counts = list(baseline.get("strategy_frames_by_head", []))
+    for index, reference_value in enumerate(baseline_strategy):
+        if index >= len(strategy_counts) or int(strategy_counts[index]) <= 0:
+            continue
+        if index >= len(candidate_strategy):
+            return False
+        reference = float(reference_value)
+        tolerance = max(1.0e-6, abs(reference) * allowed)
+        value = float(candidate_strategy[index])
+        if not math.isfinite(value) or value > reference + tolerance:
             return False
     return True
 
@@ -2583,7 +2770,7 @@ def train(
     runtime: dict,
     progress: ProgressReporter,
     calibration_rows=None,
-) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict, dict]:
+) -> tuple[StrategyTransformer, dict[str, object], int, int, int, dict, float, bool, dict, dict]:
     prior_evaluation = prior_evaluation_snapshot(args)
     if args.training_enabled:
         training_rows, validation_rows, anchor_created = training_and_anchor_rows(
@@ -2616,8 +2803,17 @@ def train(
         TrainingEnabled=bool(args.training_enabled),
         Message="正在校准 Transformer 执行计划",
     )
-    training_metadata = getattr(training_rows, "rows", training_rows)
+    if args.training_enabled:
+        fit_rows, rolling_validation_rows = training_and_rolling_anchor_rows(
+            training_rows, args
+        )
+    else:
+        fit_rows, rolling_validation_rows = training_rows, []
+    training_metadata = getattr(fit_rows, "rows", fit_rows)
     validation_metadata = getattr(validation_rows, "rows", validation_rows)
+    rolling_validation_metadata = getattr(
+        rolling_validation_rows, "rows", rolling_validation_rows
+    )
     calibration_source = calibration_rows if calibration_rows is not None else rows
     calibration_batch_size = min(
         len(calibration_source),
@@ -2641,6 +2837,7 @@ def train(
     if base_dataset is not None:
         base_dataset.clear_cache()
     validation_loader = None
+    rolling_validation_loader = None
     evaluation_started = time.perf_counter()
     if prior_evaluation is not None:
         progress.update(
@@ -2672,8 +2869,30 @@ def train(
         )
         plan["evaluation_reused"] = False
     baseline_metrics = dict(best_metrics)
+    rolling_baseline_metrics: dict[str, object] | None = None
+    if args.training_enabled and len(rolling_validation_metadata) > 0:
+        progress.update(
+            Stage="evaluating",
+            TotalFrames=len(rolling_validation_metadata),
+            Message="正在评估本轮滚动锚点基线",
+        )
+        rolling_baseline_metrics, rolling_validation_loader = (
+            evaluate_with_cuda_backoff(
+                model,
+                rolling_validation_rows,
+                args,
+                device,
+                plan,
+                rolling_validation_loader,
+            )
+        )
     evaluation_seconds = time.perf_counter() - evaluation_started
     best_loss = composite_score(best_metrics)
+    rolling_baseline_score = (
+        composite_score(rolling_baseline_metrics)
+        if rolling_baseline_metrics is not None
+        else 0.0
+    )
     if not args.training_enabled:
         return (
             model,
@@ -2696,6 +2915,18 @@ def train(
                 "validation_score": best_loss,
                 "update_accepted": False,
                 "head_gate_passed": True,
+                "fixed_anchor_safety_gate_passed": True,
+                "rolling_anchor_improvement_gate_passed": True,
+                "rolling_anchor_available": False,
+                "rolling_anchor_frames": 0,
+                "rolling_baseline_score": 0.0,
+                "rolling_validation_score": 0.0,
+                "rolling_composite_improvement": 0.0,
+                "best_attempted_epoch": 0,
+                "best_attempted_fixed_score": 0.0,
+                "best_attempted_rolling_score": 0.0,
+                "candidate_epochs": [],
+                "update_rejection_reason": "training-disabled",
                 "teacher_generation": (
                     int(prior_evaluation["teacher_generation"])
                     if prior_evaluation is not None
@@ -2710,9 +2941,9 @@ def train(
             },
         )
     training_dataset = (
-        training_rows
-        if isinstance(training_rows, Dataset)
-        else TeacherDataset(training_rows)
+        fit_rows
+        if isinstance(fit_rows, Dataset)
+        else TeacherDataset(fit_rows)
     )
     training_loader = DataLoader(
         training_dataset,
@@ -2720,7 +2951,7 @@ def train(
             training_metadata,
             plan["effective_batch_size"],
             args.seed,
-            dataset_locality_keys(training_rows),
+            dataset_locality_keys(fit_rows),
         ),
         collate_fn=collate,
         **worker_options,
@@ -2735,8 +2966,31 @@ def train(
     except (AttributeError, TypeError):
         scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
     best_state = copy.deepcopy(model.state_dict())
+    best_rolling_metrics = (
+        dict(rolling_baseline_metrics)
+        if rolling_baseline_metrics is not None
+        else None
+    )
     update_accepted = False
     head_gate_passed = True
+    fixed_anchor_safety_gate_passed = True
+    rolling_anchor_improvement_gate_passed = (
+        rolling_baseline_metrics is None
+    )
+    candidate_epochs: list[dict] = []
+    best_attempted_epoch = 0
+    best_attempted_fixed_score = math.inf
+    best_attempted_rolling_score = math.inf
+    best_attempted_primary_score = math.inf
+    best_attempted_fixed_gate = True
+    best_attempted_rolling_gate = rolling_baseline_metrics is None
+    accepted_primary_score = (
+        rolling_baseline_score
+        if rolling_baseline_metrics is not None
+        else best_loss
+    )
+    saw_fixed_safe_candidate = False
+    saw_jointly_eligible_candidate = False
     stale = 0
     executed = 0
     processed_frames = 0
@@ -2825,9 +3079,28 @@ def train(
             plan,
             validation_loader,
         )
+        rolling_metrics: dict[str, object] | None = None
+        if rolling_baseline_metrics is not None:
+            rolling_metrics, rolling_validation_loader = evaluate_with_cuda_backoff(
+                model,
+                rolling_validation_rows,
+                args,
+                device,
+                plan,
+                rolling_validation_loader,
+            )
         evaluation_seconds += time.perf_counter() - evaluation_started
         score = composite_score(metrics)
-        epoch_head_gate = (
+        rolling_score = (
+            composite_score(rolling_metrics) if rolling_metrics is not None else 0.0
+        )
+        fixed_improvement = composite_score(baseline_metrics) - score
+        rolling_improvement = (
+            rolling_baseline_score - rolling_score
+            if rolling_metrics is not None
+            else 0.0
+        )
+        epoch_fixed_gate = (
             not warm_started
             or head_regression_passed(
                 baseline_metrics,
@@ -2835,34 +3108,89 @@ def train(
                 args.maximum_head_regression,
             )
         )
+        epoch_rolling_gate = (
+            rolling_metrics is None
+            and fixed_improvement > 1.0e-5
+        ) or (
+            rolling_metrics is not None
+            and rolling_improvement
+            >= max(0.0, float(args.minimum_rolling_improvement))
+        )
+        epoch_eligible = epoch_fixed_gate and epoch_rolling_gate
+        saw_fixed_safe_candidate = saw_fixed_safe_candidate or epoch_fixed_gate
+        saw_jointly_eligible_candidate = (
+            saw_jointly_eligible_candidate or epoch_eligible
+        )
+        primary_score = rolling_score if rolling_metrics is not None else score
+        candidate_epochs.append(
+            {
+                "Epoch": epoch,
+                "FixedCompositeScore": score,
+                "FixedCompositeImprovement": fixed_improvement,
+                "RollingCompositeScore": rolling_score,
+                "RollingCompositeImprovement": rolling_improvement,
+                "FixedAnchorSafetyGatePassed": epoch_fixed_gate,
+                "RollingAnchorImprovementGatePassed": epoch_rolling_gate,
+                "AcceptanceEligible": epoch_eligible,
+                "FixedMetrics": metric_snapshot(metrics),
+                "RollingMetrics": (
+                    metric_snapshot(rolling_metrics)
+                    if rolling_metrics is not None
+                    else {}
+                ),
+            }
+        )
+        if primary_score < best_attempted_primary_score:
+            best_attempted_primary_score = primary_score
+            best_attempted_epoch = epoch
+            best_attempted_fixed_score = score
+            best_attempted_rolling_score = rolling_score
+            best_attempted_fixed_gate = epoch_fixed_gate
+            best_attempted_rolling_gate = epoch_rolling_gate
         print(
             f"epoch={epoch}/{args.epochs} policyCE={metrics['policy_ce']:.6f} "
             f"top1={metrics['policy_accuracy']:.4f} valueMAE={metrics['value_mae']:.6f} "
-            f"dynamicsMSE={metrics['dynamics_mse']:.6f}",
+            f"dynamicsMSE={metrics['dynamics_mse']:.6f} fixed={score:.6f} "
+            + (
+                f"rolling={rolling_score:.6f} "
+                f"rollingGain={rolling_improvement:.6f}"
+                if rolling_metrics is not None
+                else f"fixedGain={fixed_improvement:.6f}"
+            ),
             flush=True,
         )
-        if score < best_loss - 1.0e-5 and epoch_head_gate:
+        if epoch_eligible and primary_score < accepted_primary_score - 1.0e-8:
+            accepted_primary_score = primary_score
             best_loss = score
             best_metrics = metrics
+            best_rolling_metrics = (
+                dict(rolling_metrics) if rolling_metrics is not None else None
+            )
             best_state = copy.deepcopy(model.state_dict())
             stale = 0
             update_accepted = True
-            head_gate_passed = True
+            head_gate_passed = epoch_fixed_gate
+            fixed_anchor_safety_gate_passed = epoch_fixed_gate
+            rolling_anchor_improvement_gate_passed = epoch_rolling_gate
         else:
             stale += 1
-            if score < best_loss - 1.0e-5 and not epoch_head_gate:
-                head_gate_passed = False
         if epoch >= 4 and stale >= 4:
             break
     model.load_state_dict(best_state)
-    head_gate_passed = (
-        not warm_started
-        or head_regression_passed(
-            baseline_metrics,
-            best_metrics,
-            args.maximum_head_regression,
-        )
-    )
+    if not update_accepted:
+        head_gate_passed = best_attempted_fixed_gate
+        fixed_anchor_safety_gate_passed = best_attempted_fixed_gate
+        rolling_anchor_improvement_gate_passed = best_attempted_rolling_gate
+    if update_accepted:
+        update_rejection_reason = ""
+    elif not saw_fixed_safe_candidate:
+        update_rejection_reason = "fixed-anchor-head-regression"
+    elif rolling_baseline_metrics is not None and not saw_jointly_eligible_candidate:
+        update_rejection_reason = "rolling-anchor-no-improvement"
+    elif rolling_baseline_metrics is None and not saw_jointly_eligible_candidate:
+        update_rejection_reason = "fixed-anchor-no-improvement"
+    else:
+        update_rejection_reason = "candidate-not-better-than-stable-teacher"
     training_seconds = max(1.0e-6, training_seconds)
     return (
         model,
@@ -2883,6 +3211,36 @@ def train(
             "validation_score": composite_score(best_metrics),
             "update_accepted": update_accepted,
             "head_gate_passed": head_gate_passed,
+            "fixed_anchor_safety_gate_passed": fixed_anchor_safety_gate_passed,
+            "rolling_anchor_improvement_gate_passed": (
+                rolling_anchor_improvement_gate_passed
+            ),
+            "rolling_anchor_available": rolling_baseline_metrics is not None,
+            "rolling_anchor_frames": len(rolling_validation_metadata),
+            "rolling_baseline_score": rolling_baseline_score,
+            "rolling_validation_score": (
+                composite_score(best_rolling_metrics)
+                if best_rolling_metrics is not None
+                else 0.0
+            ),
+            "rolling_composite_improvement": (
+                rolling_baseline_score - composite_score(best_rolling_metrics)
+                if best_rolling_metrics is not None
+                else 0.0
+            ),
+            "best_attempted_epoch": best_attempted_epoch,
+            "best_attempted_fixed_score": (
+                best_attempted_fixed_score
+                if math.isfinite(best_attempted_fixed_score)
+                else 0.0
+            ),
+            "best_attempted_rolling_score": (
+                best_attempted_rolling_score
+                if math.isfinite(best_attempted_rolling_score)
+                else 0.0
+            ),
+            "candidate_epochs": candidate_epochs,
+            "update_rejection_reason": update_rejection_reason,
             "teacher_generation": prior_generation + (1 if update_accepted else 0),
             "anchor_frames": len(validation_metadata),
             "anchor_created": anchor_created,
@@ -3455,8 +3813,17 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         assert math.isfinite(metrics["policy_ce"])
         assert math.isfinite(metrics["dynamics_mse"])
         assert math.isfinite(metrics["outcome_mae"])
+        assert math.isfinite(metrics["phase_ce"])
+        assert math.isfinite(metrics["strategy_bce"])
+        assert math.isfinite(metrics["terminal_bce"])
         assert executed > 0 and training_count > 0 and validation_count > 0
         assert training_gate["anchor_frames"] == validation_count
+        assert training_gate["candidate_epochs"]
+        assert all(
+            "FixedMetrics" in candidate
+            and "RollingAnchorImprovementGatePassed" in candidate
+            for candidate in training_gate["candidate_epochs"]
+        )
         verify_micro_batch_accumulation(
             model,
             collate(rows[: min(8, len(rows))]),
@@ -3524,13 +3891,22 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                             "ValidationUniformPolicyCrossEntropy": warm_metrics["uniform_policy_ce"],
                             "ValidationPolicyTop1Accuracy": warm_metrics["policy_accuracy"],
                             "ValidationValueMae": warm_metrics["value_mae"],
+                            "ValidationValueMse": warm_metrics["value_mse"],
                             "ValidationPhaseAccuracy": warm_metrics["phase_accuracy"],
+                            "ValidationPhaseCrossEntropy": warm_metrics["phase_ce"],
                             "ValidationStrategyAccuracy": warm_metrics["strategy_accuracy"],
+                            "ValidationStrategyBinaryCrossEntropy": warm_metrics[
+                                "strategy_bce"
+                            ],
                             "ValidationDynamicsMse": warm_metrics["dynamics_mse"],
                             "DynamicsValidationFrames": warm_metrics["dynamics_frames"],
                             "ValidationOutcomeMae": warm_metrics["outcome_mae"],
+                            "ValidationOutcomeMse": warm_metrics["outcome_mse"],
                             "ValidationDeathBrier": warm_metrics["death_brier"],
                             "ValidationTerminalAccuracy": warm_metrics["terminal_accuracy"],
+                            "ValidationTerminalBinaryCrossEntropy": warm_metrics[
+                                "terminal_bce"
+                            ],
                             "ValidationFrames": len(rows),
                             "AnchorValidationFrames": len(rows),
                             "AnchorCreated": True,
@@ -3554,7 +3930,12 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                 ) = train(rows, args, device, runtime, progress)
                 assert reused_plan["evaluation_reused"]
                 assert not reused_gate["anchor_created"]
-                assert reused_metrics == warm_metrics
+                assert reused_metrics["policy_ce"] == warm_metrics["policy_ce"]
+                assert reused_metrics["value_mse"] == warm_metrics["value_mse"]
+                assert reused_metrics["phase_ce"] == warm_metrics["phase_ce"]
+                assert reused_metrics["strategy_bce"] == warm_metrics["strategy_bce"]
+                assert reused_metrics["outcome_mse"] == warm_metrics["outcome_mse"]
+                assert reused_metrics["terminal_bce"] == warm_metrics["terminal_bce"]
                 args.prior_report = ""
                 args.anchor = ""
                 (
@@ -3854,29 +4235,71 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "ValidationUniformPolicyCrossEntropy": metrics["uniform_policy_ce"],
         "ValidationPolicyTop1Accuracy": metrics["policy_accuracy"],
         "ValidationValueMae": metrics["value_mae"],
+        "ValidationValueMse": metrics["value_mse"],
         "ValidationPhaseAccuracy": metrics["phase_accuracy"],
+        "ValidationPhaseCrossEntropy": metrics["phase_ce"],
         "ValidationStrategyAccuracy": metrics["strategy_accuracy"],
+        "ValidationStrategyBinaryCrossEntropy": metrics["strategy_bce"],
         "ValidationDynamicsMse": metrics["dynamics_mse"],
         "DynamicsTrainingFrames": sum(
             int(row.get("M", 0)) > 0 for row in dataset_metadata(training_rows)
         ),
         "DynamicsValidationFrames": metrics["dynamics_frames"],
         "ValidationOutcomeMae": metrics["outcome_mae"],
+        "ValidationOutcomeMse": metrics["outcome_mse"],
         "ValidationDeathBrier": metrics["death_brier"],
         "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
+        "ValidationTerminalBinaryCrossEntropy": metrics["terminal_bce"],
         "AnchorValidationFrames": int(training_gate["anchor_frames"]),
         "AnchorCreated": bool(training_gate["anchor_created"]),
         "AnchorPath": args.anchor if args.fixed_anchor else "",
         "BaselinePolicyCrossEntropy": training_gate["baseline_metrics"]["policy_ce"],
         "BaselineValueMae": training_gate["baseline_metrics"]["value_mae"],
+        "BaselineValueMse": training_gate["baseline_metrics"]["value_mse"],
+        "BaselinePhaseCrossEntropy": training_gate["baseline_metrics"]["phase_ce"],
+        "BaselineStrategyBinaryCrossEntropy": training_gate["baseline_metrics"][
+            "strategy_bce"
+        ],
         "BaselineOutcomeMae": training_gate["baseline_metrics"]["outcome_mae"],
+        "BaselineOutcomeMse": training_gate["baseline_metrics"]["outcome_mse"],
         "BaselineDeathBrier": training_gate["baseline_metrics"]["death_brier"],
+        "BaselineTerminalBinaryCrossEntropy": training_gate["baseline_metrics"][
+            "terminal_bce"
+        ],
         "ValidationCompositeScore": training_gate["validation_score"],
         "BaselineCompositeScore": training_gate["baseline_score"],
         "CompositeImprovement": (
             training_gate["baseline_score"] - training_gate["validation_score"]
         ),
         "HeadRegressionGatePassed": bool(training_gate["head_gate_passed"]),
+        "RollingAnchorValidationFrames": int(
+            training_gate["rolling_anchor_frames"]
+        ),
+        "RollingAnchorAvailable": bool(training_gate["rolling_anchor_available"]),
+        "RollingBaselineCompositeScore": float(
+            training_gate["rolling_baseline_score"]
+        ),
+        "RollingValidationCompositeScore": float(
+            training_gate["rolling_validation_score"]
+        ),
+        "RollingCompositeImprovement": float(
+            training_gate["rolling_composite_improvement"]
+        ),
+        "FixedAnchorSafetyGatePassed": bool(
+            training_gate["fixed_anchor_safety_gate_passed"]
+        ),
+        "RollingAnchorImprovementGatePassed": bool(
+            training_gate["rolling_anchor_improvement_gate_passed"]
+        ),
+        "BestAttemptedEpoch": int(training_gate["best_attempted_epoch"]),
+        "BestAttemptedFixedCompositeScore": float(
+            training_gate["best_attempted_fixed_score"]
+        ),
+        "BestAttemptedRollingCompositeScore": float(
+            training_gate["best_attempted_rolling_score"]
+        ),
+        "UpdateRejectionReason": str(training_gate["update_rejection_reason"]),
+        "CandidateEpochs": list(training_gate["candidate_epochs"]),
         "ElapsedSeconds": time.perf_counter() - started,
         "ProcessCpuSeconds": progress.process_cpu_seconds(),
         "PeakWorkingSetBytes": max(
@@ -3896,7 +4319,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "LoadedDatasetFrames": int(data_audit["loaded_frames"]),
         "IncrementalTrainingSelection": training_selection is not None,
         "IncrementalTrainingFrames": (
-            len(training_rows) if args.training_enabled else 0
+            training_count if args.training_enabled else 0
         ),
         "AnnotationSelectionFrames": len(annotation_rows),
         "AnnotationCacheHits": int(plan.get("annotation_cache_hits", 0)),

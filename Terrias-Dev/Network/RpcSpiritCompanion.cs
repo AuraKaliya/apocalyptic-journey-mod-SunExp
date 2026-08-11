@@ -22,6 +22,9 @@ public sealed class SpiritCompanionSnapshot
     public bool Accepted { get; set; }
     public int MaxHp { get; set; }
     public int CurrentHp { get; set; }
+    public int CurrentDefend { get; set; }
+    public int StatusDataVersion { get; set; }
+    public int StatusState { get; set; }
     public int Attack { get; set; }
     public int Armor { get; set; }
     public int MaxMagic { get; set; }
@@ -37,6 +40,20 @@ public sealed class SpiritCompanionSnapshot
     public Dictionary<string, int> ReturnedReadyOnTurn { get; set; } = new();
     public string CardGrantEventId { get; set; } = "";
     public string RejectionReason { get; set; } = "";
+}
+
+[Serializable]
+public sealed class SpiritCompanionRemovalSnapshot
+{
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int BattleEpoch { get; set; }
+    public string StatusId { get; set; } = "";
+    public string OwnerStatusId { get; set; } = "";
+    public string OwnerPlayerId { get; set; } = "";
+    public int Generation { get; set; }
+    public int StatusDataVersion { get; set; }
+    public bool PlayDeathEffect { get; set; }
+    public string Reason { get; set; } = "";
 }
 
 [Serializable]
@@ -122,5 +139,25 @@ public sealed class RpcSpiritCompanionState : RpcCommandBase
     public override void RpcExecute()
     {
         SpiritSummonService.ApplyNetworkState(Snapshot, "RpcSpiritCompanionState");
+    }
+}
+
+[Serializable]
+public sealed class RpcSpiritCompanionRemoved : RpcCommandBase
+{
+    public SpiritCompanionRemovalSnapshot Removal { get; set; } = new();
+
+    public RpcSpiritCompanionRemoved()
+    {
+    }
+
+    public RpcSpiritCompanionRemoved(SpiritCompanionRemovalSnapshot removal)
+    {
+        Removal = removal ?? new SpiritCompanionRemovalSnapshot();
+    }
+
+    public override void RpcExecute()
+    {
+        SpiritSummonService.ApplyNetworkRemoval(Removal, "RpcSpiritCompanionRemoved");
     }
 }

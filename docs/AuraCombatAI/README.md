@@ -37,13 +37,13 @@
 | Transformer 教师 | `aura.combat-transformer-world-model.v4` / sparse dataset v3；6 层、384 hidden、8 heads、1536 FFN；1024 active frames 启动、active+backlog generation 事务、有界增量+回放、逐策略 applicability、Policy/World 稳定教师分轨、固定权重蒸馏；signed Seed 只在 NumPy legacy 边界映射 uint32，checkpoint RunSeed 控制恢复随机流，确定性配置/协议/执行边界故障会保存断点并阻断正式底模，Training |
 | Transformer 运行时 | `aura.transformer-runtime-probe.v1`，自动发现/验证 Python、PyTorch、NumPy 与 CPU/CUDA |
 | Transformer 适配器 | `aura.combat-ai.transformer-adapter.v2`，可选内容工件，未取得在线控制权 |
-| 在线治理 | 动态墙钟上限 + 分层最低有效时长、根覆盖/Top-2 反证、统计支配证书、模型调用预算、风险偏好、带最小损失证明的安全回退；Actor 裁剪默认关闭 |
+| 在线治理 | 基础/影子路径保留动态预算、风险治理与安全回退；`trial/full` 路径由策略价值网络独占候选选择，规则与质量信号仅作诊断。加载失败、推理超时/异常、事务无进展触发技术兜底，连续三次失败后按战斗隔离；Actor 裁剪默认关闭 |
 | Worker | schema 16（schema 15 仅作前代读取边界；旧训练语义因角色被动契约升级而不得继续恢复） |
 | 训练持久化 | `AURAFES5` 有界二进制快照；Replay v2 self-contained shard Token Catalog + checksummed 事务索引，v1 只做提交/回读验证后的可恢复迁移；checkpoint catalog 使用 generation/checksum 与 artifact hash，GC 取有效 primary + backup 两代可达集并保留 active `.bak` 的快照，uncertain 状态一律禁止破坏性 GC；reset 以 durable marker 先使恢复指针失效再删除工件；当前 Worker 存储/恢复与教师安全聚合门禁基线为 70 条断言 |
-| 训练治理 | `foundation-governance-v29-source-audit-partitioned-v4` + `foundation-stagnation-v3-behavior-vs-pipeline-progress` + `paired-evidence-v7-conclusive-baseline` |
+| 训练治理 | `foundation-governance-v29-source-audit-partitioned-v4` + `foundation-stagnation-v3-behavior-vs-pipeline-progress` + `paired-evidence-v8-tiered-same-model` |
 | 自动并发规划 | `foundation-parallelism-v4-phase-aware-128m-reserve` + `foundation-auto-tune-v12-signed-microbenchmark`；推理计划按硬件、模型协议/特征版本、张量形状和并发档位签名复用，仅在真实 Replay 输入上运行有界微基准；运行期健康失败切换 direct 并进入持久化冷却。常规阶段固定保留 128 MiB，Transformer 阶段按预测峰值另保留 128 MiB；隔离 Worker 冷启动保守，后续按真实 Worker/Python 峰值、私有内存和 GC 碎片逐级恢复每进程 2–3 轮与模型训练并行，压力出现时退回 1/12。跨进程 Replay 检查点最多携带 512 Episodes / 48000 Frames / 256 MiB 估算常驻量，其余进入压缩磁盘仓库 |
-| 外部模型包 | 写入 `foundation-model-package-v5.json` + `foundation-model-weights-v5.bin`；读取兼容正式验收的 v3/v4 JSON 包 |
-| 底模发布 | `ModResource/Model/<角色名 [RoleId]>/<使魔名 [PartnerId]>/[可选用户发布名]/`；目录不承载哈希、版本或卡包，启动时由程序读取并校验。精确 allowlist 命中者标记为官方底模，其余通过完整 v5 工件与验收门禁者标记为玩家训练底模；均不自动选择或启用 |
+| 外部模型包 | `formal` 与 `experimental` 都写入 `training-artifacts-v1/deployment/foundation-model-package-v5.json` + `foundation-model-weights-v5.bin`；`diagnostic` 不写游戏加载包；读取兼容正式验收的 v3/v4 JSON 包 |
+| 底模发布 | `ModResource/Model/<角色名 [RoleId]>/<使魔名 [PartnerId]>/[可选用户发布名]/`；来源身份（官方/玩家训练）与质量等级（正式/实验）正交。游戏可加载两种等级，但实验底模主动运行前必须按包哈希确认，并持续显示黄色实验标识 |
 | CLI 搜索策略 | `risk-puct` |
 
 输入不满足这些合同会被拒绝。需要改变布局时，应同时切换写入、读取、测试、示例与文档，并删除被替代内容。

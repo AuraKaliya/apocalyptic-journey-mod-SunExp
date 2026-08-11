@@ -126,7 +126,11 @@ public sealed class CombatCampaignEnemyCatalogEntry
 
 public sealed class CombatCampaignEncounterDefinition
 {
+    public string OwnerModId { get; set; } = "";
+
     public string EncounterId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
 
     public CombatCampaignEncounterKind Kind { get; set; }
 
@@ -137,7 +141,11 @@ public sealed class CombatCampaignEncounterDefinition
 
 public sealed class CombatCampaignRewardDefinition
 {
+    public string OwnerModId { get; set; } = "";
+
     public string RewardId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
 
     public CombatCampaignRewardKind Kind { get; set; }
 

@@ -33,7 +33,7 @@ public static class CombatLiveEpisodeAssembler
             return false;
         }
 
-        var samples = (source ?? Array.Empty<CombatTrainingSample>())
+        var completedSamples = (source ?? Array.Empty<CombatTrainingSample>())
             .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
                              && sample.BattleSessionId == battleSessionId
                              && IsCompleted(sample))
@@ -46,15 +46,18 @@ public static class CombatLiveEpisodeAssembler
             .ThenBy(sample => sample.Sequence)
             .ThenBy(sample => sample.CreatedUtc)
             .ToList();
+        var terminal = completedSamples
+            .Where(sample => sample.Terminal && IsKnownOutcome(sample.BattleOutcome))
+            .OrderByDescending(sample => sample.CreatedUtc)
+            .FirstOrDefault();
+        var samples = completedSamples
+            .Where(IsLearningDemonstration)
+            .ToList();
         if (samples.Count == 0)
         {
             return false;
         }
 
-        var terminal = samples
-            .Where(sample => sample.Terminal && IsKnownOutcome(sample.BattleOutcome))
-            .OrderByDescending(sample => sample.CreatedUtc)
-            .FirstOrDefault();
         if (terminal == null)
         {
             return false;
@@ -242,6 +245,18 @@ public static class CombatLiveEpisodeAssembler
                    StringComparison.Ordinal)
                && !string.IsNullOrWhiteSpace(
                    sample.Selection.ExecutedCandidateId);
+    }
+
+    private static bool IsLearningDemonstration(CombatTrainingSample sample)
+    {
+        return string.Equals(
+                   sample.Selection?.ExecutedBy,
+                   "human",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   sample.Selection?.ExecutedBy,
+                   "policy",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsKnownOutcome(string? value)

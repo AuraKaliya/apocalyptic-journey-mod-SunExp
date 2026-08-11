@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 
@@ -14,7 +15,8 @@ public static class LoneerMiracleService
     private static readonly object PendingStarStoneDrawSync = new();
     private static readonly Dictionary<string, PendingStarStoneDrawBatch> PendingStarStoneDraws = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, ScriptExecutor> PendingBorrowedMiracles = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, ScriptExecutor> PendingNaturalMorningStars = new(StringComparer.Ordinal);
+    private static long morningStarSequence;
+    private static long borrowedMiracleSequence;
     private static readonly string[] MorningPrayerCooldownKeys =
     {
         TerriasIds.LoneerMorningPrayerSkillCardId,
@@ -166,8 +168,13 @@ public static class LoneerMiracleService
             return;
         }
 
+        if (!MorningStarRelicFormula.ParticipatesInStarStoneOrbit(result.ChannelId))
+        {
+            return;
+        }
+
         var state = LoneerCombatStateStore.Get(self.Self);
-        if (state == null || state.ActionResolving)
+        if (state == null)
         {
             return;
         }
@@ -316,7 +323,7 @@ public static class LoneerMiracleService
 
             if (result.IsWhite)
             {
-                ScheduleNaturalMorningStar(self, "StarStonePouch.White");
+                TriggerNaturalMorningStar(self, state, "StarStonePouch.White");
                 RecordLoneerSegment("Loneer.ResolveStarStoneDrawStep.White", segment);
                 return true;
             }
@@ -344,71 +351,6 @@ public static class LoneerMiracleService
         {
             TerriasPerformanceCounters.RecordDuration("Loneer.ResolveStarStoneDrawStep", start);
         }
-    }
-
-    private static void ScheduleNaturalMorningStar(ScriptExecutor self, string source)
-    {
-        if (self?.Self == null)
-        {
-            return;
-        }
-
-        var ownerId = self.Self.InstanceId;
-        lock (PendingStarStoneDrawSync)
-        {
-            PendingNaturalMorningStars[ownerId] = self;
-        }
-
-        TerriasFrameDispatcher.RunOnceNextFrame(
-            "Loneer.NaturalMorningStar." + ownerId,
-            () => FlushNaturalMorningStar(ownerId, source));
-    }
-
-    private static void FlushNaturalMorningStar(string ownerId, string source)
-    {
-        var start = TerriasPerformanceCounters.Timestamp();
-        var segment = start;
-        ScriptExecutor self;
-        lock (PendingStarStoneDrawSync)
-        {
-            if (!PendingNaturalMorningStars.TryGetValue(ownerId, out self))
-            {
-                TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
-                return;
-            }
-
-            PendingNaturalMorningStars.Remove(ownerId);
-        }
-        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.DequeuePending", segment);
-
-        if (self?.Self == null || self.Self.InstanceId != ownerId)
-        {
-            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
-            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
-            return;
-        }
-        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
-
-        var state = LoneerCombatStateStore.Get(self.Self);
-        if (state == null)
-        {
-            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
-            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
-            return;
-        }
-        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
-
-        if (!IsActiveOwner(self.Self, state))
-        {
-            RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
-            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
-            return;
-        }
-        segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
-
-        TriggerNaturalMorningStar(self, state, source);
-        RecordLoneerSegment("Loneer.FlushNaturalMorningStar.Trigger", segment);
-        TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
     }
 
     private static void ScheduleBorrowedMiracle(ScriptExecutor self)
@@ -526,17 +468,15 @@ public static class LoneerMiracleService
             return;
         }
 
-        TriggerNaturalMorningStar(self, state, "MorningStarPrayer");
+        TriggerNaturalMorningStar(self, state, "MorningStarPrayer", blackStoneCapReduction: 2);
         state.PrayerUseCount += 1;
-        ReduceBlackStoneMax(self, state, 2);
         SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
         PolymorphCooldownService.MarkSkillUsed(
             self,
             "Loneer.MorningStarPrayer",
             TerriasIds.LoneerMorningPrayerSkillCardId);
-        TerriasLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
+        TerriasLog.Info("Morning Star Prayer accepted: owner=" + self.Self.InstanceId
             + ", cooldown=" + state.PrayerCooldown
-            + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)
             + ", useCount=" + state.PrayerUseCount);
     }
 
@@ -568,7 +508,11 @@ public static class LoneerMiracleService
             + ", prayerUses=" + state.PrayerUseCount);
     }
 
-    private static void TriggerNaturalMorningStar(ScriptExecutor self, LoneerCombatState state, string source)
+    private static void TriggerNaturalMorningStar(
+        ScriptExecutor self,
+        LoneerCombatState state,
+        string source,
+        int blackStoneCapReduction = 0)
     {
         var start = TerriasPerformanceCounters.Timestamp();
         try
@@ -582,7 +526,8 @@ public static class LoneerMiracleService
             var ownerId = owner.InstanceId;
             var copiedGuide = state.GuidanceCardId;
             var copied = false;
-            var key = "Loneer.NaturalMorningStar.Sequence." + ownerId;
+            var sequence = Interlocked.Increment(ref morningStarSequence);
+            var key = "Loneer.NaturalMorningStar.Sequence." + ownerId + "." + sequence;
             TerriasFrameStepRunner.RunOnce(
                 key,
                 new[]
@@ -594,13 +539,18 @@ public static class LoneerMiracleService
                             copied = TryAddGuidedCard(self, state, "natural");
                         }
                     }),
-                    new TerriasFrameStep("ResetClock", () =>
+                    new TerriasFrameStep("ResetPouchAndClock", () =>
                     {
                         if (!IsActiveOwner(owner, state))
                         {
                             return;
                         }
 
+                        StarStonePouchService.ResetPouch(self);
+                        if (blackStoneCapReduction > 0)
+                        {
+                            ReduceBlackStoneMax(self, state, blackStoneCapReduction);
+                        }
                         MiracleClockService.ResetToMaxAndGrantStarlight(self, state, "NaturalMorningStar:" + source);
                         PlayerApi.ShowCaption("\u81ea\u7136\u6668\u661f\uff1a\u83b7\u5f97\u6307\u5f15\u724c\u590d\u5236\u3002");
                         TerriasLog.Info("Natural Morning Star resolved: owner=" + ownerId + ", copied=" + copiedGuide + ", success=" + copied);
@@ -635,7 +585,8 @@ public static class LoneerMiracleService
             var ownerId = owner.InstanceId;
             var copiedGuide = state.GuidanceCardId;
             var copied = false;
-            var key = "Loneer.BorrowedMiracle.Sequence." + ownerId;
+            var sequence = Interlocked.Increment(ref borrowedMiracleSequence);
+            var key = "Loneer.BorrowedMiracle.Sequence." + ownerId + "." + sequence;
             TerriasFrameStepRunner.RunOnce(
                 key,
                 new[]
@@ -1022,7 +973,6 @@ public static class LoneerMiracleService
         {
             PendingStarStoneDraws.Remove(ownerId);
             PendingBorrowedMiracles.Remove(ownerId);
-            PendingNaturalMorningStars.Remove(ownerId);
         }
     }
 

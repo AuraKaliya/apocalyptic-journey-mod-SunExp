@@ -121,6 +121,21 @@ public static class CombatDecisionGovernance
             candidate.Legal
             && search.Action != null
             && ReferenceEquals(candidate.Action, search.Action));
+        if (profile.ModelOwnsActionSelection)
+        {
+            return proposed != null
+                ? new CombatDecisionGovernanceVerdict
+                {
+                    Decision = CombatGovernanceDecision.Accept,
+                    Candidate = proposed,
+                    Reason = "legal model proposal accepted without quality arbitration"
+                }
+                : new CombatDecisionGovernanceVerdict
+                {
+                    Decision = CombatGovernanceDecision.Reject,
+                    Reason = "model search produced no legal proposal"
+                };
+        }
         var forcedSingleAction = search.CandidateCount <= 1
                                  || candidates.Count(candidate =>
                                      candidate?.Legal == true) <= 1;
@@ -321,7 +336,7 @@ public static class CombatDecisionGovernance
                     candidate.Action);
             }
         }
-        return safe
+        var selected = safe
             .OrderBy(candidate =>
                 candidate.Action.Features.TryGetValue("curse", out var curse)
                 && curse > 0d
@@ -332,6 +347,62 @@ public static class CombatDecisionGovernance
             .ThenByDescending(candidate => candidate.RuleScore)
             .ThenBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
             .FirstOrDefault();
+        return SelectEvidenceBackedSaturatedRiskFallback(
+            state,
+            legal,
+            selected,
+            profile);
+    }
+
+    private static CombatCandidateEvaluation? SelectEvidenceBackedSaturatedRiskFallback(
+        CombatStateObservation state,
+        IReadOnlyList<CombatCandidateEvaluation> legal,
+        CombatCandidateEvaluation? selected,
+        CombatDecisionProfile profile)
+    {
+        if (selected == null
+            || selected.SearchVisits > profile.SearchMinimumChallengerVisits
+            || legal.Any(candidate =>
+                candidate.SearchDeathRisk <= profile.DeathRiskLimit))
+        {
+            return selected;
+        }
+
+        // When every branch is reported above the risk limit, a four-visit
+        // minimum-risk estimate is too noisy to erase a deeply searched branch.
+        // Only override it when the challenger remains close in estimated risk,
+        // is safe by the regular action contract, and dominates both mean and
+        // lower-tail return with substantially more search evidence.
+        var minimumEvidence = Math.Max(
+            profile.SearchMinimumChallengerVisits * 2,
+            Math.Max(8, selected.SearchVisits * 4));
+        return legal
+                   .Where(candidate => !ReferenceEquals(candidate, selected))
+                   .Where(candidate => candidate.SearchVisits >= minimumEvidence)
+                   .Where(candidate =>
+                       candidate.SearchDeathRisk
+                       <= selected.SearchDeathRisk + 0.05d)
+                   .Where(candidate =>
+                       candidate.RuleScore >= profile.MinimumActionScore)
+                   .Where(candidate =>
+                       candidate.SearchMeanReturn
+                       >= selected.SearchMeanReturn + 0.25d)
+                   .Where(candidate =>
+                       candidate.SearchLowerTailMean
+                       >= selected.SearchLowerTailMean - 0.000001d)
+                   .Where(candidate => CombatEndTurnSafety.IsSafeAlternative(
+                       state,
+                       candidate,
+                       profile))
+                   .OrderByDescending(candidate => candidate.SearchLowerTailMean)
+                   .ThenByDescending(candidate => candidate.SearchMeanReturn)
+                   .ThenByDescending(candidate => candidate.SearchVisits)
+                   .ThenBy(candidate => candidate.SearchDeathRisk)
+                   .ThenBy(
+                       candidate => candidate.Action.CandidateId,
+                       StringComparer.Ordinal)
+                   .FirstOrDefault()
+               ?? selected;
     }
 
     private static double Clamp01(double value)

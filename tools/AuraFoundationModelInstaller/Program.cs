@@ -8,6 +8,7 @@ var packagePath = Argument(args, "--package");
 var sharedRoot = Argument(args, "--aura-shared-root");
 var displayName = Argument(args, "--display-name");
 var activate = Flag(args, "--activate");
+var acknowledgeExperimental = Flag(args, "--acknowledge-experimental");
 if (string.IsNullOrWhiteSpace(packagePath)
     || string.IsNullOrWhiteSpace(sharedRoot)
     || string.IsNullOrWhiteSpace(displayName))
@@ -16,7 +17,8 @@ if (string.IsNullOrWhiteSpace(packagePath)
         "Usage: AuraFoundationModelInstaller "
         + "--package <foundation-model-package-v5.json> "
         + "--aura-shared-root <ModsData/AuraShared> "
-        + "--display-name <name> [--activate]");
+        + "--display-name <name> [--activate] "
+        + "[--acknowledge-experimental]");
     return 2;
 }
 if (displayName.Trim().Length > 40)
@@ -52,6 +54,34 @@ if (!CombatFoundationModelPackageProtocol.TryValidate(
 {
     Console.Error.WriteLine("Package validation failed: " + diagnostic);
     return 3;
+}
+var deploymentTier = CombatFoundationModelPackageProtocol
+    .ResolveDeploymentTier(package);
+if (activate
+    && string.Equals(
+        deploymentTier,
+        CombatFoundationDeploymentTier.Experimental,
+        StringComparison.Ordinal)
+    && !acknowledgeExperimental)
+{
+    Console.Error.WriteLine(
+        "Experimental foundation models require "
+        + "--acknowledge-experimental when used with --activate.");
+    return 2;
+}
+if (string.Equals(
+        deploymentTier,
+        CombatFoundationDeploymentTier.Experimental,
+        StringComparison.Ordinal)
+    && string.Equals(
+        package!.CapabilityStatus,
+        CombatFoundationModelPackageProtocol.CapabilityStatusFail,
+        StringComparison.Ordinal))
+{
+    Console.Error.WriteLine(
+        "WARNING: capability probe detected a baseline regression; "
+        + "this high-risk experimental model is intended only for "
+        + "live configuration testing and issue collection.");
 }
 if (package!.ModelArtifact != null
     && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
@@ -160,7 +190,7 @@ var normalizedAcceptance = CombatFoundationModelPackageProtocol
     .NormalizeAcceptance(package);
 var bundle = new JObject
 {
-    ["SchemaVersion"] = 5,
+    ["SchemaVersion"] = 6,
     ["BundleId"] = Clone(packageNode["PackageId"]),
     ["Profile"] = Clone(packageNode["Profile"]),
     ["RoleId"] = Clone(packageNode["RoleId"]),
@@ -180,6 +210,11 @@ var bundle = new JObject
     ["FoundationRulesetHash"] = Clone(packageNode["RulesetHash"]),
     ["FoundationModelVersion"] = Clone(packageNode["ModelVersion"]),
     ["FoundationAcceptanceKind"] = normalizedAcceptance.Classification,
+    ["FoundationDeploymentTier"] = deploymentTier,
+    ["FoundationQualityCertification"] = package.QualityCertification,
+    ["FoundationSameModelEvidenceBound"] =
+        package.SameModelEvidenceBound,
+    ["FoundationCapabilityStatus"] = package.CapabilityStatus,
     ["FoundationPromotionProtocolVersion"] =
         normalizedAcceptance.PromotionProtocolVersion,
     ["FoundationPairedRegressionUpperBound"] =
@@ -205,7 +240,7 @@ var bundle = new JObject
 };
 
 var library = JObject.Parse(File.ReadAllText(manifestPath, utf8));
-library["SchemaVersion"] = Math.Max(5, (int?)library["SchemaVersion"] ?? 0);
+library["SchemaVersion"] = Math.Max(6, (int?)library["SchemaVersion"] ?? 0);
 var models = library["Models"] as JArray
              ?? throw new InvalidDataException(
                  "Model library manifest has no Models array.");
@@ -244,6 +279,9 @@ models.Add(new JObject
     ["BundleFile"] = bundleFile,
     ["ModelVersion"] = Clone(packageNode["ModelVersion"]),
     ["AcceptanceKind"] = normalizedAcceptance.Classification,
+    ["DeploymentTier"] = deploymentTier,
+    ["QualityCertification"] = package.QualityCertification,
+    ["CapabilityStatus"] = package.CapabilityStatus,
     ["DistributionOrigin"] = "external-installer",
     ["SourcePackageSha256"] = packageSha256,
     ["SourcePackageFile"] = Path.GetFileName(packagePath),
@@ -254,7 +292,21 @@ if (activate)
 {
     autoBattle["profile"] = package.Profile;
     autoBattle["selectedModelId"] = modelId;
-    autoBattle["trainedModelMode"] = "active";
+    autoBattle["trainedModelMode"] = "full";
+    if (string.Equals(
+            deploymentTier,
+            CombatFoundationDeploymentTier.Experimental,
+            StringComparison.Ordinal))
+    {
+        autoBattle["experimentalModelAcknowledgement"] =
+            "sha256:" + packageSha256;
+    }
+    if (settings["data"] is JObject settingsData)
+    {
+        settingsData["schemaVersion"] = Math.Max(
+            28,
+            (int?)settingsData["schemaVersion"] ?? 0);
+    }
     settings["revision"] = ((int?)settings["revision"] ?? 0) + 1;
     settings["updatedBy"] = "AuraToolsExp";
     settings["updatedUtc"] = DateTime.UtcNow.ToString("o");
@@ -285,6 +337,8 @@ Console.WriteLine(JsonConvert.SerializeObject(new
     ModelId = modelId,
     DisplayName = displayName.Trim(),
     Profile = package.Profile,
+    DeploymentTier = deploymentTier,
+    CapabilityStatus = package.CapabilityStatus,
     BundlePath = bundlePath,
     BundleBackup = bundleBackup,
     ManifestPath = manifestPath,

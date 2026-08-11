@@ -18,6 +18,7 @@ public static class RuntimeHooks
         RunHookStep("card lifecycle router", () => TerriasCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => TerriasCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => TerriasStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("remote target event compatibility", () => RemoteTargetEventRuntime.Initialize(modConfig));
         RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
         RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
         RunHookStep("origin milestones", () => OriginMilestoneRuntime.Initialize(modConfig));

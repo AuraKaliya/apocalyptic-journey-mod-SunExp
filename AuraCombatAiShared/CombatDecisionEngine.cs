@@ -120,6 +120,8 @@ public sealed class CombatDecisionEngine
         preparedState = null;
         var selectedProfile = profile ?? new CombatDecisionProfile();
         selectedProfile.Weights ??= new DecisionWeights();
+        var modelOwnsActionSelection =
+            selectedProfile.ModelOwnsActionSelection;
         if (state == null || state.Actions == null || state.Actions.Count == 0)
         {
             return new CombatDecision { Reason = "no candidates" };
@@ -201,12 +203,15 @@ public sealed class CombatDecisionEngine
 
             var rejectionReason = action.RejectionReason;
             var legal = action.Legal;
-            if (legal && hasNonFakeLegalAction && IsVisibleFake(action))
+            if (!modelOwnsActionSelection
+                && legal
+                && hasNonFakeLegalAction
+                && IsVisibleFake(action))
             {
                 legal = false;
                 rejectionReason = "visible fake card is dominated by a safe action";
             }
-            if (legal)
+            if (legal && !modelOwnsActionSelection)
             {
                 legal = CombatArchetypePolicy.IsLegal(
                     state,
@@ -226,7 +231,8 @@ public sealed class CombatDecisionEngine
                 action,
                 utility,
                 selectedProfile);
-            if (legal
+            if (!modelOwnsActionSelection
+                && legal
                 && !CombatActionSafetyPolicy.IsAdmissible(
                     state,
                     action,
@@ -237,12 +243,17 @@ public sealed class CombatDecisionEngine
             }
             var features = action.Features;
             var evaluatedUtility = utility.Clone();
-            var graphEvaluation = DecisionGraphEvaluator.Evaluate(selectedProfile.Graph, features);
-            evaluatedUtility.Add(graphEvaluation.UtilityDelta);
-            if (graphEvaluation.Rejected)
+            var graphEvaluation = modelOwnsActionSelection
+                ? new DecisionGraphEvaluation()
+                : DecisionGraphEvaluator.Evaluate(selectedProfile.Graph, features);
+            if (!modelOwnsActionSelection)
             {
-                legal = false;
-                rejectionReason = "decision graph rejected candidate";
+                evaluatedUtility.Add(graphEvaluation.UtilityDelta);
+                if (graphEvaluation.Rejected)
+                {
+                    legal = false;
+                    rejectionReason = "decision graph rejected candidate";
+                }
             }
 
             var baseRuleScore = legal
@@ -288,7 +299,9 @@ public sealed class CombatDecisionEngine
                 endTurnAssessment);
         }
 
-        var dominantSetup = CombatActionDominance.SelectDamageToBlockSetup(
+        var dominantSetup = modelOwnsActionSelection
+            ? null
+            : CombatActionDominance.SelectDamageToBlockSetup(
                                 state,
                                 evaluations)
                             ?? CombatActionDominance.SelectSafeFreeSetup(
@@ -389,12 +402,14 @@ public sealed class CombatDecisionEngine
         }
         if (hasPlanAction
             && planAction != null
-            && (!CombatEndTurnSafety.IsEndTurnEquivalent(planAction)
+            && (modelOwnsActionSelection
+                || !CombatEndTurnSafety.IsEndTurnEquivalent(planAction)
                 || !endTurnAssessment.Prohibited
                 || evaluations.Any(candidate =>
                     ReferenceEquals(candidate.Action, planAction)
                     && candidate.Utility.Lethal > 0d))
-            && (planScore >= selectedProfile.MinimumActionScore
+            && (modelOwnsActionSelection
+                || planScore >= selectedProfile.MinimumActionScore
                 || CombatActionSafetyPolicy.HasMinimumLossCertificate(
                     planAction)))
         {
@@ -409,7 +424,9 @@ public sealed class CombatDecisionEngine
                 EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
                 Plan = planSteps,
                 PlanSummary = planSummary,
-                SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
+                SearchAlgorithm = modelOwnsActionSelection
+                    ? "model-authority-root-sampling-puct"
+                    : "risk-aware-root-sampling-puct-mpc",
                 SearchSimulations = search.Simulations,
                 SearchNodes = search.Nodes,
                 SearchTranspositionHits = search.TranspositionHits,
@@ -444,14 +461,17 @@ public sealed class CombatDecisionEngine
                 GovernanceReason = governance.Reason,
                 GovernanceFallbackApplied = governance.Decision
                     == CombatGovernanceDecision.UseSafeFallback,
-                DecisionPath = governance.Decision
+                DecisionPath = modelOwnsActionSelection
+                    ? "model-authority-accepted"
+                    : governance.Decision
                     == CombatGovernanceDecision.UseSafeFallback
                         ? "governance-safe-fallback"
                         : "model-search-accepted"
             };
         }
 
-        if (endTurn != null
+        if (!modelOwnsActionSelection
+            && endTurn != null
             && endTurn.Legal
             && !endTurnAssessment.Prohibited)
         {
@@ -503,7 +523,7 @@ public sealed class CombatDecisionEngine
             };
         }
 
-        if (endTurnAssessment.Prohibited)
+        if (!modelOwnsActionSelection && endTurnAssessment.Prohibited)
         {
             var safeFallback = CombatDecisionGovernance.SelectSafeFallback(
                 state,
@@ -597,7 +617,9 @@ public sealed class CombatDecisionEngine
             GovernanceDecision = governance.Decision.ToString(),
             GovernanceReason = governance.Reason,
             GovernanceFallbackApplied = false,
-            DecisionPath = "no-governance-approved-action"
+            DecisionPath = modelOwnsActionSelection
+                ? "model-produced-no-action"
+                : "no-governance-approved-action"
         };
     }
 

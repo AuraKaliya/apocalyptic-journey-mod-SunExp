@@ -33,6 +33,11 @@ public static class CompanionThreatRuntime
                 return;
             }
 
+            if (!CompanionAuthorityService.IsAuthoritative())
+            {
+                return;
+            }
+
             if (IsSingleEnemyTargetFilter(filter))
             {
                 CompanionThreatService.TryRedirectEnemySingleTarget(executor);

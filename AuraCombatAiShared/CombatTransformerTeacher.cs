@@ -320,6 +320,14 @@ public sealed class CombatTransformerTeacherOptions
 
     public double MaximumHeadRegression { get; set; } = 0.05d;
 
+    public bool EnableRollingAnchorValidation { get; set; } = true;
+
+    public int RollingAnchorMinimumFrames { get; set; } = 128;
+
+    public int RollingAnchorMaximumFrames { get; set; } = 512;
+
+    public double MinimumRollingCompositeImprovement { get; set; } = 0.0001d;
+
     public int IncrementalEpochs { get; set; } = 4;
 
     public int FinalEpochs { get; set; } = 12;
@@ -442,6 +450,17 @@ public sealed class CombatTransformerTeacherOptions
             0d,
             0.50d,
             0.05d);
+        RollingAnchorMinimumFrames = Math.Max(
+            32,
+            Math.Min(MaximumFrames, RollingAnchorMinimumFrames));
+        RollingAnchorMaximumFrames = Math.Max(
+            RollingAnchorMinimumFrames,
+            Math.Min(MaximumFrames, RollingAnchorMaximumFrames));
+        MinimumRollingCompositeImprovement = Clamp(
+            MinimumRollingCompositeImprovement,
+            0d,
+            1d,
+            0.0001d);
         RandomSeed = RandomSeed == 0 ? 1701 : RandomSeed;
         return this;
     }
@@ -525,6 +544,15 @@ public sealed class CombatTransformerTeacherHostReleaseReport
 
 public static class CombatTransformerTeacherRefreshProtocol
 {
+    public static bool ShouldRequestFinalRefresh(
+        bool explicitlyRequested,
+        int currentIteration,
+        int totalIterations)
+    {
+        return explicitlyRequested
+               || Math.Max(1, currentIteration) >= Math.Max(1, totalIterations);
+    }
+
     public static bool IsFinalRefresh(CombatTransformerTeacherContext context)
     {
         return context != null
@@ -564,8 +592,26 @@ public static class CombatTransformerTeacherRefreshProtocol
             reason = "final-refresh";
             return true;
         }
+        var freshEvidenceThreshold = Math.Max(
+            64,
+            options.MinimumFreshFramesForRefresh);
+        var driftEvidenceThreshold = Math.Max(
+            64,
+            freshEvidenceThreshold / 4);
+        var materialNewEvidence = freshPendingFrames
+                                  >= freshEvidenceThreshold
+                                  || (driftRefresh
+                                      && freshPendingFrames
+                                      >= driftEvidenceThreshold);
         if (!rejectionBackoffDue)
         {
+            if (materialNewEvidence)
+            {
+                reason = driftRefresh
+                    ? "dataset-drift-after-rejection"
+                    : "fresh-evidence-after-rejection";
+                return true;
+            }
             reason = "rejected-update-backoff:" + rejectionBackoffInterval;
             return false;
         }
@@ -579,8 +625,7 @@ public static class CombatTransformerTeacherRefreshProtocol
             reason = "dataset-drift";
             return true;
         }
-        if (freshPendingFrames
-            >= Math.Max(64, options.MinimumFreshFramesForRefresh))
+        if (freshPendingFrames >= freshEvidenceThreshold)
         {
             reason = "fresh-frame-threshold";
             return true;
@@ -654,6 +699,31 @@ public sealed class CombatTransformerTeacherProgress
     public bool TrainingEnabled { get; set; } = true;
 
     public string Message { get; set; } = "";
+}
+
+public sealed class CombatTransformerTeacherCandidateEpochMetrics
+{
+    public int Epoch { get; set; }
+
+    public double FixedCompositeScore { get; set; }
+
+    public double FixedCompositeImprovement { get; set; }
+
+    public double RollingCompositeScore { get; set; }
+
+    public double RollingCompositeImprovement { get; set; }
+
+    public bool FixedAnchorSafetyGatePassed { get; set; }
+
+    public bool RollingAnchorImprovementGatePassed { get; set; }
+
+    public bool AcceptanceEligible { get; set; }
+
+    public Dictionary<string, double> FixedMetrics { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public Dictionary<string, double> RollingMetrics { get; set; } =
+        new(StringComparer.Ordinal);
 }
 
 public sealed class CombatTransformerTeacherReport
@@ -852,9 +922,15 @@ public sealed class CombatTransformerTeacherReport
 
     public double ValidationValueMae { get; set; }
 
+    public double ValidationValueMse { get; set; }
+
     public double ValidationStrategyAccuracy { get; set; }
 
+    public double ValidationStrategyBinaryCrossEntropy { get; set; }
+
     public double ValidationPhaseAccuracy { get; set; }
+
+    public double ValidationPhaseCrossEntropy { get; set; }
 
     public int StrategyLabelFrames { get; set; }
 
@@ -883,9 +959,13 @@ public sealed class CombatTransformerTeacherReport
 
     public double ValidationOutcomeMae { get; set; }
 
+    public double ValidationOutcomeMse { get; set; }
+
     public double ValidationDeathBrier { get; set; }
 
     public double ValidationTerminalAccuracy { get; set; }
+
+    public double ValidationTerminalBinaryCrossEntropy { get; set; }
 
     public int AnchorValidationFrames { get; set; }
 
@@ -899,9 +979,19 @@ public sealed class CombatTransformerTeacherReport
 
     public double BaselineValueMae { get; set; }
 
+    public double BaselineValueMse { get; set; }
+
+    public double BaselinePhaseCrossEntropy { get; set; }
+
+    public double BaselineStrategyBinaryCrossEntropy { get; set; }
+
     public double BaselineOutcomeMae { get; set; }
 
+    public double BaselineOutcomeMse { get; set; }
+
     public double BaselineDeathBrier { get; set; }
+
+    public double BaselineTerminalBinaryCrossEntropy { get; set; }
 
     public double ValidationCompositeScore { get; set; }
 
@@ -910,6 +1000,33 @@ public sealed class CombatTransformerTeacherReport
     public double CompositeImprovement { get; set; }
 
     public bool HeadRegressionGatePassed { get; set; } = true;
+
+    public int RollingAnchorValidationFrames { get; set; }
+
+    public bool RollingAnchorAvailable { get; set; }
+
+    public double RollingBaselineCompositeScore { get; set; }
+
+    public double RollingValidationCompositeScore { get; set; }
+
+    public double RollingCompositeImprovement { get; set; }
+
+    public bool FixedAnchorSafetyGatePassed { get; set; } = true;
+
+    public bool RollingAnchorImprovementGatePassed { get; set; } = true;
+
+    public int BestAttemptedEpoch { get; set; }
+
+    public double BestAttemptedFixedCompositeScore { get; set; }
+
+    public double BestAttemptedRollingCompositeScore { get; set; }
+
+    public string UpdateRejectionReason { get; set; } = "";
+
+    public List<CombatTransformerTeacherCandidateEpochMetrics> CandidateEpochs {
+        get;
+        set;
+    } = new();
 
     public bool AnchorCoverageGatePassed { get; set; } = true;
 

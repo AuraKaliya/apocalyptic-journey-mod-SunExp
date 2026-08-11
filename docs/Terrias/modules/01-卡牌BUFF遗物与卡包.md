@@ -71,6 +71,16 @@ flowchart LR
 - `polymorph_role_template`、`projection_role_template`、`spirit_card_template` 是锁定模板卡；
 - 它们的业务由百变、投影、心变和精灵服务承担，CardScripts 只提供入口。
 
+#### 百变会话与冷却
+
+百变选中目标后获得 1 层【百变】Buff，并同时切换角色形象、`RoleTable.Career`、职业脚本和技能栏。Buff 按自身 `ReducePerTurn` 正常衰减；清除时恢复变身前的角色、职业运行时和技能冷却快照。
+
+- 原角色的职业脚本与技能冷却在整个百变会话中冻结；
+- 目标角色首次进入时沿用其职业脚本初始化出的冷却，不强制重置为 0；
+- 会话内再次进入同一目标角色时，恢复该形态离开时保存的冷却；
+- 同一回合已经使用过另一形态的职业技能时，新形态技能至少显示 1 回合入场冷却，避免跨形态连续释放；
+- 切换目标只更新当前 Buff 对应的形态，不覆盖最初保存的原角色快照；Buff 结束始终回到会话开始前的角色。
+
 ### 3.4 无尽深渊诅咒
 
 `Card/cursecard.csv` 声明“生机窃取”和“亏空”。`CardScripts` 在普通 handler 之前调用 `EndlessAbyssCurseService.IsCurseCard`，并把 Init/Draw/Drop 交给深渊服务。

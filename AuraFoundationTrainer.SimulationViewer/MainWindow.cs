@@ -17,12 +17,20 @@ internal sealed class MainWindow : Window
     private readonly ObservableCollection<BattleRow> battles = new();
     private readonly ObservableCollection<TurnRow> turns = new();
     private readonly ObservableCollection<RewardRow> rewards = new();
+    private readonly ObservableCollection<RewardCandidateRow> rewardCandidates =
+        new();
+    private readonly ObservableCollection<CardPlayRow> cardPlays = new();
+    private readonly ObservableCollection<ContentEntityItem> contentEntities =
+        new();
     private readonly ObservableCollection<DecisionDifferenceRow> differences = new();
     private readonly ObservableCollection<ModelNodeRow> modelNodes = new();
     private readonly DataGrid campaignGrid;
     private readonly DataGrid battleGrid;
     private readonly DataGrid turnGrid;
     private readonly DataGrid rewardGrid;
+    private readonly DataGrid rewardCandidateGrid;
+    private readonly DataGrid cardPlayGrid;
+    private readonly DataGrid contentEntityGrid;
     private readonly DataGrid differenceGrid;
     private readonly DataGrid modelNodeGrid;
     private readonly TextBlock pathText;
@@ -31,6 +39,7 @@ internal sealed class MainWindow : Window
     private readonly ComboBox difficultyFilter;
     private readonly ComboBox resultFilter;
     private readonly TextBox seedFilter;
+    private readonly ContentNameResolver nameResolver = new();
     private string databasePath = "";
 
     public MainWindow(string initialPath)
@@ -84,7 +93,7 @@ internal sealed class MainWindow : Window
         metrics = new[]
         {
             Metric(summary, "模型", "-"),
-            Metric(summary, "部署资格", "-"),
+            Metric(summary, "部署层级", "-"),
             Metric(summary, "模拟战役", "0"),
             Metric(summary, "胜率", "0%"),
             Metric(summary, "奖励决策", "0"),
@@ -148,7 +157,7 @@ internal sealed class MainWindow : Window
         };
         battleGrid = GridFor(battles);
         battleGrid.Columns.Add(TextColumn("#", "BattleIndex", 44));
-        battleGrid.Columns.Add(TextColumn("场景", "ScenarioId", 180));
+        battleGrid.Columns.Add(TextColumn("场景", "Scenario", 220));
         battleGrid.Columns.Add(TextColumn("结果", "Outcome", 85));
         battleGrid.Columns.Add(TextColumn("回合", "Turns", 55));
         battleGrid.Columns.Add(TextColumn("生命", "FinalHp", 55));
@@ -157,14 +166,43 @@ internal sealed class MainWindow : Window
         battleGrid.SelectionChanged += BattleSelectionChanged;
         tabs.Items.Add(Tab("对局进程", battleGrid));
 
+        var rewardPanel = new Grid();
+        rewardPanel.RowDefinitions.Add(new RowDefinition
+        {
+            Height = new GridLength(42, GridUnitType.Star)
+        });
+        rewardPanel.RowDefinitions.Add(new RowDefinition
+        {
+            Height = new GridLength(58, GridUnitType.Star)
+        });
         rewardGrid = GridFor(rewards);
         rewardGrid.Columns.Add(TextColumn("遭遇", "EncounterIndex", 55));
+        rewardGrid.Columns.Add(TextColumn("场景", "Encounter", 190));
         rewardGrid.Columns.Add(TextColumn("类型", "Kind", 70));
         rewardGrid.Columns.Add(TextColumn("轮次", "Round", 55));
-        rewardGrid.Columns.Add(TextColumn("选择", "SelectedId", 160));
+        rewardGrid.Columns.Add(TextColumn("选择", "Selected", 180));
         rewardGrid.Columns.Add(TextColumn("跳过", "Skipped", 55));
-        rewardGrid.Columns.Add(TextColumn("候选评分", "Candidates", 310));
-        tabs.Items.Add(Tab("奖励选取", rewardGrid));
+        rewardGrid.SelectionChanged += RewardSelectionChanged;
+        rewardPanel.Children.Add(rewardGrid);
+
+        rewardCandidateGrid = GridFor(rewardCandidates);
+        rewardCandidateGrid.Columns.Add(TextColumn("候选", "Name", 170));
+        rewardCandidateGrid.Columns.Add(TextColumn("总分", "Total", 65));
+        rewardCandidateGrid.Columns.Add(TextColumn("基础", "Base", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("等级", "Tier", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("系统", "System", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("构筑", "Build", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("首领", "Boss", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("流派", "Archetype", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("生存", "Survival", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("能量", "Energy", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("风险", "Risk", 60));
+        rewardCandidateGrid.Columns.Add(TextColumn("学习残差", "Learned", 75));
+        rewardCandidateGrid.Columns.Add(TextColumn("条件残差", "Conditional", 75));
+        rewardCandidateGrid.Columns.Add(TextColumn("策略", "Strategy", 60));
+        Grid.SetRow(rewardCandidateGrid, 1);
+        rewardPanel.Children.Add(rewardCandidateGrid);
+        tabs.Items.Add(Tab("奖励选取", rewardPanel));
 
         turnGrid = GridFor(turns);
         turnGrid.Columns.Add(TextColumn("回合", "Turn", 55));
@@ -172,6 +210,11 @@ internal sealed class MainWindow : Window
         turnGrid.Columns.Add(TextColumn("敌方生命", "EnemyHp", 110));
         turnGrid.Columns.Add(TextColumn("动作数", "Actions", 70));
         tabs.Items.Add(Tab("回合轨迹", turnGrid));
+
+        cardPlayGrid = GridFor(cardPlays);
+        cardPlayGrid.Columns.Add(TextColumn("卡牌", "Name", 260));
+        cardPlayGrid.Columns.Add(TextColumn("使用次数", "Count", 90));
+        tabs.Items.Add(Tab("出牌统计", cardPlayGrid));
 
         differenceGrid = GridFor(differences);
         differenceGrid.Columns.Add(TextColumn("难度", "Difficulty", 70));
@@ -192,6 +235,12 @@ internal sealed class MainWindow : Window
         modelNodeGrid.Columns.Add(TextColumn("结果", "Promotion", 145));
         tabs.Items.Add(Tab("模型节点", modelNodeGrid));
 
+        contentEntityGrid = GridFor(contentEntities);
+        contentEntityGrid.Columns.Add(TextColumn("类型", "Type", 90));
+        contentEntityGrid.Columns.Add(TextColumn("中文名称", "Name", 230));
+        contentEntityGrid.Columns.Add(TextColumn("内部 ID（参考）", "Id", 230));
+        tabs.Items.Add(Tab("内容目录", contentEntityGrid));
+
         Grid.SetColumn(tabs, 1);
         content.Children.Add(tabs);
         Grid.SetRow(content, 2);
@@ -201,7 +250,7 @@ internal sealed class MainWindow : Window
         {
             Margin = new Thickness(14, 0, 14, 10),
             Foreground = new SolidColorBrush(Color.FromRgb(75, 89, 98)),
-            Text = "打开训练产物中的 simulation-process-v1.sqlite"
+            Text = "打开训练产物中的 simulation-process-v1.sqlite（兼容数据库 v1/v2）"
         };
         Grid.SetRow(statusText, 3);
         root.Children.Add(statusText);
@@ -365,11 +414,19 @@ internal sealed class MainWindow : Window
         if (string.IsNullOrWhiteSpace(databasePath)) return;
         try
         {
+            using (var connection = OpenReadOnly())
+            {
+                nameResolver.Load(connection, databasePath);
+            }
+            contentEntities.Clear();
+            foreach (var item in nameResolver.Items()) contentEntities.Add(item);
             LoadSummary();
             LoadCampaigns();
             LoadDifferences();
             LoadModelNodes();
-            statusText.Text = $"已加载 {campaigns.Count} 个模拟冒险；选择左侧记录查看奖励和对局。";
+            statusText.Text = $"已加载 {campaigns.Count} 个模拟冒险；"
+                              + nameResolver.SourceDescription
+                              + "。选择记录可查看中文场景、奖励评分和出牌统计。";
         }
         catch (Exception ex)
         {
@@ -395,10 +452,31 @@ internal sealed class MainWindow : Window
     {
         using var connection = OpenReadOnly();
         metrics[0].Text = Scalar(connection, "SELECT value FROM metadata WHERE key='model_id'") ?? "-";
-        metrics[1].Text = string.Equals(
-            Scalar(connection, "SELECT value FROM metadata WHERE key='deployment_eligible'"),
-            "True",
-            StringComparison.OrdinalIgnoreCase) ? "通过" : "未通过";
+        var tier = Scalar(
+            connection,
+            "SELECT value FROM metadata WHERE key='deployment_tier'");
+        var capabilityStatus = Scalar(
+            connection,
+            "SELECT value FROM metadata WHERE key='capability_status'");
+        metrics[1].Text = tier?.ToLowerInvariant() switch
+        {
+            "formal" => "正式发布",
+            "experimental" when string.Equals(
+                capabilityStatus,
+                "fail",
+                StringComparison.OrdinalIgnoreCase) =>
+                "实验底模（能力回退，高风险）",
+            "experimental" => "实验底模（游戏可加载）",
+            "diagnostic" => "仅诊断",
+            _ => string.Equals(
+                Scalar(
+                    connection,
+                    "SELECT value FROM metadata WHERE key='deployment_eligible'"),
+                "True",
+                StringComparison.OrdinalIgnoreCase)
+                ? "正式发布"
+                : "仅诊断"
+        };
         metrics[2].Text = Scalar(connection, "SELECT COUNT(*) FROM campaigns") ?? "0";
         var rate = Convert.ToDouble(
             Scalar(connection, "SELECT COALESCE(AVG(victory),0) FROM campaigns"),
@@ -413,7 +491,9 @@ internal sealed class MainWindow : Window
         campaigns.Clear();
         battles.Clear();
         rewards.Clear();
+        rewardCandidates.Clear();
         turns.Clear();
+        cardPlays.Clear();
         if (string.IsNullOrWhiteSpace(databasePath)) return;
         using var connection = OpenReadOnly();
         using var command = connection.CreateCommand();
@@ -445,7 +525,7 @@ internal sealed class MainWindow : Window
         {
             campaigns.Add(new CampaignRow(
                 reader.GetInt64(0),
-                reader.GetString(1),
+                ViewerText.Difficulty(reader.GetString(1)),
                 reader.GetString(2),
                 reader.GetInt64(4) != 0 ? "无效" : reader.GetInt64(3) != 0 ? "胜利" : "失败",
                 $"{reader.GetInt32(5)}/{reader.GetInt32(6)}",
@@ -466,6 +546,7 @@ internal sealed class MainWindow : Window
     {
         battles.Clear();
         turns.Clear();
+        cardPlays.Clear();
         using var connection = OpenReadOnly();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -478,8 +559,10 @@ internal sealed class MainWindow : Window
         while (reader.Read())
         {
             battles.Add(new BattleRow(
-                reader.GetInt64(0), reader.GetInt32(1), reader.GetString(2),
-                reader.GetString(3), reader.GetInt32(4), reader.GetInt32(5),
+                reader.GetInt64(0), reader.GetInt32(1),
+                nameResolver.ResolveScenario(reader.GetString(2)),
+                ViewerText.Outcome(reader.GetString(3)),
+                reader.GetInt32(4), reader.GetInt32(5),
                 reader.GetInt64(6), reader.GetInt64(7)));
         }
         if (battles.Count > 0) battleGrid.SelectedIndex = 0;
@@ -489,6 +572,7 @@ internal sealed class MainWindow : Window
     {
         if (battleGrid.SelectedItem is not BattleRow battle) return;
         turns.Clear();
+        cardPlays.Clear();
         using var connection = OpenReadOnly();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -503,17 +587,35 @@ internal sealed class MainWindow : Window
                 reader.GetInt32(0), $"{reader.GetInt32(1)} -> {reader.GetInt32(2)}",
                 $"{reader.GetInt32(3)} -> {reader.GetInt32(4)}", reader.GetInt32(5)));
         }
+        reader.Close();
+        if (!ContentNameResolver.TableExists(connection, "battle_card_counts"))
+        {
+            return;
+        }
+        using var cardCommand = connection.CreateCommand();
+        cardCommand.CommandText = """
+            SELECT card_id,play_count FROM battle_card_counts
+            WHERE battle_id=$battle ORDER BY play_count DESC,card_id
+            """;
+        cardCommand.Parameters.AddWithValue("$battle", battle.Id);
+        using var cardReader = cardCommand.ExecuteReader();
+        while (cardReader.Read())
+        {
+            cardPlays.Add(new CardPlayRow(
+                nameResolver.Resolve("card", cardReader.GetString(0)),
+                cardReader.GetInt32(1)));
+        }
     }
 
     private void LoadRewards(long campaignId)
     {
         rewards.Clear();
+        rewardCandidates.Clear();
         using var connection = OpenReadOnly();
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT r.encounter_index,r.kind,r.round_number,r.selected_id,r.skipped,
-              COALESCE((SELECT GROUP_CONCAT(x.reward_id || '=' || printf('%.2f',x.total_score), '; ')
-                FROM reward_candidates x WHERE x.reward_decision_id=r.id),'')
+            SELECT r.id,r.encounter_index,r.encounter_id,r.kind,r.round_number,
+              r.selected_id,r.skipped
             FROM reward_decisions r WHERE r.campaign_id=$campaign
             ORDER BY r.encounter_index,r.id
             """;
@@ -522,9 +624,48 @@ internal sealed class MainWindow : Window
         while (reader.Read())
         {
             rewards.Add(new RewardRow(
-                reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2),
-                reader.GetString(3), reader.GetInt64(4) != 0 ? "是" : "否",
-                reader.GetString(5)));
+                reader.GetInt64(0), reader.GetInt32(1),
+                nameResolver.Resolve("encounter", reader.GetString(2)),
+                ViewerText.RewardKind(reader.GetString(3)), reader.GetString(3),
+                reader.GetInt32(4),
+                nameResolver.Resolve(reader.GetString(3), reader.GetString(5)),
+                reader.GetInt64(6) != 0 ? "是" : "否"));
+        }
+        if (rewards.Count > 0) rewardGrid.SelectedIndex = 0;
+    }
+
+    private void RewardSelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        rewardCandidates.Clear();
+        if (rewardGrid.SelectedItem is not RewardRow reward) return;
+        using var connection = OpenReadOnly();
+        using var command = connection.CreateCommand();
+        var v2 = ColumnExists(connection, "reward_candidates", "tier_value");
+        command.CommandText = v2
+            ? """
+              SELECT reward_id,total_score,base_value,tier_value,system_fit,
+                build_tendency,boss_fit,archetype_fit,survival_fit,energy_fit,
+                risk_penalty,learned_residual,conditional_residual,strategy_fit
+              FROM reward_candidates WHERE reward_decision_id=$decision
+              ORDER BY total_score DESC,id
+              """
+            : """
+              SELECT reward_id,total_score,base_value,0,0,0,0,0,0,0,0,
+                learned_residual,conditional_residual,strategy_fit
+              FROM reward_candidates WHERE reward_decision_id=$decision
+              ORDER BY total_score DESC,id
+              """;
+        command.Parameters.AddWithValue("$decision", reward.Id);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            rewardCandidates.Add(new RewardCandidateRow(
+                nameResolver.Resolve(reward.RawKind, reader.GetString(0)),
+                Score(reader, 1), Score(reader, 2), Score(reader, 3),
+                Score(reader, 4), Score(reader, 5), Score(reader, 6),
+                Score(reader, 7), Score(reader, 8), Score(reader, 9),
+                Score(reader, 10), Score(reader, 11), Score(reader, 12),
+                Score(reader, 13)));
         }
     }
 
@@ -533,16 +674,30 @@ internal sealed class MainWindow : Window
         differences.Clear();
         using var connection = OpenReadOnly();
         using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT difficulty,world_seed,battle_index,failure_category,
-              confidence,preferred_candidate_id FROM decision_differences ORDER BY confidence DESC,id
-            """;
+        var v2 = ContentNameResolver.TableExists(connection, "decision_candidates");
+        command.CommandText = v2
+            ? """
+              SELECT d.difficulty,d.world_seed,d.battle_index,d.failure_category,
+                d.confidence,d.preferred_candidate_id,
+                COALESCE((SELECT x.source_id FROM decision_candidates x
+                  WHERE x.difference_id=d.id
+                    AND x.candidate_id=d.preferred_candidate_id LIMIT 1),'')
+              FROM decision_differences d ORDER BY d.confidence DESC,d.id
+              """
+            : """
+              SELECT difficulty,world_seed,battle_index,failure_category,
+                confidence,preferred_candidate_id,''
+              FROM decision_differences ORDER BY confidence DESC,id
+              """;
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             differences.Add(new DecisionDifferenceRow(
-                reader.GetString(0), reader.GetString(1), reader.GetInt32(2),
-                reader.GetString(3), reader.GetDouble(4).ToString("0.00"), reader.GetString(5)));
+                ViewerText.Difficulty(reader.GetString(0)), reader.GetString(1),
+                reader.GetInt32(2),
+                ViewerText.DifferenceCategory(reader.GetString(3)),
+                reader.GetDouble(4).ToString("0.00"),
+                ResolveAction(reader.GetString(5), reader.GetString(6))));
         }
     }
 
@@ -561,9 +716,46 @@ internal sealed class MainWindow : Window
             modelNodes.Add(new ModelNodeRow(
                 reader.GetInt32(0), reader.GetString(1), reader.GetDouble(2).ToString("P1"),
                 reader.GetDouble(3).ToString("P1"), reader.GetInt64(4) != 0 ? "是" : "否",
-                reader.GetInt64(5) != 0 ? "是" : "否", reader.GetString(6)));
+                reader.GetInt64(5) != 0 ? "是" : "否",
+                ViewerText.Promotion(reader.GetString(6))));
         }
     }
+
+    private string ResolveAction(string candidateId, string sourceId)
+    {
+        if (candidateId.Contains("end", StringComparison.OrdinalIgnoreCase))
+        {
+            return "结束回合";
+        }
+        return string.IsNullOrWhiteSpace(sourceId)
+            ? $"未解析动作（{candidateId}）"
+            : nameResolver.Resolve("card", sourceId);
+    }
+
+    private static bool ColumnExists(
+        SqliteConnection connection,
+        string table,
+        string column)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA table_info(" + table + ")";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(
+                    reader.GetString(1),
+                    column,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string Score(SqliteDataReader reader, int ordinal) =>
+        Convert.ToDouble(reader.GetValue(ordinal), CultureInfo.InvariantCulture)
+            .ToString("0.00", CultureInfo.CurrentCulture);
 
     private static string? Scalar(SqliteConnection connection, string sql)
     {
@@ -577,14 +769,22 @@ internal sealed class MainWindow : Window
         string Progress, string Hp, int RewardCount);
 
     private sealed record BattleRow(
-        long Id, int BattleIndex, string ScenarioId, string Outcome,
+        long Id, int BattleIndex, string Scenario, string Outcome,
         int Turns, int FinalHp, long SearchSimulations, long SearchNodes);
 
     private sealed record TurnRow(int Turn, string PlayerHp, string EnemyHp, int Actions);
 
     private sealed record RewardRow(
-        int EncounterIndex, string Kind, int Round, string SelectedId,
-        string Skipped, string Candidates);
+        long Id, int EncounterIndex, string Encounter, string Kind,
+        string RawKind, int Round, string Selected, string Skipped);
+
+    private sealed record RewardCandidateRow(
+        string Name, string Total, string Base, string Tier, string System,
+        string Build, string Boss, string Archetype, string Survival,
+        string Energy, string Risk, string Learned, string Conditional,
+        string Strategy);
+
+    private sealed record CardPlayRow(string Name, int Count);
 
     private sealed record DecisionDifferenceRow(
         string Difficulty, string WorldSeed, int BattleIndex, string Category,

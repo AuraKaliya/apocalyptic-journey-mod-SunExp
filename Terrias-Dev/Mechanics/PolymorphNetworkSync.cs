@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
-using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -32,6 +31,7 @@ public static class PolymorphNetworkSync
         new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> RetryAttempts = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> LatestVersions = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> OutgoingVersions = new(StringComparer.Ordinal);
     private static readonly HashSet<string> ScheduledOwners = new(StringComparer.Ordinal);
     private static int lifecycleGeneration;
 
@@ -49,7 +49,7 @@ public static class PolymorphNetworkSync
             CareerId = state.RoleId,
             OriginalCareerId = state.OriginalCareerId,
             Active = true,
-            Version = state.Version,
+            Version = NextOutgoingVersion(state),
             Source = safeSource
         }, safeSource);
     }
@@ -68,7 +68,7 @@ public static class PolymorphNetworkSync
             CareerId = state.OriginalCareerId,
             OriginalCareerId = state.OriginalCareerId,
             Active = false,
-            Version = state.Version,
+            Version = NextOutgoingVersion(state),
             Source = safeSource
         }, safeSource);
     }
@@ -123,6 +123,7 @@ public static class PolymorphNetworkSync
         PendingSnapshots.Clear();
         RetryAttempts.Clear();
         LatestVersions.Clear();
+        OutgoingVersions.Clear();
         ScheduledOwners.Clear();
         TerriasLog.Debug("[PolymorphSync] pending visual snapshots cleared from " + source + ".");
     }
@@ -269,10 +270,15 @@ public static class PolymorphNetworkSync
         }
 
         if (string.Equals(ownerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal)
-            && RoleTable.Instance != null)
+            && FightPlayer.Instance?.Status != null)
         {
-            RoleTable.Instance.Career = career;
-            applied = true;
+            var localCareer = CareerApi.IsCurrent(careerId)
+                ? RoleTable.Instance?.Career
+                : career;
+            applied |= CareerApi.CommitLocalCareer(
+                FightPlayer.Instance.Status,
+                localCareer,
+                "PolymorphNetworkSync.ApplyCareerToFightState");
         }
 
         if (fightManager?.statuses != null
@@ -299,22 +305,17 @@ public static class PolymorphNetworkSync
         };
     }
 
+    private static int NextOutgoingVersion(PolymorphState state)
+    {
+        var owner = state?.OwnerStatusId ?? "";
+        var current = OutgoingVersions.TryGetValue(owner, out var existing) ? existing : 0;
+        var next = Math.Max(current + 1, Math.Max(1, state?.Version ?? 0));
+        OutgoingVersions[owner] = next;
+        return next;
+    }
+
     private static DataConfig? CreateCareerConfig(string careerId)
     {
-        try
-        {
-            var type = AuraGameDataHostApi.Resolve(DataType.Enemy, careerId) != null
-                ? DataType.Enemy
-                : DataType.Career;
-            var handle = AuraGameDataHostApi.ResolveHandle(type, careerId);
-            return handle == null
-                ? null
-                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance as DataConfig;
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[PolymorphSync] career config unavailable: " + careerId + "; " + ex.Message);
-            return null;
-        }
+        return CareerApi.Materialize(careerId);
     }
 }

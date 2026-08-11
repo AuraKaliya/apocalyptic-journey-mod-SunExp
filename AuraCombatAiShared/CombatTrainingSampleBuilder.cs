@@ -42,11 +42,18 @@ public static class CombatTrainingSampleBuilder
             "human",
             StringComparison.OrdinalIgnoreCase)
             ? "human"
-            : "policy";
-        var policyPreselectedCandidateId = string.IsNullOrWhiteSpace(recommendedCandidateId)
-            && executedBy == "policy"
-            ? decision.Action.CandidateId
-            : recommendedCandidateId ?? "";
+            : string.Equals(
+                demonstrator,
+                "emergency-baseline",
+                StringComparison.OrdinalIgnoreCase)
+                ? "emergency-baseline"
+                : "policy";
+        var policyPreselectedCandidateId = executedBy == "emergency-baseline"
+            ? ""
+            : string.IsNullOrWhiteSpace(recommendedCandidateId)
+              && executedBy == "policy"
+                ? decision.Action.CandidateId
+                : recommendedCandidateId ?? "";
         var policyWasExecuted = !string.IsNullOrWhiteSpace(policyPreselectedCandidateId)
                                 && string.Equals(
                                     decision.Action.CandidateId,
@@ -69,9 +76,12 @@ public static class CombatTrainingSampleBuilder
             Selection = new CombatTrainingSelectionTrace
             {
                 ExecutedBy = executedBy,
-                LabelKind = executedBy == "human"
-                    ? "human-preference"
-                    : "policy-trajectory",
+                LabelKind = executedBy switch
+                {
+                    "human" => "human-preference",
+                    "emergency-baseline" => "technical-fallback-telemetry",
+                    _ => "policy-trajectory"
+                },
                 ExecutedCandidateId = decision.Action.CandidateId,
                 ExecutedDisplayName = DisplayNameOrId(decision.Action),
                 PolicyPreselectedCandidateId = policyPreselectedCandidateId,

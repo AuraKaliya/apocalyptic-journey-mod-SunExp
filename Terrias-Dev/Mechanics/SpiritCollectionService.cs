@@ -21,7 +21,6 @@ public static class SpiritCollectionService
         {
             store = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
             document = Normalize(store.Load());
-            SaveUnlocked(document);
         }
     }
 

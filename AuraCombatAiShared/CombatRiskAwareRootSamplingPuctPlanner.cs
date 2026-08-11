@@ -933,6 +933,13 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                         ReadThreadAllocatedBytes() - cycleAnalysisStart);
                 }
                 var leaf = EvaluateLeaf(nextState);
+                if (profile.ModelOwnsActionSelection)
+                {
+                    terminalValue = leaf.Value;
+                    risk = leaf.DeathRisk;
+                    resolved = true;
+                    goto CompleteSimulation;
+                }
                 switch (assessment.Classification)
                 {
                     case CombatLoopClassification.CertifiedLethal:
@@ -1485,12 +1492,17 @@ CompleteSimulation:
 
         var groups = legal
             .GroupBy(
-                candidate => CandidateEquivalenceKey(candidate.Action),
+                candidate => profile.ModelOwnsActionSelection
+                    ? candidate.Action.CandidateId
+                    : CandidateEquivalenceKey(candidate.Action),
                 StringComparer.Ordinal)
             .Select(group => new
             {
                 Members = group
-                    .OrderByDescending(candidate => candidate.RuleScore)
+                    .OrderByDescending(candidate =>
+                        profile.ModelOwnsActionSelection
+                            ? 0d
+                            : candidate.RuleScore)
                     .ThenBy(candidate =>
                         candidate.Action.CandidateId,
                         StringComparer.Ordinal)
@@ -1525,19 +1537,26 @@ CompleteSimulation:
         var ruleDeviation = Math.Sqrt(Math.Max(0d, ruleVariance));
         var logits = legal
             .Select(candidate =>
-                NormalizeRuleScore(
-                    candidate.RuleScore,
-                    ruleMean,
-                    ruleDeviation)
-                + ClampFinite(
-                    guidanceModel.PolicyLogit(
-                        candidate.Action.Features),
-                    -4d,
-                    4d)
-                + NetworkPolicyLogit(
+            {
+                var modelLogit = NetworkPolicyLogit(
                     networkPrediction,
-                    candidate.Action.CandidateId)
-                + ContinuationPriorLogit(candidate.Action))
+                    candidate.Action.CandidateId);
+                if (profile.ModelOwnsActionSelection)
+                {
+                    return modelLogit;
+                }
+                return NormalizeRuleScore(
+                           candidate.RuleScore,
+                           ruleMean,
+                           ruleDeviation)
+                       + ClampFinite(
+                           guidanceModel.PolicyLogit(
+                               candidate.Action.Features),
+                           -4d,
+                           4d)
+                       + modelLogit
+                       + ContinuationPriorLogit(candidate.Action);
+            })
             .Select(value => Math.Max(-30d, Math.Min(30d, value)))
             .ToArray();
         var maximum = logits.Max();
@@ -1926,14 +1945,18 @@ CompleteSimulation:
         }
         var result = new CombatLeafEvaluation
         {
-            Value = baseline.Value
-                    + guidanceModel.LeafValue(leafFeatures)
-                    + network.ExpectedReturn * 8d,
-            DeathRisk = CalibratedDeathRisk(
-                baseline.DeathRisk,
-                guidanceModel.DeathRisk(leafFeatures),
-                network.DeathProbability,
-                SemanticCoverageRisk(state))
+            Value = profile.ModelOwnsActionSelection
+                ? network.ExpectedReturn * 8d
+                : baseline.Value
+                  + guidanceModel.LeafValue(leafFeatures)
+                  + network.ExpectedReturn * 8d,
+            DeathRisk = profile.ModelOwnsActionSelection
+                ? Clamp01(network.DeathProbability)
+                : CalibratedDeathRisk(
+                    baseline.DeathRisk,
+                    guidanceModel.DeathRisk(leafFeatures),
+                    network.DeathProbability,
+                    SemanticCoverageRisk(state))
         };
         if (detailedAllocations)
         {
@@ -2128,7 +2151,8 @@ CompleteSimulation:
     {
         if (searchAction.Action.Kind == CombatActionKind.EndTurn)
         {
-            return searchAction.Action.Legal && CanEndTurn(state);
+            return searchAction.Action.Legal
+                   && (profile.ModelOwnsActionSelection || CanEndTurn(state));
         }
         return IsNonEndUsable(state, searchAction);
     }
@@ -2202,6 +2226,10 @@ CompleteSimulation:
     private double RootSelectionValue(SearchEdge edge)
     {
         var estimate = edge.RiskEstimate(profile.TailRiskQuantile);
+        if (profile.ModelOwnsActionSelection)
+        {
+            return estimate.Mean;
+        }
         return CombatRiskAdjustedSearchValue.Calculate(
             estimate,
             edge.MeanRisk,
@@ -2215,6 +2243,16 @@ CompleteSimulation:
         {
             return Enumerable.Empty<SearchEdge>()
                 .OrderBy(edge => edge.ActionIndex);
+        }
+        if (profile.ModelOwnsActionSelection)
+        {
+            return rootEdges
+                .OrderByDescending(edge => edge.Visits)
+                .ThenByDescending(edge => edge.Prior)
+                .ThenByDescending(RootSelectionValue)
+                .ThenBy(
+                    edge => actions[edge.ActionIndex].Action.CandidateId,
+                    StringComparer.Ordinal);
         }
         var safe = rootEdges
             .Where(edge => edge.MeanRisk <= profile.DeathRiskLimit)
