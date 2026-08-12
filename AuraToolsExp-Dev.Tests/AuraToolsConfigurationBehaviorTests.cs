@@ -97,6 +97,41 @@ internal static partial class AuraToolsTestSuite
                && settings.MaxEventsPerBatch == 64,
             "DPS performance knobs are clamped to runtime-safe bounds");
     }
+
+    public static void TestMatchRecordSettingsMigration()
+    {
+        var defaults = new AuraToolsMatchExperienceSettings();
+        defaults.Normalize();
+        Assert(!defaults.MatchRecords.Enabled
+               && defaults.MatchRecords.Statistics.Enabled
+               && !defaults.MatchRecords.Replay.Enabled
+               && defaults.MatchRecords.Replay.AutoRecordLimit == 20,
+            "match records and replay default off while the DPT child is ready when the module is enabled");
+
+        var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
+            "{\"schemaVersion\":29,\"damageMeter\":{\"enabled\":true,\"displayMode\":\"Bars\",\"teamFilter\":\"Enemy\"}}")!;
+        legacy.Normalize();
+        Assert(legacy.SchemaVersion == 30
+               && legacy.MatchRecords.Enabled
+               && legacy.MatchRecords.Statistics.Enabled
+               && legacy.MatchRecords.Statistics.DisplayMode == DamageMeterDisplayModes.Bars
+               && legacy.MatchRecords.Statistics.TeamFilter == DamageMeterTeamFilters.Enemy
+               && !legacy.MatchRecords.Replay.Enabled,
+            "legacy damageMeter settings migrate into the match-record statistics child without enabling replay");
+
+        var current = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
+            "{\"matchRecords\":{\"enabled\":true,\"statistics\":{\"enabled\":false},\"replay\":{\"enabled\":true,\"autoRecordLimit\":9999}},\"damageMeter\":{\"enabled\":true}}")!;
+        current.Normalize();
+        var json = JsonConvert.SerializeObject(current);
+        Assert(current.MatchRecords.Enabled
+               && !current.MatchRecords.Statistics.Enabled
+               && current.MatchRecords.Replay.Enabled
+               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit,
+            "the new matchRecords section wins over a stale legacy section and normalizes its retention limit");
+        Assert(json.Contains("\"matchRecords\"", StringComparison.Ordinal)
+               && !json.Contains("\"damageMeter\"", StringComparison.Ordinal),
+            "new configuration files serialize only the matchRecords ownership model");
+    }
     
     public static void TestConfigModelSerializationCompatibility()
     {
@@ -133,7 +168,7 @@ internal static partial class AuraToolsTestSuite
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
         matchExperience.Normalize();
-        Assert(matchExperience.SchemaVersion == 29
+        Assert(matchExperience.SchemaVersion == 30
                && matchExperience.StarterDeck.PreferRoleModProfile
                && matchExperience.SafeBox != null
                && matchExperience.ModSync != null
@@ -274,14 +309,14 @@ internal static partial class AuraToolsTestSuite
             CardRefresh = null!
         };
         settings.Normalize();
-        Assert(settings.SchemaVersion == 29, "match-experience settings migrate to the current DPS view schema");
+        Assert(settings.SchemaVersion == 30, "match-experience settings migrate to the current match-record schema");
         Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
             "card refresh is restored with a disabled default during normalization");
         var removedFoundationConfig =
             JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
                 "{\"schemaVersion\":25,\"autoBattle\":{\"foundationTraining\":{\"parallelismProfile\":\"auto\",\"iterations\":8}}}")!;
         removedFoundationConfig.Normalize();
-        Assert(removedFoundationConfig.SchemaVersion == 29
+        Assert(removedFoundationConfig.SchemaVersion == 30
                && removedFoundationConfig.AutoBattle.Training.Preset
                   == AutoBattleTrainingSettings.SteadyPreset,
             "removed in-game foundation-training settings are ignored by the current config schema");

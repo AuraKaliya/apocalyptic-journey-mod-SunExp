@@ -8,6 +8,13 @@ using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Network;
 
+public enum TerriasNetworkSendStatus
+{
+    Sent,
+    NotAttempted,
+    DispatchUnknown
+}
+
 public static class TerriasNetworkRuntime
 {
     private static readonly Dictionary<string, TrafficStat> TrafficByCommand = new(StringComparer.Ordinal);
@@ -107,16 +114,24 @@ public static class TerriasNetworkRuntime
 
     public static bool Send(RpcCommandBase command, string source, bool excludeOwner = false)
     {
+        return TrySend(command, source, excludeOwner) == TerriasNetworkSendStatus.Sent;
+    }
+
+    public static TerriasNetworkSendStatus TrySend(
+        RpcCommandBase command,
+        string source,
+        bool excludeOwner = false)
+    {
         if (command == null)
         {
-            return false;
+            return TerriasNetworkSendStatus.NotAttempted;
         }
 
         var manager = PlayerManager.Instance;
         if (manager == null)
         {
             TerriasLog.Debug("[TerriasRpc] send skipped from " + source + ": PlayerManager unavailable.");
-            return false;
+            return TerriasNetworkSendStatus.NotAttempted;
         }
 
         if (!AuraSharedPayloadBudget.FitsSoftLimit(
@@ -129,7 +144,7 @@ public static class TerriasNetworkRuntime
                 + "; command=" + command.GetType().Name
                 + "; bytes=" + payloadBytes
                 + "; error=" + payloadError + ".");
-            return false;
+            return TerriasNetworkSendStatus.NotAttempted;
         }
 
         try
@@ -153,7 +168,7 @@ public static class TerriasNetworkRuntime
                 + excludeOwner
                 + ".");
             RecordTraffic(command, payloadBytes, excludeOwner);
-            return true;
+            return TerriasNetworkSendStatus.Sent;
         }
         catch (Exception ex)
         {
@@ -163,7 +178,9 @@ public static class TerriasNetworkRuntime
                 + command.GetType().Name
                 + "; error="
                 + ex.Message);
-            return false;
+            // The underlying transport can throw after it accepted a command.
+            // Callers must retry with the same idempotency token, not refund.
+            return TerriasNetworkSendStatus.DispatchUnknown;
         }
     }
 

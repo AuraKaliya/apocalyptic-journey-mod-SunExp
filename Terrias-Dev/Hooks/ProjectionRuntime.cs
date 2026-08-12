@@ -7,16 +7,19 @@ using Terrias.Dll.Mechanics;
 using Terrias.Dll.Hooks.Visual;
 using Witch.Core;
 using Witch.Mod;
+using UnityEngine;
 
 namespace Terrias.Dll.Hooks;
 
 public static class ProjectionRuntime
 {
+    private const string NetworkRunnerName = "Terrias_ProjectionNetworkRunner";
     private static readonly Dictionary<string, bool> ProjectionUseGate = new(StringComparer.Ordinal);
     private static IDisposable? automationRegistration;
 
     public static void Initialize(ModConfig modConfig)
     {
+        EnsureNetworkRunner();
         ProjectionAttachmentPresenter.Initialize();
         automationRegistration ??= CombatActionAutomationRegistry.Register(
             TerriasIds.ModId,
@@ -49,6 +52,17 @@ public static class ProjectionRuntime
             AfterMaxHpChanged = RetireProjectionAfterHpChange
         });
         TerriasLog.Info("Projection runtime initialized");
+    }
+
+    private static void EnsureNetworkRunner()
+    {
+        if (GameObject.Find(NetworkRunnerName) != null)
+        {
+            return;
+        }
+        var root = new GameObject(NetworkRunnerName);
+        UnityEngine.Object.DontDestroyOnLoad(root);
+        root.AddComponent<ProjectionNetworkRunner>();
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
@@ -166,7 +180,10 @@ public static class ProjectionRuntime
         {
             if (context.Target is IStatusManager status)
             {
-                ProjectionStateStore.RetireIfDead(status, source);
+                if (!ProjectionStateStore.RetireIfDead(status, source))
+                {
+                    ScheduleProjectionStateSync(status, source);
+                }
                 ProjectionAttachmentPresenter.RefreshByOwner(status, source);
             }
         }
@@ -176,4 +193,39 @@ public static class ProjectionRuntime
         }
     }
 
+    private static void ScheduleProjectionStateSync(IStatusManager status, string source)
+    {
+        var state = ProjectionStateStore.Find(status?.InstanceId ?? "");
+        if (state == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+        var observedRevision = state.Replication.StateRevision;
+        TerriasFrameDispatcher.RunOnceAfterFrames(
+            "Projection.PublicStateSync." + state.StatusId,
+            1,
+            () =>
+            {
+                var current = ProjectionStateStore.Find(state.StatusId);
+                if (current == null
+                    || current.Replication.StateRevision != observedRevision
+                    || current.Projection.Status == null
+                    || current.Projection.Status.state == IStatusManager.State.Dead)
+                {
+                    return;
+                }
+                ProjectionSummonService.BroadcastExternalStateChange(
+                    current.Projection,
+                    source);
+            });
+    }
+
+}
+
+public sealed class ProjectionNetworkRunner : MonoBehaviour
+{
+    private void Update()
+    {
+        ProjectionSummonService.TickNetworkSynchronization(Time.unscaledTimeAsDouble);
+    }
 }

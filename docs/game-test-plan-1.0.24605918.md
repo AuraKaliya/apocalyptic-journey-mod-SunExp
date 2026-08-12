@@ -38,14 +38,20 @@
 
 - Projection 与 Spirit 本体都以 `Partner` 进入第一个 Enemy 之前，不再创建 turn anchor；
   官方 Partner、Projection、Spirit 均遵循宿主原生 Partner 队列快照。
-- Projection 在召唤卡完整结算后深复制玩家当前能量、手牌、等待区、抽牌堆、弃牌堆、
-  焚毁区、卡牌运行时数据和附加物。第一回合不刷新能量且不额外抽牌。
+- 客机 Projection 召唤请求只发送角色、拥有者、token 与牌组哈希。主机必须从该玩家的
+  `GameServer.RoleTables[playerId]` 读取冒险牌组，不能读取主机 `FightUI` 或主机牌组。
+- Projection 使用原始卡牌 id 与可选永久附件建立新牌局，固定 3 能量、每回合抽 5 张；
+  不复制当前手牌、牌区、临时 Vars、临时费用、战斗生成牌、Buff 或动态变量。
+- 使用 512 张牌的测试牌组召唤时，不得出现 GZip、分块牌组 RPC 或集中实例化全部卡牌；
+  卡牌应在进入手牌后才实例化。主机缺少 RoleTable 时返回非终态并以同 token 重试，
+  连续收到 6 次请求仍缺失时由主机返回 `RoleDeckTimedOut` 终态并只返卡一次；
+  基础牌组诊断 hash 不一致时记录日志，但仍使用主机权威 RoleTable，不上传附件或牌组。
 - Projection 不展示意图，只有主机运行 Actor 自动决策。目标失效只屏蔽对应候选，
   卡牌或无界面行为失败按更大作用域屏蔽；无合法动作、连续失败 3 次或超时后必须结束，
   不能等待玩家接管。已提交动作不得重放。
-- 每次 Projection 卡牌提交、回合完成和回合推进都广播牌局快照；客机只水合状态，
-  且卡牌 revision 必须单调，乱序旧快照不得覆盖新状态。客机在伙伴 `TurnIndex`
-  推进前不得进入下一行动；断线或丢包时必须由等待上限释放，不能永久卡住。
+- 每次 Projection 卡牌只发送一个合并行动帧；spawn、turn completion 和 death tombstone
+  分别发送小型状态帧，内部牌组只存在于主机。客户端按 generation、StateRevision、
+  ActionSequence、CompletedTurnSequence 去重；完成帧提前到达必须立即消费，停滞时限频查询主机状态。
 - Spirit 保留独立属性、生命、资源和意图池，固定显示在拥有者右上角；右侧竖向生命条
   自下而上填充，常驻 Buff 列表隐藏，鼠标悬停时显示游戏原生状态面板。
 - Projection 与 Spirit 可以同时存在。Projection 占正式友方阵位，Spirit 使用固定附着位；
@@ -54,11 +60,12 @@
   proxy 或友方槽。原生意图生成后只改写目标：有害行动指向其他未受控敌人，有益行动
   指向玩家、Projection 或 Spirit，Self 行动保持自身；完成一次原生行动后解除控制。
 - 重连、重开战斗后不得残留旧 anchor、HeartChange proxy 或重复行动；协议版本不匹配、
-  战斗 epoch 失效和投影牌局协议不一致时必须拒绝并记录日志。
+  战斗 epoch 失效或投影卡牌模型不一致时必须返回分类终态错误并返卡。权限错误不返卡，
+  发送结果不确定不得盲目返卡，重复终态结果不得二次返卡。
 
 ## 主客机回归
 
 - 分别覆盖主机一人、主机加一名客户端、两名客户端三个场景。
-- 每轮记录 `ActionQueue` status ID、伙伴 revision 和 Projection card-state revision，确认所有节点一致。
+- 每轮记录 `ActionQueue` status ID、spawn generation、四类序号和 Projection `TurnIndex`，确认所有节点一致。
 - 覆盖官方 Partner、Projection、Spirit、HeartChange 两两组合以及三者同时存在。
 - 断线重连后重新建立目录与 revision；不得接受旧战斗或其他玩家的意图。

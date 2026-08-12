@@ -22,7 +22,8 @@ public static class AuraToolsDamageMeterRuntime
     public static bool Available => DamageMeterAvailabilityRuntime.Available;
 
     public static bool Enabled => AuraToolsConfigService.Root.MatchExperience.Enabled
-                                  && AuraToolsConfigService.MatchExperience.DamageMeter.Enabled;
+                                  && AuraToolsConfigService.MatchExperience.MatchRecords.Enabled
+                                  && AuraToolsConfigService.MatchExperience.MatchRecords.Statistics.Enabled;
 
     internal static DamageLedger Ledger => DamageMeterNetworkRuntime.Ledger;
 

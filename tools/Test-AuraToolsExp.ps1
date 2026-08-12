@@ -55,7 +55,7 @@ if ($officialSummerSkins.Count -ne 1) {
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
 $standardPreset = @($matchSettings.autoBattle.gameParameters.presets | Where-Object id -eq "standard")
-if ($matchSettings.schemaVersion -ne 29 `
+if ($matchSettings.schemaVersion -ne 30 `
         -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `
@@ -67,14 +67,19 @@ if ($matchSettings.schemaVersion -ne 29 `
         -or $standardPreset[0].preferredDeckSizeMinimum -ne 15) {
     throw "AuraToolsExp match-experience configuration contract is invalid."
 }
-if ($matchSettings.damageMeter.displayMode -ne "Table" `
-        -or $matchSettings.damageMeter.displayScope -ne "Fight" `
-        -or $matchSettings.damageMeter.teamFilter -ne "All" `
-        -or $matchSettings.damageMeter.captureTeamAvatars -ne $false `
-        -or $matchSettings.damageMeter.uiRefreshIntervalMs -ne 1000 `
-        -or $matchSettings.damageMeter.submitBatchIntervalMs -ne 250 `
-        -or $matchSettings.damageMeter.maxEventsPerBatch -ne 24) {
-    throw "AuraToolsExp damage-meter shipped defaults are invalid."
+if ($matchSettings.matchRecords.enabled -ne $false `
+        -or $matchSettings.matchRecords.statistics.enabled -ne $true `
+        -or $matchSettings.matchRecords.statistics.displayMode -ne "Table" `
+        -or $matchSettings.matchRecords.statistics.displayScope -ne "Fight" `
+        -or $matchSettings.matchRecords.statistics.teamFilter -ne "All" `
+        -or $matchSettings.matchRecords.statistics.captureTeamAvatars -ne $false `
+        -or $matchSettings.matchRecords.statistics.uiRefreshIntervalMs -ne 1000 `
+        -or $matchSettings.matchRecords.statistics.submitBatchIntervalMs -ne 250 `
+        -or $matchSettings.matchRecords.statistics.maxEventsPerBatch -ne 24 `
+        -or $matchSettings.matchRecords.replay.enabled -ne $false `
+        -or $matchSettings.matchRecords.replay.autoRecordLimit -ne 20 `
+        -or $matchSettings.matchRecords.replay.chunkTargetBytes -ne 262144) {
+    throw "AuraToolsExp match-record shipped defaults are invalid."
 }
 
 $rootSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (

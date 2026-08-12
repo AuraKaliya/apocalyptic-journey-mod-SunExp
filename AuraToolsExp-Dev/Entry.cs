@@ -12,6 +12,7 @@ using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
+using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.SafeBox;
@@ -56,7 +57,7 @@ public static class Entry
         RunStep("pixel emoji", () => AuraToolsPixelEmojiRuntime.Initialize(modConfig));
         RunStep("auto battle", () => AuraToolsAutoBattleRuntime.Initialize(modConfig));
         RunStep("mod sync", () => AuraToolsModSyncRuntime.Initialize(modConfig));
-        RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));
+        RunStep("match records", () => AuraToolsMatchRecordsRuntime.Initialize(modConfig));
         RunStep("card UI benchmark", () => AuraToolsCardUiBenchmarkRuntime.Initialize(modConfig));
         RunStep("skill CG", () => AuraToolsSkillCgRuntime.Initialize(modConfig));
         RunStep("settings", () => AuraToolsSettingsRuntime.Initialize(modConfig));

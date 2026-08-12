@@ -2,7 +2,16 @@ namespace Terrias.Dll.Mechanics;
 
 public sealed class ProjectionState
 {
-    public ProjectionState(string statusId, string ownerStatusId, string roleId, string displayName, ProjectionOtherObj projection, int slotIndex, string ownerPlayerId = "")
+    public ProjectionState(
+        string statusId,
+        string ownerStatusId,
+        string roleId,
+        string displayName,
+        ProjectionOtherObj projection,
+        int slotIndex,
+        string ownerPlayerId = "",
+        string generation = "",
+        long initialStateRevision = 1L)
     {
         StatusId = statusId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
@@ -11,6 +20,8 @@ public sealed class ProjectionState
         DisplayName = displayName ?? "";
         Projection = projection;
         SlotIndex = slotIndex;
+        Replication = new ProjectionReplicationClock(generation, initialStateRevision);
+        RemoteTurnGate = new ProjectionRemoteTurnGate();
     }
 
     public string StatusId { get; }
@@ -26,6 +37,10 @@ public sealed class ProjectionState
     public ProjectionOtherObj Projection { get; }
 
     public int SlotIndex { get; }
+
+    public ProjectionReplicationClock Replication { get; }
+
+    public ProjectionRemoteTurnGate RemoteTurnGate { get; }
 
     public bool IsSuspended { get; private set; }
 

@@ -46,6 +46,8 @@ internal static class Program
         TestProjectionTurnQueuePolicy();
         TestPartnerTurnOrderPolicy();
         TestFriendlyRoleSeatPolicy();
+        TestProjectionDeckRecipe();
+        TestProjectionProtocolState();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
@@ -348,6 +350,149 @@ internal static class Program
             "active and preparing projections share the same four-seat cap");
         Equal(2, FriendlyRoleSeatPolicy.FindOpenSeat(2, new[] { 3 }, new[] { 99, -1 }),
             "invalid companion slots never consume a formal role seat");
+    }
+
+    private static void TestProjectionDeckRecipe()
+    {
+        var first = new ProjectionDeckRecipe(new[]
+        {
+            new ProjectionDeckCardRecipe("card_b"),
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_1"),
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_1")
+        });
+        var reordered = new ProjectionDeckRecipe(new[]
+        {
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_1"),
+            new ProjectionDeckCardRecipe("card_b"),
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_1")
+        });
+        Equal(first.Hash, reordered.Hash,
+            "projection deck hash is based on the card multiset rather than RoleTable order");
+
+        var changedAttachment = new ProjectionDeckRecipe(new[]
+        {
+            new ProjectionDeckCardRecipe("card_b"),
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_2"),
+            new ProjectionDeckCardRecipe("card_a", attachmentId: "ench_1")
+        });
+        False(string.Equals(first.Hash, changedAttachment.Hash, StringComparison.Ordinal),
+            "projection deck hash detects persistent attachment changes");
+        Equal(first.BaseHash, changedAttachment.BaseHash,
+            "projection client diagnostic hash excludes attachment state owned by the host");
+
+        var oversized = new ProjectionDeckRecipe(Enumerable.Range(0, ProjectionDeckRecipe.MaximumCards + 20)
+            .Select(index => new ProjectionDeckCardRecipe("card_" + index)));
+        Equal(ProjectionDeckRecipe.MaximumCards, oversized.Cards.Count,
+            "projection deck recipes enforce the lightweight actor card cap");
+        Equal(first.ShuffleSeed, reordered.ShuffleSeed,
+            "matching deck recipes produce the same deterministic shuffle seed");
+
+        Equal(ProjectionRoleDeckSourceKind.ServerRole,
+            ProjectionRoleDeckSourcePolicy.Select(true, false, true, true),
+            "a remote projection always reads the server-owned RoleTable");
+        Equal(ProjectionRoleDeckSourceKind.None,
+            ProjectionRoleDeckSourcePolicy.Select(true, false, true, false),
+            "a remote projection never falls back to the host's local RoleTable");
+        Equal(ProjectionRoleDeckSourceKind.LocalRole,
+            ProjectionRoleDeckSourcePolicy.Select(true, true, true, true),
+            "the host projection may use the host's current local RoleTable");
+    }
+
+    private static void TestProjectionProtocolState()
+    {
+        var retryable = ProjectionSummonFailureCatalog.Describe(
+            ProjectionSummonFailureCode.RoleDeckUnavailable);
+        False(retryable.Terminal,
+            "a temporarily unavailable host RoleTable does not terminally reject the summon token");
+        True(retryable.Retryable,
+            "a temporarily unavailable host RoleTable asks the client to retry the same token");
+        False(retryable.RefundCard,
+            "ambiguous synchronization failures never refund before a terminal result");
+        var roleDeckTimedOut = ProjectionSummonFailureCatalog.Describe(
+            ProjectionSummonFailureCode.RoleDeckTimedOut);
+        True(roleDeckTimedOut.Terminal,
+            "the host can terminally close a RoleTable wait after bounded same-token retries");
+        True(roleDeckTimedOut.RefundCard,
+            "a host-confirmed RoleTable timeout returns the consumed role card");
+
+        var incompatible = ProjectionSummonFailureCatalog.Describe(
+            ProjectionSummonFailureCode.ProtocolMismatch);
+        True(incompatible.Terminal,
+            "protocol mismatch is a typed terminal summon result");
+        True(incompatible.RefundCard,
+            "a terminal compatibility rejection returns the consumed role card");
+        False(ProjectionSummonFailureCatalog.Describe(
+                ProjectionSummonFailureCode.OwnerMismatch).RefundCard,
+            "an unauthorized request cannot manufacture a local refund");
+        False(ProjectionSummonFailureCatalog.Describe(
+                ProjectionSummonFailureCode.TokenConflict).RefundCard,
+            "reusing a pending token with different request data cannot manufacture a refund");
+
+        var authoritative = new ProjectionReplicationClock("generation-a");
+        Equal(1L, authoritative.StateRevision,
+            "a spawned projection starts at the first public state revision");
+        authoritative.CommitAction();
+        Equal(1L, authoritative.ActionSequence,
+            "committed action frames use a monotonic action sequence");
+        Equal(2L, authoritative.StateRevision,
+            "a committed action also advances the public state revision");
+        authoritative.CompleteTurn();
+        Equal(1L, authoritative.CompletedTurnSequence,
+            "turn completion has an independent monotonic sequence");
+
+        var remote = new ProjectionReplicationClock("generation-a", 0L);
+        True(remote.TryApplyRemote("generation-a", 1L, 0L, 0L, true),
+            "a remote mirror accepts the initial spawn revision");
+        False(remote.TryApplyRemote("generation-a", 1L, 0L, 0L, true),
+            "a remote mirror rejects duplicate public revisions");
+        False(remote.TryApplyRemote("generation-b", 3L, 2L, 1L, true),
+            "a remote mirror rejects frames from another spawn generation");
+        True(remote.TryApplyRemote("generation-a", 4L, 2L, 1L, false),
+            "a newer death tombstone retires the matching generation");
+        False(remote.MatchesActiveGeneration("generation-a"),
+            "an inactive generation rejects late action presentation frames");
+        False(remote.TryApplyRemote("generation-a", 5L, 3L, 2L, true),
+            "an inactive generation cannot be resurrected by a late active frame");
+
+        var gate = new ProjectionRemoteTurnGate();
+        gate.Observe(1L, 3L, 4L, 10d);
+        var alreadyCompleted = gate.BeginInvocation();
+        Equal(1L, alreadyCompleted,
+            "a completion received before Partner.DoAction is consumed immediately");
+        True(gate.IsSatisfied(alreadyCompleted),
+            "pre-arrived completion satisfies the current client invocation");
+        gate.Consume(alreadyCompleted);
+        Equal(2L, gate.BeginInvocation(),
+            "the next client invocation waits for the next completion sequence");
+        True(gate.ShouldQuery(13d, 2d, 1d),
+            "a stalled remote turn becomes eligible for a state query");
+        gate.MarkQuery(13d);
+        False(gate.ShouldQuery(13.5d, 2d, 1d),
+            "state queries are rate limited while a remote turn is stalled");
+        gate.Release(2L);
+        Equal(3L, gate.BeginInvocation(),
+            "a disconnected client can soft-release one partner invocation without running AI");
+
+        var transaction = new ProjectionSummonTransaction(
+            "token", "role", "owner", "hash", 0d);
+        True(transaction.IsDue(0d, 1d),
+            "a fresh summon transaction is immediately sendable");
+        transaction.MarkAttempt(0d);
+        False(transaction.IsDue(0.5d, 1d),
+            "a summon retry keeps the same token and observes its retry interval");
+        True(transaction.TryClaimRefund(),
+            "a terminal summon transaction may claim one refund");
+        False(transaction.TryClaimRefund(),
+            "a replayed terminal result cannot refund twice");
+
+        var requestIdentity = new ProjectionSummonRequestIdentity(
+            "role", "player", "owner", "ABC");
+        True(requestIdentity.Matches("role", "player", "owner", "abc"),
+            "same-token retries accept the same request identity and case-insensitive hash");
+        False(requestIdentity.Matches("other-role", "player", "owner", "abc"),
+            "same-token retries reject changed summon content");
+        False(requestIdentity.Matches("role", "other-player", "owner", "abc"),
+            "same-token retries remain bound to the authoritative sender identity");
     }
 
     private static void TestSolarMemoryRoleCommitPendingState()

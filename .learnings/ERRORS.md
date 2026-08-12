@@ -5832,3 +5832,67 @@ Two independent validation scripts were joined with PowerShell semicolons even t
 ## Resolution
 
 Run validation scripts as separate shell tool calls; use the supported parallel orchestration only when the checks are independent and read-only.
+
+---
+# ERR-20260812-009: Guessed source path and Windows wildcard caused read failures
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+Source inspections guessed `CombatObservationModels.cs` and later `CombatActionScoring.cs` instead of using paths returned by `rg`; another `rg` call also passed a Windows wildcard path directly.
+
+## Resolution
+
+Read the exact path returned by `rg`, and pass directories plus `-g` patterns rather than wildcard path arguments on Windows.
+
+---
+# ERR-20260812-010: Projection executor overload names were swapped
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The first Terrias build after adding multi-target projection execution failed because the single-target and target-list `PrepareExecutor` method names were swapped.
+
+## Resolution
+
+Restore `PrepareExecutor` for one nullable target and use `PrepareExecutorTargets` for the target collection. The Terrias project then built with zero warnings and errors.
+
+---
+# ERR-20260812-011: Shared validation script names were guessed incorrectly
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+Validation attempted `tools/Test-AuraRpcAuthority.ps1` and `tools/Test-AuraSharedDllPackaging.ps1`, but the repository scripts are named `Test-NetworkRpcAuthority.ps1` and `Test-SharedDllPackaging.ps1`.
+
+## Resolution
+
+Resolve validation script paths with `rg --files tools` before invoking them instead of reconstructing names from memory.
+
+---
+# ERR-20260812-012: RPC authority gate requires PowerShell 7
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+Running `Test-NetworkRpcAuthority.ps1` with Windows PowerShell failed because its .NET runtime does not provide `System.IO.Path.GetRelativePath`.
+
+## Resolution
+
+Run repository validation scripts that use modern .NET APIs with `pwsh`; the RPC authority scan then passed.

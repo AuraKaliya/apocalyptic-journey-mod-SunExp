@@ -16,9 +16,9 @@ namespace Terrias.Dll.Mechanics;
 
 internal sealed class ProjectionCardBattleState
 {
-    public const string ProtocolIdentity = "projection-card-state-v1";
-
     private readonly List<ProjectionCardInstance> cards;
+    private readonly Dictionary<string, int[]> targetSetsByCandidate =
+        new(StringComparer.Ordinal);
     private int turnIndex;
     private int drawCount;
     private int revision;
@@ -48,124 +48,67 @@ internal sealed class ProjectionCardBattleState
 
     public int Revision => revision;
 
-    public static ProjectionCardBattleState? CaptureFromPlayer(
+    public void InitializeLifecycle(IStatusManager? actor)
+    {
+        foreach (var card in cards.Where(card => card.Zone == CombatActorCardZone.Hand))
+        {
+            card.EnterHand(actor);
+        }
+    }
+
+    public static ProjectionCardBattleState? CreateFresh(
+        ProjectionDeckRecipe? recipe,
         string actorId,
         out string reason)
     {
+        reason = "projection role deck is unavailable";
+        if (recipe == null || recipe.Cards.Count == 0)
+        {
+            return null;
+        }
+
+        var cards = recipe.Cards
+            .Select((entry, index) => ProjectionCardInstance.CreateBaseline(
+                entry,
+                CombatActorCardZone.DrawPile,
+                index))
+            .ToList();
+        var random = new System.Random(recipe.ShuffleSeed);
+        for (var index = cards.Count - 1; index > 0; index--)
+        {
+            var swap = random.Next(index + 1);
+            (cards[index], cards[swap]) = (cards[swap], cards[index]);
+        }
+        for (var index = 0; index < cards.Count; index++)
+        {
+            cards[index].Zone = index < ProjectionDeckRecipe.DefaultDrawCount
+                ? CombatActorCardZone.Hand
+                : CombatActorCardZone.DrawPile;
+            cards[index].ZoneIndex = index < ProjectionDeckRecipe.DefaultDrawCount
+                ? index
+                : index - ProjectionDeckRecipe.DefaultDrawCount;
+        }
+
         reason = "";
-        var player = FightPlayer.Instance;
-        var manager = FightCardManager.Instance;
-        if (player?.Status == null || manager == null)
-        {
-            reason = "player combat card state is unavailable";
-            return null;
-        }
-
-        var result = new List<ProjectionCardInstance>();
-        var captured = new HashSet<DataConfig>(ReferenceEqualityComparer<DataConfig>.Instance);
-        AddCardItems(result, captured, FightUI.cardItemList, CombatActorCardZone.Hand);
-        AddCardItems(result, captured, FightUI.WaitCard, CombatActorCardZone.Wait);
-        AddConfigs(result, captured, manager.cardList, CombatActorCardZone.DrawPile);
-        AddConfigs(result, captured, manager.usedCardList, CombatActorCardZone.DiscardPile);
-        AddExhaustedConfigs(result, captured, manager);
-
-        if (result.Count == 0)
-        {
-            reason = "player combat deck did not expose any card instances";
-            return null;
-        }
-
-        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
-        var state = new ProjectionCardBattleState(
-            result,
-            player.CurPowerCount,
-            player.MaxPowerCount,
-            Math.Max(1, fightUi?.ShouldCard ?? 5),
+        TerriasLog.Info("[ProjectionCards] initialized fresh role deck: actor="
+            + actorId
+            + ", cards="
+            + cards.Count
+            + ", initialHand="
+            + Math.Min(ProjectionDeckRecipe.DefaultDrawCount, cards.Count)
+            + ", hash="
+            + recipe.Hash.Substring(0, 12));
+        return new ProjectionCardBattleState(
+            cards,
+            ProjectionDeckRecipe.DefaultMaxPower,
+            ProjectionDeckRecipe.DefaultMaxPower,
+            ProjectionDeckRecipe.DefaultDrawCount,
             0,
             0,
             firstTurnPending: true);
-        TerriasLog.Info("[ProjectionCards] captured player battle state: actor="
-            + actorId
-            + ", cards="
-            + result.Count
-            + ", hand="
-            + result.Count(card => card.Zone == CombatActorCardZone.Hand)
-            + ", power="
-            + state.CurrentPower
-            + "/"
-            + state.MaxPower);
-        return state;
     }
 
-    public static ProjectionCardBattleState? Hydrate(
-        CombatActorCardStateSnapshot? snapshot,
-        out string reason)
-    {
-        reason = "projection card snapshot is unavailable";
-        if (snapshot == null || !snapshot.Validate(out reason))
-        {
-            return null;
-        }
-
-        var cards = new List<ProjectionCardInstance>();
-        foreach (var cardSnapshot in snapshot.Cards)
-        {
-            var card = ProjectionCardInstance.Hydrate(cardSnapshot, out var cardReason);
-            if (card == null)
-            {
-                reason = "card hydrate failed: " + cardReason;
-                return null;
-            }
-            cards.Add(card);
-        }
-
-        var turnIndex = ReadRuntimeInt(snapshot, "turnIndex", 0);
-        var drawCount = ReadRuntimeInt(snapshot, "drawCount", 5);
-        var revision = ReadRuntimeInt(snapshot, "revision", 0);
-        var firstTurnPending = ReadRuntimeInt(
-            snapshot,
-            "firstTurnPending",
-            snapshot.DrawAtNextTurnStart ? 0 : 1) > 0;
-        reason = "";
-        return new ProjectionCardBattleState(
-            cards,
-            snapshot.CurrentPower,
-            snapshot.MaxPower,
-            drawCount,
-            turnIndex,
-            revision,
-            firstTurnPending);
-    }
-
-    public CombatActorCardStateSnapshot Export(
-        string ownerModId,
-        string actorId,
-        long battleSessionId)
-    {
-        return new CombatActorCardStateSnapshot
-        {
-            BattleSessionId = battleSessionId,
-            OwnerModId = ownerModId,
-            ActorId = actorId,
-            CurrentPower = CurrentPower,
-            MaxPower = MaxPower,
-            DrawAtNextTurnStart = !firstTurnPending,
-            Cards = cards
-                .OrderBy(card => card.Zone)
-                .ThenBy(card => card.ZoneIndex)
-                .Select(card => card.Export())
-                .ToList(),
-            RuntimeVariables =
-            {
-                ["turnIndex"] = turnIndex,
-                ["drawCount"] = drawCount,
-                ["revision"] = revision,
-                ["firstTurnPending"] = firstTurnPending ? 1d : 0d
-            }
-        };
-    }
-
-    public void PrepareTurn()
+    public void PrepareTurn(IStatusManager? actor)
     {
         if (firstTurnPending)
         {
@@ -173,19 +116,25 @@ internal sealed class ProjectionCardBattleState
         }
 
         CurrentPower = MaxPower;
-        Draw(drawCount);
+        Draw(drawCount, actor);
         revision++;
     }
 
-    public void CompleteTurn()
+    public void CompleteTurn(IStatusManager? actor)
     {
         foreach (var card in cards.Where(card =>
                      card.Zone == CombatActorCardZone.Hand
                      || card.Zone == CombatActorCardZone.Wait))
         {
-            card.Zone = card.Retained
-                ? CombatActorCardZone.Retained
-                : CombatActorCardZone.DiscardPile;
+            if (card.Retained)
+            {
+                card.Zone = CombatActorCardZone.Retained;
+            }
+            else
+            {
+                card.Zone = CombatActorCardZone.DiscardPile;
+                card.EndTurn(actor);
+            }
         }
         foreach (var card in cards.Where(card =>
                      card.Zone == CombatActorCardZone.Retained))
@@ -200,6 +149,7 @@ internal sealed class ProjectionCardBattleState
 
     public CombatStateObservation Observe(ProjectionOtherObj projection)
     {
+        targetSetsByCandidate.Clear();
         var state = new CombatStateObservation
         {
             BattleSessionId = AuraShared.Core.AuraBattleLifecycleRouter.CurrentBattleSessionId,
@@ -253,6 +203,15 @@ internal sealed class ProjectionCardBattleState
 
         foreach (var card in cards.Where(card => card.Zone == CombatActorCardZone.Hand))
         {
+            if (!card.TryPrepare(projection.Status, out var prepareReason))
+            {
+                TerriasLog.Warn("[ProjectionCards] skipped unavailable baseline card: "
+                    + card.CardId
+                    + "; "
+                    + prepareReason);
+                continue;
+            }
+            card.Refresh(projection.Status, revision);
             AddCardActions(state, projection.Status, card, enemies, friendlyStatuses);
         }
         state.Actions.Add(new CombatActionObservation
@@ -279,6 +238,12 @@ internal sealed class ProjectionCardBattleState
                 "projection card instance is no longer in hand",
                 CombatAgentFailureScope.CardInstance);
         }
+        if (!card.TryPrepare(projection.Status, out var prepareReason))
+        {
+            return CombatAgentPreflightResult.Reject(
+                prepareReason,
+                CombatAgentFailureScope.CardInstance);
+        }
         if (card.Cost(projection.Status) > CurrentPower)
         {
             return CombatAgentPreflightResult.Reject(
@@ -291,21 +256,24 @@ internal sealed class ProjectionCardBattleState
                 reason,
                 CombatAgentFailureScope.Turn);
         }
-        IStatusManager? target = null;
-        if (action.TargetRuntimeId != 0
-            && !TryStatus(action.TargetRuntimeId, out target))
+        if (!TryResolveTargets(action, out var targets))
         {
             return CombatAgentPreflightResult.Reject(
                 "projection card target is no longer available",
                 CombatAgentFailureScope.Candidate);
         }
-        var mode = ProjectionCardTargetPolicy.Resolve(card.Config);
+        var declaration = ProjectionCardTargetPolicy.ResolveDeclaration(card.Config);
         var enemies = AliveStatuses(status => status.fatherObject is Enemy
                                              && !HeartChangeControlService.IsControlled(status)).ToArray();
         var friendlies = CompanionFriendlyRosterService.Snapshot(true)
             .Where(status => !string.Equals(status.InstanceId, projection.InstanceId, StringComparison.Ordinal))
             .ToArray();
-        if (!ProjectionCardTargetPolicy.IsLegalTarget(mode, projection.Status, target, enemies, friendlies))
+        if (!ProjectionCardTargetPolicy.IsLegalTargetSet(
+                declaration,
+                projection.Status,
+                targets,
+                enemies,
+                friendlies))
         {
             return CombatAgentPreflightResult.Reject(
                 "projection card target no longer satisfies content policy",
@@ -325,17 +293,23 @@ internal sealed class ProjectionCardBattleState
                 "projection card instance disappeared",
                 CombatAgentFailureScope.CardInstance);
         }
-        IStatusManager? target = null;
-        if (action.TargetRuntimeId != 0
-            && !TryStatus(action.TargetRuntimeId, out target))
+        if (!card.TryPrepare(projection.Status, out var prepareReason))
+        {
+            return CombatAgentExecutionResult.Reject(
+                prepareReason,
+                CombatAgentFailureScope.CardInstance);
+        }
+        if (!TryResolveTargets(action, out var targets))
         {
             return CombatAgentExecutionResult.Reject(
                 "projection card target disappeared",
                 CombatAgentFailureScope.Candidate);
         }
+        var target = targets.FirstOrDefault();
 
         var cost = card.Cost(projection.Status);
         var committed = false;
+        var actionFramePublished = false;
         try
         {
             CurrentPower -= cost;
@@ -343,24 +317,44 @@ internal sealed class ProjectionCardBattleState
             ProjectionCardPresentationService.PublishCommitted(
                 projection,
                 card.Config,
-                target,
-                revision + 1,
+                targets,
                 "ProjectionCardBattleState.Execute");
             if (!TryExecuteSpecialCard(projection, card, target))
             {
-                card.Execute(projection, target);
+                card.Execute(projection, targets);
             }
+            card.LeaveHand();
             card.MoveAfterUse();
+            if (card.Zone == CombatActorCardZone.DiscardPile)
+            {
+                card.EnterDiscard(projection.Status);
+            }
+            else if (card.Zone == CombatActorCardZone.Hand)
+            {
+                card.EnterHand(projection.Status);
+            }
             ReindexZones();
             revision++;
-            ProjectionSummonService.BroadcastRuntimeState(
+            ProjectionCardPresentationService.BroadcastCommitted(
                 projection,
+                card.Config,
+                targets,
                 "ActorActionCommitted." + card.CardId);
+            actionFramePublished = true;
             return CombatAgentExecutionResult.AwaitSettlement(
                 "projection card committed");
         }
         catch (Exception ex)
         {
+            if (committed && !actionFramePublished)
+            {
+                revision++;
+                ProjectionCardPresentationService.BroadcastCommitted(
+                    projection,
+                    card.Config,
+                    targets,
+                    "ActorActionCommitted.Failed." + card.CardId);
+            }
             TerriasLog.Error("[ProjectionCards] card execution failed: actor="
                 + projection.InstanceId
                 + ", card="
@@ -403,7 +397,8 @@ internal sealed class ProjectionCardBattleState
             {
                 var discarded = MoveOtherHandCards(
                     card,
-                    CombatActorCardZone.DiscardPile);
+                    CombatActorCardZone.DiscardPile,
+                    executor.Self);
                 executor.SetStatus("Self");
                 if (discarded > 0)
                 {
@@ -411,7 +406,7 @@ internal sealed class ProjectionCardBattleState
                         TerriasIds.SolarRadiance,
                         discarded.ToString(CultureInfo.InvariantCulture));
                 }
-                Draw(3);
+                Draw(3, executor.Self);
                 return;
             }
             case "radiant_oath":
@@ -427,19 +422,20 @@ internal sealed class ProjectionCardBattleState
                 }
                 else
                 {
-                    Draw(1);
+                    Draw(1, executor.Self);
                 }
                 return;
             case "solar_return":
                 executor.SetStatus("Self");
                 executor.AddBuff(TerriasIds.SolarRadiance, "1");
-                Draw(1);
+                Draw(1, executor.Self);
                 return;
             case "solar_origin_core":
             {
                 var burned = MoveOtherHandCards(
                     card,
-                    CombatActorCardZone.ExhaustPile);
+                    CombatActorCardZone.ExhaustPile,
+                    executor.Self);
                 CurrentPower = Math.Min(MaxPower, CurrentPower + burned);
                 return;
             }
@@ -459,7 +455,7 @@ internal sealed class ProjectionCardBattleState
                     executor.AddBuff(
                         TerriasIds.GatheredFlame,
                         converted.ToString(CultureInfo.InvariantCulture));
-                    Draw(converted / 5);
+                    Draw(converted / 5, executor.Self);
                 }
                 return;
             }
@@ -471,21 +467,27 @@ internal sealed class ProjectionCardBattleState
 
     private int MoveOtherHandCards(
         ProjectionCardInstance current,
-        CombatActorCardZone destination)
+        CombatActorCardZone destination,
+        IStatusManager? actor)
     {
         var moved = 0;
         foreach (var other in cards.Where(candidate =>
                      !ReferenceEquals(candidate, current)
                      && candidate.Zone == CombatActorCardZone.Hand))
         {
+            other.LeaveHand();
             other.Zone = destination;
+            if (destination == CombatActorCardZone.DiscardPile)
+            {
+                other.EnterDiscard(actor);
+            }
             moved++;
         }
         ReindexZones();
         return moved;
     }
 
-    private static void AddCardActions(
+    private void AddCardActions(
         CombatStateObservation state,
         IStatusManager actor,
         ProjectionCardInstance card,
@@ -493,35 +495,94 @@ internal sealed class ProjectionCardBattleState
         IReadOnlyList<IStatusManager> friendlies)
     {
         var cost = card.Cost(actor);
-        var mode = ProjectionCardTargetPolicy.Resolve(card.Config);
+        var declaration = ProjectionCardTargetPolicy.ResolveDeclaration(card.Config);
+        var mode = declaration.Mode;
         if (mode is ProjectionCardTargetMode.SingleEnemy or ProjectionCardTargetMode.AnySingleUnit)
         {
             foreach (var enemy in enemies)
             {
-                AddAction(state, card, enemy, CombatTargetKind.Enemy, cost);
+                AddAction(state, card, new[] { enemy }, CombatTargetKind.Enemy, cost);
             }
         }
         if (mode is ProjectionCardTargetMode.SingleFriendly or ProjectionCardTargetMode.AnySingleUnit)
         {
             foreach (var friendly in friendlies)
             {
-                AddAction(state, card, friendly, CombatTargetKind.Friendly, cost);
+                AddAction(state, card, new[] { friendly }, CombatTargetKind.Friendly, cost);
             }
         }
         if (mode is ProjectionCardTargetMode.Self or ProjectionCardTargetMode.AnySingleUnit)
         {
-            AddAction(state, card, null, CombatTargetKind.Self, cost);
+            AddAction(state, card, new[] { actor }, CombatTargetKind.Self, cost);
         }
         else if (mode == ProjectionCardTargetMode.NoTarget)
         {
-            AddAction(state, card, null, CombatTargetKind.None, cost);
+            AddAction(state, card, Array.Empty<IStatusManager>(), CombatTargetKind.None, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.AllEnemies && enemies.Count > 0)
+        {
+            AddAction(state, card, enemies, CombatTargetKind.Enemy, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.AllFriendlies)
+        {
+            var pool = declaration.IncludeSelf
+                ? friendlies.Concat(new[] { actor })
+                : friendlies;
+            var targets = pool
+                .OrderBy(status => status.MaxHp <= 0
+                    ? 1d
+                    : (double)status.CurHp / status.MaxHp)
+                .ThenBy(status => status.InstanceId, StringComparer.Ordinal)
+                .ToArray();
+            if (targets.Length > 0) AddAction(state, card, targets, CombatTargetKind.Friendly, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.RandomEnemyN && enemies.Count > 0)
+        {
+            AddAction(state, card, StableSample(
+                enemies,
+                declaration.Count,
+                card.RuntimeId ^ turnIndex * 397 ^ revision), CombatTargetKind.Enemy, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.RandomFriendlyN)
+        {
+            var pool = declaration.IncludeSelf
+                ? friendlies.Concat(new[] { actor }).ToArray()
+                : friendlies.ToArray();
+            if (pool.Length > 0) AddAction(state, card, StableSample(
+                pool,
+                declaration.Count,
+                card.RuntimeId ^ turnIndex * 397 ^ revision), CombatTargetKind.Friendly, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.DeclaredTargetSet)
+        {
+            var kinds = new HashSet<string>(
+                (declaration.SetKinds ?? "").Split(
+                    new[] { ',', ';', '|', ' ' },
+                    StringSplitOptions.RemoveEmptyEntries),
+                StringComparer.OrdinalIgnoreCase);
+            var pool = (kinds.Contains("Enemies")
+                    ? enemies
+                    : Array.Empty<IStatusManager>())
+                .Concat(kinds.Contains("Friendlies")
+                    ? friendlies
+                    : Array.Empty<IStatusManager>())
+                .Concat(kinds.Contains("Self") || declaration.IncludeSelf
+                    ? new[] { actor }
+                    : Array.Empty<IStatusManager>())
+                .ToArray();
+            if (pool.Length > 0) AddAction(
+                state,
+                card,
+                pool.OrderBy(RuntimeId).Take(Math.Max(1, declaration.Count)).ToArray(),
+                CombatTargetKind.None,
+                cost);
         }
     }
 
-    private static void AddAction(
+    private void AddAction(
         CombatStateObservation state,
         ProjectionCardInstance card,
-        IStatusManager? target,
+        IReadOnlyCollection<IStatusManager> targets,
         CombatTargetKind targetKind,
         int cost)
     {
@@ -529,13 +590,25 @@ internal sealed class ProjectionCardBattleState
             card.Config,
             forceAttack: false,
             targetKind);
-        var targetRuntimeId = RuntimeId(target);
-        var action = new CombatActionObservation
+        var targetRuntimeIds = (targets ?? Array.Empty<IStatusManager>())
+            .Where(target => target != null)
+            .Select(RuntimeId)
+            .Distinct()
+            .ToArray();
+        var targetRuntimeId = targetRuntimeIds.FirstOrDefault();
+        if (targetKind == CombatTargetKind.Enemy && targetRuntimeIds.Length > 1)
         {
-            CandidateId = "projection:card:"
+            semantics.AffectedEnemyCount = Math.Max(
+                semantics.AffectedEnemyCount,
+                targetRuntimeIds.Length);
+        }
+        var candidateId = "projection:card:"
                           + card.RuntimeId
                           + ":"
-                          + targetRuntimeId,
+                          + string.Join("-", targetRuntimeIds);
+        var action = new CombatActionObservation
+        {
+            CandidateId = candidateId,
             SourceId = "projection-card:" + card.CardId,
             DisplayName = card.DisplayName,
             Kind = CombatActionKind.PlayCard,
@@ -551,11 +624,50 @@ internal sealed class ProjectionCardBattleState
             SemanticSource = "projection-card-runtime"
         };
         action.Features["projectionActor"] = 1d;
+        action.Features["targetCount"] = targetRuntimeIds.Length;
         action.Features["headlessSupported"] = card.HeadlessSupported(out _) ? 1d : 0d;
+        targetSetsByCandidate[candidateId] = targetRuntimeIds;
         state.Actions.Add(action);
     }
 
-    private void Draw(int count)
+    private bool TryResolveTargets(
+        CombatActionObservation action,
+        out IReadOnlyList<IStatusManager> targets)
+    {
+        var ids = targetSetsByCandidate.TryGetValue(action.CandidateId ?? "", out var declared)
+            ? declared
+            : action.TargetRuntimeId == 0
+                ? Array.Empty<int>()
+                : new[] { action.TargetRuntimeId };
+        var result = new List<IStatusManager>(ids.Length);
+        foreach (var id in ids)
+        {
+            if (!TryStatus(id, out var target) || target == null)
+            {
+                targets = Array.Empty<IStatusManager>();
+                return false;
+            }
+            result.Add(target);
+        }
+        targets = result;
+        return true;
+    }
+
+    private static IReadOnlyList<IStatusManager> StableSample(
+        IReadOnlyCollection<IStatusManager> source,
+        int count,
+        int salt)
+    {
+        var values = source.OrderBy(RuntimeId).ToArray();
+        if (values.Length == 0) return values;
+        var take = Math.Min(values.Length, Math.Max(1, count));
+        var start = Math.Abs(salt) % values.Length;
+        return Enumerable.Range(0, take)
+            .Select(index => values[(start + index) % values.Length])
+            .ToArray();
+    }
+
+    private void Draw(int count, IStatusManager? actor)
     {
         for (var index = 0; index < count; index++)
         {
@@ -576,6 +688,7 @@ internal sealed class ProjectionCardBattleState
                 break;
             }
             drawPile[0].Zone = CombatActorCardZone.Hand;
+            drawPile[0].EnterHand(actor);
             ReindexZones();
         }
     }
@@ -623,107 +736,6 @@ internal sealed class ProjectionCardBattleState
         }
     }
 
-    private static void AddCardItems(
-        ICollection<ProjectionCardInstance> result,
-        ISet<DataConfig> captured,
-        IEnumerable<CardItem>? source,
-        CombatActorCardZone zone)
-    {
-        var index = 0;
-        foreach (var item in source ?? Enumerable.Empty<CardItem>())
-        {
-            if (item?.dataConfig == null || !captured.Add(item.dataConfig))
-            {
-                continue;
-            }
-            var card = ProjectionCardInstance.Capture(
-                item.dataConfig,
-                zone,
-                index++,
-                item.Tags,
-                item.enchScriptExecutor?.dataConfig,
-                out var reason);
-            if (card != null)
-            {
-                result.Add(card);
-            }
-            else
-            {
-                TerriasLog.Warn("[ProjectionCards] skipped card capture: " + reason);
-            }
-        }
-    }
-
-    private static void AddConfigs(
-        ICollection<ProjectionCardInstance> result,
-        ISet<DataConfig> captured,
-        IEnumerable<DataConfig>? source,
-        CombatActorCardZone zone)
-    {
-        var index = 0;
-        foreach (var config in source ?? Enumerable.Empty<DataConfig>())
-        {
-            if (config == null || !captured.Add(config))
-            {
-                continue;
-            }
-            var tags = FightCardManager.Instance?.CardTags?.TryGetValue(
-                config,
-                out var currentTags) == true
-                ? currentTags
-                : new HashSet<string>();
-            var card = ProjectionCardInstance.Capture(
-                config,
-                zone,
-                index++,
-                tags,
-                AttachmentFor(config),
-                out var reason);
-            if (card != null)
-            {
-                result.Add(card);
-            }
-            else
-            {
-                TerriasLog.Warn("[ProjectionCards] skipped config capture: " + reason);
-            }
-        }
-    }
-
-    private static void AddExhaustedConfigs(
-        ICollection<ProjectionCardInstance> result,
-        ISet<DataConfig> captured,
-        FightCardManager manager)
-    {
-        var activeIds = new HashSet<string>(
-            captured.Select(config => config.InstanceID ?? ""),
-            StringComparer.Ordinal);
-        var index = 0;
-        foreach (var config in RoleTable.Instance?.cardList
-                     ?? Enumerable.Empty<DataConfig>())
-        {
-            var instanceId = config?.InstanceID ?? "";
-            if (config == null
-                || instanceId.Length == 0
-                || activeIds.Contains(instanceId)
-                || manager.FightcardList.Contains(config))
-            {
-                continue;
-            }
-            var card = ProjectionCardInstance.Capture(
-                config,
-                CombatActorCardZone.ExhaustPile,
-                index++,
-                new HashSet<string>(),
-                AttachmentFor(config),
-                out _);
-            if (card != null)
-            {
-                result.Add(card);
-            }
-        }
-    }
-
     private static IEnumerable<IStatusManager> AliveStatuses(
         Func<IStatusManager, bool> predicate)
     {
@@ -743,29 +755,12 @@ internal sealed class ProjectionCardBattleState
         }
     }
 
-    private static IDataConfig? AttachmentFor(DataConfig config)
-    {
-        try
-        {
-            return config != null
-                   && RoleTable.Instance?.enchasedDict?.TryGetValue(
-                       config.InstanceID,
-                       out var attachment) == true
-                ? attachment
-                : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     private static CombatUnitObservation ObserveUnit(
         IStatusManager? status,
         CombatTargetKind kind)
     {
         var actor = status?.fatherObject as OtherObj;
-        return new CombatUnitObservation
+        var result = new CombatUnitObservation
         {
             RuntimeId = RuntimeId(status),
             DefinitionId = actor?.data?.TryGetValue("Id", out var id) == true
@@ -778,6 +773,37 @@ internal sealed class ProjectionCardBattleState
             Defend = status?.Defend ?? 0,
             Attack = actor?.Attack ?? 0
         };
+        if (status is StatusManager manager)
+        {
+            try
+            {
+                foreach (var buff in (manager.GetBuffs() ?? Array.Empty<IBuffItem>()).Take(64))
+                {
+                    var config = buff?.buffConfig;
+                    if (config == null || string.IsNullOrWhiteSpace(config.BuffId)) continue;
+                    var level = Math.Max(0, config.Level);
+                    result.Features["status:" + config.BuffId] = level;
+                    result.Statuses.Add(new CombatStatusObservation
+                    {
+                        StatusId = config.BuffId,
+                        DisplayName = config.BuffName ?? "",
+                        Level = level,
+                        UpperBound = config.UpperBound,
+                        ReducePerTurn = config.ReducePerTurn,
+                        ReducePerUse = config.ReducePerUse,
+                        ReducePerAttacked = config.ReducePerAttacked,
+                        Type = config.Type ?? ""
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                TerriasLog.Debug("[ProjectionCards] status observation fallback: " + ex.Message);
+            }
+        }
+        result.Features["missingHp"] = Math.Max(0, result.MaxHp - result.CurrentHp);
+        result.Features["effectiveHp"] = Math.Max(0, result.CurrentHp + result.Defend);
+        return result;
     }
 
     private static bool TryStatus(int runtimeId, out IStatusManager? status)
@@ -817,56 +843,38 @@ internal sealed class ProjectionCardBattleState
                    enemy.RuntimeId + "=" + enemy.CurrentHp));
     }
 
-    private static int ReadRuntimeInt(
-        CombatActorCardStateSnapshot snapshot,
-        string key,
-        int fallback)
-    {
-        return snapshot.RuntimeVariables.TryGetValue(key, out var value)
-            ? (int)Math.Round(value, MidpointRounding.AwayFromZero)
-            : fallback;
-    }
-
-    private sealed class ReferenceEqualityComparer<T> : IEqualityComparer<T>
-        where T : class
-    {
-        public static readonly ReferenceEqualityComparer<T> Instance = new();
-
-        public bool Equals(T? left, T? right) => ReferenceEquals(left, right);
-
-        public int GetHashCode(T value) =>
-            System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
-    }
 }
 
 internal sealed class ProjectionCardInstance
 {
     private static int nextRuntimeId = 100000;
     private readonly List<DataConfig> attachments;
-    private readonly string sourceInstanceId;
+    private readonly string cardId;
+    private readonly ProjectionDeckCardRecipe? baselineRecipe;
+    private DataConfig? config;
+    private bool materializationAttempted;
+    private bool initialized;
+    private int lastRefreshRevision;
+    private bool inHandLifecycle;
+    private string materializationReason = "";
 
     private ProjectionCardInstance(
-        DataConfig config,
-        IEnumerable<DataConfig> attachments,
-        IEnumerable<string> tags,
+        ProjectionDeckCardRecipe recipe,
         CombatActorCardZone zone,
-        int zoneIndex,
-        string sourceInstanceId,
-        string snapshotInstanceId)
+        int zoneIndex)
     {
-        Config = config;
-        this.attachments = attachments.Where(item => item != null).ToList();
-        Tags = new HashSet<string>(tags ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+        baselineRecipe = recipe;
+        cardId = recipe.CardId;
+        attachments = new List<DataConfig>();
+        Tags = new HashSet<string>(StringComparer.Ordinal);
         Zone = zone;
         ZoneIndex = Math.Max(0, zoneIndex);
-        this.sourceInstanceId = sourceInstanceId ?? "";
-        SnapshotInstanceId = string.IsNullOrWhiteSpace(snapshotInstanceId)
-            ? Guid.NewGuid().ToString("N")
-            : snapshotInstanceId;
         RuntimeId = System.Threading.Interlocked.Increment(ref nextRuntimeId);
     }
 
-    public DataConfig Config { get; }
+    public DataConfig Config => config
+        ?? throw new InvalidOperationException(
+            "projection baseline card is not materialized: " + cardId);
 
     public HashSet<string> Tags { get; }
 
@@ -876,115 +884,222 @@ internal sealed class ProjectionCardInstance
 
     public int RuntimeId { get; }
 
-    public string SnapshotInstanceId { get; }
+    public string CardId => cardId;
 
-    public string CardId => DictionaryUtil.Get(Config.data, "Id");
-
-    public string DisplayName => Config.data.Localize("Name");
+    public string DisplayName => config?.data.Localize("Name") ?? cardId;
 
     public bool Retained => Tags.Contains("Froze")
                             || Tags.Contains("Retain")
                             || Tags.Contains("Retained");
 
-    public static ProjectionCardInstance? Capture(
-        DataConfig source,
+    public static ProjectionCardInstance CreateBaseline(
+        ProjectionDeckCardRecipe recipe,
         CombatActorCardZone zone,
-        int zoneIndex,
-        IEnumerable<string> tags,
-        IDataConfig? attachment,
-        out string reason)
+        int zoneIndex)
     {
-        var config = CloneConfig(source, out reason);
-        if (config == null)
-        {
-            return null;
-        }
-        var attachments = new List<DataConfig>();
-        if (attachment != null
-            && CloneConfig(attachment, out _) is { } clonedAttachment)
-        {
-            attachments.Add(clonedAttachment);
-        }
-        return new ProjectionCardInstance(
-            config,
-            attachments,
-            tags,
-            zone,
-            zoneIndex,
-            source.InstanceID ?? "",
-            Guid.NewGuid().ToString("N"));
+        return new ProjectionCardInstance(recipe, zone, zoneIndex);
     }
 
-    public static ProjectionCardInstance? Hydrate(
-        CombatCardInstanceSnapshot snapshot,
-        out string reason)
+    public bool TryPrepare(IStatusManager? actor, out string reason)
     {
-        var config = Materialize(
-            snapshot.DefinitionType,
-            snapshot.CardId,
-            snapshot.RuntimeData,
-            snapshot.RuntimeVariables,
-            out reason);
+        if (!TryMaterialize(out reason))
+        {
+            return false;
+        }
+        if (!HeadlessSupported(out reason))
+        {
+            return false;
+        }
+        if (initialized)
+        {
+            return true;
+        }
+        if (actor == null)
+        {
+            reason = "projection actor is unavailable while initializing card";
+            return false;
+        }
+
+        try
+        {
+            PrepareExecutor(Config.scriptExecutor, actor, actor);
+            Config.scriptExecutor.RunScript("InitScript");
+            foreach (var attachment in attachments)
+            {
+                PrepareExecutor(attachment.scriptExecutor, actor, actor);
+                attachment.scriptExecutor.RunScript("InitScript");
+            }
+            RefreshTags();
+            initialized = true;
+            lastRefreshRevision = 0;
+            reason = "";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            reason = "projection baseline card initialization failed: " + ex.Message;
+            return false;
+        }
+    }
+
+    public void Refresh(IStatusManager? actor, int stateRevision)
+    {
+        if (!initialized || actor == null || stateRevision <= lastRefreshRevision)
+        {
+            return;
+        }
+        try
+        {
+            PrepareExecutor(Config.scriptExecutor, actor, actor);
+            Config.scriptExecutor.RunScript("InitScript");
+            foreach (var attachment in attachments)
+            {
+                PrepareExecutor(attachment.scriptExecutor, actor, actor);
+                attachment.scriptExecutor.RunScript("InitScript");
+            }
+            RefreshTags();
+            lastRefreshRevision = stateRevision;
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[ProjectionCards] refresh skipped: " + ex.Message);
+        }
+    }
+
+    public void EnterHand(IStatusManager? actor)
+    {
+        if (inHandLifecycle) return;
+        inHandLifecycle = true;
+        RunLifecycleScript("DrawScript", actor);
+    }
+
+    public void LeaveHand()
+    {
+        inHandLifecycle = false;
+    }
+
+    public void EnterDiscard(IStatusManager? actor)
+    {
+        LeaveHand();
+        RunLifecycleScript("DropScript", actor);
+        if (string.Equals(
+                DictionaryUtil.Get(Config.Vars, "NeedRemove"),
+                "True",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Zone = CombatActorCardZone.ExhaustPile;
+        }
+    }
+
+    public void EndTurn(IStatusManager? actor)
+    {
+        EnterDiscard(actor);
+    }
+
+    private void RunLifecycleScript(string scriptName, IStatusManager? actor)
+    {
+        if (actor == null || !TryPrepare(actor, out _))
+        {
+            return;
+        }
+        var script = DictionaryUtil.Get(Config.data, scriptName);
+        if (string.IsNullOrWhiteSpace(script)
+            || !ProjectionWrappedCardPolicy.IsLifecycleSafe(CardId, script))
+        {
+            return;
+        }
+        try
+        {
+            PrepareExecutor(Config.scriptExecutor, actor, null);
+            Config.scriptExecutor.RunScript(scriptName);
+            foreach (var attachment in attachments)
+            {
+                var attachmentScript = DictionaryUtil.Get(attachment.data, scriptName);
+                if (string.IsNullOrWhiteSpace(attachmentScript)
+                    || !ProjectionWrappedCardPolicy.IsLifecycleSafe(CardId, attachmentScript))
+                {
+                    continue;
+                }
+                PrepareExecutor(attachment.scriptExecutor, actor, null);
+                attachment.scriptExecutor.RunScript(scriptName);
+            }
+            RefreshTags();
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[ProjectionCards] " + scriptName + " skipped: " + ex.Message);
+        }
+    }
+
+    private bool TryMaterialize(out string reason)
+    {
+        if (config != null)
+        {
+            reason = "";
+            return true;
+        }
+        if (materializationAttempted || baselineRecipe == null)
+        {
+            reason = materializationReason.Length > 0
+                ? materializationReason
+                : "projection baseline card recipe is unavailable";
+            return false;
+        }
+
+        materializationAttempted = true;
+        config = Materialize(
+            baselineRecipe.DefinitionType,
+            baselineRecipe.CardId,
+            new Dictionary<string, string>(),
+            new Dictionary<string, string>(),
+            out materializationReason);
         if (config == null)
         {
-            return null;
+            reason = materializationReason;
+            return false;
         }
-        var attachments = new List<DataConfig>();
-        foreach (var attachment in snapshot.AttachmentStates
-                     ?? new List<CombatCardAttachmentSnapshot>())
+
+        if (!string.IsNullOrWhiteSpace(baselineRecipe.AttachmentId))
         {
-            var hydrated = Materialize(
-                attachment.DefinitionType,
-                attachment.AttachmentId,
-                attachment.RuntimeData,
-                attachment.Variables,
+            var attachment = Materialize(
+                baselineRecipe.AttachmentType,
+                baselineRecipe.AttachmentId,
+                new Dictionary<string, string>(),
+                new Dictionary<string, string>(),
                 out _);
-            if (hydrated != null)
+            if (attachment != null)
             {
-                attachments.Add(hydrated);
+                attachments.Add(attachment);
             }
         }
-        return new ProjectionCardInstance(
-            config,
-            attachments,
-            snapshot.Tags,
-            snapshot.Zone,
-            snapshot.ZoneIndex,
-            snapshot.SourceInstanceId,
-            snapshot.InstanceId);
+        TerriasPerformanceCounters.Record("Projection.CardMaterialized");
+        RefreshTags();
+        reason = "";
+        return true;
     }
 
-    public CombatCardInstanceSnapshot Export()
+    private void RefreshTags()
     {
-        var runtimeVariables = CopyRuntimeVariables(Config.Vars);
-        return new CombatCardInstanceSnapshot
+        Tags.Clear();
+        AddTags(DictionaryUtil.Get(config?.data, "Tag"));
+        AddTags(DictionaryUtil.Get(config?.Vars, "Tag"));
+        AddTags(DictionaryUtil.Get(config?.Vars, "SpecialTag"));
+        foreach (var attachment in attachments)
         {
-            InstanceId = SnapshotInstanceId,
-            SourceInstanceId = sourceInstanceId,
-            CardId = CardId,
-            DefinitionType = Config.Type.ToString(),
-            Zone = Zone,
-            ZoneIndex = ZoneIndex,
-            EffectiveCost = Cost(null),
-            Retained = Retained,
-            ExhaustsOnUse = ExhaustsOnUse(),
-            RuntimeData = CopyOverrides(Config),
-            RuntimeVariables = runtimeVariables,
-            Tags = Tags.OrderBy(value => value, StringComparer.Ordinal).ToList(),
-            Attachments = attachments
-                .Select(config => DictionaryUtil.Get(config.data, "Id"))
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .ToList(),
-            AttachmentStates = attachments.Select(config =>
-                    new CombatCardAttachmentSnapshot
-                    {
-                        AttachmentId = DictionaryUtil.Get(config.data, "Id"),
-                        DefinitionType = config.Type.ToString(),
-                        RuntimeData = CopyOverrides(config),
-                        Variables = CopyRuntimeVariables(config.Vars)
-                    })
-                .ToList()
-        };
+            AddTags(DictionaryUtil.Get(attachment.data, "Tag"));
+            AddTags(DictionaryUtil.Get(attachment.Vars, "Tag"));
+            AddTags(DictionaryUtil.Get(attachment.Vars, "SpecialTag"));
+        }
+    }
+
+    private void AddTags(string value)
+    {
+        foreach (var tag in (value ?? "").Split(
+                     new[] { ',', ';', '|', ' ', '\t', '\r', '\n' },
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            Tags.Add(tag.Trim());
+        }
     }
 
     public int Cost(IStatusManager? actor)
@@ -1005,11 +1120,28 @@ internal sealed class ProjectionCardInstance
     public bool HeadlessSupported(out string reason)
     {
         var script = string.Join("\n", Config.data.Values ?? Enumerable.Empty<string>());
-        if (script.IndexOf("CS.", StringComparison.Ordinal) >= 0
-            && !ProjectionWrappedCardPolicy.IsHeadlessSafe(CardId, script))
+        var scriptScan = script;
+        var capability = ProjectionCardExecutionPolicy.Resolve(Config, CardId, script);
+        if (capability.Mode == ProjectionCardExecutionMode.Unsupported)
         {
             reason = "projection card uses wrapped behavior without an actor-safe declaration";
             return false;
+        }
+        foreach (var attachment in attachments)
+        {
+            var attachmentId = DictionaryUtil.Get(attachment.data, "Id");
+            var attachmentScript = string.Join(
+                "\n",
+                attachment.data.Values ?? Enumerable.Empty<string>());
+            scriptScan += "\n" + attachmentScript;
+            if (ProjectionCardExecutionPolicy.Resolve(
+                    attachment,
+                    attachmentId,
+                    attachmentScript).Mode == ProjectionCardExecutionMode.Unsupported)
+            {
+                reason = "projection card attachment is not actor-safe: " + attachmentId;
+                return false;
+            }
         }
         var unsupported = new[]
         {
@@ -1019,7 +1151,7 @@ internal sealed class ProjectionCardInstance
             "CurPowerCount", "ChangePower(", "GainPower("
         };
         var token = unsupported.FirstOrDefault(value =>
-            script.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
+            scriptScan.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
         if (token != null)
         {
             reason = "projection card requires player-only behavior: " + token;
@@ -1029,11 +1161,13 @@ internal sealed class ProjectionCardInstance
         return true;
     }
 
-    public void Execute(ProjectionOtherObj actor, IStatusManager? target)
+    public void Execute(
+        ProjectionOtherObj actor,
+        IReadOnlyList<IStatusManager> targets)
     {
         ExecuteCore(
             actor,
-            target,
+            targets,
             executor => executor.RunScript("UseScript"));
     }
 
@@ -1042,12 +1176,15 @@ internal sealed class ProjectionCardInstance
         IStatusManager? target,
         Action<ScriptExecutor> execute)
     {
-        ExecuteCore(actor, target, execute);
+        ExecuteCore(
+            actor,
+            target == null ? Array.Empty<IStatusManager>() : new[] { target },
+            execute);
     }
 
     private void ExecuteCore(
         ProjectionOtherObj actor,
-        IStatusManager? target,
+        IReadOnlyList<IStatusManager> targets,
         Action<ScriptExecutor> execute)
     {
         var self = actor.Status;
@@ -1056,7 +1193,7 @@ internal sealed class ProjectionCardInstance
             throw new InvalidOperationException("projection status is unavailable");
         }
 
-        PrepareExecutor(Config.scriptExecutor, self, target);
+        PrepareExecutorTargets(Config.scriptExecutor, self, targets);
         if (Config.scriptExecutor is not ScriptExecutor executor)
         {
             throw new InvalidOperationException(
@@ -1064,7 +1201,7 @@ internal sealed class ProjectionCardInstance
         }
         foreach (var attachment in attachments)
         {
-            PrepareExecutor(attachment.scriptExecutor, self, target);
+            PrepareExecutorTargets(attachment.scriptExecutor, self, targets);
         }
         EventCenter.Instance.EventTrigger(
             "Action" + self.InstanceId,
@@ -1134,19 +1271,26 @@ internal sealed class ProjectionCardInstance
         IStatusManager? target)
     {
         executor.Self = self;
-        executor.Target = target ?? self;
+        executor.Target = target;
         executor.Object.Clear();
-        executor.Object.Add(target ?? self);
+        if (target != null)
+        {
+            executor.Object.Add(target);
+        }
     }
 
-    private static DataConfig? CloneConfig(IDataConfig source, out string reason)
+    private static void PrepareExecutorTargets(
+        IScriptExecutor executor,
+        IStatusManager self,
+        IReadOnlyList<IStatusManager> targets)
     {
-        return Materialize(
-            source.Type.ToString(),
-            DictionaryUtil.Get(source.data, "Id"),
-            Copy(source.data),
-            Copy(source.Vars),
-            out reason);
+        executor.Self = self;
+        executor.Target = targets?.FirstOrDefault();
+        executor.Object.Clear();
+        foreach (var target in targets ?? Array.Empty<IStatusManager>())
+        {
+            if (target != null) executor.Object.Add(target);
+        }
     }
 
     private static DataConfig? Materialize(
@@ -1187,58 +1331,6 @@ internal sealed class ProjectionCardInstance
         }
         reason = materialized.Message;
         return null;
-    }
-
-    private static Dictionary<string, string> Copy(
-        IDictionary<string, string>? source)
-    {
-        return source == null
-            ? new Dictionary<string, string>(StringComparer.Ordinal)
-            : source.ToDictionary(
-                entry => entry.Key,
-                entry => entry.Value ?? "",
-                StringComparer.Ordinal);
-    }
-
-    private static Dictionary<string, string> CopyRuntimeVariables(
-        IDictionary<string, string>? source)
-    {
-        var result = Copy(source);
-        result.Remove("RawData");
-        return result;
-    }
-
-    private static Dictionary<string, string> CopyOverrides(DataConfig config)
-    {
-        var current = Copy(config?.data);
-        if (config == null)
-        {
-            return current;
-        }
-        try
-        {
-            var baseline = AuraGameDataHostApi.CopyRow(
-                config.Type,
-                DictionaryUtil.Get(config.data, "Id"));
-            if (baseline == null)
-            {
-                return current;
-            }
-            return current
-                .Where(entry => !baseline.TryGetValue(entry.Key, out var baseValue)
-                                || !string.Equals(
-                                    entry.Value,
-                                    baseValue,
-                                    StringComparison.Ordinal))
-                .ToDictionary(
-                    entry => entry.Key,
-                    entry => entry.Value,
-                    StringComparer.Ordinal);
-        }
-        catch
-        {
-            return current;
-        }
     }
 
     private static int ReadInt(IDictionary<string, string>? source, string key)
@@ -1311,6 +1403,15 @@ internal static class ProjectionWrappedCardPolicy
 
         var localId = TerriasContentIdCompatibility.LocalId(cardId);
         return SafeTerriasCards.Contains(localId);
+    }
+
+    public static bool IsLifecycleSafe(string cardId, string script)
+    {
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return true;
+        }
+        return ProjectionCardExecutionPolicy.Resolve(null, cardId, script).LifecycleSafe;
     }
 
     public static bool IsProjectionStateCard(string cardId)
@@ -1389,10 +1490,7 @@ internal sealed class ProjectionCombatAgentPort : ICombatAgentRuntimePort
 
     public void CompleteTurn(CombatAutoTurnResult result)
     {
-        state.CompleteTurn();
-        ProjectionSummonService.BroadcastRuntimeState(
-            projection,
-            "ActorTurnCompleted." + result.Reason);
+        state.CompleteTurn(projection.Status);
         TerriasLog.Info("[ProjectionCards] actor turn completed: status="
             + projection.InstanceId
             + ", reason="

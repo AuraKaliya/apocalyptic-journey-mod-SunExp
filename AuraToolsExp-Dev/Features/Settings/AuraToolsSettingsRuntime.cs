@@ -13,6 +13,7 @@ using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
+using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Skin;
@@ -911,14 +912,48 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(content, "开启后在联机大厅开始按钮下方显示 MOD 配置入口；非主机玩家可一键同步房主启用状态。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, AuraToolsConfigService.MatchExperience.ModSync.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
-        var damageMeter = AuraToolsConfigService.MatchExperience.DamageMeter;
-        CreateSubmodule(parent, "DPS统计模块", damageMeter.Enabled, value =>
+        var matchRecords = AuraToolsConfigService.MatchExperience.MatchRecords;
+        var damageMeter = matchRecords.Statistics;
+        CreateSubmodule(parent, "对局记录", matchRecords.Enabled, value =>
         {
-            damageMeter.Enabled = value;
+            matchRecords.Enabled = value;
             AuraToolsConfigService.SaveMatchExperience();
             AuraToolsDamageMeterRuntime.SetVisible(false);
         }, content =>
         {
+            var statisticsToggleRow = CreateInlineRow(content, "MatchRecordStatisticsToggleRow");
+            AuraToolsUi.AddText(statisticsToggleRow.transform, "DPT统计", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddToggle(statisticsToggleRow.transform, damageMeter.Enabled, value =>
+            {
+                damageMeter.Enabled = value;
+                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsDamageMeterRuntime.SetVisible(false);
+                RebuildPanel(activePanel!.transform);
+            });
+
+            var replayToggleRow = CreateInlineRow(content, "MatchRecordReplayToggleRow");
+            AuraToolsUi.AddText(replayToggleRow.transform, "自动记录完整战斗回放", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddToggle(replayToggleRow.transform, matchRecords.Replay.Enabled, value =>
+            {
+                matchRecords.Replay.Enabled = value;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            });
+
+            var replayLimitRow = CreateInlineRow(content, "MatchRecordReplayLimitRow");
+            AuraToolsUi.AddText(replayLimitRow.transform, "自动回放保存上限", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddInput(replayLimitRow.transform, matchRecords.Replay.AutoRecordLimit.ToString(CultureInfo.InvariantCulture), value =>
+            {
+                if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    matchRecords.Replay.AutoRecordLimit = parsed;
+                    matchRecords.Replay.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                }
+
+                RebuildPanel(activePanel!.transform);
+            }, 104f);
+
             var displayRow = CreateInlineRow(content, "DamageMeterDisplayModeRow");
             AuraToolsUi.AddText(displayRow.transform, "展示方式", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
@@ -954,10 +989,22 @@ public static class AuraToolsSettingsRuntime
                 RebuildPanel(activePanel!.transform);
             }, 96f);
 
+            var libraryRow = CreateInlineRow(content, "MatchRecordLibraryRow");
+            AuraToolsUi.AddText(
+                libraryRow.transform,
+                "自动记录：" + AuraToolsMatchRecordsRuntime.AutoRecordCount
+                + "，收藏对局：" + AuraToolsMatchRecordsRuntime.FavoriteRecordCount,
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(libraryRow.transform, "打开对局记录", () => AuraToolsMatchRecordsRuntime.OpenLibrary(activePanel!.transform), 128f);
+
             var historyRow = CreateInlineRow(content, "DamageMeterOutOfRunHistoryRow");
             AuraToolsUi.AddText(
                 historyRow.transform,
-                "局外历史记录：" + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount + " 条",
+                "DPT冒险历史：" + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount + " 条",
                 AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.Text,
@@ -965,12 +1012,12 @@ public static class AuraToolsSettingsRuntime
                 1f);
             AuraToolsUi.AddButton(
                 historyRow.transform,
-                "查看局外历史",
+                "查看DPT历史",
                 AuraToolsDamageMeterRuntime.OpenOutOfRunHistory,
                 128f);
 
             AuraToolsUi.AddText(content, "声明：该模块初始版本代码由【哈基米】提供，后续由【Aura】进行维护和功能开发。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
-        }, damageMeter.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+        }, matchRecords.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         CreateSubmodule(parent, "\u6280\u80fdCG\u7279\u6548\u7ba1\u7406", AuraToolsConfigService.SkillCg.Enabled, value =>
         {

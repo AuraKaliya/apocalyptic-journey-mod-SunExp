@@ -14,11 +14,17 @@ public sealed class ProjectionCompanionSnapshot
 
     public int BattleEpoch { get; set; }
 
-    public string RegistryHash { get; set; } = "";
+    public string CardModelVersion { get; set; } = "";
 
-    public int Revision { get; set; }
+    public string Generation { get; set; } = "";
 
-    public string Token { get; set; } = "";
+    public long StateRevision { get; set; }
+
+    public long ActionSequence { get; set; }
+
+    public long CompletedTurnSequence { get; set; }
+
+    public bool Active { get; set; } = true;
 
     public string RoleId { get; set; } = "";
 
@@ -29,8 +35,6 @@ public sealed class ProjectionCompanionSnapshot
     public string StatusId { get; set; } = "";
 
     public int SlotIndex { get; set; } = -1;
-
-    public bool Accepted { get; set; }
 
     public int MaxHp { get; set; }
 
@@ -44,25 +48,27 @@ public sealed class ProjectionCompanionSnapshot
 
     public int CurrentMagic { get; set; }
 
-    public int TurnIndex { get; set; }
-
-    public string RejectionReason { get; set; } = "";
-
 }
 
 [Serializable]
-public sealed class ProjectionPrepareResult
+public sealed class ProjectionSummonResultSnapshot
 {
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
-    public int BattleEpoch { get; set; }
+    public int ServerProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int ServerBattleEpoch { get; set; }
+    public string ServerCardModelVersion { get; set; } = ProjectionRoleDeckService.CardModelVersion;
     public string Token { get; set; } = "";
     public string RoleId { get; set; } = "";
     public string OwnerStatusId { get; set; } = "";
     public string OwnerPlayerId { get; set; } = "";
-    public int SlotIndex { get; set; } = -1;
+    public string StatusId { get; set; } = "";
+    public string Generation { get; set; } = "";
     public bool Accepted { get; set; }
+    public bool Terminal { get; set; } = true;
+    public ProjectionSummonFailureCode FailureCode { get; set; }
+    public ProjectionSummonFailureCategory FailureCategory { get; set; }
+    public bool Retryable { get; set; }
     public bool RefundCard { get; set; }
-    public string RejectionReason { get; set; } = "";
+    public string Detail { get; set; } = "";
 }
 
 [Serializable]
@@ -80,19 +86,25 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
 
     public int BattleEpoch { get; set; }
 
-    public string RegistryHash { get; set; } = "";
+    public string CardModelVersion { get; set; } = ProjectionRoleDeckService.CardModelVersion;
+
+    public string DeckRecipeHash { get; set; } = "";
 
     public RpcProjectionSummonRequest()
     {
     }
 
-    public RpcProjectionSummonRequest(string roleId, string ownerStatusId, string token)
+    public RpcProjectionSummonRequest(
+        string roleId,
+        string ownerStatusId,
+        string token,
+        string deckRecipeHash)
     {
         RoleId = roleId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
+        DeckRecipeHash = deckRecipeHash ?? "";
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
-        RegistryHash = ProjectionCardBattleState.ProtocolIdentity;
     }
 
     public void BindServerSender(TerriasRpcSender sender)
@@ -102,10 +114,19 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
 
     public override void CmdExecute()
     {
-        ProjectionSummonService.ResolveNetworkSummon(RoleId, OwnerStatusId, Token, serverSender, ProtocolVersion, BattleEpoch, RegistryHash);
+        ProjectionSummonService.ResolveNetworkSummon(
+            RoleId,
+            OwnerStatusId,
+            Token,
+            serverSender,
+            ProtocolVersion,
+            BattleEpoch,
+            CardModelVersion,
+            DeckRecipeHash);
         RoleId = "";
         OwnerStatusId = "";
-        RegistryHash = "";
+        CardModelVersion = "";
+        DeckRecipeHash = "";
     }
 
     public override void RpcExecute()
@@ -134,39 +155,45 @@ public sealed class RpcProjectionCompanionState : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcProjectionPrepareResult : RpcCommandBase
+public sealed class RpcProjectionSummonResult : RpcCommandBase
 {
-    public ProjectionPrepareResult Result { get; set; } = new();
+    public ProjectionSummonResultSnapshot Result { get; set; } = new();
 
-    public RpcProjectionPrepareResult()
+    public RpcProjectionSummonResult()
     {
     }
 
-    public RpcProjectionPrepareResult(ProjectionPrepareResult result)
+    public RpcProjectionSummonResult(ProjectionSummonResultSnapshot result)
     {
-        Result = result ?? new ProjectionPrepareResult();
+        Result = result ?? new ProjectionSummonResultSnapshot();
     }
 
     public override void RpcExecute()
     {
-        ProjectionSummonService.ApplyPrepareResult(Result, "RpcProjectionPrepareResult");
+        ProjectionSummonService.ApplySummonResult(Result, "RpcProjectionSummonResult");
     }
 }
 
 [Serializable]
-public sealed class RpcProjectionPrivateStateChunk : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcProjectionStateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
-    public string Token { get; set; } = "";
-    public int ChunkIndex { get; set; }
-    public int ChunkCount { get; set; }
-    public int TotalBytes { get; set; }
-    public int UncompressedBytes { get; set; }
-    public string Sha256 { get; set; } = "";
-    public byte[] Payload { get; set; } = Array.Empty<byte>();
+    public string StatusId { get; set; } = "";
+    public string Generation { get; set; } = "";
+
+    public RpcProjectionStateRequest()
+    {
+    }
+
+    public RpcProjectionStateRequest(string statusId, string generation)
+    {
+        StatusId = statusId ?? "";
+        Generation = generation ?? "";
+        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+    }
 
     public void BindServerSender(TerriasRpcSender sender)
     {
@@ -175,40 +202,14 @@ public sealed class RpcProjectionPrivateStateChunk : RpcCommandBase, ITerriasSer
 
     public override void CmdExecute()
     {
-        ProjectionSummonService.AcceptPrivateStateChunk(this, serverSender);
-        Payload = Array.Empty<byte>();
-        Sha256 = "";
-        Token = "";
-    }
-
-    public override void RpcExecute()
-    {
-    }
-}
-
-[Serializable]
-public sealed class RpcProjectionPrivateStateAbort : RpcCommandBase, ITerriasServerBoundRpcCommand
-{
-    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
-
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
-    public int BattleEpoch { get; set; }
-    public string Token { get; set; } = "";
-    public string Reason { get; set; } = "";
-
-    public void BindServerSender(TerriasRpcSender sender)
-    {
-        serverSender = sender ?? TerriasRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        ProjectionSummonService.AbortPrivateStateUpload(
-            Token,
-            Reason,
+        ProjectionSummonService.ResolveStateRequest(
+            StatusId,
+            Generation,
             serverSender,
             ProtocolVersion,
             BattleEpoch);
+        StatusId = "";
+        Generation = "";
     }
 
     public override void RpcExecute()
@@ -217,35 +218,41 @@ public sealed class RpcProjectionPrivateStateAbort : RpcCommandBase, ITerriasSer
 }
 
 [Serializable]
-public sealed class ProjectionCardPresentationSnapshot
+public sealed class ProjectionActionFrameSnapshot
 {
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
-    public string ActionId { get; set; } = "";
-    public int Sequence { get; set; }
+    public string Generation { get; set; } = "";
+    public long StateRevision { get; set; }
+    public long ActionSequence { get; set; }
+    public long CompletedTurnSequence { get; set; }
     public string ProjectionStatusId { get; set; } = "";
-    public string OwnerStatusId { get; set; } = "";
     public string CardId { get; set; } = "";
     public List<string> TargetStatusIds { get; set; } = new();
+    public int MaxHp { get; set; }
+    public int CurrentHp { get; set; }
+    public int Attack { get; set; }
+    public int Armor { get; set; }
+    public int CurrentMagic { get; set; }
 }
 
 [Serializable]
-public sealed class RpcProjectionCardPresentation : RpcCommandBase
+public sealed class RpcProjectionActionFrame : RpcCommandBase
 {
-    public ProjectionCardPresentationSnapshot Snapshot { get; set; } = new();
+    public ProjectionActionFrameSnapshot Snapshot { get; set; } = new();
 
-    public RpcProjectionCardPresentation()
+    public RpcProjectionActionFrame()
     {
     }
 
-    public RpcProjectionCardPresentation(ProjectionCardPresentationSnapshot snapshot)
+    public RpcProjectionActionFrame(ProjectionActionFrameSnapshot snapshot)
     {
-        Snapshot = snapshot ?? new ProjectionCardPresentationSnapshot();
+        Snapshot = snapshot ?? new ProjectionActionFrameSnapshot();
     }
 
     public override void RpcExecute()
     {
-        ProjectionCardPresentationService.Apply(Snapshot, null, "RpcProjectionCardPresentation");
+        ProjectionCardPresentationService.Apply(Snapshot, null, "RpcProjectionActionFrame");
     }
 }
 

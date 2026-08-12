@@ -140,15 +140,18 @@ public static class ProjectionStateStore
         ProjectionState? state = null;
         lock (SyncRoot)
         {
-            if (Projections.TryGetValue(status.InstanceId, out state))
-            {
-                Projections.Remove(status.InstanceId);
-            }
+            Projections.TryGetValue(status.InstanceId, out state);
         }
 
         if (state == null)
         {
             return;
+        }
+
+        ProjectionSummonService.BroadcastRetired(state, source);
+        lock (SyncRoot)
+        {
+            Projections.Remove(status.InstanceId);
         }
 
         try

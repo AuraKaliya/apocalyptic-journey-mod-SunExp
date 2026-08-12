@@ -52,6 +52,14 @@
       <HintPath>$(DllPath)\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>$(DllPath)\UnityEngine.ScreenCaptureModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>$(DllPath)\UnityEngine.VideoModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>$(DllPath)\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
@@ -100,6 +108,8 @@
       <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
 
   <Target

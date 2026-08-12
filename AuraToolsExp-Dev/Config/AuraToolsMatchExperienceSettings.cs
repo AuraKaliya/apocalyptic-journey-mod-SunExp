@@ -8,8 +8,13 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class AuraToolsMatchExperienceSettings
 {
+    private MatchRecordSettings matchRecords = new();
+    private bool hasMatchRecords;
+    private DamageMeterSettings? legacyDamageMeter;
+    private bool hasLegacyDamageMeter;
+
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 29;
+    public int SchemaVersion { get; set; } = 30;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -23,8 +28,29 @@ public sealed class AuraToolsMatchExperienceSettings
     [JsonProperty("feast")]
     public FeastSettings Feast { get; set; } = new();
 
+    [JsonProperty("matchRecords", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public MatchRecordSettings MatchRecords
+    {
+        get => matchRecords;
+        set
+        {
+            matchRecords = value ?? new MatchRecordSettings();
+            hasMatchRecords = true;
+        }
+    }
+
+    [JsonIgnore]
+    public DamageMeterSettings DamageMeter => MatchRecords.Statistics;
+
     [JsonProperty("damageMeter")]
-    public DamageMeterSettings DamageMeter { get; set; } = new();
+    private DamageMeterSettings? LegacyDamageMeter
+    {
+        set
+        {
+            legacyDamageMeter = value;
+            hasLegacyDamageMeter = true;
+        }
+    }
 
     [JsonProperty("cardRefresh")]
     public CardRefreshSettings CardRefresh { get; set; } = new();
@@ -35,7 +61,12 @@ public sealed class AuraToolsMatchExperienceSettings
     public void Normalize()
     {
         var loadedSchemaVersion = SchemaVersion;
-        SchemaVersion = Math.Max(29, SchemaVersion);
+        if (!hasMatchRecords && hasLegacyDamageMeter)
+        {
+            matchRecords = MatchRecordSettings.FromLegacy(legacyDamageMeter);
+        }
+
+        SchemaVersion = Math.Max(30, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         ModSync ??= new ModSyncSettings();
@@ -45,12 +76,12 @@ public sealed class AuraToolsMatchExperienceSettings
             Feast.Enabled = true;
         }
 
-        DamageMeter ??= new DamageMeterSettings();
+        matchRecords ??= new MatchRecordSettings();
         CardRefresh ??= new CardRefreshSettings();
         AutoBattle ??= new AutoBattleSettings();
         StarterDeck.Normalize();
         Feast.Normalize();
-        DamageMeter.Normalize();
+        MatchRecords.Normalize();
         AutoBattle.Normalize();
     }
 }

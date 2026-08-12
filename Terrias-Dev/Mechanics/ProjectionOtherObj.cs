@@ -133,7 +133,7 @@ public sealed class ProjectionOtherObj : Partner
             yield break;
         }
 
-        cardState.PrepareTurn();
+        cardState.PrepareTurn(Status);
         var runner = new CombatAutoTurnRunner(
             new CombatAgentDescriptor
             {
@@ -166,7 +166,7 @@ public sealed class ProjectionOtherObj : Partner
             && FightManager.Instance?.fightType != FightType.Loss)
         {
             battleState?.AdvanceTurn();
-            ProjectionSummonService.BroadcastRuntimeState(
+            ProjectionSummonService.BroadcastTurnCompleted(
                 this,
                 "ActorTurnAdvanced");
         }
@@ -178,113 +178,40 @@ public sealed class ProjectionOtherObj : Partner
         ActionCards = new List<ObjectCard>();
     }
 
-    public void HydrateOwnerCombatState(ProjectionOwnerCombatSnapshot? snapshot)
+    public void HydrateOwnerCoreStats(IStatusManager? owner)
     {
-        if (snapshot == null || Status == null)
+        if (owner == null || Status == null)
         {
             return;
         }
 
-        foreach (var existing in Status.GetBuffs() ?? Array.Empty<IBuffItem>())
-        {
-            var id = existing?.buffConfig?.BuffId ?? "";
-            if (id.Length > 0)
-            {
-                Status.RemoveBuff(id);
-            }
-        }
-        foreach (var buff in snapshot.Buffs ?? new List<ProjectionBuffSnapshot>())
-        {
-            var id = buff?.BuffId ?? "";
-            var level = buff?.Level ?? 0;
-            if (id.Length == 0 || level <= 0)
-            {
-                continue;
-            }
-            try
-            {
-                Status.AddBuff(id, level);
-            }
-            catch (Exception ex)
-            {
-                TerriasLog.Debug(
-                    "[Projection] owner buff copy skipped: "
-                    + id
-                    + ", "
-                    + ex.Message);
-            }
-        }
-
-        // Buff initialization can mutate stats and dynamic variables. Restore
-        // the captured owner values last so the projection starts identically.
-        MaxHp = Math.Max(1, snapshot.MaxHp);
-        CurHp = Math.Max(1, Math.Min(MaxHp, snapshot.CurrentHp));
-        Defend = Math.Max(0, snapshot.Defend);
-        Attack = Math.Max(0, snapshot.Attack);
-        if (Status.dynamicVariables != null)
-        {
-            Status.dynamicVariables.Clear();
-            foreach (var entry in snapshot.DynamicVariables
-                         ?? new Dictionary<string, float>())
-            {
-                Status.dynamicVariables[entry.Key] = entry.Value;
-            }
-        }
+        MaxHp = Math.Max(1, owner.MaxHp);
+        CurHp = Math.Max(1, Math.Min(MaxHp, owner.CurHp));
+        Defend = Math.Max(0, owner.Defend);
+        Attack = Math.Max(0, (owner.fatherObject as OtherObj)?.Attack ?? Attack);
         Status.UpdateStatus(true);
     }
 
-    public void HydrateCardState(
-        CombatActorCardStateSnapshot? snapshot,
+    public bool InitializeRoleDeck(
+        ProjectionDeckRecipe? recipe,
         string source)
     {
-        if (snapshot != null
-            && (!string.Equals(
-                    snapshot.OwnerModId,
-                    TerriasIds.ModId,
-                    StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(
-                    snapshot.ActorId,
-                    InstanceId,
-                    StringComparison.Ordinal)))
+        var initialized = ProjectionCardBattleState.CreateFresh(
+            recipe,
+            InstanceId,
+            out var reason);
+        if (initialized == null)
         {
             TerriasLog.Warn(
-                "[ProjectionCards] snapshot identity mismatch from "
-                + source);
-            return;
-        }
-        var hydrated = ProjectionCardBattleState.Hydrate(snapshot, out var reason);
-        if (hydrated == null)
-        {
-            if (snapshot != null)
-            {
-                TerriasLog.Warn(
-                    "[ProjectionCards] snapshot hydrate failed from "
-                    + source
-                    + ": "
-                    + reason);
-            }
-            return;
-        }
-        if (cardState != null && hydrated.Revision < cardState.Revision)
-        {
-            TerriasLog.Debug(
-                "[ProjectionCards] ignored stale snapshot from "
+                "[ProjectionCards] role deck initialization failed from "
                 + source
-                + ": remote="
-                + hydrated.Revision
-                + ", local="
-                + cardState.Revision);
-            return;
+                + ": "
+                + reason);
+            return false;
         }
-        cardState = hydrated;
-    }
-
-    public CombatActorCardStateSnapshot? ExportCardState()
-    {
-        return cardState?.Export(
-            TerriasIds.ModId,
-            InstanceId,
-            AuraShared.Core.AuraBattleLifecycleRouter.CurrentBattleSessionId);
+        cardState = initialized;
+        cardState.InitializeLifecycle(Status);
+        return true;
     }
 
     private static CombatAutoTurnProfile ProjectionTurnProfile()
@@ -312,10 +239,16 @@ public sealed class ProjectionOtherObj : Partner
 
     private IEnumerator WaitForAuthoritativeTurnCompletion()
     {
-        var expectedTurn = (battleState?.TurnIndex ?? 0) + 1;
-        var deadline = Time.unscaledTime + 50f;
-        while (Time.unscaledTime < deadline
-               && (battleState?.TurnIndex ?? 0) < expectedTurn
+        var state = ProjectionStateStore.Find(InstanceId);
+        if (state == null)
+        {
+            yield break;
+        }
+        // If the completion frame arrived before Partner.DoAction, consume it
+        // immediately instead of waiting for a turn that does not exist.
+        var expectedTurn = state.RemoteTurnGate.BeginInvocation();
+        var startedAt = Time.unscaledTimeAsDouble;
+        while (!state.RemoteTurnGate.IsSatisfied(expectedTurn)
                && Status != null
                && Status.state != IStatusManager.State.Dead
                && FightManager.Instance != null
@@ -324,20 +257,37 @@ public sealed class ProjectionOtherObj : Partner
                    or FightType.Loss
                    or FightType.Escape))
         {
+            var now = Time.unscaledTimeAsDouble;
+            if (state.RemoteTurnGate.ShouldQuery(now, idleSeconds: 2d, minimumIntervalSeconds: 1.5d))
+            {
+                state.RemoteTurnGate.MarkQuery(now);
+                ProjectionSummonService.RequestRuntimeState(this, "RemoteTurnWait");
+            }
+            if (now - startedAt >= 12d)
+            {
+                TerriasLog.Warn(
+                    "[ProjectionCards] remote turn released after state-query grace period: "
+                    + InstanceId
+                    + ", expected="
+                    + expectedTurn
+                    + ", completed="
+                    + state.RemoteTurnGate.Completed);
+                state.RemoteTurnGate.Release(expectedTurn);
+                yield break;
+            }
             yield return null;
         }
-        if ((battleState?.TurnIndex ?? 0) < expectedTurn)
+        if (state.RemoteTurnGate.IsSatisfied(expectedTurn))
         {
-            TerriasLog.Warn(
-                "[ProjectionCards] remote turn wait timed out: "
-                + InstanceId);
+            state.RemoteTurnGate.Consume(expectedTurn);
         }
     }
 
     private void CompleteSkippedTurn(string source)
     {
+        cardState?.CompleteTurn(Status);
         battleState?.AdvanceTurn();
-        ProjectionSummonService.BroadcastRuntimeState(
+        ProjectionSummonService.BroadcastTurnCompleted(
             this,
             "ActorTurnSkipped." + source);
     }

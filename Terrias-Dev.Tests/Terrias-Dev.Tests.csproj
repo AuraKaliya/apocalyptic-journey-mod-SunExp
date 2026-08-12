@@ -59,6 +59,8 @@
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionTurnQueuePolicy.cs" Link="Source\ProjectionTurnQueuePolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PartnerTurnOrderPolicy.cs" Link="Source\PartnerTurnOrderPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\FriendlyRoleSeatPolicy.cs" Link="Source\FriendlyRoleSeatPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionDeckRecipe.cs" Link="Source\ProjectionDeckRecipe.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionProtocolState.cs" Link="Source\ProjectionProtocolState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\DimensionShopRandom.cs" Link="Source\DimensionShopRandom.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs" Link="Source\EndlessSeaNodeKind.cs" />

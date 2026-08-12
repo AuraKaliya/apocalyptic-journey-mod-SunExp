@@ -135,6 +135,11 @@ internal sealed class WinSqliteConnection : IDisposable
             return Native.sqlite3_column_int64(statement, column);
         }
 
+        internal double Double(int column)
+        {
+            return Native.sqlite3_column_double(statement, column);
+        }
+
         internal string Text(int column)
         {
             var pointer = Native.sqlite3_column_text16(statement, column);
@@ -233,6 +238,9 @@ internal sealed class WinSqliteConnection : IDisposable
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern long sqlite3_column_int64(IntPtr statement, int column);
+
+        [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
+        internal static extern double sqlite3_column_double(IntPtr statement, int column);
 
         [DllImport(Library, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr sqlite3_column_text16(IntPtr statement, int column);

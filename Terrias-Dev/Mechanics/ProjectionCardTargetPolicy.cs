@@ -13,13 +13,21 @@ public enum ProjectionCardTargetMode
     SingleEnemy,
     SingleFriendly,
     AnySingleUnit,
-    NoTarget
+    NoTarget,
+    AllEnemies,
+    AllFriendlies,
+    RandomEnemyN,
+    RandomFriendlyN,
+    DeclaredTargetSet
 }
 
 public sealed class ProjectionCardTargetDeclaration
 {
     public string CardId { get; set; } = "";
     public ProjectionCardTargetMode Mode { get; set; } = ProjectionCardTargetMode.Self;
+    public int Count { get; set; } = 1;
+    public bool IncludeSelf { get; set; }
+    public string SetKinds { get; set; } = "";
 }
 
 /// <summary>
@@ -82,6 +90,37 @@ public static class ProjectionCardTargetPolicy
         return ProjectionCardTargetMode.Self;
     }
 
+    public static ProjectionCardTargetDeclaration ResolveDeclaration(IDataConfig? config)
+    {
+        var id = TerriasContentIdCompatibility.Canonicalize(DictionaryUtil.Get(config?.data, "Id"));
+        lock (SyncRoot)
+        {
+            if (Declarations.TryGetValue(id, out var declaration))
+            {
+                return declaration;
+            }
+        }
+        var countText = DictionaryUtil.Get(
+            config?.Vars,
+            "TerriasProjectionTargetCount",
+            DictionaryUtil.Get(config?.data, "TerriasProjectionTargetCount", "1"));
+        return new ProjectionCardTargetDeclaration
+        {
+            CardId = id,
+            Mode = Resolve(config),
+            Count = int.TryParse(countText, out var count) ? Math.Max(1, count) : 1,
+            IncludeSelf = DictionaryUtil.Get(
+                    config?.Vars,
+                    "TerriasProjectionIncludeSelf",
+                    DictionaryUtil.Get(config?.data, "TerriasProjectionIncludeSelf"))
+                .Equals("True", StringComparison.OrdinalIgnoreCase),
+            SetKinds = DictionaryUtil.Get(
+                config?.Vars,
+                "TerriasProjectionTargetSet",
+                DictionaryUtil.Get(config?.data, "TerriasProjectionTargetSet"))
+        };
+    }
+
     public static bool IsLegalTarget(
         ProjectionCardTargetMode mode,
         IStatusManager actor,
@@ -99,8 +138,46 @@ public static class ProjectionCardTargetPolicy
                                                        || Same(actor, target)
                                                        || Contains(enemies, target)
                                                        || Contains(friendlies, target),
+            ProjectionCardTargetMode.AllEnemies or ProjectionCardTargetMode.RandomEnemyN =>
+                target != null && Contains(enemies, target),
+            ProjectionCardTargetMode.AllFriendlies or ProjectionCardTargetMode.RandomFriendlyN =>
+                target != null && (Same(actor, target) || Contains(friendlies, target)),
+            ProjectionCardTargetMode.DeclaredTargetSet => target != null,
             _ => false
         };
+    }
+
+    public static bool IsLegalTargetSet(
+        ProjectionCardTargetDeclaration declaration,
+        IStatusManager actor,
+        IReadOnlyCollection<IStatusManager> targets,
+        IReadOnlyCollection<IStatusManager> enemies,
+        IReadOnlyCollection<IStatusManager> friendlies)
+    {
+        var mode = declaration.Mode;
+        var values = targets;
+        if (mode == ProjectionCardTargetMode.NoTarget) return values.Count == 0;
+        if (mode == ProjectionCardTargetMode.Self) return values.Count == 1 && Same(actor, values.First());
+        if (mode == ProjectionCardTargetMode.AllEnemies)
+            return values.Count == enemies.Count && values.All(target => Contains(enemies, target));
+        if (mode == ProjectionCardTargetMode.AllFriendlies)
+        {
+            var expected = friendlies.Count + (declaration.IncludeSelf ? 1 : 0);
+            return values.Count == expected
+                   && values.All(target => Same(actor, target) || Contains(friendlies, target));
+        }
+        if (mode == ProjectionCardTargetMode.RandomEnemyN)
+            return values.Count > 0 && values.Count <= declaration.Count
+                                    && values.All(target => Contains(enemies, target));
+        if (mode == ProjectionCardTargetMode.RandomFriendlyN)
+            return values.Count > 0 && values.Count <= declaration.Count
+                                    && values.All(target => Same(actor, target) || Contains(friendlies, target));
+        if (mode == ProjectionCardTargetMode.DeclaredTargetSet)
+            return values.Count > 0 && values.All(target => Same(actor, target)
+                                                      || Contains(enemies, target)
+                                                      || Contains(friendlies, target));
+        return values.Count == 1
+               && IsLegalTarget(mode, actor, values.First(), enemies, friendlies);
     }
 
     private static bool Contains(IEnumerable<IStatusManager> source, IStatusManager target)

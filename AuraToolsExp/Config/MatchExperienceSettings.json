@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 29,
+  "schemaVersion": 30,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -144,16 +144,24 @@
       "battleTimeoutSeconds": 180
     }
   },
-  "damageMeter": {
+  "matchRecords": {
     "enabled": false,
-    "displayMode": "Table",
-    "displayScope": "Fight",
-    "teamFilter": "All",
-    "captureTeamAvatars": false,
-    "maxAvatarEncodePixels": 262144,
-    "maxAvatarPngBytes": 262144,
-    "uiRefreshIntervalMs": 1000,
-    "submitBatchIntervalMs": 250,
-    "maxEventsPerBatch": 24
+    "statistics": {
+      "enabled": true,
+      "displayMode": "Table",
+      "displayScope": "Fight",
+      "teamFilter": "All",
+      "captureTeamAvatars": false,
+      "maxAvatarEncodePixels": 262144,
+      "maxAvatarPngBytes": 262144,
+      "uiRefreshIntervalMs": 1000,
+      "submitBatchIntervalMs": 250,
+      "maxEventsPerBatch": 24
+    },
+    "replay": {
+      "enabled": false,
+      "autoRecordLimit": 20,
+      "chunkTargetBytes": 262144
+    }
   }
 }

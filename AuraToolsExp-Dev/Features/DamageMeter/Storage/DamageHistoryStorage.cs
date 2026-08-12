@@ -9,8 +9,10 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Storage;
 
 internal static class DamageHistoryStorage
 {
-    private const string SystemName = "DamageMeter";
-    private const string DatabaseFileName = "DamageHistory.sqlite3";
+    private const string SystemName = "MatchRecords";
+    private const string DatabaseFileName = "MatchRecords.sqlite3";
+    private const string LegacySystemName = "DamageMeter";
+    private const string LegacyDatabaseFileName = "DamageHistory.sqlite3";
     private const string LegacyAdventureMigrationKey = "legacy_adventure_history_imported";
     private static readonly object Gate = new();
     private static DamageHistoryDatabase? database;
@@ -26,12 +28,38 @@ internal static class DamageHistoryStorage
                 {
                     var directory = AuraSharedPaths.OwnerSystemDataDirectory(AuraToolsIds.ModId, SystemName);
                     Directory.CreateDirectory(directory);
-                    database = new DamageHistoryDatabase(Path.Combine(directory, DatabaseFileName));
+                    var path = Path.Combine(directory, DatabaseFileName);
+                    ImportLegacyDatabaseFile(path);
+                    database = new DamageHistoryDatabase(path);
                     database.Initialize();
                 }
 
                 return database;
             }
+        }
+    }
+
+    private static void ImportLegacyDatabaseFile(string destinationPath)
+    {
+        if (File.Exists(destinationPath))
+        {
+            return;
+        }
+
+        var legacyDirectory = AuraSharedPaths.OwnerSystemDataDirectory(AuraToolsIds.ModId, LegacySystemName);
+        var legacyPath = Path.Combine(legacyDirectory, LegacyDatabaseFileName);
+        if (!File.Exists(legacyPath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(legacyPath, destinationPath, overwrite: false);
+            AuraToolsLog.Info("[MatchRecords] copied the legacy DPS history database into the match-record store.");
+        }
+        catch (IOException) when (File.Exists(destinationPath))
+        {
         }
     }
 

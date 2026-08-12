@@ -1,0 +1,295 @@
+using System;
+using System.IO;
+using System.Linq;
+using AuraToolsExp.Dll.Features.MatchRecords.Media;
+using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
+using AuraToolsExp.Dll.Features.MatchRecords.Portability;
+using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.Features.Settings;
+using AuraToolsExp.Dll.Infrastructure;
+using UnityEngine;
+using UnityEngine.UI;
+using WitchUiManager = Witch.UI.UIManager;
+
+namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
+
+internal static class MatchAnalysisPresenter
+{
+    private const string OverlayName = "AuraToolsMatchAnalysis";
+    private static Transform? host;
+    private static Transform? body;
+    private static MatchRecord? record;
+    private static MatchAnalysisReport? report;
+    private static string tab = "Overview";
+    private static string message = "";
+
+    internal static void Show(Transform parent, MatchRecord selected)
+    {
+        host = parent;
+        record = selected;
+        tab = "Overview";
+        message = "";
+        try
+        {
+            report = MatchRecordStorage.Database.GetAnalysis(selected.RecordId);
+            if (report == null)
+            {
+                var events = MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId));
+                report = MatchAnalysisBuilder.Build(selected, events);
+                MatchRecordStorage.Database.SaveAnalysis(report);
+            }
+        }
+        catch (Exception ex)
+        {
+            report = null;
+            message = "分析数据读取失败：" + ex.Message;
+        }
+
+        var window = AuraToolsUi.CreateOverlay(OverlayName, parent, "牌局分析", Reset, maxWidth: 1240f);
+        body = AuraToolsUi.CreateLayout("MatchAnalysisBody", window.transform).transform;
+        var layout = body.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        AuraToolsUi.EnsureLayoutElement(body.gameObject).flexibleHeight = 1f;
+        Build();
+    }
+
+    private static void Build()
+    {
+        if (body == null || record == null)
+        {
+            return;
+        }
+
+        AuraToolsUi.ClearChildren(body);
+        var tabs = Row("AnalysisTabs", body, AuraToolsUi.ToolbarHeight);
+        AddTab(tabs, "总览", "Overview");
+        AddTab(tabs, "回合", "Turns");
+        AddTab(tabs, "卡牌", "Cards");
+        AddTab(tabs, "关键节点", "Moments");
+        AddTab(tabs, "媒体", "Media");
+        AuraToolsUi.AddText(tabs, "事实统计，不生成未观测到的反事实建议", AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+
+        var actions = Row("AnalysisActions", body, AuraToolsUi.ToolbarHeight);
+        AuraToolsUi.AddButton(actions, "完整回放", () => StartReplay(0), 96f);
+        AuraToolsUi.AddButton(actions, "导出回放包", ExportPackage, 108f);
+        AuraToolsUi.AddButton(actions, "导出视频", () => StartVideoExport(record.RecordId), 96f);
+        AuraToolsUi.AddButton(actions, "打开导出目录", () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ExportsDirectory), 120f);
+        if (!string.IsNullOrWhiteSpace(message))
+        {
+            AuraToolsUi.AddText(body, message, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+                AuraToolsUi.WarningText, 44f, 1f);
+        }
+
+        var scroll = AuraToolsUi.CreateScroll(body, "AnalysisContent");
+        if (report == null)
+        {
+            AuraToolsUi.AddText(scroll, "本对局没有可用的分析数据。", AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 72f, 1f);
+            return;
+        }
+
+        switch (tab)
+        {
+            case "Turns":
+                BuildTurns(scroll);
+                break;
+            case "Cards":
+                BuildCards(scroll);
+                break;
+            case "Moments":
+                BuildMoments(scroll);
+                break;
+            case "Media":
+                MatchReplayMediaSection.Build(host!, scroll, record, SetMessageAndBuild);
+                break;
+            default:
+                BuildOverview(scroll);
+                break;
+        }
+    }
+
+    private static void BuildOverview(Transform parent)
+    {
+        if (record == null || report == null)
+        {
+            return;
+        }
+
+        AuraToolsUi.AddText(parent,
+            (string.IsNullOrWhiteSpace(record.LevelId) ? "未知战斗" : record.LevelId)
+            + "   " + record.Result + "   " + report.TurnCount + " 回合\n"
+            + "总伤害 " + report.TotalDamage + "   最高回合 " + report.BestTurnDamage
+            + (report.BestTurnIndex > 0 ? "（第 " + report.BestTurnIndex + " 回合）" : "")
+            + "   使用卡牌 " + report.CardUseCount,
+            AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 72f, 1f);
+
+        foreach (var item in report.Combatants)
+        {
+            var row = Row("Combatant-" + item.InstanceId, parent, 58f, withBackground: true);
+            AuraToolsUi.AddText(row, item.DisplayName + "   " + TeamLabel(item.Team), AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft, AuraToolsUi.Text, 44f, 1f);
+            AuraToolsUi.AddText(row, "伤害 " + item.Damage + "   平均/回合 " + item.AverageDamagePerTurn.ToString("0.0")
+                                      + "   最高回合 " + item.BestTurnDamage,
+                AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 44f, 0f, 360f);
+        }
+    }
+
+    private static void BuildTurns(Transform parent)
+    {
+        foreach (var item in report!.Turns)
+        {
+            var row = Row("Turn-" + item.TurnIndex, parent, 54f, withBackground: true);
+            AuraToolsUi.AddText(row, "第 " + item.TurnIndex + " 回合", AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft, AuraToolsUi.Text, 42f, 0f, 110f);
+            AuraToolsUi.AddText(row, "伤害 " + item.Damage + "   卡牌 " + item.CardUses + "   事件 " + item.ActionCount,
+                AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 42f, 1f);
+            if (item.FirstEventSequence > 0)
+            {
+                var sequence = item.FirstEventSequence;
+                AuraToolsUi.AddButton(row, "跳转", () => StartReplay(sequence), 76f);
+            }
+        }
+    }
+
+    private static void BuildCards(Transform parent)
+    {
+        AuraToolsUi.AddText(parent, "后续伤害表示该次出牌后、下一次出牌前观测到的伤害，不等同于严格因果归因。",
+            AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 42f, 1f);
+        foreach (var item in report!.Cards)
+        {
+            var row = Row("Card-" + item.CardId, parent, 54f, withBackground: true);
+            AuraToolsUi.AddText(row, item.DisplayName, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+                AuraToolsUi.Text, 42f, 1f);
+            AuraToolsUi.AddText(row, "使用 " + item.Uses + "   观测后续伤害 " + item.ObservedFollowUpDamage,
+                AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 42f, 0f, 280f);
+            var sequence = item.FirstEventSequence;
+            AuraToolsUi.AddButton(row, "首次", () => StartReplay(sequence), 72f);
+        }
+    }
+
+    private static void BuildMoments(Transform parent)
+    {
+        foreach (var item in report!.KeyMoments)
+        {
+            var row = Row("Moment-" + item.EventSequence, parent, 58f, withBackground: true);
+            AuraToolsUi.AddText(row, "第 " + item.TurnIndex + " 回合   " + item.Label,
+                AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 46f, 1f);
+            if (item.EventSequence > 0)
+            {
+                var sequence = item.EventSequence;
+                AuraToolsUi.AddButton(row, "回看", () => StartReplay(sequence), 76f);
+            }
+        }
+    }
+
+    private static void ExportPackage()
+    {
+        try
+        {
+            var path = MatchReplayPackageService.Export(record!.RecordId);
+            message = "回放包已导出：" + Path.GetFileName(path);
+        }
+        catch (Exception ex)
+        {
+            message = "导出失败：" + ex.Message;
+        }
+
+        Build();
+    }
+
+    private static void StartVideoExport(string recordId)
+    {
+        if (!MatchReplayVideoExporter.TryStart(recordId, out var result))
+        {
+            message = result;
+            Build();
+            return;
+        }
+
+        CloseForPlayback("Video export started");
+    }
+
+    private static void StartReplay(long sequence)
+    {
+        var success = sequence <= 0
+            ? MatchReplayPlayer.TryStart(record!.RecordId, out var result)
+            : MatchReplayPlayer.TryStartAtSequence(record!.RecordId, sequence, out result);
+        if (!success)
+        {
+            message = result;
+            Build();
+            return;
+        }
+
+        CloseForPlayback("Analysis replay started");
+    }
+
+    private static void CloseForPlayback(string reason)
+    {
+        if (host != null)
+        {
+            AuraToolsUi.CloseOverlay(host, OverlayName, reason);
+            AuraToolsUi.CloseOverlay(host, "AuraToolsMatchRecordLibrary", reason);
+        }
+
+        WitchUiManager.Instance?.CloseUI("SettingUI");
+        Reset();
+    }
+
+    private static void AddTab(Transform parent, string label, string value)
+    {
+        AuraToolsUi.AddButton(parent, (tab == value ? "· " : "") + label, () =>
+        {
+            tab = value;
+            message = "";
+            Build();
+        }, 96f);
+    }
+
+    private static Transform Row(string name, Transform parent, float height, bool withBackground = false)
+    {
+        var row = AuraToolsUi.CreateLayout(name, parent);
+        AuraToolsUi.SetFixedHeight(row, height);
+        if (withBackground)
+        {
+            AuraToolsUi.AddImage(row, AuraToolsUi.Row);
+        }
+
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = withBackground ? new RectOffset(10, 10, 6, 6) : new RectOffset();
+        layout.spacing = 8f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        return row.transform;
+    }
+
+    private static string TeamLabel(string value)
+    {
+        return string.Equals(value, "Friendly", StringComparison.OrdinalIgnoreCase) ? "友方"
+            : string.Equals(value, "Enemy", StringComparison.OrdinalIgnoreCase) ? "敌方"
+            : "未知阵营";
+    }
+
+    private static void SetMessageAndBuild(string value)
+    {
+        message = value;
+        Build();
+    }
+
+    private static void Reset()
+    {
+        host = null;
+        body = null;
+        record = null;
+        report = null;
+        message = "";
+    }
+}

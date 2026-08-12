@@ -3,47 +3,36 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraCombatAi.Shared.GameApi;
 using AuraGameData.Shared.GameApi;
-using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Network;
 using UnityEngine;
 using Witch.UI;
-using Witch.UI.Window;
 
 namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionSummonService
 {
-    private const string RejectProtocolMismatch = "projection protocol mismatch";
-    private const string RejectBattleEpochMismatch = "projection battle epoch mismatch";
-    private const string RejectIntentRegistryMismatch = "projection card runtime mismatch";
-    private const string RejectUnknownRolePrefix = "unknown role:";
-    private const string RejectOwnerAlreadyHasProjection = "owner already has projection";
-    private const string RejectMissingOwnerStatus = "missing owner status";
-    private const string RejectMissingSender = "missing sender";
-    private const string RejectSenderOutsideLobby = "sender outside lobby";
-    private const string RejectOwnerMismatch = "owner mismatch";
-    private const string RejectFriendlySeatsFull = "friendly role seats are full";
-    private const string RejectPrivateStateInvalid = "projection private state invalid";
-    private const int MaxActiveUploads = 8;
-    private const int PrivateStateTimeoutSeconds = 30;
-    private const int PrivateStateExpiryCheckFrames = 600;
-
     private static readonly object NetworkSync = new();
-    private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
-    private static readonly HashSet<string> LocalPreparedTokens = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, PendingProjection> Pending = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, PendingProjectionUpload> Uploads = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, ProjectionSummonResultSnapshot> TerminalResults =
+        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, ProjectionSummonTransaction> PendingTransactions =
+        new(StringComparer.Ordinal);
+    private static readonly HashSet<string> AppliedResultTokens = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, ProjectionTombstone> Tombstones =
+        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, RoleDeckWaitState> RoleDeckWaitAttempts =
+        new(StringComparer.Ordinal);
 
     public static void ResetBattleSynchronization()
     {
         lock (NetworkSync)
         {
-            ResolvedTokens.Clear();
-            LocalPreparedTokens.Clear();
-            Pending.Clear();
-            Uploads.Clear();
+            TerminalResults.Clear();
+            PendingTransactions.Clear();
+            AppliedResultTokens.Clear();
+            Tombstones.Clear();
+            RoleDeckWaitAttempts.Clear();
         }
         FriendlyRoleSeatLedger.BeginBattle();
     }
@@ -63,11 +52,26 @@ public static class ProjectionSummonService
         }
 
         var token = Guid.NewGuid().ToString("N");
+        if (!ProjectionRoleDeckService.TryCaptureLocal(out var localRecipe, out var deckReason)
+            || localRecipe == null)
+        {
+            TerriasLog.Warn("[ProjectionDeck] local role deck unavailable: " + deckReason);
+            PlayerApi.ShowCaption("拜托了：当前牌组尚未准备完成。");
+            return false;
+        }
+        var transaction = new ProjectionSummonTransaction(
+            token,
+            role.Id,
+            self.Self.InstanceId,
+            localRecipe.BaseHash,
+            Time.unscaledTimeAsDouble);
+        lock (NetworkSync)
+        {
+            PendingTransactions[token] = transaction;
+        }
         if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
         {
-            TerriasNetworkRuntime.Send(
-                new RpcProjectionSummonRequest(role.Id, self.Self.InstanceId, token),
-                "ProjectionSummonService.TrySummon");
+            SendPendingTransaction(transaction, Time.unscaledTimeAsDouble, "Initial");
             PlayerApi.ShowCaption("拜托了：正在同步投影。");
             return true;
         }
@@ -81,8 +85,64 @@ public static class ProjectionSummonService
             sender,
             CompanionAuthorityService.ProjectionProtocolVersion,
             CompanionAuthorityService.BattleEpoch,
-            ProjectionCardBattleState.ProtocolIdentity);
+            ProjectionRoleDeckService.CardModelVersion,
+            localRecipe.BaseHash);
         return true;
+    }
+
+    public static void TickNetworkSynchronization(double now)
+    {
+        ProjectionSummonTransaction[] pending;
+        lock (NetworkSync)
+        {
+            pending = PendingTransactions.Values
+                .Where(value => !value.Terminal)
+                .ToArray();
+        }
+
+        foreach (var transaction in pending)
+        {
+            var retryInterval = transaction.Attempts < 3 ? 1.25d : 2.5d;
+            if (transaction.IsDue(now, retryInterval))
+            {
+                SendPendingTransaction(transaction, now, "Retry" + transaction.Attempts);
+            }
+            if (!transaction.TimeoutReported && now - transaction.CreatedAt >= 8d)
+            {
+                transaction.TimeoutReported = true;
+                PlayerApi.ShowCaption("拜托了：投影同步较慢，正在向主机重试。");
+            }
+        }
+    }
+
+    private static void SendPendingTransaction(
+        ProjectionSummonTransaction transaction,
+        double now,
+        string source)
+    {
+        if (transaction.Terminal)
+        {
+            return;
+        }
+        transaction.MarkAttempt(now);
+        var status = TerriasNetworkRuntime.TrySend(
+            new RpcProjectionSummonRequest(
+                transaction.RoleId,
+                transaction.OwnerStatusId,
+                transaction.Token,
+                transaction.DeckRecipeHash),
+            "ProjectionSummonService." + source);
+        if (status == TerriasNetworkSendStatus.NotAttempted && transaction.Attempts == 1)
+        {
+            ApplySummonResult(CreateResult(
+                transaction.Token,
+                transaction.RoleId,
+                transaction.OwnerStatusId,
+                "",
+                ProjectionSummonFailureCode.TransportNotSent,
+                "transport did not accept the summon request"),
+                "ProjectionSummonService.TransportNotSent");
+        }
     }
 
     public static void ResolveNetworkSummon(
@@ -92,58 +152,141 @@ public static class ProjectionSummonService
         TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
-        string registryHash)
+        string cardModelVersion,
+        string deckRecipeHash)
     {
         if (string.IsNullOrWhiteSpace(token))
         {
             return;
         }
+        ProjectionSummonResultSnapshot? previous;
         lock (NetworkSync)
         {
-            if (ResolvedTokens.Contains(token))
+            TerminalResults.TryGetValue(token, out previous);
+        }
+        if (previous != null)
+        {
+            if (ValidateNetworkSender(sender, previous.OwnerStatusId)
+                    != ProjectionSummonFailureCode.None
+                || !string.Equals(previous.RoleId, roleId ?? "", StringComparison.Ordinal)
+                || !string.Equals(previous.OwnerStatusId, ownerStatusId ?? "", StringComparison.Ordinal))
             {
+                TerriasLog.Warn("[Projection] ignored terminal-result replay with mismatched sender or request identity.");
                 return;
             }
+            BroadcastSummonResult(previous, "ProjectionSummonService.ReplayResult");
+            if (previous.Accepted)
+            {
+                var active = ProjectionStateStore.Find(previous.StatusId)?.Projection;
+                if (active != null) BroadcastRuntimeState(active, "ReplayAccepted");
+            }
+            return;
         }
 
         var role = PolymorphRoleRegistry.Find(roleId);
         var rejection = ValidateNetworkSender(sender, ownerStatusId);
-        if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
+        if (rejection == ProjectionSummonFailureCode.None
+            && protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
         {
-            rejection = RejectProtocolMismatch;
+            rejection = ProjectionSummonFailureCode.ProtocolMismatch;
         }
-        else if (battleEpoch != CompanionAuthorityService.BattleEpoch)
+        else if (rejection == ProjectionSummonFailureCode.None
+                 && battleEpoch != CompanionAuthorityService.BattleEpoch)
         {
-            rejection = RejectBattleEpochMismatch;
+            rejection = ProjectionSummonFailureCode.BattleEpochMismatch;
         }
-        else if (!string.Equals(registryHash, ProjectionCardBattleState.ProtocolIdentity, StringComparison.Ordinal))
+        else if (rejection == ProjectionSummonFailureCode.None
+                 && !string.Equals(
+                     cardModelVersion,
+                     ProjectionRoleDeckService.CardModelVersion,
+                     StringComparison.Ordinal))
         {
-            rejection = RejectIntentRegistryMismatch;
+            rejection = ProjectionSummonFailureCode.CardModelMismatch;
         }
-        if (role == null)
+        if (rejection == ProjectionSummonFailureCode.None && role == null)
         {
-            rejection = RejectUnknownRolePrefix + " " + roleId;
+            rejection = ProjectionSummonFailureCode.UnknownRole;
         }
 
-        if (!string.IsNullOrWhiteSpace(rejection))
+        if (rejection != ProjectionSummonFailureCode.None)
         {
-            BroadcastPrepareResult(new ProjectionPrepareResult
-            {
-                ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-                BattleEpoch = CompanionAuthorityService.BattleEpoch,
-                Token = token,
-                RoleId = roleId,
-                OwnerStatusId = ownerStatusId,
-                OwnerPlayerId = sender.IsAvailable ? sender.PlayerId : "",
-                Accepted = false,
-                RefundCard = string.IsNullOrWhiteSpace(ValidateNetworkSender(sender, ownerStatusId))
-                             && role != null,
-                RejectionReason = rejection
-            }, "ProjectionSummonService.ResolveNetworkSummon.Reject");
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                sender.IsAvailable ? sender.PlayerId : "",
+                token,
+                rejection,
+                "request validation failed",
+                "ProjectionSummonService.ResolveNetworkSummon.Reject");
             return;
         }
 
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, sender.PlayerId);
+        if (!RoleDeckWaitRequestMatches(token, roleId, ownerPlayerId, ownerStatusId, deckRecipeHash))
+        {
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                ProjectionSummonFailureCode.TokenConflict,
+                "same token was reused with a different summon request",
+                "ProjectionSummonService.ResolveNetworkSummon.TokenConflict");
+            return;
+        }
+        if (!ProjectionRoleDeckService.TryCaptureAuthoritative(
+                ownerPlayerId,
+                ownerStatusId,
+                out var recipe,
+                out var deckReason)
+            || recipe == null)
+        {
+            TerriasLog.Warn("[ProjectionDeck] authoritative role deck unavailable: owner="
+                + ownerPlayerId
+                + "; "
+                + deckReason);
+            var waitAttempt = RecordRoleDeckWaitAttempt(
+                token,
+                roleId,
+                ownerPlayerId,
+                ownerStatusId,
+                deckRecipeHash);
+            if (waitAttempt >= 6)
+            {
+                RejectSummon(
+                    roleId,
+                    ownerStatusId,
+                    ownerPlayerId,
+                    token,
+                    ProjectionSummonFailureCode.RoleDeckTimedOut,
+                    deckReason,
+                    "ProjectionSummonService.ResolveNetworkSummon.RoleDeckTimeout");
+            }
+            else
+            {
+                BroadcastSummonResult(CreateResult(
+                    token,
+                    roleId,
+                    ownerStatusId,
+                    ownerPlayerId,
+                    ProjectionSummonFailureCode.RoleDeckUnavailable,
+                    deckReason),
+                    "ProjectionSummonService.ResolveNetworkSummon.MissingRoleDeck");
+            }
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(deckRecipeHash)
+            || !string.Equals(recipe.BaseHash, deckRecipeHash, StringComparison.OrdinalIgnoreCase))
+        {
+            TerriasLog.Warn("[ProjectionDeck] role deck hash mismatch: owner="
+                + ownerPlayerId
+                + ", client="
+                + (deckRecipeHash ?? "")
+                + ", host="
+                + recipe.BaseHash
+                + "; authoritative RoleTable recipe accepted.");
+            TerriasPerformanceCounters.Record("Projection.DeckHashDiagnosticMismatch");
+        }
         if (!FriendlyRoleSeatLedger.TryReserve(
                 token,
                 ownerPlayerId,
@@ -152,179 +295,82 @@ public static class ProjectionSummonService
                 out var slotIndex,
                 out var seatReason))
         {
-            BroadcastPrepareResult(new ProjectionPrepareResult
-            {
-                ProtocolVersion = protocolVersion,
-                BattleEpoch = battleEpoch,
-                Token = token,
-                RoleId = roleId,
-                OwnerStatusId = ownerStatusId,
-                OwnerPlayerId = ownerPlayerId,
-                Accepted = false,
-                RefundCard = true,
-                RejectionReason = seatReason
-            }, "ProjectionSummonService.ResolveNetworkSummon.SeatReject");
+            var seatFailure = string.Equals(
+                    seatReason,
+                    "friendly role seats are full",
+                    StringComparison.Ordinal)
+                ? ProjectionSummonFailureCode.FriendlySeatsFull
+                : ProjectionSummonFailureCode.OwnerAlreadyHasProjection;
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                seatFailure,
+                seatReason,
+                "ProjectionSummonService.ResolveNetworkSummon.SeatReject");
             return;
         }
 
-        lock (NetworkSync)
-        {
-            Pending[token] = new PendingProjection(
+        if (!FriendlyRoleSeatLedger.TryClaim(
                 token,
-                role!,
                 ownerPlayerId,
                 ownerStatusId,
-                slotIndex,
-                DateTime.UtcNow.AddSeconds(PrivateStateTimeoutSeconds));
-        }
-        SchedulePendingExpiry(token, 0);
-        BroadcastPrepareResult(new ProjectionPrepareResult
+                battleEpoch,
+                out slotIndex))
         {
-            ProtocolVersion = protocolVersion,
-            BattleEpoch = battleEpoch,
+            FriendlyRoleSeatLedger.Release(token);
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                ProjectionSummonFailureCode.SeatReservationExpired,
+                "projection seat reservation expired",
+                "ProjectionSummonService.ResolveNetworkSummon.SeatClaimRejected");
+            return;
+        }
+        if (!TrySummonLocal(
+                ownerStatusId,
+                role!,
+                "ProjectionSummonService.ResolveNetworkSummon.AuthoritativeRoleDeck",
+                token: token,
+                preferredOwnerPlayerId: ownerPlayerId,
+                slotIndex: slotIndex,
+                recipe: recipe))
+        {
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                ProjectionSummonFailureCode.SpawnFailed,
+                "projection spawn failed",
+                "ProjectionSummonService.ResolveNetworkSummon.SpawnRejected");
+            return;
+        }
+
+        var state = ProjectionStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
+        var accepted = new ProjectionSummonResultSnapshot
+        {
+            ServerProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
+            ServerBattleEpoch = CompanionAuthorityService.BattleEpoch,
+            ServerCardModelVersion = ProjectionRoleDeckService.CardModelVersion,
             Token = token,
             RoleId = roleId,
             OwnerStatusId = ownerStatusId,
             OwnerPlayerId = ownerPlayerId,
-            SlotIndex = slotIndex,
-            Accepted = true
-        }, "ProjectionSummonService.ResolveNetworkSummon.Prepared");
-    }
-
-    public static void ApplyPrepareResult(ProjectionPrepareResult? result, string source)
-    {
-        if (result == null
-            || result.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
-            || result.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || string.IsNullOrWhiteSpace(result.Token))
+            StatusId = state?.StatusId ?? "",
+            Generation = state?.Replication.Generation ?? token,
+            Accepted = true,
+            Terminal = true
+        };
+        CacheTerminalResult(accepted);
+        BroadcastSummonResult(accepted, "ProjectionSummonService.Accepted");
+        if (state?.Projection != null)
         {
-            return;
+            BroadcastRuntimeState(state.Projection, "SpawnAccepted");
         }
-        if (!SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), result.OwnerStatusId)
-            && !string.Equals(FightPlayer.Instance?.Status?.InstanceId, result.OwnerStatusId, StringComparison.Ordinal))
-        {
-            return;
-        }
-        if (!result.Accepted)
-        {
-            ShowRejectionCaption(result.RejectionReason);
-            if (result.RefundCard)
-            {
-                RefundProjectionRoleCard(result.RoleId, result.OwnerStatusId, result.Token, source);
-            }
-            return;
-        }
-
-        lock (NetworkSync)
-        {
-            if (!LocalPreparedTokens.Add(result.Token))
-            {
-                return;
-            }
-        }
-
-        CaptureAndUploadAfterSettlement(result, source, 0);
-    }
-
-    public static void AcceptPrivateStateChunk(
-        RpcProjectionPrivateStateChunk chunk,
-        TerriasRpcSender sender)
-    {
-        if (chunk == null
-            || chunk.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
-            || chunk.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || !sender.IsAvailable
-            || !sender.IsLobbyMember
-            || chunk.ChunkCount <= 0
-            || chunk.ChunkCount > ProjectionCardStateTransport.MaxChunks
-            || chunk.ChunkIndex < 0
-            || chunk.ChunkIndex >= chunk.ChunkCount
-            || chunk.TotalBytes <= 0
-            || chunk.TotalBytes > ProjectionCardStateTransport.MaxCompressedBytes
-            || chunk.UncompressedBytes <= 0
-            || chunk.UncompressedBytes > ProjectionCardStateTransport.MaxUncompressedBytes
-            || chunk.Payload == null
-            || chunk.Payload.Length == 0
-            || chunk.Payload.Length > ProjectionCardStateTransport.ChunkBytes)
-        {
-            return;
-        }
-
-        var token = chunk.Token ?? "";
-
-        PendingProjection? pending;
-        PendingProjectionUpload upload;
-        lock (NetworkSync)
-        {
-            PruneNetworkState();
-            if (!Pending.TryGetValue(token, out pending)
-                || !string.Equals(pending.OwnerPlayerId, sender.PlayerId, StringComparison.Ordinal))
-            {
-                return;
-            }
-            if (!Uploads.TryGetValue(token, out upload!))
-            {
-                if (Uploads.Count >= MaxActiveUploads)
-                {
-                    RejectPending(token, RejectPrivateStateInvalid, true);
-                    return;
-                }
-                upload = new PendingProjectionUpload(
-                    token,
-                    chunk.ChunkCount,
-                    chunk.TotalBytes,
-                    chunk.UncompressedBytes,
-                    chunk.Sha256,
-                    DateTime.UtcNow.AddSeconds(PrivateStateTimeoutSeconds));
-                Uploads[token] = upload;
-            }
-            if (!upload.Accept(chunk))
-            {
-                RejectPending(token, RejectPrivateStateInvalid, true);
-                return;
-            }
-            if (!upload.Complete)
-            {
-                return;
-            }
-            Uploads.Remove(token);
-        }
-
-        var payload = upload.Join();
-        if (!ProjectionCardStateTransport.TryDecode(
-                payload,
-                upload.Sha256,
-                upload.UncompressedBytes,
-                out var envelope,
-                out var reason)
-            || envelope == null
-            || !string.Equals(envelope.Token, token, StringComparison.Ordinal)
-            || !string.Equals(envelope.CardState.OwnerModId, TerriasIds.ModId, StringComparison.OrdinalIgnoreCase))
-        {
-            RejectPending(token, reason, true);
-            return;
-        }
-        CompletePreparedSummon(pending!, envelope, "ProjectionSummonService.AcceptPrivateStateChunk");
-    }
-
-    public static void AbortPrivateStateUpload(
-        string token,
-        string reason,
-        TerriasRpcSender sender,
-        int protocolVersion,
-        int battleEpoch)
-    {
-        lock (NetworkSync)
-        {
-            if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
-                || battleEpoch != CompanionAuthorityService.BattleEpoch
-                || !Pending.TryGetValue(token ?? "", out var pending)
-                || !string.Equals(pending.OwnerPlayerId, sender.PlayerId, StringComparison.Ordinal))
-            {
-                return;
-            }
-        }
-        RejectPending(token ?? "", reason, true);
     }
 
     public static void ApplyNetworkState(ProjectionCompanionSnapshot? snapshot, string source)
@@ -334,13 +380,15 @@ public static class ProjectionSummonService
             return;
         }
 
-        if (!snapshot.Accepted)
+        if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
+            || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
+            || !string.Equals(
+                snapshot.CardModelVersion,
+                ProjectionRoleDeckService.CardModelVersion,
+                StringComparison.Ordinal))
         {
-            if (SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
-            {
-                ShowRejectionCaption(snapshot.RejectionReason);
-            }
-
+            TerriasLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
+                + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
             return;
         }
 
@@ -350,27 +398,68 @@ public static class ProjectionSummonService
             return;
         }
 
-        if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
-            || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || !string.Equals(snapshot.RegistryHash, ProjectionCardBattleState.ProtocolIdentity, StringComparison.Ordinal))
-        {
-            TerriasLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
-                + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
-            return;
-        }
-
         var existing = ProjectionStateStore.Find(snapshot.StatusId);
         if (existing != null)
         {
+            if (!snapshot.Active
+                && string.Equals(existing.Replication.Generation, snapshot.Generation, StringComparison.Ordinal))
+            {
+                if (!existing.Replication.TryApplyRemote(
+                        snapshot.Generation,
+                        snapshot.StateRevision,
+                        snapshot.ActionSequence,
+                        snapshot.CompletedTurnSequence,
+                        false))
+                {
+                    return;
+                }
+                RememberTombstone(
+                    snapshot.StatusId,
+                    snapshot.Generation,
+                    snapshot.StateRevision);
+                ProjectionStateStore.Retire(existing.Projection.Status, source + ".RemoteTombstone");
+                return;
+            }
             ApplySnapshot(existing.Projection, snapshot, source);
             return;
+        }
+
+        if (!snapshot.Active)
+        {
+            RememberTombstone(
+                snapshot.StatusId,
+                snapshot.Generation,
+                snapshot.StateRevision);
+            return;
+        }
+
+        lock (NetworkSync)
+        {
+            if (Tombstones.TryGetValue(snapshot.StatusId, out var tombstone)
+                && string.Equals(tombstone.Generation, snapshot.Generation, StringComparison.Ordinal))
+            {
+                return;
+            }
         }
 
         var ownerExisting = ProjectionStateStore.FindByOwner(snapshot.OwnerPlayerId, snapshot.OwnerStatusId);
         if (ownerExisting != null)
         {
-            ApplySnapshot(ownerExisting.Projection, snapshot, source + ".OwnerAlreadyBound");
-            return;
+            if (string.Equals(
+                    ownerExisting.Replication.Generation,
+                    snapshot.Generation,
+                    StringComparison.Ordinal))
+            {
+                ApplySnapshot(ownerExisting.Projection, snapshot, source + ".OwnerAlreadyBound");
+                return;
+            }
+            RememberTombstone(
+                ownerExisting.StatusId,
+                ownerExisting.Replication.Generation,
+                ownerExisting.Replication.StateRevision);
+            ProjectionStateStore.Retire(
+                ownerExisting.Projection.Status,
+                source + ".SupersededGeneration");
         }
 
         SpawnProjection(role, snapshot.OwnerStatusId, snapshot.SlotIndex, snapshot.StatusId, source, snapshot);
@@ -427,36 +516,19 @@ public static class ProjectionSummonService
         string ownerStatusId,
         PolymorphRoleSpec role,
         string source,
-        bool broadcast,
         string token = "",
         string preferredOwnerPlayerId = "",
         int slotIndex = -1,
-        ProjectionPrivateStateEnvelope? privateState = null)
+        ProjectionDeckRecipe? recipe = null)
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
         {
-            var sent = BroadcastRejectIfNeeded(
-                role.Id,
-                ownerStatusId,
-                token,
-                RejectOwnerAlreadyHasProjection,
-                broadcast,
-                source);
-            ShowLocalRejectionIfNeeded(ownerStatusId, RejectOwnerAlreadyHasProjection, broadcast, sent);
             return false;
         }
 
         if (string.IsNullOrWhiteSpace(ownerStatusId))
         {
-            var sent = BroadcastRejectIfNeeded(
-                role.Id,
-                ownerStatusId,
-                token,
-                RejectMissingOwnerStatus,
-                broadcast,
-                source);
-            ShowLocalRejectionIfNeeded(ownerStatusId, RejectMissingOwnerStatus, broadcast, sent);
             return false;
         }
 
@@ -466,15 +538,10 @@ public static class ProjectionSummonService
         }
         if (slotIndex < 0)
         {
-            BroadcastRejectIfNeeded(role.Id, ownerStatusId, token, RejectFriendlySeatsFull, broadcast, source);
             return false;
         }
 
         var statusId = ProjectionStateStore.NextStatusId();
-        if (privateState?.CardState != null)
-        {
-            privateState.CardState.ActorId = statusId;
-        }
         var spawned = SpawnProjection(
             role,
             ownerStatusId,
@@ -483,18 +550,8 @@ public static class ProjectionSummonService
             source,
             null,
             ownerPlayerId,
-            privateState);
-        if (spawned && broadcast)
-        {
-            var projection = ProjectionStateStore.Find(statusId)?.Projection;
-            if (projection != null)
-            {
-                var snapshot = BuildSnapshot(projection);
-                snapshot.Token = string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token;
-                BroadcastNetworkState(snapshot, source);
-            }
-        }
-
+            recipe,
+            string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token);
         return spawned;
     }
 
@@ -506,7 +563,8 @@ public static class ProjectionSummonService
         string source,
         ProjectionCompanionSnapshot? snapshot = null,
         string ownerPlayerId = "",
-        ProjectionPrivateStateEnvelope? privateState = null)
+        ProjectionDeckRecipe? recipe = null,
+        string generation = "")
     {
         try
         {
@@ -555,17 +613,26 @@ public static class ProjectionSummonService
                 role.DisplayName,
                 projection,
                 slotIndex,
-                projection.OwnerPlayerId));
+                projection.OwnerPlayerId,
+                snapshot?.Generation ?? generation,
+                snapshot == null ? 1L : 0L));
             if (snapshot == null)
             {
                 projection.Status.UpdateStatus(true);
-                projection.HydrateOwnerCombatState(privateState?.OwnerCombat);
-                projection.HydrateCardState(privateState?.CardState, source + ".PrivateState");
+                projection.HydrateOwnerCoreStats(owner);
+                if (!projection.InitializeRoleDeck(recipe, source + ".RoleDeck"))
+                {
+                    ProjectionStateStore.Retire(projection.Status, source + ".RoleDeckRejected");
+                    return false;
+                }
                 projection.ActivateAfterHydration(null, source + ".AuthoritativeInit");
             }
             else
             {
                 ApplySnapshot(projection, snapshot, source + ".Hydrate");
+                ProjectionCardPresentationService.FlushPending(
+                    projection.InstanceId,
+                    source + ".Hydrate");
             }
             PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
             return true;
@@ -578,61 +645,182 @@ public static class ProjectionSummonService
         }
     }
 
-    private static bool BroadcastRejectIfNeeded(string roleId, string ownerStatusId, string token, string reason, bool broadcast, string source)
+    private static void RejectSummon(
+        string roleId,
+        string ownerStatusId,
+        string ownerPlayerId,
+        string token,
+        ProjectionSummonFailureCode failureCode,
+        string detail,
+        string source)
     {
-        if (!broadcast)
-        {
-            return false;
-        }
+        var result = CreateResult(
+            token,
+            roleId,
+            ownerStatusId,
+            ownerPlayerId,
+            failureCode,
+            detail);
+        CacheTerminalResult(result);
+        BroadcastSummonResult(result, source);
+    }
 
-        return BroadcastNetworkState(new ProjectionCompanionSnapshot
+    private static ProjectionSummonResultSnapshot CreateResult(
+        string token,
+        string roleId,
+        string ownerStatusId,
+        string ownerPlayerId,
+        ProjectionSummonFailureCode failureCode,
+        string detail)
+    {
+        var failure = ProjectionSummonFailureCatalog.Describe(failureCode);
+        return new ProjectionSummonResultSnapshot
         {
+            ServerProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
+            ServerBattleEpoch = CompanionAuthorityService.BattleEpoch,
+            ServerCardModelVersion = ProjectionRoleDeckService.CardModelVersion,
             Token = token ?? "",
             RoleId = roleId ?? "",
             OwnerStatusId = ownerStatusId ?? "",
-            Accepted = false,
-            RejectionReason = reason ?? ""
-        }, source + ".Reject");
+            OwnerPlayerId = ownerPlayerId ?? "",
+            Accepted = failureCode == ProjectionSummonFailureCode.None,
+            Terminal = failure.Terminal,
+            FailureCode = failure.Code,
+            FailureCategory = failure.Category,
+            Retryable = failure.Retryable,
+            RefundCard = failure.RefundCard,
+            Detail = detail ?? ""
+        };
+    }
+
+    private static void CacheTerminalResult(ProjectionSummonResultSnapshot result)
+    {
+        if (result == null || !result.Terminal || string.IsNullOrWhiteSpace(result.Token))
+        {
+            return;
+        }
+        lock (NetworkSync)
+        {
+            TerminalResults[result.Token] = result;
+            RoleDeckWaitAttempts.Remove(result.Token);
+        }
+    }
+
+    private static int RecordRoleDeckWaitAttempt(
+        string token,
+        string roleId,
+        string ownerPlayerId,
+        string ownerStatusId,
+        string deckRecipeHash)
+    {
+        lock (NetworkSync)
+        {
+            if (!RoleDeckWaitAttempts.TryGetValue(token ?? "", out var state))
+            {
+                state = new RoleDeckWaitState(
+                    roleId,
+                    ownerPlayerId,
+                    ownerStatusId,
+                    deckRecipeHash);
+                RoleDeckWaitAttempts[token ?? ""] = state;
+            }
+            state.Attempts++;
+            return state.Attempts;
+        }
+    }
+
+    private static bool RoleDeckWaitRequestMatches(
+        string token,
+        string roleId,
+        string ownerPlayerId,
+        string ownerStatusId,
+        string deckRecipeHash)
+    {
+        lock (NetworkSync)
+        {
+            return !RoleDeckWaitAttempts.TryGetValue(token ?? "", out var state)
+                   || state.Matches(roleId, ownerPlayerId, ownerStatusId, deckRecipeHash);
+        }
+    }
+
+    private static void BroadcastSummonResult(ProjectionSummonResultSnapshot result, string source)
+    {
+        ApplySummonResult(result, source + ".Local");
+        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        {
+            TerriasNetworkRuntime.Send(new RpcProjectionSummonResult(result), source);
+        }
+    }
+
+    public static void ApplySummonResult(ProjectionSummonResultSnapshot? result, string source)
+    {
+        if (result == null || string.IsNullOrWhiteSpace(result.Token))
+        {
+            return;
+        }
+
+        ProjectionSummonTransaction? transaction;
+        lock (NetworkSync)
+        {
+            PendingTransactions.TryGetValue(result.Token, out transaction);
+            if (result.Terminal && transaction != null)
+            {
+                transaction.SetTerminal();
+            }
+            if (result.Terminal && !AppliedResultTokens.Add(result.Token))
+            {
+                return;
+            }
+        }
+
+        var isLocalOwner = transaction != null
+                           || string.Equals(
+                               FightPlayer.Instance?.Status?.InstanceId,
+                               result.OwnerStatusId,
+                               StringComparison.Ordinal);
+        if (!isLocalOwner)
+        {
+            return;
+        }
+        if (!result.Accepted)
+        {
+            TerriasLog.Warn("[ProjectionSummonResult] code="
+                + result.FailureCode
+                + "; category="
+                + result.FailureCategory
+                + "; terminal="
+                + result.Terminal
+                + "; retryable="
+                + result.Retryable
+                + "; detail="
+                + (result.Detail ?? ""));
+        }
+        if (!result.Terminal)
+        {
+            var transient = ProjectionSummonFailureCatalog.Describe(result.FailureCode);
+            if (transaction == null || transaction.Attempts <= 1)
+            {
+                PlayerApi.ShowCaption("拜托了：" + transient.Message);
+            }
+            return;
+        }
+        if (result.Accepted)
+        {
+            return;
+        }
+
+        var failure = ProjectionSummonFailureCatalog.Describe(result.FailureCode);
+        PlayerApi.ShowCaption("拜托了：" + failure.Message);
+        if (result.RefundCard
+            && (transaction == null || transaction.TryClaimRefund()))
+        {
+            RefundProjectionRoleCard(result.RoleId, result.OwnerStatusId, result.Token, source);
+        }
     }
 
     private static bool BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
     {
         return TerriasNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
-    }
-
-    private static void ShowLocalRejectionIfNeeded(string ownerStatusId, string reason, bool broadcast, bool sent)
-    {
-        if (!broadcast || !sent && SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId))
-        {
-            ShowRejectionCaption(reason);
-        }
-    }
-
-    private static void ShowRejectionCaption(string reason)
-    {
-        PlayerApi.ShowCaption("拜托了：" + RejectionMessage(reason));
-    }
-
-    private static string RejectionMessage(string reason)
-    {
-        var normalized = (reason ?? "").Trim();
-        if (normalized.StartsWith(RejectUnknownRolePrefix, StringComparison.Ordinal))
-        {
-            return "投影目标已失效。";
-        }
-
-        return normalized switch
-        {
-            RejectOwnerAlreadyHasProjection => "投影位置已被占用。",
-            RejectMissingOwnerStatus => "没有可用的友方站位。",
-            RejectProtocolMismatch => "投影协议版本不一致。",
-            RejectBattleEpochMismatch => "当前战斗状态已失效，请重新使用。",
-            RejectIntentRegistryMismatch => "投影行动配置不一致。",
-            RejectMissingSender => "无法确认操作玩家。",
-            RejectSenderOutsideLobby => "操作玩家不在当前房间中。",
-            RejectOwnerMismatch => "当前角色不属于该玩家。",
-            _ => "投影召唤失败，请稍后重试。"
-        };
     }
 
     public static void BroadcastRuntimeState(ProjectionOtherObj projection, string source)
@@ -645,16 +833,101 @@ public static class ProjectionSummonService
         BroadcastNetworkState(BuildSnapshot(projection), "ProjectionRuntime." + source);
     }
 
+    public static void BroadcastTurnCompleted(ProjectionOtherObj projection, string source)
+    {
+        var projectionState = ProjectionStateStore.Find(projection.InstanceId);
+        if (projectionState == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+        projectionState.Replication.CompleteTurn();
+        projectionState.RemoteTurnGate.Observe(
+            projectionState.Replication.CompletedTurnSequence,
+            projectionState.Replication.ActionSequence,
+            projectionState.Replication.StateRevision,
+            Time.unscaledTimeAsDouble);
+        BroadcastRuntimeState(projection, source);
+    }
+
+    public static void BroadcastExternalStateChange(ProjectionOtherObj projection, string source)
+    {
+        var state = ProjectionStateStore.Find(projection.InstanceId);
+        if (state == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+        state.Replication.Touch();
+        BroadcastRuntimeState(projection, "ExternalState." + source);
+    }
+
+    public static void BroadcastRetired(ProjectionState state, string source)
+    {
+        if (state == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+        state.Replication.Retire();
+        RememberTombstone(
+            state.StatusId,
+            state.Replication.Generation,
+            state.Replication.StateRevision);
+        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        {
+            BroadcastNetworkState(BuildSnapshot(state.Projection), "ProjectionRuntime.Retired." + source);
+        }
+    }
+
+    public static void RequestRuntimeState(ProjectionOtherObj projection, string source)
+    {
+        var state = ProjectionStateStore.Find(projection?.InstanceId ?? "");
+        if (state == null || !TerriasNetworkRuntime.IsMultiplayerSession())
+        {
+            return;
+        }
+        TerriasNetworkRuntime.Send(
+            new RpcProjectionStateRequest(state.StatusId, state.Replication.Generation),
+            "ProjectionRuntime.StateRequest." + source);
+    }
+
+    public static void ResolveStateRequest(
+        string statusId,
+        string generation,
+        TerriasRpcSender sender,
+        int protocolVersion,
+        int battleEpoch)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative()
+            || protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
+            || battleEpoch != CompanionAuthorityService.BattleEpoch
+            || !sender.IsAvailable
+            || !sender.IsLobbyMember)
+        {
+            return;
+        }
+        var state = ProjectionStateStore.Find(statusId);
+        if (state == null
+            || !string.Equals(state.Replication.Generation, generation ?? "", StringComparison.Ordinal))
+        {
+            return;
+        }
+        BroadcastNetworkState(BuildSnapshot(state.Projection), "ProjectionRuntime.StateRequestReply");
+    }
+
     private static ProjectionCompanionSnapshot BuildSnapshot(ProjectionOtherObj projection)
     {
         var state = CompanionBattleStateStore.Find(projection.InstanceId);
+        var projectionState = ProjectionStateStore.Find(projection.InstanceId);
+        var replication = projectionState?.Replication;
         return new ProjectionCompanionSnapshot
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            RegistryHash = ProjectionCardBattleState.ProtocolIdentity,
-            Revision = state?.Revision ?? 0,
-            Accepted = true,
+            CardModelVersion = ProjectionRoleDeckService.CardModelVersion,
+            Generation = replication?.Generation ?? "",
+            StateRevision = replication?.StateRevision ?? 0L,
+            ActionSequence = replication?.ActionSequence ?? 0L,
+            CompletedTurnSequence = replication?.CompletedTurnSequence ?? 0L,
+            Active = replication?.Active ?? true,
             RoleId = projection.RoleId,
             OwnerPlayerId = projection.OwnerPlayerId,
             OwnerStatusId = projection.OwnerStatusId,
@@ -665,21 +938,39 @@ public static class ProjectionSummonService
             Attack = projection.Attack,
             Armor = projection.Defend,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
-            CurrentMagic = state?.Stats.CurrentMagic ?? 0,
-            TurnIndex = state?.TurnIndex ?? 0
+            CurrentMagic = state?.Stats.CurrentMagic ?? 0
         };
     }
 
     private static void ApplySnapshot(ProjectionOtherObj projection, ProjectionCompanionSnapshot snapshot, string source)
     {
         var state = CompanionBattleStateStore.Find(projection.InstanceId);
-        if (state == null || snapshot.Revision < state.Revision)
+        var projectionState = ProjectionStateStore.Find(projection.InstanceId);
+        if (state == null
+            || projectionState == null
+            || !projectionState.Replication.TryApplyRemote(
+                snapshot.Generation,
+                snapshot.StateRevision,
+                snapshot.ActionSequence,
+                snapshot.CompletedTurnSequence,
+                snapshot.Active))
         {
             return;
         }
 
         state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
-        state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
+        state.ApplyRemoteProgress(
+            snapshot.CompletedTurnSequence > int.MaxValue
+                ? int.MaxValue
+                : (int)snapshot.CompletedTurnSequence,
+            snapshot.StateRevision > int.MaxValue
+                ? int.MaxValue
+                : (int)snapshot.StateRevision);
+        projectionState.RemoteTurnGate.Observe(
+            snapshot.CompletedTurnSequence,
+            snapshot.ActionSequence,
+            snapshot.StateRevision,
+            Time.unscaledTimeAsDouble);
         if (projection.Status != null)
         {
             projection.MaxHp = Math.Max(1, snapshot.MaxHp);
@@ -691,32 +982,49 @@ public static class ProjectionSummonService
         projection.ActivateAfterHydration(null, source);
     }
 
-    private static IStatusManager? StatusById(string statusId)
+    private static void RememberTombstone(
+        string statusId,
+        string generation,
+        long stateRevision)
     {
-        return !string.IsNullOrWhiteSpace(statusId)
-            && FightManager.Instance?.statuses?.TryGetValue(statusId, out var status) == true
-                ? status
-                : null;
+        if (string.IsNullOrWhiteSpace(statusId) || string.IsNullOrWhiteSpace(generation))
+        {
+            return;
+        }
+        lock (NetworkSync)
+        {
+            if (Tombstones.TryGetValue(statusId, out var existing)
+                && string.Equals(existing.Generation, generation, StringComparison.Ordinal)
+                && existing.StateRevision >= stateRevision)
+            {
+                return;
+            }
+            Tombstones[statusId] = new ProjectionTombstone(generation, stateRevision);
+        }
     }
 
-    private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
+    private static ProjectionSummonFailureCode ValidateNetworkSender(
+        TerriasRpcSender sender,
+        string ownerStatusId)
     {
         if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
-            return "";
+            return ProjectionSummonFailureCode.None;
         }
 
         if (!sender.IsAvailable)
         {
-            return RejectMissingSender;
+            return ProjectionSummonFailureCode.MissingSender;
         }
 
         if (!sender.IsLobbyMember)
         {
-            return RejectSenderOutsideLobby;
+            return ProjectionSummonFailureCode.SenderOutsideLobby;
         }
 
-        return SenderOwnsStatus(sender.PlayerId, ownerStatusId) ? "" : RejectOwnerMismatch;
+        return SenderOwnsStatus(sender.PlayerId, ownerStatusId)
+            ? ProjectionSummonFailureCode.None
+            : ProjectionSummonFailureCode.OwnerMismatch;
     }
 
     private static bool SenderOwnsStatus(string playerId, string ownerStatusId)
@@ -745,239 +1053,24 @@ public static class ProjectionSummonService
         }
     }
 
-    private static void CaptureAndUploadAfterSettlement(
-        ProjectionPrepareResult result,
-        string source,
-        int attempt)
-    {
-        if (attempt > 240)
-        {
-            AbortLocalUpload(result, "projection card settlement timed out");
-            return;
-        }
-        var localOwner = FightPlayer.Instance?.Status;
-        if (localOwner == null
-            || !string.Equals(localOwner.InstanceId, result.OwnerStatusId, StringComparison.Ordinal))
-        {
-            AbortLocalUpload(result, "projection summoner local state is unavailable");
-            return;
-        }
-        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
-        if (fightUi == null
-            || WitchCombatRuntime.IsUiBusy(fightUi)
-            || (FightUI.WaitCard?.Count ?? 0) > 0)
-        {
-            TerriasFrameDispatcher.RunOnceAfterFrames(
-                "Projection.PrivateStateCapture." + result.Token + "." + attempt,
-                1,
-                () => CaptureAndUploadAfterSettlement(result, source, attempt + 1));
-            return;
-        }
-
-        var captured = ProjectionCardBattleState.CaptureFromPlayer(
-            "pending:" + result.Token,
-            out var captureReason);
-        if (captured == null)
-        {
-            AbortLocalUpload(result, captureReason);
-            return;
-        }
-        var envelope = new ProjectionPrivateStateEnvelope
-        {
-            ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-            BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            Token = result.Token,
-            OwnerCombat = ProjectionOwnerCombatSnapshot.Capture(localOwner),
-            CardState = captured.Export(
-                TerriasIds.ModId,
-                "pending:" + result.Token,
-                AuraBattleLifecycleRouter.CurrentBattleSessionId)
-        };
-        if (!ProjectionCardStateTransport.TryEncode(
-                envelope,
-                out var compressed,
-                out var sha256,
-                out var uncompressedBytes,
-                out var encodeReason))
-        {
-            AbortLocalUpload(result, encodeReason);
-            return;
-        }
-
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
-        {
-            PendingProjection? pending;
-            lock (NetworkSync)
-            {
-                Pending.TryGetValue(result.Token, out pending);
-            }
-            if (pending == null)
-            {
-                RefundProjectionRoleCard(result.RoleId, result.OwnerStatusId, result.Token, source);
-                return;
-            }
-            CompletePreparedSummon(pending, envelope, source + ".LocalPrivateState");
-            return;
-        }
-
-        var chunkCount = ProjectionCardStateTransport.ChunkCount(compressed.Length);
-        var chunkIndex = 0;
-        foreach (var segment in ProjectionCardStateTransport.Chunks(compressed))
-        {
-            var chunk = new byte[segment.Count];
-            Buffer.BlockCopy(segment.Array!, segment.Offset, chunk, 0, segment.Count);
-            if (!TerriasNetworkRuntime.Send(new RpcProjectionPrivateStateChunk
-                {
-                    ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-                    BattleEpoch = CompanionAuthorityService.BattleEpoch,
-                    Token = result.Token,
-                    ChunkIndex = chunkIndex++,
-                    ChunkCount = chunkCount,
-                    TotalBytes = compressed.Length,
-                    UncompressedBytes = uncompressedBytes,
-                    Sha256 = sha256,
-                    Payload = chunk
-                }, "Projection.PrivateStateUpload." + source))
-            {
-                AbortLocalUpload(result, "projection private state upload failed");
-                return;
-            }
-        }
-    }
-
-    private static void CompletePreparedSummon(
-        PendingProjection pending,
-        ProjectionPrivateStateEnvelope envelope,
+    private static void RefundProjectionRoleCard(
+        string roleId,
+        string ownerStatusId,
+        string token,
         string source)
     {
-        if (!FriendlyRoleSeatLedger.TryClaim(
-                pending.Token,
-                pending.OwnerPlayerId,
-                pending.OwnerStatusId,
-                CompanionAuthorityService.BattleEpoch,
-                out var slotIndex))
-        {
-            RejectPending(pending.Token, "projection seat reservation expired", true);
-            return;
-        }
-        lock (NetworkSync)
-        {
-            Pending.Remove(pending.Token);
-            Uploads.Remove(pending.Token);
-            ResolvedTokens.Add(pending.Token);
-        }
-        if (!TrySummonLocal(
-                pending.OwnerStatusId,
-                pending.Role,
-                source,
-                broadcast: TerriasNetworkRuntime.IsMultiplayerSession(),
-                token: pending.Token,
-                preferredOwnerPlayerId: pending.OwnerPlayerId,
-                slotIndex: slotIndex,
-                privateState: envelope))
-        {
-            BroadcastPrepareResult(new ProjectionPrepareResult
-            {
-                ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-                BattleEpoch = CompanionAuthorityService.BattleEpoch,
-                Token = pending.Token,
-                RoleId = pending.Role.Id,
-                OwnerStatusId = pending.OwnerStatusId,
-                OwnerPlayerId = pending.OwnerPlayerId,
-                Accepted = false,
-                RefundCard = true,
-                RejectionReason = "projection spawn failed"
-            }, source + ".SpawnRejected");
-        }
-    }
-
-    private static void AbortLocalUpload(ProjectionPrepareResult result, string reason)
-    {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
-        {
-            RejectPending(result.Token, reason, true);
-            return;
-        }
-        TerriasNetworkRuntime.Send(new RpcProjectionPrivateStateAbort
-        {
-            ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-            BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            Token = result.Token,
-            Reason = reason ?? "projection private state unavailable"
-        }, "Projection.PrivateStateAbort");
-    }
-
-    private static void RejectPending(string token, string reason, bool refundCard)
-    {
-        PendingProjection? pending;
-        lock (NetworkSync)
-        {
-            Pending.TryGetValue(token ?? "", out pending);
-            Pending.Remove(token ?? "");
-            Uploads.Remove(token ?? "");
-        }
-        FriendlyRoleSeatLedger.Release(token);
-        if (pending == null)
-        {
-            return;
-        }
-        BroadcastPrepareResult(new ProjectionPrepareResult
-        {
-            ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
-            BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            Token = token ?? "",
-            RoleId = pending.Role.Id,
-            OwnerStatusId = pending.OwnerStatusId,
-            OwnerPlayerId = pending.OwnerPlayerId,
-            SlotIndex = pending.SlotIndex,
-            Accepted = false,
-            RefundCard = refundCard,
-            RejectionReason = string.IsNullOrWhiteSpace(reason)
-                ? RejectPrivateStateInvalid
-                : reason
-        }, "ProjectionSummonService.RejectPending");
-    }
-
-    private static void SchedulePendingExpiry(string token, int attempt)
-    {
+        var refundToken = token ?? "";
         TerriasFrameDispatcher.RunOnceAfterFrames(
-            "Projection.PrivateStateExpiry." + token + "." + attempt,
-            PrivateStateExpiryCheckFrames,
-            () =>
-            {
-                var pending = false;
-                var expired = false;
-                lock (NetworkSync)
-                {
-                    if (Pending.TryGetValue(token, out var state))
-                    {
-                        pending = true;
-                        expired = state.ExpiresAtUtc <= DateTime.UtcNow;
-                    }
-                }
-
-                if (expired)
-                {
-                    RejectPending(token, "projection private state upload timed out", true);
-                }
-                else if (pending && attempt < 20)
-                {
-                    SchedulePendingExpiry(token, attempt + 1);
-                }
-            });
+            "Projection.RefundRoleCard." + refundToken,
+            1,
+            () => RefundProjectionRoleCardAfterSettlement(
+                roleId,
+                ownerStatusId,
+                refundToken,
+                source));
     }
 
-    private static bool BroadcastPrepareResult(ProjectionPrepareResult result, string source)
-    {
-        ApplyPrepareResult(result, source + ".Local");
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
-        {
-            return true;
-        }
-        return TerriasNetworkRuntime.Send(new RpcProjectionPrepareResult(result), source);
-    }
-
-    private static void RefundProjectionRoleCard(
+    private static void RefundProjectionRoleCardAfterSettlement(
         string roleId,
         string ownerStatusId,
         string token,
@@ -996,103 +1089,44 @@ public static class ProjectionSummonService
         ProjectionActivationService.GrantRoleCard(executor, roleId);
     }
 
-    private static void PruneNetworkState()
+    private sealed class ProjectionTombstone
     {
-        var now = DateTime.UtcNow;
-        foreach (var token in Uploads
-                     .Where(pair => pair.Value.ExpiresAtUtc <= now)
-                     .Select(pair => pair.Key)
-                     .ToArray())
+        public ProjectionTombstone(string generation, long stateRevision)
         {
-            Uploads.Remove(token);
+            Generation = generation ?? "";
+            StateRevision = Math.Max(0L, stateRevision);
         }
+
+        public string Generation { get; }
+        public long StateRevision { get; }
     }
 
-    private sealed class PendingProjection
+    private sealed class RoleDeckWaitState
     {
-        public PendingProjection(
-            string token,
-            PolymorphRoleSpec role,
+        public RoleDeckWaitState(
+            string roleId,
             string ownerPlayerId,
             string ownerStatusId,
-            int slotIndex,
-            DateTime expiresAtUtc)
+            string deckRecipeHash)
         {
-            Token = token;
-            Role = role;
-            OwnerPlayerId = ownerPlayerId;
-            OwnerStatusId = ownerStatusId;
-            SlotIndex = slotIndex;
-            ExpiresAtUtc = expiresAtUtc;
-        }
-        public string Token { get; }
-        public PolymorphRoleSpec Role { get; }
-        public string OwnerPlayerId { get; }
-        public string OwnerStatusId { get; }
-        public int SlotIndex { get; }
-        public DateTime ExpiresAtUtc { get; }
-    }
-
-    private sealed class PendingProjectionUpload
-    {
-        private readonly byte[][] chunks;
-        private int received;
-
-        public PendingProjectionUpload(
-            string token,
-            int chunkCount,
-            int totalBytes,
-            int uncompressedBytes,
-            string sha256,
-            DateTime expiresAtUtc)
-        {
-            Token = token;
-            chunks = new byte[chunkCount][];
-            TotalBytes = totalBytes;
-            UncompressedBytes = uncompressedBytes;
-            Sha256 = sha256 ?? "";
-            ExpiresAtUtc = expiresAtUtc;
+            Identity = new ProjectionSummonRequestIdentity(
+                roleId,
+                ownerPlayerId,
+                ownerStatusId,
+                deckRecipeHash);
         }
 
-        public string Token { get; }
-        public int TotalBytes { get; }
-        public int UncompressedBytes { get; }
-        public string Sha256 { get; }
-        public DateTime ExpiresAtUtc { get; }
-        public bool Complete => received == chunks.Length;
+        public ProjectionSummonRequestIdentity Identity { get; }
+        public int Attempts { get; set; }
 
-        public bool Accept(RpcProjectionPrivateStateChunk chunk)
+        public bool Matches(
+            string roleId,
+            string ownerPlayerId,
+            string ownerStatusId,
+            string deckRecipeHash)
         {
-            if (chunk.ChunkCount != chunks.Length
-                || chunk.TotalBytes != TotalBytes
-                || chunk.UncompressedBytes != UncompressedBytes
-                || !string.Equals(chunk.Sha256, Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-            if (chunks[chunk.ChunkIndex] != null)
-            {
-                return chunks[chunk.ChunkIndex].SequenceEqual(chunk.Payload);
-            }
-            chunks[chunk.ChunkIndex] = chunk.Payload.ToArray();
-            received++;
-            return chunks.Sum(value => value?.Length ?? 0) <= TotalBytes;
-        }
-
-        public byte[] Join()
-        {
-            var result = new byte[TotalBytes];
-            var offset = 0;
-            foreach (var chunk in chunks)
-            {
-                if (chunk == null || offset + chunk.Length > result.Length)
-                {
-                    return Array.Empty<byte>();
-                }
-                Buffer.BlockCopy(chunk, 0, result, offset, chunk.Length);
-                offset += chunk.Length;
-            }
-            return offset == result.Length ? result : Array.Empty<byte>();
+            return Identity.Matches(roleId, ownerPlayerId, ownerStatusId, deckRecipeHash);
         }
     }
+
 }
