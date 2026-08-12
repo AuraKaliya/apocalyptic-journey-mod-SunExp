@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter.Storage;
 
@@ -500,6 +501,7 @@ internal sealed class DamageHistoryDatabase
             Directory.CreateDirectory(directory);
         }
 
+        MatchRecordsDatabaseMigrator.BackupBeforeUpgrade(databasePath);
         using var connection = Open();
         connection.Execute("PRAGMA journal_mode=DELETE;");
         connection.Execute("PRAGMA synchronous=NORMAL;");
@@ -518,6 +520,8 @@ internal sealed class DamageHistoryDatabase
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_adventure_history_recent ON adventure_history(sequence DESC);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_adventure_history_ended ON adventure_history(ended_utc);");
         connection.Execute("CREATE TABLE IF NOT EXISTS avatars(sha256 TEXT PRIMARY KEY NOT NULL, png BLOB NOT NULL);");
+        MatchRecordsDatabaseMigrator.Apply(connection);
+        MatchRecordsDatabaseMigrator.Validate(connection);
         initialized = true;
     }
 

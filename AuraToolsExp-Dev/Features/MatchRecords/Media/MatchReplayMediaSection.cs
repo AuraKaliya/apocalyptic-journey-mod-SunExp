@@ -40,7 +40,7 @@ internal static class MatchReplayMediaSection
             AuraToolsUi.AddButton(row, "播放", () => MatchReplayVideoPlayer.Show(overlayHost, current), 76f);
             AuraToolsUi.AddButton(row, "位置", () =>
             {
-                var directory = Path.GetDirectoryName(current.FilePath);
+                var directory = Path.GetDirectoryName(MatchReplayMediaStore.ResolvePath(current.FilePath));
                 if (!string.IsNullOrWhiteSpace(directory)) FileResourceUtil.OpenDirectory(directory);
             }, 72f);
             AuraToolsUi.AddButton(row, "删除", () =>

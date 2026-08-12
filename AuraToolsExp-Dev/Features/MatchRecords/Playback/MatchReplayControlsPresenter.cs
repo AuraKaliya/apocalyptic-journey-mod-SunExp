@@ -14,6 +14,7 @@ internal static class MatchReplayControlsPresenter
     private static Text? playLabel;
     private static Text? speedLabel;
     private static Slider? progress;
+    private static Button? continueButton;
     private static bool updating;
 
     internal static void Show()
@@ -40,7 +41,7 @@ internal static class MatchReplayControlsPresenter
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
-            new Vector2(1040f, 66f));
+            new Vector2(1160f, 66f));
         toolbar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 22f);
         AuraToolsUi.AddPanelImage(toolbar, AuraToolsUi.Background);
         var layout = toolbar.AddComponent<HorizontalLayoutGroup>();
@@ -67,6 +68,7 @@ internal static class MatchReplayControlsPresenter
             AuraToolsUi.Text,
             AuraToolsUi.TextMinHeight,
             1f);
+        continueButton = AuraToolsUi.AddButton(toolbar.transform, "降级继续", MatchReplayPlayer.ContinueDegraded, 92f);
         AuraToolsUi.AddButton(toolbar.transform, "退出回放", MatchReplayPlayer.Stop, 104f);
         Refresh();
     }
@@ -91,8 +93,13 @@ internal static class MatchReplayControlsPresenter
         if (status != null)
         {
             status.text = "回合 " + MatchReplayPlayer.CurrentTurn + "/" + Math.Max(1, MatchReplayPlayer.TurnCount)
-                          + "   事件 " + MatchReplayPlayer.EventIndex + "/" + MatchReplayPlayer.EventCount;
+                          + "   事件 " + MatchReplayPlayer.EventIndex + "/" + MatchReplayPlayer.EventCount
+                          + (string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
+                              ? ""
+                              : "   " + MatchReplayPlayer.PlaybackIssue);
         }
+
+        if (continueButton != null) continueButton.interactable = MatchReplayPlayer.HasBlockingError;
 
         if (progress != null)
         {
@@ -116,6 +123,7 @@ internal static class MatchReplayControlsPresenter
         playLabel = null;
         speedLabel = null;
         progress = null;
+        continueButton = null;
     }
 
     private static Slider CreateProgress(Transform parent)

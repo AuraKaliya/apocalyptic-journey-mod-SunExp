@@ -1,3 +1,4 @@
+using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
@@ -101,6 +102,34 @@ internal static partial class AuraToolsTestSuite
                    && database.DeleteMedia("media-1")?.DurationMilliseconds == 12345
                    && database.LoadMedia("record-1").Count == 0,
                 "video metadata remains compact in SQLite while media bytes stay outside the database");
+
+            Assert(database.UpdateMetadata("record-1", "boss,featured", "Alice burst test")
+                   && database.Get("record-1")?.Tags == "boss,featured"
+                   && database.SearchRecords(MatchRecordCollections.Favorite, "Alice", "Win", null).Single().RecordId == "record-1",
+                "tags, notes, level, result, and participant JSON are searchable metadata");
+            var packageSnapshot = database.LoadPackageSnapshot("record-1");
+            Assert(packageSnapshot?.Record.RecordId == "record-1"
+                   && packageSnapshot.Chunks.Count == chunksRestored.Count
+                   && packageSnapshot.Analysis?.TotalDamage == 321,
+                "package export reads record, chunks, and analysis from one SQLite snapshot");
+
+            var orphanRejected = false;
+            try
+            {
+                database.SaveMedia(new MatchMediaAsset { MediaId = "orphan", RecordId = "missing" });
+            }
+            catch (InvalidDataException)
+            {
+                orphanRejected = true;
+            }
+
+            Assert(orphanRejected, "SQLite integrity checks reject media metadata without a parent match");
+            using (var connection = new WinSqliteConnection(path))
+            using (var version = connection.Prepare("PRAGMA user_version;"))
+            {
+                Assert(version.Read() && version.Int64(0) == MatchRecordsDatabaseMigrator.CurrentVersion,
+                    "shared match history database records the current ordered migration version");
+            }
 
             var damaged = chunksRestored.Select(item => new MatchReplayChunk
             {

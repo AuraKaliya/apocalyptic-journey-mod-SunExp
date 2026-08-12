@@ -954,6 +954,50 @@ public static class AuraToolsSettingsRuntime
                 RebuildPanel(activePanel!.transform);
             }, 104f);
 
+            var presentationRow = CreateInlineRow(content, "MatchRecordPresentationRow");
+            AuraToolsUi.AddText(presentationRow.transform, "回放演出节奏", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(presentationRow.transform, matchRecords.Replay.PresentationMode, () =>
+            {
+                matchRecords.Replay.PresentationMode = matchRecords.Replay.PresentationMode == "Standard"
+                    ? "Compact"
+                    : matchRecords.Replay.PresentationMode == "Compact" ? "Showcase" : "Standard";
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 104f);
+
+            var videoRow = CreateInlineRow(content, "MatchRecordVideoRow");
+            AuraToolsUi.AddText(videoRow.transform, "视频导出", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.Quality, () =>
+            {
+                matchRecords.Replay.Video.Quality = matchRecords.Replay.Video.Quality == "1080p" ? "720p" : "1080p";
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 86f);
+            AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.FramesPerSecond + " FPS", () =>
+            {
+                matchRecords.Replay.Video.FramesPerSecond = matchRecords.Replay.Video.FramesPerSecond >= 60 ? 30 : 60;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 86f);
+            AuraToolsUi.AddText(videoRow.transform, "UI", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 28f);
+            AuraToolsUi.AddToggle(videoRow.transform, matchRecords.Replay.Video.IncludeUi, value =>
+            {
+                matchRecords.Replay.Video.IncludeUi = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            AuraToolsUi.AddText(videoRow.transform, "音频", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 42f);
+            AuraToolsUi.AddToggle(videoRow.transform, matchRecords.Replay.Video.IncludeAudio, value =>
+            {
+                matchRecords.Replay.Video.IncludeAudio = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            AuraToolsUi.AddText(videoRow.transform, "优先MP4", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 70f);
+            AuraToolsUi.AddToggle(videoRow.transform, matchRecords.Replay.Video.PreferMp4, value =>
+            {
+                matchRecords.Replay.Video.PreferMp4 = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+
             var displayRow = CreateInlineRow(content, "DamageMeterDisplayModeRow");
             AuraToolsUi.AddText(displayRow.transform, "展示方式", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
@@ -993,28 +1037,14 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(
                 libraryRow.transform,
                 "自动记录：" + AuraToolsMatchRecordsRuntime.AutoRecordCount
-                + "，收藏对局：" + AuraToolsMatchRecordsRuntime.FavoriteRecordCount,
+                + "，收藏对局：" + AuraToolsMatchRecordsRuntime.FavoriteRecordCount
+                + "，冒险统计：" + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount,
                 AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.Text,
                 AuraToolsUi.TextMinHeight,
                 1f);
-            AuraToolsUi.AddButton(libraryRow.transform, "打开对局记录", () => AuraToolsMatchRecordsRuntime.OpenLibrary(activePanel!.transform), 128f);
-
-            var historyRow = CreateInlineRow(content, "DamageMeterOutOfRunHistoryRow");
-            AuraToolsUi.AddText(
-                historyRow.transform,
-                "DPT冒险历史：" + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount + " 条",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            AuraToolsUi.AddButton(
-                historyRow.transform,
-                "查看DPT历史",
-                AuraToolsDamageMeterRuntime.OpenOutOfRunHistory,
-                128f);
+            AuraToolsUi.AddButton(libraryRow.transform, "打开对局资料库", () => AuraToolsMatchRecordsRuntime.OpenLibrary(activePanel!.transform), 132f);
 
             AuraToolsUi.AddText(content, "声明：该模块初始版本代码由【哈基米】提供，后续由【Aura】进行维护和功能开发。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, matchRecords.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);

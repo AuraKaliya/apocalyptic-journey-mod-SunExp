@@ -53,6 +53,7 @@ internal static class MatchSemanticEventFactory
                     Category = MatchSemanticCategories.Status,
                     Action = "StatusSnapshot",
                     TargetId = status.InstanceId ?? "",
+                    TargetInstanceId = status.InstanceId ?? "",
                     Label = status.state.ToString(),
                     Value = status.curHp,
                     SecondaryValue = status.defend,
@@ -88,8 +89,10 @@ internal static class MatchSemanticEventFactory
             Category = MatchSemanticCategories.Card,
             Action = "UseCard",
             ActorId = command.From ?? "",
+            SourceInstanceId = command.From ?? "",
             SourceId = cardId,
-            Label = label
+            Label = label,
+            AttributionConfidence = MatchAttributionConfidence.Exact
         };
     }
 
@@ -104,10 +107,13 @@ internal static class MatchSemanticEventFactory
                 Action = data.damageType ?? "Damage",
                 ActorId = data.from ?? command.From ?? "",
                 TargetId = data.to ?? "",
+                SourceInstanceId = data.from ?? command.From ?? "",
+                TargetInstanceId = data.to ?? "",
                 Label = data.damageType ?? "伤害",
                 Value = Math.Max(0, data.hit),
                 SecondaryValue = Math.Max(0, data.originalVal),
-                IsKeyEvent = data.hit >= 100
+                IsKeyEvent = data.hit >= 100,
+                AttributionConfidence = MatchAttributionConfidence.Exact
             };
         }
         catch
@@ -119,6 +125,7 @@ internal static class MatchSemanticEventFactory
             Category = MatchSemanticCategories.Damage,
             Action = "Damage",
             ActorId = command.From ?? "",
+            SourceInstanceId = command.From ?? "",
             Label = "伤害"
         };
     }

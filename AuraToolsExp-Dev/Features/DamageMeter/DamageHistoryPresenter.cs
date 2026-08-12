@@ -331,7 +331,10 @@ internal static class DamageHistoryWindowRenderer
         AuraToolsDamageMeterUi.AddText(row.transform, "", 12, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 46f);
     }
 
-    internal static void RenderOutOfRunRow(Transform parent, OutOfRunDamageHistoryRecord record)
+    internal static void RenderOutOfRunRow(
+        Transform parent,
+        OutOfRunDamageHistoryRecord record,
+        Action<OutOfRunDamageHistoryRecord>? deleted = null)
     {
         var row = AuraToolsDamageMeterUi.CreateLayout("OutOfRun-" + record.Sequence, parent);
         AuraToolsDamageMeterUi.SetHeight(row, 52f);
@@ -372,7 +375,8 @@ internal static class DamageHistoryWindowRenderer
             if (DamageHistoryStorage.Database.DeleteAdventure(record.Sequence))
             {
                 AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
-                ShowOutOfRunHistory();
+                if (deleted != null) deleted(record);
+                else ShowOutOfRunHistory();
             }
         }, 42f, 32f);
     }

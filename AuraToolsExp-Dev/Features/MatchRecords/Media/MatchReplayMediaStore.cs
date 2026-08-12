@@ -37,7 +37,7 @@ internal static class MatchReplayMediaStore
             RecordId = recordId,
             Kind = "Video",
             Format = info.Extension.TrimStart('.').ToUpperInvariant(),
-            FilePath = info.FullName,
+            FilePath = ToStoredPath(info.FullName),
             CreatedUtc = DateTime.UtcNow.ToString("O"),
             State = MatchMediaStates.Ready,
             DurationMilliseconds = Math.Max(0, durationMilliseconds),
@@ -117,7 +117,7 @@ internal static class MatchReplayMediaStore
 
         try
         {
-            var fullPath = Path.GetFullPath(asset.FilePath);
+            var fullPath = ResolvePath(asset.FilePath);
             var mediaRoot = Path.GetFullPath(MatchRecordStorage.MediaDirectory)
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
             if (fullPath.StartsWith(mediaRoot, StringComparison.OrdinalIgnoreCase) && File.Exists(fullPath))
@@ -132,6 +132,30 @@ internal static class MatchReplayMediaStore
         }
 
         return true;
+    }
+
+    internal static string ResolvePath(string storedPath)
+    {
+        if (string.IsNullOrWhiteSpace(storedPath)) return "";
+        if (Path.IsPathRooted(storedPath)) return Path.GetFullPath(storedPath);
+        var root = Path.GetFullPath(MatchRecordStorage.RootDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var resolved = Path.GetFullPath(Path.Combine(root, storedPath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("媒体相对路径超出对局记录目录。");
+        }
+
+        return resolved;
+    }
+
+    internal static string ToStoredPath(string fullPath)
+    {
+        var root = Path.GetFullPath(MatchRecordStorage.RootDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var resolved = Path.GetFullPath(fullPath);
+        if (!resolved.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return resolved;
+        return resolved.Substring(root.Length).Replace(Path.DirectorySeparatorChar, '/');
     }
 
     private static string Sha256(string path)

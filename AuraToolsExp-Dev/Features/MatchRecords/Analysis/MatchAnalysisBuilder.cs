@@ -9,80 +9,174 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 
 internal static class MatchAnalysisBuilder
 {
-    internal static MatchAnalysisReport Build(MatchRecord record, IReadOnlyList<MatchReplayEvent> events)
+    internal static MatchAnalysisReport Build(MatchRecord record, IEnumerable<MatchReplayEvent> events)
     {
-        var source = (events ?? Array.Empty<MatchReplayEvent>())
-            .Where(item => item != null)
-            .OrderBy(item => item.Sequence)
-            .ToList();
         var snapshot = ReadSnapshot(record.StatisticsJson);
-        var turns = BuildTurns(record, source, snapshot);
+        var teams = (snapshot?.Combatants ?? new List<CombatantDamageStat>())
+            .Where(item => item != null && !string.IsNullOrWhiteSpace(item.InstanceId))
+            .ToDictionary(item => item.InstanceId, item => item.Team.ToString(), StringComparer.Ordinal);
+        var turns = new Dictionary<int, MatchAnalysisTurn>();
+        var cards = new Dictionary<string, MatchAnalysisCard>(StringComparer.OrdinalIgnoreCase);
+        var actions = new Dictionary<string, MatchAnalysisCard>(StringComparer.Ordinal);
+        var flows = new Dictionary<string, MatchAnalysisDamageFlow>(StringComparer.Ordinal);
+        var moments = new List<MatchAnalysisMoment>(25);
+        MatchAnalysisCard? activeCard = null;
+        var activeTurn = 0;
+        var lastSequence = 0L;
+
+        foreach (var item in events ?? Array.Empty<MatchReplayEvent>())
+        {
+            if (item == null) continue;
+            if (item.Sequence <= lastSequence) throw new InvalidOperationException("Replay events are not in strictly increasing sequence order.");
+            lastSequence = item.Sequence;
+            var turnIndex = Math.Max(1, item.TurnIndex);
+            if (!turns.TryGetValue(turnIndex, out var turn))
+            {
+                turn = new MatchAnalysisTurn { TurnIndex = turnIndex, FirstEventSequence = item.Sequence };
+                turns[turnIndex] = turn;
+            }
+
+            turn.LastEventSequence = item.Sequence;
+            if (item.Kind != MatchReplayEventKinds.Checkpoint) turn.ActionCount++;
+            var semantic = item.Semantic;
+            if (semantic?.Category == MatchSemanticCategories.Card)
+            {
+                if (activeTurn != turnIndex) actions.Clear();
+                var cardId = string.IsNullOrWhiteSpace(semantic.SourceId) ? semantic.Label : semantic.SourceId;
+                cardId = string.IsNullOrWhiteSpace(cardId) ? "UnknownCard" : cardId;
+                if (!cards.TryGetValue(cardId, out activeCard))
+                {
+                    activeCard = new MatchAnalysisCard
+                    {
+                        CardId = cardId,
+                        DisplayName = string.IsNullOrWhiteSpace(semantic.Label) ? cardId : semantic.Label,
+                        FirstEventSequence = item.Sequence
+                    };
+                    cards[cardId] = activeCard;
+                }
+
+                activeCard.Uses++;
+                turn.CardUses++;
+                if (!string.IsNullOrWhiteSpace(semantic.RootActionId)) actions[semantic.RootActionId] = activeCard;
+                activeTurn = turnIndex;
+            }
+            else if (IsDamage(item))
+            {
+                var damage = Math.Max(0, semantic!.Value);
+                turn.Damage += damage;
+                if (!string.IsNullOrWhiteSpace(semantic.RootActionId)
+                    && actions.TryGetValue(semantic.RootActionId, out var attributed))
+                {
+                    attributed.AttributedDamage += damage;
+                    attributed.AttributionConfidence = semantic.AttributionConfidence;
+                }
+                else if (activeCard != null && activeTurn == turnIndex)
+                {
+                    activeCard.ObservedFollowUpDamage += damage;
+                    if (activeCard.AttributionConfidence == MatchAttributionConfidence.Unknown)
+                    {
+                        activeCard.AttributionConfidence = MatchAttributionConfidence.Inferred;
+                    }
+                }
+
+                var sourceTeam = Team(teams, semantic.SourceInstanceId, semantic.ActorId);
+                var targetTeam = Team(teams, semantic.TargetInstanceId, semantic.TargetId);
+                var flowKey = sourceTeam + "|" + targetTeam;
+                if (!flows.TryGetValue(flowKey, out var flow))
+                {
+                    flow = new MatchAnalysisDamageFlow { SourceTeam = sourceTeam, TargetTeam = targetTeam };
+                    flows[flowKey] = flow;
+                }
+
+                flow.HpDamage += damage;
+                AddMoment(moments, item, semantic);
+            }
+            else if (semantic?.IsKeyEvent == true)
+            {
+                AddMoment(moments, item, semantic);
+            }
+
+            if (activeTurn != turnIndex)
+            {
+                activeCard = null;
+                actions.Clear();
+                activeTurn = turnIndex;
+            }
+        }
+
+        var turnCount = Math.Max(1, Math.Max(record.TurnCount, turns.Count == 0 ? 0 : turns.Keys.Max()));
+        var orderedTurns = Enumerable.Range(1, turnCount)
+            .Select(index => turns.TryGetValue(index, out var value) ? value : new MatchAnalysisTurn { TurnIndex = index })
+            .ToList();
+        ApplyAuthoritativeTurnDamage(orderedTurns, snapshot);
+        var combatants = BuildCombatants(snapshot);
         var report = new MatchAnalysisReport
         {
+            Protocol = MatchAnalysisProtocol.Version,
             RecordId = record.RecordId,
             GeneratedUtc = DateTime.UtcNow.ToString("O"),
-            TurnCount = Math.Max(record.TurnCount, turns.Count),
-            Turns = turns,
-            Combatants = BuildCombatants(snapshot),
-            Cards = BuildCards(source)
+            TurnCount = turnCount,
+            Turns = orderedTurns,
+            Combatants = combatants,
+            Cards = cards.Values
+                .OrderByDescending(item => item.Uses)
+                .ThenByDescending(item => item.AttributedDamage + item.ObservedFollowUpDamage)
+                .ThenBy(item => item.DisplayName, StringComparer.Ordinal)
+                .ToList(),
+            DamageFlows = flows.Values
+                .OrderBy(item => item.SourceTeam, StringComparer.Ordinal)
+                .ThenBy(item => item.TargetTeam, StringComparer.Ordinal)
+                .ToList()
         };
-        report.TotalDamage = report.Combatants.Sum(item => item.Damage);
-        var bestTurn = turns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
+        report.TotalDamage = combatants.Sum(item => item.Damage);
+        report.FriendlyDamageDealt = combatants.Where(item => item.Team == "Friendly").Sum(item => item.Damage);
+        report.EnemyDamageDealt = combatants.Where(item => item.Team == "Enemy").Sum(item => item.Damage);
+        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == "Friendly").Sum(FlowDamage);
+        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == "Enemy").Sum(FlowDamage);
+        if (report.DamageFlows.Count == 0)
+        {
+            report.FriendlyDamageTaken = report.EnemyDamageDealt;
+            report.EnemyDamageTaken = report.FriendlyDamageDealt;
+        }
+
+        report.HpDamage = (snapshot?.Combatants ?? new List<CombatantDamageStat>()).Sum(item => Math.Max(0, item?.TotalHpDamage ?? 0));
+        report.ShieldDamage = (snapshot?.Combatants ?? new List<CombatantDamageStat>()).Sum(item => Math.Max(0, item?.TotalShieldDamage ?? 0));
+        var bestTurn = orderedTurns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
         report.BestTurnDamage = bestTurn?.Damage ?? 0;
         report.BestTurnIndex = bestTurn?.TurnIndex ?? 0;
         report.CardUseCount = report.Cards.Sum(item => item.Uses);
-        report.KeyMoments = BuildKeyMoments(source, bestTurn);
+        if (bestTurn != null && bestTurn.Damage > 0)
+        {
+            moments.Add(new MatchAnalysisMoment
+            {
+                Kind = "BestTurn",
+                Label = "本局最高伤害回合",
+                TurnIndex = bestTurn.TurnIndex,
+                EventSequence = bestTurn.FirstEventSequence,
+                Value = bestTurn.Damage
+            });
+        }
+
+        report.KeyMoments = moments
+            .GroupBy(item => item.Kind + "|" + item.EventSequence, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(item => item.EventSequence)
+            .Take(24)
+            .ToList();
         return report;
     }
 
-    private static List<MatchAnalysisTurn> BuildTurns(
-        MatchRecord record,
-        IReadOnlyList<MatchReplayEvent> events,
-        DamageMeterSnapshot? snapshot)
+    private static void ApplyAuthoritativeTurnDamage(List<MatchAnalysisTurn> turns, DamageMeterSnapshot? snapshot)
     {
-        var count = Math.Max(1, Math.Max(record.TurnCount, events.Count == 0 ? 0 : events.Max(item => item.TurnIndex)));
-        var result = Enumerable.Range(1, count)
-            .Select(index => new MatchAnalysisTurn { TurnIndex = index })
-            .ToList();
-        foreach (var group in events.GroupBy(item => Math.Max(1, item.TurnIndex)))
+        if (!(snapshot?.Combatants?.Any(item => item?.Rounds != null && item.Rounds.Count > 0) == true)) return;
+        foreach (var turn in turns)
         {
-            var turn = result[Math.Min(result.Count, group.Key) - 1];
-            turn.ActionCount = group.Count();
-            turn.CardUses = group.Count(item => item.Semantic?.Category == MatchSemanticCategories.Card);
-            turn.FirstEventSequence = group.Min(item => item.Sequence);
-            turn.LastEventSequence = group.Max(item => item.Sequence);
-            turn.Damage = group.Where(IsDamage).Sum(item => Math.Max(0, item.Semantic?.Value ?? 0));
+            turn.Damage = snapshot.Combatants
+                .Where(item => item != null && item.Team == DamageTeam.Friendly)
+                .SelectMany(item => item.Rounds ?? new List<DamageRoundStat>())
+                .Where(item => item.RoundIndex == turn.TurnIndex)
+                .Sum(item => Math.Max(0, item.HpDamage) + Math.Max(0, item.ShieldDamage));
         }
-
-        if (snapshot?.Combatants != null)
-        {
-            foreach (var combatant in snapshot.Combatants.Where(item => item != null))
-            {
-                foreach (var round in combatant.Rounds ?? new List<DamageRoundStat>())
-                {
-                    if (round.RoundIndex > 0 && round.RoundIndex <= result.Count)
-                    {
-                        result[round.RoundIndex - 1].Damage += Math.Max(0, round.HpDamage) + Math.Max(0, round.ShieldDamage);
-                    }
-                }
-            }
-
-            // The DPT ledger is authoritative. Avoid double counting command display events when round data exists.
-            var hasRoundData = snapshot.Combatants.Any(item => item?.Rounds != null && item.Rounds.Count > 0);
-            if (hasRoundData)
-            {
-                foreach (var turn in result)
-                {
-                    turn.Damage = snapshot.Combatants
-                        .Where(item => item != null)
-                        .SelectMany(item => item.Rounds ?? new List<DamageRoundStat>())
-                        .Where(item => item.RoundIndex == turn.TurnIndex)
-                        .Sum(item => Math.Max(0, item.HpDamage) + Math.Max(0, item.ShieldDamage));
-                }
-            }
-        }
-
-        return result;
     }
 
     private static List<MatchAnalysisCombatant> BuildCombatants(DamageMeterSnapshot? snapshot)
@@ -104,97 +198,37 @@ internal static class MatchAnalysisBuilder
             .ToList();
     }
 
-    private static List<MatchAnalysisCard> BuildCards(IReadOnlyList<MatchReplayEvent> events)
+    private static void AddMoment(List<MatchAnalysisMoment> moments, MatchReplayEvent item, MatchSemanticEvent semantic)
     {
-        var cards = new Dictionary<string, MatchAnalysisCard>(StringComparer.OrdinalIgnoreCase);
-        MatchAnalysisCard? active = null;
-        var activeTurn = 0;
-        foreach (var item in events)
+        moments.Add(new MatchAnalysisMoment
         {
-            var semantic = item.Semantic;
-            if (semantic?.Category == MatchSemanticCategories.Card)
-            {
-                var id = string.IsNullOrWhiteSpace(semantic.SourceId) ? semantic.Label : semantic.SourceId;
-                id = string.IsNullOrWhiteSpace(id) ? "UnknownCard" : id;
-                if (!cards.TryGetValue(id, out active))
-                {
-                    active = new MatchAnalysisCard
-                    {
-                        CardId = id,
-                        DisplayName = string.IsNullOrWhiteSpace(semantic.Label) ? id : semantic.Label,
-                        FirstEventSequence = item.Sequence
-                    };
-                    cards[id] = active;
-                }
-
-                active.Uses++;
-                activeTurn = item.TurnIndex;
-                continue;
-            }
-
-            if (active != null && activeTurn == item.TurnIndex && IsDamage(item))
-            {
-                active.ObservedFollowUpDamage += Math.Max(0, semantic?.Value ?? 0);
-            }
-            else if (activeTurn != item.TurnIndex)
-            {
-                active = null;
-            }
-        }
-
-        return cards.Values
-            .OrderByDescending(item => item.Uses)
-            .ThenByDescending(item => item.ObservedFollowUpDamage)
-            .ThenBy(item => item.DisplayName, StringComparer.Ordinal)
-            .ToList();
+            Kind = semantic.Category,
+            Label = Describe(semantic),
+            TurnIndex = item.TurnIndex,
+            EventSequence = item.Sequence,
+            ElapsedMilliseconds = item.ElapsedMilliseconds,
+            Value = semantic.Value
+        });
+        if (moments.Count <= 24) return;
+        var least = moments.OrderBy(value => value.Value).ThenByDescending(value => value.EventSequence).First();
+        moments.Remove(least);
     }
 
-    private static List<MatchAnalysisMoment> BuildKeyMoments(
-        IReadOnlyList<MatchReplayEvent> events,
-        MatchAnalysisTurn? bestTurn)
-    {
-        var result = new List<MatchAnalysisMoment>();
-        if (bestTurn != null && bestTurn.Damage > 0)
-        {
-            result.Add(new MatchAnalysisMoment
-            {
-                Kind = "BestTurn",
-                Label = "本局最高伤害回合",
-                TurnIndex = bestTurn.TurnIndex,
-                EventSequence = bestTurn.FirstEventSequence,
-                Value = bestTurn.Damage
-            });
-        }
-
-        foreach (var item in events
-                     .Where(value => value.Semantic?.IsKeyEvent == true || IsDamage(value))
-                     .OrderByDescending(value => value.Semantic?.Value ?? 0)
-                     .ThenBy(value => value.Sequence)
-                     .Take(24))
-        {
-            var semantic = item.Semantic!;
-            result.Add(new MatchAnalysisMoment
-            {
-                Kind = semantic.Category,
-                Label = Describe(semantic),
-                TurnIndex = item.TurnIndex,
-                EventSequence = item.Sequence,
-                ElapsedMilliseconds = item.ElapsedMilliseconds,
-                Value = semantic.Value
-            });
-        }
-
-        return result
-            .GroupBy(item => item.Kind + "|" + item.EventSequence, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .OrderBy(item => item.EventSequence)
-            .Take(24)
-            .ToList();
-    }
+    private static long FlowDamage(MatchAnalysisDamageFlow item) => item.HpDamage + item.ShieldDamage;
 
     private static bool IsDamage(MatchReplayEvent item)
     {
         return item.Semantic?.Category == MatchSemanticCategories.Damage && item.Semantic.Value > 0;
+    }
+
+    private static string Team(IReadOnlyDictionary<string, string> teams, params string[] ids)
+    {
+        foreach (var id in ids)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && teams.TryGetValue(id, out var team)) return team;
+        }
+
+        return "Unknown";
     }
 
     private static string Describe(MatchSemanticEvent semantic)
@@ -216,13 +250,7 @@ internal static class MatchAnalysisBuilder
 
     private static DamageMeterSnapshot? ReadSnapshot(string json)
     {
-        try
-        {
-            return string.IsNullOrWhiteSpace(json) ? null : AuraSharedJson.Deserialize<DamageMeterSnapshot>(json);
-        }
-        catch
-        {
-            return null;
-        }
+        try { return string.IsNullOrWhiteSpace(json) ? null : AuraSharedJson.Deserialize<DamageMeterSnapshot>(json); }
+        catch { return null; }
     }
 }

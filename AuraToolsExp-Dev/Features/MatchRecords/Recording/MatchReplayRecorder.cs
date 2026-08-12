@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -24,12 +25,16 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording;
 internal static class MatchReplayRecorder
 {
     private static readonly object Gate = new();
-    private static readonly List<MatchReplayEvent> Events = new();
     private static MatchRecord? activeRecord;
+    private static MatchReplayWorkingBuffer? workingBuffer;
     private static long startedTimestamp;
     private static long nextSequence;
     private static int turnIndex;
     private static bool completing;
+    private static string activeActionId = "";
+    private static int eventsSinceCheckpoint;
+    private static bool captureFailed;
+    private static string captureFailure = "";
 
     internal static bool IsRecording
     {
@@ -55,13 +60,13 @@ internal static class MatchReplayRecorder
         var enemyPositive = Argument<float>(arguments, 3);
         var enemyHp = Argument<float>(arguments, 4);
 
+        if (IsRecording)
+        {
+            Abort();
+        }
+
         lock (Gate)
         {
-            if (activeRecord != null)
-            {
-                CompleteNoLock("Restarted");
-            }
-
             var recordId = Guid.NewGuid().ToString("N");
             activeRecord = new MatchRecord
             {
@@ -75,6 +80,16 @@ internal static class MatchReplayRecorder
                 GameBuild = typeof(FightManager).Assembly.GetName().Version?.ToString() ?? "unknown",
                 ToolBuild = typeof(AuraToolsMatchRecordsRuntime).Assembly.GetName().Version?.ToString() ?? "unknown",
                 ModFingerprint = CurrentRuntimeFingerprint(),
+                RequiredCapabilities = new List<string>
+                {
+                    MatchReplayCapabilities.CommandsV1,
+                    MatchReplayCapabilities.StatusSnapshotsV1
+                },
+                OptionalCapabilities = new List<string>
+                {
+                    MatchReplayCapabilities.CheckpointsV1,
+                    MatchReplayCapabilities.CausalityV1
+                },
                 InitialState = new MatchReplayInitialState
                 {
                     LevelId = levelId,
@@ -85,10 +100,18 @@ internal static class MatchReplayRecorder
                     RoleTableJson = RoleTable.Instance == null ? "" : AuraSharedJson.Serialize(RoleTable.Instance)
                 }
             };
-            Events.Clear();
+            var settings = AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay;
+            workingBuffer = new MatchReplayWorkingBuffer(
+                settings.ChunkTargetBytes,
+                settings.WorkingMemoryBudgetMb * 1024L * 1024L,
+                Path.Combine(MatchRecordStorage.TemporaryDirectory, "recording-" + recordId));
             startedTimestamp = Stopwatch.GetTimestamp();
             nextSequence = 0;
             turnIndex = 1;
+            activeActionId = "";
+            eventsSinceCheckpoint = 0;
+            captureFailed = false;
+            captureFailure = "";
         }
     }
 
@@ -148,12 +171,14 @@ internal static class MatchReplayRecorder
 
             lock (Gate)
             {
-                if (activeRecord == null || completing)
+                if (activeRecord == null || workingBuffer == null || completing)
                 {
                     return;
                 }
 
-                Events.Add(new MatchReplayEvent
+                var semantic = MatchSemanticEventFactory.From(command);
+                ApplyCausality(semantic);
+                workingBuffer.Add(new MatchReplayEvent
                 {
                     Sequence = ++nextSequence,
                     TurnIndex = Math.Max(1, turnIndex),
@@ -161,13 +186,35 @@ internal static class MatchReplayRecorder
                     Kind = kind,
                     TypeName = command.GetType().FullName ?? command.GetType().Name,
                     Payload = payload,
-                    Semantic = MatchSemanticEventFactory.From(command)
+                    Semantic = semantic
                 });
+                eventsSinceCheckpoint++;
             }
         }
         catch (Exception ex)
         {
+            lock (Gate)
+            {
+                captureFailed = true;
+                captureFailure = ex.Message;
+            }
             AuraToolsLog.Warn("[MatchRecords] replay event capture failed: " + ex.Message);
+        }
+    }
+
+    internal static void CaptureCheckpointIfDue()
+    {
+        lock (Gate)
+        {
+            var interval = AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.CheckpointEventInterval;
+            if (activeRecord != null
+                && workingBuffer != null
+                && !completing
+                && eventsSinceCheckpoint >= interval
+                && FightManager.Instance != null)
+            {
+                AddCheckpointNoLock(MatchReplayStateCapture.Capture(nextSequence + 1, turnIndex));
+            }
         }
     }
 
@@ -175,19 +222,48 @@ internal static class MatchReplayRecorder
     {
         lock (Gate)
         {
-            if (activeRecord != null)
+            if (activeRecord != null && workingBuffer != null)
             {
                 turnIndex++;
+                activeActionId = "";
+                AddCheckpointNoLock(MatchReplayStateCapture.Capture(nextSequence + 1, turnIndex));
             }
         }
     }
 
     internal static void Complete(string result)
     {
+        MatchRecord? record;
+        MatchReplayWorkingBuffer? buffer;
+        bool invalid;
+        string invalidReason;
         lock (Gate)
         {
-            CompleteNoLock(result);
+            if (activeRecord == null || workingBuffer == null || completing || MatchReplaySessionState.IsPlayback)
+            {
+                return;
+            }
+
+            completing = true;
+            record = activeRecord;
+            buffer = workingBuffer;
+            invalid = captureFailed;
+            invalidReason = captureFailure;
+            activeRecord = null;
+            workingBuffer = null;
+            captureFailed = false;
+            captureFailure = "";
         }
+
+        if (invalid)
+        {
+            buffer.Dispose();
+            lock (Gate) completing = false;
+            AuraToolsLog.Warn("[MatchRecords] discarded incomplete replay after capture failure: " + invalidReason);
+            return;
+        }
+
+        CompleteDetached(record, buffer, result);
     }
 
     internal static void Abort()
@@ -195,8 +271,12 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             activeRecord = null;
-            Events.Clear();
+            workingBuffer?.Dispose();
+            workingBuffer = null;
             completing = false;
+            activeActionId = "";
+            captureFailed = false;
+            captureFailure = "";
         }
     }
 
@@ -215,29 +295,23 @@ internal static class MatchReplayRecorder
         return string.Concat(hash.Select(value => value.ToString("x2")));
     }
 
-    private static void CompleteNoLock(string result)
+    private static void CompleteDetached(MatchRecord active, MatchReplayWorkingBuffer buffer, string result)
     {
-        if (activeRecord == null || completing || MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
-        completing = true;
         try
         {
-            activeRecord.Result = string.IsNullOrWhiteSpace(result) ? "Unknown" : result.Trim();
-            activeRecord.EndedUtc = DateTime.UtcNow.ToString("O");
-            activeRecord.EventCount = Events.Count;
-            activeRecord.TurnCount = Events.Count == 0 ? Math.Max(1, turnIndex) : Events.Max(item => item.TurnIndex);
-            activeRecord.StatisticsJson = AuraSharedJson.SerializeCompact(AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
+            active.Result = string.IsNullOrWhiteSpace(result) ? "Unknown" : result.Trim();
+            active.EndedUtc = DateTime.UtcNow.ToString("O");
+            active.EventCount = buffer.EventCount;
+            active.TurnCount = Math.Max(1, turnIndex);
+            active.StatisticsJson = AuraSharedJson.SerializeCompact(AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
             var replaySettings = AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay;
-            var chunks = MatchReplayChunker.Build(Events, replaySettings.ChunkTargetBytes);
-            if (MatchRecordStorage.Database.Save(activeRecord, chunks))
+            var analysis = MatchAnalysisBuilder.Build(active, buffer.ReadEvents());
+            var chunkCount = buffer.ChunkCount;
+            if (MatchRecordStorage.Database.SaveStreaming(active, buffer.ReadChunks(), analysis))
             {
-                MatchRecordStorage.Database.SaveAnalysis(MatchAnalysisBuilder.Build(activeRecord, Events));
                 var removed = MatchRecordStorage.Database.EnforceAutoLimit(replaySettings.AutoRecordLimit);
-                AuraToolsLog.Info("[MatchRecords] replay stored: events=" + Events.Count
-                                  + ", chunks=" + chunks.Count
+                AuraToolsLog.Info("[MatchRecords] replay stored: events=" + active.EventCount
+                                  + ", chunks=" + chunkCount
                                   + (removed > 0 ? ", retained=" + replaySettings.AutoRecordLimit : "") + ".");
             }
         }
@@ -247,9 +321,51 @@ internal static class MatchReplayRecorder
         }
         finally
         {
-            activeRecord = null;
-            Events.Clear();
-            completing = false;
+            buffer.Dispose();
+            lock (Gate)
+            {
+                completing = false;
+                activeActionId = "";
+            }
+        }
+    }
+
+    private static void AddCheckpointNoLock(MatchReplayCheckpoint checkpoint)
+    {
+        if (workingBuffer == null) return;
+        var payload = MatchReplayPayload.Encode(checkpoint);
+        workingBuffer.Add(new MatchReplayEvent
+        {
+            Sequence = ++nextSequence,
+            TurnIndex = Math.Max(1, turnIndex),
+            ElapsedMilliseconds = ElapsedMilliseconds(),
+            Kind = MatchReplayEventKinds.Checkpoint,
+            TypeName = typeof(MatchReplayCheckpoint).FullName ?? nameof(MatchReplayCheckpoint),
+            Payload = payload
+        });
+        eventsSinceCheckpoint = 0;
+    }
+
+    private static void ApplyCausality(MatchSemanticEvent semantic)
+    {
+        semantic.EventId = "event-" + (nextSequence + 1);
+        semantic.SourceInstanceId = string.IsNullOrWhiteSpace(semantic.SourceInstanceId) ? semantic.ActorId : semantic.SourceInstanceId;
+        semantic.TargetInstanceId = string.IsNullOrWhiteSpace(semantic.TargetInstanceId) ? semantic.TargetId : semantic.TargetInstanceId;
+        if (semantic.Category == MatchSemanticCategories.Card)
+        {
+            activeActionId = "action-" + (nextSequence + 1);
+            semantic.ActionId = activeActionId;
+            semantic.RootActionId = activeActionId;
+            semantic.AttributionConfidence = MatchAttributionConfidence.Exact;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(activeActionId))
+        {
+            semantic.ActionId = activeActionId;
+            semantic.CauseId = activeActionId;
+            semantic.RootActionId = activeActionId;
+            semantic.AttributionConfidence = MatchAttributionConfidence.Inferred;
         }
     }
 

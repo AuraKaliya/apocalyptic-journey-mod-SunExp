@@ -5,7 +5,24 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 2;
+    internal const int Version = 3;
+    internal const int MinimumSupportedVersion = 2;
+}
+
+internal static class MatchReplayCapabilities
+{
+    internal const string CommandsV1 = "commands.v1";
+    internal const string StatusSnapshotsV1 = "status-snapshots.v1";
+    internal const string CheckpointsV1 = "checkpoints.v1";
+    internal const string CausalityV1 = "causality.v1";
+
+    internal static readonly string[] Supported =
+    {
+        CommandsV1,
+        StatusSnapshotsV1,
+        CheckpointsV1,
+        CausalityV1
+    };
 }
 
 internal static class MatchRecordCollections
@@ -20,12 +37,19 @@ internal static class MatchReplayStates
     internal const string Corrupt = "Corrupt";
 }
 
+internal static class MatchRecordOrigins
+{
+    internal const string Auto = "Auto";
+    internal const string Imported = "Imported";
+}
+
 internal static class MatchReplayEventKinds
 {
     internal const string ActionCommand = "ActionCommand";
     internal const string ClientCommand = "ClientCommand";
     internal const string TargetCommand = "TargetCommand";
     internal const string StatusSnapshot = "StatusSnapshot";
+    internal const string Checkpoint = "Checkpoint";
 }
 
 internal sealed class MatchRecord
@@ -48,6 +72,14 @@ internal sealed class MatchRecord
 
     public string Collection { get; set; } = MatchRecordCollections.Auto;
 
+    public bool IsFavorite { get; set; }
+
+    public string Origin { get; set; } = MatchRecordOrigins.Auto;
+
+    public string Tags { get; set; } = "";
+
+    public string Notes { get; set; } = "";
+
     public string ReplayState { get; set; } = MatchReplayStates.Ready;
 
     public int ReplayProtocol { get; set; } = MatchReplayProtocol.Version;
@@ -57,6 +89,14 @@ internal sealed class MatchRecord
     public string ToolBuild { get; set; } = "";
 
     public string ModFingerprint { get; set; } = "";
+
+    public List<string> RequiredCapabilities { get; set; } = new();
+
+    public List<string> OptionalCapabilities { get; set; } = new();
+
+    public List<string> ContentDependencies { get; set; } = new();
+
+    public string ContentSha256 { get; set; } = "";
 
     public int EventCount { get; set; }
 
@@ -101,6 +141,47 @@ internal sealed class MatchReplayEvent
     public MatchSemanticEvent? Semantic { get; set; }
 }
 
+internal sealed class MatchReplayCheckpoint
+{
+    public long EventSequence { get; set; }
+
+    public int TurnIndex { get; set; }
+
+    public string StateHash { get; set; } = "";
+
+    public string SnapshotJson { get; set; } = "";
+
+    public bool CanRestore { get; set; }
+}
+
+internal sealed class MatchReplayStateSnapshot
+{
+    public string LevelId { get; set; } = "";
+
+    public int TurnIndex { get; set; }
+
+    public float EnemyPositive { get; set; }
+
+    public float EnemyHp { get; set; }
+
+    public string RoleTableJson { get; set; } = "";
+
+    public List<MatchReplayStatusState> Statuses { get; set; } = new();
+}
+
+internal sealed class MatchReplayStatusState
+{
+    public string InstanceId { get; set; } = "";
+
+    public int MaxHp { get; set; }
+
+    public int CurrentHp { get; set; }
+
+    public int Defend { get; set; }
+
+    public string State { get; set; } = "";
+}
+
 internal static class MatchSemanticCategories
 {
     internal const string Card = "Card";
@@ -112,6 +193,14 @@ internal static class MatchSemanticCategories
 
 internal sealed class MatchSemanticEvent
 {
+    public string EventId { get; set; } = "";
+
+    public string ActionId { get; set; } = "";
+
+    public string CauseId { get; set; } = "";
+
+    public string RootActionId { get; set; } = "";
+
     public string Category { get; set; } = MatchSemanticCategories.Command;
 
     public string Action { get; set; } = "";
@@ -122,6 +211,12 @@ internal sealed class MatchSemanticEvent
 
     public string SourceId { get; set; } = "";
 
+    public string SourceInstanceId { get; set; } = "";
+
+    public string TargetInstanceId { get; set; } = "";
+
+    public string AttributionConfidence { get; set; } = MatchAttributionConfidence.Unknown;
+
     public string Label { get; set; } = "";
 
     public long Value { get; set; }
@@ -129,6 +224,13 @@ internal sealed class MatchSemanticEvent
     public long SecondaryValue { get; set; }
 
     public bool IsKeyEvent { get; set; }
+}
+
+internal static class MatchAttributionConfidence
+{
+    internal const string Exact = "Exact";
+    internal const string Inferred = "Inferred";
+    internal const string Unknown = "Unknown";
 }
 
 internal sealed class MatchReplayChunk
@@ -169,7 +271,7 @@ internal sealed class MatchRecordPage
 
 internal static class MatchAnalysisProtocol
 {
-    internal const int Version = 1;
+    internal const int Version = 2;
 }
 
 internal sealed class MatchAnalysisReport
@@ -184,6 +286,18 @@ internal sealed class MatchAnalysisReport
 
     public long TotalDamage { get; set; }
 
+    public long FriendlyDamageDealt { get; set; }
+
+    public long EnemyDamageDealt { get; set; }
+
+    public long FriendlyDamageTaken { get; set; }
+
+    public long EnemyDamageTaken { get; set; }
+
+    public long HpDamage { get; set; }
+
+    public long ShieldDamage { get; set; }
+
     public long BestTurnDamage { get; set; }
 
     public int BestTurnIndex { get; set; }
@@ -197,6 +311,19 @@ internal sealed class MatchAnalysisReport
     public List<MatchAnalysisCard> Cards { get; set; } = new();
 
     public List<MatchAnalysisMoment> KeyMoments { get; set; } = new();
+
+    public List<MatchAnalysisDamageFlow> DamageFlows { get; set; } = new();
+}
+
+internal sealed class MatchAnalysisDamageFlow
+{
+    public string SourceTeam { get; set; } = "Unknown";
+
+    public string TargetTeam { get; set; } = "Unknown";
+
+    public long HpDamage { get; set; }
+
+    public long ShieldDamage { get; set; }
 }
 
 internal sealed class MatchAnalysisTurn
@@ -238,6 +365,10 @@ internal sealed class MatchAnalysisCard
     public int Uses { get; set; }
 
     public long ObservedFollowUpDamage { get; set; }
+
+    public long AttributedDamage { get; set; }
+
+    public string AttributionConfidence { get; set; } = MatchAttributionConfidence.Unknown;
 
     public long FirstEventSequence { get; set; }
 }
@@ -313,6 +444,7 @@ internal static class MatchReplayExportStates
     internal const string Completed = "Completed";
     internal const string Failed = "Failed";
     internal const string Cancelled = "Cancelled";
+    internal const string Interrupted = "Interrupted";
 }
 
 internal sealed class MatchReplayExportJob
@@ -328,6 +460,8 @@ internal sealed class MatchReplayExportJob
     public string OutputPath { get; set; } = "";
 
     public string Message { get; set; } = "";
+
+    public long EstimatedBytes { get; set; }
 }
 
 internal sealed class MatchReplayPackageManifest
@@ -345,6 +479,8 @@ internal sealed class MatchReplayPackageManifest
     public string AnalysisSha256 { get; set; } = "";
 
     public Dictionary<string, string> ChunkSha256 { get; set; } = new(StringComparer.Ordinal);
+
+    public string ContentSha256 { get; set; } = "";
 }
 
 internal sealed class MatchReplayPackageChunk
@@ -360,4 +496,33 @@ internal sealed class MatchReplayPackageChunk
     public int LastTurnIndex { get; set; }
 
     public string EntryName { get; set; } = "";
+}
+
+internal sealed class MatchReplayImportPreview
+{
+    public string Path { get; set; } = "";
+
+    public string RecordId { get; set; } = "";
+
+    public string LevelId { get; set; } = "";
+
+    public long PackageBytes { get; set; }
+
+    public int ReplayProtocol { get; set; }
+
+    public string Compatibility { get; set; } = "";
+
+    public string CompatibilityMessage { get; set; } = "";
+
+    public bool Duplicate { get; set; }
+
+    public string ContentSha256 { get; set; } = "";
+
+    public List<string> ContentDependencies { get; set; } = new();
+
+    public string PrivacySummary { get; set; } = "";
+
+    public string Tags { get; set; } = "";
+
+    public string Notes { get; set; } = "";
 }

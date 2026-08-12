@@ -3,6 +3,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
@@ -81,6 +82,29 @@ internal static partial class AuraToolsTestSuite
                    && ascii.Contains("movi", StringComparison.Ordinal)
                    && ascii.Contains("idx1", StringComparison.Ordinal),
                 "built-in exporter emits an indexed MJPEG AVI without requiring FFmpeg");
+
+            var spoolPath = Path.Combine(root, "frames.spool");
+            using (var spool = new ReplayFrameSpool(spoolPath))
+            {
+                spool.Enqueue(jpeg);
+                spool.Enqueue(jpeg);
+                spool.Enqueue(jpeg);
+                spool.Complete();
+                var streamedOutput = Path.Combine(root, "streamed-replay.avi");
+                MjpegAviWriter.WriteFromSpool(
+                    streamedOutput,
+                    spool.Path,
+                    spool.FrameCount,
+                    spool.MaximumFrameBytes,
+                    spool.PayloadBytes,
+                    1,
+                    1,
+                    30,
+                    null);
+                var streamed = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(streamedOutput));
+                Assert(streamed.Contains("MJPG", StringComparison.Ordinal) && streamed.Contains("idx1", StringComparison.Ordinal),
+                    "bounded frame spool feeds the background AVI encoder without thousands of frame files");
+            }
         }
         finally
         {
@@ -130,12 +154,20 @@ internal static partial class AuraToolsTestSuite
             var target = new MatchRecordDatabase(Path.Combine(targetRoot, "records.sqlite3"));
             target.Initialize();
             MatchRecordStorage.Configure(target, targetRoot);
+            var preview = MatchReplayPackageService.Inspect(package);
+            Assert(preview.LevelId == "portable-level"
+                   && preview.PackageBytes > 0
+                   && !preview.Duplicate
+                   && preview.Compatibility != MatchReplayCompatibilityLevels.AnalysisOnly,
+                "import preview verifies size, integrity, dependencies, compatibility, and duplicate status before writing");
             var imported = MatchReplayPackageService.Import(package);
             Assert(imported.Collection == MatchRecordCollections.Favorite
                    && target.Count(MatchRecordCollections.Favorite) == 1
                    && MatchReplayChunker.Decode(target.LoadChunks(imported.RecordId)).Single(item => item.Sequence == 2).Semantic?.Value == 70
                    && target.GetAnalysis(imported.RecordId)?.RecordId == imported.RecordId,
                 "portable import verifies and restores metadata, semantic chunks, and analysis into favorites");
+            Assert(MatchReplayPackageService.Inspect(package).Duplicate,
+                "content hashes identify duplicate replay packages independently of record ids");
 
             var corrupt = Path.Combine(root, "corrupt.aurareplay");
             File.Copy(package, corrupt);

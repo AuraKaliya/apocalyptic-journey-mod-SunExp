@@ -56,6 +56,18 @@ public sealed class MatchReplaySettings
     [JsonProperty("chunkTargetBytes")]
     public int ChunkTargetBytes { get; set; } = 256 * 1024;
 
+    [JsonProperty("workingMemoryBudgetMb")]
+    public int WorkingMemoryBudgetMb { get; set; } = 32;
+
+    [JsonProperty("checkpointEventInterval")]
+    public int CheckpointEventInterval { get; set; } = 150;
+
+    [JsonProperty("presentationMode")]
+    public string PresentationMode { get; set; } = "Standard";
+
+    [JsonProperty("video")]
+    public MatchReplayVideoSettings Video { get; set; } = new();
+
     public void Normalize()
     {
         AutoRecordLimit = Math.Max(1, Math.Min(
@@ -64,5 +76,48 @@ public sealed class MatchReplaySettings
         ChunkTargetBytes = Math.Max(32 * 1024, Math.Min(
             1024 * 1024,
             ChunkTargetBytes <= 0 ? 256 * 1024 : ChunkTargetBytes));
+        WorkingMemoryBudgetMb = Math.Max(8, Math.Min(256, WorkingMemoryBudgetMb <= 0 ? 32 : WorkingMemoryBudgetMb));
+        CheckpointEventInterval = Math.Max(50, Math.Min(1000, CheckpointEventInterval <= 0 ? 150 : CheckpointEventInterval));
+        PresentationMode = NormalizeChoice(PresentationMode, "Standard", "Compact", "Showcase");
+        Video ??= new MatchReplayVideoSettings();
+        Video.Normalize();
+    }
+
+    private static string NormalizeChoice(string value, params string[] choices)
+    {
+        foreach (var choice in choices)
+        {
+            if (string.Equals(value, choice, StringComparison.OrdinalIgnoreCase)) return choice;
+        }
+
+        return choices[0];
+    }
+}
+
+public sealed class MatchReplayVideoSettings
+{
+    [JsonProperty("quality")]
+    public string Quality { get; set; } = "720p";
+
+    [JsonProperty("framesPerSecond")]
+    public int FramesPerSecond { get; set; } = 30;
+
+    [JsonProperty("includeUi")]
+    public bool IncludeUi { get; set; } = true;
+
+    [JsonProperty("includeAudio")]
+    public bool IncludeAudio { get; set; } = true;
+
+    [JsonProperty("preferMp4")]
+    public bool PreferMp4 { get; set; } = true;
+
+    [JsonProperty("ffmpegPath")]
+    public string FfmpegPath { get; set; } = "";
+
+    public void Normalize()
+    {
+        Quality = string.Equals(Quality, "1080p", StringComparison.OrdinalIgnoreCase) ? "1080p" : "720p";
+        FramesPerSecond = FramesPerSecond >= 60 ? 60 : 30;
+        FfmpegPath = (FfmpegPath ?? "").Trim();
     }
 }

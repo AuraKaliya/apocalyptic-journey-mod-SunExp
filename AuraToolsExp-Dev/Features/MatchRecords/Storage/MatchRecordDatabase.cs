@@ -32,22 +32,20 @@ internal sealed class MatchRecordDatabase
 
     internal bool Save(MatchRecord record, IReadOnlyList<MatchReplayChunk> chunks)
     {
-        if (record == null || string.IsNullOrWhiteSpace(record.RecordId) || record.InitialState == null)
-        {
-            return false;
-        }
+        return Save(record, chunks, null);
+    }
 
+    internal bool Save(MatchRecord record, IReadOnlyList<MatchReplayChunk> chunks, MatchAnalysisReport? analysis)
+    {
         var normalizedChunks = (chunks ?? Array.Empty<MatchReplayChunk>())
             .Where(item => item != null)
-            .OrderBy(item => item.ChunkIndex)
-            .ToList();
-        foreach (var chunk in normalizedChunks)
-        {
-            if (!string.Equals(MatchReplayPayload.Sha256(chunk.Payload), chunk.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException("Refusing to store a replay chunk with an invalid checksum.");
-            }
-        }
+            .OrderBy(item => item.ChunkIndex);
+        return SaveStreaming(record, normalizedChunks, analysis);
+    }
+
+    internal bool SaveStreaming(MatchRecord record, IEnumerable<MatchReplayChunk> chunks, MatchAnalysisReport? analysis)
+    {
+        if (record == null || string.IsNullOrWhiteSpace(record.RecordId) || record.InitialState == null) return false;
 
         lock (gate)
         {
@@ -62,12 +60,11 @@ internal sealed class MatchRecordDatabase
                     return false;
                 }
 
-                var compressedBytes = normalizedChunks.Sum(item => (long)(item.Payload?.Length ?? 0));
                 using (var insert = connection.Prepare(
                            "INSERT INTO battle_records(record_id, adventure_id, session_id, level_id, result, started_utc, ended_utc, "
                            + "collection_kind, replay_state, replay_protocol, game_build, tool_build, mod_fingerprint, event_count, "
-                           + "turn_count, compressed_bytes, statistics_payload, initial_payload) "
-                           + "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"))
+                           + "turn_count, compressed_bytes, statistics_payload, initial_payload, metadata_payload) "
+                           + "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"))
                 {
                     insert.Bind(1, record.RecordId.Trim());
                     insert.Bind(2, record.AdventureId ?? "");
@@ -84,14 +81,30 @@ internal sealed class MatchRecordDatabase
                     insert.Bind(13, record.ModFingerprint ?? "");
                     insert.Bind(14, Math.Max(0, record.EventCount));
                     insert.Bind(15, Math.Max(0, record.TurnCount));
-                    insert.Bind(16, compressedBytes);
+                    insert.Bind(16, 0L);
                     insert.Bind(17, MatchReplayPayload.Encode(record.StatisticsJson ?? ""));
                     insert.Bind(18, MatchReplayPayload.Encode(record.InitialState));
+                    insert.Bind(19, MatchReplayPayload.Encode(CreateMetadata(record)));
                     insert.Execute();
                 }
 
-                foreach (var chunk in normalizedChunks)
+                long compressedBytes = 0;
+                var chunkHashes = new List<string>();
+                var expectedChunkIndex = 0;
+                foreach (var chunk in chunks ?? Array.Empty<MatchReplayChunk>())
                 {
+                    if (chunk == null || chunk.ChunkIndex != expectedChunkIndex++)
+                    {
+                        throw new InvalidDataException("Replay chunks must be complete and consecutively ordered.");
+                    }
+
+                    var payload = chunk.Payload ?? Array.Empty<byte>();
+                    var hash = MatchReplayPayload.Sha256(payload);
+                    if (!string.Equals(hash, chunk.Sha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException("Refusing to store a replay chunk with an invalid checksum.");
+                    }
+
                     using var insert = connection.Prepare(
                         "INSERT INTO replay_chunks(record_id, chunk_index, first_sequence, last_sequence, first_turn, last_turn, sha256, payload) "
                         + "VALUES(?, ?, ?, ?, ?, ?, ?, ?);");
@@ -101,9 +114,28 @@ internal sealed class MatchRecordDatabase
                     insert.Bind(4, chunk.LastSequence);
                     insert.Bind(5, chunk.FirstTurnIndex);
                     insert.Bind(6, chunk.LastTurnIndex);
-                    insert.Bind(7, chunk.Sha256 ?? "");
-                    insert.Bind(8, chunk.Payload ?? Array.Empty<byte>());
+                    insert.Bind(7, hash);
+                    insert.Bind(8, payload);
                     insert.Execute();
+                    compressedBytes += payload.Length;
+                    chunkHashes.Add(hash);
+                }
+
+                record.CompressedBytes = compressedBytes;
+                if (string.IsNullOrWhiteSpace(record.ContentSha256)) record.ContentSha256 = ContentHash(record, chunkHashes);
+                using (var update = connection.Prepare(
+                           "UPDATE battle_records SET compressed_bytes = ?, metadata_payload = ? WHERE record_id = ?;"))
+                {
+                    update.Bind(1, compressedBytes);
+                    update.Bind(2, MatchReplayPayload.Encode(CreateMetadata(record)));
+                    update.Bind(3, record.RecordId);
+                    update.Execute();
+                }
+
+                if (analysis != null)
+                {
+                    analysis.RecordId = record.RecordId;
+                    SaveAnalysis(connection, analysis);
                 }
 
                 connection.Execute("COMMIT;");
@@ -170,6 +202,69 @@ internal sealed class MatchRecordDatabase
         }
     }
 
+    internal IReadOnlyList<MatchRecord> SearchRecords(
+        string collection,
+        string queryText,
+        string resultFilter,
+        DateTime? endedSinceUtc,
+        int maximum = int.MaxValue)
+    {
+        lock (gate)
+        {
+            EnsureInitialized();
+            var result = new List<MatchRecord>();
+            var query = (queryText ?? "").Trim();
+            using var connection = Open();
+            using var statement = connection.Prepare(
+                SelectColumns + " WHERE collection_kind = ? AND replay_state = ? ORDER BY sequence DESC;");
+            statement.Bind(1, NormalizeCollection(collection));
+            statement.Bind(2, MatchReplayStates.Ready);
+            while (statement.Read() && result.Count < Math.Max(1, maximum))
+            {
+                var record = ReadRecord(statement);
+                if (!string.IsNullOrWhiteSpace(resultFilter) && !Contains(record.Result, resultFilter)) continue;
+                if (endedSinceUtc.HasValue
+                    && DateTime.TryParse(record.EndedUtc, out var ended)
+                    && ended.ToUniversalTime() < endedSinceUtc.Value) continue;
+                if (query.Length > 0
+                    && !Contains(record.LevelId, query)
+                    && !Contains(record.AdventureId, query)
+                    && !Contains(record.Result, query)
+                    && !Contains(record.Tags, query)
+                    && !Contains(record.Notes, query)
+                    && !Contains(record.StatisticsJson, query)) continue;
+                result.Add(record);
+            }
+
+            return result;
+        }
+    }
+
+    internal bool UpdateMetadata(string recordId, string tags, string notes)
+    {
+        if (string.IsNullOrWhiteSpace(recordId)) return false;
+        lock (gate)
+        {
+            EnsureInitialized();
+            using var connection = Open();
+            MatchRecord? record;
+            using (var query = connection.Prepare(SelectColumns + " WHERE record_id = ? LIMIT 1;"))
+            {
+                query.Bind(1, recordId.Trim());
+                record = query.Read() ? ReadRecord(query) : null;
+            }
+
+            if (record == null) return false;
+            record.Tags = (tags ?? "").Trim();
+            record.Notes = (notes ?? "").Trim();
+            using var update = connection.Prepare("UPDATE battle_records SET metadata_payload = ? WHERE record_id = ?;");
+            update.Bind(1, MatchReplayPayload.Encode(CreateMetadata(record)));
+            update.Bind(2, recordId.Trim());
+            update.Execute();
+            return true;
+        }
+    }
+
     internal IReadOnlyList<MatchReplayChunk> LoadChunks(string recordId)
     {
         var result = new List<MatchReplayChunk>();
@@ -204,6 +299,69 @@ internal sealed class MatchRecordDatabase
         return result;
     }
 
+    internal MatchRecordPackageSnapshot? LoadPackageSnapshot(string recordId)
+    {
+        if (string.IsNullOrWhiteSpace(recordId)) return null;
+        lock (gate)
+        {
+            EnsureInitialized();
+            using var connection = Open();
+            connection.Execute("BEGIN;");
+            try
+            {
+                MatchRecord? record;
+                using (var recordQuery = connection.Prepare(SelectColumns + " WHERE record_id = ? LIMIT 1;"))
+                {
+                    recordQuery.Bind(1, recordId.Trim());
+                    record = recordQuery.Read() ? ReadRecord(recordQuery) : null;
+                }
+
+                if (record == null)
+                {
+                    connection.Execute("COMMIT;");
+                    return null;
+                }
+
+                var chunks = new List<MatchReplayChunk>();
+                using (var chunkQuery = connection.Prepare(
+                           "SELECT chunk_index, first_sequence, last_sequence, first_turn, last_turn, sha256, payload "
+                           + "FROM replay_chunks WHERE record_id = ? ORDER BY chunk_index;"))
+                {
+                    chunkQuery.Bind(1, recordId.Trim());
+                    while (chunkQuery.Read())
+                    {
+                        chunks.Add(new MatchReplayChunk
+                        {
+                            ChunkIndex = (int)chunkQuery.Int64(0),
+                            FirstSequence = chunkQuery.Int64(1),
+                            LastSequence = chunkQuery.Int64(2),
+                            FirstTurnIndex = (int)chunkQuery.Int64(3),
+                            LastTurnIndex = (int)chunkQuery.Int64(4),
+                            Sha256 = chunkQuery.Text(5),
+                            Payload = chunkQuery.Blob(6)
+                        });
+                    }
+                }
+
+                MatchAnalysisReport? analysis = null;
+                using (var analysisQuery = connection.Prepare(
+                           "SELECT payload, sha256 FROM match_analysis WHERE record_id = ? LIMIT 1;"))
+                {
+                    analysisQuery.Bind(1, recordId.Trim());
+                    if (analysisQuery.Read()) analysis = ReadAnalysis(analysisQuery);
+                }
+
+                connection.Execute("COMMIT;");
+                return new MatchRecordPackageSnapshot(record, chunks, analysis);
+            }
+            catch
+            {
+                TryRollback(connection);
+                throw;
+            }
+        }
+    }
+
     internal void SaveAnalysis(MatchAnalysisReport report)
     {
         if (report == null || string.IsNullOrWhiteSpace(report.RecordId))
@@ -215,16 +373,11 @@ internal sealed class MatchRecordDatabase
         {
             EnsureInitialized();
             using var connection = Open();
-            using var insert = connection.Prepare(
-                "INSERT OR REPLACE INTO match_analysis(record_id, analysis_protocol, generated_utc, payload, sha256) "
-                + "VALUES(?, ?, ?, ?, ?);");
-            var payload = MatchReplayPayload.Encode(report);
-            insert.Bind(1, report.RecordId.Trim());
-            insert.Bind(2, Math.Max(1, report.Protocol));
-            insert.Bind(3, report.GeneratedUtc ?? "");
-            insert.Bind(4, payload);
-            insert.Bind(5, MatchReplayPayload.Sha256(payload));
-            insert.Execute();
+            if (!Exists(connection, report.RecordId.Trim()))
+            {
+                throw new InvalidDataException("Cannot save analysis for a missing match record.");
+            }
+            SaveAnalysis(connection, report);
         }
     }
 
@@ -247,13 +400,7 @@ internal sealed class MatchRecordDatabase
                 return null;
             }
 
-            var payload = query.Blob(0);
-            if (!string.Equals(MatchReplayPayload.Sha256(payload), query.Text(1), StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidDataException("Match analysis checksum mismatch.");
-            }
-
-            return MatchReplayPayload.Decode<MatchAnalysisReport>(payload);
+            return ReadAnalysis(query);
         }
     }
 
@@ -268,6 +415,10 @@ internal sealed class MatchRecordDatabase
         {
             EnsureInitialized();
             using var connection = Open();
+            if (!Exists(connection, asset.RecordId.Trim()))
+            {
+                throw new InvalidDataException("Cannot save media for a missing match record.");
+            }
             using var insert = connection.Prepare(
                 "INSERT OR REPLACE INTO replay_media(media_id, record_id, media_kind, media_format, file_path, created_utc, media_state, "
                 + "duration_ms, width, height, frames_per_second, file_bytes, sha256, timeline_payload, error_text) "
@@ -504,6 +655,22 @@ internal sealed class MatchRecordDatabase
         }
     }
 
+    internal bool ContainsContentHash(string contentSha256)
+    {
+        if (string.IsNullOrWhiteSpace(contentSha256)) return false;
+        lock (gate)
+        {
+            EnsureInitialized();
+            using var connection = Open();
+            using var query = connection.Prepare("SELECT metadata_payload FROM battle_records;");
+            while (query.Read())
+            {
+                if (string.Equals(DecodeMetadata(query.Blob(0)).ContentSha256, contentSha256, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+    }
+
     private void EnsureInitialized()
     {
         if (initialized)
@@ -512,6 +679,7 @@ internal sealed class MatchRecordDatabase
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(databasePath) ?? ".");
+        MatchRecordsDatabaseMigrator.BackupBeforeUpgrade(databasePath);
         using var connection = Open();
         connection.Execute("PRAGMA journal_mode=DELETE;");
         connection.Execute("PRAGMA synchronous=NORMAL;");
@@ -520,7 +688,8 @@ internal sealed class MatchRecordDatabase
                            + "session_id TEXT NOT NULL, level_id TEXT NOT NULL, result TEXT NOT NULL, started_utc TEXT NOT NULL, ended_utc TEXT NOT NULL, "
                            + "collection_kind TEXT NOT NULL, replay_state TEXT NOT NULL, replay_protocol INTEGER NOT NULL, game_build TEXT NOT NULL, "
                            + "tool_build TEXT NOT NULL, mod_fingerprint TEXT NOT NULL, event_count INTEGER NOT NULL, turn_count INTEGER NOT NULL, "
-                           + "compressed_bytes INTEGER NOT NULL, statistics_payload BLOB NOT NULL, initial_payload BLOB NOT NULL);");
+                           + "compressed_bytes INTEGER NOT NULL, statistics_payload BLOB NOT NULL, initial_payload BLOB NOT NULL, "
+                           + "metadata_payload BLOB NOT NULL DEFAULT X'');");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_battle_records_collection ON battle_records(collection_kind, sequence DESC);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_battle_records_adventure ON battle_records(adventure_id, sequence DESC);");
         connection.Execute("CREATE TABLE IF NOT EXISTS replay_chunks("
@@ -536,6 +705,9 @@ internal sealed class MatchRecordDatabase
                            + "width INTEGER NOT NULL, height INTEGER NOT NULL, frames_per_second REAL NOT NULL, file_bytes INTEGER NOT NULL, "
                            + "sha256 TEXT NOT NULL, timeline_payload BLOB NOT NULL, error_text TEXT NOT NULL);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_media_record ON replay_media(record_id, created_utc DESC);");
+        MatchRecordsDatabaseMigrator.Apply(connection);
+        MatchRecordsDatabaseMigrator.Validate(connection);
+        NormalizeMediaPaths(connection);
         initialized = true;
     }
 
@@ -543,6 +715,8 @@ internal sealed class MatchRecordDatabase
 
     private static MatchRecord ReadRecord(WinSqliteConnection.WinSqliteStatement query)
     {
+        var collection = query.Text(8);
+        var metadata = DecodeMetadata(query.Blob(19));
         return new MatchRecord
         {
             Sequence = query.Int64(0),
@@ -553,7 +727,11 @@ internal sealed class MatchRecordDatabase
             Result = query.Text(5),
             StartedUtc = query.Text(6),
             EndedUtc = query.Text(7),
-            Collection = query.Text(8),
+            Collection = collection,
+            IsFavorite = string.Equals(collection, MatchRecordCollections.Favorite, StringComparison.OrdinalIgnoreCase),
+            Origin = metadata.Origin,
+            Tags = metadata.Tags,
+            Notes = metadata.Notes,
             ReplayState = query.Text(9),
             ReplayProtocol = (int)query.Int64(10),
             GameBuild = query.Text(11),
@@ -563,7 +741,11 @@ internal sealed class MatchRecordDatabase
             TurnCount = (int)query.Int64(15),
             CompressedBytes = query.Int64(16),
             StatisticsJson = MatchReplayPayload.Decode<string>(query.Blob(17)) ?? "",
-            InitialState = MatchReplayPayload.Decode<MatchReplayInitialState>(query.Blob(18)) ?? new MatchReplayInitialState()
+            InitialState = MatchReplayPayload.Decode<MatchReplayInitialState>(query.Blob(18)) ?? new MatchReplayInitialState(),
+            RequiredCapabilities = metadata.RequiredCapabilities,
+            OptionalCapabilities = metadata.OptionalCapabilities,
+            ContentDependencies = metadata.ContentDependencies,
+            ContentSha256 = metadata.ContentSha256
         };
     }
 
@@ -581,6 +763,65 @@ internal sealed class MatchRecordDatabase
         using var query = connection.Prepare("SELECT 1 FROM battle_records WHERE record_id = ? LIMIT 1;");
         query.Bind(1, recordId);
         return query.Read();
+    }
+
+    private static void SaveAnalysis(WinSqliteConnection connection, MatchAnalysisReport report)
+    {
+        using var insert = connection.Prepare(
+            "INSERT OR REPLACE INTO match_analysis(record_id, analysis_protocol, generated_utc, payload, sha256) VALUES(?, ?, ?, ?, ?);");
+        var payload = MatchReplayPayload.Encode(report);
+        insert.Bind(1, report.RecordId.Trim());
+        insert.Bind(2, Math.Max(1, report.Protocol));
+        insert.Bind(3, report.GeneratedUtc ?? "");
+        insert.Bind(4, payload);
+        insert.Bind(5, MatchReplayPayload.Sha256(payload));
+        insert.Execute();
+    }
+
+    private static MatchAnalysisReport? ReadAnalysis(WinSqliteConnection.WinSqliteStatement query)
+    {
+        var payload = query.Blob(0);
+        if (!string.Equals(MatchReplayPayload.Sha256(payload), query.Text(1), StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Match analysis checksum mismatch.");
+        }
+
+        return MatchReplayPayload.Decode<MatchAnalysisReport>(payload);
+    }
+
+    private static MatchRecordMetadata CreateMetadata(MatchRecord record)
+    {
+        return new MatchRecordMetadata
+        {
+            IsFavorite = record.IsFavorite || string.Equals(record.Collection, MatchRecordCollections.Favorite, StringComparison.OrdinalIgnoreCase),
+            Origin = record.Origin ?? MatchRecordOrigins.Auto,
+            Tags = record.Tags ?? "",
+            Notes = record.Notes ?? "",
+            RequiredCapabilities = record.RequiredCapabilities ?? new List<string>(),
+            OptionalCapabilities = record.OptionalCapabilities ?? new List<string>(),
+            ContentDependencies = record.ContentDependencies ?? new List<string>(),
+            ContentSha256 = record.ContentSha256 ?? ""
+        };
+    }
+
+    private static MatchRecordMetadata DecodeMetadata(byte[] payload)
+    {
+        if (payload == null || payload.Length == 0) return new MatchRecordMetadata();
+        try { return MatchReplayPayload.Decode<MatchRecordMetadata>(payload) ?? new MatchRecordMetadata(); }
+        catch { return new MatchRecordMetadata(); }
+    }
+
+    internal static string ContentHash(MatchRecord record, IReadOnlyList<MatchReplayChunk> chunks)
+    {
+        return ContentHash(record, chunks.OrderBy(item => item.ChunkIndex).Select(item => item.Sha256));
+    }
+
+    private static string ContentHash(MatchRecord record, IEnumerable<string> chunkHashes)
+    {
+        var initial = MatchReplayPayload.Sha256(MatchReplayPayload.Encode(record.InitialState));
+        var identity = (record.LevelId ?? "") + "|" + (record.Result ?? "") + "|" + initial + "|"
+                       + string.Join("|", chunkHashes ?? Array.Empty<string>());
+        return MatchReplayPayload.Sha256(System.Text.Encoding.UTF8.GetBytes(identity));
     }
 
     private static List<string> SelectIds(WinSqliteConnection connection, string predicate, string value)
@@ -628,6 +869,48 @@ internal sealed class MatchRecordDatabase
             : MatchRecordCollections.Auto;
     }
 
+    private static bool Contains(string? value, string query)
+    {
+        return value != null && value.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private void NormalizeMediaPaths(WinSqliteConnection connection)
+    {
+        if (!File.Exists(databasePath)) return;
+        var root = Path.GetFullPath(Path.GetDirectoryName(databasePath) ?? ".")
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var updates = new List<(string mediaId, string relativePath)>();
+        using (var query = connection.Prepare("SELECT media_id, record_id, file_path FROM replay_media;"))
+        {
+            while (query.Read())
+            {
+                var stored = query.Text(2);
+                if (!Path.IsPathRooted(stored)) continue;
+                var full = Path.GetFullPath(stored);
+                string? relative = null;
+                if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                {
+                    relative = full.Substring(root.Length);
+                }
+                else
+                {
+                    var relocated = Path.Combine(root, "Media", query.Text(1), Path.GetFileName(stored));
+                    if (File.Exists(relocated)) relative = relocated.Substring(root.Length);
+                }
+
+                if (relative != null) updates.Add((query.Text(0), relative.Replace(Path.DirectorySeparatorChar, '/')));
+            }
+        }
+
+        foreach (var item in updates)
+        {
+            using var update = connection.Prepare("UPDATE replay_media SET file_path = ? WHERE media_id = ?;");
+            update.Bind(1, item.relativePath);
+            update.Bind(2, item.mediaId);
+            update.Execute();
+        }
+    }
+
     private static void TryRollback(WinSqliteConnection connection)
     {
         try
@@ -660,5 +943,22 @@ internal sealed class MatchRecordDatabase
     private const string SelectColumns =
         "SELECT sequence, record_id, adventure_id, session_id, level_id, result, started_utc, ended_utc, collection_kind, "
         + "replay_state, replay_protocol, game_build, tool_build, mod_fingerprint, event_count, turn_count, compressed_bytes, "
-        + "statistics_payload, initial_payload FROM battle_records";
+        + "statistics_payload, initial_payload, metadata_payload FROM battle_records";
+}
+
+internal sealed class MatchRecordPackageSnapshot
+{
+    internal MatchRecordPackageSnapshot(
+        MatchRecord record,
+        IReadOnlyList<MatchReplayChunk> chunks,
+        MatchAnalysisReport? analysis)
+    {
+        Record = record;
+        Chunks = chunks;
+        Analysis = analysis;
+    }
+
+    internal MatchRecord Record { get; }
+    internal IReadOnlyList<MatchReplayChunk> Chunks { get; }
+    internal MatchAnalysisReport? Analysis { get; }
 }

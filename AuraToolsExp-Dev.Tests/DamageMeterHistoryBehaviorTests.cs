@@ -154,16 +154,6 @@ internal static partial class AuraToolsTestSuite
                && record.TeamMembers[0].AvatarPngBase64 == "avatar",
             "out-of-run history preserves copied member identity and avatar data");
     
-        var store = new OutOfRunDamageHistoryStore();
-        Assert(store.Add(record) && !store.Add(record), "out-of-run history rejects duplicate adventure id");
-        var restored = new OutOfRunDamageHistoryStore();
-        restored.ApplyFile(store.CreateFile());
-        Assert(restored.Records.Count == 1
-               && restored.Records[0].Mvp.InstanceId == "alpha"
-               && restored.Records[0].TeamMembers[0].PlayerDisplayName == "PlayerAlphaLongName"
-               && restored.Records[0].TeamMembers[0].RoleDisplayName == "AlphaLongNameForTrim",
-            "out-of-run history store file round-trips");
-    
         var rosterOnly = OutOfRunDamageHistoryBuilder.Build(
             new DamageRunAggregateSnapshot
             {

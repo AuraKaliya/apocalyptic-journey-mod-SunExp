@@ -30,6 +30,7 @@ TestOutOfRunHistoryBuilder();
 TestDeterministicAllocation();
 TestDamageHistoryDatabase();
 TestMatchRecordDatabase();
+TestMatchReplayRuntimeCore();
 TestMatchAnalysis();
 TestMjpegAviWriter();
 TestMatchReplayPackage();

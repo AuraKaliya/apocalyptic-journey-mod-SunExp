@@ -44,10 +44,10 @@ internal static class MatchReplayHookAdapter
             "FightManager.Init",
             context => MatchReplayRecorder.Start(context.Arguments),
             "MatchRecords.Replay"));
-        RegisterCommand("ActionCommandBase.Execute");
-        RegisterCommand("ClientCommandBase.Execute");
-        RegisterCommand("ObjTargetBase.Execute");
-        RegisterCommand("StatusDataTransfer.Populate");
+        RegisterCommand("ActionCommandBase.Execute", recordAfter: false);
+        RegisterCommand("ClientCommandBase.Execute", recordAfter: false);
+        RegisterCommand("ObjTargetBase.Execute", recordAfter: false);
+        RegisterCommand("StatusDataTransfer.Populate", recordAfter: true);
         Register("lifecycle", AuraBattleLifecycleRouter.Register(
             modConfig,
             AuraToolsIds.ModId,
@@ -57,7 +57,7 @@ internal static class MatchReplayHookAdapter
                 FightStarting = _ => MatchReplayRecorder.StartFromCurrentFight(),
                 FightInitialized = _ => MatchReplayRecorder.StartFromCurrentFight(),
                 PlayerRoundStarted = _ => MatchReplayRecorder.StartTurn(),
-                FightRestarting = _ => MatchReplayRecorder.Complete("Restarted"),
+                FightRestarting = _ => MatchReplayRecorder.Abort(),
                 FightEnding = context => MatchReplayRecorder.Complete(DamageMeterSettlementRuntime.FightResult(context)),
                 FightEnded = _ => MatchReplayRecorder.Complete("Ended")
             },
@@ -66,13 +66,26 @@ internal static class MatchReplayHookAdapter
         AuraToolsLog.Info("[MatchRecords] replay capture hooks enabled.");
     }
 
-    private static void RegisterCommand(string target)
+    private static void RegisterCommand(string target, bool recordAfter)
     {
+        if (recordAfter)
+        {
+            Register("after:" + target, AuraToolsHookRegistry.AfterRouted(
+                modConfig!,
+                target,
+                context =>
+                {
+                    MatchReplayRecorder.Record(context.Target);
+                    MatchReplayRecorder.CaptureCheckpointIfDue();
+                },
+                "MatchRecords.Replay"));
+            return;
+        }
+
         Register("before:" + target, AuraToolsHookRegistry.BeforeRouted(
-            modConfig!,
-            target,
-            context => MatchReplayRecorder.Record(context.Target),
-            "MatchRecords.Replay"));
+            modConfig!, target, context => MatchReplayRecorder.Record(context.Target), "MatchRecords.Replay"));
+        Register("after:" + target, AuraToolsHookRegistry.AfterRouted(
+            modConfig!, target, _ => MatchReplayRecorder.CaptureCheckpointIfDue(), "MatchRecords.Replay"));
     }
 
     private static void Register(string key, IDisposable registration)

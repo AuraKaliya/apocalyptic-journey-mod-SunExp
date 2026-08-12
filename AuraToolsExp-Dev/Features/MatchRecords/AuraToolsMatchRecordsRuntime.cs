@@ -34,6 +34,8 @@ public static class AuraToolsMatchRecordsRuntime
 
         initialized = true;
         AuraToolsDamageMeterRuntime.Initialize(modConfig);
+        MatchReplayWorkingBuffer.CleanupAbandoned(MatchRecordStorage.TemporaryDirectory);
+        Media.MatchReplayVideoExporter.Initialize();
         MatchReplayHookAdapter.Initialize(modConfig);
         AuraToolsConfigService.Changed += OnConfigChanged;
         EnsureDriver();

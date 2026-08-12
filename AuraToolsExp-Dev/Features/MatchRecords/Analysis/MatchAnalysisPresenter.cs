@@ -33,7 +33,7 @@ internal static class MatchAnalysisPresenter
         try
         {
             report = MatchRecordStorage.Database.GetAnalysis(selected.RecordId);
-            if (report == null)
+            if (report == null || report.Protocol != MatchAnalysisProtocol.Version)
             {
                 var events = MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId));
                 report = MatchAnalysisBuilder.Build(selected, events);
@@ -124,7 +124,10 @@ internal static class MatchAnalysisPresenter
         AuraToolsUi.AddText(parent,
             (string.IsNullOrWhiteSpace(record.LevelId) ? "未知战斗" : record.LevelId)
             + "   " + record.Result + "   " + report.TurnCount + " 回合\n"
-            + "总伤害 " + report.TotalDamage + "   最高回合 " + report.BestTurnDamage
+            + "我方造成 " + report.FriendlyDamageDealt + "   敌方造成 " + report.EnemyDamageDealt
+            + "   我方承受 " + report.FriendlyDamageTaken + "\n"
+            + "生命伤害 " + report.HpDamage + "   护盾伤害 " + report.ShieldDamage
+            + "   最高回合 " + report.BestTurnDamage
             + (report.BestTurnIndex > 0 ? "（第 " + report.BestTurnIndex + " 回合）" : "")
             + "   使用卡牌 " + report.CardUseCount,
             AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 72f, 1f);
@@ -159,14 +162,15 @@ internal static class MatchAnalysisPresenter
 
     private static void BuildCards(Transform parent)
     {
-        AuraToolsUi.AddText(parent, "后续伤害表示该次出牌后、下一次出牌前观测到的伤害，不等同于严格因果归因。",
+        AuraToolsUi.AddText(parent, "优先使用行动因果链归因；旧回放缺少因果字段时显示推断结果。",
             AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 42f, 1f);
         foreach (var item in report!.Cards)
         {
             var row = Row("Card-" + item.CardId, parent, 54f, withBackground: true);
             AuraToolsUi.AddText(row, item.DisplayName, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
                 AuraToolsUi.Text, 42f, 1f);
-            AuraToolsUi.AddText(row, "使用 " + item.Uses + "   观测后续伤害 " + item.ObservedFollowUpDamage,
+            AuraToolsUi.AddText(row, "使用 " + item.Uses + "   归因伤害 " + item.AttributedDamage
+                                      + (item.ObservedFollowUpDamage > 0 ? "   推断 " + item.ObservedFollowUpDamage : ""),
                 AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 42f, 0f, 280f);
             var sequence = item.FirstEventSequence;
             AuraToolsUi.AddButton(row, "首次", () => StartReplay(sequence), 72f);

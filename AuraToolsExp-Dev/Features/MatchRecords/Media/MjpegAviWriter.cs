@@ -103,6 +103,106 @@ internal static class MjpegAviWriter
         }
     }
 
+    internal static void WriteFromSpool(
+        string outputPath,
+        string spoolPath,
+        int frameCount,
+        int maxFrameBytes,
+        long framePayloadBytes,
+        int width,
+        int height,
+        int framesPerSecond,
+        string? wavPath,
+        Func<bool>? isCancelled = null)
+    {
+        if (frameCount <= 0 || !File.Exists(spoolPath))
+        {
+            throw new InvalidDataException("没有可编码的视频帧。");
+        }
+
+        var fps = Math.Max(1, Math.Min(120, framesPerSecond));
+        var audio = WavePcmInfo.TryRead(wavPath);
+        var targetAudioBytes = audio == null
+            ? 0L
+            : Math.Min(audio.DataBytes, (long)Math.Ceiling(frameCount / (double)fps * audio.BytesPerSecond));
+        var estimated = Math.Max(0, framePayloadBytes) + frameCount * 10L + targetAudioBytes + 1024L * 1024L;
+        if (estimated > MaximumAviBytes)
+        {
+            throw new IOException("视频超过 AVI 1.0 的安全大小，请缩短对局或降低画质后重试。");
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
+        using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+        using var writer = new BinaryWriter(stream, Encoding.ASCII, leaveOpen: true);
+        var riff = BeginContainer(writer, "RIFF", "AVI ");
+        var hdrl = BeginContainer(writer, "LIST", "hdrl");
+        WriteMainHeader(writer, frameCount, fps, width, height, Math.Max(1, maxFrameBytes), audio != null);
+        WriteVideoStream(writer, frameCount, fps, width, height, Math.Max(1, maxFrameBytes));
+        if (audio != null)
+        {
+            WriteAudioStream(writer, audio, targetAudioBytes);
+        }
+
+        EndContainer(writer, hdrl);
+        var movi = BeginContainer(writer, "LIST", "movi");
+        var index = new List<AviIndexEntry>(frameCount + 64);
+        var writtenFrames = 0;
+        foreach (var frame in ReplayFrameSpool.Read(spoolPath))
+        {
+            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
+            WriteMediaChunk(writer, movi, "00dc", frame, 0x10, index);
+            writtenFrames++;
+        }
+
+        if (writtenFrames != frameCount)
+        {
+            throw new InvalidDataException("视频帧工作文件与帧计数不一致。");
+        }
+
+        WriteAudioChunks(writer, movi, audio, targetAudioBytes, index, isCancelled);
+        EndContainer(writer, movi);
+        WriteFourCc(writer, "idx1");
+        writer.Write(index.Count * 16);
+        foreach (var item in index)
+        {
+            WriteFourCc(writer, item.Id);
+            writer.Write(item.Flags);
+            writer.Write(item.Offset);
+            writer.Write(item.Size);
+        }
+
+        EndContainer(writer, riff);
+        if (stream.Length > MaximumAviBytes)
+        {
+            throw new IOException("生成的视频超过 AVI 1.0 的安全大小。");
+        }
+    }
+
+    private static void WriteAudioChunks(
+        BinaryWriter writer,
+        long movi,
+        WavePcmInfo? audio,
+        long targetAudioBytes,
+        List<AviIndexEntry> index,
+        Func<bool>? isCancelled)
+    {
+        if (audio == null || targetAudioBytes <= 0) return;
+        using var input = File.OpenRead(audio.Path);
+        input.Position = audio.DataOffset;
+        var remaining = targetAudioBytes;
+        var buffer = new byte[1024 * 1024];
+        while (remaining > 0)
+        {
+            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
+            var requested = (int)Math.Min(buffer.Length, remaining);
+            var read = input.Read(buffer, 0, requested);
+            if (read <= 0) break;
+            var chunk = read == buffer.Length ? buffer : buffer.Take(read).ToArray();
+            WriteMediaChunk(writer, movi, "01wb", chunk, 0, index);
+            remaining -= read;
+        }
+    }
+
     private static void WriteMainHeader(
         BinaryWriter writer,
         int frameCount,

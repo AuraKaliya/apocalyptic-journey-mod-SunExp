@@ -37,6 +37,9 @@ internal static class MatchReplayPlayer
     private static bool externalClock;
     private static CanvasGroup? fightCanvasGroup;
     private static bool previousFightRaycasts;
+    private static string playbackHealth = "Compatible";
+    private static string playbackIssue = "";
+    private static int failedEventCount;
 
     internal static bool IsActive => record != null;
 
@@ -57,6 +60,14 @@ internal static class MatchReplayPlayer
     internal static IReadOnlyList<MatchReplayEvent> Events => events;
 
     internal static bool IsReadyForExport => IsActive && externalClock && waitFrames <= 0;
+
+    internal static string PlaybackHealth => playbackHealth;
+
+    internal static string PlaybackIssue => playbackIssue;
+
+    internal static int FailedEventCount => failedEventCount;
+
+    internal static bool HasBlockingError => playbackHealth == "Desynced" || playbackHealth == "Failed";
 
     internal static int CurrentTurn => eventIndex <= 0 || events.Count == 0
         ? 1
@@ -122,8 +133,10 @@ internal static class MatchReplayPlayer
                 return false;
             }
 
-            if (!CheckCompatibility(loaded, out message))
+            var metadataCompatibility = MatchReplayCompatibility.Evaluate(loaded);
+            if (!metadataCompatibility.CanPlay)
             {
+                message = metadataCompatibility.Message;
                 return false;
             }
 
@@ -134,16 +147,28 @@ internal static class MatchReplayPlayer
                 return false;
             }
 
+            var compatibility = MatchReplayCompatibility.Evaluate(loaded, decoded);
+            if (!compatibility.CanPlay)
+            {
+                message = compatibility.Message;
+                return false;
+            }
+
             roleTableBeforeReplay = RoleTable.Instance == null ? "" : AuraSharedJson.Serialize(RoleTable.Instance);
             record = loaded;
             events = decoded;
-            timeline = BuildTimeline(decoded);
+            timeline = MatchReplayPresentationSchedule.Build(
+                decoded,
+                AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.PresentationMode);
             eventIndex = 0;
             playbackClock = 0f;
             paused = false;
             speedIndex = 1;
             controlsVisible = showControls;
             externalClock = !showControls;
+            playbackHealth = compatibility.Level;
+            playbackIssue = compatibility.Level == MatchReplayCompatibilityLevels.Degraded ? compatibility.Message : "";
+            failedEventCount = 0;
             MatchReplaySessionState.IsPlayback = true;
             InitializeBattle();
             if (showControls)
@@ -201,6 +226,7 @@ internal static class MatchReplayPlayer
             Execute(events[eventIndex]);
             eventIndex++;
             executed++;
+            if (HasBlockingError) break;
         }
 
         RefreshControls();
@@ -209,6 +235,15 @@ internal static class MatchReplayPlayer
     internal static void TogglePause()
     {
         paused = !paused;
+        RefreshControls();
+    }
+
+    internal static void ContinueDegraded()
+    {
+        if (!HasBlockingError) return;
+        playbackHealth = "Degraded";
+        playbackIssue = "用户选择跳过失败事件；后续画面可能与原对局不一致。";
+        paused = false;
         RefreshControls();
     }
 
@@ -257,6 +292,7 @@ internal static class MatchReplayPlayer
         {
             Execute(events[eventIndex]);
             eventIndex++;
+            if (HasBlockingError) break;
         }
 
         if (eventIndex >= events.Count)
@@ -307,31 +343,12 @@ internal static class MatchReplayPlayer
             fightCanvasGroup = null;
             controlsVisible = false;
             externalClock = false;
+            playbackHealth = "Compatible";
+            playbackIssue = "";
+            failedEventCount = 0;
             MatchReplaySessionState.IsPlayback = false;
             resetting = false;
         }
-    }
-
-    private static bool CheckCompatibility(MatchRecord value, out string message)
-    {
-        var currentGameBuild = typeof(FightManager).Assembly.GetName().Version?.ToString() ?? "unknown";
-        var currentToolBuild = typeof(AuraToolsMatchRecordsRuntime).Assembly.GetName().Version?.ToString() ?? "unknown";
-        if (value.ReplayProtocol != MatchReplayProtocol.Version)
-        {
-            message = "回放协议版本不兼容，但仍可查看该对局的统计摘要。";
-            return false;
-        }
-
-        if (!string.Equals(value.GameBuild, currentGameBuild, StringComparison.Ordinal)
-            || !string.Equals(value.ToolBuild, currentToolBuild, StringComparison.Ordinal)
-            || !string.Equals(value.ModFingerprint, MatchReplayRecorder.CurrentRuntimeFingerprint(), StringComparison.Ordinal))
-        {
-            message = "游戏或工具版本已变化，为避免污染存档，本记录仅允许查看统计摘要。";
-            return false;
-        }
-
-        message = "";
-        return true;
     }
 
     private static void SeekToIndex(int targetIndex)
@@ -346,9 +363,25 @@ internal static class MatchReplayPlayer
         {
             InitializeBattle();
             var normalized = Math.Max(0, Math.Min(events.Count, targetIndex));
-            for (var i = 0; i < normalized; i++)
+            var start = 0;
+            for (var i = normalized - 1; i >= 0; i--)
+            {
+                if (events[i].Kind != MatchReplayEventKinds.Checkpoint) continue;
+                var checkpoint = MatchReplayPayload.Decode<MatchReplayCheckpoint>(events[i].Payload);
+                if (checkpoint?.CanRestore == true && MatchReplayStateCapture.Restore(checkpoint))
+                {
+                    start = i + 1;
+                    break;
+                }
+            }
+
+            playbackHealth = "Compatible";
+            playbackIssue = "";
+            failedEventCount = 0;
+            for (var i = start; i < normalized; i++)
             {
                 Execute(events[i]);
+                if (HasBlockingError) throw new InvalidOperationException(playbackIssue);
             }
 
             eventIndex = normalized;
@@ -451,30 +484,52 @@ internal static class MatchReplayPlayer
         }
     }
 
-    private static void Execute(MatchReplayEvent item)
+    private static bool Execute(MatchReplayEvent item)
     {
         try
         {
             switch (item.Kind)
             {
                 case MatchReplayEventKinds.ActionCommand:
-                    ActionCommandBaseReaderWriter.Read(CreateReader(item.Payload))?.Execute();
+                    (ActionCommandBaseReaderWriter.Read(CreateReader(item.Payload))
+                     ?? throw new InvalidOperationException("行动指令无法反序列化。")).Execute();
                     break;
                 case MatchReplayEventKinds.ClientCommand:
-                    ClientCommandBaseReaderWriter.Read(CreateReader(item.Payload))?.Execute();
+                    (ClientCommandBaseReaderWriter.Read(CreateReader(item.Payload))
+                     ?? throw new InvalidOperationException("客户端指令无法反序列化。")).Execute();
                     break;
                 case MatchReplayEventKinds.TargetCommand:
-                    ObjTargetBaseReaderWriter.Read(CreateReader(item.Payload))?.Execute();
+                    (ObjTargetBaseReaderWriter.Read(CreateReader(item.Payload))
+                     ?? throw new InvalidOperationException("目标指令无法反序列化。")).Execute();
                     break;
                 case MatchReplayEventKinds.StatusSnapshot:
                     ApplyStatusSnapshot(AuraSharedJson.Deserialize<StatusDataTransfer>(
                         System.Text.Encoding.UTF8.GetString(item.Payload ?? Array.Empty<byte>())));
                     break;
+                case MatchReplayEventKinds.Checkpoint:
+                    var checkpoint = MatchReplayPayload.Decode<MatchReplayCheckpoint>(item.Payload)
+                                     ?? throw new InvalidOperationException("检查点数据无法读取。");
+                    if (!MatchReplayStateCapture.Verify(checkpoint, out var actualHash))
+                    {
+                        playbackHealth = "Desynced";
+                        playbackIssue = "回放在事件 " + item.Sequence + " 失步（检查点摘要 "
+                                        + Short(checkpoint.StateHash) + " / " + Short(actualHash) + "）。";
+                        paused = true;
+                        failedEventCount++;
+                        return false;
+                    }
+                    break;
             }
+            return true;
         }
         catch (Exception ex)
         {
+            playbackHealth = "Failed";
+            playbackIssue = "事件 " + item.Sequence + "（" + item.TypeName + "）执行失败：" + ex.Message;
+            paused = true;
+            failedEventCount++;
             AuraToolsLog.Warn("[MatchRecords] replay event " + item.Sequence + " failed: " + ex.Message);
+            return false;
         }
     }
 
@@ -487,13 +542,10 @@ internal static class MatchReplayPlayer
 
     private static void ApplyStatusSnapshot(StatusDataTransfer? snapshot)
     {
-        if (snapshot == null
-            || FightManager.Instance == null
-            || !FightManager.Instance.statuses.TryGetValue(snapshot.InstanceId ?? "", out var status)
-            || status == null)
-        {
-            return;
-        }
+        if (snapshot == null) throw new InvalidOperationException("角色状态快照无法反序列化。");
+        if (FightManager.Instance == null) throw new InvalidOperationException("战斗状态管理器不可用。");
+        if (!FightManager.Instance.statuses.TryGetValue(snapshot.InstanceId ?? "", out var status) || status == null)
+            throw new InvalidOperationException("状态快照目标不存在：" + snapshot.InstanceId);
 
         status.maxHp = snapshot.maxHp;
         status.curHp = snapshot.curHp;
@@ -502,19 +554,8 @@ internal static class MatchReplayPlayer
         status.UpdateStatus();
     }
 
-    private static List<long> BuildTimeline(IReadOnlyList<MatchReplayEvent> source)
+    private static string Short(string value)
     {
-        var result = new List<long>(source.Count);
-        long accumulated = 0;
-        long previous = 0;
-        foreach (var item in source)
-        {
-            var rawDelay = Math.Max(0, item.ElapsedMilliseconds - previous);
-            accumulated += Math.Max(20, Math.Min(1500, rawDelay));
-            result.Add(accumulated);
-            previous = item.ElapsedMilliseconds;
-        }
-
-        return result;
+        return string.IsNullOrWhiteSpace(value) ? "none" : value.Substring(0, Math.Min(8, value.Length));
     }
 }

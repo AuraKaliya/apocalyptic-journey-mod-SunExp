@@ -19,7 +19,8 @@ internal static class MatchReplayVideoPlayer
     internal static void Show(Transform parent, MatchMediaAsset asset)
     {
         Close();
-        if (!File.Exists(asset.FilePath))
+        var resolvedPath = MatchReplayMediaStore.ResolvePath(asset.FilePath);
+        if (!File.Exists(resolvedPath))
         {
             return;
         }
@@ -132,7 +133,7 @@ internal sealed class MatchReplayVideoController : MonoBehaviour
         player.skipOnDrop = true;
         player.isLooping = false;
         player.source = VideoSource.Url;
-        player.url = new Uri(Path.GetFullPath(asset.FilePath)).AbsoluteUri;
+        player.url = new Uri(MatchReplayMediaStore.ResolvePath(asset.FilePath)).AbsoluteUri;
         player.renderMode = VideoRenderMode.RenderTexture;
         player.targetTexture = target;
         player.aspectRatio = VideoAspectRatio.FitInside;
