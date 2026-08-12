@@ -119,4 +119,5 @@ internal sealed class MatchRecordMetadata
     public List<string> OptionalCapabilities { get; set; } = new();
     public List<string> ContentDependencies { get; set; } = new();
     public string ContentSha256 { get; set; } = "";
+    public List<string> CaptureDiagnostics { get; set; } = new();
 }

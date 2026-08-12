@@ -455,14 +455,7 @@ internal static class AuraToolsCombatContentRuntime
                 descriptor.RootDirectory,
                 descriptor.OwnerModId,
                 descriptor.PackageId);
-            if (result.Success && result.Loaded != null
-                && !string.IsNullOrWhiteSpace(currentBuild)
-                && string.Equals(
-                    AuraToolsCombatKnowledgeRuntime.NormalizeGameBuild(
-                        result.Loaded.Package.GameBuild),
-                    AuraToolsCombatKnowledgeRuntime.NormalizeGameBuild(
-                        currentBuild),
-                    StringComparison.OrdinalIgnoreCase))
+            if (result.Success && result.Loaded != null)
             {
                 batch.Loaded.Add(result.Loaded);
             }
@@ -471,9 +464,7 @@ internal static class AuraToolsCombatContentRuntime
                 batch.Diagnostics.Add(
                     descriptor.OwnerModId + ":" + descriptor.PackageId + "："
                     + (result.Errors.Count == 0
-                        ? string.IsNullOrWhiteSpace(currentBuild)
-                            ? "运行时游戏版本不可用，按严格模式拒绝"
-                            : "游戏版本不匹配"
+                        ? "内容包加载失败"
                         : string.Join("；", result.Errors)));
             }
         }

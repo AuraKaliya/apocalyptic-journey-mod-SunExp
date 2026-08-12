@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
 using AuraShared.Core;
@@ -84,28 +86,9 @@ internal static class AuraToolsCombatKnowledgeRuntime
         exportedPath = "";
         try
         {
-            var manager = GameConfigManager.Instance;
-            if (manager == null)
+            if (!TryCaptureBaseGameTables(out var export, out message))
             {
-                message = "游戏数据表尚未初始化，请进入主界面后重试";
-                AuraToolsLog.Warn("[AutoBattle][Knowledge] " + message);
                 return false;
-            }
-
-            var export = new BaseGameTableExport
-            {
-                GameBuild = GameConfigManager.Version,
-                ExportedAtUtc = DateTime.UtcNow
-            };
-            foreach (var type in RelevantTables)
-            {
-                var table = manager.GetTable(type);
-                export.Tables[type.ToString()] = table?.Getlines()
-                    .Select(row => new Dictionary<string, string>(
-                        row,
-                        StringComparer.OrdinalIgnoreCase))
-                    .ToList()
-                    ?? new List<Dictionary<string, string>>();
             }
 
             var directory = BaseGameTableExportDirectory;
@@ -135,16 +118,76 @@ internal static class AuraToolsCombatKnowledgeRuntime
         }
     }
 
+    public static bool TryExportAndInstallRuntimeKnowledgePackage(
+        out string installedPath,
+        out string message)
+    {
+        installedPath = "";
+        try
+        {
+            if (!TryCaptureBaseGameTables(out var export, out message))
+            {
+                return false;
+            }
+
+            var package = BuildRuntimeTableKnowledgePackage(export);
+            var directory = KnowledgeDirectory;
+            Directory.CreateDirectory(directory);
+            installedPath = RuntimeKnowledgePackagePath;
+            using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
+            {
+                storage.WriteTextAtomic(
+                    installedPath,
+                    AuraSharedJson.Serialize(package),
+                    createBackup: true);
+            }
+
+            Register(package, installedPath);
+            message = "已导出并安装当前版本知识包：动作 "
+                      + package.Actions.Count
+                      + "、Buff " + package.Statuses.Count
+                      + "、敌人 " + package.Enemies.Count
+                      + "、遭遇 " + package.Encounters.Count;
+            AuraToolsLog.Info("[AutoBattle][Knowledge] " + message);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            installedPath = "";
+            message = "知识包导出/安装失败，请查看 AuraToolsExp 日志";
+            AuraToolsLog.Warn("[AutoBattle][Knowledge] runtime package export failed: " + ex);
+            return false;
+        }
+    }
+
+    public static void RequestPackageReload()
+    {
+        BeginBundledPackageLoad();
+    }
+
+    public static void OpenKnowledgeDirectory()
+    {
+        Directory.CreateDirectory(KnowledgeDirectory);
+        FileResourceUtil.OpenDirectory(KnowledgeDirectory);
+    }
+
     public static void OpenBaseGameTableExportDirectory()
     {
         Directory.CreateDirectory(BaseGameTableExportDirectory);
         FileResourceUtil.OpenDirectory(BaseGameTableExportDirectory);
     }
 
-    private static string BaseGameTableExportDirectory => Path.Combine(
+    private static string KnowledgeDirectory => Path.Combine(
         AuraToolsPaths.ConfigDirectory,
-        "combat-knowledge",
+        "combat-knowledge");
+
+    private static string BaseGameTableExportDirectory => Path.Combine(
+        KnowledgeDirectory,
         "table-exports");
+
+    private static string RuntimeKnowledgePackagePath => Path.Combine(
+        KnowledgeDirectory,
+        "runtime-tables.json");
 
     public static bool HasAuthoritativeCoverage(
         CombatStateObservation state,
@@ -229,9 +272,9 @@ internal static class AuraToolsCombatKnowledgeRuntime
         var paths = new[]
         {
             Path.Combine(
-                AuraToolsPaths.ConfigDirectory,
-                "combat-knowledge",
+                KnowledgeDirectory,
                 "base-game.json"),
+            RuntimeKnowledgePackagePath,
             Path.Combine(
                 AuraToolsPaths.BundledConfigDirectory,
                 "combat-knowledge.base-game.json")
@@ -326,11 +369,11 @@ internal static class AuraToolsCombatKnowledgeRuntime
                 NormalizeGameBuild(package.GameBuild),
                 StringComparison.OrdinalIgnoreCase))
         {
-            AuraToolsLog.Warn(
-                "[AutoBattle][Knowledge] 拒绝版本不匹配的知识包 " + source
+            AuraToolsLog.Info(
+                "[AutoBattle][Knowledge] 接受跨版本知识包 " + source
                 + "：package=" + package.GameBuild
-                + " runtime=" + currentBuild);
-            return;
+                + " runtime=" + currentBuild
+                + "；兼容性由知识协议与定义校验决定");
         }
 
         var registration = CombatKnowledgeRegistry.RegisterPackage(package, out var errors);
@@ -370,6 +413,187 @@ internal static class AuraToolsCombatKnowledgeRuntime
             normalized = normalized.Substring(1);
         }
         return normalized;
+    }
+
+    private static bool TryCaptureBaseGameTables(
+        out BaseGameTableExport export,
+        out string message)
+    {
+        export = new BaseGameTableExport();
+        var manager = GameConfigManager.Instance;
+        if (manager == null)
+        {
+            message = "游戏数据表尚未初始化，请进入主界面后重试";
+            AuraToolsLog.Warn("[AutoBattle][Knowledge] " + message);
+            return false;
+        }
+
+        export.GameBuild = GameConfigManager.Version;
+        export.ExportedAtUtc = DateTime.UtcNow;
+        foreach (var type in RelevantTables)
+        {
+            var table = manager.GetTable(type);
+            export.Tables[type.ToString()] = table?.Getlines()
+                .Select(row => new Dictionary<string, string>(
+                    row,
+                    StringComparer.OrdinalIgnoreCase))
+                .ToList()
+                ?? new List<Dictionary<string, string>>();
+        }
+
+        message = "已读取 " + export.Tables.Sum(item => item.Value.Count) + " 行游戏数据";
+        return true;
+    }
+
+    private static CombatKnowledgePackage BuildRuntimeTableKnowledgePackage(
+        BaseGameTableExport export)
+    {
+        var canonical = AuraSharedJson.SerializeCompact(export);
+        var provenance = "runtime table export; build=" + export.GameBuild;
+        var package = new CombatKnowledgePackage
+        {
+            OwnerId = "witch.base-game.local",
+            PackageId = "runtime-table-inventory",
+            GameBuild = string.IsNullOrWhiteSpace(export.GameBuild)
+                ? "unknown"
+                : export.GameBuild,
+            SourceHash = Sha256(canonical),
+            GeneratedAtUtc = export.ExportedAtUtc
+        };
+
+        var actions = new Dictionary<string, CombatKnowledgeActionDefinition>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var tableName in new[] { "Card", "EnemyCard", "PartnerCard" })
+        {
+            foreach (var row in Rows(export, tableName))
+            {
+                var id = Value(row, "Id", "CardId", "ID");
+                if (string.IsNullOrWhiteSpace(id) || actions.ContainsKey(id)) continue;
+                actions[id] = new CombatKnowledgeActionDefinition
+                {
+                    SourceId = id,
+                    DisplayName = DisplayName(row, id),
+                    Fidelity = CombatKnowledgeFidelity.Unsupported,
+                    Confidence = 1d,
+                    BaseCost = Integer(row, "Cost", "Energy", "Mana"),
+                    TableFields = new Dictionary<string, string>(row, StringComparer.OrdinalIgnoreCase),
+                    Provenance = provenance + "; table=" + tableName
+                };
+            }
+        }
+        package.Actions = actions.Values.OrderBy(item => item.SourceId, StringComparer.OrdinalIgnoreCase).ToList();
+
+        package.Statuses = Rows(export, "Buff")
+            .Select(row => new { Row = row, Id = Value(row, "Id", "BuffId", "ID") })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CombatKnowledgeStatusDefinition
+            {
+                StatusId = group.Key,
+                DisplayName = DisplayName(group.First().Row, group.Key),
+                Fidelity = CombatKnowledgeFidelity.Unsupported,
+                TableFields = new Dictionary<string, string>(group.First().Row, StringComparer.OrdinalIgnoreCase),
+                Provenance = provenance + "; table=Buff"
+            })
+            .OrderBy(item => item.StatusId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        package.Enemies = Rows(export, "Enemy")
+            .Select(row => new { Row = row, Id = Value(row, "Id", "EnemyId", "ID") })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CombatKnowledgeEnemyDefinition
+            {
+                EnemyId = group.Key,
+                DisplayName = DisplayName(group.First().Row, group.Key),
+                Fidelity = CombatKnowledgeFidelity.Unsupported,
+                MaxHp = Integer(group.First().Row, "MaxHp", "Hp", "HP"),
+                TableFields = new Dictionary<string, string>(group.First().Row, StringComparer.OrdinalIgnoreCase),
+                Provenance = provenance + "; table=Enemy"
+            })
+            .OrderBy(item => item.EnemyId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        package.Encounters = Rows(export, "Level")
+            .Select(row => new { Row = row, Id = Value(row, "Id", "LevelId", "ID") })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CombatKnowledgeEncounterDefinition
+            {
+                EncounterId = group.Key,
+                Fidelity = CombatKnowledgeFidelity.Unsupported,
+                EnemyIds = EnemyIds(group.First().Row),
+                Provenance = provenance + "; table=Level"
+            })
+            .OrderBy(item => item.EncounterId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        package.Inventory = new CombatKnowledgeInventory
+        {
+            DiscoveredActions = package.Actions.Count,
+            DiscoveredStatuses = package.Statuses.Count,
+            DiscoveredEnemies = package.Enemies.Count,
+            DiscoveredEncounters = package.Encounters.Count,
+            UnsupportedScripts = package.Actions.Count + package.Statuses.Count + package.Enemies.Count
+        };
+        return package;
+    }
+
+    private static IEnumerable<Dictionary<string, string>> Rows(
+        BaseGameTableExport export,
+        string tableName)
+    {
+        return export.Tables.TryGetValue(tableName, out var rows)
+            ? rows
+            : Enumerable.Empty<Dictionary<string, string>>();
+    }
+
+    private static string Value(
+        IReadOnlyDictionary<string, string> row,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (row.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+        return "";
+    }
+
+    private static string DisplayName(
+        IReadOnlyDictionary<string, string> row,
+        string fallback)
+    {
+        return Value(row, "Name", "DisplayName", "Title", "Msg", "CN") is { Length: > 0 } value
+            ? value
+            : fallback;
+    }
+
+    private static int Integer(
+        IReadOnlyDictionary<string, string> row,
+        params string[] keys)
+    {
+        return int.TryParse(Value(row, keys), out var value) ? value : 0;
+    }
+
+    private static List<string> EnemyIds(IReadOnlyDictionary<string, string> row)
+    {
+        return row
+            .Where(item => item.Key.IndexOf("enemy", StringComparison.OrdinalIgnoreCase) >= 0)
+            .SelectMany(item => (item.Value ?? "").Split('|', ',', ';', '，', '；'))
+            .Select(item => item.Trim())
+            .Where(item => item.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string Sha256(string value)
+    {
+        using var sha = SHA256.Create();
+        return string.Concat(sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? ""))
+            .Select(item => item.ToString("x2")));
     }
 
     private static CombatKnowledgePackage BuildVerifiedBasePackage()

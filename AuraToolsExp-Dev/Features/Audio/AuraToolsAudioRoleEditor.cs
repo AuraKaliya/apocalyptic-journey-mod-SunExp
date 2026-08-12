@@ -244,7 +244,6 @@ public static class AuraToolsAudioRoleEditor
     {
         Feature.Normalize(editingBattleBgm ? "Audio/Common/battle_bgm.mp3" : "Audio/Common/card_use.mp3", -1000, false);
         AuraToolsConfigService.SaveAudio();
-        AuraToolsAudioRuntime.RegisterProviders();
         SetHint("已保存角色音频配置。");
     }
 

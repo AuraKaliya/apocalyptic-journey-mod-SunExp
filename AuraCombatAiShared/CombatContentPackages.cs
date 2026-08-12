@@ -942,11 +942,10 @@ public static class CombatContentPackageLoader
                 IdSet("blessings", coverage.BlessingIds)
             });
         return Sha256Text(
-            "content-package-fingerprint-v2\n"
+            "content-package-fingerprint-v3\n"
             + package.OwnerModId.Trim().ToLowerInvariant() + "\n"
             + package.PackageId.Trim().ToLowerInvariant() + "\n"
             + package.PackageVersion.Trim() + "\n"
-            + package.GameBuild.Trim() + "\n"
             + "foundation=" + package.FoundationTrainingEnabled + "\n"
             + coverageIdentity + "\n"
             + string.Join("\n", dependencies) + "\n"
@@ -1037,6 +1036,8 @@ public sealed class CombatContentSetEntry
 
 public static class CombatContentSetProtocol
 {
+    // Preserve the shipped no-content identity so base models do not require a one-time
+    // revalidation merely because game-build metadata stopped participating in hashes.
     public static readonly string EmptyContentSetHash = Hash("content-set-v1\nempty");
 
     public static readonly string EmptyOwnerModSetHash = Hash("owner-mod-set-v1\nempty");
@@ -1080,8 +1081,7 @@ public static class CombatContentSetProtocol
             ContentSetHash = entries.Count == 0
                 ? EmptyContentSetHash
                 : Hash(
-                    "content-set-v1\n"
-                    + (gameBuild ?? "").Trim() + "\n"
+                    "content-set-v2\n"
                     + (rulesetHash ?? "").Trim() + "\n"
                     + (nativeProgramHash ?? "").Trim() + "\n"
                     + packageIdentity)

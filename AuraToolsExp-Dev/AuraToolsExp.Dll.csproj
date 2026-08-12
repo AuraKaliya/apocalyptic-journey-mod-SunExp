@@ -56,6 +56,10 @@
       <HintPath>$(DllPath)\UnityEngine.ScreenCaptureModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(DllPath)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.VideoModule">
       <HintPath>$(DllPath)\UnityEngine.VideoModule.dll</HintPath>
       <Private>false</Private>
@@ -102,6 +106,10 @@
     </Reference>
     <Reference Include="Mirror">
       <HintPath>$(DllPath)\Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror.Transports">
+      <HintPath>$(DllPath)\Mirror.Transports.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="MemoryPack.Core">

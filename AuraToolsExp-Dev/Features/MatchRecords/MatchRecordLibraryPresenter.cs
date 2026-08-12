@@ -23,6 +23,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords;
 internal static class MatchRecordLibraryPresenter
 {
     private const string OverlayName = "AuraToolsMatchRecordLibrary";
+    private const string ReplayFailureOverlayName = "AuraToolsMatchReplayFailure";
     private const string AdventureCollection = "Adventures";
     private static Transform? host;
     private static Transform? body;
@@ -228,6 +229,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
+        var compatibility = MatchReplayCompatibility.Evaluate(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
         AuraToolsUi.SetFixedHeight(row, 76f);
         AuraToolsUi.AddImage(row, AuraToolsUi.Row);
@@ -246,11 +248,17 @@ internal static class MatchRecordLibraryPresenter
                      + "   事件 " + item.EventCount
                      + "   DPT伤害 " + TotalDamage(item.StatisticsJson)
                      + "   " + FormatBytes(item.CompressedBytes)
+                     + "   " + CompatibilityLabel(compatibility.Level)
                      + (string.IsNullOrWhiteSpace(item.Tags) ? "" : "   标签 " + item.Tags);
         AuraToolsUi.AddText(row.transform, title + "\n" + detail, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 60f, 1f);
         AuraToolsUi.AddButton(row.transform, SelectedIds.Contains(item.RecordId) ? "已选" : "选择", () => ToggleSelection(item.RecordId), 64f);
         AuraToolsUi.AddButton(row.transform, "分析", () => MatchAnalysisPresenter.Show(host!, item), 76f);
-        AuraToolsUi.AddButton(row.transform, "回放", () => Replay(item.RecordId), 76f);
+        var replayButton = AuraToolsUi.AddButton(
+            row.transform,
+            compatibility.CanPlay ? "回放" : "仅分析",
+            () => Replay(item.RecordId),
+            76f);
+        replayButton.interactable = compatibility.CanPlay;
         AuraToolsUi.AddButton(row.transform, editingId == item.RecordId ? "收起" : "标签备注", () => EditMetadata(item), 82f);
         AuraToolsUi.AddButton(
             row.transform,
@@ -280,20 +288,51 @@ internal static class MatchRecordLibraryPresenter
 
     private static void Replay(string recordId)
     {
-        if (MatchReplayPlayer.TryStart(recordId, out var result))
-        {
-            if (host != null)
+        MatchReplayLaunchCoordinator.Start(
+            recordId,
+            0,
+            () =>
             {
-                AuraToolsUi.CloseOverlay(host, OverlayName, "Match record replay started");
-            }
+                AuraToolsUi.CloseOwnedOverlays("Match record replay launch");
+                WitchUiManager.Instance?.CloseUI("SettingUI");
+                ResetState();
+            },
+            result =>
+            {
+                message = result;
+                MatchReplayFailurePresenter.Schedule("无法开始对局回放", result);
+            });
+    }
 
-            WitchUiManager.Instance?.CloseUI("SettingUI");
-            ResetState();
+    private static void ShowReplayFailure(string detail)
+    {
+        if (host == null)
+        {
             return;
         }
 
-        message = result;
-        Build();
+        var window = AuraToolsUi.CreateOverlay(
+            ReplayFailureOverlayName,
+            host,
+            "无法开始对局回放",
+            maxWidth: 680f);
+        AuraToolsUi.AddText(
+            window.transform,
+            detail,
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.WarningText,
+            96f,
+            1f);
+    }
+
+    private static string CompatibilityLabel(string level)
+    {
+        return level == MatchReplayCompatibilityLevels.Compatible
+            ? "可回放"
+            : level == MatchReplayCompatibilityLevels.Degraded
+                ? "兼容回放"
+                : "仅分析";
     }
 
     private static void SetSearch(string value)

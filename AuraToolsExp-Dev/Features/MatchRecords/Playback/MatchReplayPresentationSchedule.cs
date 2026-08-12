@@ -13,21 +13,24 @@ internal static class MatchReplayPresentationModes
 
 internal static class MatchReplayPresentationSchedule
 {
+    internal static int Gap(string mode) => ActionGap(mode);
+
     internal static List<long> Build(IReadOnlyList<MatchReplayEvent> source, string mode)
     {
-        var result = new List<long>(source.Count);
+        var result = new List<long>(source?.Count ?? 0);
         long clock = 0;
-        var previousTurn = source.Count == 0 ? 0 : source[0].TurnIndex;
-        foreach (var item in source)
+        foreach (var item in source ?? Array.Empty<MatchReplayEvent>())
         {
-            if (previousTurn > 0 && item.TurnIndex != previousTurn)
-            {
-                clock += Scale(520, mode);
-            }
-
-            clock += Duration(item, mode);
             result.Add(clock);
-            previousTurn = item.TurnIndex;
+            switch (item.Kind)
+            {
+                case MatchReplayEventKinds.TurnFrame:
+                    clock += Scale(120, mode);
+                    break;
+                case MatchReplayEventKinds.ActionFrame:
+                    clock += Duration(item, mode) + ActionGap(mode);
+                    break;
+            }
         }
 
         return result;
@@ -35,20 +38,34 @@ internal static class MatchReplayPresentationSchedule
 
     internal static int Duration(MatchReplayEvent item, string mode)
     {
-        if (item.Kind == MatchReplayEventKinds.Checkpoint) return 0;
-        var value = item.Semantic?.Category == MatchSemanticCategories.Card ? 720
-            : item.Semantic?.Category == MatchSemanticCategories.Damage ? 360
-            : item.Semantic?.Category == MatchSemanticCategories.Status ? 260
-            : item.Semantic?.Category == MatchSemanticCategories.Target ? 180
-            : 220;
-        return Scale(value, mode);
+        if (item?.Kind != MatchReplayEventKinds.ActionFrame)
+        {
+            return 0;
+        }
+
+        var recorded = item.ActionFrame?.DurationMilliseconds ?? 0;
+        return Scale(Math.Max(360, Math.Min(1200, recorded)), mode);
+    }
+
+    private static int ActionGap(string mode)
+    {
+        if (string.Equals(mode, MatchReplayPresentationModes.Compact, StringComparison.OrdinalIgnoreCase))
+        {
+            return 40;
+        }
+
+        return string.Equals(mode, MatchReplayPresentationModes.Showcase, StringComparison.OrdinalIgnoreCase)
+            ? 140
+            : 60;
     }
 
     private static int Scale(int milliseconds, string mode)
     {
-        var scale = string.Equals(mode, MatchReplayPresentationModes.Compact, StringComparison.OrdinalIgnoreCase) ? 0.58
-            : string.Equals(mode, MatchReplayPresentationModes.Showcase, StringComparison.OrdinalIgnoreCase) ? 1.35
-            : 1d;
+        var scale = string.Equals(mode, MatchReplayPresentationModes.Compact, StringComparison.OrdinalIgnoreCase)
+            ? 0.62
+            : string.Equals(mode, MatchReplayPresentationModes.Showcase, StringComparison.OrdinalIgnoreCase)
+                ? 1.25
+                : 1d;
         return Math.Max(20, (int)Math.Round(milliseconds * scale));
     }
 }

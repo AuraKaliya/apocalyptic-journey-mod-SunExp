@@ -221,17 +221,11 @@ internal static class MatchAnalysisPresenter
 
     private static void StartReplay(long sequence)
     {
-        var success = sequence <= 0
-            ? MatchReplayPlayer.TryStart(record!.RecordId, out var result)
-            : MatchReplayPlayer.TryStartAtSequence(record!.RecordId, sequence, out result);
-        if (!success)
-        {
-            message = result;
-            Build();
-            return;
-        }
-
-        CloseForPlayback("Analysis replay started");
+        MatchReplayLaunchCoordinator.Start(
+            record!.RecordId,
+            sequence,
+            () => CloseForPlayback("Analysis replay launch"),
+            result => MatchReplayFailurePresenter.Schedule("无法开始对局回放", result));
     }
 
     private static void CloseForPlayback(string reason)

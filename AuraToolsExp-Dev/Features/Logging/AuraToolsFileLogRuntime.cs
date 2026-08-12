@@ -17,13 +17,14 @@ public static class AuraToolsFileLogRuntime
     private static readonly object Gate = new();
     private static readonly Dictionary<string, MirrorWindow> MirrorWindows = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, DateTime> LastMirrorByKey = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly AuraToolsMirrorDeduplicator CrossSourceDeduplicator = new();
     private static AuraLogFileWriter? writer;
     private static bool unityLogHooked;
     private static bool quittingHooked;
 
     public static void Initialize(ModConfig config)
     {
-        AuraToolsConfigService.Changed += ApplyConfig;
+        AuraToolsConfigService.LoggingChanged += ApplyConfig;
         ApplyConfig();
     }
 
@@ -147,6 +148,7 @@ public static class AuraToolsFileLogRuntime
         writer = null;
         MirrorWindows.Clear();
         LastMirrorByKey.Clear();
+        CrossSourceDeduplicator.Clear();
         try
         {
             if (current != null && ShouldWrite("AuraTools", "Info", null))
@@ -334,6 +336,11 @@ public static class AuraToolsFileLogRuntime
         var now = DateTime.UtcNow;
         lock (Gate)
         {
+            if (!CrossSourceDeduplicator.Allow(source, level, tag, message, now))
+            {
+                return false;
+            }
+
             var sourceKey = (source ?? "").Trim();
             if (!MirrorWindows.TryGetValue(sourceKey, out var window))
             {

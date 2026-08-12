@@ -97,7 +97,6 @@ public sealed class FileSoundProvider : IDisposable
         var gameObject = new GameObject("AudioProvider." + ownerModId + "." + providerId);
         UnityEngine.Object.DontDestroyOnLoad(gameObject);
         runner = gameObject.AddComponent<ProviderRunner>();
-        StartLoad();
     }
 
     public string ProviderId { get; }
@@ -130,7 +129,13 @@ public sealed class FileSoundProvider : IDisposable
 
     public bool Evaluate(object? request)
     {
-        return condition == null || condition(request);
+        var eligible = condition == null || condition(request);
+        if (eligible)
+        {
+            EnsureStarted();
+        }
+
+        return eligible;
     }
 
     public string GetLoadState()
@@ -140,6 +145,7 @@ public sealed class FileSoundProvider : IDisposable
 
     public AudioClip? GetClip(object? request)
     {
+        EnsureStarted();
         if (clips.Length == 0)
         {
             return null;
@@ -195,6 +201,14 @@ public sealed class FileSoundProvider : IDisposable
         for (var i = 0; i < audioPaths.Length; i++)
         {
             StartPathLoad(i, audioPaths[i], currentGeneration);
+        }
+    }
+
+    private void EnsureStarted()
+    {
+        if (!disposed && string.Equals(loadState, "NotStarted", StringComparison.Ordinal))
+        {
+            StartLoad();
         }
     }
 

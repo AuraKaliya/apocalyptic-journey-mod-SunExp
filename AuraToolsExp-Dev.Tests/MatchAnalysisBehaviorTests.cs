@@ -124,10 +124,13 @@ internal static partial class AuraToolsTestSuite
             var source = new MatchRecordDatabase(Path.Combine(sourceRoot, "records.sqlite3"));
             source.Initialize();
             MatchRecordStorage.Configure(source, sourceRoot);
+            var baseline = State(1, hp: 20, power: 3, handCardIds: new[] { "card-a" });
+            var after = State(1, hp: 20, power: 2, handCardIds: Array.Empty<string>());
             var events = new List<MatchReplayEvent>
             {
-                Event(1, 1, MatchSemanticCategories.Card, "UseCard", "card-a", "卡牌A", 0),
-                Event(2, 1, MatchSemanticCategories.Damage, "Normal", "", "伤害", 70)
+                TurnFrameEvent(1, baseline),
+                CheckpointEvent(2, baseline, 0),
+                ActionFrameEvent(3, 1, "action-1", 1, baseline, after, "card-a", 70)
             };
             var record = new MatchRecord
             {
@@ -142,7 +145,23 @@ internal static partial class AuraToolsTestSuite
                 GameBuild = "game",
                 ToolBuild = "tool",
                 ModFingerprint = "fingerprint",
-                InitialState = new MatchReplayInitialState { LevelId = "portable-level" }
+                RequiredCapabilities = new List<string>
+                {
+                    MatchReplayCapabilities.AuthoritativeFramesV1,
+                    MatchReplayCapabilities.StateProjectionV1,
+                    MatchReplayCapabilities.PresentationTimelineV1,
+                    MatchReplayCapabilities.IndexedSeekV1,
+                    MatchReplayCapabilities.CardPresentationReadyV1,
+                    MatchReplayCapabilities.IncrementalHandV1,
+                    MatchReplayCapabilities.OutcomeCuesV1,
+                    MatchReplayCapabilities.PassiveHudV1
+                },
+                InitialState = new MatchReplayInitialState
+                {
+                    LevelId = "portable-level",
+                    DiceJson = "{}",
+                    BaselineState = baseline
+                }
             };
             Assert(source.Save(record, MatchReplayChunker.Build(events, 32 * 1024)),
                 "portable replay fixture is stored before export");
@@ -163,7 +182,8 @@ internal static partial class AuraToolsTestSuite
             var imported = MatchReplayPackageService.Import(package);
             Assert(imported.Collection == MatchRecordCollections.Favorite
                    && target.Count(MatchRecordCollections.Favorite) == 1
-                   && MatchReplayChunker.Decode(target.LoadChunks(imported.RecordId)).Single(item => item.Sequence == 2).Semantic?.Value == 70
+                   && MatchReplayChunker.Decode(target.LoadChunks(imported.RecordId))
+                       .Single(item => item.Sequence == 3).ActionFrame?.Semantics.Single().Value == 70
                    && target.GetAnalysis(imported.RecordId)?.RecordId == imported.RecordId,
                 "portable import verifies and restores metadata, semantic chunks, and analysis into favorites");
             Assert(MatchReplayPackageService.Inspect(package).Duplicate,

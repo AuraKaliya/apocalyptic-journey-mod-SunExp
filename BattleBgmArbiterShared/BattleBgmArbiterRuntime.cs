@@ -21,7 +21,7 @@ public static class BattleBgmArbiterRuntime
 {
     private const string GlobalObjectName = "BattleBgmArbiter.Global";
     private const string ComponentFullName = "BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent";
-    public const string CurrentBuildId = "battle-bgm-arbiter-2026-07-20-v6";
+    public const string CurrentBuildId = "battle-bgm-arbiter-2026-08-12-v7";
     public const int CurrentProtocolVersion = 4;
     public const int MinimumSupportedProtocolVersion = 4;
     public static bool VerboseLogging { get; set; }
@@ -55,6 +55,34 @@ public static class BattleBgmArbiterRuntime
         catch (Exception ex)
         {
             Debug.LogWarning("[BattleBgmArbiter] Provider registration failed for " + ownerModId + ": " + ex.Message);
+        }
+    }
+
+    public static bool UnregisterProvider(ModConfig modConfig, string ownerModId, string providerId)
+    {
+        var arbiter = EnsureArbiter(modConfig, ownerModId);
+        if (arbiter == null)
+        {
+            return false;
+        }
+
+        var method = arbiter.GetType().GetMethod("UnregisterProvider", BindingFlags.Instance | BindingFlags.Public);
+        if (method == null)
+        {
+            Debug.LogWarning("[BattleBgmArbiter] Existing arbiter does not expose UnregisterProvider");
+            return false;
+        }
+
+        try
+        {
+            return method.Invoke(arbiter, new object[] { ownerModId, providerId }) is bool removed
+                   && removed;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[BattleBgmArbiter] Provider unregistration failed for "
+                             + ownerModId + ": " + ex.Message);
+            return false;
         }
     }
 
@@ -107,7 +135,7 @@ public static class BattleBgmArbiterRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "RegisterProvider", "Signal" }
+        var methodsPresent = new[] { "RegisterProvider", "UnregisterProvider", "Signal" }
             .All(name => existingType.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         if (ReuseLogOwners.Add(ownerModId))
         {
@@ -604,6 +632,55 @@ public static class BattleBgmArbiterRuntime
             }
         }
 
+        public bool UnregisterProvider(string owner, string providerId)
+        {
+            var removed = providers
+                .Where(item => string.Equals(item.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(item.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (removed.Count == 0)
+            {
+                return false;
+            }
+
+            var removedActive = removed.Any(item => string.Equals(
+                item.QualifiedProviderId,
+                activeProviderId,
+                StringComparison.OrdinalIgnoreCase));
+            foreach (var provider in removed)
+            {
+                provider.Dispose("unregistered by owner");
+                providers.Remove(provider);
+            }
+
+            if (removedActive)
+            {
+                try
+                {
+                    if (preBattleSnapshot != null && AudioManager.Instance != null)
+                    {
+                        preBattleSnapshot.Restore(AudioManager.Instance);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Warn("Original BGM restore after provider removal failed: " + ex.Message);
+                }
+
+                activeProviderId = "";
+                battleMode = BattleAudioMode.None;
+            }
+
+            Log("Provider unregistered: owner=" + owner + ", providerId=" + providerId
+                + ", count=" + providers.Count);
+            if (!inBattle)
+            {
+                EvaluateAdventureProviders("provider unregistered");
+            }
+
+            return true;
+        }
+
         private ProviderHandle? ResolveProviderRequest(string providerId)
         {
             var request = (providerId ?? "").Trim();
@@ -1013,7 +1090,7 @@ public static class BattleBgmArbiterRuntime
 
             public string ProviderId { get; }
 
-            private string OwnerModId { get; }
+            public string OwnerModId { get; }
 
             public string QualifiedProviderId { get; }
 
@@ -1456,6 +1533,7 @@ public sealed class FileBattleBgmProvider : IDisposable
     private string loadState = "NotStarted";
     private int generation;
     private bool disposed;
+    private bool watcherStarted;
     private AudioFileFormatDescriptor? currentFormat;
 
     public FileBattleBgmProvider(
@@ -1484,8 +1562,6 @@ public sealed class FileBattleBgmProvider : IDisposable
         var gameObject = new GameObject("BattleBgmProvider." + ownerModId + "." + providerId);
         UnityEngine.Object.DontDestroyOnLoad(gameObject);
         runner = gameObject.AddComponent<ProviderRunner>();
-        StartLoad("provider initialize");
-        runner.StartFileWatcher(FileCheckIntervalSeconds, CheckAudioFile);
     }
 
     public string ProviderId { get; }
@@ -1504,12 +1580,24 @@ public sealed class FileBattleBgmProvider : IDisposable
 
     public bool EvaluateAdventure(object? context)
     {
-        return adventureCondition == null || adventureCondition(context);
+        var eligible = adventureCondition == null || adventureCondition(context);
+        if (eligible)
+        {
+            EnsureStarted("first eligible adventure evaluation");
+        }
+
+        return eligible;
     }
 
     public bool EvaluateBattle(object? context)
     {
-        return battleCondition == null || battleCondition(context);
+        var eligible = battleCondition == null || battleCondition(context);
+        if (eligible)
+        {
+            EnsureStarted("first eligible battle evaluation");
+        }
+
+        return eligible;
     }
 
     public string GetLoadState()
@@ -1519,6 +1607,7 @@ public sealed class FileBattleBgmProvider : IDisposable
 
     public AudioClip? GetClip()
     {
+        EnsureStarted("clip requested");
         return clip;
     }
 
@@ -1588,6 +1677,21 @@ public sealed class FileBattleBgmProvider : IDisposable
             + ", codec=" + currentFormat.Codec
             + ", unityAudioType=" + audioType);
         runner.LoadAudio(audioPath, audioType, currentGeneration, OnLoadCompleted);
+    }
+
+    private void EnsureStarted(string reason)
+    {
+        if (disposed || !string.Equals(loadState, "NotStarted", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        StartLoad(reason);
+        if (!watcherStarted)
+        {
+            watcherStarted = true;
+            runner.StartFileWatcher(FileCheckIntervalSeconds, CheckAudioFile);
+        }
     }
 
     private void OnLoadCompleted(int completedGeneration, AudioClip? loadedClip, string? error)

@@ -145,7 +145,14 @@ internal static class MatchReplayVideoExporter
             yield return null;
         }
 
-        if (cancelRequested || !MatchReplayPlayer.IsActive) throw new OperationCanceledException();
+        if (cancelRequested) throw new OperationCanceledException();
+        if (!MatchReplayPlayer.IsActive)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(MatchReplayPlayer.LastStartFailure)
+                    ? "回放环境在视频导出前意外停止。"
+                    : MatchReplayPlayer.LastStartFailure);
+        }
         if (!context.Settings.IncludeUi) context.HideUi();
         var listener = context.Settings.IncludeAudio ? Object.FindAnyObjectByType<AudioListener>() : null;
         if (listener != null)

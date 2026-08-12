@@ -12,17 +12,23 @@ internal sealed class MatchReplayWorkingBuffer : IDisposable
     private readonly int targetBytes;
     private readonly long memoryBudgetBytes;
     private readonly string workingDirectory;
+    private readonly bool deferCompression;
     private readonly List<MatchReplayEvent> pending = new();
     private readonly List<BufferedChunk> chunks = new();
     private int pendingBytes;
     private long bufferedBytes;
     private bool completed;
 
-    internal MatchReplayWorkingBuffer(int targetBytes, long memoryBudgetBytes, string workingDirectory)
+    internal MatchReplayWorkingBuffer(
+        int targetBytes,
+        long memoryBudgetBytes,
+        string workingDirectory,
+        bool deferCompression = false)
     {
         this.targetBytes = Math.Max(32 * 1024, Math.Min(1024 * 1024, targetBytes));
         this.memoryBudgetBytes = Math.Max(this.targetBytes * 2L, memoryBudgetBytes);
         this.workingDirectory = Path.GetFullPath(workingDirectory ?? throw new ArgumentNullException(nameof(workingDirectory)));
+        this.deferCompression = deferCompression;
     }
 
     internal int EventCount { get; private set; }
@@ -35,8 +41,8 @@ internal sealed class MatchReplayWorkingBuffer : IDisposable
     {
         if (completed) throw new InvalidOperationException("Replay working buffer is already complete.");
         if (item == null) throw new ArgumentNullException(nameof(item));
-        var estimated = Math.Max(64, item.Payload?.Length ?? 0) + 256;
-        if (pending.Count > 0 && pendingBytes + estimated > targetBytes)
+        var estimated = MatchReplayChunker.Estimate(item);
+        if (!deferCompression && pending.Count > 0 && pendingBytes + estimated > targetBytes)
         {
             FlushPending();
         }
@@ -87,11 +93,13 @@ internal sealed class MatchReplayWorkingBuffer : IDisposable
     private void FlushPending()
     {
         if (pending.Count == 0) return;
-        var chunk = MatchReplayChunker.Build(pending, targetBytes).Single();
-        chunk.ChunkIndex = chunks.Count;
-        var buffered = new BufferedChunk(chunk);
-        chunks.Add(buffered);
-        bufferedBytes += chunk.Payload.Length;
+        foreach (var chunk in MatchReplayChunker.Build(pending, targetBytes))
+        {
+            chunk.ChunkIndex = chunks.Count;
+            var buffered = new BufferedChunk(chunk);
+            chunks.Add(buffered);
+            bufferedBytes += chunk.Payload.Length;
+        }
         pending.Clear();
         pendingBytes = 0;
         SpillUntilWithinBudget();

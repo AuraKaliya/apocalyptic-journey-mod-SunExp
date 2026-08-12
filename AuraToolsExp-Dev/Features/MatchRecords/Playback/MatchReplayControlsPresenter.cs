@@ -1,7 +1,10 @@
 using System;
+using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Features.Settings;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UiRaycastSafetyShared;
 using Object = UnityEngine.Object;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
@@ -14,8 +17,13 @@ internal static class MatchReplayControlsPresenter
     private static Text? playLabel;
     private static Text? speedLabel;
     private static Slider? progress;
+    private static Button? previousButton;
+    private static Button? playButton;
+    private static Button? nextButton;
+    private static Button? speedButton;
     private static Button? continueButton;
     private static bool updating;
+    private static bool draggingProgress;
 
     internal static void Show()
     {
@@ -52,13 +60,13 @@ internal static class MatchReplayControlsPresenter
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        AuraToolsUi.AddButton(toolbar.transform, "上一回合", () => MatchReplayPlayer.SeekTurn(-1), 104f);
-        var play = AuraToolsUi.AddButton(toolbar.transform, "暂停", MatchReplayPlayer.TogglePause, 82f);
-        playLabel = play.GetComponentInChildren<Text>();
-        AuraToolsUi.AddButton(toolbar.transform, "下一回合", () => MatchReplayPlayer.SeekTurn(1), 104f);
+        previousButton = AuraToolsUi.AddButton(toolbar.transform, "上一回合", () => MatchReplayPlayer.SeekTurn(-1), 104f);
+        playButton = AuraToolsUi.AddButton(toolbar.transform, "暂停", MatchReplayPlayer.TogglePause, 82f);
+        playLabel = playButton.GetComponentInChildren<Text>();
+        nextButton = AuraToolsUi.AddButton(toolbar.transform, "下一回合", () => MatchReplayPlayer.SeekTurn(1), 104f);
 
-        var speed = AuraToolsUi.AddButton(toolbar.transform, "1x", MatchReplayPlayer.CycleSpeed, 64f);
-        speedLabel = speed.GetComponentInChildren<Text>();
+        speedButton = AuraToolsUi.AddButton(toolbar.transform, "1x", MatchReplayPlayer.CycleSpeed, 64f);
+        speedLabel = speedButton.GetComponentInChildren<Text>();
         progress = CreateProgress(toolbar.transform);
         status = AuraToolsUi.AddText(
             toolbar.transform,
@@ -92,22 +100,32 @@ internal static class MatchReplayControlsPresenter
 
         if (status != null)
         {
-            status.text = "回合 " + MatchReplayPlayer.CurrentTurn + "/" + Math.Max(1, MatchReplayPlayer.TurnCount)
-                          + "   事件 " + MatchReplayPlayer.EventIndex + "/" + MatchReplayPlayer.EventCount
-                          + (string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
-                              ? ""
-                              : "   " + MatchReplayPlayer.PlaybackIssue);
+            status.text = MatchReplayPlayer.IsRuntimeReady
+                ? "回合 " + MatchReplayPlayer.CurrentTurn + "/" + Math.Max(1, MatchReplayPlayer.TurnCount)
+                  + "   动作 " + MatchReplayPlayer.CompletedActionCount + "/" + MatchReplayPlayer.ActionCount
+                  + (string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
+                      ? ""
+                      : "   " + MatchReplayPlayer.PlaybackIssue)
+                : MatchReplayPlayer.PreparationStatus;
         }
 
+        var ready = MatchReplayPlayer.IsRuntimeReady;
+        var canControl = ready && !MatchReplayPlayer.IsSeeking;
+        if (previousButton != null) previousButton.interactable = canControl;
+        if (playButton != null) playButton.interactable = canControl;
+        if (nextButton != null) nextButton.interactable = canControl;
+        if (speedButton != null) speedButton.interactable = canControl;
         if (continueButton != null) continueButton.interactable = MatchReplayPlayer.HasBlockingError;
 
         if (progress != null)
         {
-            updating = true;
-            progress.value = MatchReplayPlayer.EventCount <= 0
-                ? 0f
-                : MatchReplayPlayer.EventIndex / (float)MatchReplayPlayer.EventCount;
-            updating = false;
+            progress.interactable = canControl;
+            if (!draggingProgress)
+            {
+                updating = true;
+                progress.value = MatchReplayPlayer.Progress;
+                updating = false;
+            }
         }
     }
 
@@ -115,7 +133,17 @@ internal static class MatchReplayControlsPresenter
     {
         if (root != null)
         {
-            Object.Destroy(root);
+            var closingRoot = root;
+            root = null;
+            UiRaycastSafeDestroyRuntime.DisableAndHide(
+                closingRoot,
+                "Match replay controls close",
+                AuraToolsLog.Debug);
+            Object.Destroy(closingRoot);
+            UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(
+                6,
+                "Match replay controls close",
+                AuraToolsLog.Debug);
         }
 
         root = null;
@@ -123,7 +151,12 @@ internal static class MatchReplayControlsPresenter
         playLabel = null;
         speedLabel = null;
         progress = null;
+        previousButton = null;
+        playButton = null;
+        nextButton = null;
+        speedButton = null;
         continueButton = null;
+        draggingProgress = false;
     }
 
     private static Slider CreateProgress(Transform parent)
@@ -161,9 +194,42 @@ internal static class MatchReplayControlsPresenter
         {
             if (!updating)
             {
-                MatchReplayPlayer.SeekNormalized(value);
+                if (draggingProgress)
+                {
+                    MatchReplayPlayer.PreviewSeekNormalized(value);
+                }
+                else
+                {
+                    MatchReplayPlayer.SeekNormalized(value);
+                }
             }
         });
+        var trigger = sliderRoot.AddComponent<EventTrigger>();
+        AddTrigger(trigger, EventTriggerType.PointerDown, _ =>
+        {
+            draggingProgress = true;
+            MatchReplayPlayer.BeginSeekPreview(slider.value);
+        });
+        AddTrigger(trigger, EventTriggerType.PointerUp, _ =>
+        {
+            if (!draggingProgress)
+            {
+                return;
+            }
+
+            draggingProgress = false;
+            MatchReplayPlayer.CommitSeekPreview(slider.value);
+        });
         return slider;
+    }
+
+    private static void AddTrigger(
+        EventTrigger trigger,
+        EventTriggerType type,
+        Action<BaseEventData> action)
+    {
+        var entry = new EventTrigger.Entry { eventID = type };
+        entry.callback.AddListener(data => action(data));
+        trigger.triggers.Add(entry);
     }
 }

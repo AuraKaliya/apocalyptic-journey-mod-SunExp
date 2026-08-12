@@ -40,3 +40,4 @@ ModsData/*
 !/AuraToolsExp/TrainingWorker/AuraFoundationTrainer.SimulationViewer.exe
 
 /tmp/*
+/.codex/tmp/*

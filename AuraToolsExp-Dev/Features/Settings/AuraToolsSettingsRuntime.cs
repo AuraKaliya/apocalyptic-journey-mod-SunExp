@@ -26,6 +26,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using UiTransitionGuardShared;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
@@ -43,8 +44,7 @@ public static class AuraToolsSettingsRuntime
     private static GameObject? activePanel;
     private static Transform? activePanelHost;
     private static Transform? activeTabParent;
-    private static bool panelBuilt;
-    private static bool panelBuilding;
+    private static readonly AuraToolsPanelBuildState PanelBuildState = new();
     private static bool autoBattleSnapshotSubscribed;
     private static long autoBattleSnapshotRevisionBuilt = -1;
     private static bool AutoBattleEvolutionView;
@@ -65,6 +65,8 @@ public static class AuraToolsSettingsRuntime
         RegisterAfter(modConfig, "SettingUI.Start", InjectSettings);
         RegisterAfter(modConfig, "SettingUI.OnEnable", InjectSettings);
         RegisterAfter(modConfig, "SettingUI.Load", InjectSettings);
+        RegisterAfter(modConfig, "SettingUI.Close", ClosePanel);
+        RegisterAfter(modConfig, "SettingUI.Hide", ClosePanel);
         RegisterAfter(modConfig, "SettingUI.OnDestroy", ClearPanel);
         if (!loggedHookRegistration)
         {
@@ -81,6 +83,7 @@ public static class AuraToolsSettingsRuntime
 
     internal static void HideActivePanel()
     {
+        PanelBuildState.CancelBuild();
         if (activePanel != null)
         {
             activePanel.SetActive(false);
@@ -139,12 +142,27 @@ public static class AuraToolsSettingsRuntime
 
     private static void ClearPanel(ModHookContext context)
     {
+        ClosePanel(context);
         activePanel = null;
         activePanelHost = null;
         activeTabParent = null;
-        panelBuilt = false;
-        panelBuilding = false;
+        PanelBuildState.Reset();
         autoBattleSnapshotRevisionBuilt = -1;
+    }
+
+    private static void ClosePanel(ModHookContext context)
+    {
+        HideActivePanel();
+        AuraToolsUi.CloseOwnedOverlays("SettingUI disabled");
+        UiTransitionGuardRuntime.BeginTransition(
+            null,
+            AuraToolsIds.ModId,
+            "SettingUI disabled",
+            6);
+        UiTransitionGuardRuntime.ScrubNow(
+            null,
+            AuraToolsIds.ModId,
+            "SettingUI disabled");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
@@ -427,12 +445,20 @@ public static class AuraToolsSettingsRuntime
         var existing = panelHost.Find(AuraPanelName);
         if (existing != null)
         {
+            var changedPanel = activePanel != existing.gameObject;
             activePanel = existing.gameObject;
+            if (changedPanel)
+            {
+                PanelBuildState.Adopt(
+                    existing.GetComponent<AuraToolsPanelBuildMarker>()?.Completed == true);
+            }
             PositionPanelInHost(activePanel, panelHost, tabParent);
             return;
         }
 
+        PanelBuildState.Reset();
         activePanel = AuraToolsUi.CreateRect(AuraPanelName, panelHost, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        activePanel.AddComponent<AuraToolsPanelBuildMarker>();
         PositionPanelInHost(activePanel, panelHost, tabParent);
         activePanel.SetActive(false);
         AuraToolsUi.AddImage(activePanel, AuraToolsUi.Background);
@@ -598,7 +624,7 @@ public static class AuraToolsSettingsRuntime
         AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
             autoBattle.Profile,
             autoBattle.SelectedModelId);
-        if (!panelBuilt)
+        if (!PanelBuildState.IsBuilt)
         {
             BeginInitialPanelBuild(activePanel);
         }
@@ -606,96 +632,86 @@ public static class AuraToolsSettingsRuntime
 
     private static void BeginInitialPanelBuild(GameObject panel)
     {
-        if (panelBuilding)
+        var ticket = PanelBuildState.Begin();
+        if (ticket == 0)
         {
             return;
         }
-        panelBuilding = true;
-        var driver = panel.GetComponent<AuraToolsPanelBuildDriver>()
-                     ?? panel.AddComponent<AuraToolsPanelBuildDriver>();
-        driver.Begin(panel.transform);
+
+        if (!AuraSharedFrameScheduler.StartCoroutine(
+                "AuraTools.Settings.BuildPanel",
+                BuildPanelAcrossFrames(panel.transform, ticket)))
+        {
+            PanelBuildState.Complete(ticket, false);
+            AuraToolsLog.Warn("[Settings] persistent scheduler rejected panel build; it will retry on the next tab open.");
+        }
     }
 
-    internal static IEnumerator BuildPanelAcrossFrames(Transform panel)
+    internal static IEnumerator BuildPanelAcrossFrames(Transform panel, int ticket)
     {
-        AuraToolsUi.ClearChildren(panel);
-        var layout = panel.gameObject.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
+        var completed = false;
+        try
         {
-            layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-        }
-        layout.padding = new RectOffset(10, 10, 8, 8);
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
+            if (!CanContinuePanelBuild(panel, ticket))
+            {
+                yield break;
+            }
 
-        var content = AuraToolsUi.CreateScroll(panel, "AuraToolsSettings");
-        yield return null;
-        CreateDataDirectorySection(content);
-        yield return null;
-        CreateSkinSection(content);
-        yield return null;
-        CreateAudioSection(content);
-        yield return null;
-        CreateMatchExperienceSection(content);
-        yield return null;
-        CreateBattleStrategySection(content);
-        yield return null;
-        CreateLoggingSection(content);
-        panelBuilt = true;
-        panelBuilding = false;
-        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
-        autoBattleSnapshotRevisionBuilt =
-            AuraToolsAutoBattleUiSnapshotRuntime
-                .Snapshot(autoBattle.Profile, autoBattle.SelectedModelId)
-                .Revision;
+            var marker = panel.GetComponent<AuraToolsPanelBuildMarker>()
+                         ?? panel.gameObject.AddComponent<AuraToolsPanelBuildMarker>();
+            marker.Completed = false;
+            AuraToolsUi.ClearChildren(panel);
+            var layout = panel.gameObject.GetComponent<VerticalLayoutGroup>();
+            if (layout == null)
+            {
+                layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
+            }
+            layout.padding = new RectOffset(10, 10, 8, 8);
+            layout.spacing = 8f;
+            layout.childControlWidth = true;
+            layout.childControlHeight = true;
+            layout.childForceExpandWidth = true;
+            layout.childForceExpandHeight = false;
+
+            var content = AuraToolsUi.CreateScroll(panel, "AuraToolsSettings");
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateDataDirectorySection(content);
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateSkinSection(content);
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateAudioSection(content);
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateMatchExperienceSection(content);
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateBattleStrategySection(content);
+            yield return null;
+            if (!CanContinuePanelBuild(panel, ticket)) yield break;
+            CreateLoggingSection(content);
+            marker.Completed = true;
+            var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+            autoBattleSnapshotRevisionBuilt =
+                AuraToolsAutoBattleUiSnapshotRuntime
+                    .Snapshot(autoBattle.Profile, autoBattle.SelectedModelId)
+                    .Revision;
+            completed = true;
+        }
+        finally
+        {
+            PanelBuildState.Complete(ticket, completed);
+        }
     }
 
-    private static void RebuildPanel(Transform panel)
+    private static bool CanContinuePanelBuild(Transform panel, int ticket)
     {
-        var existingScroll = panel.GetComponentInChildren<ScrollRect>(true);
-        var scrollPosition = existingScroll == null
-            ? 1f
-            : existingScroll.verticalNormalizedPosition;
-        AuraToolsUi.ClearChildren(panel);
-
-        var layout = panel.gameObject.GetComponent<VerticalLayoutGroup>();
-        if (layout == null)
-        {
-            layout = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-        }
-
-        layout.padding = new RectOffset(10, 10, 8, 8);
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = false;
-
-        var content = AuraToolsUi.CreateScroll(panel, "AuraToolsSettings");
-        CreateDataDirectorySection(content);
-        CreateSkinSection(content);
-        CreateAudioSection(content);
-        CreateMatchExperienceSection(content);
-        CreateBattleStrategySection(content);
-        CreateLoggingSection(content);
-        panelBuilt = true;
-        panelBuilding = false;
-        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
-        autoBattleSnapshotRevisionBuilt =
-            AuraToolsAutoBattleUiSnapshotRuntime
-                .Snapshot(autoBattle.Profile, autoBattle.SelectedModelId)
-                .Revision;
-        var rebuiltScroll = panel.GetComponentInChildren<ScrollRect>(true);
-        if (rebuiltScroll != null)
-        {
-            var restore = panel.GetComponent<AuraToolsScrollRestoreDriver>()
-                          ?? panel.gameObject
-                              .AddComponent<AuraToolsScrollRestoreDriver>();
-            restore.Restore(rebuiltScroll, scrollPosition);
-        }
+        return panel != null
+               && panel.gameObject.activeInHierarchy
+               && activePanel == panel.gameObject
+               && PanelBuildState.IsCurrent(ticket);
     }
 
     private static void CreateDataDirectorySection(Transform parent)
@@ -713,7 +729,6 @@ public static class AuraToolsSettingsRuntime
         {
             AuraToolsConfigService.Audio.BattleBgm.Enabled = value;
             AuraToolsConfigService.SaveAudio();
-            AuraToolsAudioRuntime.RegisterProviders();
         }, content =>
         {
             CreateModeRow(content, AuraToolsConfigService.Audio.BattleBgm, true);
@@ -725,7 +740,6 @@ public static class AuraToolsSettingsRuntime
         {
             AuraToolsConfigService.Audio.CardUse.Enabled = value;
             AuraToolsConfigService.SaveAudio();
-            AuraToolsAudioRuntime.RegisterProviders();
         }, content =>
         {
             CreateModeRow(content, AuraToolsConfigService.Audio.CardUse, false);
@@ -781,7 +795,6 @@ public static class AuraToolsSettingsRuntime
             {
                 AuraToolsConfigService.Skin.SyncRemote = value;
                 AuraToolsConfigService.SaveSkin();
-                RebuildPanel(activePanel!.transform);
             });
             AuraToolsUi.AddText(toggles.transform, "联机同步皮肤选择", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
 
@@ -790,7 +803,6 @@ public static class AuraToolsSettingsRuntime
             {
                 AuraToolsConfigService.Skin.ShowEntrySkinButton = value;
                 AuraToolsConfigService.SaveSkin();
-                RebuildPanel(activePanel!.transform);
             });
             AuraToolsUi.AddText(entryRow.transform, "在角色选择界面显示皮肤按钮", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
 
@@ -823,11 +835,14 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.Text,
                 AuraToolsUi.TextMinHeight,
                 1f);
-            AuraToolsUi.AddButton(row.transform, settings.Mode == StarterDeckModes.RoleSpecific ? "切到全局" : "切到按角色", () =>
+            Button? starterDeckModeButton = null;
+            starterDeckModeButton = AuraToolsUi.AddButton(row.transform, settings.Mode == StarterDeckModes.RoleSpecific ? "切到全局" : "切到按角色", () =>
             {
                 settings.Mode = settings.Mode == StarterDeckModes.RoleSpecific ? StarterDeckModes.Global : StarterDeckModes.RoleSpecific;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(
+                    starterDeckModeButton,
+                    settings.Mode == StarterDeckModes.RoleSpecific ? "切到全局" : "切到按角色");
             }, 96f);
             AuraToolsUi.AddButton(row.transform, "全局配置", () => AuraToolsStarterDeckEditor.ShowGlobal(activePanel!.transform), 96f);
             AuraToolsUi.AddButton(row.transform, "角色配置", () => AuraToolsStarterDeckRoleManager.Show(activePanel!.transform), 96f);
@@ -861,11 +876,14 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.TextMinHeight,
                 1f);
             AuraToolsUi.AddButton(row.transform, "打开工坊", () => PixelEmojiWorkshop.Show(activePanel!.transform), 104f);
-            AuraToolsUi.AddButton(row.transform, pixelEmoji.SyncRemote ? "关闭联机展示" : "开启联机展示", () =>
+            Button? pixelEmojiSyncButton = null;
+            pixelEmojiSyncButton = AuraToolsUi.AddButton(row.transform, pixelEmoji.SyncRemote ? "关闭联机展示" : "开启联机展示", () =>
             {
                 pixelEmoji.SyncRemote = !pixelEmoji.SyncRemote;
                 AuraToolsConfigService.SavePixelEmoji();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(
+                    pixelEmojiSyncButton,
+                    pixelEmoji.SyncRemote ? "关闭联机展示" : "开启联机展示");
             }, 128f);
             AuraToolsUi.AddText(content, "工坊只从设置页进入；冒险表情列表只在尾部追加已收藏的成品。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, pixelEmoji.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
@@ -928,7 +946,6 @@ public static class AuraToolsSettingsRuntime
                 damageMeter.Enabled = value;
                 AuraToolsConfigService.SaveMatchExperience();
                 AuraToolsDamageMeterRuntime.SetVisible(false);
-                RebuildPanel(activePanel!.transform);
             });
 
             var replayToggleRow = CreateInlineRow(content, "MatchRecordReplayToggleRow");
@@ -937,7 +954,6 @@ public static class AuraToolsSettingsRuntime
             {
                 matchRecords.Replay.Enabled = value;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
             });
 
             var replayLimitRow = CreateInlineRow(content, "MatchRecordReplayLimitRow");
@@ -950,34 +966,35 @@ public static class AuraToolsSettingsRuntime
                     matchRecords.Replay.Normalize();
                     AuraToolsConfigService.SaveMatchExperience();
                 }
-
-                RebuildPanel(activePanel!.transform);
             }, 104f);
 
             var presentationRow = CreateInlineRow(content, "MatchRecordPresentationRow");
             AuraToolsUi.AddText(presentationRow.transform, "回放演出节奏", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(presentationRow.transform, matchRecords.Replay.PresentationMode, () =>
+            Button? presentationButton = null;
+            presentationButton = AuraToolsUi.AddButton(presentationRow.transform, matchRecords.Replay.PresentationMode, () =>
             {
                 matchRecords.Replay.PresentationMode = matchRecords.Replay.PresentationMode == "Standard"
                     ? "Compact"
                     : matchRecords.Replay.PresentationMode == "Compact" ? "Showcase" : "Standard";
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(presentationButton, matchRecords.Replay.PresentationMode);
             }, 104f);
 
             var videoRow = CreateInlineRow(content, "MatchRecordVideoRow");
             AuraToolsUi.AddText(videoRow.transform, "视频导出", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.Quality, () =>
+            Button? videoQualityButton = null;
+            videoQualityButton = AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.Quality, () =>
             {
                 matchRecords.Replay.Video.Quality = matchRecords.Replay.Video.Quality == "1080p" ? "720p" : "1080p";
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(videoQualityButton, matchRecords.Replay.Video.Quality);
             }, 86f);
-            AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.FramesPerSecond + " FPS", () =>
+            Button? videoFpsButton = null;
+            videoFpsButton = AuraToolsUi.AddButton(videoRow.transform, matchRecords.Replay.Video.FramesPerSecond + " FPS", () =>
             {
                 matchRecords.Replay.Video.FramesPerSecond = matchRecords.Replay.Video.FramesPerSecond >= 60 ? 30 : 60;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(videoFpsButton, matchRecords.Replay.Video.FramesPerSecond + " FPS");
             }, 86f);
             AuraToolsUi.AddText(videoRow.transform, "UI", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 28f);
             AuraToolsUi.AddToggle(videoRow.transform, matchRecords.Replay.Video.IncludeUi, value =>
@@ -1000,29 +1017,36 @@ public static class AuraToolsSettingsRuntime
 
             var displayRow = CreateInlineRow(content, "DamageMeterDisplayModeRow");
             AuraToolsUi.AddText(displayRow.transform, "展示方式", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
+            Button? displayModeButton = null;
+            displayModeButton = AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
             {
                 damageMeter.DisplayMode = damageMeter.DisplayMode == DamageMeterDisplayModes.Bars
                     ? DamageMeterDisplayModes.Table
                     : DamageMeterDisplayModes.Bars;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(
+                    displayModeButton,
+                    damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格");
             }, 96f);
 
             var scopeRow = CreateInlineRow(content, "DamageMeterDisplayScopeRow");
             AuraToolsUi.AddText(scopeRow.transform, "统计范围", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(scopeRow.transform, damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗", () =>
+            Button? displayScopeButton = null;
+            displayScopeButton = AuraToolsUi.AddButton(scopeRow.transform, damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗", () =>
             {
                 damageMeter.DisplayScope = damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure
                     ? DamageMeterDisplayScopes.Fight
                     : DamageMeterDisplayScopes.Adventure;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(
+                    displayScopeButton,
+                    damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗");
             }, 96f);
 
             var teamRow = CreateInlineRow(content, "DamageMeterTeamFilterRow");
             AuraToolsUi.AddText(teamRow.transform, "统计阵营", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            AuraToolsUi.AddButton(teamRow.transform, DamageMeterTeamFilterLabel(damageMeter.TeamFilter), () =>
+            Button? teamFilterButton = null;
+            teamFilterButton = AuraToolsUi.AddButton(teamRow.transform, DamageMeterTeamFilterLabel(damageMeter.TeamFilter), () =>
             {
                 damageMeter.TeamFilter = damageMeter.TeamFilter == DamageMeterTeamFilters.All
                     ? DamageMeterTeamFilters.Friendly
@@ -1030,7 +1054,7 @@ public static class AuraToolsSettingsRuntime
                         ? DamageMeterTeamFilters.Enemy
                         : DamageMeterTeamFilters.All;
                 AuraToolsConfigService.SaveMatchExperience();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(teamFilterButton, DamageMeterTeamFilterLabel(damageMeter.TeamFilter));
             }, 96f);
 
             var libraryRow = CreateInlineRow(content, "MatchRecordLibraryRow");
@@ -1059,11 +1083,14 @@ public static class AuraToolsSettingsRuntime
             var ruleCount = AuraToolsConfigService.SkillCg.Roles.Values.Sum(role => role.Rules.Count);
             AuraToolsUi.AddText(row.transform, "\u672c\u5730\u89c4\u5219\uff1a" + ruleCount + "\uff0c\u8054\u673a\u540c\u6b65\uff1a" + (AuraToolsConfigService.SkillCg.SyncRemote ? "\u5f00" : "\u5173"), AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "\u914d\u7f6e", () => AuraToolsSkillCgEditor.Show(activePanel!.transform), 88f);
-            AuraToolsUi.AddButton(row.transform, AuraToolsConfigService.SkillCg.SyncRemote ? "\u5173\u95ed\u540c\u6b65" : "\u5f00\u542f\u540c\u6b65", () =>
+            Button? skillCgSyncButton = null;
+            skillCgSyncButton = AuraToolsUi.AddButton(row.transform, AuraToolsConfigService.SkillCg.SyncRemote ? "\u5173\u95ed\u540c\u6b65" : "\u5f00\u542f\u540c\u6b65", () =>
             {
                 AuraToolsConfigService.SkillCg.SyncRemote = !AuraToolsConfigService.SkillCg.SyncRemote;
                 AuraToolsConfigService.SaveSkillCg();
-                RebuildPanel(activePanel!.transform);
+                AuraToolsUi.SetButtonLabel(
+                    skillCgSyncButton,
+                    AuraToolsConfigService.SkillCg.SyncRemote ? "\u5173\u95ed\u540c\u6b65" : "\u5f00\u542f\u540c\u6b65");
             }, 96f);
         });
 
@@ -1380,7 +1407,7 @@ public static class AuraToolsSettingsRuntime
             1f);
         AuraToolsUi.AddButton(
             datasetRow.transform,
-            "导出",
+            "导出数据表",
             () =>
             {
                 if (AuraToolsCombatKnowledgeRuntime.TryExportBaseGameTables(
@@ -1397,11 +1424,55 @@ public static class AuraToolsSettingsRuntime
                     datasetStatus.color = AuraToolsUi.WarningText;
                 }
             },
-            88f);
+            104f);
         AuraToolsUi.AddButton(
             datasetRow.transform,
             "打开导出目录",
             AuraToolsCombatKnowledgeRuntime.OpenBaseGameTableExportDirectory,
+            112f);
+
+        var packageRow = CreateInlineRow(parent, "AutoBattleKnowledgePackageRow");
+        AuraToolsUi.AddText(
+            packageRow.transform,
+            "发布版知识包",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            packageRow.transform,
+            "导出并安装",
+            () =>
+            {
+                if (AuraToolsCombatKnowledgeRuntime.TryExportAndInstallRuntimeKnowledgePackage(
+                        out var installedPath,
+                        out var installMessage))
+                {
+                    datasetStatus.text = installMessage + "：" + Path.GetFileName(installedPath);
+                    datasetStatus.color = AuraToolsUi.SuccessText;
+                }
+                else
+                {
+                    datasetStatus.text = installMessage;
+                    datasetStatus.color = AuraToolsUi.WarningText;
+                }
+            },
+            112f);
+        AuraToolsUi.AddButton(
+            packageRow.transform,
+            "重载知识包",
+            () =>
+            {
+                AuraToolsCombatKnowledgeRuntime.RequestPackageReload();
+                datasetStatus.text = "已提交知识包重载；加载结果请查看本页状态或日志";
+                datasetStatus.color = AuraToolsUi.SuccessText;
+            },
+            112f);
+        AuraToolsUi.AddButton(
+            packageRow.transform,
+            "打开知识目录",
+            AuraToolsCombatKnowledgeRuntime.OpenKnowledgeDirectory,
             112f);
 
         CreateAutoBattleEvaluationSection(parent, autoBattle);
@@ -1837,7 +1908,6 @@ public static class AuraToolsSettingsRuntime
                     settings.MinimumLevel = levelLabels[index];
                     settings.Normalize();
                     AuraToolsConfigService.SaveLogging();
-                    RebuildPanel(activePanel!.transform);
                 }
             }, 180f);
             AuraToolsUi.AddText(row.transform, "队列 " + settings.MaxQueueLength + " / Flush " + settings.FlushIntervalMs + "ms", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
@@ -1879,7 +1949,6 @@ public static class AuraToolsSettingsRuntime
                 {
                     settings.StackTraceMode = stackValues[index];
                     AuraToolsConfigService.SaveLogging();
-                    RebuildPanel(activePanel!.transform);
                 }
             }, 180f);
             AuraToolsUi.AddText(stackRow.transform, "Command tag 可在 JSON 的 includedCommandTags / excludedCommandTags 中长期配置。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
@@ -1913,13 +1982,16 @@ public static class AuraToolsSettingsRuntime
     private static void CreateModeRow(Transform parent, AudioFeatureSettings settings, bool battleBgm)
     {
         var row = CreateInlineRow(parent, "ModeRow");
-        AuraToolsUi.AddText(row.transform, "模式：" + (settings.Mode == AudioModes.Advanced ? "高级（按角色）" : "通用"), AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-        AuraToolsUi.AddButton(row.transform, settings.Mode == AudioModes.Advanced ? "切到通用" : "切到高级", () =>
+        var modeText = AuraToolsUi.AddText(row.transform, "模式：" + (settings.Mode == AudioModes.Advanced ? "高级（按角色）" : "通用"), AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+        Button? modeButton = null;
+        modeButton = AuraToolsUi.AddButton(row.transform, settings.Mode == AudioModes.Advanced ? "切到通用" : "切到高级", () =>
         {
             settings.Mode = settings.Mode == AudioModes.Advanced ? AudioModes.Common : AudioModes.Advanced;
             AuraToolsConfigService.SaveAudio();
-            AuraToolsAudioRuntime.RegisterProviders();
-            RebuildPanel(activePanel!.transform);
+            modeText.text = "模式：" + (settings.Mode == AudioModes.Advanced ? "高级（按角色）" : "通用");
+            AuraToolsUi.SetButtonLabel(
+                modeButton,
+                settings.Mode == AudioModes.Advanced ? "切到通用" : "切到高级");
         }, 96f);
         AuraToolsUi.AddButton(row.transform, "高级配置", () => AuraToolsAudioRoleEditor.Show(activePanel!.transform, battleBgm), 96f);
     }
@@ -1934,20 +2006,30 @@ public static class AuraToolsSettingsRuntime
     {
         var pathRow = CreateInlineRow(parent, "CommonAudioPathRow");
         AuraToolsUi.AddText(pathRow.transform, "通用音频", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 86f);
-        AuraToolsUi.AddInput(pathRow.transform, settings.Common.RelativePath, value =>
-        {
-            ApplyCommonAudioPath(settings, battleBgm, value, false);
-        }, 620f);
+        InputField? pathInput = null;
 
         var actionRow = CreateInlineRow(parent, "CommonAudioActionRow");
-        AuraToolsUi.AddText(actionRow.transform, DescribeAudioPathStatus(settings.Common.RelativePath) + " / 优先级 " + settings.Common.Priority, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        var pathStatus = AuraToolsUi.AddText(actionRow.transform, DescribeAudioPathStatus(settings.Common.RelativePath) + " / 优先级 " + settings.Common.Priority, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        void RefreshPath()
+        {
+            if (pathInput != null)
+            {
+                pathInput.text = settings.Common.RelativePath;
+            }
+            pathStatus.text = DescribeAudioPathStatus(settings.Common.RelativePath)
+                              + " / 优先级 " + settings.Common.Priority;
+        }
+        pathInput = AuraToolsUi.AddInput(pathRow.transform, settings.Common.RelativePath, value =>
+        {
+            ApplyCommonAudioPath(settings, battleBgm, value, RefreshPath);
+        }, 620f);
         AuraToolsUi.AddButton(actionRow.transform, "选择音频", () =>
         {
             OptionalFileDialog.PickAudioFileAsync(FileResourceUtil.CommonAudioDirectory(), result =>
             {
                 if (result.Selected)
                 {
-                    ApplyCommonAudioPath(settings, battleBgm, result.Path, true);
+                    ApplyCommonAudioPath(settings, battleBgm, result.Path, RefreshPath);
                     return;
                 }
 
@@ -1960,19 +2042,18 @@ public static class AuraToolsSettingsRuntime
         AuraToolsUi.AddButton(actionRow.transform, "打开目录", () => FileResourceUtil.OpenDirectory(FileResourceUtil.CommonAudioDirectory()), 88f);
     }
 
-    private static void ApplyCommonAudioPath(AudioFeatureSettings settings, bool battleBgm, string path, bool rebuild)
+    private static void ApplyCommonAudioPath(
+        AudioFeatureSettings settings,
+        bool battleBgm,
+        string path,
+        Action refreshed)
     {
         var trimmed = path?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(trimmed))
         {
             settings.Common.RelativePath = "";
             AuraToolsConfigService.SaveAudio();
-            AuraToolsAudioRuntime.RegisterProviders();
-            if (rebuild && activePanel != null)
-            {
-                RebuildPanel(activePanel.transform);
-            }
-
+            refreshed();
             return;
         }
 
@@ -1981,11 +2062,7 @@ public static class AuraToolsSettingsRuntime
         if (string.IsNullOrWhiteSpace(imported))
         {
             AuraToolsLog.Warn("[Settings] common audio import rejected; current configuration preserved: " + message);
-            if (rebuild && activePanel != null)
-            {
-                RebuildPanel(activePanel.transform);
-            }
-
+            refreshed();
             return;
         }
 
@@ -2000,11 +2077,7 @@ public static class AuraToolsSettingsRuntime
             FileResourceUtil.CommonAudioDirectory(),
             out _);
         AuraToolsConfigService.SaveAudio();
-        AuraToolsAudioRuntime.RegisterProviders();
-        if (rebuild && activePanel != null)
-        {
-            RebuildPanel(activePanel.transform);
-        }
+        refreshed();
     }
 
     private static string DescribeAudioPathStatus(string relativeOrAbsolute)
@@ -2120,7 +2193,7 @@ public static class AuraToolsSettingsRuntime
     {
         if (activePanel == null
             || !activePanel.activeInHierarchy
-            || !panelBuilt)
+            || !PanelBuildState.IsBuilt)
         {
             return;
         }
@@ -2295,7 +2368,6 @@ public static class AuraToolsSettingsRuntime
             SetLoggingListValue(values, value, selected);
             AuraToolsConfigService.Logging.Normalize();
             AuraToolsConfigService.SaveLogging();
-            RebuildPanel(activePanel!.transform);
         });
         AuraToolsUi.AddText(parent, value, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 82f);
     }
@@ -4423,60 +4495,9 @@ internal sealed class AuraToolsAutoBattleSimulationStatusView : MonoBehaviour
     }
 }
 
-internal sealed class AuraToolsScrollRestoreDriver : MonoBehaviour
+internal sealed class AuraToolsPanelBuildMarker : MonoBehaviour
 {
-    private Coroutine? restore;
-
-    public void Restore(ScrollRect scroll, float normalizedPosition)
-    {
-        if (restore != null)
-        {
-            StopCoroutine(restore);
-        }
-        restore = StartCoroutine(
-            RestoreAfterLayout(scroll, normalizedPosition));
-    }
-
-    private IEnumerator RestoreAfterLayout(
-        ScrollRect scroll,
-        float normalizedPosition)
-    {
-        yield return null;
-        Canvas.ForceUpdateCanvases();
-        if (scroll != null)
-        {
-            scroll.StopMovement();
-            scroll.verticalNormalizedPosition = normalizedPosition;
-            LayoutRebuilder.ForceRebuildLayoutImmediate(scroll.content);
-        }
-        yield return null;
-        Canvas.ForceUpdateCanvases();
-        if (scroll != null)
-        {
-            scroll.verticalNormalizedPosition = normalizedPosition;
-        }
-        restore = null;
-    }
-}
-
-internal sealed class AuraToolsPanelBuildDriver : MonoBehaviour
-{
-    private Coroutine? build;
-
-    public void Begin(Transform panel)
-    {
-        if (build != null)
-        {
-            StopCoroutine(build);
-        }
-        build = StartCoroutine(Build(panel));
-    }
-
-    private IEnumerator Build(Transform panel)
-    {
-        yield return AuraToolsSettingsRuntime.BuildPanelAcrossFrames(panel);
-        build = null;
-    }
+    internal bool Completed { get; set; }
 }
 
 internal sealed class AuraToolsAutoBattleSimulationResultView : MonoBehaviour

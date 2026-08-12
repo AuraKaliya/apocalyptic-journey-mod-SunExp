@@ -8,6 +8,7 @@ using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.StarterDeck;
+using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraSkin.Shared.Models;
 using Newtonsoft.Json;
@@ -249,6 +250,42 @@ internal static partial class AuraToolsTestSuite
                && trainedModel.NetworkDeathRiskWeight == 1d
                && trainedModel.SemanticCoverageRiskWeight == 1d,
             "headless simulation settings clamp workload and release-gate thresholds");
+
+        var replacedPresets = JsonConvert.DeserializeObject<AutoBattleGameParameterSettings>(
+            "{\"selectedPresetId\":\"standard\",\"presets\":[{\"id\":\"standard\",\"displayName\":\"标准预设\"}]}")!;
+        replacedPresets.Normalize();
+        Assert(replacedPresets.Presets.Count == 1,
+            "deserializing game presets replaces the initialized default list instead of appending to it");
+
+        var standard = AutoBattleGameParameterPreset.CreateDefault();
+        var resolvedStandard = standard.CloneAs("standard-2", standard.DisplayName);
+        resolvedStandard.ResolvedRoleMaximumHp = 100;
+        var legacyPresetChain = new AutoBattleGameParameterSettings
+        {
+            SelectedPresetId = "standard-2-2",
+            Presets = new List<AutoBattleGameParameterPreset>
+            {
+                standard,
+                resolvedStandard,
+                resolvedStandard.CloneAs("standard-2-2", standard.DisplayName),
+                standard.CloneAs("standard-copy", "我的标准预设")
+            }
+        };
+        legacyPresetChain.Normalize();
+        Assert(legacyPresetChain.Presets.Count == 2
+               && legacyPresetChain.SelectedPresetId == "standard"
+               && legacyPresetChain.ActivePreset.ResolvedRoleMaximumHp == 100
+               && legacyPresetChain.Presets.Any(item => item.Id == "standard-copy"),
+            "legacy generated duplicate chains collapse into the richest resolved state while an intentionally renamed clone and selection remain stable");
+        for (var pass = 0; pass < 5; pass++)
+        {
+            legacyPresetChain = JsonConvert.DeserializeObject<AutoBattleGameParameterSettings>(
+                JsonConvert.SerializeObject(legacyPresetChain))!;
+            legacyPresetChain.Normalize();
+        }
+        Assert(legacyPresetChain.Presets.Count == 2
+               && legacyPresetChain.SelectedPresetId == "standard",
+            "preset migration is idempotent across repeated config save and reload cycles");
     
         var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
             "{\"roles\":{\"role-a\":{\"selectedCgId\":\"Terrias:feast-a\"}}}")!;
@@ -350,6 +387,28 @@ internal static partial class AuraToolsTestSuite
         Assert(!defaults.UnityLogTypes.Contains("Log"), "logging defaults do not mirror Unity info logs");
         Assert(defaults.StackTraceMode == LoggingStackTraceModes.ErrorsOnly, "logging defaults keep stack traces to errors");
         Assert(defaults.MaxQueueLength == 1024, "logging default queue is bounded");
+
+        var mirrorDeduplicator = new AuraToolsMirrorDeduplicator();
+        var now = new DateTime(2026, 8, 12, 12, 0, 0, DateTimeKind.Utc);
+        Assert(mirrorDeduplicator.Allow(
+                   "Command",
+                   "Debug",
+                   "AuraTools",
+                   "replay initialized",
+                   now)
+               && !mirrorDeduplicator.Allow(
+                   "Unity",
+                   "Info",
+                   "Log",
+                   "[AuraTools] [DEBUG] replay initialized",
+                   now.AddMilliseconds(20))
+               && mirrorDeduplicator.Allow(
+                   "Command",
+                   "Debug",
+                   "AuraTools",
+                   "replay initialized",
+                   now.AddMilliseconds(40)),
+            "command and Unity mirrors collapse one cross-source echo without suppressing legitimate same-source repeats");
     
         var legacy = new AuraToolsLoggingSettings
         {

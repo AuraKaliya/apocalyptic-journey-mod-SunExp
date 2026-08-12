@@ -738,7 +738,7 @@
       "name": "AudioArbiter",
       "namespace": "AudioArbiter.Shared",
       "publicSurface": [
-        "F|AudioArbiter.Shared.AudioArbiterRuntime|CurrentBuildId|String|const=\"audio-arbiter-2026-07-20-v10\"",
+        "F|AudioArbiter.Shared.AudioArbiterRuntime|CurrentBuildId|String|const=\"audio-arbiter-2026-08-12-v11\"",
         "F|AudioArbiter.Shared.AudioArbiterRuntime|CurrentProtocolVersion|Int32|const=6",
         "F|AudioArbiter.Shared.AudioArbiterRuntime|MinimumSupportedProtocolVersion|Int32|const=6",
         "F|AudioArbiter.Shared.AudioArbiterRuntime|SupportedManifestSchemaVersion|Int32|const=2",
@@ -807,6 +807,7 @@
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|RegisterManifest`0|instance|(Witch.Mod.ModConfig,String,String)->Boolean",
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|RegisterSoundProvider`0|instance|(Object)->Void",
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|RequestSound`0|instance|(Object)->Boolean",
+        "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|UnregisterSoundProvider`0|instance|(String,String)->Boolean",
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|get_BuildId`0|instance|()->String",
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|get_MinimumSupportedProtocolVersion`0|instance|()->Int32",
         "M|AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent|get_ProtocolVersion`0|instance|()->Int32",
@@ -822,6 +823,7 @@
         "M|AudioArbiter.Shared.AudioArbiterRuntime|RegisterManifest`0|static|(Witch.Mod.ModConfig,String,String)->Boolean",
         "M|AudioArbiter.Shared.AudioArbiterRuntime|RegisterSoundProvider`0|static|(Witch.Mod.ModConfig,String,Object)->Void",
         "M|AudioArbiter.Shared.AudioArbiterRuntime|RequestSound`0|static|(AudioArbiter.Shared.SoundPlaybackRequest)->Boolean",
+        "M|AudioArbiter.Shared.AudioArbiterRuntime|UnregisterSoundProvider`0|static|(Witch.Mod.ModConfig,String,String)->Boolean",
         "M|AudioArbiter.Shared.AudioProtocolManifest|.ctor`0|instance|()->Void",
         "M|AudioArbiter.Shared.AudioProviderManifest|.ctor`0|instance|()->Void",
         "M|AudioArbiter.Shared.AudioProviderMatch|.ctor`0|instance|()->Void",
@@ -991,7 +993,7 @@
       "name": "BattleBgmArbiter",
       "namespace": "BattleBgmArbiter.Shared",
       "publicSurface": [
-        "F|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|CurrentBuildId|String|const=\"battle-bgm-arbiter-2026-07-20-v6\"",
+        "F|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|CurrentBuildId|String|const=\"battle-bgm-arbiter-2026-08-12-v7\"",
         "F|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|CurrentProtocolVersion|Int32|const=4",
         "F|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|MinimumSupportedProtocolVersion|Int32|const=4",
         "M|BattleBgmArbiter.Shared.AdventureBgmContext|.ctor`0|instance|()->Void",
@@ -1014,12 +1016,14 @@
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|InitializeOwner`0|instance|(Witch.Mod.ModConfig,String)->Void",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|RegisterProvider`0|instance|(Object)->Void",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|Signal`0|instance|(String,Object)->Void",
+        "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|UnregisterProvider`0|instance|(String,String)->Boolean",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|get_BuildId`0|instance|()->String",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|get_MinimumSupportedProtocolVersion`0|instance|()->Int32",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime+BattleBgmArbiterComponent|get_ProtocolVersion`0|instance|()->Int32",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|Initialize`0|static|(Witch.Mod.ModConfig,String)->Void",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|RegisterProvider`0|static|(Witch.Mod.ModConfig,String,Object)->Void",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|Signal`0|static|(Witch.Mod.ModConfig,String,String,Object)->Void",
+        "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|UnregisterProvider`0|static|(Witch.Mod.ModConfig,String,String)->Boolean",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|get_VerboseLogging`0|static|()->Boolean",
         "M|BattleBgmArbiter.Shared.BattleBgmArbiterRuntime|set_VerboseLogging`0|static|(Boolean)->Void",
         "M|BattleBgmArbiter.Shared.BattleBgmContext|.ctor`0|instance|()->Void",
@@ -1753,5 +1757,6 @@
         "T|interface|nonserializable|AuraGameData.Shared.IAuraGameDataSource"
       ]
     }
-  ]
+  ],
+  "sourceContracts": []
 }

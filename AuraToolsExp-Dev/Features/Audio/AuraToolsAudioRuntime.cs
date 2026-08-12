@@ -16,6 +16,8 @@ public static class AuraToolsAudioRuntime
 {
     public const string AudioSystemVersion = "2.0.0";
     private static readonly Dictionary<string, bool> PathExistsCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> RegisteredBattleBgmSignatures = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> RegisteredCardUseSignatures = new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool initialized;
 
@@ -31,7 +33,7 @@ public static class AuraToolsAudioRuntime
             AuraToolsLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
         }
         BattleBgmArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
-        AuraToolsConfigService.Changed += RegisterProviders;
+        AuraToolsConfigService.AudioChanged += RegisterProviders;
         initialized = true;
         RegisterProviders();
     }
@@ -69,93 +71,207 @@ public static class AuraToolsAudioRuntime
 
     private static void RegisterBattleBgmProviders(ModConfig config)
     {
-        var commonPath = AuraToolsConfiguredResourceResolver.ResolveAudioPath(
-            AuraToolsConfigService.Audio.BattleBgm.Common.RelativePath);
-        BattleBgmArbiterRuntime.RegisterProvider(
-            config,
-            AuraToolsIds.ModId,
-            new FileBattleBgmProvider(
-                providerId: ProviderIds.CommonBattleBgm,
-                ownerModId: AuraToolsIds.ModId,
-                audioPath: commonPath,
-                priority: AuraToolsConfigService.Audio.BattleBgm.Common.Priority,
-                hardClaim: AuraToolsConfigService.Audio.BattleBgm.Common.HardClaim,
-                silenceWhenLoading: AuraToolsConfigService.Audio.BattleBgm.Common.SilenceWhenLoading,
-                fallbackToOriginalWhenFailed: AuraToolsConfigService.Audio.BattleBgm.Common.FallbackToOriginalWhenFailed,
-                adventureCondition: IsCommonBattleBgmEnabled,
-                battleCondition: IsCommonBattleBgmEnabled,
-                allowMidBattleSwitch: false));
-
-        foreach (var role in CurrentBattleBgmRoles())
+        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var changes = 0;
+        var feature = AuraToolsConfigService.Audio.BattleBgm;
+        if (AuraToolsConfigService.Root.Audio.Enabled && feature.Enabled)
         {
-            var roleId = role.Key;
-            var settings = role.Value;
-            var providerId = ProviderIds.RoleBattleBgm(roleId);
-            BattleBgmArbiterRuntime.RegisterProvider(
-                config,
-                AuraToolsIds.ModId,
-                new FileBattleBgmProvider(
-                    providerId: providerId,
-                    ownerModId: AuraToolsIds.ModId,
-                    audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath),
-                    priority: settings.Priority,
-                    hardClaim: settings.HardClaim,
-                    silenceWhenLoading: false,
-                    fallbackToOriginalWhenFailed: true,
-                    adventureCondition: context => IsRoleBattleBgmEnabled(context, roleId),
-                    battleCondition: context => IsRoleBattleBgmEnabled(context, roleId),
-                    allowMidBattleSwitch: false));
+            if (feature.Mode == AudioModes.Common)
+            {
+                var common = feature.Common;
+                var path = AuraToolsConfiguredResourceResolver.ResolveAudioPath(common.RelativePath);
+                changes += RegisterBattleBgmProvider(
+                    config,
+                    desired,
+                    ProviderIds.CommonBattleBgm,
+                    Signature(path, common.Priority, common.HardClaim, common.SilenceWhenLoading,
+                        common.FallbackToOriginalWhenFailed),
+                    () => new FileBattleBgmProvider(
+                        ProviderIds.CommonBattleBgm,
+                        AuraToolsIds.ModId,
+                        path,
+                        common.Priority,
+                        common.HardClaim,
+                        common.SilenceWhenLoading,
+                        common.FallbackToOriginalWhenFailed,
+                        IsCommonBattleBgmEnabled,
+                        IsCommonBattleBgmEnabled,
+                        false));
+            }
+            else
+            {
+                foreach (var role in CurrentBattleBgmRoles().Where(pair => pair.Value.Enabled))
+                {
+                    var roleId = role.Key;
+                    var settings = role.Value;
+                    var providerId = ProviderIds.RoleBattleBgm(roleId);
+                    var path = AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath);
+                    changes += RegisterBattleBgmProvider(
+                        config,
+                        desired,
+                        providerId,
+                        Signature(path, settings.Priority, settings.HardClaim),
+                        () => new FileBattleBgmProvider(
+                            providerId,
+                            AuraToolsIds.ModId,
+                            path,
+                            settings.Priority,
+                            settings.HardClaim,
+                            false,
+                            true,
+                            context => IsRoleBattleBgmEnabled(context, roleId),
+                            context => IsRoleBattleBgmEnabled(context, roleId),
+                            false));
+                }
+            }
         }
 
-        AuraToolsLog.Info("Audio/BGM providers registered. mode=" + DescribeBattleBgmMode()
-                          + ", roles=" + CurrentBattleBgmRoles().Count);
+        changes += RemoveStaleBattleBgmProviders(config, desired);
+        if (changes > 0)
+        {
+            AuraToolsLog.Info("Audio/BGM providers synchronized. mode=" + DescribeBattleBgmMode()
+                              + ", active=" + desired.Count + ", changes=" + changes + ".");
+        }
     }
 
     private static void RegisterCardUseProviders(ModConfig config)
     {
-        var common = AuraToolsConfigService.Audio.CardUse.Common;
-        AudioArbiterRuntime.RegisterSoundProvider(
-            config,
-            AuraToolsIds.ModId,
-            new FileSoundProvider(
-                providerId: ProviderIds.CommonCardUse,
-                ownerModId: AuraToolsIds.ModId,
-                audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(common.RelativePath),
-                priority: common.Priority,
-                bus: SoundBuses.Effect,
-                policy: SoundPolicies.Replace,
-                hardClaim: common.HardClaim,
-                condition: IsCommonCardUseEnabled,
-                cooldownSeconds: 0.02f,
-                sync: false,
-                gainDb: common.GainDb,
-                kind: SoundEventKinds.CardUse));
-
-        foreach (var role in CurrentCardUseRoles())
+        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var changes = 0;
+        var feature = AuraToolsConfigService.Audio.CardUse;
+        if (AuraToolsConfigService.Root.Audio.Enabled && feature.Enabled)
         {
-            var roleId = role.Key;
-            var settings = role.Value;
-            AudioArbiterRuntime.RegisterSoundProvider(
-                config,
-                AuraToolsIds.ModId,
-                new FileSoundProvider(
-                    providerId: ProviderIds.RoleCardUse(roleId),
-                    ownerModId: AuraToolsIds.ModId,
-                    audioPath: AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath),
-                    priority: settings.Priority,
-                    bus: SoundBuses.Effect,
-                    policy: SoundPolicies.Replace,
-                    hardClaim: settings.HardClaim,
-                    condition: context => IsRoleCardUseEnabled(context, roleId),
-                    cooldownSeconds: 0.02f,
-                    sync: false,
-                    gainDb: settings.GainDb,
-                    kind: SoundEventKinds.CardUse));
+            if (feature.Mode == AudioModes.Common)
+            {
+                var common = feature.Common;
+                var path = AuraToolsConfiguredResourceResolver.ResolveAudioPath(common.RelativePath);
+                changes += RegisterCardUseProvider(
+                    config,
+                    desired,
+                    ProviderIds.CommonCardUse,
+                    Signature(path, common.Priority, common.HardClaim, common.GainDb),
+                    () => new FileSoundProvider(
+                        ProviderIds.CommonCardUse,
+                        AuraToolsIds.ModId,
+                        path,
+                        common.Priority,
+                        SoundBuses.Effect,
+                        SoundPolicies.Replace,
+                        common.HardClaim,
+                        IsCommonCardUseEnabled,
+                        0.02f,
+                        false,
+                        common.GainDb,
+                        kind: SoundEventKinds.CardUse));
+            }
+            else
+            {
+                foreach (var role in CurrentCardUseRoles().Where(pair => pair.Value.Enabled))
+                {
+                    var roleId = role.Key;
+                    var settings = role.Value;
+                    var providerId = ProviderIds.RoleCardUse(roleId);
+                    var path = AuraToolsConfiguredResourceResolver.ResolveAudioPath(settings.RelativePath);
+                    changes += RegisterCardUseProvider(
+                        config,
+                        desired,
+                        providerId,
+                        Signature(path, settings.Priority, settings.HardClaim, settings.GainDb),
+                        () => new FileSoundProvider(
+                            providerId,
+                            AuraToolsIds.ModId,
+                            path,
+                            settings.Priority,
+                            SoundBuses.Effect,
+                            SoundPolicies.Replace,
+                            settings.HardClaim,
+                            context => IsRoleCardUseEnabled(context, roleId),
+                            0.02f,
+                            false,
+                            settings.GainDb,
+                            kind: SoundEventKinds.CardUse));
+                }
+            }
         }
 
-        AuraToolsLog.Info("Audio/CardUse providers registered. mode=" + DescribeCardUseMode()
-                          + ", presentationRelay=client-request-host-authorized"
-                          + ", roles=" + CurrentCardUseRoles().Count);
+        changes += RemoveStaleCardUseProviders(config, desired);
+        if (changes > 0)
+        {
+            AuraToolsLog.Info("Audio/CardUse providers synchronized. mode=" + DescribeCardUseMode()
+                              + ", presentationRelay=client-request-host-authorized"
+                              + ", active=" + desired.Count + ", changes=" + changes + ".");
+        }
+    }
+
+    private static int RegisterBattleBgmProvider(
+        ModConfig config,
+        ISet<string> desired,
+        string providerId,
+        string signature,
+        Func<object> factory)
+    {
+        desired.Add(providerId);
+        if (RegisteredBattleBgmSignatures.TryGetValue(providerId, out var current)
+            && string.Equals(current, signature, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        BattleBgmArbiterRuntime.RegisterProvider(config, AuraToolsIds.ModId, factory());
+        RegisteredBattleBgmSignatures[providerId] = signature;
+        return 1;
+    }
+
+    private static int RegisterCardUseProvider(
+        ModConfig config,
+        ISet<string> desired,
+        string providerId,
+        string signature,
+        Func<object> factory)
+    {
+        desired.Add(providerId);
+        if (RegisteredCardUseSignatures.TryGetValue(providerId, out var current)
+            && string.Equals(current, signature, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        AudioArbiterRuntime.RegisterSoundProvider(config, AuraToolsIds.ModId, factory());
+        RegisteredCardUseSignatures[providerId] = signature;
+        return 1;
+    }
+
+    private static int RemoveStaleBattleBgmProviders(ModConfig config, ISet<string> desired)
+    {
+        var stale = RegisteredBattleBgmSignatures.Keys
+            .Where(providerId => !desired.Contains(providerId))
+            .ToList();
+        foreach (var providerId in stale)
+        {
+            BattleBgmArbiterRuntime.UnregisterProvider(config, AuraToolsIds.ModId, providerId);
+            RegisteredBattleBgmSignatures.Remove(providerId);
+        }
+
+        return stale.Count;
+    }
+
+    private static int RemoveStaleCardUseProviders(ModConfig config, ISet<string> desired)
+    {
+        var stale = RegisteredCardUseSignatures.Keys
+            .Where(providerId => !desired.Contains(providerId))
+            .ToList();
+        foreach (var providerId in stale)
+        {
+            AudioArbiterRuntime.UnregisterSoundProvider(config, AuraToolsIds.ModId, providerId);
+            RegisteredCardUseSignatures.Remove(providerId);
+        }
+
+        return stale.Count;
+    }
+
+    private static string Signature(params object?[] values)
+    {
+        return string.Join("|", values.Select(value => value?.ToString() ?? ""));
     }
 
     private static Dictionary<string, AudioRoleSettings> CurrentBattleBgmRoles()

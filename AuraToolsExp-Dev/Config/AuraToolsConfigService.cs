@@ -47,6 +47,12 @@ public static class AuraToolsConfigService
 
     public static event Action? Changed;
 
+    public static event Action? AudioChanged;
+
+    public static event Action? MatchExperienceChanged;
+
+    public static event Action? LoggingChanged;
+
     public static void Initialize(ModConfig config)
     {
         lock (Gate)
@@ -64,7 +70,7 @@ public static class AuraToolsConfigService
         {
             ReloadNoLock();
         }
-        Changed?.Invoke();
+        NotifyAllModules();
     }
 
     public static void SaveAll()
@@ -73,18 +79,20 @@ public static class AuraToolsConfigService
         {
             SaveAllNoLock();
         }
-        Changed?.Invoke();
+        NotifyAllModules();
     }
 
     public static void SaveAudio()
     {
         SaveModule(Audio, Root.Audio.ConfigFile);
+        AudioChanged?.Invoke();
         Changed?.Invoke();
     }
 
     public static void SaveMatchExperience()
     {
         SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
+        MatchExperienceChanged?.Invoke();
         Changed?.Invoke();
     }
 
@@ -110,6 +118,15 @@ public static class AuraToolsConfigService
     public static void SaveLogging()
     {
         SaveModule(Logging, Root.Logging.ConfigFile);
+        LoggingChanged?.Invoke();
+        Changed?.Invoke();
+    }
+
+    private static void NotifyAllModules()
+    {
+        AudioChanged?.Invoke();
+        MatchExperienceChanged?.Invoke();
+        LoggingChanged?.Invoke();
         Changed?.Invoke();
     }
 

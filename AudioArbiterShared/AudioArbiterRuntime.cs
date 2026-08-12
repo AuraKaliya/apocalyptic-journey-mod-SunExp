@@ -15,7 +15,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-07-20-v10";
+    public const string CurrentBuildId = "audio-arbiter-2026-08-12-v11";
     public const int CurrentProtocolVersion = 6;
     public const int MinimumSupportedProtocolVersion = 6;
     public const int SupportedManifestSchemaVersion = 2;
@@ -119,6 +119,31 @@ public static class AudioArbiterRuntime
         }
     }
 
+    public static bool UnregisterSoundProvider(ModConfig modConfig, string ownerModId, string providerId)
+    {
+        var arbiter = EnsureArbiter(modConfig, ownerModId);
+        if (arbiter == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var method = arbiter.GetType().GetMethod(
+                "UnregisterSoundProvider",
+                BindingFlags.Instance | BindingFlags.Public);
+            return method != null
+                   && method.Invoke(arbiter, new object[] { ownerModId, providerId }) is bool removed
+                   && removed;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AudioArbiter] Sound provider unregistration failed for "
+                             + ownerModId + ": " + ex.Message);
+            return false;
+        }
+    }
+
     public static void ApplyFightSession(string fightToken, string source)
     {
         var arbiter = EnsureArbiter(null, "AudioArbiter");
@@ -194,7 +219,7 @@ public static class AudioArbiterRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "RegisterSoundProvider", "RegisterManifest", "RequestSound", "ReceiveRemote", "ApplyFightSession", "ApplyServerCardUsePresentation" }
+        var methodsPresent = new[] { "RegisterSoundProvider", "UnregisterSoundProvider", "RegisterManifest", "RequestSound", "ReceiveRemote", "ApplyFightSession", "ApplyServerCardUsePresentation" }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
@@ -674,6 +699,33 @@ public static class AudioArbiterRuntime
                     Warn("Pending remote presentation failed: " + ex.Message);
                 }
             }
+        }
+
+        public bool UnregisterSoundProvider(string owner, string providerId)
+        {
+            var removed = soundProviders
+                .Where(item => string.Equals(item.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(item.ProviderId, providerId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (removed.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var provider in removed)
+            {
+                provider.Dispose("unregistered by owner");
+                soundProviders.Remove(provider);
+            }
+
+            pendingRemotePresentations.Clear();
+            replacementCoordinator.Clear();
+            cooldownUntil.Clear();
+            lowHealthCoordinator.ConfigureProviders(soundProviders.Select(provider =>
+                new AudioLowHealthProviderDescriptor(provider.Kind, provider.LowHealthCrossDownThreshold)));
+            Log("Sound provider unregistered: owner=" + owner + ", providerId=" + providerId
+                + ", count=" + soundProviders.Count);
+            return true;
         }
 
         private void WarnProviderMismatchOnce(SoundPlaybackRequest request, string message)

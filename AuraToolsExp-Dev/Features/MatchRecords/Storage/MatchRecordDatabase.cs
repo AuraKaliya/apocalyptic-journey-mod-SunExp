@@ -74,7 +74,7 @@ internal sealed class MatchRecordDatabase
                     insert.Bind(6, record.StartedUtc ?? "");
                     insert.Bind(7, record.EndedUtc ?? "");
                     insert.Bind(8, NormalizeCollection(record.Collection));
-                    insert.Bind(9, MatchReplayStates.Ready);
+                    insert.Bind(9, NormalizeReplayState(record.ReplayState));
                     insert.Bind(10, Math.Max(1, record.ReplayProtocol));
                     insert.Bind(11, record.GameBuild ?? "");
                     insert.Bind(12, record.ToolBuild ?? "");
@@ -160,11 +160,11 @@ internal sealed class MatchRecordDatabase
             using var connection = Open();
             using (var query = connection.Prepare(
                        SelectColumns
-                       + " WHERE collection_kind = ? AND replay_state = ? AND (? <= 0 OR sequence < ?) "
+                       + " WHERE collection_kind = ? AND replay_state <> ? AND (? <= 0 OR sequence < ?) "
                        + "ORDER BY sequence DESC LIMIT ?;"))
             {
                 query.Bind(1, normalizedCollection);
-                query.Bind(2, MatchReplayStates.Ready);
+                query.Bind(2, MatchReplayStates.Corrupt);
                 query.Bind(3, beforeSequence);
                 query.Bind(4, beforeSequence);
                 query.Bind(5, normalizedPageSize + 1);
@@ -216,9 +216,9 @@ internal sealed class MatchRecordDatabase
             var query = (queryText ?? "").Trim();
             using var connection = Open();
             using var statement = connection.Prepare(
-                SelectColumns + " WHERE collection_kind = ? AND replay_state = ? ORDER BY sequence DESC;");
+                SelectColumns + " WHERE collection_kind = ? AND replay_state <> ? ORDER BY sequence DESC;");
             statement.Bind(1, NormalizeCollection(collection));
-            statement.Bind(2, MatchReplayStates.Ready);
+            statement.Bind(2, MatchReplayStates.Corrupt);
             while (statement.Read() && result.Count < Math.Max(1, maximum))
             {
                 var record = ReadRecord(statement);
@@ -262,6 +262,26 @@ internal sealed class MatchRecordDatabase
             update.Bind(2, recordId.Trim());
             update.Execute();
             return true;
+        }
+    }
+
+    internal bool UpdateReplayState(string recordId, string replayState)
+    {
+        if (string.IsNullOrWhiteSpace(recordId))
+        {
+            return false;
+        }
+
+        lock (gate)
+        {
+            EnsureInitialized();
+            using var connection = Open();
+            using var update = connection.Prepare(
+                "UPDATE battle_records SET replay_state = ? WHERE record_id = ?;");
+            update.Bind(1, NormalizeReplayState(replayState));
+            update.Bind(2, recordId.Trim());
+            update.Execute();
+            return connection.Changes > 0;
         }
     }
 
@@ -613,11 +633,11 @@ internal sealed class MatchRecordDatabase
             {
                 var stale = new List<string>();
                 using (var query = connection.Prepare(
-                           "SELECT record_id FROM battle_records WHERE collection_kind = ? AND replay_state = ? "
+                           "SELECT record_id FROM battle_records WHERE collection_kind = ? AND replay_state <> ? "
                            + "ORDER BY sequence DESC LIMIT -1 OFFSET ?;"))
                 {
                     query.Bind(1, MatchRecordCollections.Auto);
-                    query.Bind(2, MatchReplayStates.Ready);
+                    query.Bind(2, MatchReplayStates.Corrupt);
                     query.Bind(3, normalizedLimit);
                     while (query.Read())
                     {
@@ -745,16 +765,17 @@ internal sealed class MatchRecordDatabase
             RequiredCapabilities = metadata.RequiredCapabilities,
             OptionalCapabilities = metadata.OptionalCapabilities,
             ContentDependencies = metadata.ContentDependencies,
-            ContentSha256 = metadata.ContentSha256
+            ContentSha256 = metadata.ContentSha256,
+            CaptureDiagnostics = metadata.CaptureDiagnostics ?? new List<string>()
         };
     }
 
     private static int Count(WinSqliteConnection connection, string collection)
     {
         using var query = connection.Prepare(
-            "SELECT COUNT(*) FROM battle_records WHERE collection_kind = ? AND replay_state = ?;");
+            "SELECT COUNT(*) FROM battle_records WHERE collection_kind = ? AND replay_state <> ?;");
         query.Bind(1, collection);
-        query.Bind(2, MatchReplayStates.Ready);
+        query.Bind(2, MatchReplayStates.Corrupt);
         return query.Read() ? (int)Math.Min(int.MaxValue, query.Int64(0)) : 0;
     }
 
@@ -763,6 +784,15 @@ internal sealed class MatchRecordDatabase
         using var query = connection.Prepare("SELECT 1 FROM battle_records WHERE record_id = ? LIMIT 1;");
         query.Bind(1, recordId);
         return query.Read();
+    }
+
+    private static string NormalizeReplayState(string? state)
+    {
+        return string.Equals(state, MatchReplayStates.Incomplete, StringComparison.OrdinalIgnoreCase)
+            ? MatchReplayStates.Incomplete
+            : string.Equals(state, MatchReplayStates.Corrupt, StringComparison.OrdinalIgnoreCase)
+                ? MatchReplayStates.Corrupt
+                : MatchReplayStates.Ready;
     }
 
     private static void SaveAnalysis(WinSqliteConnection connection, MatchAnalysisReport report)
@@ -800,7 +830,8 @@ internal sealed class MatchRecordDatabase
             RequiredCapabilities = record.RequiredCapabilities ?? new List<string>(),
             OptionalCapabilities = record.OptionalCapabilities ?? new List<string>(),
             ContentDependencies = record.ContentDependencies ?? new List<string>(),
-            ContentSha256 = record.ContentSha256 ?? ""
+            ContentSha256 = record.ContentSha256 ?? "",
+            CaptureDiagnostics = record.CaptureDiagnostics ?? new List<string>()
         };
     }
 

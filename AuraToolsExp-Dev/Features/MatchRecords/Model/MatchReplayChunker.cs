@@ -21,7 +21,7 @@ internal static class MatchReplayChunker
 
         foreach (var item in source)
         {
-            var estimated = Math.Max(64, item.Payload?.Length ?? 0) + 160;
+            var estimated = Estimate(item);
             if (pending.Count > 0 && pendingBytes + estimated > normalizedTarget)
             {
                 result.Add(Create(result.Count, pending));
@@ -71,5 +71,83 @@ internal static class MatchReplayChunker
             Payload = payload,
             Sha256 = MatchReplayPayload.Sha256(payload)
         };
+    }
+
+    internal static int Estimate(MatchReplayEvent item)
+    {
+        if (item == null)
+        {
+            return 0;
+        }
+
+        long size = 256 + (item.Payload?.Length ?? 0);
+        if (item.TurnFrame != null)
+        {
+            size += Estimate(item.TurnFrame.State);
+        }
+
+        if (item.SeekCheckpoint != null)
+        {
+            size += Estimate(item.SeekCheckpoint.State);
+        }
+
+        if (item.ActionFrame != null)
+        {
+            var frame = item.ActionFrame;
+            size += 640 + Estimate(frame.SourcePresentation) + Estimate(frame.Delta);
+            size += (frame.CardTransitions?.Count ?? 0) * 160L;
+            size += (frame.Presentation?.Count ?? 0) * 240L;
+            size += (frame.Semantics?.Count ?? 0) * 320L;
+        }
+
+        return (int)Math.Max(256, Math.Min(int.MaxValue, size));
+    }
+
+    private static long Estimate(MatchReplayStateSnapshot? state)
+    {
+        if (state == null)
+        {
+            return 0;
+        }
+
+        long size = 512 + (state.RoleTableJson?.Length ?? 0) * 2L;
+        size += (state.Statuses ?? new List<MatchReplayStatusState>()).Sum(status =>
+            256L
+            + (status.DynamicVariables?.Count ?? 0) * 64L
+            + (status.Buffs?.Count ?? 0) * 192L
+            + (status.Buffs?.Sum(buff => buff.Vars?.Count ?? 0) ?? 0) * 64L);
+        size += (state.Cards ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        return size;
+    }
+
+    private static long Estimate(MatchReplayStateDelta? delta)
+    {
+        if (delta == null)
+        {
+            return 0;
+        }
+
+        long size = 384 + (delta.RemovedStatusIds?.Count ?? 0) * 64L;
+        size += (delta.StatusUpserts ?? new List<MatchReplayStatusState>()).Sum(status =>
+            256L
+            + (status.DynamicVariables?.Count ?? 0) * 64L
+            + (status.Buffs?.Count ?? 0) * 192L
+            + (status.Buffs?.Sum(buff => buff.Vars?.Count ?? 0) ?? 0) * 64L);
+        size += (delta.Cards ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        return size;
+    }
+
+    private static long Estimate(MatchReplayCardState? card)
+    {
+        if (card == null)
+        {
+            return 0;
+        }
+
+        return 320L
+               + (card.Data ?? new List<MatchReplayStringValue>())
+                   .Sum(value => 48L + (value.Key?.Length ?? 0) * 2L + (value.Value?.Length ?? 0) * 2L)
+               + (card.Vars ?? new List<MatchReplayStringValue>())
+                   .Sum(value => 48L + (value.Key?.Length ?? 0) * 2L + (value.Value?.Length ?? 0) * 2L);
     }
 }

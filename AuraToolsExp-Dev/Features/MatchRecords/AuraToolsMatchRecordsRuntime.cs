@@ -37,7 +37,7 @@ public static class AuraToolsMatchRecordsRuntime
         MatchReplayWorkingBuffer.CleanupAbandoned(MatchRecordStorage.TemporaryDirectory);
         Media.MatchReplayVideoExporter.Initialize();
         MatchReplayHookAdapter.Initialize(modConfig);
-        AuraToolsConfigService.Changed += OnConfigChanged;
+        AuraToolsConfigService.MatchExperienceChanged += OnConfigChanged;
         EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
                           + Model.MatchReplayProtocol.Version + ".");

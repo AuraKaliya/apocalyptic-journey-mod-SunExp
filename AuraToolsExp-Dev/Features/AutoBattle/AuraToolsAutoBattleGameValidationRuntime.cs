@@ -431,7 +431,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
                     savedCompatibilityKey,
                     StringComparison.Ordinal))
             {
-                reason = "模型、游戏版本或权威语义包已变化，必须重新进行游戏主体验证";
+                reason = "模型或权威语义包已变化，必须重新进行游戏主体验证";
                 return false;
             }
             return CombatGameValidationProtocol.ValidateReport(

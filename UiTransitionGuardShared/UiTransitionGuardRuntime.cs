@@ -34,7 +34,7 @@ public static class UiTransitionGuardRuntime
 {
     private const string GlobalObjectName = "UiTransitionGuard.Global";
     private const string ComponentFullName = "UiTransitionGuardShared.UiTransitionGuardRuntime+UiTransitionGuardComponent";
-    public const string CurrentBuildId = "ui-transition-guard-2026-07-08-v3";
+    public const string CurrentBuildId = "ui-transition-guard-2026-08-13-v4";
     public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
 
@@ -488,9 +488,8 @@ public static class UiTransitionGuardRuntime
             }
 
             var root = UpperCanvasRoot();
-            LeaseRaycasters(root, TargetName(context) + ":after-upper-canvas");
             var removed = ScrubRoot(root, TargetName(context) + ":after-upper-canvas");
-            Verbose("Upper canvas raycaster state scrubbed. target=" + TargetName(context)
+            Verbose("Upper canvas registry state scrubbed without leasing native raycasters. target=" + TargetName(context)
                     + ", removed=" + removed
                     + ", frame=" + Time.frameCount);
         }
@@ -535,19 +534,6 @@ public static class UiTransitionGuardRuntime
         {
             RestoreRaycasters("component-destroyed");
             deferredActions.Clear();
-        }
-
-        private int LeaseUpperCanvasRaycasters(string source)
-        {
-            try
-            {
-                return LeaseRaycasters(UpperCanvasRoot(), source);
-            }
-            catch (Exception ex)
-            {
-                Warn("Failed to lease upper canvas raycasters. source=" + source + " -> " + ex.Message);
-                return 0;
-            }
         }
 
         private GameObject? UpperCanvasRoot()

@@ -43,6 +43,10 @@ internal static partial class AuraToolsTestSuite
                     InitialState = new MatchReplayInitialState
                     {
                         LevelId = "level-" + index,
+                        BackgroundScene = "Forest",
+                        MapMode = "Normal",
+                        MapLevel = index,
+                        DiceJson = "{\"_cursor\":{\"val\":" + index + "}}",
                         RoleQueue = new byte[] { 1, 2, 3 },
                         TemporaryRoles = new byte[] { 4, 5 },
                         RoleTableJson = "{}"
@@ -62,6 +66,10 @@ internal static partial class AuraToolsTestSuite
             var eventsRestored = MatchReplayChunker.Decode(chunksRestored);
             Assert(favorite?.Collection == MatchRecordCollections.Favorite
                    && favorite.InitialState.LevelId == "level-1"
+                   && favorite.InitialState.BackgroundScene == "Forest"
+                   && favorite.InitialState.MapMode == "Normal"
+                   && favorite.InitialState.MapLevel == 1
+                   && favorite.InitialState.DiceJson.Contains("\"val\":1", StringComparison.Ordinal)
                    && favorite.StatisticsJson.Contains("total")
                    && eventsRestored.Count == 6
                    && eventsRestored[^1].Sequence == 6,
@@ -107,6 +115,10 @@ internal static partial class AuraToolsTestSuite
                    && database.Get("record-1")?.Tags == "boss,featured"
                    && database.SearchRecords(MatchRecordCollections.Favorite, "Alice", "Win", null).Single().RecordId == "record-1",
                 "tags, notes, level, result, and participant JSON are searchable metadata");
+            Assert(database.UpdateReplayState("record-1", MatchReplayStates.Incomplete)
+                   && database.Get("record-1")?.ReplayState == MatchReplayStates.Incomplete
+                   && database.LoadPage(MatchRecordCollections.Favorite).Items.Single().RecordId == "record-1",
+                "legacy incomplete captures are marked analysis-only without disappearing from match history");
             var packageSnapshot = database.LoadPackageSnapshot("record-1");
             Assert(packageSnapshot?.Record.RecordId == "record-1"
                    && packageSnapshot.Chunks.Count == chunksRestored.Count
@@ -168,6 +180,44 @@ internal static partial class AuraToolsTestSuite
             Assert(database.Clear(MatchRecordCollections.Auto) == 4
                    && database.Count(MatchRecordCollections.Auto) == 0,
                 "a replay collection can be cleared independently");
+            var analysisOnlyRecord = new MatchRecord
+            {
+                RecordId = "analysis-only-record",
+                AdventureId = "adventure-analysis",
+                SessionId = "session-analysis",
+                LevelId = "level-analysis",
+                Result = "Win",
+                StartedUtc = "2026-08-12T01:00:00Z",
+                EndedUtc = "2026-08-12T01:01:00Z",
+                ReplayState = MatchReplayStates.Incomplete,
+                ReplayProtocol = MatchReplayProtocol.Version,
+                TurnCount = 2,
+                StatisticsJson = "{\"total\":42}",
+                InitialState = new MatchReplayInitialState { LevelId = "level-analysis" }
+            };
+            var replayStorageRejected = false;
+            try
+            {
+                database.Save(analysisOnlyRecord, damaged);
+            }
+            catch (InvalidDataException)
+            {
+                replayStorageRejected = true;
+            }
+            Assert(replayStorageRejected && database.Get(analysisOnlyRecord.RecordId) == null,
+                "a failed replay transaction rolls back before the analysis-only persistence fallback runs");
+            analysisOnlyRecord.ReplayState = MatchReplayStates.Incomplete;
+            analysisOnlyRecord.EventCount = 0;
+            analysisOnlyRecord.CaptureDiagnostics.Add("action projection did not converge");
+            Assert(database.Save(analysisOnlyRecord, Array.Empty<MatchReplayChunk>()),
+                "an analysis-only match persists even when no playable replay chunks survive finalization");
+            var analysisOnly = database.Get("analysis-only-record");
+            Assert(analysisOnly?.ReplayState == MatchReplayStates.Incomplete
+                   && analysisOnly.CaptureDiagnostics.Single() == "action projection did not converge"
+                   && database.LoadChunks("analysis-only-record").Count == 0
+                   && database.LoadPage(MatchRecordCollections.Auto).Items.Any(item =>
+                       item.RecordId == "analysis-only-record"),
+                "degraded capture diagnostics round-trip and the match remains visible in history");
             Assert(new FileInfo(path).Length < 3 * 1024 * 1024,
                 "representative replay metadata and compressed chunks remain compact in SQLite");
         }

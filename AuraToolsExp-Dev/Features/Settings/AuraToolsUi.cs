@@ -194,6 +194,15 @@ internal static class AuraToolsUi
         return button;
     }
 
+    public static void SetButtonLabel(Button? button, string label)
+    {
+        var text = button == null ? null : button.GetComponentInChildren<Text>(true);
+        if (text != null)
+        {
+            text.text = label ?? "";
+        }
+    }
+
     public static Toggle AddToggle(Transform parent, bool value, Action<bool> changed, float size = ToggleSize)
     {
         var root = CreateLayout("Toggle", parent);
@@ -357,6 +366,7 @@ internal static class AuraToolsUi
         }
 
         var overlay = CreateRect(name, overlayRoot, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        overlay.AddComponent<AuraToolsOwnedOverlay>();
         var overlayRect = overlay.GetComponent<RectTransform>();
         overlayRect.pivot = new Vector2(0.5f, 0.5f);
         overlayRect.offsetMin = new Vector2(8f, 8f);
@@ -440,6 +450,23 @@ internal static class AuraToolsUi
         }
 
         activeSelectAnchor = null;
+    }
+
+    public static void CloseOwnedOverlays(string source = "AuraTools overlay owner close")
+    {
+        CloseSelectPopup();
+        foreach (var marker in Object.FindObjectsByType<AuraToolsOwnedOverlay>(
+                     FindObjectsInactive.Include,
+                     FindObjectsSortMode.None))
+        {
+            if (marker == null || marker.gameObject == null)
+            {
+                continue;
+            }
+
+            UiRaycastSafeDestroyRuntime.DisableAndHide(marker.gameObject, source);
+            Object.Destroy(marker.gameObject);
+        }
     }
 
     private static void ShowSelectPopup(GameObject anchor, IReadOnlyList<string> labels, int selectedIndex, Action<int> selected, float rowHeight)
@@ -729,4 +756,8 @@ internal static class AuraToolsUi
         var y = Mathf.Clamp(height * 0.30f, 6f, fallbackBorder.y);
         return new Vector4(x, y, x, y);
     }
+}
+
+internal sealed class AuraToolsOwnedOverlay : MonoBehaviour
+{
 }

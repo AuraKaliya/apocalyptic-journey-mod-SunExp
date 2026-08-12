@@ -198,7 +198,7 @@ public sealed class AutoBattleGameParameterSettings
     [JsonProperty("selectedPresetId")]
     public string SelectedPresetId { get; set; } = "standard";
 
-    [JsonProperty("presets")]
+    [JsonProperty("presets", ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<AutoBattleGameParameterPreset> Presets { get; set; } =
         new() { AutoBattleGameParameterPreset.CreateDefault() };
 
@@ -212,6 +212,7 @@ public sealed class AutoBattleGameParameterSettings
 
     public void Normalize()
     {
+        var selectedId = (SelectedPresetId ?? "").Trim();
         Presets ??= new List<AutoBattleGameParameterPreset>();
         Presets = Presets
             .Where(item => item != null)
@@ -221,26 +222,155 @@ public sealed class AutoBattleGameParameterSettings
             Presets.Add(AutoBattleGameParameterPreset.CreateDefault());
         }
 
-        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < Presets.Count; index++)
         {
-            var preset = Presets[index];
-            preset.Normalize(index);
-            var baseId = preset.Id;
+            Presets[index].Normalize(index);
+        }
+
+        var migrated = new List<AutoBattleGameParameterPreset>(Presets.Count);
+        foreach (var preset in Presets)
+        {
+            var duplicate = migrated.FirstOrDefault(existing =>
+                IsGeneratedDuplicateId(existing.Id, preset.Id)
+                && EquivalentExceptId(existing, preset));
+            if (duplicate != null)
+            {
+                MergeResolvedState(duplicate, preset);
+                if (string.Equals(selectedId, preset.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    selectedId = duplicate.Id;
+                }
+                continue;
+            }
+
+            migrated.Add(preset);
+        }
+        Presets = migrated;
+
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var preset in Presets)
+        {
+            if (usedIds.Add(preset.Id))
+            {
+                continue;
+            }
+
+            var originalId = preset.Id;
+            var baseId = RemoveGeneratedSuffixes(originalId);
             var suffix = 2;
-            while (!usedIds.Add(preset.Id))
+            do
             {
                 preset.Id = baseId + "-" + suffix++;
+            } while (!usedIds.Add(preset.Id));
+
+            if (string.Equals(selectedId, originalId, StringComparison.OrdinalIgnoreCase))
+            {
+                // Duplicate IDs are ambiguous; retain the first matching preset.
+                selectedId = originalId;
             }
         }
 
-        SelectedPresetId = (SelectedPresetId ?? "").Trim();
+        SelectedPresetId = selectedId;
         if (!Presets.Any(item => string.Equals(
                 item.Id,
                 SelectedPresetId,
                 StringComparison.OrdinalIgnoreCase)))
         {
             SelectedPresetId = Presets[0].Id;
+        }
+    }
+
+    private static bool EquivalentExceptId(
+        AutoBattleGameParameterPreset left,
+        AutoBattleGameParameterPreset right)
+    {
+        return string.Equals(left.DisplayName, right.DisplayName, StringComparison.Ordinal)
+               && string.Equals(left.RoleId, right.RoleId, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(left.PartnerId, right.PartnerId, StringComparison.OrdinalIgnoreCase)
+               && left.PreferredDeckSizeMinimum == right.PreferredDeckSizeMinimum
+               && left.PreferredDeckSizeMaximum == right.PreferredDeckSizeMaximum
+               && left.EnabledRewardCardPackIds.SequenceEqual(
+                   right.EnabledRewardCardPackIds,
+                   StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void MergeResolvedState(
+        AutoBattleGameParameterPreset target,
+        AutoBattleGameParameterPreset candidate)
+    {
+        if (ResolvedStateScore(candidate) <= 0
+            || ResolvedStateScore(candidate) < ResolvedStateScore(target))
+        {
+            return;
+        }
+
+        target.ResolvedRoleSkillIds = candidate.ResolvedRoleSkillIds.ToList();
+        target.ResolvedRoleInitialStatuses = new Dictionary<string, int>(
+            candidate.ResolvedRoleInitialStatuses,
+            StringComparer.OrdinalIgnoreCase);
+        target.ResolvedRoleSkillCooldownTurns = new Dictionary<string, int>(
+            candidate.ResolvedRoleSkillCooldownTurns,
+            StringComparer.OrdinalIgnoreCase);
+        target.ResolvedRoleInitialSkillCooldownTurns = new Dictionary<string, int>(
+            candidate.ResolvedRoleInitialSkillCooldownTurns,
+            StringComparer.OrdinalIgnoreCase);
+        target.ResolvedRoleMaximumHp = candidate.ResolvedRoleMaximumHp;
+        target.ResolvedRoleInitialVariables = new Dictionary<string, double>(
+            candidate.ResolvedRoleInitialVariables,
+            StringComparer.OrdinalIgnoreCase);
+        target.ResolvedRoleNativeScriptHash = candidate.ResolvedRoleNativeScriptHash;
+        target.ResolvedRoleFightScript = candidate.ResolvedRoleFightScript;
+        target.ResolvedRoleNativeManagedSkillCooldownIds =
+            candidate.ResolvedRoleNativeManagedSkillCooldownIds.ToList();
+        target.ResolvedRoleRuntimeForms = candidate.ResolvedRoleRuntimeForms
+            .Select(item => item.Clone())
+            .ToList();
+        target.ResolvedFamiliarBlessingIds =
+            candidate.ResolvedFamiliarBlessingIds.ToList();
+    }
+
+    private static int ResolvedStateScore(AutoBattleGameParameterPreset preset)
+    {
+        return (preset.ResolvedRoleMaximumHp > 0 ? 1 : 0)
+               + preset.ResolvedRoleSkillIds.Count
+               + preset.ResolvedRoleInitialStatuses.Count
+               + preset.ResolvedRoleSkillCooldownTurns.Count
+               + preset.ResolvedRoleInitialSkillCooldownTurns.Count
+               + preset.ResolvedRoleInitialVariables.Count
+               + (string.IsNullOrWhiteSpace(preset.ResolvedRoleNativeScriptHash) ? 0 : 1)
+               + (string.IsNullOrWhiteSpace(preset.ResolvedRoleFightScript) ? 0 : 1)
+               + preset.ResolvedRoleNativeManagedSkillCooldownIds.Count
+               + preset.ResolvedRoleRuntimeForms.Count
+               + preset.ResolvedFamiliarBlessingIds.Count;
+    }
+
+    private static bool IsGeneratedDuplicateId(string left, string right)
+    {
+        if (string.Equals(left, right, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(
+            RemoveGeneratedSuffixes(left),
+            RemoveGeneratedSuffixes(right),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string RemoveGeneratedSuffixes(string id)
+    {
+        var result = id ?? "";
+        while (true)
+        {
+            var separator = result.LastIndexOf('-');
+            if (separator <= 0
+                || !int.TryParse(result.Substring(separator + 1), out var suffix)
+                || suffix < 2)
+            {
+                return result;
+            }
+
+            result = result.Substring(0, separator);
         }
     }
 }

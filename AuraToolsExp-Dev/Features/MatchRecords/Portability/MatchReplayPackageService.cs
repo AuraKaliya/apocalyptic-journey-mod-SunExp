@@ -8,6 +8,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
+using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Portability;
@@ -183,7 +184,13 @@ internal static class MatchReplayPackageService
         record.IsFavorite = true;
         record.Origin = MatchRecordOrigins.Imported;
         record.ContentSha256 = computedContentHash;
-        record.ReplayState = MatchReplayStates.Ready;
+        record.ReplayState = MatchReplayCaptureQuality.EvaluateRecording(
+                decoded,
+                record.InitialState?.BaselineState != null,
+                record.CaptureDiagnostics)
+            .CanPlay
+            ? MatchReplayStates.Ready
+            : MatchReplayStates.Incomplete;
         var analysis = importedAnalysis ?? MatchAnalysisBuilder.Build(record, decoded);
         analysis.RecordId = record.RecordId;
         if (!MatchRecordStorage.Database.Save(record, chunks, analysis))
@@ -271,7 +278,7 @@ internal static class MatchReplayPackageService
             Duplicate = MatchRecordStorage.Database.ContainsContentHash(contentHash),
             ContentSha256 = contentHash,
             ContentDependencies = record.ContentDependencies ?? new List<string>(),
-            PrivacySummary = "包含完整战斗指令流、角色/玩家标识、DPT 统计与初始战斗状态",
+            PrivacySummary = "包含权威状态帧、表现编排、角色/玩家标识、DPT 统计与初始战斗状态",
             Tags = record.Tags,
             Notes = record.Notes
         };

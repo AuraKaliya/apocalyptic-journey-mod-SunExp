@@ -2,70 +2,208 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using Newtonsoft.Json;
+using TMPro;
+using UnityEngine;
 using Witch;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
 internal static class MatchReplayStateCapture
 {
-    internal static MatchReplayCheckpoint Capture(long sequence, int turnIndex)
+    internal static MatchReplayCheckpoint Capture(
+        long sequence,
+        int turnIndex,
+        string actionId,
+        int actionIndex)
     {
-        var snapshot = CaptureSnapshot(turnIndex);
+        var snapshot = CaptureSnapshot(turnIndex, includeRoleTable: true);
         var json = AuraSharedJson.SerializeCompact(snapshot);
+        var logicalHash = HashLogical(snapshot);
         return new MatchReplayCheckpoint
         {
             EventSequence = sequence,
             TurnIndex = turnIndex,
+            ActionId = actionId ?? "",
+            ActionIndex = Math.Max(0, actionIndex),
             SnapshotJson = json,
-            StateHash = Hash(json),
+            StateHash = logicalHash,
+            LogicalStateHash = logicalHash,
             CanRestore = FightManager.Instance != null && RoleTable.Instance != null
         };
     }
 
-    internal static bool Verify(MatchReplayCheckpoint checkpoint, out string actualHash)
+    internal static bool Verify(
+        MatchReplayCheckpoint checkpoint,
+        out string actualHash,
+        out MatchReplayStateDiff diff)
     {
-        var snapshot = CaptureSnapshot(checkpoint.TurnIndex);
-        actualHash = Hash(AuraSharedJson.SerializeCompact(snapshot));
-        return string.Equals(actualHash, checkpoint.StateHash, StringComparison.OrdinalIgnoreCase);
+        var expected = Deserialize(checkpoint);
+        var actual = CaptureSnapshot(checkpoint.TurnIndex, includeRoleTable: false);
+        actualHash = HashLogical(actual);
+        diff = expected == null
+            ? new MatchReplayStateDiff()
+            : MatchReplayStateComparer.Compare(expected, actual);
+        var expectedHash = string.IsNullOrWhiteSpace(checkpoint.LogicalStateHash)
+            ? checkpoint.StateHash
+            : checkpoint.LogicalStateHash;
+        return expected != null
+               && diff.IsMatch
+               && string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static bool Restore(MatchReplayCheckpoint checkpoint)
+    internal static bool Restore(
+        MatchReplayCheckpoint checkpoint,
+        bool restoreCards,
+        bool restoreRoleTable)
     {
-        if (!checkpoint.CanRestore || string.IsNullOrWhiteSpace(checkpoint.SnapshotJson) || FightManager.Instance == null)
+        RestoredExpectedHandCount = 0;
+        if (!checkpoint.CanRestore || FightManager.Instance == null)
         {
             return false;
         }
 
-        var snapshot = AuraSharedJson.Deserialize<MatchReplayStateSnapshot>(checkpoint.SnapshotJson);
-        if (snapshot == null) return false;
+        var snapshot = Deserialize(checkpoint);
+        if (snapshot == null)
+        {
+            return false;
+        }
+
+        return Project(snapshot, restoreCards, restoreRoleTable);
+    }
+
+    internal static MatchReplayStateSnapshot CaptureProjectionSnapshot(int turnIndex)
+    {
+        return CaptureSnapshot(turnIndex, includeRoleTable: false);
+    }
+
+    internal static bool Project(
+        MatchReplayStateSnapshot? snapshot,
+        bool restoreCards,
+        bool restoreRoleTable,
+        IReadOnlyCollection<string>? changedStatusIds = null)
+    {
+        RestoredExpectedHandCount = 0;
+        if (snapshot == null || FightManager.Instance == null)
+        {
+            return false;
+        }
+
         var manager = FightManager.Instance;
         manager.SumOfEnemyPositive = snapshot.EnemyPositive;
         manager.EnemyHp = snapshot.EnemyHp;
-        if (RoleTable.Instance != null && !string.IsNullOrWhiteSpace(snapshot.RoleTableJson))
+        if (FightPlayer.Instance != null)
         {
-            var restored = JsonConvert.DeserializeObject<RoleTable>(snapshot.RoleTableJson);
-            if (restored != null) RoleTable.Instance.ResetFight(restored);
+            ProjectPlayerPower(
+                FightPlayer.Instance,
+                Math.Max(0, snapshot.PlayerMaxPower),
+                Math.Max(0, snapshot.PlayerPower));
         }
 
+        if (restoreRoleTable
+            && RoleTable.Instance != null
+            && !string.IsNullOrWhiteSpace(snapshot.RoleTableJson))
+        {
+            var restored = JsonConvert.DeserializeObject<RoleTable>(snapshot.RoleTableJson);
+            if (restored != null)
+            {
+                RoleTable.Instance.ResetFight(restored);
+            }
+        }
+
+        var expectedStatusIds = new HashSet<string>(
+            snapshot.Statuses.Select(item => item.InstanceId),
+            StringComparer.Ordinal);
+        foreach (var pair in manager.statuses)
+        {
+            var gameObject = pair.Value?.fatherObject?.gameObject;
+            if (gameObject != null)
+            {
+                gameObject.SetActive(expectedStatusIds.Contains(pair.Key));
+            }
+        }
+
+        var changed = changedStatusIds == null
+            ? null
+            : new HashSet<string>(changedStatusIds, StringComparer.Ordinal);
         foreach (var item in snapshot.Statuses)
         {
-            if (!manager.statuses.TryGetValue(item.InstanceId, out var status) || status == null) continue;
+            if (changed != null && !changed.Contains(item.InstanceId))
+            {
+                continue;
+            }
+
+            if (!manager.statuses.TryGetValue(item.InstanceId, out var status) || status == null)
+            {
+                continue;
+            }
+
+            if (status.fatherObject?.gameObject != null)
+            {
+                status.fatherObject.gameObject.SetActive(true);
+            }
+
+            MatchReplayPassiveBuffPresenter.Project(status, item.Buffs);
+            status.dynamicVariables.Clear();
+            foreach (var variable in item.DynamicVariables)
+            {
+                status.dynamicVariables[variable.Key] = variable.Value;
+            }
+
             status.maxHp = item.MaxHp;
             status.curHp = item.CurrentHp;
             status.defend = item.Defend;
-            if (!ApplyState(status, item.State)) return false;
-            status.UpdateStatus();
+            if (!ApplyPassiveState(status, item.State))
+            {
+                return false;
+            }
+
+            ProjectStatusHud(status, item);
+            if (manager.statusData.TryGetValue(item.InstanceId, out var statusData))
+            {
+                statusData.maxHp = item.MaxHp;
+                statusData.curHp = item.CurrentHp;
+                statusData.defend = item.Defend;
+                statusData.state = status.state;
+                statusData.Version = Math.Max(statusData.Version, status.LastStatusDataVersion);
+                manager.statusData.Remove(item.InstanceId);
+                manager.statusData.Add(item.InstanceId, statusData);
+            }
         }
+
+        if (restoreCards)
+        {
+            RestoredExpectedHandCount = MatchReplayCardStateCapture.Restore(
+                snapshot.Cards,
+                snapshot.CardTopCount,
+                rebuild: restoreRoleTable);
+        }
+
+        // UI-only BuffBar operations can enqueue native synchronization commands. The replay
+        // view never consumes them; clear the queue after projection so state application
+        // cannot turn back into combat simulation.
+        manager.ActionQueue?.Clear();
 
         return true;
     }
 
-    private static MatchReplayStateSnapshot CaptureSnapshot(int turnIndex)
+    internal static int RestoredExpectedHandCount { get; private set; }
+
+    internal static void ResetRestoreState()
+    {
+        RestoredExpectedHandCount = 0;
+    }
+
+    private static MatchReplayStateSnapshot? Deserialize(MatchReplayCheckpoint checkpoint)
+    {
+        return string.IsNullOrWhiteSpace(checkpoint.SnapshotJson)
+            ? null
+            : AuraSharedJson.Deserialize<MatchReplayStateSnapshot>(checkpoint.SnapshotJson);
+    }
+
+    private static MatchReplayStateSnapshot CaptureSnapshot(int turnIndex, bool includeRoleTable)
     {
         var manager = FightManager.Instance;
         var result = new MatchReplayStateSnapshot
@@ -74,9 +212,19 @@ internal static class MatchReplayStateCapture
             TurnIndex = Math.Max(1, turnIndex),
             EnemyPositive = manager?.SumOfEnemyPositive ?? 0f,
             EnemyHp = manager?.EnemyHp ?? 0f,
-            RoleTableJson = RoleTable.Instance == null ? "" : AuraSharedJson.Serialize(RoleTable.Instance)
+            PlayerPower = FightPlayer.Instance?.CurPowerCount ?? 0,
+            PlayerMaxPower = FightPlayer.Instance?.MaxPowerCount ?? 0,
+            // RoleTable is restore-only context. It is retained for deterministic seeking but
+            // excluded from the logical hash/diff contract below.
+            RoleTableJson = !includeRoleTable || RoleTable.Instance == null
+                ? ""
+                : AuraSharedJson.Serialize(RoleTable.Instance)
         };
-        if (manager == null) return result;
+        if (manager == null)
+        {
+            return result;
+        }
+
         result.Statuses = manager.statuses
             .Where(item => item.Value != null)
             .OrderBy(item => item.Key, StringComparer.Ordinal)
@@ -86,26 +234,71 @@ internal static class MatchReplayStateCapture
                 MaxHp = item.Value.maxHp,
                 CurrentHp = item.Value.curHp,
                 Defend = item.Value.defend,
-                State = item.Value.state.ToString()
+                State = item.Value.state.ToString(),
+                DynamicVariables = item.Value.dynamicVariables
+                    .OrderBy(value => value.Key, StringComparer.Ordinal)
+                    .Select(value => new MatchReplayFloatValue
+                    {
+                        Key = value.Key ?? "",
+                        Value = value.Value
+                    })
+                    .ToList(),
+                Buffs = CaptureBuffs(item.Value)
             })
             .ToList();
+        result.Cards = MatchReplayCardStateCapture.Capture(out var cardTopCount);
+        result.CardTopCount = cardTopCount;
         return result;
     }
 
-    private static bool ApplyState(object status, string stateName)
+    private static List<MatchReplayBuffState> CaptureBuffs(StatusManager status)
     {
-        if (string.IsNullOrWhiteSpace(stateName)) return true;
-        var method = status.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .FirstOrDefault(value => value.Name == "ApplyAuthoritativeState" && value.GetParameters().Length == 2);
-        if (method == null) return false;
-        var type = method.GetParameters()[0].ParameterType;
-        if (!type.IsEnum) return false;
+        return (status.GetBuffs() ?? Array.Empty<IBuffItem>())
+            .Where(item => item?.buffConfig != null)
+            .OrderBy(item => item.buffConfig.BuffId, StringComparer.Ordinal)
+            .Select(item => new MatchReplayBuffState
+            {
+                BuffId = item.buffConfig.BuffId ?? "",
+                Level = item.buffConfig.Level,
+                UpperBound = item.buffConfig.UpperBound,
+                ReducePerTurn = item.buffConfig.ReducePerTurn,
+                ReducePerUse = item.buffConfig.ReducePerUse,
+                ReducePerAttacked = item.buffConfig.ReducePerAttacked,
+                Vars = CaptureValues(item.buffConfig.dataConfig?.Vars)
+            })
+            .ToList();
+    }
+
+    private static List<MatchReplayStringValue> CaptureValues(IDictionary<string, string>? values)
+    {
+        return (values ?? new Dictionary<string, string>())
+            .OrderBy(item => item.Key, StringComparer.Ordinal)
+            .Select(item => new MatchReplayStringValue
+            {
+                Key = item.Key ?? "",
+                Value = item.Value ?? ""
+            })
+            .ToList();
+    }
+
+    private static bool ApplyPassiveState(object status, string stateName)
+    {
+        if (string.IsNullOrWhiteSpace(stateName))
+        {
+            return true;
+        }
+
+        var field = status.GetType().GetField(
+            "_state",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (field == null || !field.FieldType.IsEnum)
+        {
+            return false;
+        }
+
         try
         {
-            var state = Enum.Parse(type, stateName, ignoreCase: true);
-            var father = status.GetType().GetField("fatherObject", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                ?.GetValue(status);
-            method.Invoke(status, new[] { state, (object)(father is Enemy) });
+            field.SetValue(status, Enum.Parse(field.FieldType, stateName, ignoreCase: true));
             return true;
         }
         catch (Exception ex)
@@ -114,9 +307,74 @@ internal static class MatchReplayStateCapture
         }
     }
 
-    private static string Hash(string value)
+    private static void ProjectStatusHud(StatusManager status, MatchReplayStatusState state)
     {
-        using var sha = SHA256.Create();
-        return string.Concat(sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? "")).Select(item => item.ToString("x2")));
+        var ui = status.statusBarUI;
+        if (ui == null)
+        {
+            return;
+        }
+
+        var hp = Math.Max(0, state.CurrentHp);
+        var maxHp = Math.Max(0, state.MaxHp);
+        var hpRatio = maxHp <= 0 ? 0f : Mathf.Clamp01(hp / (float)maxHp);
+        if (ui.hpTxt != null)
+        {
+            ui.hpTxt.gameObject.SetActive(true);
+            ui.hpTxt.SetText(hp.ToString());
+            ui.hpTxt.ForceMeshUpdate();
+        }
+
+        if (ui.hpRedImg?.material != null)
+        {
+            ui.hpRedImg.material.SetFloat("_FillAmount", hpRatio);
+        }
+
+        if (ui.hpImg?.material != null)
+        {
+            ui.hpImg.material.SetFloat("_FillAmount", hpRatio);
+        }
+
+        var defendRatio = maxHp <= 0 ? 0f : Mathf.Clamp01(state.Defend / (float)maxHp);
+        if (ui.defendImg != null)
+        {
+            ui.defendImg.enabled = state.Defend > 0;
+            if (ui.defendImg.material != null)
+            {
+                ui.defendImg.material.SetFloat("_FillAmount", defendRatio);
+            }
+        }
+
+        if (ui.DefendObj != null)
+        {
+            var large = ui.DefendObj.transform.Find("Large");
+            var small = ui.DefendObj.transform.Find("Small");
+            if (large != null) large.gameObject.SetActive(state.Defend >= 100);
+            if (small != null) small.gameObject.SetActive(state.Defend < 100);
+            var value = ui.DefendObj.transform.Find("val")?.GetComponent<TMP_Text>();
+            if (value != null) value.SetText(state.Defend.ToString());
+        }
+
+        status.UpdateDisplay();
+    }
+
+    private static void ProjectPlayerPower(FightPlayer player, int maximum, int current)
+    {
+        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        var maximumField = player.GetType().GetField("maxPowerCount", flags);
+        var currentField = player.GetType().GetField("curPowerCount", flags);
+        if (maximumField == null || currentField == null)
+        {
+            throw new InvalidOperationException("当前游戏版本缺少只读能量投影字段。");
+        }
+
+        maximumField.SetValue(player, maximum);
+        currentField.SetValue(player, current);
+        Witch.UI.UIManager.Instance?.GetUI<Witch.UI.Window.FightUI>("FightUI")?.UpdatePower();
+    }
+
+    private static string HashLogical(MatchReplayStateSnapshot snapshot)
+    {
+        return MatchReplayProjectionState.Hash(snapshot);
     }
 }

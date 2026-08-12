@@ -31,10 +31,10 @@ public static class CombatGameValidationProtocol
             "\n",
             new[]
             {
+                "combat-game-validation-key-v2",
                 NormalizeId(profile).ToLowerInvariant(),
                 NormalizeId(modelId),
                 NormalizeHash(modelArtifactHash),
-                NormalizeId(gameBuild),
                 NormalizeId(campaignId),
                 NormalizeId(campaignVersion),
                 NormalizeHash(rulesetHash),
@@ -160,7 +160,7 @@ public static class CombatGameValidationProtocol
             request.NativePackageHash);
         if (!FixedEquals(expectedKey, report.CompatibilityKey))
         {
-            reason = "验证回执与当前模型或游戏语义版本不匹配";
+            reason = "验证回执与当前模型或权威语义版本不匹配";
             return false;
         }
         if (report.Cases == null
@@ -185,7 +185,7 @@ public static class CombatGameValidationProtocol
             return false;
         }
 
-        reason = "游戏主体回执与当前模型、游戏版本和权威语义一致";
+        reason = "游戏主体回执与当前模型及权威语义一致；游戏补丁版本仅作诊断元数据";
         return true;
     }
 

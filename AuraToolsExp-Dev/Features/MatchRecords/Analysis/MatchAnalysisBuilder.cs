@@ -11,6 +11,9 @@ internal static class MatchAnalysisBuilder
 {
     internal static MatchAnalysisReport Build(MatchRecord record, IEnumerable<MatchReplayEvent> events)
     {
+        var stream = (events ?? Array.Empty<MatchReplayEvent>()).Where(item => item != null).ToList();
+        var framed = stream.Any(item => item.Kind == MatchReplayEventKinds.ActionFrame);
+        var transactional = stream.Any(item => item.Kind == MatchReplayEventKinds.ActionBegin);
         var snapshot = ReadSnapshot(record.StatisticsJson);
         var teams = (snapshot?.Combatants ?? new List<CombatantDamageStat>())
             .Where(item => item != null && !string.IsNullOrWhiteSpace(item.InstanceId))
@@ -24,7 +27,7 @@ internal static class MatchAnalysisBuilder
         var activeTurn = 0;
         var lastSequence = 0L;
 
-        foreach (var item in events ?? Array.Empty<MatchReplayEvent>())
+        foreach (var item in stream)
         {
             if (item == null) continue;
             if (item.Sequence <= lastSequence) throw new InvalidOperationException("Replay events are not in strictly increasing sequence order.");
@@ -37,63 +40,106 @@ internal static class MatchAnalysisBuilder
             }
 
             turn.LastEventSequence = item.Sequence;
-            if (item.Kind != MatchReplayEventKinds.Checkpoint) turn.ActionCount++;
-            var semantic = item.Semantic;
-            if (semantic?.Category == MatchSemanticCategories.Card)
+            if (framed)
             {
-                if (activeTurn != turnIndex) actions.Clear();
-                var cardId = string.IsNullOrWhiteSpace(semantic.SourceId) ? semantic.Label : semantic.SourceId;
-                cardId = string.IsNullOrWhiteSpace(cardId) ? "UnknownCard" : cardId;
-                if (!cards.TryGetValue(cardId, out activeCard))
+                if (item.Kind == MatchReplayEventKinds.ActionFrame)
                 {
-                    activeCard = new MatchAnalysisCard
-                    {
-                        CardId = cardId,
-                        DisplayName = string.IsNullOrWhiteSpace(semantic.Label) ? cardId : semantic.Label,
-                        FirstEventSequence = item.Sequence
-                    };
-                    cards[cardId] = activeCard;
+                    turn.ActionCount++;
                 }
-
-                activeCard.Uses++;
-                turn.CardUses++;
-                if (!string.IsNullOrWhiteSpace(semantic.RootActionId)) actions[semantic.RootActionId] = activeCard;
-                activeTurn = turnIndex;
             }
-            else if (IsDamage(item))
+            else if (transactional)
             {
-                var damage = Math.Max(0, semantic!.Value);
-                turn.Damage += damage;
-                if (!string.IsNullOrWhiteSpace(semantic.RootActionId)
-                    && actions.TryGetValue(semantic.RootActionId, out var attributed))
+                if (item.Kind == MatchReplayEventKinds.ActionBegin
+                    && string.IsNullOrWhiteSpace(item.ActionBoundary?.ParentActionId))
                 {
-                    attributed.AttributedDamage += damage;
-                    attributed.AttributionConfidence = semantic.AttributionConfidence;
+                    turn.ActionCount++;
                 }
-                else if (activeCard != null && activeTurn == turnIndex)
+            }
+            else if (item.Kind != MatchReplayEventKinds.Checkpoint)
+            {
+                turn.ActionCount++;
+            }
+            var semantics = new List<MatchSemanticEvent>();
+            if (item.Semantic != null)
+            {
+                semantics.Add(item.Semantic);
+            }
+
+            if (item.ActionFrame?.Semantics != null)
+            {
+                semantics.AddRange(item.ActionFrame.Semantics.Where(semantic =>
+                    semantic != null
+                    && !semantics.Any(existing => !string.IsNullOrWhiteSpace(semantic.EventId)
+                                                  && string.Equals(existing.EventId, semantic.EventId, StringComparison.Ordinal))));
+            }
+
+            foreach (var semantic in semantics)
+            {
+                if (semantic.Category == MatchSemanticCategories.Card
+                    && (!transactional || item.Kind == MatchReplayEventKinds.ActionBegin)
+                    && (!framed || ReferenceEquals(semantic, item.Semantic)))
                 {
-                    activeCard.ObservedFollowUpDamage += damage;
-                    if (activeCard.AttributionConfidence == MatchAttributionConfidence.Unknown)
+                    if (activeTurn != turnIndex) actions.Clear();
+                    var cardId = string.IsNullOrWhiteSpace(semantic.SourceId) ? semantic.Label : semantic.SourceId;
+                    cardId = string.IsNullOrWhiteSpace(cardId) ? "UnknownCard" : cardId;
+                    if (!cards.TryGetValue(cardId, out activeCard))
                     {
-                        activeCard.AttributionConfidence = MatchAttributionConfidence.Inferred;
+                        activeCard = new MatchAnalysisCard
+                        {
+                            CardId = cardId,
+                            DisplayName = string.IsNullOrWhiteSpace(semantic.Label) ? cardId : semantic.Label,
+                            FirstEventSequence = item.Sequence
+                        };
+                        cards[cardId] = activeCard;
                     }
-                }
 
-                var sourceTeam = Team(teams, semantic.SourceInstanceId, semantic.ActorId);
-                var targetTeam = Team(teams, semantic.TargetInstanceId, semantic.TargetId);
-                var flowKey = sourceTeam + "|" + targetTeam;
-                if (!flows.TryGetValue(flowKey, out var flow))
+                    activeCard.Uses++;
+                    turn.CardUses++;
+                    if (!string.IsNullOrWhiteSpace(semantic.RootActionId)) actions[semantic.RootActionId] = activeCard;
+                    activeTurn = turnIndex;
+                }
+                else if (semantic.Category == MatchSemanticCategories.Damage && semantic.Value > 0)
                 {
-                    flow = new MatchAnalysisDamageFlow { SourceTeam = sourceTeam, TargetTeam = targetTeam };
-                    flows[flowKey] = flow;
-                }
+                    var damage = Math.Max(0, semantic.Value);
+                    turn.Damage += damage;
+                    if (!string.IsNullOrWhiteSpace(semantic.RootActionId)
+                        && actions.TryGetValue(semantic.RootActionId, out var attributed))
+                    {
+                        attributed.AttributedDamage += damage;
+                        attributed.AttributionConfidence = semantic.AttributionConfidence;
+                    }
+                    else if (activeCard != null && activeTurn == turnIndex)
+                    {
+                        activeCard.ObservedFollowUpDamage += damage;
+                        if (activeCard.AttributionConfidence == MatchAttributionConfidence.Unknown)
+                        {
+                            activeCard.AttributionConfidence = MatchAttributionConfidence.Inferred;
+                        }
+                    }
 
-                flow.HpDamage += damage;
-                AddMoment(moments, item, semantic);
-            }
-            else if (semantic?.IsKeyEvent == true)
-            {
-                AddMoment(moments, item, semantic);
+                    var sourceTeam = Team(teams, semantic.SourceInstanceId, semantic.ActorId);
+                    var targetTeam = Team(teams, semantic.TargetInstanceId, semantic.TargetId);
+                    var flowKey = sourceTeam + "|" + targetTeam;
+                    if (!flows.TryGetValue(flowKey, out var flow))
+                    {
+                        flow = new MatchAnalysisDamageFlow { SourceTeam = sourceTeam, TargetTeam = targetTeam };
+                        flows[flowKey] = flow;
+                    }
+
+                    if (string.Equals(semantic.Action, "ShieldDamage", StringComparison.Ordinal))
+                    {
+                        flow.ShieldDamage += damage;
+                    }
+                    else
+                    {
+                        flow.HpDamage += damage;
+                    }
+                    AddMoment(moments, item, semantic);
+                }
+                else if (semantic.IsKeyEvent)
+                {
+                    AddMoment(moments, item, semantic);
+                }
             }
 
             if (activeTurn != turnIndex)
@@ -215,11 +261,6 @@ internal static class MatchAnalysisBuilder
     }
 
     private static long FlowDamage(MatchAnalysisDamageFlow item) => item.HpDamage + item.ShieldDamage;
-
-    private static bool IsDamage(MatchReplayEvent item)
-    {
-        return item.Semantic?.Category == MatchSemanticCategories.Damage && item.Semantic.Value > 0;
-    }
 
     private static string Team(IReadOnlyDictionary<string, string> teams, params string[] ids)
     {

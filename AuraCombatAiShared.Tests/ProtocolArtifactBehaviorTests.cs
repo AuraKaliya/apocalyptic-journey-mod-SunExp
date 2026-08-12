@@ -610,6 +610,17 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                 gameValidationReport,
                 out _),
             "complete game-host receipt passes when coverage, outcome and identity match");
+        var validationKeyAfterPatch = CombatGameValidationProtocol.BuildCompatibilityKey(
+            gameValidationRequest.Profile,
+            gameValidationRequest.ModelId,
+            gameValidationRequest.ModelArtifactHash,
+            "1.2.4",
+            gameValidationRequest.CampaignId,
+            gameValidationRequest.CampaignVersion,
+            gameValidationRequest.RulesetHash,
+            gameValidationRequest.NativePackageHash);
+        Assert(validationKeyAfterPatch == gameValidationReport.CompatibilityKey,
+            "game patch metadata does not invalidate an otherwise identical model and semantic validation receipt");
         gameValidationRequest.RulesetHash = "rules-b";
         Assert(!CombatGameValidationProtocol.ValidateReport(
                 gameValidationRequest,
@@ -943,6 +954,16 @@ internal static class CombatAiProtocolArtifactBehaviorTests
             Assert(reformattedContent.Success
                    && reformattedContent.Loaded!.PackageFingerprint == firstFingerprint,
                 "content package identity ignores JSON whitespace and property formatting");
+            contentManifest.GameBuild = "2026.09";
+            File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+            var repackagedForNewBuild = CombatContentPackageLoader.Load(
+                contentPackageRoot,
+                "Tests.Content",
+                "tests-content");
+            Assert(repackagedForNewBuild.Success
+                   && repackagedForNewBuild.Loaded!.PackageFingerprint == firstFingerprint,
+                "content package identity treats game build as diagnostic metadata instead of a model gate");
+            contentManifest.GameBuild = "2026.08";
             contentManifest.PackageVersion = "1.0.1";
             File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
             var changedContent = CombatContentPackageLoader.Load(
@@ -1007,6 +1028,10 @@ internal static class CombatAiProtocolArtifactBehaviorTests
             Assert(orderedContentSet.ContentSetHash == reversedContentSet.ContentSetHash
                    && orderedContentSet.OwnerModSetHash == reversedContentSet.OwnerModSetHash,
                 "content set identity is deterministic across registration order");
+            var contentSetAfterGamePatch = CombatContentSetProtocol.Create(
+                new[] { packageA, packageB }, "2026.09");
+            Assert(contentSetAfterGamePatch.ContentSetHash == orderedContentSet.ContentSetHash,
+                "game build metadata does not invalidate an unchanged content set");
 
             var conflictingPackage = new CombatContentLoadedPackage
             {

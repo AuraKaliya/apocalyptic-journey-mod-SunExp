@@ -5,23 +5,37 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 3;
-    internal const int MinimumSupportedVersion = 2;
+    internal const int Version = 8;
+    internal const int MinimumSupportedVersion = 8;
 }
 
 internal static class MatchReplayCapabilities
 {
-    internal const string CommandsV1 = "commands.v1";
-    internal const string StatusSnapshotsV1 = "status-snapshots.v1";
-    internal const string CheckpointsV1 = "checkpoints.v1";
+    internal const string AuthoritativeFramesV1 = "authoritative-frames.v1";
+    internal const string StateProjectionV1 = "state-projection.v1";
+    internal const string PresentationTimelineV1 = "presentation-timeline.v1";
+    internal const string IndexedSeekV1 = "indexed-seek.v1";
+    internal const string AsyncFinalizationV1 = "async-finalization.v1";
     internal const string CausalityV1 = "causality.v1";
+    internal const string RuntimeContextV1 = "runtime-context.v1";
+    internal const string CardPresentationReadyV1 = "card-presentation-ready.v1";
+    internal const string IncrementalHandV1 = "incremental-hand.v1";
+    internal const string OutcomeCuesV1 = "outcome-cues.v1";
+    internal const string PassiveHudV1 = "passive-hud.v1";
 
     internal static readonly string[] Supported =
     {
-        CommandsV1,
-        StatusSnapshotsV1,
-        CheckpointsV1,
-        CausalityV1
+        AuthoritativeFramesV1,
+        StateProjectionV1,
+        PresentationTimelineV1,
+        IndexedSeekV1,
+        AsyncFinalizationV1,
+        CausalityV1,
+        RuntimeContextV1,
+        CardPresentationReadyV1,
+        IncrementalHandV1,
+        OutcomeCuesV1,
+        PassiveHudV1
     };
 }
 
@@ -34,6 +48,7 @@ internal static class MatchRecordCollections
 internal static class MatchReplayStates
 {
     internal const string Ready = "Ready";
+    internal const string Incomplete = "Incomplete";
     internal const string Corrupt = "Corrupt";
 }
 
@@ -45,6 +60,14 @@ internal static class MatchRecordOrigins
 
 internal static class MatchReplayEventKinds
 {
+    internal const string TurnFrame = "TurnFrame";
+    internal const string ActionFrame = "ActionFrame";
+    internal const string SeekCheckpoint = "SeekCheckpoint";
+
+    // Retained as data labels so analysis/import code can identify obsolete captures.
+    // Protocol v8 never records or executes these command-replay events.
+    internal const string ActionBegin = "ActionBegin";
+    internal const string ActionEnd = "ActionEnd";
     internal const string ActionCommand = "ActionCommand";
     internal const string ClientCommand = "ClientCommand";
     internal const string TargetCommand = "TargetCommand";
@@ -106,12 +129,22 @@ internal sealed class MatchRecord
 
     public string StatisticsJson { get; set; } = "";
 
+    public List<string> CaptureDiagnostics { get; set; } = new();
+
     public MatchReplayInitialState InitialState { get; set; } = new();
 }
 
 internal sealed class MatchReplayInitialState
 {
     public string LevelId { get; set; } = "";
+
+    public string BackgroundScene { get; set; } = "";
+
+    public string MapMode { get; set; } = "";
+
+    public int MapLevel { get; set; }
+
+    public string DiceJson { get; set; } = "";
 
     public byte[] RoleQueue { get; set; } = Array.Empty<byte>();
 
@@ -122,6 +155,8 @@ internal sealed class MatchReplayInitialState
     public float EnemyHp { get; set; }
 
     public string RoleTableJson { get; set; } = "";
+
+    public MatchReplayStateSnapshot? BaselineState { get; set; }
 }
 
 internal sealed class MatchReplayEvent
@@ -139,6 +174,41 @@ internal sealed class MatchReplayEvent
     public byte[] Payload { get; set; } = Array.Empty<byte>();
 
     public MatchSemanticEvent? Semantic { get; set; }
+
+    public MatchReplayActionBoundary? ActionBoundary { get; set; }
+
+    public MatchReplayTurnFrame? TurnFrame { get; set; }
+
+    public MatchReplayActionFrame? ActionFrame { get; set; }
+
+    public MatchReplaySeekCheckpoint? SeekCheckpoint { get; set; }
+}
+
+internal static class MatchReplayActionPhases
+{
+    internal const string Begin = "Begin";
+    internal const string End = "End";
+}
+
+internal sealed class MatchReplayActionBoundary
+{
+    public string ActionId { get; set; } = "";
+
+    public string ParentActionId { get; set; } = "";
+
+    public int ActionIndex { get; set; }
+
+    public string Phase { get; set; } = "";
+
+    public string Kind { get; set; } = "";
+
+    public string ActorId { get; set; } = "";
+
+    public string SourceId { get; set; } = "";
+
+    public string SourceInstanceId { get; set; } = "";
+
+    public string Label { get; set; } = "";
 }
 
 internal sealed class MatchReplayCheckpoint
@@ -147,7 +217,13 @@ internal sealed class MatchReplayCheckpoint
 
     public int TurnIndex { get; set; }
 
+    public string ActionId { get; set; } = "";
+
+    public int ActionIndex { get; set; }
+
     public string StateHash { get; set; } = "";
+
+    public string LogicalStateHash { get; set; } = "";
 
     public string SnapshotJson { get; set; } = "";
 
@@ -164,9 +240,34 @@ internal sealed class MatchReplayStateSnapshot
 
     public float EnemyHp { get; set; }
 
+    public int PlayerPower { get; set; }
+
+    public int PlayerMaxPower { get; set; }
+
     public string RoleTableJson { get; set; } = "";
 
     public List<MatchReplayStatusState> Statuses { get; set; } = new();
+
+    public int CardTopCount { get; set; }
+
+    public List<MatchReplayCardState> Cards { get; set; } = new();
+}
+
+internal sealed class MatchReplayCardState
+{
+    public string Zone { get; set; } = "";
+
+    public int Order { get; set; }
+
+    public string ReplayCardId { get; set; } = "";
+
+    public string CardId { get; set; } = "";
+
+    public int DataType { get; set; }
+
+    public List<MatchReplayStringValue> Data { get; set; } = new();
+
+    public List<MatchReplayStringValue> Vars { get; set; } = new();
 }
 
 internal sealed class MatchReplayStatusState
@@ -180,12 +281,51 @@ internal sealed class MatchReplayStatusState
     public int Defend { get; set; }
 
     public string State { get; set; } = "";
+
+    public List<MatchReplayFloatValue> DynamicVariables { get; set; } = new();
+
+    public List<MatchReplayBuffState> Buffs { get; set; } = new();
+}
+
+internal sealed class MatchReplayStringValue
+{
+    public string Key { get; set; } = "";
+
+    public string Value { get; set; } = "";
+}
+
+internal sealed class MatchReplayFloatValue
+{
+    public string Key { get; set; } = "";
+
+    public float Value { get; set; }
+}
+
+internal sealed class MatchReplayBuffState
+{
+    public string BuffId { get; set; } = "";
+
+    public int Level { get; set; }
+
+    public int UpperBound { get; set; }
+
+    public int ReducePerTurn { get; set; }
+
+    public int ReducePerUse { get; set; }
+
+    public int ReducePerAttacked { get; set; }
+
+    public List<MatchReplayStringValue> Vars { get; set; } = new();
 }
 
 internal static class MatchSemanticCategories
 {
     internal const string Card = "Card";
     internal const string Damage = "Damage";
+    internal const string Heal = "Heal";
+    internal const string Defend = "Defend";
+    internal const string Buff = "Buff";
+    internal const string Resource = "Resource";
     internal const string Status = "Status";
     internal const string Target = "Target";
     internal const string Command = "Command";
