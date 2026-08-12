@@ -42,6 +42,27 @@ public static class CompanionFriendlyRosterService
         Add(result, seen, FightPlayer.Instance?.Status);
         if (includeCompanions)
         {
+            try
+            {
+                foreach (var status in manager?.statuses?.Values
+                             .Where(status => status?.fatherObject is Partner)
+                             .OrderBy(status => status.InstanceId, StringComparer.Ordinal)
+                         ?? Enumerable.Empty<IStatusManager>())
+                {
+                    Add(result, seen, status);
+                }
+            }
+            catch
+            {
+                // Terrias stores below remain the authoritative fallback.
+            }
+
+            foreach (var status in HeartChangeControlService.ActiveStatuses()
+                         .OrderBy(status => status.InstanceId, StringComparer.Ordinal))
+            {
+                Add(result, seen, status);
+            }
+
             foreach (var state in ProjectionStateStore.Active()
                          .OrderBy(entry => entry.OwnerPlayerId, StringComparer.Ordinal)
                          .ThenBy(entry => entry.StatusId, StringComparer.Ordinal))
@@ -77,7 +98,11 @@ public static class CompanionFriendlyRosterService
         ISet<string> seen,
         IStatusManager? status)
     {
-        if (status == null || string.IsNullOrWhiteSpace(status.InstanceId) || !seen.Add(status.InstanceId))
+        if (status == null
+            || string.IsNullOrWhiteSpace(status.InstanceId)
+            || status.CurHp <= 0
+            || status.state == IStatusManager.State.Dead
+            || !seen.Add(status.InstanceId))
         {
             return;
         }

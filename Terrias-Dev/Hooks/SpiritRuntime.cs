@@ -14,6 +14,7 @@ namespace Terrias.Dll.Hooks;
 
 public static class SpiritRuntime
 {
+    private static readonly Dictionary<int, bool> SpiritUseGate = new();
     private static readonly Dictionary<int, bool> AttackUseGate = new();
     private static IDisposable? autoBattlePreflightRegistration;
 
@@ -36,6 +37,12 @@ public static class SpiritRuntime
             "SpiritCards",
             new SpiritAutoBattlePreflightRule(),
             100);
+        TerriasCardLifecycleRouter.Register("SpiritDeploymentGate", new TerriasCardLifecycleSubscription
+        {
+            Priority = 200,
+            BeforeCommonCardUse = GateSpiritCardUse,
+            AfterCommonCardUse = RestoreSpiritCardUseGate
+        });
         RegisterBefore(modConfig, TerriasHookTargets.AttackCardItemTrueUse, GateCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
@@ -67,6 +74,7 @@ public static class SpiritRuntime
     internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
     {
         RunCleanupStep("SummonDedupe", source, SpiritSummonService.ResetBattleSynchronization);
+        RunCleanupStep("WithdrawDedupe", source, SpiritWithdrawService.ResetBattle);
         RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
         RunCleanupStep("CaptureSettlement", source, EnemyCaptureSettlementApi.ResetBattleSynchronization);
         RunCleanupStep("BattleDeployment", source, SpiritBattleDeploymentService.Clear);
@@ -90,7 +98,41 @@ public static class SpiritRuntime
 
     private static void ResetUseGates()
     {
+        foreach (var previous in SpiritUseGate.Values)
+        {
+            CardItem.canUse = CardItem.canUse || previous;
+        }
+        SpiritUseGate.Clear();
         AttackUseGate.Clear();
+    }
+
+    private static void GateSpiritCardUse(ModHookContext context)
+    {
+        if (context.Target is not CardItem card
+            || !SpiritCardFactory.IsSpiritCard(card.dataConfig)
+            || !SpiritStateStore.HasForOwner(
+                CompanionOwnershipService.ResolveOwnerPlayerId(FightPlayer.Instance?.Status?.InstanceId ?? ""),
+                FightPlayer.Instance?.Status?.InstanceId ?? ""))
+        {
+            return;
+        }
+
+        SpiritUseGate[card.GetInstanceID()] = CardItem.canUse;
+        CardItem.canUse = false;
+        PlayerApi.ShowCaption("精灵：请先使用【换下】让当前精灵返回手牌。");
+    }
+
+    private static void RestoreSpiritCardUseGate(ModHookContext context)
+    {
+        if (context.Target is not CardItem card
+            || !SpiritCardFactory.IsSpiritCard(card.dataConfig)
+            || !SpiritUseGate.TryGetValue(card.GetInstanceID(), out var previous))
+        {
+            return;
+        }
+
+        CardItem.canUse = previous;
+        SpiritUseGate.Remove(card.GetInstanceID());
     }
 
     private static void BeginBattle(ModHookContext context)

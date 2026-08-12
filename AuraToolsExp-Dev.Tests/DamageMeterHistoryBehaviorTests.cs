@@ -2,7 +2,6 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
-using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
@@ -40,7 +39,8 @@ internal static partial class AuraToolsTestSuite
         Assert(!history.Archive(first.CreateSnapshot(), "Win", "2026-06-25T00:00:01Z"),
             "fight session archived only once");
     
-        for (var index = 2; index <= DamageMeterProtocol.MaxFightHistory + 3; index++)
+        const int fightCount = 75;
+        for (var index = 2; index <= fightCount; index++)
         {
             var ledger = new DamageLedger();
             ledger.StartFight("session-" + index, true);
@@ -51,10 +51,8 @@ internal static partial class AuraToolsTestSuite
                 "additional fight archived " + index);
         }
     
-        Assert(history.Records.Count == DamageMeterProtocol.MaxFightHistory,
-            "adventure history remains bounded");
-        Assert(history.Records[0].SessionId == "session-4",
-            "oldest history entries are trimmed first");
+        Assert(history.Records.Count == fightCount,
+            "adventure history model has no hard retention cap");
     
         var restored = new DamageHistoryStore();
         restored.ApplySnapshot(history.CreateSnapshot());
@@ -239,40 +237,4 @@ internal static partial class AuraToolsTestSuite
             "large values split without integer overflow");
     }
     
-    public static void TestHotkeyNames()
-    {
-        Assert(DamageMeterHotkeyNames.TryNormalize(" f8 ", out var f8) && f8 == "F8",
-            "function key normalized");
-        Assert(DamageMeterHotkeyNames.TryNormalize("BackQuote", out var backquote) && backquote == "Backquote",
-            "legacy BackQuote alias normalized");
-        Assert(DamageMeterHotkeyNames.TryNormalize("Alpha7", out var digit) && digit == "Digit7",
-            "legacy alpha digit normalized");
-        Assert(DamageMeterHotkeyNames.TryNormalize("Keypad3", out var numpad) && numpad == "Numpad3",
-            "legacy keypad digit normalized");
-        Assert(DamageMeterHotkeyNames.TryNormalize("LeftControl", out var control) && control == "LeftCtrl",
-            "legacy control alias normalized");
-        Assert(!DamageMeterHotkeyNames.TryNormalize("DefinitelyNotAKey", out var fallback) && fallback == "F8",
-            "invalid key reports deterministic fallback");
-    }
-    
-    public static void TestInputFaultGate()
-    {
-        var gate = new DamageMeterInputFaultGate();
-        var pollCount = 0;
-        var errorCount = 0;
-        Assert(!gate.TryPoll(() =>
-        {
-            pollCount++;
-            throw new InvalidOperationException("input backend unavailable");
-        }, _ => errorCount++), "input fault is contained");
-        Assert(gate.IsFaulted && pollCount == 1 && errorCount == 1, "first input fault trips gate once");
-        Assert(!gate.TryPoll(() =>
-        {
-            pollCount++;
-            return true;
-        }, _ => errorCount++), "faulted input is not polled every frame");
-        Assert(pollCount == 1 && errorCount == 1, "faulted input cannot flood logs");
-        gate.Reset();
-        Assert(gate.TryPoll(() => true, _ => errorCount++), "configuration change resets input gate");
-    }
 }

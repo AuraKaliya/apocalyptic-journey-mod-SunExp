@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
-    public const int ProjectionProtocolVersion = 11;
+    public const int ProjectionProtocolVersion = 12;
 
     private static int battleEpoch;
 
@@ -97,8 +97,9 @@ public static class CompanionOwnershipService
             Identities[identity.StatusId] = identity;
         }
 
-        // Projection attachments deliberately stay outside RoleStatusMap so
-        // native friendly targeting and formal player slots never see them.
+        // Synthetic actors stay outside RoleStatusMap because it represents
+        // real network players. Formal projection seats live in
+        // FriendlyRoleSeatLedger instead.
     }
 
     public static CompanionEntityIdentity? Find(string statusId)

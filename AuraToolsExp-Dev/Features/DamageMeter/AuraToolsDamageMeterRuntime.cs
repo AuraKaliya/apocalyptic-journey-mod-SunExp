@@ -30,8 +30,6 @@ public static class AuraToolsDamageMeterRuntime
 
     internal static DamageHistoryStore History => DamageMeterNetworkRuntime.History;
 
-    internal static OutOfRunDamageHistoryStore OutOfRunHistory => DamageMeterNetworkRuntime.OutOfRunHistory;
-
     internal static string NetworkStatus
     {
         get
@@ -62,11 +60,6 @@ public static class AuraToolsDamageMeterRuntime
         initialized = true;
         AuraToolsConfigService.Changed += OnConfigChanged;
         DamageMeterHookAdapter.Initialize(modConfig);
-        if (AuraToolsConfigService.MatchExperience.DamageMeter.LoadHistoryOnStartup)
-        {
-            DamageMeterSettlementRuntime.EnsureOutOfRunHistoryLoaded("startup");
-        }
-
         AuraToolsLog.Info("[DamageMeter] DPT runtime initialized. Network protocol v"
                           + DamageMeterProtocol.Version + ".");
     }

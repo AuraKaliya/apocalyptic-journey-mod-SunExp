@@ -245,10 +245,15 @@ internal sealed class ProjectionCardBattleState
                                  StringComparison.Ordinal))
             .Select(status => ObserveUnit(status, CombatTargetKind.Friendly))
             .ToList();
+        var friendlyStatuses = state.Friendlies
+            .Select(unit => StatusByRuntimeId(unit.RuntimeId))
+            .Where(status => status != null)
+            .Cast<IStatusManager>()
+            .ToArray();
 
         foreach (var card in cards.Where(card => card.Zone == CombatActorCardZone.Hand))
         {
-            AddCardActions(state, projection.Status, card, enemies);
+            AddCardActions(state, projection.Status, card, enemies, friendlyStatuses);
         }
         state.Actions.Add(new CombatActionObservation
         {
@@ -286,11 +291,24 @@ internal sealed class ProjectionCardBattleState
                 reason,
                 CombatAgentFailureScope.Turn);
         }
+        IStatusManager? target = null;
         if (action.TargetRuntimeId != 0
-            && !TryStatus(action.TargetRuntimeId, out var target))
+            && !TryStatus(action.TargetRuntimeId, out target))
         {
             return CombatAgentPreflightResult.Reject(
                 "projection card target is no longer available",
+                CombatAgentFailureScope.Candidate);
+        }
+        var mode = ProjectionCardTargetPolicy.Resolve(card.Config);
+        var enemies = AliveStatuses(status => status.fatherObject is Enemy
+                                             && !HeartChangeControlService.IsControlled(status)).ToArray();
+        var friendlies = CompanionFriendlyRosterService.Snapshot(true)
+            .Where(status => !string.Equals(status.InstanceId, projection.InstanceId, StringComparison.Ordinal))
+            .ToArray();
+        if (!ProjectionCardTargetPolicy.IsLegalTarget(mode, projection.Status, target, enemies, friendlies))
+        {
+            return CombatAgentPreflightResult.Reject(
+                "projection card target no longer satisfies content policy",
                 CombatAgentFailureScope.Candidate);
         }
         return CombatAgentPreflightResult.Allow();
@@ -322,6 +340,12 @@ internal sealed class ProjectionCardBattleState
         {
             CurrentPower -= cost;
             committed = true;
+            ProjectionCardPresentationService.PublishCommitted(
+                projection,
+                card.Config,
+                target,
+                revision + 1,
+                "ProjectionCardBattleState.Execute");
             if (!TryExecuteSpecialCard(projection, card, target))
             {
                 card.Execute(projection, target);
@@ -329,7 +353,6 @@ internal sealed class ProjectionCardBattleState
             card.MoveAfterUse();
             ReindexZones();
             revision++;
-            ProjectionStateStore.NotifyActionPresented(projection.InstanceId);
             ProjectionSummonService.BroadcastRuntimeState(
                 projection,
                 "ActorActionCommitted." + card.CardId);
@@ -466,39 +489,46 @@ internal sealed class ProjectionCardBattleState
         CombatStateObservation state,
         IStatusManager actor,
         ProjectionCardInstance card,
-        IReadOnlyList<IStatusManager> enemies)
+        IReadOnlyList<IStatusManager> enemies,
+        IReadOnlyList<IStatusManager> friendlies)
     {
         var cost = card.Cost(actor);
-        var semantics = WitchCombatValueEstimator.Estimate(
-            card.Config,
-            forceAttack: false,
-            CombatTargetKind.Enemy);
-        var needsEnemy = semantics.Damage > 0d
-                         || semantics.TrueDamage > 0d
-                         || semantics.DamageOverTime > 0d
-                         || semantics.Debuff > 0d;
-        if (needsEnemy)
+        var mode = ProjectionCardTargetPolicy.Resolve(card.Config);
+        if (mode is ProjectionCardTargetMode.SingleEnemy or ProjectionCardTargetMode.AnySingleUnit)
         {
             foreach (var enemy in enemies)
             {
-                AddAction(state, card, enemy, cost, semantics);
+                AddAction(state, card, enemy, CombatTargetKind.Enemy, cost);
             }
-            return;
         }
-
-        AddAction(state, card, null, cost, WitchCombatValueEstimator.Estimate(
-            card.Config,
-            forceAttack: false,
-            CombatTargetKind.Self));
+        if (mode is ProjectionCardTargetMode.SingleFriendly or ProjectionCardTargetMode.AnySingleUnit)
+        {
+            foreach (var friendly in friendlies)
+            {
+                AddAction(state, card, friendly, CombatTargetKind.Friendly, cost);
+            }
+        }
+        if (mode is ProjectionCardTargetMode.Self or ProjectionCardTargetMode.AnySingleUnit)
+        {
+            AddAction(state, card, null, CombatTargetKind.Self, cost);
+        }
+        else if (mode == ProjectionCardTargetMode.NoTarget)
+        {
+            AddAction(state, card, null, CombatTargetKind.None, cost);
+        }
     }
 
     private static void AddAction(
         CombatStateObservation state,
         ProjectionCardInstance card,
         IStatusManager? target,
-        int cost,
-        CombatActionSemantics semantics)
+        CombatTargetKind targetKind,
+        int cost)
     {
+        var semantics = WitchCombatValueEstimator.Estimate(
+            card.Config,
+            forceAttack: false,
+            targetKind);
         var targetRuntimeId = RuntimeId(target);
         var action = new CombatActionObservation
         {
@@ -511,9 +541,7 @@ internal sealed class ProjectionCardBattleState
             Kind = CombatActionKind.PlayCard,
             RuntimeId = card.RuntimeId,
             TargetRuntimeId = targetRuntimeId,
-            TargetKind = target == null
-                ? CombatTargetKind.Self
-                : CombatTargetKind.Enemy,
+            TargetKind = targetKind,
             Cost = cost,
             Legal = cost <= state.CurrentPower,
             RejectionReason = cost <= state.CurrentPower
@@ -759,6 +787,11 @@ internal sealed class ProjectionCardBattleState
         return status != null;
     }
 
+    private static IStatusManager? StatusByRuntimeId(int runtimeId)
+    {
+        return TryStatus(runtimeId, out var status) ? status : null;
+    }
+
     internal static int RuntimeId(IStatusManager? status)
     {
         var value = status?.InstanceId ?? "";
@@ -923,6 +956,7 @@ internal sealed class ProjectionCardInstance
 
     public CombatCardInstanceSnapshot Export()
     {
+        var runtimeVariables = CopyRuntimeVariables(Config.Vars);
         return new CombatCardInstanceSnapshot
         {
             InstanceId = SnapshotInstanceId,
@@ -935,7 +969,7 @@ internal sealed class ProjectionCardInstance
             Retained = Retained,
             ExhaustsOnUse = ExhaustsOnUse(),
             RuntimeData = CopyOverrides(Config),
-            RuntimeVariables = Copy(Config.Vars),
+            RuntimeVariables = runtimeVariables,
             Tags = Tags.OrderBy(value => value, StringComparer.Ordinal).ToList(),
             Attachments = attachments
                 .Select(config => DictionaryUtil.Get(config.data, "Id"))
@@ -947,7 +981,7 @@ internal sealed class ProjectionCardInstance
                         AttachmentId = DictionaryUtil.Get(config.data, "Id"),
                         DefinitionType = config.Type.ToString(),
                         RuntimeData = CopyOverrides(config),
-                        Variables = Copy(config.Vars)
+                        Variables = CopyRuntimeVariables(config.Vars)
                     })
                 .ToList()
         };
@@ -1040,14 +1074,14 @@ internal sealed class ProjectionCardInstance
             attachment.scriptExecutor.RunScript("PreUseScript");
         }
 
-        var useCount = self.dynamicVariables.TryGetValue("UseCount", out var currentUseCount)
+        var useCountValue = self.dynamicVariables.TryGetValue("UseCount", out var currentUseCount)
             ? currentUseCount
             : 1f;
-        CardItem.UseCount = Math.Max(
+        var useCount = Math.Max(
             1,
-            (int)useCount + ReadInt(Config.Vars, "ExUseCount"));
+            (int)useCountValue + ReadInt(Config.Vars, "ExUseCount"));
         self.dynamicVariables["UseCount"] = 1f;
-        for (var index = 0; index < CardItem.UseCount; index++)
+        for (var index = 0; index < useCount; index++)
         {
             foreach (var attachment in attachments)
             {
@@ -1164,6 +1198,14 @@ internal sealed class ProjectionCardInstance
                 entry => entry.Key,
                 entry => entry.Value ?? "",
                 StringComparer.Ordinal);
+    }
+
+    private static Dictionary<string, string> CopyRuntimeVariables(
+        IDictionary<string, string>? source)
+    {
+        var result = Copy(source);
+        result.Remove("RawData");
+        return result;
     }
 
     private static Dictionary<string, string> CopyOverrides(DataConfig config)

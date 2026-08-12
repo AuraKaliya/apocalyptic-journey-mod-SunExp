@@ -45,7 +45,9 @@ public sealed class SpiritCompanionSnapshot
     public int ReturnedExchangeCount { get; set; }
     public int ReturnedTurnIndex { get; set; }
     public Dictionary<string, int> ReturnedReadyOnTurn { get; set; } = new();
+    public SpiritCardBattleState ReturnedBattleState { get; set; } = new();
     public string CardGrantEventId { get; set; } = "";
+    public bool ReturnedCardOnly { get; set; }
     public string RejectionReason { get; set; } = "";
 }
 
@@ -74,6 +76,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
     public int ExchangeCount { get; set; }
     public int TurnIndex { get; set; }
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
+    public SpiritCardBattleState BattleState { get; set; } = new();
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
     public string RegistryHash { get; set; } = "";
@@ -98,6 +101,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
         ReadyOnTurn = battleState?.ReadyOnTurn == null
             ? new Dictionary<string, int>()
             : new Dictionary<string, int>(battleState.ReadyOnTurn);
+        BattleState = battleState ?? new SpiritCardBattleState();
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
         RegistryHash = SpiritIntentRegistry.RegistryHash;
         TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
@@ -115,7 +119,11 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
             OwnerStatusId,
             Token,
             ExchangeCount,
-            new SpiritCardBattleState { TurnIndex = TurnIndex, ReadyOnTurn = ReadyOnTurn },
+            BattleState ?? new SpiritCardBattleState
+            {
+                TurnIndex = TurnIndex,
+                ReadyOnTurn = ReadyOnTurn
+            },
             serverSender,
             ProtocolVersion,
             BattleEpoch,
@@ -124,6 +132,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
         CapturedEnemy = new CapturedEnemySnapshot();
         OwnerStatusId = "";
         ReadyOnTurn = new Dictionary<string, int>();
+        BattleState = new SpiritCardBattleState();
         RegistryHash = "";
         TrainingRegistryHash = "";
     }
@@ -170,5 +179,46 @@ public sealed class RpcSpiritCompanionRemoved : RpcCommandBase
     public override void RpcExecute()
     {
         SpiritSummonService.ApplyNetworkRemoval(Removal, "RpcSpiritCompanionRemoved");
+    }
+}
+
+[Serializable]
+public sealed class RpcSpiritWithdrawRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+{
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
+
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int BattleEpoch { get; set; }
+    public string OwnerStatusId { get; set; } = "";
+    public string Token { get; set; } = "";
+
+    public RpcSpiritWithdrawRequest()
+    {
+    }
+
+    public RpcSpiritWithdrawRequest(string ownerStatusId, string token)
+    {
+        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+        OwnerStatusId = ownerStatusId ?? "";
+        Token = token ?? "";
+    }
+
+    public void BindServerSender(TerriasRpcSender sender)
+    {
+        serverSender = sender ?? TerriasRpcSender.Unbound;
+    }
+
+    public override void CmdExecute()
+    {
+        SpiritWithdrawService.ResolveNetworkWithdraw(
+            OwnerStatusId,
+            Token,
+            serverSender,
+            ProtocolVersion,
+            BattleEpoch);
+    }
+
+    public override void RpcExecute()
+    {
     }
 }

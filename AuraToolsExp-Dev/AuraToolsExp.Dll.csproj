@@ -52,10 +52,6 @@
       <HintPath>$(DllPath)\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <Reference Include="Unity.InputSystem">
-      <HintPath>$(DllPath)\Unity.InputSystem.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>$(DllPath)\Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>

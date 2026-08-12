@@ -117,6 +117,8 @@ public sealed class CombatSimulationStateArena
             new(StringComparer.OrdinalIgnoreCase);
         private CombatSimulationUnit[] enemies =
             Array.Empty<CombatSimulationUnit>();
+        private CombatSimulationUnit[] friendlies =
+            Array.Empty<CombatSimulationUnit>();
         private CombatSimulationThreat[] threats =
             Array.Empty<CombatSimulationThreat>();
         private ulong[] usedWords = Array.Empty<ulong>();
@@ -138,6 +140,7 @@ public sealed class CombatSimulationStateArena
             + deferred.Capacity * 64L
             + features.Count * 64L
             + enemies.LongLength * 128L
+            + friendlies.LongLength * 128L
             + threats.LongLength * 64L
             + usedWords.LongLength * sizeof(ulong)
             + usedCounts.LongLength * sizeof(int)
@@ -228,6 +231,8 @@ public sealed class CombatSimulationStateArena
 
             CopyEnemies(source.Enemies);
             state.Enemies = enemies;
+            CopyFriendlies(source.Friendlies);
+            state.Friendlies = friendlies;
             if (cloneThreats)
             {
                 CopyThreats(source.Threats);
@@ -308,6 +313,32 @@ public sealed class CombatSimulationStateArena
             {
                 var input = source[i];
                 var output = enemies[i];
+                output.RuntimeId = input.RuntimeId;
+                output.Hp = input.Hp;
+                output.MaxHp = input.MaxHp;
+                output.Defend = input.Defend;
+                output.Features.Clear();
+                foreach (var pair in input.Features)
+                {
+                    output.Features[pair.Key] = pair.Value;
+                }
+            }
+        }
+
+        private void CopyFriendlies(IReadOnlyList<CombatSimulationUnit> source)
+        {
+            if (friendlies.Length != source.Count)
+            {
+                friendlies = new CombatSimulationUnit[source.Count];
+                for (var i = 0; i < friendlies.Length; i++)
+                {
+                    friendlies[i] = new CombatSimulationUnit();
+                }
+            }
+            for (var i = 0; i < source.Count; i++)
+            {
+                var input = source[i];
+                var output = friendlies[i];
                 output.RuntimeId = input.RuntimeId;
                 output.Hp = input.Hp;
                 output.MaxHp = input.MaxHp;

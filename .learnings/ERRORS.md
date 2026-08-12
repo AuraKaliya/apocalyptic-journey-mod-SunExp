@@ -1,5 +1,35 @@
 # Errors
 
+## [ERR-20260812-004] combat-ai-gate-blocked-by-existing-foundation-package
+
+**Logged**: 2026-08-12T00:00:00+08:00
+**Priority**: low
+**Status**: blocked
+**Area**: validation artifact
+
+### Summary
+The `combat-ai` release profile passed the shared build, all 674 behavior assertions, and the knowledge contract, then failed while validating an existing bundled AuraToolsExp foundation package for Amelia/Partner_10001 as protocol-incompatible.
+
+### Notes
+This artifact was not modified by the Terrias projection/Spirit implementation. Keep the focused behavior and compatibility passes as the validation signal for this change; repair or regenerate the unrelated model package separately.
+
+---
+
+## [ERR-20260812-003] spirit-runtime-test-still-asserted-once-per-battle
+
+**Logged**: 2026-08-12T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The Spirit runtime gate still expected a successful summon to permanently consume the owner's deployment for the rest of the battle. The approved design now permits another summon after an explicit withdrawal.
+
+### Resolution
+Replace the stale `MarkSummoned` assertion with coverage that the deployment snapshot remains valid after withdrawal; active one-per-owner enforcement belongs to `SpiritStateStore`.
+
+---
+
 ## [ERR-20260806-017] analysis-epoch-values-cross-method-scope
 
 **Logged**: 2026-08-06T18:00:00+08:00
@@ -5661,3 +5691,144 @@ Wrap SQLite connections with `contextlib.closing(...)` or close them explicitly 
 ### Metadata
 - Reproducible: yes
 - Related Files: tools/transformer-teacher/train_teacher.py
+## [ERR-20260812-001] terrias_projection_build
+
+**Logged**: 2026-08-12T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Removing `System.Collections` from `ProjectionOtherObj` made coroutine return types bind to generic `IEnumerator<T>`.
+
+### Error
+```
+CS0305: using the generic type IEnumerator<T> requires 1 type argument
+```
+
+### Context
+- First build after moving projection capture out of `ProjectionOtherObj`.
+- The class still has `DoAction` and remote wait coroutines returning non-generic `IEnumerator`.
+
+### Suggested Fix
+Keep `using System.Collections;` whenever a Unity coroutine file uses non-generic `IEnumerator`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev/Mechanics/ProjectionOtherObj.cs
+
+### Resolution
+- **Resolved**: 2026-08-12T00:00:00+08:00
+- **Notes**: Restored the required namespace import.
+
+---
+# ERR-20260812-002: Windows PowerShell cannot run RPC authority scanner
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: validation tooling
+
+## What failed
+
+`powershell -File tools/Test-NetworkRpcAuthority.ps1` failed because Windows PowerShell's .NET runtime does not expose `System.IO.Path.GetRelativePath`.
+
+## Resolution
+
+Run this repository scanner with PowerShell 7 (`pwsh`) instead of Windows PowerShell.
+
+---
+# ERR-20260812-003: AuraToolsExp test project path typo
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+An inspection command used the nonexistent path `AuraToolsExp-Dev.Tests/AuraToolsExp.Dll.Tests.csproj`.
+
+## Resolution
+
+Use the repository's actual test project path: `AuraToolsExp-Dev.Tests/AuraToolsExp-Dev.Tests.csproj`.
+
+---
+# ERR-20260812-004: PowerShell wildcard passed literally to rg
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+`rg` received `AuraToolsExp-Dev/Features/DamageMeter/*.cs`; PowerShell did not expand the recursive path pattern and ripgrep rejected it as an invalid Windows path.
+
+## Resolution
+
+Pass the directory to `rg` and use `-g '*.cs'` when a file glob is needed.
+
+---
+# ERR-20260812-005: AuraTools validation retained DPS v28 defaults
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`tools/Test-AuraToolsExp.ps1` still asserted match-experience schema 28 and the retired `showPanelByDefault` and `loadHistoryOnStartup` fields.
+
+## Resolution
+
+Update the shipped-config contract to schema 29 and assert the new `displayMode`, `displayScope`, and `teamFilter` defaults.
+
+---
+# ERR-20260812-006: Shared DLL package hash mismatch
+
+**Logged**: 2026-08-12
+**Severity**: medium
+**Status**: resolved
+**Area**: packaging
+
+## What failed
+
+`tools/Test-SharedDllPackaging.ps1` found that `SanGuoShaExp/Scripts/Aura.Shared.dll` was older than the current shared runtime copied into Terrias and AuraToolsExp.
+
+## Resolution
+
+Synchronize the generated `Aura.Shared.dll` package copy across all three shared-runtime consumers before rerunning the packaging gate.
+
+---
+# ERR-20260812-007: Quoted ripgrep alternation was malformed
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+A PowerShell-embedded `rg` alternation ended with an escaped JSON quote and produced an unclosed regular-expression group.
+
+## Resolution
+
+Use multiple `-e` arguments for literal cleanup checks instead of one heavily escaped alternation.
+
+---
+# ERR-20260812-008: Validation commands were chained in one shell call
+
+**Logged**: 2026-08-12
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+Two independent validation scripts were joined with PowerShell semicolons even though repository interaction guidance requires separate tool calls for clearer output.
+
+## Resolution
+
+Run validation scripts as separate shell tool calls; use the supported parallel orchestration only when the checks are independent and read-only.

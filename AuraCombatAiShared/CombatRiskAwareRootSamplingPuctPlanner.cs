@@ -1454,6 +1454,36 @@ CompleteSimulation:
             target.CurrentHp = source.Hp;
             target.MaxHp = source.MaxHp;
             target.Defend = source.Defend;
+            target.Features.Clear();
+            foreach (var pair in source.Features)
+            {
+                target.Features[pair.Key] = pair.Value;
+            }
+        }
+        while (scoreObservation.Friendlies.Count < simulation.Friendlies.Length)
+        {
+            scoreObservation.Friendlies.Add(new CombatUnitObservation());
+        }
+        if (scoreObservation.Friendlies.Count > simulation.Friendlies.Length)
+        {
+            scoreObservation.Friendlies.RemoveRange(
+                simulation.Friendlies.Length,
+                scoreObservation.Friendlies.Count - simulation.Friendlies.Length);
+        }
+        for (var i = 0; i < simulation.Friendlies.Length; i++)
+        {
+            var source = simulation.Friendlies[i];
+            var target = scoreObservation.Friendlies[i];
+            target.RuntimeId = source.RuntimeId;
+            target.Kind = CombatTargetKind.Friendly;
+            target.CurrentHp = source.Hp;
+            target.MaxHp = source.MaxHp;
+            target.Defend = source.Defend;
+            target.Features.Clear();
+            foreach (var pair in source.Features)
+            {
+                target.Features[pair.Key] = pair.Value;
+            }
         }
         CombatSearchFeatureProjector.ProjectLeafInto(
             scoreStateFeatures,

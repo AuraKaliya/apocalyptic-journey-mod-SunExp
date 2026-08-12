@@ -5,13 +5,11 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
 public static class DamageMeterProtocol
 {
-    public const int Version = 3;
+    public const int Version = 4;
     public const int MaxDamagePerEvent = 100000000;
     public const int MaxStringLength = 160;
     public const int MaxDetailsPerCombatant = 64;
     public const int MaxRoundsKept = 100;
-    public const int MaxFightHistory = 40;
-    public const int MaxOutOfRunHistory = 100;
     public const int MaxTeamMembers = 4;
     public const int MaxHistoryNameLength = 12;
 }
@@ -283,8 +281,6 @@ public sealed class DamageMeterSnapshot
     public List<CombatantDamageStat> Combatants { get; set; } = new();
 
     public DamageRunAggregateSnapshot? RunAggregate { get; set; }
-
-    public List<DamageFightRecord> History { get; set; } = new();
 }
 
 [Serializable]

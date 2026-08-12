@@ -6,9 +6,12 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
 public sealed class DamageHistoryStore
 {
+    private const int RecentCacheCapacity = 30;
     private readonly List<DamageFightRecord> records = new();
 
     public IReadOnlyList<DamageFightRecord> Records => records;
+
+    public int TotalCount { get; private set; }
 
     public bool Archive(DamageMeterSnapshot snapshot, string result, string endedUtc)
     {
@@ -31,13 +34,28 @@ public sealed class DamageHistoryStore
             EndedUtc = endedUtc ?? "",
             Snapshot = CloneSnapshot(snapshot)
         });
-        Trim();
+        TotalCount = records.Count;
         return true;
+    }
+
+    public void ArchiveRecent(DamageFightRecord record, int totalCount)
+    {
+        if (record == null || string.IsNullOrWhiteSpace(record.SessionId))
+        {
+            return;
+        }
+
+        records.RemoveAll(item => string.Equals(item.SessionId, record.SessionId, StringComparison.Ordinal));
+        records.Add(CloneRecord(record));
+        records.Sort((left, right) => left.Sequence.CompareTo(right.Sequence));
+        TrimRecent();
+        TotalCount = Math.Max(records.Count, totalCount);
     }
 
     public void Clear()
     {
         records.Clear();
+        TotalCount = 0;
     }
 
     public List<DamageFightRecord> CreateSnapshot()
@@ -61,14 +79,21 @@ public sealed class DamageHistoryStore
             }
         }
 
-        Trim();
+        TotalCount = records.Count;
     }
 
-    private void Trim()
+    public void ApplyRecent(IEnumerable<DamageFightRecord>? incoming, int totalCount)
     {
-        if (records.Count > DamageMeterProtocol.MaxFightHistory)
+        ApplySnapshot(incoming);
+        TrimRecent();
+        TotalCount = Math.Max(records.Count, totalCount);
+    }
+
+    private void TrimRecent()
+    {
+        if (records.Count > RecentCacheCapacity)
         {
-            records.RemoveRange(0, records.Count - DamageMeterProtocol.MaxFightHistory);
+            records.RemoveRange(0, records.Count - RecentCacheCapacity);
         }
     }
 

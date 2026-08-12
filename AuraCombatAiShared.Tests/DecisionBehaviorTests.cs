@@ -11,6 +11,7 @@ internal static class CombatAiDecisionBehaviorTests
 {
     public static void Run()
     {
+        TestFriendlyTargetUtility();
         var gameSubjectCatalog = new CombatGameSubjectCatalog
         {
             Roles =
@@ -2787,5 +2788,108 @@ internal static class CombatAiDecisionBehaviorTests
                 "content effect resolvers provide normalized chance outcomes");
         }
 
+    }
+
+    private static void TestFriendlyTargetUtility()
+    {
+        var state = new CombatStateObservation
+        {
+            Player = new CombatUnitObservation
+            {
+                RuntimeId = 1,
+                Kind = CombatTargetKind.Self,
+                CurrentHp = 40,
+                MaxHp = 40
+            },
+            Friendlies =
+            {
+                new CombatUnitObservation
+                {
+                    RuntimeId = 2,
+                    Kind = CombatTargetKind.Friendly,
+                    CurrentHp = 5,
+                    MaxHp = 30,
+                    Features = { ["expectedIncomingDamage"] = 10d }
+                },
+                new CombatUnitObservation
+                {
+                    RuntimeId = 3,
+                    Kind = CombatTargetKind.Friendly,
+                    CurrentHp = 29,
+                    MaxHp = 30,
+                    Defend = 9,
+                    Features = { ["expectedIncomingDamage"] = 10d }
+                }
+            }
+        };
+        var profile = new CombatDecisionProfile();
+        var healLowAction = new CombatActionObservation
+        {
+            CandidateId = "heal-low",
+            SourceId = "ally-heal",
+            RuntimeId = 100,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 2,
+            TargetKind = CombatTargetKind.Friendly,
+            Semantics = new CombatActionSemantics { Heal = 10d }
+        };
+        var healHighAction = new CombatActionObservation
+        {
+            CandidateId = "heal-high",
+            SourceId = "ally-heal",
+            RuntimeId = 100,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 3,
+            TargetKind = CombatTargetKind.Friendly,
+            Semantics = new CombatActionSemantics { Heal = 10d }
+        };
+        var healLow = CombatDecisionEngine.BuildUtility(state, healLowAction, profile);
+        var healHigh = CombatDecisionEngine.BuildUtility(state, healHighAction, profile);
+        Assert(healLow.Survival > healHigh.Survival,
+            "friendly healing utility is scored from the selected ally rather than the actor");
+
+        var defendLow = CombatDecisionEngine.BuildUtility(state, new CombatActionObservation
+        {
+            TargetRuntimeId = 2,
+            TargetKind = CombatTargetKind.Friendly,
+            Semantics = new CombatActionSemantics { Defend = 6d }
+        }, profile);
+        var defendHigh = CombatDecisionEngine.BuildUtility(state, new CombatActionObservation
+        {
+            TargetRuntimeId = 3,
+            TargetKind = CombatTargetKind.Friendly,
+            Semantics = new CombatActionSemantics { Defend = 6d }
+        }, profile);
+        Assert(defendLow.Survival > defendHigh.Survival,
+            "friendly defend utility accounts for the selected ally's existing block and incoming threat");
+
+        var root = CombatForwardModel.Create(state, 1);
+        var healOutcome = CombatForwardModel.Resolve(
+                state,
+                healLowAction,
+                useRegisteredResolvers: false)
+            .Outcomes.Single();
+        var healed = CombatForwardModel.Apply(root, healLowAction, 0, healOutcome, profile);
+        Assert(healed.TargetAlive(2)
+               && healed.Friendlies.Single(unit => unit.RuntimeId == 2).Hp == 15,
+            "forward search preserves friendly targets and applies support effects to the selected ally");
+
+        state.Actions.Add(healLowAction);
+        state.Actions.Add(healHighAction);
+        state.Actions.Add(new CombatActionObservation
+        {
+            CandidateId = "heal-end",
+            Kind = CombatActionKind.EndTurn
+        });
+        var decision = new CombatDecisionEngine().Choose(state, new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 64,
+            SearchMinimumSimulations = 32,
+            SearchNodeBudget = 256,
+            SearchMaxPly = 2
+        });
+        Assert(decision.HasAction && decision.Action?.CandidateId == "heal-low",
+            "shared search can choose among Terrias-provided legal friendly target candidates");
     }
 }

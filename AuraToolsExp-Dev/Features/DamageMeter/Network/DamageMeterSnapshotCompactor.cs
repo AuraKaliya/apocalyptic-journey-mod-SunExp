@@ -51,7 +51,6 @@ internal static class DamageMeterSnapshotCompactor
 
     internal static void MinimizeNetworkSnapshot(DamageMeterSnapshot snapshot)
     {
-        snapshot.History = new List<DamageFightRecord>();
         TrimCombatants(snapshot, NetworkMinimalCombatantsLimit);
         TrimDetailsAndRounds(snapshot, maxDetails: 0, maxRounds: 0);
     }
@@ -68,8 +67,7 @@ internal static class DamageMeterSnapshotCompactor
             CompletedRoundCount = source?.CompletedRoundCount ?? DamageMeterNetworkRuntime.Ledger.CompletedRoundCount,
             ServerSequence = source?.ServerSequence ?? DamageMeterNetworkRuntime.Ledger.ServerSequence,
             RunAggregate = CreateStatusOnlyAggregate(source?.RunAggregate),
-            Combatants = new List<CombatantDamageStat>(),
-            History = new List<DamageFightRecord>()
+            Combatants = new List<CombatantDamageStat>()
         };
     }
 

@@ -33,6 +33,7 @@ public static class CardScripts
         [TerriasIds.ProjectionRoleTemplateShortId] = InitCommonCard,
         [TerriasIds.SpiritBallCardShortId] = InitSpiritBall,
         [TerriasIds.SpiritCardTemplateShortId] = InitSpiritCard,
+        [TerriasIds.SpiritWithdrawCardShortId] = InitSpiritWithdraw,
         [TerriasIds.HeartChangeCardShortId] = InitHeartChange,
         [TerriasIds.FateStarCardShortId] = InitFateStar,
         ["lucky_jackpot_b"] = InitCommonCard
@@ -76,6 +77,7 @@ public static class CardScripts
         [TerriasIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard,
         [TerriasIds.SpiritBallCardShortId] = UseSpiritBall,
         [TerriasIds.SpiritCardTemplateShortId] = UseSpiritCard,
+        [TerriasIds.SpiritWithdrawCardShortId] = UseSpiritWithdraw,
         [TerriasIds.HeartChangeCardShortId] = UseHeartChange,
         [TerriasIds.FateStarCardShortId] = UseFateStar,
         ["lucky_jackpot_b"] = UseLuckyJackpotB
@@ -256,6 +258,12 @@ public static class CardScripts
     }
 
     private static void InitSpiritCard(ScriptExecutor self)
+    {
+        ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        CardApi.MarkForAdventureRemoval(self?.dataConfig);
+    }
+
+    private static void InitSpiritWithdraw(ScriptExecutor self)
     {
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
         CardApi.MarkForAdventureRemoval(self?.dataConfig);
@@ -594,6 +602,11 @@ public static class CardScripts
     private static void UseSpiritCard(ScriptExecutor self)
     {
         SpiritSummonService.TrySummon(self);
+    }
+
+    private static void UseSpiritWithdraw(ScriptExecutor self)
+    {
+        SpiritWithdrawService.TryWithdraw(self);
     }
 
     private static void InitHeartChange(ScriptExecutor self)

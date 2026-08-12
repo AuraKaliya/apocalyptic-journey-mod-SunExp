@@ -32,6 +32,30 @@ Assert(stats.TrySpendMagic(2) && stats.CurrentMagic == 1,
     "companion magic spends an affordable cost");
 stats.RecoverMagic(9);
 Assert(stats.CurrentMagic == 3, "companion magic recovery respects the maximum");
+var returnedBattleState = new SpiritCardBattleState
+{
+    TurnIndex = 4,
+    ReadyOnTurn = new Dictionary<string, int> { ["intent-a"] = 7 },
+    MaxHp = 35,
+    CurrentHp = 19,
+    CurrentDefend = 6,
+    CurrentMagic = 2,
+    PassiveState = new Dictionary<string, int> { ["passive-a"] = 3 }
+};
+var spiritSummonRequest = new Terrias.Dll.Network.RpcSpiritSummonRequest(
+    Captured("request-enemy", "request-spirit"),
+    "owner-request",
+    "request-token",
+    2,
+    returnedBattleState);
+Assert(spiritSummonRequest.BattleState.TurnIndex == 4
+       && spiritSummonRequest.BattleState.ReadyOnTurn["intent-a"] == 7
+       && spiritSummonRequest.BattleState.MaxHp == 35
+       && spiritSummonRequest.BattleState.CurrentHp == 19
+       && spiritSummonRequest.BattleState.CurrentDefend == 6
+       && spiritSummonRequest.BattleState.CurrentMagic == 2
+       && spiritSummonRequest.BattleState.PassiveState["passive-a"] == 3,
+    "remote Spirit summon requests preserve the complete withdrawn battle state");
 
 var state = new CompanionBattleState("spirit-1", "role-1", "owner-1", 2, stats, "player-1");
 Assert(state.IsReady("intent-a"), "new companion intents are ready");
@@ -416,8 +440,8 @@ forgedAbility.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedAbility);
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedAbility, "owner", true, out _),
     "remote deployment reconstructs hidden progression and rejects an equipped ability that is not unlocked at this level");
 SpiritBattleDeploymentService.MarkSummoned("owner");
-Assert(!SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
-    "one successful deployment blocks copied cards for the same owner");
+Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
+    "the battle deployment remains valid after withdrawal; the active store enforces one Spirit per owner");
 SpiritBattleDeploymentService.Clear();
 
 var guiyuanStore = new MemorySpiritStore(new SpiritCollectionDocument

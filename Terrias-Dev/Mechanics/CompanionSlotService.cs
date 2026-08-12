@@ -18,21 +18,7 @@ public static class CompanionSlotService
 
     public static int? FindOpenPlayerSlot()
     {
-        var occupied = new HashSet<int>();
-        for (var i = 0; i < ReservedPlayerSeatCount() && i < MaxFriendlySlots; i++)
-        {
-            occupied.Add(i);
-        }
-
-        for (var i = 0; i < MaxFriendlySlots; i++)
-        {
-            if (!occupied.Contains(i))
-            {
-                return i;
-            }
-        }
-
-        return null;
+        return FriendlyRoleSeatLedger.FindOpenSeat();
     }
 
     public static void PositionStatusInPlayerSlot(IStatusManager? status, int slotIndex)
@@ -87,14 +73,14 @@ public static class CompanionSlotService
         }
 
         foreach (var state in ProjectionStateStore.Active()
-                     .OrderBy(entry => entry.OwnerPlayerId, StringComparer.Ordinal)
+                     .OrderBy(entry => entry.SlotIndex)
                      .ThenBy(entry => entry.StatusId, StringComparer.Ordinal))
         {
             Add(
                 result,
                 statusIds,
                 state.Projection?.Status,
-                playerSlot++,
+                state.SlotIndex,
                 isNativePlayer: false);
         }
 
@@ -139,31 +125,6 @@ public static class CompanionSlotService
         var bottom = status.transform.Find("bottom");
         var bottomOffset = bottom == null ? 0f : bottom.localPosition.y;
         status.SetPosition(new Vector3(SlotX(visualIndex, friendlyCount), groundY - bottomOffset, 0f));
-    }
-
-    private static int ReservedPlayerSeatCount()
-    {
-        try
-        {
-            var count = FightManager.Instance?.roleQueue?.Count ?? 0;
-            if (count > 0)
-            {
-                return Math.Min(MaxFriendlySlots, count);
-            }
-        }
-        catch
-        {
-            // Fall back to the configured lobby seat count.
-        }
-
-        try
-        {
-            return Math.Max(1, Math.Min(MaxFriendlySlots, GameEntryUI.playerCount));
-        }
-        catch
-        {
-            return 1;
-        }
     }
 
     private static float CurrentGroundY(float fallback)

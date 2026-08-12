@@ -15,9 +15,11 @@ public static class SpiritSummonService
     private const int MaxExchangeCount = 999;
     private const int MaxIntentStateEntries = 128;
     private const int MaxIntentTurnIndex = 10000;
+    private const int MaxTransferredCombatValue = 1000000;
     private static readonly object NetworkSync = new();
     private static readonly HashSet<string> ResolvedTokens = new(StringComparer.Ordinal);
     private static readonly HashSet<string> GrantedCardEvents = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> GrantedWithdrawCards = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PendingCardGrant> PendingCardGrants = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> OwnerGenerations = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> RemovalGenerations = new(StringComparer.Ordinal);
@@ -28,6 +30,7 @@ public static class SpiritSummonService
         {
             ResolvedTokens.Clear();
             GrantedCardEvents.Clear();
+            GrantedWithdrawCards.Clear();
             PendingCardGrants.Clear();
             OwnerGenerations.Clear();
             RemovalGenerations.Clear();
@@ -154,6 +157,16 @@ public static class SpiritSummonService
         SpiritBattleDeploymentService.MarkSummoned(snapshot.OwnerStatusId);
 
         QueueReturnedCard(snapshot, null, source);
+
+        if (snapshot.ReturnedCardOnly)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Token))
+        {
+            GrantWithdrawCardIfLocalOwner(snapshot.OwnerStatusId, snapshot.Token, source);
+        }
 
         if (IsRemovedSnapshot(snapshot))
         {
@@ -298,6 +311,8 @@ public static class SpiritSummonService
             Broadcast(networkState, source);
         }
 
+        GrantWithdrawCardIfLocalOwner(ownerStatusId, networkState.Token, source);
+
         return true;
     }
 
@@ -388,6 +403,20 @@ public static class SpiritSummonService
             {
                 var state = CompanionBattleStateStore.Find(spirit.InstanceId);
                 state?.ApplyReadyOnTurn(initialBattleState?.ReadyOnTurn);
+                state?.ApplyPassiveState(initialBattleState?.PassiveState);
+                if (initialBattleState != null)
+                {
+                    state?.Stats.SetCurrentMagic(initialBattleState.CurrentMagic);
+                    if (initialBattleState.MaxHp > 0 && spirit.Status is StatusManager initialStatus)
+                    {
+                        initialStatus.MaxHp = initialBattleState.MaxHp;
+                        initialStatus.CurHp = Math.Max(1, Math.Min(initialStatus.MaxHp, initialBattleState.CurrentHp));
+                        initialStatus.Defend = Math.Max(0, initialBattleState.CurrentDefend);
+                        spirit.MaxHp = initialStatus.MaxHp;
+                        spirit.CurHp = initialStatus.CurHp;
+                        spirit.Defend = initialStatus.Defend;
+                    }
+                }
                 state?.ApplyRemoteProgress(initialBattleState?.TurnIndex ?? 0, 0);
                 spirit.Activate(source);
                 PlayerApi.ShowCaption("精灵：【" + snapshot.DisplayName + "】加入战斗。");
@@ -794,6 +823,7 @@ public static class SpiritSummonService
             ReturnedExchangeCount = Math.Max(0, Math.Min(MaxExchangeCount, exchangeCount)),
             ReturnedTurnIndex = returnBattleState.TurnIndex,
             ReturnedReadyOnTurn = new Dictionary<string, int>(returnBattleState.ReadyOnTurn),
+            ReturnedBattleState = returnBattleState,
             CardGrantEventId = normalizedToken + ":refund",
             RejectionReason = reason ?? ""
         };
@@ -816,7 +846,7 @@ public static class SpiritSummonService
             snapshot.OwnerStatusId,
             snapshot.ReturnedCard,
             snapshot.ReturnedExchangeCount,
-            new SpiritCardBattleState
+            snapshot.ReturnedBattleState ?? new SpiritCardBattleState
             {
                 TurnIndex = snapshot.ReturnedTurnIndex,
                 ReadyOnTurn = snapshot.ReturnedReadyOnTurn ?? new Dictionary<string, int>()
@@ -893,22 +923,81 @@ public static class SpiritSummonService
             || SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId);
     }
 
+    private static void GrantWithdrawCardIfLocalOwner(
+        string ownerStatusId,
+        string token,
+        string source)
+    {
+        if (!IsLocalOwner(ownerStatusId))
+        {
+            return;
+        }
+        var eventId = (token ?? "") + ":withdraw-card";
+        lock (NetworkSync)
+        {
+            if (GrantedWithdrawCards.Contains(eventId))
+            {
+                return;
+            }
+        }
+        var owner = FightPlayer.Instance?.Status;
+        var executor = owner?.MirrorSc as ScriptExecutor;
+        if (owner == null
+            || executor == null
+            || !string.Equals(owner.InstanceId, ownerStatusId, StringComparison.Ordinal))
+        {
+            return;
+        }
+        executor.Self = owner;
+        var request = CardGrantRequest
+            .ToHand(TerriasIds.SpiritWithdrawCardShortId)
+            .WithSource("spirit-withdraw:" + token)
+            .WithRuntimeTags("Retain", "Burnout")
+            .RequireMutations();
+        var result = CardApi.GrantCardToHand(executor, request);
+        if (!result.Success)
+        {
+            TerriasLog.Warn("[Spirit] withdraw card grant failed from " + source
+                            + ": " + result.FailureReason);
+            return;
+        }
+        lock (NetworkSync)
+        {
+            GrantedWithdrawCards.Add(eventId);
+        }
+    }
+
     private static bool ValidBattleState(SpiritCardBattleState? battleState)
     {
         if (battleState == null
             || battleState.TurnIndex < 0
             || battleState.TurnIndex > MaxIntentTurnIndex
             || battleState.ReadyOnTurn == null
-            || battleState.ReadyOnTurn.Count > MaxIntentStateEntries)
+            || battleState.ReadyOnTurn.Count > MaxIntentStateEntries
+            || battleState.PassiveState == null
+            || battleState.PassiveState.Count > MaxIntentStateEntries
+            || battleState.MaxHp < 0
+            || battleState.MaxHp > MaxTransferredCombatValue
+            || battleState.CurrentHp < 0
+            || battleState.CurrentHp > battleState.MaxHp
+            || battleState.CurrentDefend < 0
+            || battleState.CurrentDefend > MaxTransferredCombatValue
+            || battleState.CurrentMagic < 0
+            || battleState.CurrentMagic > MaxTransferredCombatValue)
         {
             return false;
         }
 
         return battleState.ReadyOnTurn.All(entry =>
-            !string.IsNullOrWhiteSpace(entry.Key)
-            && entry.Key.Length <= 160
-            && entry.Value >= 0
-            && entry.Value <= MaxIntentTurnIndex);
+                   !string.IsNullOrWhiteSpace(entry.Key)
+                   && entry.Key.Length <= 160
+                   && entry.Value >= 0
+                   && entry.Value <= MaxIntentTurnIndex)
+               && battleState.PassiveState.All(entry =>
+                   !string.IsNullOrWhiteSpace(entry.Key)
+                   && entry.Key.Length <= 160
+                   && entry.Value >= -MaxTransferredCombatValue
+                   && entry.Value <= MaxTransferredCombatValue);
     }
 
     private static int NextGeneration(string ownerPlayerId, string ownerStatusId)

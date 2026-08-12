@@ -14,11 +14,6 @@ public sealed class DamageRunLedger
     private long version;
     private long hasDamageCacheVersion = -1;
     private bool hasDamageCache;
-    private long grandTotalCacheVersion = -1;
-    private bool grandTotalCacheCountShield;
-    private bool grandTotalCacheFriendlyOnly;
-    private bool grandTotalCacheIncludeUnknown;
-    private long grandTotalCache;
 
     public string AdventureId { get; private set; } = "";
 
@@ -60,33 +55,6 @@ public sealed class DamageRunLedger
             hasDamageCacheVersion = version;
             return hasDamageCache;
         }
-    }
-
-    public long DisplayGrandTotal(bool countShield, bool friendlyOnly, bool includeUnknown)
-    {
-        if (grandTotalCacheVersion == version
-            && grandTotalCacheCountShield == countShield
-            && grandTotalCacheFriendlyOnly == friendlyOnly
-            && grandTotalCacheIncludeUnknown == includeUnknown)
-        {
-            return grandTotalCache;
-        }
-
-        long total = 0;
-        foreach (var stat in combatants.Values)
-        {
-            if (ShouldDisplay(stat, friendlyOnly, includeUnknown))
-            {
-                total += stat.DisplayTotal(countShield);
-            }
-        }
-
-        grandTotalCacheVersion = version;
-        grandTotalCacheCountShield = countShield;
-        grandTotalCacheFriendlyOnly = friendlyOnly;
-        grandTotalCacheIncludeUnknown = includeUnknown;
-        grandTotalCache = total;
-        return total;
     }
 
     public void BeginAdventure(string adventureId, string startedUtc)
@@ -234,16 +202,6 @@ public sealed class DamageRunLedger
 
         MarkDirty();
         return true;
-    }
-
-    private static bool ShouldDisplay(CombatantDamageStat stat, bool friendlyOnly, bool includeUnknown)
-    {
-        if (friendlyOnly)
-        {
-            return stat.Team == DamageTeam.Friendly || includeUnknown && stat.Team == DamageTeam.Unknown;
-        }
-
-        return includeUnknown || stat.Team != DamageTeam.Unknown;
     }
 
     private void MarkDirty()

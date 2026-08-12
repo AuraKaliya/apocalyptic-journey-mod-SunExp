@@ -10,6 +10,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
 using UnityEngine;
@@ -27,7 +28,7 @@ internal static class DamageMeterSettlementRuntime
     private const int MaxAvatarCacheEntries = 32;
     private static bool adventureSettlementRecorded;
     private static bool adventureHistoryRestoreAttempted;
-    private static bool outOfRunHistoryLoaded;
+    private static bool historyStorageReady;
 
     internal static void BeginAdventure()
     {
@@ -86,7 +87,7 @@ internal static class DamageMeterSettlementRuntime
             var completed = IsCurrentAdventureCompleted(mode.Id);
             ArchiveActiveFightForSettlement(completed);
             var aggregate = AuraToolsDamageMeterRuntime.RunAggregate.CreateSnapshot();
-            if (!AuraToolsDamageMeterRuntime.RunAggregate.HasDamage && AuraToolsDamageMeterRuntime.History.Records.Count == 0)
+            if (!AuraToolsDamageMeterRuntime.RunAggregate.HasDamage && AuraToolsDamageMeterRuntime.History.TotalCount == 0)
             {
                 AuraToolsLog.Info("[DamageMeter] out-of-run history skipped: no fight history. source=" + source + ".");
                 return;
@@ -109,11 +110,8 @@ internal static class DamageMeterSettlementRuntime
                 : OutOfRunDamageHistoryBuilder.Build(AuraToolsDamageMeterRuntime.History.Records, request, countShield: true);
             DamageSettlementCgRuntime.TryPlay(record);
 
-            if (AuraToolsDamageMeterRuntime.OutOfRunHistory.Add(record))
+            if (DamageHistoryStorage.Database.AppendAdventure(record))
             {
-                OutOfRunDamageHistoryPersistence.SaveDeferred(
-                    AuraToolsDamageMeterRuntime.OutOfRunHistory,
-                    AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
                 AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
                 AuraToolsLog.Info("[DamageMeter] out-of-run history archived. mode="
                                   + mode.Id + ", status=" + record.Status + ", source=" + source + ".");
@@ -130,37 +128,48 @@ internal static class DamageMeterSettlementRuntime
         get
         {
             EnsureOutOfRunHistoryLoaded("history count");
-            return AuraToolsDamageMeterRuntime.OutOfRunHistory.Records.Count;
+            try
+            {
+                return DamageHistoryStorage.Database.CountAdventures();
+            }
+            catch (Exception ex)
+            {
+                AuraToolsLog.Warn("[DamageMeter] out-of-run history count failed: " + ex.Message);
+                return 0;
+            }
         }
     }
 
     public static void OpenOutOfRunHistory()
     {
         EnsureOutOfRunHistoryLoaded("open history");
-        OutOfRunDamageHistoryPresenter.Show(AuraToolsDamageMeterRuntime.OutOfRunHistory);
+        OutOfRunDamageHistoryPresenter.Show();
     }
 
     public static void ClearOutOfRunHistory()
     {
         EnsureOutOfRunHistoryLoaded("clear history");
-        OutOfRunDamageHistoryPersistence.Clear(
-            AuraToolsDamageMeterRuntime.OutOfRunHistory,
-            AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
-        AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+        try
+        {
+            DamageHistoryStorage.Database.ClearAdventures();
+            AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] out-of-run history clear failed: " + ex.Message);
+        }
     }
 
     internal static void EnsureOutOfRunHistoryLoaded(string source)
     {
-        if (outOfRunHistoryLoaded)
+        if (historyStorageReady)
         {
             return;
         }
 
-        outOfRunHistoryLoaded = true;
+        historyStorageReady = true;
         var started = DateTime.UtcNow;
-        OutOfRunDamageHistoryPersistence.LoadInto(
-            AuraToolsDamageMeterRuntime.OutOfRunHistory,
-            AuraToolsConfigService.MatchExperience.DamageMeter.MaxHistoryEnvelopeBytes);
+        DamageHistoryStorage.EnsureLegacyMigrations();
         var elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
         if (elapsed >= 50d)
         {

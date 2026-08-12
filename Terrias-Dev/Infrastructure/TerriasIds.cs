@@ -249,6 +249,8 @@ public static class TerriasIds
     public const string SpiritBallCardId = "Terrias_terrias_spirit_ball";
     public const string SpiritCardTemplateShortId = "spirit_card_template";
     public const string SpiritCardTemplateId = "Terrias_terrias_spirit_card_template";
+    public const string SpiritWithdrawCardShortId = "spirit_withdraw";
+    public const string SpiritWithdrawCardId = "Terrias_terrias_spirit_withdraw";
     public const string SpiritCardMarker = "TerriasSpiritCard";
     public const string SpiritUidKey = "TerriasSpiritUid";
     public const string SpiritEnemyIdKey = "TerriasSpiritEnemyId";
@@ -267,6 +269,7 @@ public static class TerriasIds
     public const string SpiritExchangeCountKey = "TerriasSpiritExchangeCount";
     public const string SpiritIntentTurnIndexKey = "TerriasSpiritIntentTurnIndex";
     public const string SpiritIntentReadyOnTurnKey = "TerriasSpiritIntentReadyOnTurn";
+    public const string SpiritBattleStateKey = "TerriasSpiritBattleState";
     public const string SpiritStatusIdPrefix = "ss";
     public const string SpiritBallIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/spirit_ball";
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";

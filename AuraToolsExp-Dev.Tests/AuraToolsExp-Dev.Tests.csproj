@@ -68,8 +68,10 @@
              Link="DamageMeter\SettlementCg\DamageSettlementCgPayload.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\SettlementCg\DamageSettlementCgAnimationSpec.cs"
              Link="DamageMeter\SettlementCg\DamageSettlementCgAnimationSpec.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Input\DamageMeterHotkeyCore.cs"
-             Link="DamageMeter\DamageMeterHotkeyCore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\WinSqlite.cs"
+             Link="DamageMeter\WinSqlite.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\DamageHistoryDatabase.cs"
+             Link="DamageMeter\DamageHistoryDatabase.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureFrameStore.cs"
              Link="DamageMeter\DamageCaptureFrameStore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Capture\DamageCaptureMatchingPolicy.cs"

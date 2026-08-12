@@ -14,46 +14,6 @@ public static class DamageMeterControlKind
 }
 
 [Serializable]
-public sealed class DamageMeterSubmitCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
-{
-    private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
-
-    public DamageEvent Candidate { get; set; } = new();
-
-    public DamageEvent? Confirmed { get; set; }
-
-    public string RejectionReason { get; set; } = "";
-
-    public void BindServerSender(AuraToolsRpcSender sender)
-    {
-        serverSender = sender ?? AuraToolsRpcSender.Unbound;
-    }
-
-    public override void CmdExecute()
-    {
-        var accepted = DamageMeterNetworkRuntime.AcceptOnServer(Candidate, serverSender, out var confirmed, out var rejection);
-        Candidate = new DamageEvent();
-        if (!accepted)
-        {
-            RejectionReason = rejection;
-            Confirmed = null;
-            AuraToolsLog.Warn("[DamageMeter] event rejected: " + rejection);
-            return;
-        }
-
-        Confirmed = confirmed;
-    }
-
-    public override void RpcExecute()
-    {
-        if (Confirmed != null)
-        {
-            DamageMeterNetworkRuntime.ApplyConfirmed(Confirmed);
-        }
-    }
-}
-
-[Serializable]
 public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
     private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;

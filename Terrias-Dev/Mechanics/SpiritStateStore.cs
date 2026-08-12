@@ -76,8 +76,10 @@ public static class SpiritStateStore
             var hasStatusId = !string.IsNullOrWhiteSpace(ownerStatusId);
             return Spirits.Values.FirstOrDefault(state =>
                 (hasPlayerId || hasStatusId)
-                && (!hasPlayerId || string.Equals(state.OwnerPlayerId, ownerPlayerId, StringComparison.Ordinal))
-                && (!hasStatusId || string.Equals(state.OwnerStatusId, ownerStatusId, StringComparison.Ordinal)));
+                && (hasPlayerId
+                    && string.Equals(state.OwnerPlayerId, ownerPlayerId, StringComparison.Ordinal)
+                    || hasStatusId
+                    && string.Equals(state.OwnerStatusId, ownerStatusId, StringComparison.Ordinal)));
         }
     }
 

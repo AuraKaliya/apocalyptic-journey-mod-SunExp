@@ -72,6 +72,8 @@ public sealed class CombatSimulationState
 
     public CombatSimulationUnit[] Enemies { get; set; } = Array.Empty<CombatSimulationUnit>();
 
+    public CombatSimulationUnit[] Friendlies { get; set; } = Array.Empty<CombatSimulationUnit>();
+
     public CombatSimulationThreat[] Threats { get; set; } = Array.Empty<CombatSimulationThreat>();
 
     public ulong[] UsedActionWords { get; set; } = Array.Empty<ulong>();
@@ -144,6 +146,11 @@ public sealed class CombatSimulationState
         for (var i = 0; i < enemies.Length; i++)
         {
             enemies[i] = Enemies[i].Clone();
+        }
+        var friendlies = new CombatSimulationUnit[Friendlies.Length];
+        for (var i = 0; i < friendlies.Length; i++)
+        {
+            friendlies[i] = Friendlies[i].Clone();
         }
 
         var threats = Threats;
@@ -221,6 +228,7 @@ public sealed class CombatSimulationState
                 : Features,
             Uncertainty = Uncertainty,
             Enemies = enemies,
+            Friendlies = friendlies,
             Threats = threats,
             UsedActionWords = (ulong[])UsedActionWords.Clone(),
             UsedActionCounts = (int[])UsedActionCounts.Clone(),
@@ -300,6 +308,14 @@ public sealed class CombatSimulationState
                 return true;
             }
         }
+        for (var index = 0; index < Friendlies.Length; index++)
+        {
+            if (Friendlies[index].RuntimeId == runtimeId
+                && Friendlies[index].Hp > 0)
+            {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -372,6 +388,15 @@ public sealed class CombatSimulationState
         var enemyProgress = livingMaxHp <= 0
             ? 1d
             : 1d - Math.Min(1d, (double)livingHp / livingMaxHp);
+        var friendlyDurability = 0d;
+        for (var i = 0; i < Friendlies.Length; i++)
+        {
+            friendlyDurability += Ratio(Friendlies[i].Hp, Friendlies[i].MaxHp);
+        }
+        if (Friendlies.Length > 0)
+        {
+            friendlyDurability /= Friendlies.Length;
+        }
         var immediateShield = Math.Min(PlayerDefend, blockable);
         var carriedShield = Math.Max(0d, PlayerDefend - blockable);
         var cycleSize = DrawPileValues.Count + DiscardPileValues.Count + HandCardValues.Count;
@@ -400,6 +425,7 @@ public sealed class CombatSimulationState
         var value = Ratio(PlayerHp, PlayerMaxHp) * 40d
                     - hpLoss * 1.8d
                     + enemyProgress * 35d
+                    + friendlyDurability * 6d
                     + Power * 0.15d
                     + immediateShield * 0.2d
                     + carriedShield * Math.Max(0d, profile.SurplusDefendRetention) * 0.2d
@@ -523,6 +549,13 @@ public sealed class CombatSimulationState
                 Mix(ref hash, Enemies[i].Hp);
                 Mix(ref hash, Enemies[i].Defend);
                 MixFeatures(ref hash, Enemies[i].Features);
+            }
+            for (var i = 0; i < Friendlies.Length; i++)
+            {
+                Mix(ref hash, Friendlies[i].RuntimeId);
+                Mix(ref hash, Friendlies[i].Hp);
+                Mix(ref hash, Friendlies[i].Defend);
+                MixFeatures(ref hash, Friendlies[i].Features);
             }
             for (var i = 0; i < UsedActionWords.Length; i++)
             {
@@ -905,6 +938,16 @@ public static class CombatForwardModel
                 MaxHp = enemy.MaxHp,
                 Defend = enemy.Defend,
                 Features = BuildEnemyFeatures(enemy)
+            }).ToArray(),
+            Friendlies = state.Friendlies.Select(friendly => new CombatSimulationUnit
+            {
+                RuntimeId = friendly.RuntimeId,
+                Hp = friendly.CurrentHp,
+                MaxHp = friendly.MaxHp,
+                Defend = friendly.Defend,
+                Features = new Dictionary<string, double>(
+                    friendly.Features,
+                    StringComparer.OrdinalIgnoreCase)
             }).ToArray(),
             Threats = threats,
             Turn = state.Features.TryGetValue("turn", out var turn)
@@ -2730,6 +2773,13 @@ public static class CombatForwardModel
                 return state.Enemies[i];
             }
         }
+        for (var i = 0; i < state.Friendlies.Length; i++)
+        {
+            if (state.Friendlies[i].RuntimeId == targetId)
+            {
+                return state.Friendlies[i];
+            }
+        }
 
         return null;
     }
@@ -2804,6 +2854,14 @@ public static class CombatForwardModel
             if (state.Enemies[i].RuntimeId == targetId)
             {
                 DamageUnit(state.Enemies[i], amount, bypassDefend);
+                return;
+            }
+        }
+        for (var i = 0; i < state.Friendlies.Length; i++)
+        {
+            if (state.Friendlies[i].RuntimeId == targetId)
+            {
+                DamageUnit(state.Friendlies[i], amount, bypassDefend);
                 return;
             }
         }

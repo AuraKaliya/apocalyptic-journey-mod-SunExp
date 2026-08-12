@@ -2,7 +2,6 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
-using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
@@ -50,25 +49,19 @@ internal static partial class AuraToolsTestSuite
     {
         var settings = new DamageMeterSettings
         {
-            FriendlyOnly = true,
-            ShowPanelByDefault = true,
-            IncludeUnknownTeam = true,
-            CountShieldLoss = false,
-            MaxRows = 12,
-            ShowAverageDpt = false,
-            ShowTeamShare = false,
+            DisplayMode = "invalid",
+            DisplayScope = "invalid",
+            TeamFilter = "invalid",
             UiRefreshIntervalMs = 0,
             SubmitBatchIntervalMs = 0,
             MaxEventsPerBatch = 0
         };
     
         settings.Normalize();
-        Assert(!settings.ShowPanelByDefault, "DPS panel is always collapsed by default");
-        Assert(!settings.IncludeUnknownTeam, "friendly-only DPS excludes unknown-team damage");
-        Assert(settings.CountShieldLoss, "shield damage display is always enabled");
-        Assert(settings.MaxRows == 6, "DPS row count uses the fixed default");
-        Assert(settings.ShowAverageDpt, "average DPT display is always enabled");
-        Assert(settings.ShowTeamShare, "team damage share display is always enabled");
+        Assert(settings.DisplayMode == DamageMeterDisplayModes.Table
+               && settings.DisplayScope == DamageMeterDisplayScopes.Fight
+               && settings.TeamFilter == DamageMeterTeamFilters.All,
+            "DPS view choices fall back to table, current fight, and all teams");
         Assert(settings.UiRefreshIntervalMs == 1000, "DPS UI refresh falls back to the bounded default");
         Assert(settings.SubmitBatchIntervalMs == 250, "DPS network submit batching falls back to the bounded default");
         Assert(settings.MaxEventsPerBatch == 24, "DPS network submit batch size falls back to the bounded default");
@@ -79,12 +72,26 @@ internal static partial class AuraToolsTestSuite
                && settings.SettlementCg.SlotSize == 180,
             "DPS settlement CG defaults normalize with the damage meter");
     
-        settings.FriendlyOnly = false;
+        var legacy = JsonConvert.DeserializeObject<DamageMeterSettings>("{\"friendlyOnly\":true}")!;
+        legacy.Normalize();
+        Assert(legacy.TeamFilter == DamageMeterTeamFilters.Friendly,
+            "legacy friendly-only setting migrates to the friendly team filter");
+        var serializedDamageMeter = JsonConvert.SerializeObject(legacy);
+        Assert(!serializedDamageMeter.Contains("friendlyOnly", StringComparison.Ordinal)
+               && !serializedDamageMeter.Contains("hotkey", StringComparison.Ordinal)
+               && serializedDamageMeter.Contains("teamFilter", StringComparison.Ordinal),
+            "retired DPS configuration fields are deserialize-only or removed from new files");
+        settings.DisplayMode = "bars";
+        settings.DisplayScope = "adventure";
+        settings.TeamFilter = "enemy";
         settings.UiRefreshIntervalMs = 20;
         settings.SubmitBatchIntervalMs = 5000;
         settings.MaxEventsPerBatch = 1000;
         settings.Normalize();
-        Assert(settings.IncludeUnknownTeam, "unfiltered DPS includes unknown-team damage");
+        Assert(settings.DisplayMode == DamageMeterDisplayModes.Bars
+               && settings.DisplayScope == DamageMeterDisplayScopes.Adventure
+               && settings.TeamFilter == DamageMeterTeamFilters.Enemy,
+            "DPS view choices normalize case without changing their meaning");
         Assert(settings.UiRefreshIntervalMs == 100
                && settings.SubmitBatchIntervalMs == 1000
                && settings.MaxEventsPerBatch == 64,
@@ -126,7 +133,7 @@ internal static partial class AuraToolsTestSuite
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
         matchExperience.Normalize();
-        Assert(matchExperience.SchemaVersion == 28
+        Assert(matchExperience.SchemaVersion == 29
                && matchExperience.StarterDeck.PreferRoleModProfile
                && matchExperience.SafeBox != null
                && matchExperience.ModSync != null
@@ -267,14 +274,14 @@ internal static partial class AuraToolsTestSuite
             CardRefresh = null!
         };
         settings.Normalize();
-        Assert(settings.SchemaVersion == 28, "match-experience settings migrate to the model-authority application schema");
+        Assert(settings.SchemaVersion == 29, "match-experience settings migrate to the current DPS view schema");
         Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
             "card refresh is restored with a disabled default during normalization");
         var removedFoundationConfig =
             JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
                 "{\"schemaVersion\":25,\"autoBattle\":{\"foundationTraining\":{\"parallelismProfile\":\"auto\",\"iterations\":8}}}")!;
         removedFoundationConfig.Normalize();
-        Assert(removedFoundationConfig.SchemaVersion == 28
+        Assert(removedFoundationConfig.SchemaVersion == 29
                && removedFoundationConfig.AutoBattle.Training.Preset
                   == AutoBattleTrainingSettings.SteadyPreset,
             "removed in-game foundation-training settings are ignored by the current config schema");

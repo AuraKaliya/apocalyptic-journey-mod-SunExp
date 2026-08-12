@@ -9,25 +9,39 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Network;
 
 internal static class DamageMeterPersistence
 {
-    private const string SaveKey = "AuraTools.DamageMeter.History.v1";
+    private const string LegacyHistorySaveKey = "AuraTools.DamageMeter.History.v1";
+    private const string AdventureIdSaveKey = "AuraTools.DamageMeter.AdventureId.v2";
 
-    public static void Save(DamageHistoryStore history)
+    public static void SaveAdventureId(string adventureId)
     {
         try
         {
-            GameSaveManager.SetValue(SaveKey, AuraSharedJson.Serialize(history.CreateSnapshot()));
+            GameSaveManager.SetValue(AdventureIdSaveKey, adventureId ?? "");
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("[DamageMeter] history save failed: " + ex.Message);
+            AuraToolsLog.Warn("[DamageMeter] adventure id save failed: " + ex.Message);
         }
     }
 
-    public static IReadOnlyList<DamageFightRecord> Load()
+    public static string LoadAdventureId()
     {
         try
         {
-            var json = GameSaveManager.GetValue<string>(SaveKey);
+            return GameSaveManager.GetValue<string>(AdventureIdSaveKey) ?? "";
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] adventure id load failed: " + ex.Message);
+            return "";
+        }
+    }
+
+    public static IReadOnlyList<DamageFightRecord> LoadLegacyHistory()
+    {
+        try
+        {
+            var json = GameSaveManager.GetValue<string>(LegacyHistorySaveKey);
             return string.IsNullOrWhiteSpace(json)
                 ? Array.Empty<DamageFightRecord>()
                 : AuraSharedJson.Deserialize<List<DamageFightRecord>>(json)
@@ -35,20 +49,20 @@ internal static class DamageMeterPersistence
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("[DamageMeter] history load failed: " + ex.Message);
+            AuraToolsLog.Warn("[DamageMeter] legacy history load failed: " + ex.Message);
             return Array.Empty<DamageFightRecord>();
         }
     }
 
-    public static void Clear()
+    public static void ClearLegacyHistory()
     {
         try
         {
-            GameSaveManager.SetValue(SaveKey, "");
+            GameSaveManager.SetValue(LegacyHistorySaveKey, "");
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("[DamageMeter] history clear failed: " + ex.Message);
+            AuraToolsLog.Warn("[DamageMeter] legacy history clear failed: " + ex.Message);
         }
     }
 }

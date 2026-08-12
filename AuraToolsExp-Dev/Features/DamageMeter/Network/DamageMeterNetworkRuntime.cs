@@ -4,6 +4,7 @@ using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
+using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using Network.Command;
 
@@ -14,7 +15,6 @@ internal static class DamageMeterNetworkRuntime
     private static readonly DamageLedger LedgerInstance = new();
     private static readonly DamageRunLedger RunAggregateInstance = new();
     private static readonly DamageHistoryStore HistoryInstance = new();
-    private static readonly OutOfRunDamageHistoryStore OutOfRunHistoryInstance = new();
     private static readonly Dictionary<string, long> LastReporterSequence =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Queue<long>> ReporterRateWindows =
@@ -31,8 +31,6 @@ internal static class DamageMeterNetworkRuntime
     public static DamageRunLedger RunAggregate => RunAggregateInstance;
 
     public static DamageHistoryStore History => HistoryInstance;
-
-    public static OutOfRunDamageHistoryStore OutOfRunHistory => OutOfRunHistoryInstance;
 
     public static string CurrentAdventureId => EnsureAdventureId();
 
@@ -87,9 +85,15 @@ internal static class DamageMeterNetworkRuntime
         HistoryInstance.Clear();
         LedgerInstance.ApplySnapshot(new DamageMeterSnapshot());
         RunAggregateInstance.BeginAdventure(currentAdventureId, DateTime.UtcNow.ToString("O"));
-        if (IsHost)
+        try
         {
-            DamageMeterPersistence.Clear();
+            DamageMeterPersistence.SaveAdventureId(currentAdventureId);
+            DamageHistoryStorage.Database.SaveRunState(currentAdventureId, RunAggregateInstance.CreateSnapshot());
+            DamageHistoryStorage.EnsureLegacyMigrations();
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] adventure history initialization failed: " + ex.Message);
         }
 
         NotifyChanged();
@@ -111,12 +115,46 @@ internal static class DamageMeterNetworkRuntime
 
     public static void RestoreAdventureHistory()
     {
-        if (!IsHost || HistoryInstance.Records.Count > 0)
+        if (!IsHost || HistoryInstance.TotalCount > 0)
         {
             return;
         }
 
-        HistoryInstance.ApplySnapshot(DamageMeterPersistence.Load());
+        try
+        {
+            var savedAdventureId = DamageMeterPersistence.LoadAdventureId();
+            if (!string.IsNullOrWhiteSpace(savedAdventureId))
+            {
+                currentAdventureId = savedAdventureId.Trim();
+            }
+
+            var adventureId = EnsureAdventureId();
+            DamageHistoryStorage.EnsureLegacyMigrations();
+            if (DamageHistoryStorage.Database.CountFights(adventureId) == 0)
+            {
+                var legacy = DamageMeterPersistence.LoadLegacyHistory();
+                if (legacy.Count > 0)
+                {
+                    DamageHistoryStorage.Database.ImportFights(adventureId, legacy);
+                    DamageMeterPersistence.ClearLegacyHistory();
+                }
+            }
+
+            var page = DamageHistoryStorage.Database.LoadFightPage(
+                adventureId,
+                pageSize: DamageHistoryDatabase.DefaultPageSize);
+            HistoryInstance.ApplyRecent(page.Items, page.TotalCount);
+            var runState = DamageHistoryStorage.Database.LoadRunState(adventureId);
+            if (runState != null)
+            {
+                RunAggregateInstance.ApplySnapshot(runState);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] adventure history restore failed: " + ex.Message);
+        }
+
         NotifyChanged();
     }
 
@@ -265,15 +303,6 @@ internal static class DamageMeterNetworkRuntime
         }
     }
 
-    public static bool AcceptOnServer(
-        DamageEvent candidate,
-        AuraToolsRpcSender sender,
-        out DamageEvent confirmed,
-        out string rejection)
-    {
-        return AcceptOnServer(candidate, sender, out confirmed, out rejection, true);
-    }
-
     public static bool AcceptBatchOnServer(
         IEnumerable<DamageEvent>? candidates,
         AuraToolsRpcSender sender,
@@ -293,7 +322,7 @@ internal static class DamageMeterNetworkRuntime
             }
 
             consumed++;
-            if (AcceptOnServer(candidate, sender, out var accepted, out var rejection, false))
+            if (AcceptOnServer(candidate, sender, out var accepted, out var rejection))
             {
                 confirmed.Add(accepted);
             }
@@ -321,8 +350,7 @@ internal static class DamageMeterNetworkRuntime
         DamageEvent candidate,
         AuraToolsRpcSender sender,
         out DamageEvent confirmed,
-        out string rejection,
-        bool notify)
+        out string rejection)
     {
         confirmed = new DamageEvent();
         rejection = "";
@@ -370,11 +398,6 @@ internal static class DamageMeterNetworkRuntime
 
         RunAggregateInstance.Apply(confirmed);
         LastReporterSequence[confirmed.ReporterPlayerId] = confirmed.ReporterSequence;
-        if (notify)
-        {
-            NotifyChanged();
-        }
-
         return true;
     }
 
@@ -521,32 +544,16 @@ internal static class DamageMeterNetworkRuntime
         var ledgerChanged = LedgerInstance.ApplySnapshot(snapshot);
         var aggregateChanged = snapshot.RunAggregate != null
                                && RunAggregateInstance.ApplySnapshot(snapshot.RunAggregate);
-        if (snapshot.ProtocolVersion == DamageMeterProtocol.Version
-            && snapshot.History != null
-            && snapshot.History.Count > 0)
-        {
-            HistoryInstance.ApplySnapshot(snapshot.History);
-        }
-
         if (ledgerChanged || aggregateChanged)
         {
             NotifyChanged();
         }
     }
 
-    public static DamageMeterSnapshot CreateServerSnapshot()
-    {
-        var snapshot = LedgerInstance.CreateSnapshot();
-        snapshot.History = HistoryInstance.CreateSnapshot();
-        snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
-        return snapshot;
-    }
-
     private static DamageMeterSnapshot CreateNetworkSnapshot(string source)
     {
         var startedAt = DamageMeterPerformanceCounters.StartSample();
         var snapshot = LedgerInstance.CreateSnapshot();
-        snapshot.History = new List<DamageFightRecord>();
         snapshot.RunAggregate = RunAggregateInstance.CreateSnapshot();
         var beforeBytes = DamageMeterSnapshotCompactor.EstimateSnapshotBytes(snapshot);
         DamageMeterSnapshotCompactor.CompactNetworkSnapshot(snapshot, source);
@@ -795,25 +802,49 @@ internal static class DamageMeterNetworkRuntime
 
     private static bool ArchiveSnapshot(DamageMeterSnapshot snapshot, string result)
     {
-        if (IsHost)
-        {
-            RunAggregateInstance.RecordEncounter(snapshot);
-        }
-
-        if (!HistoryInstance.Archive(
-                snapshot,
-                result,
-                DateTime.UtcNow.ToString("O")))
+        if (snapshot == null)
         {
             return false;
         }
 
         if (IsHost)
         {
-            DamageMeterPersistence.Save(HistoryInstance);
+            RunAggregateInstance.RecordEncounter(snapshot);
         }
 
-        return true;
+        var record = new DamageFightRecord
+        {
+            SessionId = snapshot.SessionId ?? "",
+            Result = string.IsNullOrWhiteSpace(result) ? "Unknown" : result.Trim(),
+            EndedUtc = DateTime.UtcNow.ToString("O"),
+            Snapshot = snapshot
+        };
+
+        try
+        {
+            var adventureId = string.IsNullOrWhiteSpace(RunAggregateInstance.AdventureId)
+                ? EnsureAdventureId()
+                : RunAggregateInstance.AdventureId;
+            currentAdventureId = adventureId;
+            var stored = DamageHistoryStorage.Database.AppendFight(adventureId, record);
+            if (stored == null)
+            {
+                return false;
+            }
+
+            if (IsHost)
+            {
+                DamageHistoryStorage.Database.SaveRunState(adventureId, RunAggregateInstance.CreateSnapshot());
+            }
+
+            HistoryInstance.ArchiveRecent(stored, DamageHistoryStorage.Database.CountFights(adventureId));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] SQLite fight archive failed: " + ex.Message);
+            return HistoryInstance.Archive(snapshot, result, record.EndedUtc);
+        }
     }
 
     private static bool ValidDamage(int value)
@@ -830,8 +861,7 @@ internal static class DamageMeterNetworkRuntime
     {
         var source = "DamageMeter." + command.GetType().Name;
         var shouldDefer = deferSubmit
-                          && (command is DamageMeterSubmitCommand
-                              || command is DamageMeterSubmitBatchCommand);
+                          && command is DamageMeterSubmitBatchCommand;
         var sent = shouldDefer
             ? AuraToolsRpcTransport.SendDeferred(PlayerManager.Instance, command, source)
             : AuraToolsRpcTransport.Send(PlayerManager.Instance, command, source);

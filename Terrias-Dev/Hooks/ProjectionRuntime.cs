@@ -103,11 +103,14 @@ public static class ProjectionRuntime
 
         var owner = FightPlayer.Instance?.Status;
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner?.InstanceId ?? "");
-        if (owner != null && ProjectionStateStore.HasForOwner(ownerPlayerId, owner.InstanceId))
+        if (owner != null
+            && (!FriendlyRoleSeatLedger.CanReserve(ownerPlayerId, owner.InstanceId, out var reason)))
         {
             ProjectionUseGate[UseGateKey(card, source)] = CardItem.canUse;
             CardItem.canUse = false;
-            PlayerApi.ShowCaption("拜托了：投影位置已被占用。");
+            PlayerApi.ShowCaption(reason == "friendly role seats are full"
+                ? "拜托了：友方角色位置已达到4人上限。"
+                : "拜托了：投影位置已被占用。");
         }
     }
 
@@ -142,6 +145,8 @@ public static class ProjectionRuntime
     {
         ClearBattle(source);
         CompanionAuthorityService.BeginBattleEpoch();
+        FriendlyRoleSeatLedger.BeginBattle();
+        ProjectionCardPresentationService.ResetBattle();
         ProjectionTurnCoordinator.BeginBattle(source);
     }
 

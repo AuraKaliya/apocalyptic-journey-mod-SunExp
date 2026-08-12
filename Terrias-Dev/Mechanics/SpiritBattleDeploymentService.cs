@@ -7,7 +7,6 @@ namespace Terrias.Dll.Mechanics;
 public static class SpiritBattleDeploymentService
 {
     private static readonly object SyncRoot = new();
-    private static readonly HashSet<string> ConsumedOwners = new(StringComparer.Ordinal);
     private static List<string> partyUids = new();
     private static SpiritInstance? active;
     private static string deploymentToken = "";
@@ -22,7 +21,6 @@ public static class SpiritBattleDeploymentService
     {
         lock (SyncRoot)
         {
-            ConsumedOwners.Clear();
             var byUid = collection.Instances.ToDictionary(item => item.SpiritUid, StringComparer.Ordinal);
             partyUids = (party.PartySlots ?? new List<string>()).Where(byUid.ContainsKey).Distinct(StringComparer.Ordinal).ToList();
             var activeUid = party.ActiveSpiritUid ?? "";
@@ -86,11 +84,6 @@ public static class SpiritBattleDeploymentService
             {
                 return false;
             }
-            if (ConsumedOwners.Contains(ownerStatusId ?? ""))
-            {
-                reason = "本场战斗的精灵已经出战。";
-                return false;
-            }
             if (!acceptRemotePayload && (!string.Equals(snapshot.DeploymentToken, deploymentToken, StringComparison.Ordinal)
                                          || active == null
                                          || !string.Equals(snapshot.SpiritUid, active.SpiritUid, StringComparison.Ordinal)))
@@ -105,7 +98,8 @@ public static class SpiritBattleDeploymentService
 
     public static void MarkSummoned(string ownerStatusId)
     {
-        lock (SyncRoot) ConsumedOwners.Add(ownerStatusId ?? "");
+        // Active ownership is tracked by SpiritStateStore. A withdrawn Spirit
+        // may be summoned again in the same battle.
     }
 
     public static void RaiseExperienceReward(int reward)
@@ -125,7 +119,6 @@ public static class SpiritBattleDeploymentService
     {
         lock (SyncRoot)
         {
-            ConsumedOwners.Clear();
             partyUids.Clear();
             active = null;
             deploymentToken = "";

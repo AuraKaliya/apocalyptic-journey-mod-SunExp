@@ -16,6 +16,17 @@ internal static class DamageDetailsPresenter
         AuraToolsDamageMeterUi.EnsureRoot();
         var stat = ledger.Combatants.FirstOrDefault(item =>
             string.Equals(item.InstanceId, instanceId, StringComparison.OrdinalIgnoreCase));
+        if (stat == null)
+        {
+            return;
+        }
+
+        Show(stat, Math.Max(1, ledger.AveragingRoundCount), "本场战斗", stat.DisplayCurrentRound(true));
+    }
+
+    internal static void Show(CombatantDamageStat stat, int averagingRounds, string scopeLabel, long currentRound)
+    {
+        AuraToolsDamageMeterUi.EnsureRoot();
         if (AuraToolsDamageMeterUi.Root == null || stat == null)
         {
             return;
@@ -48,8 +59,8 @@ internal static class DamageDetailsPresenter
         layout.childForceExpandHeight = false;
 
         RenderHeader(window.transform, stat.DisplayName);
-        RenderSummary(window.transform, stat, ledger, settings);
-        RenderRows(window.transform, stat, settings);
+        RenderSummary(window.transform, stat, Math.Max(1, averagingRounds), scopeLabel, currentRound);
+        RenderRows(window.transform, stat);
     }
 
     private static void RenderHeader(Transform parent, string displayName)
@@ -69,21 +80,25 @@ internal static class DamageDetailsPresenter
     private static void RenderSummary(
         Transform parent,
         CombatantDamageStat stat,
-        DamageLedger ledger,
-        DamageMeterSettings settings)
+        int averagingRounds,
+        string scopeLabel,
+        long currentRound)
     {
-        var summary = "本回合 " + stat.DisplayCurrentRound(settings.CountShieldLoss)
-                      + "　 本场 " + stat.DisplayTotal(settings.CountShieldLoss)
-                      + "　 平均DPT " + stat.AveragePerCompletedRound(
-                          settings.CountShieldLoss,
-                          Math.Max(1, ledger.AveragingRoundCount)).ToString("0.0")
-                      + "\nHP伤害 " + stat.TotalHpDamage
-                      + "　 护盾伤害 " + stat.TotalShieldDamage
-                      + "　 最高单回合 " + stat.HighestRound(settings.CountShieldLoss);
+        var summary = scopeLabel == "本轮冒险"
+            ? scopeLabel + " " + stat.DisplayTotal(true)
+              + "　 平均DPT " + stat.AveragePerCompletedRound(true, averagingRounds).ToString("0.0")
+              + "\nHP伤害 " + stat.TotalHpDamage
+              + "　 护盾伤害 " + stat.TotalShieldDamage
+            : "本回合 " + currentRound
+              + "　 " + scopeLabel + " " + stat.DisplayTotal(true)
+              + "　 平均DPT " + stat.AveragePerCompletedRound(true, averagingRounds).ToString("0.0")
+              + "\nHP伤害 " + stat.TotalHpDamage
+              + "　 护盾伤害 " + stat.TotalShieldDamage
+              + "　 最高单回合 " + stat.HighestRound(true);
         AuraToolsDamageMeterUi.AddText(parent, summary, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 48f, 1f);
     }
 
-    private static void RenderRows(Transform parent, CombatantDamageStat stat, DamageMeterSettings settings)
+    private static void RenderRows(Transform parent, CombatantDamageStat stat)
     {
         var content = AuraToolsDamageMeterUi.CreateLayout("Content", parent);
         content.AddComponent<LayoutElement>().flexibleHeight = 1f;
@@ -95,7 +110,7 @@ internal static class DamageDetailsPresenter
         layout.childForceExpandHeight = false;
 
         foreach (var detail in stat.Details.Values
-                     .OrderByDescending(item => item.HpDamage + (settings.CountShieldLoss ? item.ShieldDamage : 0))
+                     .OrderByDescending(item => item.HpDamage + item.ShieldDamage)
                      .Take(12))
         {
             var row = AuraToolsDamageMeterUi.CreateLayout("Detail-" + detail.Key, content.transform);
@@ -111,7 +126,7 @@ internal static class DamageDetailsPresenter
                 TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 28f, 0f, 60f);
             AuraToolsDamageMeterUi.AddText(
                 row.transform,
-                (detail.HpDamage + (settings.CountShieldLoss ? detail.ShieldDamage : 0)).ToString(),
+                (detail.HpDamage + detail.ShieldDamage).ToString(),
                 13, TextAnchor.MiddleRight, AuraToolsUi.Accent, 28f, 0f, 86f);
         }
     }

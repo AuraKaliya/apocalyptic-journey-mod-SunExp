@@ -36,8 +36,7 @@ internal static class DamageMeterAvailabilityRuntime
         Available = available;
         if (available)
         {
-            AuraToolsDamageMeterRuntime.SetVisibleFromAvailability(
-                AuraToolsConfigService.MatchExperience.DamageMeter.ShowPanelByDefault);
+            AuraToolsDamageMeterRuntime.SetVisibleFromAvailability(false);
         }
         else
         {

@@ -55,7 +55,7 @@ if ($officialSummerSkins.Count -ne 1) {
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
 $standardPreset = @($matchSettings.autoBattle.gameParameters.presets | Where-Object id -eq "standard")
-if ($matchSettings.schemaVersion -ne 28 `
+if ($matchSettings.schemaVersion -ne 29 `
         -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `
@@ -67,8 +67,9 @@ if ($matchSettings.schemaVersion -ne 28 `
         -or $standardPreset[0].preferredDeckSizeMinimum -ne 15) {
     throw "AuraToolsExp match-experience configuration contract is invalid."
 }
-if ($matchSettings.damageMeter.showPanelByDefault -ne $false `
-        -or $matchSettings.damageMeter.loadHistoryOnStartup -ne $false `
+if ($matchSettings.damageMeter.displayMode -ne "Table" `
+        -or $matchSettings.damageMeter.displayScope -ne "Fight" `
+        -or $matchSettings.damageMeter.teamFilter -ne "All" `
         -or $matchSettings.damageMeter.captureTeamAvatars -ne $false `
         -or $matchSettings.damageMeter.uiRefreshIntervalMs -ne 1000 `
         -or $matchSettings.damageMeter.submitBatchIntervalMs -ne 250 `

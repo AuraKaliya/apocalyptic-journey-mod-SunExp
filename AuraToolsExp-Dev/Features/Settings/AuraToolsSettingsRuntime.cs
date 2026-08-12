@@ -916,15 +916,43 @@ public static class AuraToolsSettingsRuntime
         {
             damageMeter.Enabled = value;
             AuraToolsConfigService.SaveMatchExperience();
-            AuraToolsDamageMeterRuntime.SetVisible(value && damageMeter.ShowPanelByDefault);
+            AuraToolsDamageMeterRuntime.SetVisible(false);
         }, content =>
         {
-            CreateDamageMeterToggleRow(content, "只显示友方统计", damageMeter.FriendlyOnly, value =>
+            var displayRow = CreateInlineRow(content, "DamageMeterDisplayModeRow");
+            AuraToolsUi.AddText(displayRow.transform, "展示方式", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
             {
-                damageMeter.FriendlyOnly = value;
-                damageMeter.Normalize();
+                damageMeter.DisplayMode = damageMeter.DisplayMode == DamageMeterDisplayModes.Bars
+                    ? DamageMeterDisplayModes.Table
+                    : DamageMeterDisplayModes.Bars;
                 AuraToolsConfigService.SaveMatchExperience();
-            });
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+
+            var scopeRow = CreateInlineRow(content, "DamageMeterDisplayScopeRow");
+            AuraToolsUi.AddText(scopeRow.transform, "统计范围", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(scopeRow.transform, damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗", () =>
+            {
+                damageMeter.DisplayScope = damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure
+                    ? DamageMeterDisplayScopes.Fight
+                    : DamageMeterDisplayScopes.Adventure;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+
+            var teamRow = CreateInlineRow(content, "DamageMeterTeamFilterRow");
+            AuraToolsUi.AddText(teamRow.transform, "统计阵营", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddButton(teamRow.transform, DamageMeterTeamFilterLabel(damageMeter.TeamFilter), () =>
+            {
+                damageMeter.TeamFilter = damageMeter.TeamFilter == DamageMeterTeamFilters.All
+                    ? DamageMeterTeamFilters.Friendly
+                    : damageMeter.TeamFilter == DamageMeterTeamFilters.Friendly
+                        ? DamageMeterTeamFilters.Enemy
+                        : DamageMeterTeamFilters.All;
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
 
             var historyRow = CreateInlineRow(content, "DamageMeterOutOfRunHistoryRow");
             AuraToolsUi.AddText(
@@ -973,6 +1001,15 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(row.transform, "\u5df2\u6ce8\u518c\uff1a" + registeredCount, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "\u7ba1\u7406", () => AuraToolsSkillCgManager.Show(activePanel!.transform), 88f);
         });
+    }
+
+    private static string DamageMeterTeamFilterLabel(string teamFilter)
+    {
+        return teamFilter == DamageMeterTeamFilters.Friendly
+            ? "友方"
+            : teamFilter == DamageMeterTeamFilters.Enemy
+                ? "敌方"
+                : "全部";
     }
 
     private static void CreateBattleStrategySection(Transform parent)

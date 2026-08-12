@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 28,
+  "schemaVersion": 29,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -146,17 +146,10 @@
   },
   "damageMeter": {
     "enabled": false,
-    "hotkey": "F8",
-    "showPanelByDefault": false,
-    "friendlyOnly": false,
-    "includeUnknownTeam": true,
-    "countShieldLoss": true,
-    "maxRows": 6,
-    "showAverageDpt": true,
-    "showTeamShare": true,
-    "loadHistoryOnStartup": false,
+    "displayMode": "Table",
+    "displayScope": "Fight",
+    "teamFilter": "All",
     "captureTeamAvatars": false,
-    "maxHistoryEnvelopeBytes": 1048576,
     "maxAvatarEncodePixels": 262144,
     "maxAvatarPngBytes": 262144,
     "uiRefreshIntervalMs": 1000,

@@ -8,11 +8,15 @@ using Witch.Mod;
 
 namespace Terrias.Dll.Hooks;
 
+/// <summary>
+/// Reorders the complete native Partner phase. Terrias companions contribute
+/// their configured speed; native and other-mod Partners keep the neutral 100.
+/// </summary>
 public static class SpiritPartnerTurnOrderRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.Before(modConfig, "FightManager.DOAllAction", ReorderBeforeSnapshot, "SpiritPartnerTurnOrder");
+        TerriasHookRegistry.Before(modConfig, "FightManager.DOAllAction", ReorderBeforeSnapshot, "PartnerTurnOrder");
     }
 
     private static void ReorderBeforeSnapshot(ModHookContext context)
@@ -30,7 +34,7 @@ public static class SpiritPartnerTurnOrderRuntime
         }
         catch (Exception ex)
         {
-            TerriasLog.Error("[SpiritSpeed] partner turn order hook failed", ex);
+            TerriasLog.Error("[PartnerSpeed] partner turn order hook failed", ex);
         }
     }
 }

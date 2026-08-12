@@ -704,8 +704,13 @@ public sealed class CombatDecisionEngine
         var semantics = action.Semantics ?? new CombatActionSemantics();
         var target = FindTarget(state, action.TargetRuntimeId);
         var player = state.Player ?? new CombatUnitObservation();
-        var missingHp = Math.Max(0, player.MaxHp - player.CurrentHp);
-        var hpRatio = player.MaxHp <= 0 ? 1d : (double)player.CurrentHp / player.MaxHp;
+        var supportTarget = action.TargetKind == CombatTargetKind.Friendly && target != null
+            ? target
+            : player;
+        var missingHp = Math.Max(0, supportTarget.MaxHp - supportTarget.CurrentHp);
+        var hpRatio = supportTarget.MaxHp <= 0
+            ? 1d
+            : (double)supportTarget.CurrentHp / supportTarget.MaxHp;
         var targetHp = target != null && target.Kind == CombatTargetKind.Enemy
             ? Math.Max(0, target.CurrentHp)
             : state.Enemies.Where(enemy => enemy.Alive).Sum(enemy => enemy.CurrentHp);
@@ -762,7 +767,9 @@ public sealed class CombatDecisionEngine
         {
             riskAdjustedBlockable = state.ExpectedIncomingDamage;
         }
-        var incomingGap = Math.Max(0d, riskAdjustedBlockable - player.Defend);
+        var incomingGap = action.TargetKind == CombatTargetKind.Friendly
+            ? Math.Max(0d, FriendlyIncomingDamage(state, supportTarget) - supportTarget.Defend)
+            : Math.Max(0d, riskAdjustedBlockable - player.Defend);
         var surplusDefend = Math.Max(0d, defend - incomingGap);
         var effectiveDefend = Math.Min(defend, incomingGap)
                               + surplusDefend * Math.Max(0d, profile.SurplusDefendRetention);
@@ -1064,6 +1071,9 @@ public sealed class CombatDecisionEngine
     {
         var semantics = action.Semantics ?? new CombatActionSemantics();
         var player = state.Player ?? new CombatUnitObservation();
+        var supportTarget = action.TargetKind == CombatTargetKind.Friendly && target != null
+            ? target
+            : player;
         var threat = state.Threat ?? new CombatThreatForecast();
         var riskAdjustedBlockable = threat.RiskAdjustedBlockableDamage(profile.ThreatRiskTolerance);
         if (!threat.CurrentIntentKnown
@@ -1076,12 +1086,14 @@ public sealed class CombatDecisionEngine
         var defend = action.TargetKind == CombatTargetKind.Enemy
             ? 0d
             : Math.Max(0d, semantics.Defend);
-        var requiredDefend = Math.Max(0d, riskAdjustedBlockable - player.Defend);
+        var requiredDefend = action.TargetKind == CombatTargetKind.Friendly
+            ? Math.Max(0d, FriendlyIncomingDamage(state, supportTarget) - supportTarget.Defend)
+            : Math.Max(0d, riskAdjustedBlockable - player.Defend);
         var immediateDefend = Math.Min(defend, requiredDefend);
         var shieldCarryGain = Math.Max(0d, defend - immediateDefend);
         var usefulDefend = defend;
         var wastedDefend = 0d;
-        var missingHp = Math.Max(0d, player.MaxHp - player.CurrentHp);
+        var missingHp = Math.Max(0d, supportTarget.MaxHp - supportTarget.CurrentHp);
         var heal = Math.Max(0d, semantics.Heal);
         var handCapacity = Math.Max(0d, 10 - state.HandCount);
         var draw = Math.Max(0d, semantics.Draw);
@@ -1272,5 +1284,29 @@ public sealed class CombatDecisionEngine
         }
 
         return null;
+    }
+
+    private static double FriendlyIncomingDamage(
+        CombatStateObservation state,
+        CombatUnitObservation target)
+    {
+        if (target?.Features != null)
+        {
+            if (target.Features.TryGetValue("expectedIncomingDamage", out var expected))
+            {
+                return Math.Max(0d, expected);
+            }
+            if (target.Features.TryGetValue("threat", out var threat))
+            {
+                return Math.Max(0d, threat);
+            }
+        }
+
+        var aliveFriendlyCount = Math.Max(
+            1,
+            state.Friendlies.Count(unit => unit.Alive) + (state.Player?.Alive == true ? 1 : 0));
+        var teamIncoming = state.Threat?.RiskAdjustedBlockableDamage(0.5d)
+                           ?? Math.Max(0d, state.ExpectedIncomingDamage);
+        return Math.Max(0d, teamIncoming) / aliveFriendlyCount;
     }
 }

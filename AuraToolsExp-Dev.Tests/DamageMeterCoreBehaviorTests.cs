@@ -2,7 +2,6 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
-using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
@@ -146,7 +145,7 @@ internal static partial class AuraToolsTestSuite
         var run = new DamageRunLedger();
         run.BeginAdventure("endless", "start");
         long expectedTotal = 0;
-        var expectedRounds = DamageMeterProtocol.MaxFightHistory + 5;
+        const int expectedRounds = 75;
     
         for (var index = 1; index <= expectedRounds; index++)
         {
@@ -160,12 +159,12 @@ internal static partial class AuraToolsTestSuite
             var snapshot = ledger.CreateSnapshot();
             Assert(run.RecordEncounter(snapshot), "run aggregate records encounter " + index);
             Assert(!run.RecordEncounter(snapshot), "run aggregate rejects duplicate encounter " + index);
-            Assert(history.Archive(snapshot, "Win", index.ToString()), "bounded fight history archives " + index);
+            Assert(history.Archive(snapshot, "Win", index.ToString()), "fight history archives " + index);
             expectedTotal += index;
         }
     
-        Assert(history.Records.Count == DamageMeterProtocol.MaxFightHistory,
-            "bounded fight history still trims old fights");
+        Assert(history.Records.Count == expectedRounds,
+            "fight history retains every encounter without a hard cap");
     
         var historyRecord = OutOfRunDamageHistoryBuilder.Build(
             history.Records,
@@ -177,8 +176,8 @@ internal static partial class AuraToolsTestSuite
                     new OutOfRunTeamMemberSnapshot { InstanceId = "alpha", PlayerId = "alpha" }
                 }
             });
-        Assert(historyRecord.TeamTotalDamage < expectedTotal,
-            "bounded history no longer represents endless totals");
+        Assert(historyRecord.TeamTotalDamage == expectedTotal,
+            "unbounded history still represents the complete adventure total");
     
         var aggregate = run.CreateSnapshot();
         var runRecord = OutOfRunDamageHistoryBuilder.Build(
@@ -219,9 +218,26 @@ internal static partial class AuraToolsTestSuite
         Apply(ledger, 1, "friendly", 100, 0, DamageTeam.Friendly, "a");
         Apply(ledger, 2, "enemy", 80, 0, DamageTeam.Enemy, "b");
         Apply(ledger, 3, "unknown", 60, 0, DamageTeam.Unknown, "c");
-        Assert(ledger.VisibleRows(false, true, true, 2).Count == 2, "row limit only affects presentation");
-        Assert(ledger.DisplayGrandTotal(true, false, true) == 240, "grand total ignores row limit");
-        Assert(ledger.DisplayGrandTotal(true, true, false) == 100, "friendly total excludes unknown when configured");
-        Assert(ledger.DisplayGrandTotal(true, true, true) == 160, "friendly total can include unknown");
+        var all = DamageMeterHudPresenter.BuildRows(
+            ledger.Combatants,
+            DamageMeterTeamFilters.All,
+            ledger.AveragingRoundCount,
+            ledger);
+        var friendly = DamageMeterHudPresenter.BuildRows(
+            ledger.Combatants,
+            DamageMeterTeamFilters.Friendly,
+            ledger.AveragingRoundCount,
+            ledger);
+        var enemy = DamageMeterHudPresenter.BuildRows(
+            ledger.Combatants,
+            DamageMeterTeamFilters.Enemy,
+            ledger.AveragingRoundCount,
+            ledger);
+        Assert(all.Count == 3 && all.Sum(row => row.Total) == 240,
+            "all-team HUD filter includes friendly, enemy, and unknown sources");
+        Assert(friendly.Count == 1 && friendly.Single().Total == 100,
+            "friendly HUD filter excludes enemy and unknown sources");
+        Assert(enemy.Count == 1 && enemy.Single().Total == 80,
+            "enemy HUD filter excludes friendly and unknown sources");
     }
 }

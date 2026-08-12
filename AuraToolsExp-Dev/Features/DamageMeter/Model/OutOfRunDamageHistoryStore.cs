@@ -25,7 +25,7 @@ public sealed class OutOfRunDamageHistoryStore
         var clone = Clone(record);
         clone.Sequence = records.Count == 0 ? 1 : records.Max(item => item.Sequence) + 1;
         records.Add(clone);
-        Trim();
+        records.Sort((left, right) => left.Sequence.CompareTo(right.Sequence));
         return true;
     }
 
@@ -55,16 +55,7 @@ public sealed class OutOfRunDamageHistoryStore
             records.Add(Clone(record));
         }
 
-        Trim();
-    }
-
-    private void Trim()
-    {
         records.Sort((left, right) => left.Sequence.CompareTo(right.Sequence));
-        if (records.Count > DamageMeterProtocol.MaxOutOfRunHistory)
-        {
-            records.RemoveRange(0, records.Count - DamageMeterProtocol.MaxOutOfRunHistory);
-        }
     }
 
     private static OutOfRunDamageHistoryRecord Clone(OutOfRunDamageHistoryRecord source)

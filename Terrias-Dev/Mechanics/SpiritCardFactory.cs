@@ -86,9 +86,18 @@ public static class SpiritCardFactory
         };
         try
         {
-            result.ReadyOnTurn = AuraSharedJson.Deserialize<Dictionary<string, int>>(
-                    RuntimeValue(config, TerriasIds.SpiritIntentReadyOnTurnKey))
-                ?? new Dictionary<string, int>(StringComparer.Ordinal);
+            var persisted = AuraSharedJson.Deserialize<SpiritCardBattleState>(
+                RuntimeValue(config, TerriasIds.SpiritBattleStateKey));
+            if (persisted != null)
+            {
+                result = persisted;
+            }
+            else
+            {
+                result.ReadyOnTurn = AuraSharedJson.Deserialize<Dictionary<string, int>>(
+                        RuntimeValue(config, TerriasIds.SpiritIntentReadyOnTurnKey))
+                    ?? new Dictionary<string, int>(StringComparer.Ordinal);
+            }
         }
         catch
         {
@@ -103,6 +112,14 @@ public static class SpiritCardFactory
                 entry => Math.Max(0, Math.Min(10000, entry.Value)),
                 StringComparer.Ordinal);
         result.TurnIndex = Math.Min(10000, result.TurnIndex);
+        result.MaxHp = Math.Max(0, result.MaxHp);
+        result.CurrentHp = Math.Max(0, Math.Min(result.MaxHp, result.CurrentHp));
+        result.CurrentDefend = Math.Max(0, result.CurrentDefend);
+        result.CurrentMagic = Math.Max(0, result.CurrentMagic);
+        result.PassiveState = (result.PassiveState ?? new Dictionary<string, int>())
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
+            .Take(128)
+            .ToDictionary(entry => entry.Key.Trim(), entry => entry.Value, StringComparer.Ordinal);
         return result;
     }
 
@@ -218,6 +235,8 @@ public static class SpiritCardFactory
         Set(runtime, TerriasIds.SpiritIntentTurnIndexKey, Math.Max(0, battleState?.TurnIndex ?? 0).ToString());
         Set(runtime, TerriasIds.SpiritIntentReadyOnTurnKey, AuraSharedJson.Serialize(
             battleState?.ReadyOnTurn ?? new Dictionary<string, int>(StringComparer.Ordinal)));
+        Set(runtime, TerriasIds.SpiritBattleStateKey, AuraSharedJson.SerializeCompact(
+            battleState ?? new SpiritCardBattleState()));
         Set(runtime, "TotalExCost", exchangeCount.ToString());
         Set(runtime, "TerriasSpiritBaseHp", snapshot.BaseHp.ToString());
         Set(runtime, "TerriasSpiritBaseAttack", snapshot.BaseAttack.ToString());

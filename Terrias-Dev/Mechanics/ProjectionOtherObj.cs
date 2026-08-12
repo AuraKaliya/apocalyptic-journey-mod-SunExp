@@ -6,8 +6,6 @@ using AuraCombatAi.Shared.GameApi;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using UnityEngine;
-using Witch.UI;
-using Witch.UI.Window;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -180,9 +178,9 @@ public sealed class ProjectionOtherObj : Partner
         ActionCards = new List<ObjectCard>();
     }
 
-    public void CopyOwnerCombatState(IStatusManager? owner)
+    public void HydrateOwnerCombatState(ProjectionOwnerCombatSnapshot? snapshot)
     {
-        if (owner == null || Status == null)
+        if (snapshot == null || Status == null)
         {
             return;
         }
@@ -195,10 +193,10 @@ public sealed class ProjectionOtherObj : Partner
                 Status.RemoveBuff(id);
             }
         }
-        foreach (var buff in owner.GetBuffs() ?? Array.Empty<IBuffItem>())
+        foreach (var buff in snapshot.Buffs ?? new List<ProjectionBuffSnapshot>())
         {
-            var id = buff?.buffConfig?.BuffId ?? "";
-            var level = buff?.buffConfig?.Level ?? 0;
+            var id = buff?.BuffId ?? "";
+            var level = buff?.Level ?? 0;
             if (id.Length == 0 || level <= 0)
             {
                 continue;
@@ -219,30 +217,20 @@ public sealed class ProjectionOtherObj : Partner
 
         // Buff initialization can mutate stats and dynamic variables. Restore
         // the captured owner values last so the projection starts identically.
-        MaxHp = Math.Max(1, owner.MaxHp);
-        CurHp = Math.Max(1, Math.Min(MaxHp, owner.CurHp));
-        Defend = Math.Max(0, owner.Defend);
-        if (owner.fatherObject is OtherObj ownerActor)
-        {
-            Attack = Math.Max(0, ownerActor.Attack);
-        }
-        if (owner.dynamicVariables != null && Status.dynamicVariables != null)
+        MaxHp = Math.Max(1, snapshot.MaxHp);
+        CurHp = Math.Max(1, Math.Min(MaxHp, snapshot.CurrentHp));
+        Defend = Math.Max(0, snapshot.Defend);
+        Attack = Math.Max(0, snapshot.Attack);
+        if (Status.dynamicVariables != null)
         {
             Status.dynamicVariables.Clear();
-            foreach (var entry in owner.dynamicVariables)
+            foreach (var entry in snapshot.DynamicVariables
+                         ?? new Dictionary<string, float>())
             {
                 Status.dynamicVariables[entry.Key] = entry.Value;
             }
         }
         Status.UpdateStatus(true);
-    }
-
-    public void BeginCardStateCapture()
-    {
-        if (CompanionAuthorityService.IsAuthoritative())
-        {
-            StartCoroutine(CaptureCardStateAfterSettlement());
-        }
     }
 
     public void HydrateCardState(
@@ -297,50 +285,6 @@ public sealed class ProjectionOtherObj : Partner
             TerriasIds.ModId,
             InstanceId,
             AuraShared.Core.AuraBattleLifecycleRouter.CurrentBattleSessionId);
-    }
-
-    private IEnumerator CaptureCardStateAfterSettlement()
-    {
-        yield return null;
-        var deadline = Time.unscaledTime + 8f;
-        var settled = false;
-        while (Time.unscaledTime < deadline)
-        {
-            var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
-            if (fightUi != null
-                && !WitchCombatRuntime.IsUiBusy(fightUi)
-                && (FightUI.WaitCard?.Count ?? 0) == 0)
-            {
-                settled = true;
-                break;
-            }
-            yield return null;
-        }
-
-        if (!settled)
-        {
-            TerriasLog.Warn(
-                "[ProjectionCards] summon settlement timed out; owner card state was not copied: "
-                + InstanceId);
-            yield break;
-        }
-
-        var owner = FightManager.Instance?.statuses?.TryGetValue(
-            OwnerStatusId,
-            out var ownerStatus) == true
-            ? ownerStatus
-            : null;
-        CopyOwnerCombatState(owner);
-        var captured = ProjectionCardBattleState.CaptureFromPlayer(
-            InstanceId,
-            out var reason);
-        if (captured == null)
-        {
-            TerriasLog.Warn("[ProjectionCards] capture failed: " + reason);
-            yield break;
-        }
-        cardState = captured;
-        ProjectionSummonService.BroadcastRuntimeState(this, "CardStateCaptured");
     }
 
     private static CombatAutoTurnProfile ProjectionTurnProfile()

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using AuraToolsExp.Dll.Features.DamageMeter.Network;
+using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraUi.Shared;
@@ -20,7 +22,7 @@ internal static class DamageHistoryWindowRenderer
     internal static void ShowHistory(DamageHistoryStore history, DamageMeterSettings settings)
     {
         AuraToolsDamageMeterUi.EnsureRoot();
-        if (AuraToolsDamageMeterUi.Root == null || history.Records.Count == 0)
+        if (AuraToolsDamageMeterUi.Root == null || history.TotalCount == 0)
         {
             return;
         }
@@ -56,6 +58,20 @@ internal static class DamageHistoryWindowRenderer
         headerLayout.childControlHeight = true;
         headerLayout.childForceExpandWidth = false;
         AuraToolsDamageMeterUi.AddText(header.transform, "本轮冒险输出历史", 17, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 34f, 1f);
+        AuraToolsDamageMeterUi.AddButton(header.transform, "清空", () =>
+        {
+            try
+            {
+                DamageHistoryStorage.Database.ClearFights(DamageMeterNetworkRuntime.CurrentAdventureId);
+                history.Clear();
+                AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+                AuraToolsDamageMeterUi.CloseHistory();
+            }
+            catch (Exception ex)
+            {
+                AuraToolsLog.Warn("[DamageMeter] clear fight history failed: " + ex.Message);
+            }
+        }, 72f, 32f);
         AuraToolsDamageMeterUi.AddButton(header.transform, "关闭", AuraToolsDamageMeterUi.CloseHistory, 72f, 32f);
 
         var body = AuraToolsDamageMeterUi.CreateLayout("Body", window.transform);
@@ -86,22 +102,39 @@ internal static class DamageHistoryWindowRenderer
         detailsLayout.childForceExpandWidth = true;
         detailsLayout.childForceExpandHeight = false;
 
-        var ordered = history.Records.OrderByDescending(record => record.Sequence).ToList();
-        foreach (var record in ordered)
+        try
         {
-            var label = "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
-                        + "  " + record.Snapshot.CompletedRoundCount + "回合";
-            AuraToolsDamageMeterUi.AddButton(listContent, label, () => RenderHistoryRecord(details.transform, record, settings), 216f, 34f);
+            var page = DamageHistoryStorage.Database.LoadFightPage(
+                DamageMeterNetworkRuntime.CurrentAdventureId,
+                pageSize: DamageHistoryDatabase.DefaultPageSize);
+            AppendFightPage(listContent, details.transform, history, settings, page);
+            if (page.Items.Count > 0)
+            {
+                RenderHistoryRecord(details.transform, page.Items[0], settings);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] fight history query failed: " + ex.Message);
+            var fallback = history.Records.OrderByDescending(record => record.Sequence).ToList();
+            foreach (var record in fallback)
+            {
+                AddFightListRow(listContent, details.transform, history, settings, record);
+            }
+
+            if (fallback.Count > 0)
+            {
+                RenderHistoryRecord(details.transform, fallback[0], settings);
+            }
         }
 
-        RenderHistoryRecord(details.transform, ordered[0], settings);
         overlay.transform.SetAsLastSibling();
     }
 
-    internal static void ShowOutOfRunHistory(OutOfRunDamageHistoryStore history)
+    internal static void ShowOutOfRunHistory()
     {
         AuraToolsDamageMeterUi.EnsureRoot();
-        if (AuraToolsDamageMeterUi.Root == null || history == null)
+        if (AuraToolsDamageMeterUi.Root == null)
         {
             return;
         }
@@ -119,7 +152,7 @@ internal static class DamageHistoryWindowRenderer
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
-            new Vector2(1180f, 640f));
+            new Vector2(1240f, 640f));
         AuraToolsDamageMeterUi.ApplyPanelImage(window, new Color(0.04f, 0.035f, 0.06f, 0.99f));
         var windowLayout = window.AddComponent<VerticalLayoutGroup>();
         windowLayout.padding = new RectOffset(12, 12, 10, 10);
@@ -143,7 +176,7 @@ internal static class DamageHistoryWindowRenderer
             () =>
             {
                 AuraToolsDamageMeterRuntime.ClearOutOfRunHistory();
-                ShowOutOfRunHistory(AuraToolsDamageMeterRuntime.OutOfRunHistory);
+                ShowOutOfRunHistory();
             },
             72f,
             32f);
@@ -155,20 +188,128 @@ internal static class DamageHistoryWindowRenderer
         var content = CreateScrollContent(viewport);
 
         RenderOutOfRunHeader(content);
-        var ordered = history.Records.OrderByDescending(record => record.Sequence).ToList();
-        if (ordered.Count == 0)
+        try
         {
-            AuraToolsDamageMeterUi.AddText(content, "暂无局外历史记录", 14, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 64f, 1f);
-        }
-        else
-        {
-            foreach (var record in ordered)
+            var page = DamageHistoryStorage.Database.LoadAdventurePage(pageSize: DamageHistoryDatabase.DefaultPageSize);
+            if (page.Items.Count == 0)
             {
-                RenderOutOfRunRow(content, record);
+                AuraToolsDamageMeterUi.AddText(content, "暂无局外历史记录", 14, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 64f, 1f);
             }
+            else
+            {
+                AppendAdventurePage(content, page);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[DamageMeter] out-of-run history query failed: " + ex.Message);
+            AuraToolsDamageMeterUi.AddText(content, "历史记录读取失败", 14, TextAnchor.MiddleCenter, AuraToolsUi.WarningText, 64f, 1f);
         }
 
         overlay.transform.SetAsLastSibling();
+    }
+
+    private static void AppendFightPage(
+        Transform listContent,
+        Transform details,
+        DamageHistoryStore history,
+        DamageMeterSettings settings,
+        DamageHistoryPage<DamageFightRecord> page)
+    {
+        foreach (var record in page.Items)
+        {
+            AddFightListRow(listContent, details, history, settings, record);
+        }
+
+        if (!page.HasMore)
+        {
+            return;
+        }
+
+        Button? loadMore = null;
+        loadMore = AuraToolsDamageMeterUi.AddButton(listContent, "加载更早记录", () =>
+        {
+            if (loadMore != null)
+            {
+                Object.Destroy(loadMore.gameObject);
+            }
+
+            var next = DamageHistoryStorage.Database.LoadFightPage(
+                DamageMeterNetworkRuntime.CurrentAdventureId,
+                page.NextCursor,
+                DamageHistoryDatabase.DefaultPageSize);
+            AppendFightPage(listContent, details, history, settings, next);
+        }, 216f, 34f);
+    }
+
+    private static void AddFightListRow(
+        Transform listContent,
+        Transform details,
+        DamageHistoryStore history,
+        DamageMeterSettings settings,
+        DamageFightRecord record)
+    {
+        var row = AuraToolsDamageMeterUi.CreateLayout("Fight-" + record.Sequence, listContent);
+        AuraToolsDamageMeterUi.SetHeight(row, 34f);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.spacing = 4f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        var label = "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
+                    + "  " + record.Snapshot.CompletedRoundCount + "回合";
+        AuraToolsDamageMeterUi.AddButton(row.transform, label, () => RenderHistoryRecord(details, record, settings), 174f, 34f);
+        AuraToolsDamageMeterUi.AddButton(row.transform, "删", () =>
+        {
+            if (!DamageHistoryStorage.Database.DeleteFight(DamageMeterNetworkRuntime.CurrentAdventureId, record.Sequence))
+            {
+                return;
+            }
+
+            var latest = DamageHistoryStorage.Database.LoadFightPage(
+                DamageMeterNetworkRuntime.CurrentAdventureId,
+                pageSize: DamageHistoryDatabase.DefaultPageSize);
+            history.ApplyRecent(latest.Items, latest.TotalCount);
+            AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+            if (latest.TotalCount == 0)
+            {
+                AuraToolsDamageMeterUi.CloseHistory();
+            }
+            else
+            {
+                ShowHistory(history, settings);
+            }
+        }, 38f, 34f);
+    }
+
+    private static void AppendAdventurePage(
+        Transform content,
+        DamageHistoryPage<OutOfRunDamageHistoryRecord> page)
+    {
+        foreach (var record in page.Items)
+        {
+            RenderOutOfRunRow(content, record);
+        }
+
+        if (!page.HasMore)
+        {
+            return;
+        }
+
+        Button? loadMore = null;
+        loadMore = AuraToolsDamageMeterUi.AddButton(content, "加载更早记录", () =>
+        {
+            if (loadMore != null)
+            {
+                Object.Destroy(loadMore.gameObject);
+            }
+
+            AppendAdventurePage(
+                content,
+                DamageHistoryStorage.Database.LoadAdventurePage(
+                    page.NextCursor,
+                    DamageHistoryDatabase.DefaultPageSize));
+        }, 180f, 34f);
     }
 
     internal static void RenderOutOfRunHeader(Transform parent)
@@ -185,8 +326,9 @@ internal static class DamageHistoryWindowRenderer
         AuraToolsDamageMeterUi.AddText(row.transform, "状态", 12, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 58f);
         AuraToolsDamageMeterUi.AddText(row.transform, "队伍成员", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 460f);
         AuraToolsDamageMeterUi.AddText(row.transform, "最强一击", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 178f);
-        AuraToolsDamageMeterUi.AddText(row.transform, "队伍DPS", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 112f);
+        AuraToolsDamageMeterUi.AddText(row.transform, "队伍DPT", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 112f);
         AuraToolsDamageMeterUi.AddText(row.transform, "MVP", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 1f);
+        AuraToolsDamageMeterUi.AddText(row.transform, "", 12, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 46f);
     }
 
     internal static void RenderOutOfRunRow(Transform parent, OutOfRunDamageHistoryRecord record)
@@ -225,6 +367,14 @@ internal static class DamageHistoryWindowRenderer
         AuraToolsDamageMeterUi.AddText(row.transform, BestHitLabel(record.BestHit), 12, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 40f, 0f, 178f);
         AuraToolsDamageMeterUi.AddText(row.transform, DamageMeterFormatters.FormatScientific(record.TeamDps), 12, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 0f, 112f);
         AuraToolsDamageMeterUi.AddText(row.transform, DamageMeterFormatters.TrimDisplayName(record.Mvp?.DisplayName ?? ""), 12, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 1f);
+        AuraToolsDamageMeterUi.AddButton(row.transform, "删", () =>
+        {
+            if (DamageHistoryStorage.Database.DeleteAdventure(record.Sequence))
+            {
+                AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+                ShowOutOfRunHistory();
+            }
+        }, 42f, 32f);
     }
 
     internal static void AddMemberCell(Transform parent, OutOfRunTeamMemberSnapshot? member)
@@ -410,10 +560,12 @@ internal static class DamageHistoryWindowRenderer
             return;
         }
 
-        var grandTotal = ledger.DisplayGrandTotal(
-            settings.CountShieldLoss,
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam);
+        var visibleRows = DamageMeterHudPresenter.BuildRows(
+            ledger.Combatants,
+            settings.TeamFilter,
+            Math.Max(1, ledger.CompletedRoundCount),
+            ledger);
+        var grandTotal = visibleRows.Sum(row => row.Total);
         AuraToolsDamageMeterUi.AddText(
             parent,
             "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
@@ -449,13 +601,9 @@ internal static class DamageHistoryWindowRenderer
         AuraToolsDamageMeterUi.AddText(columns.transform, "占比", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 58f);
         AuraToolsDamageMeterUi.AddText(columns.transform, "", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 58f);
 
-        var visibleRows = ledger.VisibleRows(
-            settings.FriendlyOnly,
-            settings.IncludeUnknownTeam,
-            settings.CountShieldLoss,
-            Math.Max(settings.MaxRows, 12));
-        foreach (var stat in visibleRows)
+        foreach (var historyRow in visibleRows)
         {
+            var stat = historyRow.Stat;
             var row = AuraToolsDamageMeterUi.CreateLayout("History-" + stat.InstanceId, parent);
             AuraToolsDamageMeterUi.SetHeight(row, 40f);
             AuraToolsDamageMeterUi.AddPanel(row, AuraToolsUi.Row);
@@ -467,7 +615,7 @@ internal static class DamageHistoryWindowRenderer
             layout.childForceExpandWidth = false;
             AuraToolsDamageMeterUi.AddText(row.transform, AuraToolsDamageMeterUi.TeamLabel(stat.Team), 12, TextAnchor.MiddleCenter, AuraToolsUi.Text, 30f, 0f, 28f);
             AuraToolsDamageMeterUi.AddText(row.transform, AuraToolsDamageMeterUi.TrimName(stat.DisplayName), 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 30f, 1f);
-            AuraToolsDamageMeterUi.AddText(row.transform, stat.DisplayTotal(settings.CountShieldLoss).ToString(), 13, TextAnchor.MiddleRight, AuraToolsUi.Accent, 30f, 0f, 78f);
+            AuraToolsDamageMeterUi.AddText(row.transform, historyRow.Total.ToString(), 13, TextAnchor.MiddleRight, AuraToolsUi.Accent, 30f, 0f, 78f);
             AuraToolsDamageMeterUi.AddText(
                 row.transform,
                 BestHitValueForStat(record.Snapshot.BestHit, stat.InstanceId),
@@ -479,9 +627,7 @@ internal static class DamageHistoryWindowRenderer
                 112f);
             AuraToolsDamageMeterUi.AddText(
                 row.transform,
-                stat.AveragePerCompletedRound(
-                    settings.CountShieldLoss,
-                    Math.Max(1, ledger.CompletedRoundCount)).ToString("0.0"),
+                historyRow.Dpt.ToString("0.0"),
                 12,
                 TextAnchor.MiddleRight,
                 AuraToolsUi.Text,
@@ -490,9 +636,7 @@ internal static class DamageHistoryWindowRenderer
                 72f);
             AuraToolsDamageMeterUi.AddText(
                 row.transform,
-                grandTotal <= 0
-                    ? "0%"
-                    : ((double)stat.DisplayTotal(settings.CountShieldLoss) / grandTotal).ToString("P0"),
+                historyRow.Share.ToString("P0"),
                 12,
                 TextAnchor.MiddleRight,
                 AuraToolsUi.Text,
@@ -502,7 +646,11 @@ internal static class DamageHistoryWindowRenderer
             AuraToolsDamageMeterUi.AddButton(
                 row.transform,
                 "明细",
-                () => AuraToolsDamageMeterUi.ShowDetails(stat.InstanceId, ledger, settings),
+                () => DamageDetailsPresenter.Show(
+                    stat,
+                    Math.Max(1, ledger.CompletedRoundCount),
+                    "本场战斗",
+                    stat.DisplayCurrentRound(true)),
                 58f,
                 30f);
         }

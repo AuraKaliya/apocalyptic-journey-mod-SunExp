@@ -15,7 +15,7 @@ namespace AuraToolsExp.Dll.Features.DamageMeter;
 
 internal static class AuraToolsDamageMeterUi
 {
-    private const string RootName = "AuraToolsDamageMeterCanvas-v3";
+    private const string RootName = "AuraToolsDamageMeterCanvas-v4";
     private const string ToggleName = "AuraToolsDamageMeterToggle";
     private const string PanelName = "AuraToolsDamageMeterPanel";
     private const string DetailName = "AuraToolsDamageMeterDetails";
@@ -31,12 +31,16 @@ internal static class AuraToolsDamageMeterUi
     private static RectTransform? panelRect;
     private static CanvasGroup? panelCanvasGroup;
     private static GameObject? columns;
+    private static GameObject? rowsViewport;
     private static Transform? rows;
     private static GameObject? emptyState;
     private static Text? emptyText;
     private static Text? title;
     private static Text? footer;
     private static Button? historyButton;
+    private static Button? displayModeButton;
+    private static Button? displayScopeButton;
+    private static Button? teamFilterButton;
     private static Vector2 savedButtonPosition = new(-24f, 88f);
     private static float lastPanelHeight = -1f;
 
@@ -104,6 +108,7 @@ internal static class AuraToolsDamageMeterUi
         if (panel == null
             || panelRect == null
             || rows == null
+            || rowsViewport == null
             || columns == null
             || emptyState == null
             || emptyText == null
@@ -138,11 +143,12 @@ internal static class AuraToolsDamageMeterUi
             }
         }
 
-        SetActiveIfChanged(columns, presentation.InFight);
-        SetActiveIfChanged(rows.gameObject, presentation.InFight);
-        SetActiveIfChanged(emptyState, !presentation.InFight);
+        UpdateViewControlLabels(settings);
+        SetActiveIfChanged(columns, presentation.ShowStats);
+        SetActiveIfChanged(rowsViewport, presentation.ShowStats);
+        SetActiveIfChanged(emptyState, !presentation.ShowStats);
 
-        if (!presentation.InFight)
+        if (!presentation.ShowStats)
         {
             HideAllRows();
             SetTextIfChanged(emptyText, presentation.EmptyMessage);
@@ -150,10 +156,10 @@ internal static class AuraToolsDamageMeterUi
             return;
         }
 
-        EnsureRows(settings.MaxRows);
+        EnsureRows(presentation.VisibleRows.Count);
         for (var i = 0; i < RowPool.Count; i++)
         {
-            if (i >= presentation.VisibleRows.Count || i >= settings.MaxRows)
+            if (i >= presentation.VisibleRows.Count)
             {
                 RowPool[i].SetVisible(false);
                 continue;
@@ -161,10 +167,9 @@ internal static class AuraToolsDamageMeterUi
 
             RowPool[i].Bind(
                 presentation.VisibleRows[i],
-                ledger,
-                settings,
-                presentation.GrandTotal,
-                ShowDetails);
+                presentation.BarsMode,
+                presentation.ScopeLabel,
+                presentation.AveragingRounds);
         }
 
         SetTextIfChanged(footer, presentation.Footer);
@@ -327,6 +332,18 @@ internal static class AuraToolsDamageMeterUi
         historyButton.interactable = false;
         AddButton(headerActions.transform, "收起", () => AuraToolsDamageMeterRuntime.SetVisible(false), 58f, 30f);
 
+        var viewControls = CreateLayout("ViewControls", panel.transform);
+        SetHeight(viewControls, 32f);
+        var viewControlsLayout = viewControls.AddComponent<HorizontalLayoutGroup>();
+        viewControlsLayout.spacing = 6f;
+        viewControlsLayout.childControlWidth = true;
+        viewControlsLayout.childControlHeight = true;
+        viewControlsLayout.childForceExpandWidth = false;
+        AddText(viewControls.transform, "视图", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 28f, 1f);
+        displayModeButton = AddButton(viewControls.transform, "表格", CycleDisplayMode, 72f, 28f);
+        displayScopeButton = AddButton(viewControls.transform, "本场", CycleDisplayScope, 72f, 28f);
+        teamFilterButton = AddButton(viewControls.transform, "全部", CycleTeamFilter, 64f, 28f);
+
         columns = CreateLayout("Columns", panel.transform);
         SetHeight(columns, 22f);
         var columnLayout = columns.AddComponent<HorizontalLayoutGroup>();
@@ -336,20 +353,16 @@ internal static class AuraToolsDamageMeterUi
         columnLayout.childForceExpandWidth = false;
         AddText(columns.transform, "队", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 20f, 0f, 28f);
         AddText(columns.transform, "角色", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 20f, 1f);
-        AddText(columns.transform, "本回合", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 62f);
-        AddText(columns.transform, "本场", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 66f);
-        AddText(columns.transform, "平均", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 66f);
+        AddText(columns.transform, "当前", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 62f);
+        AddText(columns.transform, "总计", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 66f);
+        AddText(columns.transform, "DPT", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 66f);
         AddText(columns.transform, "占比", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 50f);
         AddText(columns.transform, "", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 20f, 0f, 58f);
 
-        rows = CreateLayout("Rows", panel.transform).transform;
-        var rowsLayout = rows.gameObject.AddComponent<VerticalLayoutGroup>();
-        rowsLayout.spacing = 4f;
-        rowsLayout.childControlWidth = true;
-        rowsLayout.childControlHeight = true;
-        rowsLayout.childForceExpandWidth = true;
-        rowsLayout.childForceExpandHeight = false;
-        rows.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        rowsViewport = CreateLayout("RowsViewport", panel.transform);
+        rowsViewport.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        AddPanel(rowsViewport, new Color(0.025f, 0.023f, 0.038f, 0.45f));
+        rows = DamageHistoryWindowRenderer.CreateScrollContent(rowsViewport);
 
         emptyState = CreateLayout("EmptyState", panel.transform);
         emptyState.AddComponent<LayoutElement>().flexibleHeight = 1f;
@@ -455,7 +468,7 @@ internal static class AuraToolsDamageMeterUi
             return;
         }
 
-        count = Math.Max(1, Math.Min(12, count));
+        count = Math.Max(1, count);
         while (RowPool.Count < count)
         {
             RowPool.Add(CreateStatRow(rows));
@@ -475,6 +488,10 @@ internal static class AuraToolsDamageMeterUi
         var row = CreateLayout("DamageMeterRow-" + RowPool.Count, parent);
         SetHeight(row, 44f);
         var background = row.AddComponent<Image>();
+        var bar = CreateRect("Bar", row.transform, Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 0.5f), Vector2.zero);
+        bar.AddComponent<LayoutElement>().ignoreLayout = true;
+        var barImage = bar.AddComponent<Image>();
+        barImage.raycastTarget = false;
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(6, 6, 3, 3);
         layout.spacing = 6f;
@@ -490,12 +507,61 @@ internal static class AuraToolsDamageMeterUi
         var share = AddText(row.transform, "", 12, TextAnchor.MiddleRight, AuraToolsUi.Text, 30f, 0f, 50f);
         var details = AddButton(row.transform, "明细", () => { }, 58f, 30f);
         row.SetActive(false);
-        return new DamageMeterRowView(row, background, team, name, round, total, average, share, details);
+        return new DamageMeterRowView(row, background, bar.GetComponent<RectTransform>(), barImage, team, name, round, total, average, share, details);
     }
 
     internal static void ShowDetails(string instanceId, DamageLedger ledger, DamageMeterSettings settings)
     {
         DamageDetailsPresenter.Show(instanceId, ledger, settings);
+    }
+
+    private static void CycleDisplayMode()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.DamageMeter;
+        settings.DisplayMode = settings.DisplayMode == DamageMeterDisplayModes.Bars
+            ? DamageMeterDisplayModes.Table
+            : DamageMeterDisplayModes.Bars;
+        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+    }
+
+    private static void CycleDisplayScope()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.DamageMeter;
+        settings.DisplayScope = settings.DisplayScope == DamageMeterDisplayScopes.Adventure
+            ? DamageMeterDisplayScopes.Fight
+            : DamageMeterDisplayScopes.Adventure;
+        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+    }
+
+    private static void CycleTeamFilter()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.DamageMeter;
+        settings.TeamFilter = settings.TeamFilter == DamageMeterTeamFilters.All
+            ? DamageMeterTeamFilters.Friendly
+            : settings.TeamFilter == DamageMeterTeamFilters.Friendly
+                ? DamageMeterTeamFilters.Enemy
+                : DamageMeterTeamFilters.All;
+        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+    }
+
+    private static void UpdateViewControlLabels(DamageMeterSettings settings)
+    {
+        SetButtonText(displayModeButton, settings.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格");
+        SetButtonText(displayScopeButton, settings.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮" : "本场");
+        SetButtonText(teamFilterButton, settings.TeamFilter == DamageMeterTeamFilters.Friendly
+            ? "友方"
+            : settings.TeamFilter == DamageMeterTeamFilters.Enemy ? "敌方" : "全部");
+    }
+
+    private static void SetButtonText(Button? button, string value)
+    {
+        if (button != null)
+        {
+            SetTextIfChanged(button.GetComponentInChildren<Text>(), value);
+        }
     }
 
     internal static GameObject CreateRect(
@@ -697,6 +763,8 @@ internal static class AuraToolsDamageMeterUi
     private sealed class DamageMeterRowView
     {
         private readonly Image background;
+        private readonly RectTransform barRect;
+        private readonly Image bar;
         private readonly Text team;
         private readonly Text name;
         private readonly Text round;
@@ -704,14 +772,16 @@ internal static class AuraToolsDamageMeterUi
         private readonly Text average;
         private readonly Text share;
         private readonly Button details;
-        private string currentInstanceId = "";
-        private DamageLedger? currentLedger;
-        private DamageMeterSettings? currentSettings;
-        private Action<string, DamageLedger, DamageMeterSettings>? currentShowDetails;
+        private CombatantDamageStat? currentStat;
+        private int currentAveragingRounds;
+        private string currentScopeLabel = "";
+        private long currentRoundValue;
 
         public DamageMeterRowView(
             GameObject root,
             Image background,
+            RectTransform barRect,
+            Image bar,
             Text team,
             Text name,
             Text round,
@@ -722,6 +792,8 @@ internal static class AuraToolsDamageMeterUi
         {
             Root = root;
             this.background = background;
+            this.barRect = barRect;
+            this.bar = bar;
             this.team = team;
             this.name = name;
             this.round = round;
@@ -741,12 +813,12 @@ internal static class AuraToolsDamageMeterUi
         }
 
         public void Bind(
-            CombatantDamageStat stat,
-            DamageLedger ledger,
-            DamageMeterSettings settings,
-            long grandTotal,
-            Action<string, DamageLedger, DamageMeterSettings> showDetails)
+            DamageMeterHudRow row,
+            bool barsMode,
+            string scopeLabel,
+            int averagingRounds)
         {
+            var stat = row.Stat;
             SetVisible(true);
             SetColorIfChanged(
                 background,
@@ -755,6 +827,15 @@ internal static class AuraToolsDamageMeterUi
                     DamageTeam.Friendly => new Color(0.08f, 0.11f, 0.08f, 0.86f),
                     DamageTeam.Enemy => new Color(0.12f, 0.07f, 0.07f, 0.86f),
                     _ => new Color(0.10f, 0.09f, 0.12f, 0.86f)
+                });
+            barRect.anchorMax = new Vector2(barsMode ? (float)row.BarFraction : 0f, 1f);
+            SetColorIfChanged(
+                bar,
+                stat.Team switch
+                {
+                    DamageTeam.Friendly => new Color(0.18f, 0.52f, 0.29f, 0.42f),
+                    DamageTeam.Enemy => new Color(0.65f, 0.20f, 0.19f, 0.42f),
+                    _ => new Color(0.42f, 0.34f, 0.56f, 0.38f)
                 });
             SetTextIfChanged(
                 team,
@@ -772,36 +853,27 @@ internal static class AuraToolsDamageMeterUi
                     DamageTeam.Enemy => AuraToolsUi.WarningText,
                     _ => AuraToolsUi.MutedText
                 });
-            SetTextIfChanged(name, TrimName(stat.DisplayName));
+            SetTextIfChanged(name, "#" + row.Rank + " " + TrimName(stat.DisplayName));
             SetColorIfChanged(name, stat.IsDead ? AuraToolsUi.MutedText : AuraToolsUi.Text);
-            SetTextIfChanged(round, stat.DisplayCurrentRound(settings.CountShieldLoss).ToString());
-            var totalValue = stat.DisplayTotal(settings.CountShieldLoss);
-            SetTextIfChanged(total, totalValue.ToString());
-            SetTextIfChanged(
-                average,
-                settings.ShowAverageDpt
-                    ? stat.AveragePerCompletedRound(
-                        settings.CountShieldLoss,
-                        Math.Max(1, ledger.AveragingRoundCount)).ToString("0.0")
-                    : "-");
-            SetTextIfChanged(
-                share,
-                settings.ShowTeamShare
-                    ? grandTotal <= 0 ? "0%" : ((double)totalValue / grandTotal).ToString("P0")
-                    : "-");
-            currentInstanceId = stat.InstanceId;
-            currentLedger = ledger;
-            currentSettings = settings;
-            currentShowDetails = showDetails;
+            SetTextIfChanged(round, scopeLabel == "本轮冒险" ? "-" : row.CurrentRound.ToString());
+            SetTextIfChanged(total, row.Total.ToString());
+            SetTextIfChanged(average, row.Dpt.ToString("0.0"));
+            SetTextIfChanged(share, row.Share.ToString("P0"));
+            currentStat = stat;
+            currentAveragingRounds = averagingRounds;
+            currentScopeLabel = scopeLabel;
+            currentRoundValue = row.CurrentRound;
         }
 
         private void ShowCurrentDetails()
         {
-            if (!string.IsNullOrWhiteSpace(currentInstanceId)
-                && currentLedger != null
-                && currentSettings != null)
+            if (currentStat != null)
             {
-                currentShowDetails?.Invoke(currentInstanceId, currentLedger, currentSettings);
+                DamageDetailsPresenter.Show(
+                    currentStat,
+                    currentAveragingRounds,
+                    currentScopeLabel,
+                    currentRoundValue);
             }
         }
     }

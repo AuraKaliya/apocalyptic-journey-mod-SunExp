@@ -61,6 +61,16 @@ public sealed class SpiritCardBattleState
 
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new(StringComparer.Ordinal);
 
+    public int MaxHp { get; set; }
+
+    public int CurrentHp { get; set; }
+
+    public int CurrentDefend { get; set; }
+
+    public int CurrentMagic { get; set; }
+
+    public Dictionary<string, int> PassiveState { get; set; } = new(StringComparer.Ordinal);
+
     public static SpiritCardBattleState From(CompanionBattleState? state)
     {
         return new SpiritCardBattleState
@@ -69,6 +79,11 @@ public sealed class SpiritCardBattleState
             ReadyOnTurn = state == null
                 ? new Dictionary<string, int>(StringComparer.Ordinal)
                 : state.ReadyOnTurnSnapshot()
+                    .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
+            CurrentMagic = Math.Max(0, state?.Stats.CurrentMagic ?? 0),
+            PassiveState = state == null
+                ? new Dictionary<string, int>(StringComparer.Ordinal)
+                : state.PassiveStateSnapshot()
                     .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal)
         };
     }

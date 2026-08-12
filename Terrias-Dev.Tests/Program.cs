@@ -45,6 +45,7 @@ internal static class Program
         TestSpiritProfileIdentityResolver();
         TestProjectionTurnQueuePolicy();
         TestPartnerTurnOrderPolicy();
+        TestFriendlyRoleSeatPolicy();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
@@ -333,6 +334,20 @@ internal static class Program
             value => value.Id);
         Equal("player,fast-a,enemy,fast-b,slow,tail", string.Join(",", ordered.Select(value => value.Id)),
             "Partner speed sorting preserves all non-Partner positions and keeps equal-speed Partners stable");
+    }
+
+    private static void TestFriendlyRoleSeatPolicy()
+    {
+        Equal(1, FriendlyRoleSeatPolicy.FindOpenSeat(1, Array.Empty<int>(), Array.Empty<int>()),
+            "single-player combat leaves three formal role seats available for projections");
+        Equal(3, FriendlyRoleSeatPolicy.FindOpenSeat(3, Array.Empty<int>(), Array.Empty<int>()),
+            "three-player combat leaves exactly one formal projection seat");
+        Equal(-1, FriendlyRoleSeatPolicy.FindOpenSeat(4, Array.Empty<int>(), Array.Empty<int>()),
+            "four real players fill the friendly role-seat cap");
+        Equal(-1, FriendlyRoleSeatPolicy.FindOpenSeat(2, new[] { 2 }, new[] { 3 }),
+            "active and preparing projections share the same four-seat cap");
+        Equal(2, FriendlyRoleSeatPolicy.FindOpenSeat(2, new[] { 3 }, new[] { 99, -1 }),
+            "invalid companion slots never consume a formal role seat");
     }
 
     private static void TestSolarMemoryRoleCommitPendingState()

@@ -1,15 +1,29 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 
 namespace AuraToolsExp.Dll.Config;
 
+public static class DamageMeterDisplayModes
+{
+    public const string Table = "Table";
+    public const string Bars = "Bars";
+}
+
+public static class DamageMeterDisplayScopes
+{
+    public const string Fight = "Fight";
+    public const string Adventure = "Adventure";
+}
+
+public static class DamageMeterTeamFilters
+{
+    public const string All = "All";
+    public const string Friendly = "Friendly";
+    public const string Enemy = "Enemy";
+}
+
 public sealed class DamageMeterSettings
 {
-    private const int FixedMaxRows = 6;
-    private const int DefaultMaxHistoryEnvelopeBytes = 1048576;
     private const int DefaultMaxAvatarEncodePixels = 262144;
     private const int DefaultMaxAvatarPngBytes = 262144;
     private const int DefaultUiRefreshIntervalMs = 1000;
@@ -19,38 +33,29 @@ public sealed class DamageMeterSettings
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
 
-    [JsonProperty("hotkey")]
-    public string Hotkey { get; set; } = "F8";
+    [JsonProperty("displayMode")]
+    public string DisplayMode { get; set; } = DamageMeterDisplayModes.Table;
 
-    [JsonProperty("showPanelByDefault")]
-    public bool ShowPanelByDefault { get; set; }
+    [JsonProperty("displayScope")]
+    public string DisplayScope { get; set; } = DamageMeterDisplayScopes.Fight;
+
+    [JsonProperty("teamFilter")]
+    public string TeamFilter { get; set; } = DamageMeterTeamFilters.All;
 
     [JsonProperty("friendlyOnly")]
-    public bool FriendlyOnly { get; set; }
-
-    [JsonProperty("includeUnknownTeam")]
-    public bool IncludeUnknownTeam { get; set; } = true;
-
-    [JsonProperty("countShieldLoss")]
-    public bool CountShieldLoss { get; set; } = true;
-
-    [JsonProperty("maxRows")]
-    public int MaxRows { get; set; } = 6;
-
-    [JsonProperty("showAverageDpt")]
-    public bool ShowAverageDpt { get; set; } = true;
-
-    [JsonProperty("showTeamShare")]
-    public bool ShowTeamShare { get; set; } = true;
-
-    [JsonProperty("loadHistoryOnStartup")]
-    public bool LoadHistoryOnStartup { get; set; }
+    private bool LegacyFriendlyOnly
+    {
+        set
+        {
+            if (value)
+            {
+                TeamFilter = DamageMeterTeamFilters.Friendly;
+            }
+        }
+    }
 
     [JsonProperty("captureTeamAvatars")]
     public bool CaptureTeamAvatars { get; set; }
-
-    [JsonProperty("maxHistoryEnvelopeBytes")]
-    public int MaxHistoryEnvelopeBytes { get; set; } = DefaultMaxHistoryEnvelopeBytes;
 
     [JsonProperty("maxAvatarEncodePixels")]
     public int MaxAvatarEncodePixels { get; set; } = DefaultMaxAvatarEncodePixels;
@@ -72,16 +77,13 @@ public sealed class DamageMeterSettings
 
     public void Normalize()
     {
-        Hotkey = string.IsNullOrWhiteSpace(Hotkey) ? "F8" : Hotkey.Trim();
-        ShowPanelByDefault = false;
-        IncludeUnknownTeam = !FriendlyOnly;
-        CountShieldLoss = true;
-        MaxRows = FixedMaxRows;
-        ShowAverageDpt = true;
-        ShowTeamShare = true;
-        MaxHistoryEnvelopeBytes = Math.Max(65536, Math.Min(8388608, MaxHistoryEnvelopeBytes <= 0
-            ? DefaultMaxHistoryEnvelopeBytes
-            : MaxHistoryEnvelopeBytes));
+        DisplayMode = NormalizeChoice(DisplayMode, DamageMeterDisplayModes.Table, DamageMeterDisplayModes.Bars);
+        DisplayScope = NormalizeChoice(DisplayScope, DamageMeterDisplayScopes.Fight, DamageMeterDisplayScopes.Adventure);
+        TeamFilter = NormalizeChoice(
+            TeamFilter,
+            DamageMeterTeamFilters.All,
+            DamageMeterTeamFilters.Friendly,
+            DamageMeterTeamFilters.Enemy);
         MaxAvatarEncodePixels = Math.Max(4096, Math.Min(1048576, MaxAvatarEncodePixels <= 0
             ? DefaultMaxAvatarEncodePixels
             : MaxAvatarEncodePixels));
@@ -99,6 +101,19 @@ public sealed class DamageMeterSettings
             : MaxEventsPerBatch));
         SettlementCg ??= new DamageSettlementCgSettings();
         SettlementCg.Normalize();
+    }
+
+    private static string NormalizeChoice(string? value, string fallback, params string[] choices)
+    {
+        foreach (var choice in choices)
+        {
+            if (string.Equals(value, choice, StringComparison.OrdinalIgnoreCase))
+            {
+                return choice;
+            }
+        }
+
+        return fallback;
     }
 }
 

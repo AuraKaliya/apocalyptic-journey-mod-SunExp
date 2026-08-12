@@ -184,20 +184,18 @@ public static class ProjectionStateStore
         {
             if (Projections.Count == 0)
             {
-                CompanionBattleStateStore.Clear();
-                CompanionOwnershipService.Clear();
                 return;
             }
 
             states = Projections.Values.ToArray();
             Projections.Clear();
-            CompanionBattleStateStore.Clear();
         }
 
         foreach (var state in states)
         {
             try
             {
+                CompanionBattleStateStore.Remove(state.StatusId);
                 RemoveFromFightState(state.StatusId);
                 if (state.Projection != null)
                 {

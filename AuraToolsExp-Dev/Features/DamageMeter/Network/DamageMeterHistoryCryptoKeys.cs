@@ -1,6 +1,7 @@
 namespace AuraToolsExp.Dll.Features.DamageMeter.Network;
 
-internal static class DamageMeterHistoryCryptoKeys
+// Read-only compatibility material for importing the retired encrypted JSON format.
+internal static class LegacyDamageMeterHistoryCryptoKeys
 {
     public const string KeyId = "auratools-damage-history-2026-06";
 

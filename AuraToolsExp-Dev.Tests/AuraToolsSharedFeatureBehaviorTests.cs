@@ -2,7 +2,6 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
-using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
@@ -271,25 +270,61 @@ internal static partial class AuraToolsTestSuite
             new DamageHistoryStore(),
             settings,
             "offline");
-        Assert(!idle.InFight && idle.Height == 250f && idle.VisibleRows.Count == 0,
+        Assert(!idle.ShowStats && idle.Height == 250f && idle.VisibleRows.Count == 0,
             "damage HUD presenter builds the idle layout without runtime UI state");
-        Assert(idle.Title.Contains("世界推演", StringComparison.Ordinal)
+        Assert(idle.Title.Contains("DPT", StringComparison.Ordinal)
                && idle.Footer.Contains("offline", StringComparison.Ordinal),
             "damage HUD presenter keeps idle title and network state");
     
         var ledger = NewLedger();
         ledger.StartRound(1);
         Apply(ledger, 1, "hero", 30, 5, DamageTeam.Friendly, "card");
+        Apply(ledger, 2, "ally", 15, 0, DamageTeam.Friendly, "card");
+        Apply(ledger, 3, "enemy", 50, 0, DamageTeam.Enemy, "attack");
+        settings.DisplayMode = DamageMeterDisplayModes.Bars;
         var active = DamageMeterHudPresenter.Build(
             ledger,
             new DamageRunLedger(),
             new DamageHistoryStore(),
             settings,
             "host");
-        Assert(active.InFight && active.VisibleRows.Count == 1 && active.GrandTotal == 35,
-            "damage HUD presenter builds active rows and shield-inclusive totals");
+        Assert(active.ShowStats && active.VisibleRows.Count == 3 && active.BarsMode,
+            "damage HUD presenter builds active progress-bar rows for every selected team");
+        Assert(active.VisibleRows[0].Stat.InstanceId == "hero"
+               && Math.Abs(active.VisibleRows[0].Share - 0.7d) < 0.001d
+               && Math.Abs(active.VisibleRows[0].BarFraction - 1d) < 0.001d
+               && Math.Abs(active.VisibleRows[1].BarFraction - (15d / 35d)) < 0.001d
+               && active.VisibleRows[2].Stat.InstanceId == "enemy"
+               && Math.Abs(active.VisibleRows[2].Share - 1d) < 0.001d,
+            "bar widths and shares are normalized independently inside each team group");
         Assert(active.Title.Contains("回合 1", StringComparison.Ordinal)
-               && active.Footer.Contains("本场合计 35", StringComparison.Ordinal),
+               && active.Footer.Contains("本场战斗合计 100", StringComparison.Ordinal),
             "damage HUD presenter formats active fight summary");
+
+        settings.TeamFilter = DamageMeterTeamFilters.Enemy;
+        Assert(DamageMeterHudPresenter.Build(
+                   ledger,
+                   new DamageRunLedger(),
+                   new DamageHistoryStore(),
+                   settings,
+                   "host").VisibleRows.Single().Stat.Team == DamageTeam.Enemy,
+            "team selector filters the live view to enemies");
+
+        var run = new DamageRunLedger();
+        run.BeginAdventure("run", "start");
+        var aggregateEvent = Event(ledger, 4, "hero", 20, 0, DamageTeam.Friendly, "run-card");
+        Assert(run.Apply(aggregateEvent), "HUD test run aggregate accepts damage");
+        settings.TeamFilter = DamageMeterTeamFilters.All;
+        settings.DisplayScope = DamageMeterDisplayScopes.Adventure;
+        var adventure = DamageMeterHudPresenter.Build(
+            new DamageLedger(),
+            run,
+            new DamageHistoryStore(),
+            settings,
+            "host");
+        Assert(adventure.ShowStats
+               && adventure.ScopeLabel == "本轮冒险"
+               && adventure.VisibleRows.Single().CurrentRound == 0,
+            "adventure scope reads the persisted run aggregate rather than the current fight");
     }
 }
