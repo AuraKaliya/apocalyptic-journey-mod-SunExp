@@ -192,7 +192,8 @@ public static class CompanionIntentExecutor
         var value = intent.FlatValue
             + stats.Attack * intent.AttackScale
             + stats.Armor * intent.ArmorScale
-            + stats.MaxMagic * intent.MagicScale;
+            + stats.MaxMagic * intent.MagicScale
+            + SpiritTrainingBattleRuntime.SpeedContribution(state, intent);
         return Math.Max(1, (int)Math.Round(value, MidpointRounding.AwayFromZero));
     }
 

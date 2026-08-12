@@ -1,0 +1,1980 @@
+{
+  "schemaVersion": 1,
+  "commonIntents": [
+    {
+      "id": "spirit.common.basic.probing-strike.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_probing_strike",
+      "pool": "Common.Basic",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "试探突击",
+      "description": "对生命最低的敌人造成伤害。",
+      "type": "Attack",
+      "cost": 1,
+      "cooldown": 0,
+      "basePriority": 14,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.lowest_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.65,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.65,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.basic.temporary-ward.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_temporary_ward",
+      "pool": "Common.Basic",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "临时屏障",
+      "description": "为自身获得护盾。",
+      "type": "Defense",
+      "cost": 1,
+      "cooldown": 0,
+      "basePriority": 13,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.owner_or_self_defense",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 3,
+      "attackScale": 0.0,
+      "armorScale": 0.7,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.owner_or_self_defense",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 3,
+          "attackScale": 0.0,
+          "armorScale": 0.7,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.basic.emergency-heal.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_emergency_heal",
+      "pool": "Common.Basic",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "应急治愈",
+      "description": "为生命比例最低的受伤友方恢复生命。",
+      "type": "Recovery",
+      "cost": 2,
+      "cooldown": 1,
+      "basePriority": 15,
+      "handlerId": "heal.single",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.most_wounded",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 3,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.5,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "heal.single",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.most_wounded",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 3,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.5,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.basic.focused-chant.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_focused_chant",
+      "pool": "Common.Basic",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "集中咏唱",
+      "description": "下一次直接数值意图提高40%。",
+      "type": "Support",
+      "cost": 1,
+      "cooldown": 1,
+      "basePriority": 10,
+      "handlerId": "numeric.prepare",
+      "target": {
+        "scope": "Self",
+        "policy": "self",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "focused-chant",
+      "buffStacks": 1,
+      "flatValue": 40,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "no-pending-numeric-bonus",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "numeric.prepare",
+          "target": {
+            "scope": "Self",
+            "policy": "self",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "focused-chant",
+          "buffStacks": 1,
+          "flatValue": 40,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.basic.weakening-mark.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_weakening_mark",
+      "pool": "Common.Basic",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "虚弱咒痕",
+      "description": "对一名敌人施加1层虚弱。",
+      "type": "Interference",
+      "cost": 1,
+      "cooldown": 1,
+      "basePriority": 11,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.lowest_buff_then_lowest_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "buff_weak",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_buff_then_lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "buff_weak",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.tactical.breaking-strike.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_breaking_strike",
+      "pool": "Common.Tactical",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "破势一击",
+      "description": "造成伤害并施加1层易伤。",
+      "type": "Attack",
+      "cost": 2,
+      "cooldown": 1,
+      "basePriority": 17,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.lowest_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 3,
+      "attackScale": 0.75,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 3,
+          "attackScale": 0.75,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.tactical.guardian-ward.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_guardian_ward",
+      "pool": "Common.Tactical",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "援护结界",
+      "description": "为护盾最低的友方获得护盾。",
+      "type": "Defense",
+      "cost": 2,
+      "cooldown": 1,
+      "basePriority": 16,
+      "handlerId": "block.single",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.lowest_block_then_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0.0,
+      "armorScale": 0.9,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.single",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.lowest_block_then_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0.0,
+          "armorScale": 0.9,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.tactical.life-stream.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_life_stream",
+      "pool": "Common.Tactical",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "生命涓流",
+      "description": "立即治疗，并在目标下次行动结束时再次治疗。",
+      "type": "Recovery",
+      "cost": 2,
+      "cooldown": 2,
+      "basePriority": 18,
+      "handlerId": "heal.single",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.most_wounded",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 4,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.65,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "heal.single",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.most_wounded",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 4,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.65,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "heal.delayed",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.most_wounded",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "life-stream",
+          "buffStacks": 1,
+          "flatValue": 3,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 2
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.tactical.magic-reflow.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_magic_reflow",
+      "pool": "Common.Tactical",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "魔能回流",
+      "description": "主动恢复2点魔能。",
+      "type": "Support",
+      "cost": 0,
+      "cooldown": 2,
+      "basePriority": 12,
+      "handlerId": "magic.recover",
+      "target": {
+        "scope": "Self",
+        "policy": "self",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "missing-magic-at-least-2",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "magic.recover",
+          "target": {
+            "scope": "Self",
+            "policy": "self",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.tactical.armor-break-mark.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_armor_break_mark",
+      "pool": "Common.Tactical",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "破甲标记",
+      "description": "对一名敌人施加2层易伤。",
+      "type": "Interference",
+      "cost": 2,
+      "cooldown": 1,
+      "basePriority": 15,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.lowest_buff_then_lowest_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "buff_vulnerability",
+      "buffStacks": 2,
+      "flatValue": 0,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_buff_then_lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 2,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.advanced.swift-pierce.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_swift_pierce",
+      "pool": "Common.Advanced",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "迅捷穿刺",
+      "description": "以速度为额外基值造成单体伤害。",
+      "type": "Attack",
+      "cost": 3,
+      "cooldown": 1,
+      "basePriority": 20,
+      "handlerId": "damage.single",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.lowest_hp",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 3,
+      "attackScale": 0.6,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.08,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "damage.single",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.lowest_hp",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 3,
+          "attackScale": 0.6,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.08,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.advanced.astral-veil.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_astral_veil",
+      "pool": "Common.Advanced",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "群星护幕",
+      "description": "为所有友方获得护盾。",
+      "type": "Defense",
+      "cost": 3,
+      "cooldown": 2,
+      "basePriority": 19,
+      "handlerId": "block.all",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.all",
+        "mode": "All"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.0,
+      "armorScale": 0.45,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "block.all",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.all",
+            "mode": "All"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.0,
+          "armorScale": 0.45,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.advanced.life-echo.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_life_echo",
+      "pool": "Common.Advanced",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "生命回响",
+      "description": "为所有友方恢复生命。",
+      "type": "Recovery",
+      "cost": 3,
+      "cooldown": 2,
+      "basePriority": 20,
+      "handlerId": "heal.all",
+      "target": {
+        "scope": "Friendly",
+        "policy": "friendly.all",
+        "mode": "All"
+      },
+      "hitCount": 1,
+      "buffId": "",
+      "buffStacks": 0,
+      "flatValue": 2,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.35,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "life-echo-needed",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "heal.all",
+          "target": {
+            "scope": "Friendly",
+            "policy": "friendly.all",
+            "mode": "All"
+          },
+          "hitCount": 1,
+          "buffId": "",
+          "buffStacks": 0,
+          "flatValue": 2,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.35,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.advanced.overflow-conversion.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_overflow_conversion",
+      "pool": "Common.Advanced",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "余能转化",
+      "description": "魔能全满时，使接下来2次直接数值意图提高25%。",
+      "type": "Support",
+      "cost": 2,
+      "cooldown": 2,
+      "basePriority": 14,
+      "handlerId": "numeric.prepare",
+      "target": {
+        "scope": "Self",
+        "policy": "self",
+        "mode": "Single"
+      },
+      "hitCount": 1,
+      "buffId": "overflow-conversion",
+      "buffStacks": 2,
+      "flatValue": 25,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "full-magic-and-no-overflow",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "numeric.prepare",
+          "target": {
+            "scope": "Self",
+            "policy": "self",
+            "mode": "Single"
+          },
+          "hitCount": 1,
+          "buffId": "overflow-conversion",
+          "buffStacks": 2,
+          "flatValue": 25,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit.common.advanced.lockdown-seal.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_spirit_common_lockdown_seal",
+      "pool": "Common.Advanced",
+      "adaptationNote": "Terrias universal spirit training pool",
+      "displayName": "封锁刻印",
+      "description": "对所有敌人各施加1层虚弱与易伤。",
+      "type": "Interference",
+      "cost": 3,
+      "cooldown": 2,
+      "basePriority": 21,
+      "handlerId": "buff.apply",
+      "target": {
+        "scope": "Enemy",
+        "policy": "enemy.all",
+        "mode": "All"
+      },
+      "hitCount": 1,
+      "buffId": "buff_weak",
+      "buffStacks": 1,
+      "flatValue": 0,
+      "attackScale": 0.0,
+      "armorScale": 0.0,
+      "magicScale": 0.0,
+      "speedScale": 0.0,
+      "eligibilityPolicy": "",
+      "priorityBonus": "",
+      "threat": {
+        "preview": 0,
+        "onUse": 0,
+        "decay": 4
+      },
+      "effects": [
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.all",
+            "mode": "All"
+          },
+          "hitCount": 1,
+          "buffId": "buff_weak",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 1
+        },
+        {
+          "handlerId": "buff.apply",
+          "target": {
+            "scope": "Enemy",
+            "policy": "enemy.all",
+            "mode": "All"
+          },
+          "hitCount": 1,
+          "buffId": "buff_vulnerability",
+          "buffStacks": 1,
+          "flatValue": 0,
+          "attackScale": 0.0,
+          "armorScale": 0.0,
+          "magicScale": 0.0,
+          "speedScale": 0.0,
+          "displayIndex": 2
+        }
+      ]
+    }
+  ],
+  "passives": [
+    {
+      "id": "spirit.passive.common.core.opening-calibration",
+      "displayName": "先发校准",
+      "description": "每场战斗第一次直接数值意图提高25%。",
+      "pool": "Common.Core",
+      "effectKind": "opening-calibration",
+      "intentType": "",
+      "numericBonusPercent": 25
+    },
+    {
+      "id": "spirit.passive.common.core.exploit-opening",
+      "displayName": "乘隙追击",
+      "description": "单体伤害命中带有负面状态的目标时提高15%。",
+      "pool": "Common.Core",
+      "effectKind": "exploit-opening",
+      "intentType": "Attack",
+      "numericBonusPercent": 15
+    },
+    {
+      "id": "spirit.passive.common.core.emergency-barrier",
+      "displayName": "应急屏障",
+      "description": "每场战斗首次降至40%生命时获得一次护盾。",
+      "pool": "Common.Core",
+      "effectKind": "emergency-barrier",
+      "intentType": "Defense",
+      "numericBonusPercent": 0
+    },
+    {
+      "id": "spirit.passive.common.core.stable-structure",
+      "displayName": "稳定结构",
+      "description": "行动规划前若没有护盾，获得少量护盾；自身回合冷却2。",
+      "pool": "Common.Core",
+      "effectKind": "stable-structure",
+      "intentType": "Defense",
+      "numericBonusPercent": 0
+    },
+    {
+      "id": "spirit.passive.common.core.efficient-casting",
+      "displayName": "节能施术",
+      "description": "每场战斗第一次释放基础消耗不少于2的意图时少消耗1点魔能。",
+      "pool": "Common.Core",
+      "effectKind": "efficient-casting",
+      "intentType": "Support",
+      "numericBonusPercent": 0
+    },
+    {
+      "id": "spirit.passive.common.core.recovery-loop",
+      "displayName": "回能循环",
+      "description": "被迫等待时额外恢复1点魔能。",
+      "pool": "Common.Core",
+      "effectKind": "recovery-loop",
+      "intentType": "Support",
+      "numericBonusPercent": 0
+    },
+    {
+      "id": "spirit.passive.common.core.alternating-tactics",
+      "displayName": "交替战术",
+      "description": "本次非等待意图类型与上次不同时，直接数值提高15%。",
+      "pool": "Common.Core",
+      "effectKind": "alternating-tactics",
+      "intentType": "",
+      "numericBonusPercent": 15
+    },
+    {
+      "id": "spirit.passive.common.core.guardian-contract",
+      "displayName": "守护契约",
+      "description": "主人受到伤害后，下一次防御或恢复意图提高25%。",
+      "pool": "Common.Core",
+      "effectKind": "guardian-contract",
+      "intentType": "Defense",
+      "numericBonusPercent": 25
+    },
+    {
+      "id": "spirit.passive.common.advanced.mana-tide",
+      "displayName": "盈缺律",
+      "description": "魔能为0时行动前恢复1；魔能全满时本回合直接数值提高20%。",
+      "pool": "Common.Advanced",
+      "effectKind": "mana-tide",
+      "intentType": "Support",
+      "numericBonusPercent": 20
+    },
+    {
+      "id": "spirit.passive.common.advanced.desperate-echo",
+      "displayName": "绝境回响",
+      "description": "生命不高于30%时，直接数值提高30%。",
+      "pool": "Common.Advanced",
+      "effectKind": "desperate-echo",
+      "intentType": "",
+      "numericBonusPercent": 30
+    },
+    {
+      "id": "spirit.passive.common.advanced.swift-calculation",
+      "displayName": "迅捷演算",
+      "description": "速度倍率贡献提高50%，但不改变速度与行动顺序。",
+      "pool": "Common.Advanced",
+      "effectKind": "swift-calculation",
+      "intentType": "Attack",
+      "numericBonusPercent": 0
+    },
+    {
+      "id": "spirit.passive.common.advanced.combo-resonance",
+      "displayName": "连携余韵",
+      "description": "使用辅助或恢复意图后，下一次攻击或防御直接数值提高30%。",
+      "pool": "Common.Advanced",
+      "effectKind": "combo-resonance",
+      "intentType": "",
+      "numericBonusPercent": 30
+    },
+    {
+      "id": "spirit.passive.species.base-game-10032.inherent",
+      "displayName": "魔将 帕梅拉·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10035.inherent",
+      "displayName": "K·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10033.inherent",
+      "displayName": "熔火圣骸·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10020.inherent",
+      "displayName": "守夜人·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10047.inherent",
+      "displayName": "怠惰残片·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-evernight-incarnation.inherent",
+      "displayName": "永夜化身·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10040.inherent",
+      "displayName": "魔女教教徒·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10015.inherent",
+      "displayName": "腐化巨蜥·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.terrias-boss-second-sun-last-day.inherent",
+      "displayName": "terrias.boss_second_sun_last_day·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10008.inherent",
+      "displayName": "最后一餐·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10016.inherent",
+      "displayName": "混血狼裔·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.terrias-boss-orbit-mirror-array.inherent",
+      "displayName": "terrias.boss_orbit_mirror_array·本能",
+      "description": "使用Defense 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Defense",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10059.inherent",
+      "displayName": "混血龙裔·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10010.inherent",
+      "displayName": "深渊之触·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-demon-king-sword.inherent",
+      "displayName": "魔王剑·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10021.inherent",
+      "displayName": "腐化主教·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10028.inherent",
+      "displayName": "方片舞者·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10024.inherent",
+      "displayName": "腐化圣骑·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10025.inherent",
+      "displayName": "腐化蛛人·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10055.inherent",
+      "displayName": "神圣审判机关·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10009.inherent",
+      "displayName": "梅花侍从·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10061.inherent",
+      "displayName": "欲念魔女·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10004.inherent",
+      "displayName": "灾厄先兆·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10005.inherent",
+      "displayName": "猎食者·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10046.inherent",
+      "displayName": "恐惧残片·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10045.inherent",
+      "displayName": "巨大玩偶熊·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10039.inherent",
+      "displayName": "黑桃骑士·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10023.inherent",
+      "displayName": "普拉提壮壮·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10041.inherent",
+      "displayName": "天眷者·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10060.inherent",
+      "displayName": "鬼牌：大王·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10054.inherent",
+      "displayName": "使魔猫猫·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10007.inherent",
+      "displayName": "失心魔女·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10001.inherent",
+      "displayName": "普拉提黏黏·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10018.inherent",
+      "displayName": "惊喜礼物盒·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10022.inherent",
+      "displayName": "普拉提之王·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10002.inherent",
+      "displayName": "红心女仆·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10044.inherent",
+      "displayName": "操偶师·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10014.inherent",
+      "displayName": "幽怨之心·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10042.inherent",
+      "displayName": "吞金兽·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10043.inherent",
+      "displayName": "活性晶簇·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10029.inherent",
+      "displayName": "暴怒残片·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10003.inherent",
+      "displayName": "鼹鼠·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.terrias-boss-saint-wuna.inherent",
+      "displayName": "terrias.boss_saint_wuna·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10026.inherent",
+      "displayName": "恶意聚合体·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-caroline.inherent",
+      "displayName": "勇者卡洛琳·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10017.inherent",
+      "displayName": "圣械协从·本能",
+      "description": "使用Interference 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Interference",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10038.inherent",
+      "displayName": "灾厄祭司·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-lesser-joker.inherent",
+      "displayName": "鬼牌:小王·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-demon-king.inherent",
+      "displayName": "魔王·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10034.inherent",
+      "displayName": "自动机关人偶·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    },
+    {
+      "id": "spirit.passive.species.base-game-10019.inherent",
+      "displayName": "莉莉·本能",
+      "description": "使用Attack 类型的直接数值意图时，数值提高10%。",
+      "pool": "Species",
+      "effectKind": "type-resonance",
+      "intentType": "Attack",
+      "numericBonusPercent": 10
+    }
+  ],
+  "speciesProfiles": [
+    {
+      "speciesId": "base-game.10001",
+      "profileId": "base-game.10001",
+      "initialPassiveId": "spirit.passive.species.base-game-10001.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_neverdead.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10038",
+      "profileId": "base-game.10038",
+      "initialPassiveId": "spirit.passive.species.base-game-10038.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_charmed.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10039",
+      "profileId": "base-game.10039",
+      "initialPassiveId": "spirit.passive.species.base-game-10039.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10040",
+      "profileId": "base-game.10040",
+      "initialPassiveId": "spirit.passive.species.base-game-10040.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10041",
+      "profileId": "base-game.10041",
+      "initialPassiveId": "spirit.passive.species.base-game-10041.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10042",
+      "profileId": "base-game.10042",
+      "initialPassiveId": "spirit.passive.species.base-game-10042.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10043",
+      "profileId": "base-game.10043",
+      "initialPassiveId": "spirit.passive.species.base-game-10043.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_vulnerabilitylight.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10044",
+      "profileId": "base-game.10044",
+      "initialPassiveId": "spirit.passive.species.base-game-10044.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_mt1.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10045",
+      "profileId": "base-game.10045",
+      "initialPassiveId": "spirit.passive.species.base-game-10045.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_giantclawstrike.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10046",
+      "profileId": "base-game.10046",
+      "initialPassiveId": "spirit.passive.species.base-game-10046.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10047",
+      "profileId": "base-game.10047",
+      "initialPassiveId": "spirit.passive.species.base-game-10047.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_observe.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10048",
+      "initialPassiveId": "spirit.passive.species.base-game-demon-king.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.demon-king-sword",
+      "profileId": "base-game.10049",
+      "initialPassiveId": "spirit.passive.species.base-game-demon-king-sword.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_specialattack.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.demon-king-sword",
+      "profileId": "base-game.10050",
+      "initialPassiveId": "spirit.passive.species.base-game-demon-king-sword.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_fivehit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10051",
+      "initialPassiveId": "spirit.passive.species.base-game-demon-king.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.demon-king",
+      "profileId": "base-game.10052",
+      "initialPassiveId": "spirit.passive.species.base-game-demon-king.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_superfireball.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.evernight-incarnation",
+      "profileId": "base-game.10053",
+      "initialPassiveId": "spirit.passive.species.base-game-evernight-incarnation.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10054",
+      "profileId": "base-game.10054",
+      "initialPassiveId": "spirit.passive.species.base-game-10054.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10055",
+      "profileId": "base-game.10055",
+      "initialPassiveId": "spirit.passive.species.base-game-10055.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10056",
+      "initialPassiveId": "spirit.passive.species.base-game-caroline.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_car_hammer.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10057",
+      "initialPassiveId": "spirit.passive.species.base-game-caroline.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_car_shield.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.caroline",
+      "profileId": "base-game.10058",
+      "initialPassiveId": "spirit.passive.species.base-game-caroline.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_car_spear.intent",
+        "spirit.pve.enemycard_car_shield.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10059",
+      "profileId": "base-game.10059",
+      "initialPassiveId": "spirit.passive.species.base-game-10059.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_seduce.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_giantclawstrike.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10060",
+      "profileId": "base-game.10060",
+      "initialPassiveId": "spirit.passive.species.base-game-10060.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10061",
+      "profileId": "base-game.10061",
+      "initialPassiveId": "spirit.passive.species.base-game-10061.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ]
+    },
+    {
+      "speciesId": "terrias.boss_orbit_mirror_array",
+      "profileId": "terrias.boss_orbit_mirror_array",
+      "initialPassiveId": "spirit.passive.species.terrias-boss-orbit-mirror-array.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.terrias_terrias_enemycard_mirror_calibration.intent",
+        "spirit.pve.terrias_terrias_enemycard_orbit_refraction.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.lesser-joker",
+      "profileId": "base-game.10037",
+      "initialPassiveId": "spirit.passive.species.base-game-lesser-joker.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_iceshield.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.lesser-joker",
+      "profileId": "base-game.10036",
+      "initialPassiveId": "spirit.passive.species.base-game-lesser-joker.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10035",
+      "profileId": "base-game.10035",
+      "initialPassiveId": "spirit.passive.species.base-game-10035.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_toxin2.intent",
+        "spirit.pve.enemycard_obtainmoney.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10034",
+      "profileId": "base-game.10034",
+      "initialPassiveId": "spirit.passive.species.base-game-10034.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_limepowder.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10002",
+      "profileId": "base-game.10002",
+      "initialPassiveId": "spirit.passive.species.base-game-10002.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_vulnerabilitylight.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_witness.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10003",
+      "profileId": "base-game.10003",
+      "initialPassiveId": "spirit.passive.species.base-game-10003.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryfivehit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_obtainmoney.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10004",
+      "profileId": "base-game.10004",
+      "initialPassiveId": "spirit.passive.species.base-game-10004.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10005",
+      "profileId": "base-game.10005",
+      "initialPassiveId": "spirit.passive.species.base-game-10005.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10007",
+      "profileId": "base-game.10007",
+      "initialPassiveId": "spirit.passive.species.base-game-10007.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10008",
+      "profileId": "base-game.10008",
+      "initialPassiveId": "spirit.passive.species.base-game-10008.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_licking.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10009",
+      "profileId": "base-game.10009",
+      "initialPassiveId": "spirit.passive.species.base-game-10009.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10010",
+      "profileId": "base-game.10010",
+      "initialPassiveId": "spirit.passive.species.base-game-10010.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10014",
+      "profileId": "base-game.10014",
+      "initialPassiveId": "spirit.passive.species.base-game-10014.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_weaklight.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10015",
+      "profileId": "base-game.10015",
+      "initialPassiveId": "spirit.passive.species.base-game-10015.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10016",
+      "profileId": "base-game.10016",
+      "initialPassiveId": "spirit.passive.species.base-game-10016.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_nervereflexes.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10017",
+      "profileId": "base-game.10017",
+      "initialPassiveId": "spirit.passive.species.base-game-10017.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "terrias.boss_saint_wuna",
+      "profileId": "terrias.boss_saint_wuna",
+      "initialPassiveId": "spirit.passive.species.terrias-boss-saint-wuna.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.terrias_terrias_enemycard_saint_purification.intent",
+        "spirit.pve.terrias_terrias_enemycard_saint_return_to_court.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10018",
+      "profileId": "base-game.10018",
+      "initialPassiveId": "spirit.passive.species.base-game-10018.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_weak.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10020",
+      "profileId": "base-game.10020",
+      "initialPassiveId": "spirit.passive.species.base-game-10020.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_venomspray.intent",
+        "spirit.pve.enemycard_burn1.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10021",
+      "profileId": "base-game.10021",
+      "initialPassiveId": "spirit.passive.species.base-game-10021.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryfivehit.intent",
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10022",
+      "profileId": "base-game.10022",
+      "initialPassiveId": "spirit.passive.species.base-game-10022.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_ordinaryfivehit.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10023",
+      "profileId": "base-game.10023",
+      "initialPassiveId": "spirit.passive.species.base-game-10023.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10024",
+      "profileId": "base-game.10024",
+      "initialPassiveId": "spirit.passive.species.base-game-10024.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_burn1.intent",
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_neverdead.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10025",
+      "profileId": "base-game.10025",
+      "initialPassiveId": "spirit.passive.species.base-game-10025.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_toxin3.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10026",
+      "profileId": "base-game.10026",
+      "initialPassiveId": "spirit.passive.species.base-game-10026.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_toxin1.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.evernight-incarnation",
+      "profileId": "base-game.10027",
+      "initialPassiveId": "spirit.passive.species.base-game-evernight-incarnation.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_burn2.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10028",
+      "profileId": "base-game.10028",
+      "initialPassiveId": "spirit.passive.species.base-game-10028.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_quadruplehits.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_rejuvenation.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10029",
+      "profileId": "base-game.10029",
+      "initialPassiveId": "spirit.passive.species.base-game-10029.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_rejuvenation.intent",
+        "spirit.pve.enemycard_overrunworkouts.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10032",
+      "profileId": "base-game.10032",
+      "initialPassiveId": "spirit.passive.species.base-game-10032.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_fivehit.intent",
+        "spirit.pve.enemycard_defence.intent",
+        "spirit.pve.enemycard_psychologicalshock.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10033",
+      "profileId": "base-game.10033",
+      "initialPassiveId": "spirit.passive.species.base-game-10033.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_spreadwings.intent",
+        "spirit.pve.enemycard_burn.intent",
+        "spirit.pve.enemycard_highfly.intent"
+      ]
+    },
+    {
+      "speciesId": "base-game.10019",
+      "profileId": "base-game.10019",
+      "initialPassiveId": "spirit.passive.species.base-game-10019.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.enemycard_ordinaryhit.intent",
+        "spirit.pve.enemycard_charmed.intent",
+        "spirit.pve.enemycard_defence.intent"
+      ]
+    },
+    {
+      "speciesId": "terrias.boss_second_sun_last_day",
+      "profileId": "terrias.boss_second_sun_last_day",
+      "initialPassiveId": "spirit.passive.species.terrias-boss-second-sun-last-day.inherent",
+      "defaultIntentIds": [
+        "spirit.pve.terrias_terrias_enemycard_last_day_morning_prayer.intent",
+        "spirit.pve.terrias_terrias_enemycard_last_day_noon_burn.intent"
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ public sealed class SpiritCompanionSnapshot
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
     public string RegistryHash { get; set; } = "";
+    public string TrainingRegistryHash { get; set; } = "";
     public int Revision { get; set; }
     public int Generation { get; set; }
     public int ExchangeCount { get; set; }
@@ -29,6 +30,12 @@ public sealed class SpiritCompanionSnapshot
     public int Armor { get; set; }
     public int MaxMagic { get; set; }
     public int CurrentMagic { get; set; }
+    public int Speed { get; set; } = 100;
+    public List<string> EquippedIntentIds { get; set; } = new();
+    public string EquippedPassiveId { get; set; } = "";
+    public int LoadoutRevision { get; set; }
+    public string LoadoutHash { get; set; } = "";
+    public Dictionary<string, int> PassiveState { get; set; } = new();
     public int TurnIndex { get; set; }
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
     public CompanionThreatSnapshot? Threat { get; set; }
@@ -70,6 +77,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
     public string RegistryHash { get; set; } = "";
+    public string TrainingRegistryHash { get; set; } = "";
 
     public RpcSpiritSummonRequest()
     {
@@ -92,6 +100,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
             : new Dictionary<string, int>(battleState.ReadyOnTurn);
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
         RegistryHash = SpiritIntentRegistry.RegistryHash;
+        TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
     }
 
     public void BindServerSender(TerriasRpcSender sender)
@@ -110,11 +119,13 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
             serverSender,
             ProtocolVersion,
             BattleEpoch,
-            RegistryHash);
+            RegistryHash,
+            TrainingRegistryHash);
         CapturedEnemy = new CapturedEnemySnapshot();
         OwnerStatusId = "";
         ReadyOnTurn = new Dictionary<string, int>();
         RegistryHash = "";
+        TrainingRegistryHash = "";
     }
 
     public override void RpcExecute()

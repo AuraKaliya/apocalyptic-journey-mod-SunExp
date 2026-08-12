@@ -30,6 +30,7 @@ public static class SpiritRuntime
         ProjectionIntentPresenter.Initialize();
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
+        SpiritPartnerTurnOrderRuntime.Initialize(modConfig);
         autoBattlePreflightRegistration ??= CombatAiRegistry.RegisterRuntimePreflightRule(
             TerriasIds.ModId,
             "SpiritCards",
@@ -38,6 +39,10 @@ public static class SpiritRuntime
         RegisterBefore(modConfig, TerriasHookTargets.AttackCardItemTrueUse, GateCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
+        RegisterAfter(modConfig, "OtherObj.EndRound", OnFightObjectRoundCompleted);
+        RegisterAfter(modConfig, "FightPlayer.EndRound", OnFightObjectRoundCompleted);
+        RegisterAfter(modConfig, "OtherPlayer.EndRound", OnFightObjectRoundCompleted);
+        RegisterAfter(modConfig, "FightObject.EndRound", OnFightObjectRoundCompleted);
         TerriasBattleLifecycleRouter.Register("Spirit", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = _ => SpiritCollectionApi.BeginAdventure(),
@@ -65,6 +70,7 @@ public static class SpiritRuntime
         RunCleanupStep("CaptureDedupe", source, SpiritCaptureService.ResetBattleSynchronization);
         RunCleanupStep("CaptureSettlement", source, EnemyCaptureSettlementApi.ResetBattleSynchronization);
         RunCleanupStep("BattleDeployment", source, SpiritBattleDeploymentService.Clear);
+        RunCleanupStep("TrainingBattleRuntime", source, SpiritTrainingBattleRuntime.Clear);
         RunCleanupStep("StateStore", source, () => SpiritStateStore.ClearAll(source));
         RunCleanupStep("VisualProxies", source, () => SpiritAttachmentPresenter.ClearAll(source, sweepVisualOrphans));
         RunCleanupStep("UseGates", source, ResetUseGates);
@@ -134,7 +140,10 @@ public static class SpiritRuntime
             {
                 if (result.LeveledUp)
                 {
-                    PlayerApi.ShowCaption("精灵成长：" + result.Instance.Snapshot.DisplayName + " Lv." + result.Instance.Level);
+                    var unlock = result.UnlockedAbilityIds.Count == 0
+                        ? ""
+                        : " · 解锁 " + string.Join("、", result.UnlockedAbilityIds.Select(SpiritTrainingRegistry.AbilityDisplayName));
+                    PlayerApi.ShowCaption("精灵成长：" + result.Instance.Snapshot.DisplayName + " Lv." + result.Instance.Level + unlock);
                 }
             }
         }
@@ -215,6 +224,14 @@ public static class SpiritRuntime
         {
             SpiritAttachmentPresenter.RefreshByOwner(status, source);
         }
+
+        SpiritTrainingBattleRuntime.OnStatusHit(status);
+    }
+
+    private static void OnFightObjectRoundCompleted(ModHookContext context)
+    {
+        var actor = context.Target as FightObject;
+        SpiritTrainingBattleRuntime.OnActorTurnCompleted(actor);
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)

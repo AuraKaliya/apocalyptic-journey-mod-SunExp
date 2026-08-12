@@ -204,20 +204,49 @@ public static class SpiritCollectionApi
 
     public static SpiritOriginVector Origins(SpiritInstance instance)
     {
-        var profile = SpiritGrowthRegistry.Resolve(instance);
-        return SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude);
+        return SpiritAscensionService.EffectiveOrigins(instance);
     }
 
     public static CompanionStats Stats(SpiritInstance instance)
     {
         var profile = SpiritGrowthRegistry.Resolve(instance);
-        return SpiritGrowthService.BattleStats(
+        return SpiritAscensionService.ApplyStarBonus(SpiritGrowthService.BattleStats(
             profile,
-            SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude),
-            SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot.ProfileKey));
+            SpiritAscensionService.EffectiveOrigins(instance),
+            SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot.ProfileKey),
+            instance.Speed),
+            SpiritAscensionService.StarRankFor(instance.GuiyuanValue));
     }
 
     public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance) => SpiritGrowthQueryService.Build(instance);
+
+    public static SpiritTrainingViewSnapshot TrainingView(SpiritInstance instance) => SpiritTrainingService.BuildView(instance);
+
+    public static bool EquipIntent(string uid, int slotIndex, string intentId)
+        => EnsureProfileBound() && SpiritCollectionService.EquipIntent(uid, slotIndex, intentId);
+
+    public static bool EquipPassive(string uid, string passiveId)
+        => EnsureProfileBound() && SpiritCollectionService.EquipPassive(uid, passiveId);
+
+    public static bool SetGuiyuanAllocations(string uid, SpiritOriginVector allocations)
+        => EnsureProfileBound() && SpiritCollectionService.SetGuiyuanAllocations(uid, allocations);
+
+    public static SpiritGuiyuanResult Guiyuan(string targetUid, IReadOnlyList<string> donorUids)
+    {
+        if (!EnsureProfileBound()) return new SpiritGuiyuanResult { Reason = "玩家档案尚未就绪，请稍后重试。" };
+        var forbidden = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var uid in DefaultParty().PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid))) forbidden.Add(uid);
+        foreach (var uid in CurrentParty().PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid))) forbidden.Add(uid);
+        try
+        {
+            return SpiritCollectionService.Guiyuan(targetUid, donorUids, forbidden);
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[SpiritCollection] guiyuan persistence failed: " + ex.Message);
+            return new SpiritGuiyuanResult { Reason = "归元档案写入失败，未消耗任何精灵。" };
+        }
+    }
 
     public static bool ToggleFavorite(string uid) => EnsureProfileBound() && SpiritCollectionService.ToggleFavorite(uid);
 

@@ -58,6 +58,7 @@ public static class CompanionIntentSelector
 
         state.StartCooldown(intent.Id, intent.Cooldown);
         state.CurrentIntentId = intent.Id;
+        SpiritTrainingBattleRuntime.OnIntentExecuted(state, intent, plan);
         CompanionThreatService.MarkIntentUsed(
             state,
             intent,
@@ -75,7 +76,7 @@ public static class CompanionIntentSelector
         var result = new List<CompanionIntentChoice>();
         foreach (var intent in CompanionIntentResolver.IntentsFor(state, tendency))
         {
-            if (!state.IsReady(intent.Id) || state.Stats.CurrentMagic < intent.Cost)
+            if (!state.IsReady(intent.Id) || state.Stats.CurrentMagic < SpiritTrainingBattleRuntime.PreviewCost(state, intent))
             {
                 continue;
             }
@@ -83,6 +84,11 @@ public static class CompanionIntentSelector
             var targets = CompanionTargetPolicyRegistry.Resolve(executor, state, intent);
             var target = targets.FirstOrDefault();
             if (targets.Count == 0)
+            {
+                continue;
+            }
+
+            if (!SpiritTrainingBattleRuntime.IsEligible(state, intent, targets))
             {
                 continue;
             }

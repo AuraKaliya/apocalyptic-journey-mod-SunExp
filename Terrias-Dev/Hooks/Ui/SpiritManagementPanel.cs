@@ -24,11 +24,27 @@ public static class SpiritManagementPanel
     private static readonly Color BandTint = new(0.035f, 0.052f, 0.078f, 0.98f);
     private static readonly Color ItemTint = new(0.052f, 0.073f, 0.105f, 0.98f);
     private static readonly Color SelectedTint = new(0.105f, 0.205f, 0.235f, 0.99f);
+    private static readonly Color TargetTint = new(0.183f, 0.139f, 0.061f, 0.99f);
     private static readonly Color Gold = new(0.95f, 0.76f, 0.34f);
     private static readonly Color Pale = new(0.90f, 0.94f, 0.97f);
     private static readonly Color Muted = new(0.62f, 0.70f, 0.77f);
     private static readonly Color Cyan = new(0.35f, 0.84f, 0.90f);
     private static readonly Color Green = new(0.45f, 0.88f, 0.65f);
+    private static readonly Color SelectionStroke = new(0.514f, 0.843f, 0.871f, 1f);
+    private static readonly Color TargetStroke = new(0.95f, 0.76f, 0.34f, 0.94f);
+    private static readonly Color QualityGray = new(0.204f, 0.216f, 0.239f, 0.98f);
+    private static readonly Color QualityWhite = new(0.278f, 0.302f, 0.322f, 0.98f);
+    private static readonly Color QualityGreen = new(0.188f, 0.294f, 0.239f, 0.98f);
+    private static readonly Color QualityBlue = new(0.196f, 0.259f, 0.345f, 0.98f);
+    private static readonly Color QualityPurple = new(0.290f, 0.216f, 0.345f, 0.98f);
+    private static readonly Color QualityGold = new(0.357f, 0.302f, 0.200f, 0.98f);
+    private static readonly Color QualityRed = new(0.373f, 0.208f, 0.224f, 0.98f);
+    private static readonly Color DisabledCardTint = new(0.075f, 0.078f, 0.085f, 0.96f);
+    private static readonly Color StarGold = new(0.88f, 0.72f, 0.38f, 0.96f);
+    private static readonly Color ActiveStampFill = new(0.33f, 0.22f, 0.08f, 0.34f);
+    private static readonly Color ActiveStampOuter = new(0.94f, 0.72f, 0.30f, 0.72f);
+    private static readonly Color ActiveStampInner = new(0.94f, 0.72f, 0.30f, 0.40f);
+    private static readonly Color ActiveStampText = new(0.98f, 0.82f, 0.48f, 0.96f);
 
     private static GameObject? root;
     private static Transform? gridContent;
@@ -41,7 +57,11 @@ public static class SpiritManagementPanel
     private static int warehouseFilter;
     private static int warehouseSort;
     private static int detailTab;
-    private static int growthAxis;
+    private static readonly SpiritTrainingSelectionState TrainingSelection = new();
+    private static bool guiyuanSelectingDonors;
+    private static string guiyuanTargetUid = "";
+    private static readonly HashSet<string> GuiyuanDonorUids = new(StringComparer.Ordinal);
+    private static bool guiyuanConfirmArmed;
 
     public static bool IsOpen => root != null;
 
@@ -62,6 +82,7 @@ public static class SpiritManagementPanel
         detailContent = null;
         partyContent = null;
         actionContent = null;
+        ResetGuiyuanSelection();
     }
 
     private static void Open(PanelMode requestedMode)
@@ -73,7 +94,8 @@ public static class SpiritManagementPanel
             warehouseFilter = 0;
             warehouseSort = 0;
             detailTab = 0;
-            growthAxis = 0;
+            TrainingSelection.Reset();
+            ResetGuiyuanSelection();
             var party = Party();
             if (mode == PanelMode.Adventure)
             {
@@ -137,22 +159,20 @@ public static class SpiritManagementPanel
 
         if (mode == PanelMode.Warehouse)
         {
-            var rosterWidth = Mathf.Clamp(windowSize.x * 0.235f, 230f, 310f);
+            var rosterWidth = RosterWidth(windowSize);
             var left = LayoutObject("Roster", body.transform, 390f, 1f, rosterWidth);
             ApplyPanel(left, BandTint);
             TerriasUiComponents.ConfigureVerticalLayout(left, new RectOffset(10, 10, 10, 10), 8f);
             CreateFilterBar(left.transform);
-            var gridColumns = rosterWidth < 252f ? 1 : 2;
-            var gridCellWidth = gridColumns == 1
-                ? Mathf.Clamp(rosterWidth - 64f, 140f, 180f)
-                : Mathf.Clamp((rosterWidth - 64f) * 0.5f, 88f, 118f);
+            const int gridColumns = 3;
+            var gridCellWidth = Mathf.Clamp((rosterWidth - 52f) / gridColumns, 76f, 132f);
             var grid = TerriasUiComponents.CreateUniformGridScrollArea(
                 left.transform,
                 "Spirits",
                 260f,
                 1f,
                 gridColumns,
-                new Vector2(gridCellWidth, 132f),
+                new Vector2(gridCellWidth, 166f),
                 new Vector2(8f, 8f),
                 new RectOffset(4, 4, 4, 4),
                 28f,
@@ -161,14 +181,14 @@ public static class SpiritManagementPanel
         }
 
         var contentColumnWidth = mode == PanelMode.Warehouse
-            ? Mathf.Clamp((windowSize.x - Mathf.Clamp(windowSize.x * 0.235f, 230f, 310f) - 76f) * 0.43f, 215f, 420f)
+            ? Mathf.Clamp((windowSize.x - RosterWidth(windowSize) - 76f) * 0.38f, 210f, 380f)
             : Mathf.Clamp((windowSize.x - 52f) * 0.45f, 320f, 570f);
         var preview = LayoutObject("Preview", body.transform, 390f, 1f, contentColumnWidth);
         previewContent = preview.transform;
         CreatePreviewShell(preview.transform);
 
         var detailWidth = mode == PanelMode.Warehouse
-            ? Mathf.Max(240f, windowSize.x - 64f - Mathf.Clamp(windowSize.x * 0.235f, 230f, 310f) - contentColumnWidth)
+            ? Mathf.Max(196f, windowSize.x - 64f - RosterWidth(windowSize) - contentColumnWidth)
             : Mathf.Max(320f, windowSize.x - 52f - contentColumnWidth);
         var detail = LayoutObject("Detail", body.transform, 390f, 1f, detailWidth);
         ApplyPanel(detail, BandTint);
@@ -180,7 +200,9 @@ public static class SpiritManagementPanel
         TerriasUiComponents.ConfigureVerticalLayout(partyBand, new RectOffset(10, 10, 7, 7), 5f);
         TerriasUiComponents.AddTextBlock(
             partyBand.transform,
-            mode == PanelMode.Adventure ? "本次旅程编队 · 调整将在下一场战斗生效" : "下次旅程编队 · 点击槽位进行配置",
+            mode == PanelMode.Adventure
+                ? "本次旅程编队 · 调整将在下一场战斗生效"
+                : "下次旅程编队 · 通过下方按钮加入或移除精灵",
             13,
             TextAnchor.MiddleLeft,
             Gold,
@@ -211,10 +233,14 @@ public static class SpiritManagementPanel
         var collection = SpiritCollectionApi.Collection();
         var party = Party();
         var carried = new HashSet<string>(party.PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid)), StringComparer.Ordinal);
+        var forbiddenDonors = guiyuanSelectingDonors ? GuiyuanForbiddenUids() : new HashSet<string>(StringComparer.Ordinal);
         IEnumerable<SpiritInstance> items = collection.Instances;
-        if (mode == PanelMode.Adventure) items = items.Where(item => carried.Contains(item.SpiritUid));
-        else if (warehouseFilter == 1) items = items.Where(item => carried.Contains(item.SpiritUid));
-        else if (warehouseFilter == 2) items = items.Where(item => !carried.Contains(item.SpiritUid));
+        if (!guiyuanSelectingDonors)
+        {
+            if (mode == PanelMode.Adventure) items = items.Where(item => carried.Contains(item.SpiritUid));
+            else if (warehouseFilter == 1) items = items.Where(item => carried.Contains(item.SpiritUid));
+            else if (warehouseFilter == 2) items = items.Where(item => !carried.Contains(item.SpiritUid));
+        }
         IOrderedEnumerable<SpiritInstance> ordered = warehouseSort switch
         {
             1 => items.OrderByDescending(item => item.Aptitude).ThenByDescending(item => item.Level),
@@ -224,7 +250,7 @@ public static class SpiritManagementPanel
         };
         foreach (var item in ordered.ThenBy(item => item.Snapshot.DisplayName, StringComparer.Ordinal))
         {
-            CreateSpiritCell(gridContent, item, carried.Contains(item.SpiritUid), Same(item.SpiritUid, party.ActiveSpiritUid));
+            CreateSpiritCell(gridContent, item, carried.Contains(item.SpiritUid), Same(item.SpiritUid, party.ActiveSpiritUid), forbiddenDonors);
         }
         if (gridContent.childCount == 0)
         {
@@ -232,27 +258,67 @@ public static class SpiritManagementPanel
         }
     }
 
-    private static void CreateSpiritCell(Transform parent, SpiritInstance item, bool carried, bool active)
+    private static void CreateSpiritCell(
+        Transform parent,
+        SpiritInstance item,
+        bool carried,
+        bool active,
+        IReadOnlyCollection<string> forbiddenDonors)
     {
-        var cell = LayoutObject("Spirit-" + item.SpiritUid, parent, 132f);
-        ApplyPanel(cell, Same(item.SpiritUid, selectedUid) ? SelectedTint : ItemTint, true);
-        TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(5, 5, 5, 5), 2f);
-        var imageRoot = LayoutObject("Portrait", cell.transform, 80f);
-        var image = imageRoot.AddComponent<Image>();
-        image.sprite = Portrait(item.Snapshot);
-        image.color = image.sprite == null ? new Color(0.18f, 0.20f, 0.24f, 1f) : Color.white;
-        image.preserveAspect = true;
-        image.raycastTarget = false;
-        var markers = active ? "● 出战" : carried ? "携带中" : "仓库";
-        TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 13, TextAnchor.MiddleCenter, Pale, 22f);
-        TerriasUiComponents.AddTextBlock(cell.transform,
-            "Lv." + item.Level + " · 资质 " + item.Aptitude + " · " + markers,
-            11, TextAnchor.MiddleCenter, active ? Green : Muted, 20f);
+        var target = guiyuanSelectingDonors && Same(item.SpiritUid, guiyuanTargetUid);
+        var sameSpecies = !guiyuanSelectingDonors || SameSpeciesAsGuiyuanTarget(item);
+        var donorEligible = guiyuanSelectingDonors
+                            && !target
+                            && sameSpecies
+                            && !item.Locked
+                            && !forbiddenDonors.Contains(item.SpiritUid);
+        var donorSelected = donorEligible && GuiyuanDonorUids.Contains(item.SpiritUid);
+        var disabledForGuiyuan = guiyuanSelectingDonors && !donorEligible && !target;
+        var cell = LayoutObject("Spirit-" + item.SpiritUid, parent, 166f);
+        ApplyPanel(cell, disabledForGuiyuan ? DisabledCardTint : QualityTint(item.Aptitude), true);
+        TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(6, 6, 6, 6), 2f, alignment: TextAnchor.MiddleCenter);
+        if (donorSelected || target) AddTargetOutline(cell);
+        else if (Same(item.SpiritUid, selectedUid)) AddSelectionOutline(cell);
+        CreateCenteredPortrait(
+            cell.transform,
+            "Portrait",
+            72f,
+            68f,
+            Portrait(item.Snapshot),
+            new Color(0.18f, 0.20f, 0.24f, 1f));
+        var markers = target ? "归元目标"
+            : donorSelected ? "已选 · +" + SpiritAscensionService.ContributionOf(item)
+            : guiyuanSelectingDonors && !sameSpecies ? "非同类"
+            : guiyuanSelectingDonors && item.Locked ? "已锁定"
+            : guiyuanSelectingDonors && forbiddenDonors.Contains(item.SpiritUid) ? "编队中"
+            : guiyuanSelectingDonors ? "可选 · +" + SpiritAscensionService.ContributionOf(item)
+            : active ? "出战" : carried ? "携带中" : "仓库";
+        TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 13,
+            TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 20f, 1f);
+        TerriasUiComponents.AddTextBlock(cell.transform, StarText(item), 12,
+            TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : StarGold, 18f, 1f);
+        var meta = LayoutObject("Meta", cell.transform, 18f);
+        TerriasUiComponents.ConfigureHorizontalLayout(meta, new RectOffset(2, 2, 0, 0), 4f);
+        AddFixedTextBlock(meta.transform, "Lv." + item.Level, 11, TextAnchor.MiddleCenter,
+            disabledForGuiyuan ? Muted : Pale, 18f, 1f);
+        AddFixedTextBlock(meta.transform, "资质 " + item.Aptitude, 11, TextAnchor.MiddleCenter,
+            disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 18f, 1f);
+        TerriasUiComponents.AddTextBlock(cell.transform, markers,
+            11, TextAnchor.MiddleCenter, donorSelected || target ? Gold : active ? Green : Muted, 16f, 1f);
+        if (active) AddActiveStamp(cell.transform);
         var button = cell.AddComponent<Button>();
         AuraUiButtonFeedback.Apply(button, cell.GetComponent<Image>(), Gold);
+        button.interactable = !guiyuanSelectingDonors || donorEligible;
         button.onClick.AddListener(() =>
         {
-            selectedUid = item.SpiritUid;
+            if (guiyuanSelectingDonors)
+            {
+                ToggleGuiyuanDonor(item.SpiritUid);
+            }
+            else
+            {
+                SelectSpirit(item.SpiritUid);
+            }
             Refresh();
         });
     }
@@ -281,19 +347,27 @@ public static class SpiritManagementPanel
         imageRoot.AddComponent<SpiritPreviewAnimator>().Configure(item.Snapshot.IdlePath, Portrait(item.Snapshot));
 
         var growth = SpiritCollectionApi.GrowthView(item);
-        TerriasUiComponents.AddTextBlock(detailContent,
-            item.Snapshot.DisplayName + "  Lv." + item.Level,
-            23, TextAnchor.MiddleLeft, Pale, 36f);
-        TerriasUiComponents.AddTextBlock(detailContent,
-            TierName(growth.Tier)
-            + (string.IsNullOrWhiteSpace(growth.FormLabel) ? "" : " · " + growth.FormLabel)
-            + " · 资质 " + growth.Aptitude,
-            13, TextAnchor.MiddleLeft, Muted, 24f);
+        var detailHeader = LayoutObject("DetailHeader", detailContent, 36f);
+        TerriasUiComponents.ConfigureHorizontalLayout(detailHeader, new RectOffset(0, 0, 0, 0), 8f);
+        AddFixedTextBlock(detailHeader.transform, item.Snapshot.DisplayName, 23,
+            TextAnchor.MiddleLeft, QualityAccent(item.Aptitude), 36f, 1f, FontStyle.Normal);
+        AddFixedTextBlock(detailHeader.transform, "Lv." + item.Level, 19,
+            TextAnchor.MiddleRight, Pale, 36f, 0f, FontStyle.Normal, 58f);
+        AddFixedTextBlock(detailHeader.transform, StarText(item), 17,
+            TextAnchor.MiddleRight, StarGold, 36f, 0f, FontStyle.Normal, 92f);
+        var summary = LayoutObject("DetailSummary", detailContent, 24f);
+        TerriasUiComponents.ConfigureHorizontalLayout(summary, new RectOffset(0, 0, 0, 0), 8f);
+        AddFixedTextBlock(summary.transform,
+            TierName(growth.Tier) + (string.IsNullOrWhiteSpace(growth.FormLabel) ? "" : " · " + growth.FormLabel),
+            13, TextAnchor.MiddleLeft, Muted, 24f, 1f);
+        AddFixedTextBlock(summary.transform, "资质 " + growth.Aptitude, 13,
+            TextAnchor.MiddleRight, QualityAccent(growth.Aptitude), 24f, 0f, FontStyle.Normal, 82f);
         CreateDetailTabs(detailContent);
         var scroll = TerriasUiComponents.CreateVerticalScrollArea(
             detailContent, "GrowthDetail", 230f, 1f, 5f, 24f, new Color(0f, 0f, 0f, 0.08f));
         if (detailTab == 0) BuildAttributeView(scroll.Content, item, growth);
-        else BuildGrowthView(scroll.Content, growth);
+        else if (detailTab == 1) BuildTrainingView(scroll.Content, item);
+        else BuildGuiyuanView(scroll.Content, item, growth);
     }
 
     private static void RefreshParty()
@@ -307,19 +381,32 @@ public static class SpiritManagementPanel
             var uid = party.PartySlots[index];
             var item = SpiritCollectionApi.Find(uid);
             var cell = LayoutObject("PartySlot-" + index, partyContent, 96f, 0f, PartySlotWidth());
-            ApplyPanel(cell, Same(uid, party.ActiveSpiritUid) ? SelectedTint : ItemTint, true);
+            ApplyPanel(cell, item == null ? ItemTint : QualityTint(item.Aptitude), true);
             TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(5, 5, 4, 4), 2f, alignment: TextAnchor.MiddleCenter);
-            var portrait = LayoutObject("Icon", cell.transform, 58f);
-            var image = portrait.AddComponent<Image>();
-            image.sprite = item == null ? null : Portrait(item.Snapshot);
-            image.color = image.sprite == null ? new Color(0.15f, 0.16f, 0.20f, 1f) : Color.white;
-            image.preserveAspect = true;
-            image.raycastTarget = false;
-            var label = item == null ? (index + 1) + "  空位" : item.Snapshot.DisplayName + "\nLv." + item.Level;
-            TerriasUiComponents.AddTextBlock(cell.transform, label, 12, TextAnchor.MiddleCenter, Pale, 28f, 1f);
+            if (Same(uid, selectedUid)) AddSelectionOutline(cell);
+            CreateCenteredPortrait(
+                cell.transform,
+                "Icon",
+                48f,
+                46f,
+                item == null ? null : Portrait(item.Snapshot),
+                new Color(0.15f, 0.16f, 0.20f, 1f));
+            if (item == null)
+            {
+                TerriasUiComponents.AddTextBlock(cell.transform, (index + 1) + "  空位", 12,
+                    TextAnchor.MiddleCenter, Pale, 38f, 1f);
+            }
+            else
+            {
+                TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 12,
+                    TextAnchor.MiddleCenter, QualityAccent(item.Aptitude), 18f, 1f);
+                TerriasUiComponents.AddTextBlock(cell.transform, "Lv." + item.Level + "  " + StarText(item), 11,
+                    TextAnchor.MiddleCenter, StarGold, 18f, 1f);
+            }
+            if (item != null && Same(uid, party.ActiveSpiritUid)) AddActiveStamp(cell.transform);
             var button = cell.AddComponent<Button>();
             AuraUiButtonFeedback.Apply(button, cell.GetComponent<Image>(), Gold);
-            button.onClick.AddListener(() => OnPartySlot(index, uid));
+            button.onClick.AddListener(() => OnPartySlot(uid));
         }
     }
 
@@ -327,6 +414,11 @@ public static class SpiritManagementPanel
     {
         if (actionContent == null) return;
         ClearChildren(actionContent);
+        if (guiyuanSelectingDonors)
+        {
+            RefreshGuiyuanActions();
+            return;
+        }
         var party = Party();
         var selected = SpiritCollectionApi.Find(selectedUid);
         TerriasUiComponents.AddTextBlock(actionContent,
@@ -339,10 +431,19 @@ public static class SpiritManagementPanel
             TerriasUiComponents.CreateTextButton(actionContent, "设为出战", new Vector2(112f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), SelectedTint, Pale, 14, SetActive);
         }
         if (mode == PanelMode.Warehouse && selected != null
-            && !party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal)
-            && party.PartySlots.Any(string.IsNullOrWhiteSpace))
+            && !party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal))
         {
-            TerriasUiComponents.CreateTextButton(actionContent, "加入携带", new Vector2(112f, 34f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, AddSelected);
+            var hasEmptySlot = party.PartySlots.Any(string.IsNullOrWhiteSpace);
+            var addButton = TerriasUiComponents.CreateTextButton(
+                actionContent,
+                hasEmptySlot ? "加入携带" : "队伍已满",
+                new Vector2(112f, 34f),
+                TerriasUiSprites.Button("[SpiritManagement]"),
+                BandTint,
+                hasEmptySlot ? Pale : Muted,
+                14,
+                AddSelected);
+            addButton.interactable = hasEmptySlot;
         }
         if (mode == PanelMode.Warehouse && selected != null && party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal))
         {
@@ -372,16 +473,18 @@ public static class SpiritManagementPanel
         });
     }
 
-    private static void OnPartySlot(int slot, string currentUid)
+    private static void OnPartySlot(string currentUid)
     {
-        if (mode == PanelMode.Adventure)
+        if (!SpiritPartySlotInteraction.TrySelectOccupant(currentUid, out var occupantUid))
         {
-            if (!string.IsNullOrWhiteSpace(currentUid)) selectedUid = currentUid;
-            Refresh();
+            if (mode == PanelMode.Warehouse)
+            {
+                PlayerApi.ShowCaption("空槽位 · 请通过“加入携带”按钮配置");
+            }
             return;
         }
-        if (string.IsNullOrWhiteSpace(selectedUid)) return;
-        SpiritCollectionApi.ConfigureDefaultPartySlot(slot, selectedUid);
+
+        SelectSpirit(occupantUid);
         Refresh();
     }
 
@@ -399,11 +502,12 @@ public static class SpiritManagementPanel
             if (SpiritCollectionApi.RemoveFromCurrentAdventureParty(selectedUid))
             {
                 var party = SpiritCollectionApi.CurrentParty();
-                selectedUid = party.ActiveSpiritUid;
-                if (string.IsNullOrWhiteSpace(selectedUid))
+                var nextUid = party.ActiveSpiritUid;
+                if (string.IsNullOrWhiteSpace(nextUid))
                 {
-                    selectedUid = party.PartySlots.FirstOrDefault(uid => !string.IsNullOrWhiteSpace(uid)) ?? "";
+                    nextUid = party.PartySlots.FirstOrDefault(uid => !string.IsNullOrWhiteSpace(uid)) ?? "";
                 }
+                SelectSpirit(nextUid);
             }
         }
         else
@@ -426,14 +530,20 @@ public static class SpiritManagementPanel
         var rememberedFilter = warehouseFilter;
         var rememberedSort = warehouseSort;
         var rememberedTab = detailTab;
-        var rememberedAxis = growthAxis;
+        var rememberedGuiyuanSelecting = guiyuanSelectingDonors;
+        var rememberedGuiyuanTarget = guiyuanTargetUid;
+        var rememberedGuiyuanDonors = GuiyuanDonorUids.ToArray();
+        var rememberedGuiyuanConfirm = guiyuanConfirmArmed;
         Close();
         mode = rememberedMode;
         selectedUid = rememberedSelection;
         warehouseFilter = rememberedFilter;
         warehouseSort = rememberedSort;
         detailTab = rememberedTab;
-        growthAxis = rememberedAxis;
+        guiyuanSelectingDonors = rememberedGuiyuanSelecting;
+        guiyuanTargetUid = rememberedGuiyuanTarget;
+        foreach (var uid in rememberedGuiyuanDonors) GuiyuanDonorUids.Add(uid);
+        guiyuanConfirmArmed = rememberedGuiyuanConfirm;
         Build();
     }
 
@@ -442,120 +552,612 @@ public static class SpiritManagementPanel
         return mode == PanelMode.Adventure ? SpiritCollectionApi.CurrentParty() : SpiritCollectionApi.DefaultParty();
     }
 
+    private static void SelectSpirit(string? uid)
+    {
+        var normalized = (uid ?? "").Trim();
+        if (!Same(selectedUid, normalized))
+        {
+            TrainingSelection.Reset();
+            ResetGuiyuanSelection();
+        }
+        selectedUid = normalized;
+    }
+
     private static void CreateDetailTabs(Transform parent)
     {
-        var tabs = LayoutObject("DetailTabs", parent, 32f);
-        TerriasUiComponents.ConfigureHorizontalLayout(tabs, new RectOffset(0, 0, 0, 0), 6f);
-        TerriasUiComponents.CreateTextButton(tabs.transform, detailTab == 0 ? "属性 ·" : "属性", new Vector2(92f, 30f), TerriasUiSprites.Button("[SpiritManagement]"), detailTab == 0 ? SelectedTint : BandTint, Pale, 13, () =>
-        {
-            detailTab = 0;
-            RefreshPreviewAndDetail();
-        });
-        TerriasUiComponents.CreateTextButton(tabs.transform, detailTab == 1 ? "成长 ·" : "成长", new Vector2(92f, 30f), TerriasUiSprites.Button("[SpiritManagement]"), detailTab == 1 ? SelectedTint : BandTint, Pale, 13, () =>
-        {
-            detailTab = 1;
-            RefreshPreviewAndDetail();
-        });
+        var tabs = LayoutObject("DetailTabs", parent, 36f);
+        TerriasUiComponents.ConfigureHorizontalLayout(tabs, new RectOffset(0, 0, 0, 0), 8f);
+        CreateDetailTab(tabs.transform, "属性", 0);
+        CreateDetailTab(tabs.transform, "养成", 1);
+        CreateDetailTab(tabs.transform, "归元", 2);
+    }
+
+    private static void CreateDetailTab(Transform parent, string label, int index)
+    {
+        var selected = detailTab == index;
+        var tab = TerriasUiComponents.CreateTextButton(
+            parent,
+            label,
+            new Vector2(96f, 34f),
+            TerriasUiSprites.Button("[SpiritManagement]"),
+            selected ? SelectedTint : BandTint,
+            selected ? Pale : Muted,
+            14,
+            () =>
+            {
+                if (index != 2) ResetGuiyuanSelection();
+                detailTab = index;
+                Refresh();
+            });
+        if (!selected) return;
+        var underline = TerriasUiComponents.CreateRect(
+            "ActiveUnderline",
+            tab.transform,
+            new Vector2(0.08f, 0f),
+            new Vector2(0.92f, 0f),
+            new Vector2(0.5f, 0f),
+            new Vector2(0f, 3f));
+        underline.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 1f);
+        ApplyPanel(underline, Gold);
     }
 
     private static void BuildAttributeView(Transform parent, SpiritInstance item, SpiritGrowthViewSnapshot growth)
     {
-        var radarRoot = LayoutObject("Radar", parent, 218f);
+        var overview = LayoutObject("AttributeOverview", parent, 218f);
+        TerriasUiComponents.ConfigureHorizontalLayout(overview, new RectOffset(0, 0, 0, 0), 12f);
+        var radarRoot = LayoutObject("Radar", overview.transform, 218f, 0f, 218f);
         ApplyPanel(radarRoot, new Color(0.025f, 0.050f, 0.070f, 0.94f));
         var radarSurface = TerriasUiComponents.CreateFillRect("RadarSurface", radarRoot.transform);
         var graphic = radarSurface.AddComponent<SpiritRadarGraphic>();
         graphic.color = Color.white;
-        AddOverlayLabel(radarRoot.transform, RadarAxisLabel(growth, "magic"), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(84f, 38f), new Vector2(0f, -3f));
-        AddOverlayLabel(radarRoot.transform, RadarAxisLabel(growth, "perception"), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(82f, 38f), new Vector2(-3f, 0f));
-        AddOverlayLabel(radarRoot.transform, RadarAxisLabel(growth, "spirit"), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(84f, 38f), new Vector2(0f, 3f));
-        AddOverlayLabel(radarRoot.transform, RadarAxisLabel(growth, "luck"), new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(82f, 38f), new Vector2(3f, 0f));
-        var hover = TerriasUiComponents.AddTextBlock(parent, "数值格式：当前 / 满级潜力", 12, TextAnchor.MiddleCenter, Muted, 24f);
+        AddOverlayLabel(radarRoot.transform, "魔力", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(64f, 24f), new Vector2(0f, -4f));
+        AddOverlayLabel(radarRoot.transform, "感知", new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(60f, 24f), new Vector2(-4f, 0f));
+        AddOverlayLabel(radarRoot.transform, "精神", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(64f, 24f), new Vector2(0f, 4f));
+        AddOverlayLabel(radarRoot.transform, "幸运", new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(60f, 24f), new Vector2(4f, 0f));
+        var hover = TerriasUiComponents.AddTextBlock(radarRoot.transform, "", 1, TextAnchor.MiddleCenter, new Color(0f, 0f, 0f, 0f), 1f);
         graphic.Configure(growth.RadarAxes, index =>
         {
-            hover.text = index.HasValue && index.Value < growth.RadarAxes.Count
-                ? AxisSummary(growth.RadarAxes[index.Value])
-                : "数值格式：当前 / 满级潜力";
+            hover.text = index.HasValue && index.Value < growth.RadarAxes.Count ? AxisSummary(growth.RadarAxes[index.Value]) : "";
         });
-        var progress = LayoutObject("ProgressSummary", parent, 48f);
-        ApplyPanel(progress, ItemTint);
-        TerriasUiComponents.ConfigureHorizontalLayout(progress, new RectOffset(12, 12, 6, 6), 10f);
-        TerriasUiComponents.AddTextBlock(progress.transform, "资质  " + growth.Aptitude + " / 100", 13, TextAnchor.MiddleLeft, Green, 34f, 1f);
-        TerriasUiComponents.AddTextBlock(progress.transform,
-            "经验  " + (growth.Level >= growth.MaxLevel ? "MAX" : growth.Experience + " / " + growth.ExperienceToNextLevel),
-            13, TextAnchor.MiddleRight, Cyan, 34f, 1f);
-        CreateQuickStats(parent, growth);
+
+        var stats = LayoutObject("BattleStats", overview.transform, 218f, 0f);
+        ApplyPanel(stats, ItemTint);
+        TerriasUiComponents.ConfigureVerticalLayout(stats, new RectOffset(12, 12, 10, 10), 4f);
+        CreateVerticalStat(stats.transform, "生命", growth.BattleStats.MaxHp);
+        CreateVerticalStat(stats.transform, "攻击", growth.BattleStats.Attack);
+        CreateVerticalStat(stats.transform, "护甲", growth.BattleStats.Armor);
+        CreateVerticalStat(stats.transform, "魔能", growth.BattleStats.MaxMagic);
+        CreateVerticalStat(stats.transform, "速度", growth.BattleStats.Speed);
+
+        CreateExperienceProgress(parent, growth);
         if (!string.IsNullOrWhiteSpace(item.Snapshot.Description))
         {
             TerriasUiComponents.AddTextBlock(parent, PlayerFacingDescription(item.Snapshot.Description), 12, TextAnchor.UpperLeft, Muted, 72f, 1f);
         }
     }
 
-    private static void BuildGrowthView(Transform parent, SpiritGrowthViewSnapshot growth)
+    private static void BuildTrainingView(Transform parent, SpiritInstance item)
     {
-        var selector = LayoutObject("GrowthAxis", parent, 31f);
-        TerriasUiComponents.ConfigureHorizontalLayout(selector, new RectOffset(0, 0, 0, 0), 4f);
-        var keys = new[] { "total", "magic", "spirit", "luck", "perception" };
-        for (var index = 0; index < keys.Length; index++)
+        var training = SpiritCollectionApi.TrainingView(item);
+        TrainingSelection.EnsureInitialized(training.EquippedIntents.Select(ability => ability.Id).ToArray());
+        var focused = ResolveFocusedAbility(training);
+        var equipped = LayoutObject("EquippedIntents", parent, 64f);
+        TerriasUiComponents.ConfigureHorizontalLayout(equipped, new RectOffset(0, 0, 0, 0), 8f);
+        for (var index = 0; index < SpiritTrainingService.EquippedIntentCapacity; index++)
         {
-            var selectedIndex = index;
-            TerriasUiComponents.CreateTextButton(selector.transform,
-                SpiritGrowthQueryService.Label(keys[index]) + (growthAxis == index ? " ·" : ""),
-                new Vector2(36f, 29f), TerriasUiSprites.Button("[SpiritManagement]"),
-                growthAxis == index ? SelectedTint : BandTint, Pale, 11, () =>
+            var slot = index;
+            var ability = index < training.EquippedIntents.Count ? training.EquippedIntents[index] : null;
+            CreateCompactAbilityCard(equipped.transform, ability, 62f, focused: false,
+                targeted: TrainingSelection.TargetsIntentSlot(index),
+                TextAnchor.MiddleCenter, compactMeta: true, () =>
+            {
+                TrainingSelection.SelectIntentSlot(slot, ability?.Id);
+                RefreshPreviewAndDetail();
+            }, "槽位 " + (index + 1));
+        }
+
+        TerriasUiComponents.AddTextBlock(parent, "已装备被动", 12, TextAnchor.MiddleLeft, Muted, 22f, 1f);
+        CreateCompactAbilityCard(parent, training.EquippedPassive, 58f, focused: false,
+            targeted: TrainingSelection.TargetsPassiveSlot, TextAnchor.MiddleLeft, compactMeta: false, () =>
+            {
+                TrainingSelection.SelectPassiveSlot(training.EquippedPassive?.Id);
+                RefreshPreviewAndDetail();
+            }, "未装备被动");
+
+        TerriasUiComponents.AddTextBlock(parent, "当前查看能力", 13, TextAnchor.MiddleLeft, Pale, 26f, 1f);
+        CreateTrainingAbilityDetail(parent, item, training, focused);
+
+        TerriasUiComponents.AddTextBlock(parent, "已学会意图", 13, TextAnchor.MiddleLeft, Pale, 26f, 1f);
+        CreateAbilityList(parent, training.LearnedIntents, ability =>
+        {
+            TrainingSelection.PreviewAbility(ability.Id);
+            RefreshPreviewAndDetail();
+        });
+
+        TerriasUiComponents.AddTextBlock(parent, "已学会被动", 13, TextAnchor.MiddleLeft, Pale, 26f, 1f);
+        CreateAbilityList(parent, training.LearnedPassives, ability =>
+        {
+            TrainingSelection.PreviewAbility(ability.Id);
+            RefreshPreviewAndDetail();
+        });
+    }
+
+    private static void BuildGuiyuanView(Transform parent, SpiritInstance item, SpiritGrowthViewSnapshot growth)
+    {
+        var rank = SpiritAscensionService.StarRankFor(item.GuiyuanValue);
+        var budget = SpiritAscensionService.PointBudgetForStar(rank);
+        var allocations = SpiritAscensionService.NormalizeAllocations(item.GuiyuanAllocations, item.GuiyuanValue);
+        var status = LayoutObject("GuiyuanStatus", parent, 58f);
+        ApplyPanel(status, ItemTint);
+        TerriasUiComponents.ConfigureVerticalLayout(status, new RectOffset(10, 10, 7, 7), 2f,
+            childForceExpandHeight: false);
+        var title = LayoutObject("GuiyuanTitle", status.transform, 23f);
+        TerriasUiComponents.ConfigureHorizontalLayout(title, new RectOffset(0, 0, 0, 0), 8f);
+        AddFixedTextBlock(title.transform, StarText(rank), 18, TextAnchor.MiddleLeft, StarGold, 23f, 1f);
+        AddFixedTextBlock(title.transform, "归元值 " + item.GuiyuanValue + " / " + SpiritAscensionService.MaximumGuiyuanValue,
+            13, TextAnchor.MiddleRight, Pale, 23f, 0f, FontStyle.Normal, 112f);
+        AddFixedTextBlock(status.transform,
+            rank >= SpiritAscensionService.MaximumStarRank
+                ? "已达到五星"
+                : "下一星级需要归元值 " + SpiritAscensionService.ThresholdForStar(rank + 1),
+            12, TextAnchor.MiddleLeft, rank >= SpiritAscensionService.MaximumStarRank ? Gold : Muted, 20f, 1f);
+
+        var points = LayoutObject("OriginPointSummary", parent, 34f);
+        ApplyPanel(points, new Color(0.025f, 0.050f, 0.070f, 0.94f));
+        TerriasUiComponents.ConfigureHorizontalLayout(points, new RectOffset(10, 10, 0, 0), 8f);
+        AddFixedTextBlock(points.transform, "四大本源", 14, TextAnchor.MiddleLeft, Pale, 32f, 1f, FontStyle.Bold);
+        AddFixedTextBlock(points.transform, "已分配 " + allocations.Total + " / " + budget,
+            13, TextAnchor.MiddleRight, allocations.Total < budget ? Cyan : Gold, 32f, 0f, FontStyle.Normal, 118f);
+
+        CreateOriginAllocationRow(parent, item, growth, allocations, "魔力", "magic");
+        CreateOriginAllocationRow(parent, item, growth, allocations, "感知", "perception");
+        CreateOriginAllocationRow(parent, item, growth, allocations, "精神", "spirit");
+        CreateOriginAllocationRow(parent, item, growth, allocations, "幸运", "luck");
+
+        var action = LayoutObject("GuiyuanEntry", parent, 42f);
+        TerriasUiComponents.ConfigureHorizontalLayout(action, new RectOffset(0, 0, 2, 2), 8f);
+        var canSelect = mode == PanelMode.Warehouse
+                        && rank < SpiritAscensionService.MaximumStarRank
+                        && !guiyuanSelectingDonors;
+        var label = mode != PanelMode.Warehouse
+            ? "请前往精灵仓库归元"
+            : rank >= SpiritAscensionService.MaximumStarRank
+                ? "已达到五星"
+                : guiyuanSelectingDonors ? "正在左侧选择同类精灵" : "选择同类精灵归元";
+        var button = TerriasUiComponents.CreateTextButton(
+            action.transform,
+            label,
+            new Vector2(188f, 36f),
+            TerriasUiSprites.Button("[SpiritManagement]"),
+            canSelect ? TargetTint : BandTint,
+            canSelect ? Pale : Muted,
+            13,
+            BeginGuiyuanSelection);
+        button.interactable = canSelect;
+    }
+
+    private static void CreateOriginAllocationRow(
+        Transform parent,
+        SpiritInstance item,
+        SpiritGrowthViewSnapshot growth,
+        SpiritOriginVector allocations,
+        string label,
+        string key)
+    {
+        var allocated = SpiritGrowthQueryService.Value(allocations, key);
+        var effective = SpiritGrowthQueryService.Value(growth.CurrentOrigins, key);
+        var budget = SpiritAscensionService.PointBudgetFor(item);
+        var row = LayoutObject("OriginAllocation-" + key, parent, 42f);
+        ApplyPanel(row, ItemTint);
+        TerriasUiComponents.ConfigureHorizontalLayout(row, new RectOffset(8, 8, 5, 5), 5f);
+        AddFixedTextBlock(row.transform, label + "  " + (effective - allocated) + " +" + allocated,
+            12, TextAnchor.MiddleLeft, Pale, 30f, 0f, FontStyle.Normal, 92f);
+        var minus = TerriasUiComponents.CreateTextButton(row.transform, "−", new Vector2(30f, 30f),
+            TerriasUiSprites.Button("[SpiritManagement]"), BandTint, allocated > 0 ? Pale : Muted, 16,
+            () => AdjustGuiyuanAllocation(item.SpiritUid, key, -1));
+        minus.interactable = allocated > 0;
+
+        var cells = LayoutObject("AllocationCells", row.transform, 24f);
+        cells.GetComponent<LayoutElement>().flexibleWidth = 1f;
+        TerriasUiComponents.ConfigureHorizontalLayout(cells, new RectOffset(0, 0, 3, 3), 2f,
+            childForceExpandHeight: true, alignment: TextAnchor.MiddleCenter);
+        for (var index = 0; index < SpiritAscensionService.MaximumAllocationPerOrigin; index++)
+        {
+            var cell = LayoutObject("Point-" + index, cells.transform, 16f, 0f, 14f);
+            ApplyPanel(cell, index < allocated ? Cyan : new Color(0.12f, 0.15f, 0.17f, 0.92f));
+        }
+
+        var canAdd = allocated < SpiritAscensionService.MaximumAllocationPerOrigin && allocations.Total < budget;
+        var plus = TerriasUiComponents.CreateTextButton(row.transform, "+", new Vector2(30f, 30f),
+            TerriasUiSprites.Button("[SpiritManagement]"), BandTint, canAdd ? Pale : Muted, 16,
+            () => AdjustGuiyuanAllocation(item.SpiritUid, key, 1));
+        plus.interactable = canAdd;
+    }
+
+    private static void AdjustGuiyuanAllocation(string uid, string key, int delta)
+    {
+        var item = SpiritCollectionApi.Find(uid);
+        if (item == null) return;
+        var value = SpiritAscensionService.NormalizeAllocations(item.GuiyuanAllocations, item.GuiyuanValue);
+        switch (key)
+        {
+            case "magic": value.Magic += delta; break;
+            case "perception": value.Perception += delta; break;
+            case "spirit": value.Spirit += delta; break;
+            case "luck": value.Luck += delta; break;
+            default: return;
+        }
+        if (!SpiritCollectionApi.SetGuiyuanAllocations(uid, value)) return;
+        RefreshPreviewAndDetail();
+    }
+
+    private static void BeginGuiyuanSelection()
+    {
+        var target = SpiritCollectionApi.Find(selectedUid);
+        if (mode != PanelMode.Warehouse || target == null
+            || SpiritAscensionService.StarRankFor(target.GuiyuanValue) >= SpiritAscensionService.MaximumStarRank) return;
+        guiyuanSelectingDonors = true;
+        guiyuanTargetUid = target.SpiritUid;
+        GuiyuanDonorUids.Clear();
+        guiyuanConfirmArmed = false;
+        Refresh();
+    }
+
+    private static void ToggleGuiyuanDonor(string uid)
+    {
+        if (!guiyuanSelectingDonors || string.IsNullOrWhiteSpace(uid)) return;
+        if (!GuiyuanDonorUids.Add(uid)) GuiyuanDonorUids.Remove(uid);
+        guiyuanConfirmArmed = false;
+    }
+
+    private static void RefreshGuiyuanActions()
+    {
+        if (actionContent == null) return;
+        var target = SpiritCollectionApi.Find(guiyuanTargetUid);
+        if (target == null)
+        {
+            ResetGuiyuanSelection();
+            Refresh();
+            return;
+        }
+        var donors = GuiyuanDonorUids.Select(SpiritCollectionApi.Find).Where(item => item != null).Cast<SpiritInstance>().ToList();
+        var preview = SpiritAscensionService.Preview(target, donors);
+        var summary = donors.Count == 0
+            ? "请选择同 SpeciesId 的仓库精灵"
+            : "已选 " + donors.Count + " 只 · 提供 " + preview.OfferedValue
+              + " · 生效 " + preview.AppliedValue
+              + (preview.OverflowValue > 0 ? " · 溢出损失 " + preview.OverflowValue : "")
+              + " · 结果 " + StarText(preview.ResultStarRank);
+        AddFixedTextBlock(actionContent, summary, 13, TextAnchor.MiddleLeft,
+            preview.OverflowValue > 0 ? Gold : Muted, 34f, 1f);
+        TerriasUiComponents.CreateTextButton(actionContent, "取消", new Vector2(88f, 34f),
+            TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 14, () =>
+            {
+                ResetGuiyuanSelection();
+                Refresh();
+            });
+        var confirmLabel = guiyuanConfirmArmed
+            ? "确认永久消耗 " + donors.Count + " 只"
+            : preview.OverflowValue > 0 ? "归元（含溢出）" : "归元";
+        var confirm = TerriasUiComponents.CreateTextButton(actionContent, confirmLabel, new Vector2(164f, 34f),
+            TerriasUiSprites.Button("[SpiritManagement]"), TargetTint,
+            donors.Count > 0 ? Pale : Muted, 13, ConfirmGuiyuan);
+        confirm.interactable = donors.Count > 0;
+    }
+
+    private static void ConfirmGuiyuan()
+    {
+        if (!guiyuanConfirmArmed)
+        {
+            guiyuanConfirmArmed = true;
+            RefreshActions();
+            return;
+        }
+        var result = SpiritCollectionApi.Guiyuan(guiyuanTargetUid, GuiyuanDonorUids.ToArray());
+        if (!result.Success)
+        {
+            guiyuanConfirmArmed = false;
+            PlayerApi.ShowCaption(string.IsNullOrWhiteSpace(result.Reason) ? "归元失败，未消耗任何精灵" : result.Reason);
+            Refresh();
+            return;
+        }
+        selectedUid = result.Target?.SpiritUid ?? guiyuanTargetUid;
+        var donorCount = result.Preview.DonorCount;
+        var gained = result.Preview.AppliedValue;
+        ResetGuiyuanSelection();
+        PlayerApi.ShowCaption("归元完成 · 消耗 " + donorCount + " 只 · 归元值 +" + gained);
+        Refresh();
+    }
+
+    private static HashSet<string> GuiyuanForbiddenUids()
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var uid in SpiritCollectionApi.DefaultParty().PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid))) result.Add(uid);
+        foreach (var uid in SpiritCollectionApi.CurrentParty().PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid))) result.Add(uid);
+        return result;
+    }
+
+    private static bool SameSpeciesAsGuiyuanTarget(SpiritInstance item)
+    {
+        var target = SpiritCollectionApi.Find(guiyuanTargetUid);
+        return target != null && Same(target.SpeciesId, item.SpeciesId);
+    }
+
+    private static void ResetGuiyuanSelection()
+    {
+        guiyuanSelectingDonors = false;
+        guiyuanTargetUid = "";
+        GuiyuanDonorUids.Clear();
+        guiyuanConfirmArmed = false;
+    }
+
+    private static void CreateVerticalStat(Transform parent, string label, int value)
+    {
+        var row = LayoutObject("Stat-" + label, parent, 34f);
+        TerriasUiComponents.ConfigureHorizontalLayout(row, new RectOffset(4, 4, 0, 0), 8f);
+        TerriasUiComponents.AddTextBlock(row.transform, label, 12, TextAnchor.MiddleLeft, Muted, 32f, 1f);
+        TerriasUiComponents.AddTextBlock(row.transform, value.ToString(), 17, TextAnchor.MiddleRight, Pale, 32f, 1f);
+    }
+
+    private static void CreateExperienceProgress(Transform parent, SpiritGrowthViewSnapshot growth)
+    {
+        var progress = LayoutObject("ExperienceProgress", parent, 58f);
+        ApplyPanel(progress, ItemTint);
+        TerriasUiComponents.ConfigureVerticalLayout(progress, new RectOffset(10, 10, 7, 8), 6f,
+            childForceExpandHeight: false, alignment: TextAnchor.MiddleCenter);
+        var label = growth.Level >= growth.MaxLevel
+            ? "经验  MAX"
+            : "经验  " + growth.Experience + " / " + growth.ExperienceToNextLevel;
+        AddFixedTextBlock(progress.transform, label, 12, TextAnchor.MiddleCenter, Cyan, 22f, 1f);
+        var track = LayoutObject("Track", progress.transform, 10f);
+        track.GetComponent<LayoutElement>().minHeight = 10f;
+        ApplyPanel(track, new Color(0.04f, 0.07f, 0.09f, 1f));
+        var fill = TerriasUiComponents.CreateFillRect("Fill", track.transform);
+        var fillImage = fill.AddComponent<Image>();
+        fillImage.color = Cyan;
+        fillImage.type = Image.Type.Filled;
+        fillImage.fillMethod = Image.FillMethod.Horizontal;
+        fillImage.fillOrigin = 0;
+        fillImage.fillAmount = growth.Level >= growth.MaxLevel
+            ? 1f
+            : Mathf.Clamp01(growth.Experience / (float)Math.Max(1, growth.ExperienceToNextLevel));
+        fillImage.raycastTarget = false;
+    }
+
+    private static void CreateAbilityList(Transform parent, IReadOnlyList<SpiritAbilityView> abilities, Action<SpiritAbilityView> onClick)
+    {
+        foreach (var ability in abilities)
+        {
+            var current = ability;
+            CreateCompactAbilityCard(parent, current, 58f,
+                focused: Same(current.Id, TrainingSelection.FocusedAbilityId), targeted: false,
+                TextAnchor.MiddleLeft, compactMeta: false, () => onClick(current));
+        }
+    }
+
+    private static void CreateCompactAbilityCard(
+        Transform parent,
+        SpiritAbilityView? ability,
+        float height,
+        bool focused,
+        bool targeted,
+        TextAnchor anchor,
+        bool compactMeta,
+        Action? onClick,
+        string emptyLabel = "")
+    {
+        var card = LayoutObject("Ability-" + (ability?.Id ?? "empty"), parent, height);
+        card.GetComponent<LayoutElement>().flexibleWidth = 1f;
+        ApplyPanel(card, targeted ? TargetTint : focused ? SelectedTint : ItemTint, onClick != null);
+        if (targeted) AddTargetOutline(card);
+        else if (focused) AddSelectionOutline(card);
+        TerriasUiComponents.ConfigureVerticalLayout(card, new RectOffset(8, 8, 5, 5), 0f,
+            childForceExpandHeight: false, alignment: anchor);
+        AddFixedTextBlock(
+            card.transform,
+            (targeted ? "目标 · " : "")
+            + (ability == null ? emptyLabel : (ability.IsNew ? "NEW · " : "") + ability.DisplayName),
+            14,
+            anchor,
+            targeted || ability?.IsNew == true ? Gold : Pale,
+            28f,
+            1f,
+            ability == null ? FontStyle.Normal : FontStyle.Bold);
+        if (ability != null)
+        {
+            AddFixedTextBlock(card.transform, AbilityMeta(ability, compactMeta), 12, anchor, Muted, 20f, 1f);
+        }
+        if (onClick == null) return;
+        var button = card.AddComponent<Button>();
+        AuraUiButtonFeedback.Apply(button, card.GetComponent<Image>(), Gold);
+        button.onClick.AddListener(() => onClick());
+    }
+
+    private static SpiritAbilityView? ResolveFocusedAbility(SpiritTrainingViewSnapshot training)
+    {
+        var all = training.EquippedIntents
+            .Concat(training.EquippedPassive == null ? Array.Empty<SpiritAbilityView>() : new[] { training.EquippedPassive })
+            .Concat(training.LearnedIntents)
+            .Concat(training.LearnedPassives)
+            .ToList();
+        return all.FirstOrDefault(ability => Same(ability.Id, TrainingSelection.FocusedAbilityId));
+    }
+
+    private static void CreateTrainingAbilityDetail(
+        Transform parent,
+        SpiritInstance item,
+        SpiritTrainingViewSnapshot training,
+        SpiritAbilityView? ability)
+    {
+        var card = LayoutObject("AbilityDetail", parent, 140f);
+        ApplyPanel(card, ItemTint);
+        TerriasUiComponents.ConfigureVerticalLayout(card, new RectOffset(10, 10, 8, 8), 4f,
+            childForceExpandHeight: false);
+        if (ability == null)
+        {
+            var emptyTitle = TrainingSelection.TargetKind switch
+            {
+                SpiritTrainingTargetKind.IntentSlot =>
+                    "意图槽位 " + (TrainingSelection.IntentSlotIndex + 1) + " 尚未装备",
+                SpiritTrainingTargetKind.PassiveSlot => "当前未装备被动",
+                _ => "请选择一个能力查看详情"
+            };
+            var emptyHint = TrainingSelection.TargetKind switch
+            {
+                SpiritTrainingTargetKind.IntentSlot => "请从下方已学会意图中选择，确认后装备到该槽位。",
+                SpiritTrainingTargetKind.PassiveSlot => "请从下方已学会被动中选择，确认后设为当前被动。",
+                _ => "先选择一个装备槽位，再从已学会能力中查看候选。"
+            };
+            AddFixedTextBlock(card.transform, emptyTitle, 16,
+                TextAnchor.LowerCenter, Pale, 42f, 1f, FontStyle.Bold);
+            AddFixedTextBlock(card.transform, emptyHint, 12,
+                TextAnchor.UpperCenter, Muted, 62f, 1f);
+            return;
+        }
+
+        var header = LayoutObject("AbilityDetailHeader", card.transform, 28f);
+        TerriasUiComponents.ConfigureHorizontalLayout(header, new RectOffset(0, 0, 0, 0), 8f);
+        AddFixedTextBlock(header.transform, (ability.IsNew ? "NEW · " : "") + ability.DisplayName,
+            16, TextAnchor.MiddleLeft, ability.IsNew ? Gold : Pale, 28f, 1f, FontStyle.Bold);
+        AddFixedTextBlock(header.transform, AbilityMeta(ability), 12,
+            TextAnchor.MiddleRight, Muted, 28f, 0f, FontStyle.Normal, 168f);
+
+        var description = PlayerFacingDescription(ability.Description).Replace("\n", "  ");
+        AddFixedTextBlock(card.transform,
+            description.Length == 0 ? "暂无能力说明。" : description,
+            13,
+            TextAnchor.UpperLeft,
+            Pale,
+            52f,
+            1f,
+            FontStyle.Normal,
+            0f,
+            1.15f);
+
+        var actions = LayoutObject("AbilityDetailActions", card.transform, 32f);
+        TerriasUiComponents.ConfigureHorizontalLayout(actions, new RectOffset(0, 0, 0, 0), 8f);
+        if (string.Equals(ability.Kind, "Intent", StringComparison.Ordinal))
+        {
+            if (TrainingSelection.TargetKind != SpiritTrainingTargetKind.IntentSlot)
+            {
+                AddFixedTextBlock(actions.transform, "请先选择一个意图槽位", 12,
+                    TextAnchor.MiddleRight, Gold, 32f, 1f);
+                return;
+            }
+
+            var intentSlot = TrainingSelection.IntentSlotIndex;
+            var currentId = intentSlot < training.EquippedIntents.Count
+                ? training.EquippedIntents[intentSlot].Id
+                : "";
+            if (Same(currentId, ability.Id))
+            {
+                AddFixedTextBlock(actions.transform, "当前槽位已装备", 12,
+                    TextAnchor.MiddleRight, Green, 32f, 1f);
+            }
+            else
+            {
+                var hasCurrentIntent = currentId.Length > 0;
+                AddFixedTextBlock(actions.transform,
+                    (hasCurrentIntent ? "将替换槽位 " : "将装备到槽位 ") + (intentSlot + 1), 12,
+                    TextAnchor.MiddleRight, Muted, 32f, 1f);
+                TerriasUiComponents.CreateTextButton(actions.transform,
+                    (hasCurrentIntent ? "替换到槽位 " : "装备到槽位 ") + (intentSlot + 1),
+                    new Vector2(138f, 32f),
+                    TerriasUiSprites.Button("[SpiritManagement]"),
+                    SelectedTint,
+                    Pale,
+                    13,
+                    () =>
+                    {
+                        if (!SpiritCollectionApi.EquipIntent(item.SpiritUid, intentSlot, ability.Id)) return;
+                        PlayerApi.ShowCaption("配置已更新 · 下一场战斗生效");
+                        RefreshPreviewAndDetail();
+                    });
+            }
+        }
+        else if (TrainingSelection.TargetKind != SpiritTrainingTargetKind.PassiveSlot)
+        {
+            AddFixedTextBlock(actions.transform, "请先选择被动槽位", 12,
+                TextAnchor.MiddleRight, Gold, 32f, 1f);
+        }
+        else if (Same(training.EquippedPassive?.Id ?? "", ability.Id))
+        {
+            AddFixedTextBlock(actions.transform, "当前已装备被动", 12,
+                TextAnchor.MiddleRight, Green, 32f, 1f);
+        }
+        else
+        {
+            AddFixedTextBlock(actions.transform, "被动替换完全免费", 12,
+                TextAnchor.MiddleRight, Muted, 32f, 1f);
+            TerriasUiComponents.CreateTextButton(actions.transform,
+                "设为当前被动",
+                new Vector2(138f, 32f),
+                TerriasUiSprites.Button("[SpiritManagement]"),
+                SelectedTint,
+                Pale,
+                13,
+                () =>
                 {
-                    growthAxis = selectedIndex;
+                    if (!SpiritCollectionApi.EquipPassive(item.SpiritUid, ability.Id)) return;
+                    PlayerApi.ShowCaption("配置已更新 · 下一场战斗生效");
                     RefreshPreviewAndDetail();
                 });
         }
-
-        var chartRoot = LayoutObject("GrowthCurve", parent, 204f);
-        ApplyPanel(chartRoot, new Color(0.025f, 0.050f, 0.070f, 0.94f));
-        var chartSurface = TerriasUiComponents.CreateFillRect("GrowthCurveSurface", chartRoot.transform);
-        var chart = chartSurface.AddComponent<SpiritGrowthCurveGraphic>();
-        chart.color = Color.white;
-        chart.Configure(growth.CurrentAptitudeCurve, growth.StandardAptitudeCurve, growth.TheoreticalAptitudeCurve,
-            keys[Math.Max(0, Math.Min(keys.Length - 1, growthAxis))], growth.Level);
-        AddOverlayLabel(chartRoot.transform, "Lv.1", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(42f, 18f), new Vector2(5f, 1f));
-        AddOverlayLabel(chartRoot.transform, "Lv.50", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(48f, 18f), new Vector2(-4f, 1f));
-        TerriasUiComponents.AddTextBlock(parent,
-            "当前资质  ●    标准资质 60  ●    理论资质 100  ●",
-            11, TextAnchor.MiddleCenter, Muted, 24f, 1f);
-        TerriasUiComponents.AddTextBlock(parent,
-            "种族基础 " + FormatOrigins(growth.BaseOrigins) + "\n成长预算 " + FormatOrigins(growth.GrowthOrigins),
-            12, TextAnchor.MiddleLeft, Muted, 42f, 1f);
-        TerriasUiComponents.AddTextBlock(parent,
-            "Lv." + growth.MaxLevel + " 当前资质潜力 " + FormatOrigins(growth.MaxLevelOriginsAtCurrentAptitude)
-            + "\nLv.50 / 资质60基准 " + FormatOrigins(growth.StandardOriginsAtLevel50Aptitude60),
-            12, TextAnchor.MiddleLeft, Gold, 46f, 1f);
     }
 
-    private static void CreateQuickStats(Transform parent, SpiritGrowthViewSnapshot growth)
+    private static string AbilityMeta(SpiritAbilityView ability, bool compact = false)
     {
-        var row = LayoutObject("BattleStats", parent, 64f);
-        TerriasUiComponents.ConfigureHorizontalLayout(row, new RectOffset(0, 0, 0, 0), 6f);
-        CreateQuickStat(row.transform, "生命", growth.BattleStats.MaxHp);
-        CreateQuickStat(row.transform, "攻击", growth.BattleStats.Attack);
-        CreateQuickStat(row.transform, "护甲", growth.BattleStats.Armor);
-        CreateQuickStat(row.transform, "意图", growth.BattleStats.MaxMagic);
+        var type = AbilityTypeLabel(ability.Type);
+        if (compact && string.Equals(ability.Kind, "Intent", StringComparison.Ordinal))
+        {
+            return "魔能 " + ability.Cost + " · 冷却 " + ability.Cooldown;
+        }
+        return string.Equals(ability.Kind, "Intent", StringComparison.Ordinal)
+            ? type + " · 魔能 " + ability.Cost + " · 冷却 " + ability.Cooldown
+            : type;
     }
 
-    private static void CreateQuickStat(Transform parent, string label, int value)
+    private static string AbilityTypeLabel(string type)
     {
-        var card = LayoutObject("QuickStat-" + label, parent, 62f);
-        var element = card.GetComponent<LayoutElement>();
-        element.minWidth = 48f;
-        element.preferredWidth = 64f;
-        element.flexibleWidth = 1f;
-        ApplyPanel(card, ItemTint);
-        TerriasUiComponents.ConfigureVerticalLayout(card, new RectOffset(4, 4, 4, 4), 0f, alignment: TextAnchor.MiddleCenter);
-        TerriasUiComponents.AddTextBlock(card.transform, value.ToString(), 17, TextAnchor.MiddleCenter, Pale, 30f, 1f);
-        TerriasUiComponents.AddTextBlock(card.transform, label, 11, TextAnchor.MiddleCenter, Muted, 20f, 1f);
+        var normalized = (type ?? "").Trim();
+        return normalized switch
+        {
+            "Attack" => "攻击",
+            "Defense" => "防御",
+            "Support" => "辅助",
+            "Recovery" => "恢复",
+            "Interference" => "干扰",
+            "Species" => "种族固有",
+            "Common.Core" => "通用·核心",
+            "Common.Advanced" => "通用·高级",
+            "Common.Basic" => "通用·基础",
+            "Common.Tactical" => "通用·战术",
+            _ => normalized.Length == 0 ? "能力" : normalized
+        };
     }
 
-    private static string RadarAxisLabel(SpiritGrowthViewSnapshot growth, string key)
+    private static Text AddFixedTextBlock(
+        Transform parent,
+        string value,
+        int fontSize,
+        TextAnchor anchor,
+        Color color,
+        float preferredHeight,
+        float flexibleWidth = 0f,
+        FontStyle style = FontStyle.Normal,
+        float preferredWidth = 0f,
+        float lineSpacing = 1f)
     {
-        var axis = growth.RadarAxes.FirstOrDefault(value => string.Equals(value.Key, key, StringComparison.Ordinal));
-        return axis == null ? SpiritGrowthQueryService.Label(key) : axis.Label + "\n" + axis.RawCurrent + " / " + axis.RawPotential;
+        var text = TerriasUiComponents.AddTextBlock(
+            parent, value, fontSize, anchor, color, preferredHeight, flexibleWidth, preferredWidth);
+        text.resizeTextForBestFit = false;
+        text.fontSize = fontSize;
+        text.fontStyle = style;
+        text.lineSpacing = lineSpacing;
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Truncate;
+        text.raycastTarget = false;
+        return text;
     }
 
     private static string AxisSummary(SpiritRadarAxisSnapshot axis)
@@ -576,11 +1178,6 @@ public static class SpiritManagementPanel
             .Select(line => line.Trim())
             .Where(line => line.Length > 0);
         return string.Join("\n", lines);
-    }
-
-    private static string FormatOrigins(SpiritOriginVector value)
-    {
-        return "魔" + value.Magic + " 精" + value.Spirit + " 运" + value.Luck + " 感" + value.Perception + " 总" + value.Total;
     }
 
     private static void AddOverlayLabel(Transform parent, string value, Vector2 anchor, Vector2 pivot, Vector2 size, Vector2 offset)
@@ -617,9 +1214,106 @@ public static class SpiritManagementPanel
         return go;
     }
 
+    private static void CreateCenteredPortrait(
+        Transform parent,
+        string name,
+        float slotHeight,
+        float imageSize,
+        Sprite? sprite,
+        Color fallback)
+    {
+        var slot = LayoutObject(name + "Slot", parent, slotHeight);
+        var imageRoot = TerriasUiComponents.CreateRect(
+            name,
+            slot.transform,
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(0.5f, 0.5f),
+            new Vector2(imageSize, imageSize));
+        var image = imageRoot.AddComponent<Image>();
+        image.sprite = sprite;
+        image.color = sprite == null ? fallback : Color.white;
+        image.preserveAspect = true;
+        image.raycastTarget = false;
+    }
+
     private static void ApplyPanel(GameObject go, Color color, bool raycast = false)
     {
         TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[SpiritManagement]"), color, raycast);
+    }
+
+    private static void AddSelectionOutline(GameObject go)
+    {
+        var outline = go.GetComponent<Outline>() ?? go.AddComponent<Outline>();
+        outline.effectColor = SelectionStroke;
+        outline.effectDistance = new Vector2(2f, -2f);
+        outline.useGraphicAlpha = false;
+    }
+
+    private static void AddTargetOutline(GameObject go)
+    {
+        var outline = go.GetComponent<Outline>() ?? go.AddComponent<Outline>();
+        outline.effectColor = TargetStroke;
+        outline.effectDistance = new Vector2(2f, -2f);
+        outline.useGraphicAlpha = false;
+    }
+
+    private static void AddActiveStamp(Transform parent)
+    {
+        var stamp = TerriasUiComponents.CreateRect(
+            "ActiveStamp",
+            parent,
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(46f, 28f));
+        var rect = stamp.GetComponent<RectTransform>();
+        rect.anchoredPosition = new Vector2(-4f, -5f);
+        rect.localRotation = Quaternion.Euler(0f, 0f, -10f);
+        var layout = stamp.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        stamp.AddComponent<SpiritActiveStampGraphic>().Configure(
+            ActiveStampFill,
+            ActiveStampOuter,
+            ActiveStampInner);
+        var text = TerriasUiComponents.AddTextFill(stamp.transform, "出战", 13, TextAnchor.MiddleCenter, ActiveStampText);
+        text.resizeTextForBestFit = false;
+        text.fontSize = 13;
+        text.fontStyle = FontStyle.Bold;
+        text.raycastTarget = false;
+    }
+
+    private static Color QualityTint(int aptitude)
+    {
+        if (aptitude >= 100) return QualityRed;
+        if (aptitude >= 90) return QualityGold;
+        if (aptitude >= 80) return QualityPurple;
+        if (aptitude >= 70) return QualityBlue;
+        if (aptitude >= 60) return QualityGreen;
+        if (aptitude >= 40) return QualityWhite;
+        return QualityGray;
+    }
+
+    private static Color QualityAccent(int aptitude)
+    {
+        if (aptitude >= 100) return new Color(0.97f, 0.52f, 0.55f, 1f);
+        if (aptitude >= 90) return new Color(0.95f, 0.79f, 0.43f, 1f);
+        if (aptitude >= 80) return new Color(0.78f, 0.64f, 0.91f, 1f);
+        if (aptitude >= 70) return new Color(0.57f, 0.73f, 0.93f, 1f);
+        if (aptitude >= 60) return new Color(0.55f, 0.84f, 0.67f, 1f);
+        if (aptitude >= 40) return new Color(0.90f, 0.91f, 0.89f, 1f);
+        return new Color(0.69f, 0.70f, 0.72f, 1f);
+    }
+
+    private static string StarText(SpiritInstance item)
+    {
+        return StarText(SpiritAscensionService.StarRankFor(item?.GuiyuanValue ?? 0));
+    }
+
+    private static string StarText(int rank)
+    {
+        var normalized = Math.Max(0, Math.Min(SpiritAscensionService.MaximumStarRank, rank));
+        return new string('★', normalized) + new string('☆', SpiritAscensionService.MaximumStarRank - normalized);
     }
 
     private static void ClearChildren(Transform? parent)
@@ -632,6 +1326,8 @@ public static class SpiritManagementPanel
     {
         return new Vector2(Mathf.Clamp(Screen.width - 48f, 760f, 1320f), Mathf.Clamp(Screen.height - 48f, 620f, 820f));
     }
+
+    private static float RosterWidth(Vector2 windowSize) => Mathf.Clamp(windowSize.x * 0.36f, 280f, 460f);
 
     private static float PartySlotWidth() => Mathf.Clamp((ResolveWindowSize().x - 106f) / 6f, 104f, 168f);
 

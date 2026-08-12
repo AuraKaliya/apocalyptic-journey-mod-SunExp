@@ -31,10 +31,22 @@ public sealed class CapturedEnemySnapshot
     public string ProfileId { get; set; } = "";
     public int SpiritLevel { get; set; }
     public int SpiritAptitude { get; set; }
+    public int SpiritGuiyuanValue { get; set; }
+    public int SpiritStarRank { get; set; }
+    public int GuiyuanAllocationMagic { get; set; }
+    public int GuiyuanAllocationSpirit { get; set; }
+    public int GuiyuanAllocationLuck { get; set; }
+    public int GuiyuanAllocationPerception { get; set; }
     public int OriginMagic { get; set; }
     public int OriginSpirit { get; set; }
     public int OriginLuck { get; set; }
     public int OriginPerception { get; set; }
+    public int SpiritSpeed { get; set; } = 100;
+    public List<string> EquippedIntentIds { get; set; } = new();
+    public string EquippedPassiveId { get; set; } = "";
+    public int LoadoutRevision { get; set; }
+    public string LoadoutHash { get; set; } = "";
+    public string TrainingRegistryHash { get; set; } = "";
     public string DeploymentToken { get; set; } = "";
 
     public string ProfileKey => SpiritProfileKey.Create(EnemyId, VariantId);

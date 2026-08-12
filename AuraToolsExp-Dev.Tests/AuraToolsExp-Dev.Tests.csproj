@@ -24,6 +24,8 @@
              Link="Config\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Features\SafeBox\AuraToolsSafeBoxDataCompatibility.cs"
              Link="SafeBox\AuraToolsSafeBoxDataCompatibility.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiCore.cs"
+             Link="PixelEmoji\PixelEmojiCore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CardRefresh\CardRefreshPoolPolicy.cs"
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\ModSync\AuraToolsModSyncRequestTracker.cs"

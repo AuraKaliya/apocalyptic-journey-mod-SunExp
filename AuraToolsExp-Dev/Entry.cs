@@ -13,6 +13,7 @@ using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Features.ModSync;
+using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Features.Skin;
@@ -52,6 +53,7 @@ public static class Entry
         RunStep("feast", () => AuraToolsFeastRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
         RunStep("card refresh", () => AuraToolsCardRefreshRuntime.Initialize(modConfig));
+        RunStep("pixel emoji", () => AuraToolsPixelEmojiRuntime.Initialize(modConfig));
         RunStep("auto battle", () => AuraToolsAutoBattleRuntime.Initialize(modConfig));
         RunStep("mod sync", () => AuraToolsModSyncRuntime.Initialize(modConfig));
         RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));

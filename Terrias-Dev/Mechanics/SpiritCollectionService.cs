@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCollectionService
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 5;
     public const int PartyCapacity = 6;
     public const int LegacyCardMigrationVersion = 1;
     private const int OperationHistoryLimit = 512;
@@ -71,6 +71,12 @@ public static class SpiritCollectionService
             normalizedSnapshot.InstanceId = "";
             normalizedSnapshot.SpiritLevel = 0;
             normalizedSnapshot.SpiritAptitude = 0;
+            normalizedSnapshot.SpiritGuiyuanValue = 0;
+            normalizedSnapshot.SpiritStarRank = 0;
+            normalizedSnapshot.GuiyuanAllocationMagic = 0;
+            normalizedSnapshot.GuiyuanAllocationSpirit = 0;
+            normalizedSnapshot.GuiyuanAllocationLuck = 0;
+            normalizedSnapshot.GuiyuanAllocationPerception = 0;
             normalizedSnapshot.OriginMagic = 0;
             normalizedSnapshot.OriginSpirit = 0;
             normalizedSnapshot.OriginLuck = 0;
@@ -94,6 +100,7 @@ public static class SpiritCollectionService
                     ? DateTimeOffset.UtcNow.ToString("O")
                     : normalizedSnapshot.CapturedAt
             };
+            SpiritTrainingService.InitializeCaptured(instance);
             if (identity.UsedFallback && IsOwnedSource(normalizedSnapshot.SourceModId))
             {
                 TerriasLog.Warn("[SpiritGrowthRegistry] owned capture used fallback profileId=" + identity.ProfileId
@@ -158,6 +165,100 @@ public static class SpiritCollectionService
     public static bool ToggleLocked(string spiritUid)
     {
         return ToggleFlag(spiritUid, false);
+    }
+
+    public static bool EquipIntent(string spiritUid, int slotIndex, string intentId)
+    {
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
+            if (instance == null || !SpiritTrainingService.EquipIntent(instance, slotIndex, intentId)) return false;
+            SaveUnlocked(candidate);
+            document = candidate;
+            return true;
+        }
+    }
+
+    public static bool EquipPassive(string spiritUid, string passiveId)
+    {
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
+            if (instance == null || !SpiritTrainingService.EquipPassive(instance, passiveId)) return false;
+            SaveUnlocked(candidate);
+            document = candidate;
+            return true;
+        }
+    }
+
+    public static bool SetGuiyuanAllocations(string spiritUid, SpiritOriginVector allocations)
+    {
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
+            if (instance == null || !SpiritAscensionService.IsValidAllocation(allocations, instance.GuiyuanValue)) return false;
+            instance.GuiyuanAllocations = allocations.Clone();
+            SaveUnlocked(candidate);
+            document = candidate;
+            return true;
+        }
+    }
+
+    public static SpiritGuiyuanResult Guiyuan(
+        string targetUid,
+        IReadOnlyList<string> donorUids,
+        IReadOnlyCollection<string> forbiddenPartyUids)
+    {
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var target = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, targetUid));
+            if (target == null) return GuiyuanFailure("目标精灵不存在。");
+            if (target.GuiyuanValue >= SpiritAscensionService.MaximumGuiyuanValue)
+            {
+                return GuiyuanFailure("该精灵已经达到五星。");
+            }
+
+            var forbidden = new HashSet<string>(forbiddenPartyUids ?? Array.Empty<string>(), StringComparer.Ordinal);
+            var distinctUids = (donorUids ?? Array.Empty<string>())
+                .Where(uid => !string.IsNullOrWhiteSpace(uid))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (distinctUids.Length == 0) return GuiyuanFailure("尚未选择归元材料。");
+            if (distinctUids.Any(uid => Same(uid, target.SpiritUid))) return GuiyuanFailure("目标精灵不能作为归元材料。");
+
+            var byUid = candidate.Instances.ToDictionary(item => item.SpiritUid, StringComparer.Ordinal);
+            var donors = new List<SpiritInstance>();
+            foreach (var uid in distinctUids)
+            {
+                if (!byUid.TryGetValue(uid, out var donor)) return GuiyuanFailure("所选材料已经不存在，请重新选择。");
+                if (!Same(donor.SpeciesId, target.SpeciesId)) return GuiyuanFailure("只能选择 SpeciesId 相同的精灵作为材料。");
+                if (donor.Locked) return GuiyuanFailure("已锁定的精灵不能作为归元材料。");
+                if (forbidden.Contains(uid)) return GuiyuanFailure("编队中的精灵不能作为归元材料，请先放回仓库。");
+                donors.Add(donor);
+            }
+
+            var preview = SpiritAscensionService.Preview(target, donors);
+            if (preview.AppliedValue <= 0) return GuiyuanFailure("此次归元不会增加有效归元值。");
+            target.GuiyuanValue = preview.ResultValue;
+            target.GuiyuanAllocations = SpiritAscensionService.NormalizeAllocations(
+                target.GuiyuanAllocations,
+                target.GuiyuanValue);
+            target.LoadoutHash = SpiritTrainingService.LoadoutHash(target);
+            var donorSet = new HashSet<string>(distinctUids, StringComparer.Ordinal);
+            candidate.Instances.RemoveAll(item => donorSet.Contains(item.SpiritUid));
+            SaveUnlocked(candidate);
+            document = candidate;
+            return new SpiritGuiyuanResult
+            {
+                Success = true,
+                Preview = preview,
+                Target = target.Clone()
+            };
+        }
     }
 
     public static SpiritExperienceResult? GrantExperience(string spiritUid, int amount, string battleToken)
@@ -243,8 +344,14 @@ public static class SpiritCollectionService
                 snapshot.SpiritUid = UniqueUid(candidate, snapshot.SpiritUid);
                 snapshot.SpeciesId = "";
                 snapshot.ProfileId = "";
+                snapshot.SpiritGuiyuanValue = 0;
+                snapshot.SpiritStarRank = 0;
+                snapshot.GuiyuanAllocationMagic = 0;
+                snapshot.GuiyuanAllocationSpirit = 0;
+                snapshot.GuiyuanAllocationLuck = 0;
+                snapshot.GuiyuanAllocationPerception = 0;
                 var identity = SpiritGrowthRegistry.ResolveIdentity(snapshot);
-                candidate.Instances.Add(new SpiritInstance
+                var imported = new SpiritInstance
                 {
                     SpiritUid = snapshot.SpiritUid,
                     SpeciesId = identity.SpeciesId,
@@ -253,7 +360,9 @@ public static class SpiritCollectionService
                     Level = 1,
                     Aptitude = SpiritGrowthService.LegacyAptitude,
                     CapturedAt = snapshot.CapturedAt
-                });
+                };
+                SpiritTrainingService.Normalize(imported, legacy: true);
+                candidate.Instances.Add(imported);
                 AddToFirstEmpty(candidate.DefaultPartySlots, snapshot.SpiritUid);
             }
 
@@ -275,6 +384,7 @@ public static class SpiritCollectionService
     private static SpiritCollectionDocument Normalize(SpiritCollectionDocument? source)
     {
         source ??= new SpiritCollectionDocument();
+        var legacyTraining = source.Version < CurrentVersion;
         source.Version = CurrentVersion;
         source.Instances ??= new List<SpiritInstance>();
         source.ProcessedCaptureTokens ??= new Dictionary<string, string>(StringComparer.Ordinal);
@@ -300,6 +410,11 @@ public static class SpiritCollectionService
                     ? 0
                     : Math.Max(0, Math.Min(SpiritGrowthService.ExperienceToNextLevel(profile, item.Level) - 1, item.Experience));
                 item.Aptitude = Math.Max(roll.Minimum, Math.Min(roll.Maximum, item.Aptitude));
+                item.GuiyuanValue = Math.Max(0, Math.Min(SpiritAscensionService.MaximumGuiyuanValue, item.GuiyuanValue));
+                item.GuiyuanAllocations = SpiritAscensionService.NormalizeAllocations(
+                    item.GuiyuanAllocations,
+                    item.GuiyuanValue);
+                SpiritTrainingService.Normalize(item, legacyTraining);
                 return item;
             }).ToList();
         source.DefaultPartySlots = NormalizeSlots(source.DefaultPartySlots, source);
@@ -415,6 +530,11 @@ public static class SpiritCollectionService
     }
 
     private static bool Same(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
+
+    private static SpiritGuiyuanResult GuiyuanFailure(string reason)
+    {
+        return new SpiritGuiyuanResult { Reason = reason ?? "归元失败。" };
+    }
 
     private static bool IsOwnedSource(string sourceModId)
     {

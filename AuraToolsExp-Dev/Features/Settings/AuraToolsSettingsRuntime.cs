@@ -13,6 +13,7 @@ using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
+using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.SkillCg;
@@ -639,6 +640,8 @@ public static class AuraToolsSettingsRuntime
         yield return null;
         CreateMatchExperienceSection(content);
         yield return null;
+        CreateBattleStrategySection(content);
+        yield return null;
         CreateLoggingSection(content);
         panelBuilt = true;
         panelBuilding = false;
@@ -675,6 +678,7 @@ public static class AuraToolsSettingsRuntime
         CreateSkinSection(content);
         CreateAudioSection(content);
         CreateMatchExperienceSection(content);
+        CreateBattleStrategySection(content);
         CreateLoggingSection(content);
         panelBuilt = true;
         panelBuilding = false;
@@ -794,7 +798,7 @@ public static class AuraToolsSettingsRuntime
 
     private static void CreateMatchExperienceSection(Transform parent)
     {
-        CreateSectionLabel(parent, "对局体验");
+        CreateSectionLabel(parent, "游戏体验");
         var starterDeckEnabled = AuraToolsConfigService.MatchExperience.StarterDeck.Enabled;
         CreateSubmodule(parent,
             "【世界推演】开局卡组配置：" + (starterDeckEnabled ? "已启用" : "未启用"),
@@ -838,63 +842,32 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveMatchExperience();
         }, AuraToolsConfigService.MatchExperience.CardRefresh.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
-        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
-        CreateSectionLabel(parent, "战斗策略");
-        CreateSubmodule(parent, "战斗策略实验室", autoBattle.Enabled, value =>
+        var pixelEmoji = AuraToolsConfigService.PixelEmoji;
+        CreateSubmodule(parent, "像素表情工坊", pixelEmoji.Enabled, value =>
         {
-            autoBattle.Enabled = value;
-            AuraToolsConfigService.SaveMatchExperience();
+            pixelEmoji.Enabled = value;
+            AuraToolsConfigService.SavePixelEmoji();
         }, content =>
         {
-            CreateSectionLabel(content, "当前策略");
-            CreateAutoBattleModelApplicationRows(content);
+            var row = CreateInlineRow(content, "PixelEmojiConfigRow");
+            var itemCount = PixelEmojiLibraryStore.GetItems().Count;
             AuraToolsUi.AddText(
-                content,
-                "应用模式下，可执行的模型决策不会被规则评分、低置信度或质量门禁替换。只有模型未能加载、推理超时或连续无进展时，才会临时使用技术兜底。",
-                AuraToolsUi.HintFontSize,
+                row.transform,
+                "作品：" + itemCount + "；收藏：" + pixelEmoji.FavoriteIds.Count + "/" + pixelEmoji.MaxFavorites + "；24×24 / 1～8帧 / 0.2秒 / PNG序列",
+                AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
+                AuraToolsUi.Text,
                 AuraToolsUi.TextMinHeight,
                 1f);
-            CreateAutoBattleToggleRow(
-                content,
-                "完整应用时进入战斗自动接管",
-                autoBattle.StartActive,
-                value =>
-                {
-                    autoBattle.StartActive = value;
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
-            CreateAutoBattleToggleRow(
-                content,
-                "显示 AI 预测标记",
-                autoBattle.ShowPredictionMarkers,
-                value =>
-                {
-                    autoBattle.ShowPredictionMarkers = value;
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
-
-            var modelLibrary = CreateCompactFoldout(
-                content,
-                "模型库与导入",
-                "AutoBattle.ModelLibrary");
-            CreateAutoBattleModelManagementSection(modelLibrary, autoBattle);
-
-            var developerTools = CreateCompactFoldout(
-                content,
-                "训练、评估与开发者工具",
-                "AutoBattle.DeveloperTools");
-            CreateGameParametersSection(developerTools);
-            CreateSectionLabel(developerTools, "玩家适配");
-            CreateAutoBattlePlayerAdaptationSection(
-                developerTools,
-                autoBattle);
-            CreateSectionLabel(developerTools, "评估与诊断");
-            CreateAutoBattleAdvancedDiagnosticsSection(
-                developerTools,
-                autoBattle);
-        }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+            AuraToolsUi.AddButton(row.transform, "打开工坊", () => PixelEmojiWorkshop.Show(activePanel!.transform), 104f);
+            AuraToolsUi.AddButton(row.transform, pixelEmoji.SyncRemote ? "关闭联机展示" : "开启联机展示", () =>
+            {
+                pixelEmoji.SyncRemote = !pixelEmoji.SyncRemote;
+                AuraToolsConfigService.SavePixelEmoji();
+                RebuildPanel(activePanel!.transform);
+            }, 128f);
+            AuraToolsUi.AddText(content, "工坊只从设置页进入；冒险表情列表只在尾部追加已收藏的成品。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        }, pixelEmoji.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         var feast = AuraToolsConfigService.MatchExperience.Feast;
         CreateSubmodule(parent, "一键美餐", feast.Enabled, value =>
@@ -1000,6 +973,57 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(row.transform, "\u5df2\u6ce8\u518c\uff1a" + registeredCount, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "\u7ba1\u7406", () => AuraToolsSkillCgManager.Show(activePanel!.transform), 88f);
         });
+    }
+
+    private static void CreateBattleStrategySection(Transform parent)
+    {
+        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+        CreateSectionLabel(parent, "战斗策略");
+        CreateSubmodule(parent, "战斗策略实验室", autoBattle.Enabled, value =>
+        {
+            autoBattle.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        }, content =>
+        {
+            CreateSectionLabel(content, "当前策略");
+            CreateAutoBattleModelApplicationRows(content);
+            AuraToolsUi.AddText(
+                content,
+                "应用模式下，可执行的模型决策不会被规则评分、低置信度或质量门禁替换。只有模型未能加载、推理超时或连续无进展时，才会临时使用技术兜底。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            CreateAutoBattleToggleRow(
+                content,
+                "完整应用时进入战斗自动接管",
+                autoBattle.StartActive,
+                value =>
+                {
+                    autoBattle.StartActive = value;
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+            CreateAutoBattleToggleRow(
+                content,
+                "显示 AI 预测标记",
+                autoBattle.ShowPredictionMarkers,
+                value =>
+                {
+                    autoBattle.ShowPredictionMarkers = value;
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+
+            var modelLibrary = CreateCompactFoldout(content, "模型库与导入", "AutoBattle.ModelLibrary");
+            CreateAutoBattleModelManagementSection(modelLibrary, autoBattle);
+
+            var developerTools = CreateCompactFoldout(content, "训练、评估与开发者工具", "AutoBattle.DeveloperTools");
+            CreateGameParametersSection(developerTools);
+            CreateSectionLabel(developerTools, "玩家适配");
+            CreateAutoBattlePlayerAdaptationSection(developerTools, autoBattle);
+            CreateSectionLabel(developerTools, "评估与诊断");
+            CreateAutoBattleAdvancedDiagnosticsSection(developerTools, autoBattle);
+        }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
     }
 
     private static void CreateAutoBattlePlayerAdaptationSection(

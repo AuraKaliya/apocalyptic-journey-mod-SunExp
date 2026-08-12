@@ -42,12 +42,15 @@ Assert-True ($null -ne $courtPurification -and $courtPurification.Tag -eq $court
 $intentPath = Join-Path $repoRoot "Terrias\spirit.intent.registry.json"
 $capturePath = Join-Path $repoRoot "Terrias\spirit.capture.registry.json"
 $growthPath = Join-Path $repoRoot "Terrias\spirit.growth.registry.json"
+$trainingPath = Join-Path $repoRoot "Terrias\spirit.training.registry.json"
 $intent = Get-Content -LiteralPath $intentPath -Raw | ConvertFrom-Json
 $capture = Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json
 $growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
+$training = Get-Content -LiteralPath $trainingPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
 Assert-True ($growth.schemaVersion -eq 2) "spirit growth registry schema must be 2."
+Assert-True ($training.schemaVersion -eq 1) "spirit training registry schema must be 1."
 Assert-True ($growth.defaults.maxLevel -eq 50) "spirit level cap must remain 50."
 
 $intentProfileListFields = @(
@@ -99,6 +102,10 @@ $classifiedSources = @(($adaptedSources + $pvpSources + $fallbackSources) | Sort
 Assert-True (@($intent.intents).Count -ge 66) "expected generated PvE composite and PvP reserved spirit intents."
 Assert-True ((@($intent.intents | Where-Object pool -eq "Pve").Count) -eq $adaptedSources.Count) "each adapted enemy card must map to exactly one PvE intent."
 Assert-True ((@($intent.intents | Where-Object pool -eq "Pve").Count) -eq 54) "expected 54 generated PvE spirit intents."
+Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" -and ([int]$_.cost -lt 1 -or [int]$_.cost -gt 3) })).Count -eq 0) "every native PvE intent must cost between 1 and 3 Magic."
+Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" -and ([int]$_.cooldown -lt 0 -or [int]$_.cooldown -gt 2) })).Count -eq 0) "every native PvE intent cooldown must stay between 0 and 2."
+Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" -and ([string]::IsNullOrWhiteSpace([string]$_.displayName) -or [string]::IsNullOrWhiteSpace([string]$_.description)) })).Count -eq 0) "every native PvE intent must expose a player-facing name and adapted description."
+Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" -and ([string]$_.description -match "buff_|Terrias_") })).Count -eq 0) "native PvE descriptions must not leak internal buff or mod identifiers into the training UI."
 Assert-True ((@($intent.intents | Where-Object pool -eq "PvpReserved").Count) -eq 12) "expected 12 generated PvP-reserved spirit intents."
 Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" -and @($_.effects).Count -eq 0 })).Count -eq 0) "every PvE spirit intent must declare its authoritative effect list."
 Assert-True ((@($intent.intents | Where-Object { $_.pool -eq "Pve" } | ForEach-Object { @($_.effects) } | Where-Object { $_.displayIndex -le 0 })).Count -eq 0) "every PvE effect must bind a positive description placeholder index."
@@ -180,4 +187,29 @@ foreach ($group in $multiFormSpecies) {
     Assert-True ((@($group.Group.formOrder | Sort-Object -Unique)).Count -eq $group.Count) "multi-form species $($group.Name) has duplicate form order values."
 }
 
-Write-Host "Spirit content assertions passed: profiles=$($explicitIntents.Count), growthProfiles=$(@($growth.profiles).Count)."
+$commonIntents = @($training.commonIntents)
+$commonPassives = @($training.passives | Where-Object pool -like "Common.*")
+$speciesPassives = @($training.passives | Where-Object pool -eq "Species")
+Assert-True ($commonIntents.Count -eq 15) "training registry must contain exactly 15 common intents."
+Assert-True ((@($commonIntents | Group-Object pool | Where-Object { $_.Count -ne 5 })).Count -eq 0) "basic, tactical, and advanced common intent pools must each contain five intents."
+Assert-True ((@($commonIntents.pool | Sort-Object -Unique) -join ",") -eq "Common.Advanced,Common.Basic,Common.Tactical") "common intent pool names drifted."
+Assert-True ($commonPassives.Count -eq 12) "training registry must contain exactly 12 common passives."
+Assert-True ((@($commonPassives | Where-Object pool -eq "Common.Core").Count) -eq 8) "common core passive pool must contain eight passives."
+Assert-True ((@($commonPassives | Where-Object pool -eq "Common.Advanced").Count) -eq 4) "common advanced passive pool must contain four passives."
+Assert-True ($speciesPassives.Count -eq (@($growth.profiles.speciesId | Sort-Object -Unique)).Count) "every species must own exactly one inherent passive."
+Assert-True ((@($training.speciesProfiles).Count) -eq @($growth.profiles).Count) "every growth profile must own one training profile."
+Assert-True ((Compare-Object @($training.speciesProfiles.profileId | Sort-Object) @($growth.profiles.profileId | Sort-Object)).Count -eq 0) "training profile identities must match growth profile identities."
+Assert-True ((@($training.speciesProfiles | Where-Object { $_.profileId -ne "base-game.99999" -and (@($_.defaultIntentIds).Count -lt 1 -or @($_.defaultIntentIds).Count -gt 3) })).Count -eq 0) "every capturable training profile must equip one to three default native intents."
+Assert-True ((@($commonIntents | Where-Object { [int]$_.cost -lt 0 -or [int]$_.cost -gt 3 -or [int]$_.cooldown -lt 0 -or [int]$_.cooldown -gt 2 })).Count -eq 0) "common intent cost and cooldown values are out of contract."
+Assert-True ((@($commonIntents | Where-Object id -eq "spirit.common.advanced.swift-pierce.intent").speedScale) -eq 0.08) "Swift Pierce must remain the only speed-scaled common intent baseline."
+Assert-True ((@($commonIntents | Where-Object { $_.id -ne "spirit.common.advanced.swift-pierce.intent" -and [double]$_.speedScale -ne 0 })).Count -eq 0) "only Swift Pierce may use SpeedScale in the first release."
+
+$enemyCardData = @(Import-Csv -LiteralPath (Join-Path $repoRoot "Terrias\Data\EnemyCard\terrias.csv"))
+$enemyCardText = @(Import-Csv -LiteralPath (Join-Path $repoRoot "Terrias\Text\EnemyCard\terrias.csv"))
+foreach ($common in $commonIntents) {
+    $shortId = ([string]$common.enemyCardId).Replace("Terrias_terrias_", "")
+    Assert-True ((@($enemyCardData | Where-Object Id -eq $shortId).Count) -eq 1) "common intent $($common.id) is missing its EnemyCard data row."
+    Assert-True ((@($enemyCardText | Where-Object Id -eq $shortId).Count) -eq 1) "common intent $($common.id) is missing its EnemyCard text row."
+}
+
+Write-Host "Spirit content assertions passed: profiles=$($explicitIntents.Count), growthProfiles=$(@($growth.profiles).Count), commonIntents=$($commonIntents.Count), passives=$(@($training.passives).Count)."

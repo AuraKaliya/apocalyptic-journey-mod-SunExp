@@ -11,6 +11,21 @@ enemycard_projection_staff_tap,,法杖敲头,法杖敲頭,Staff Bonk,Staff Bonk,
 enemycard_projection_shield_blessing,,魔能护盾,魔能護盾,Magic Shield,Magic Shield,给予友方{0}点护盾。优先支援低生命值或没有护盾的友方。,給予友方{0}點護盾。優先支援低生命值或沒有護盾的友方。,Grant {0} Shield to an ally. Prioritizes allies with low HP or no Shield.,Grant {0} Shield to an ally. Prioritizes allies with low HP or no Shield.
 enemycard_projection_wait,,魔力蓄势,魔力蓄勢,Gather Magic,魔力溜め,本次行动等待并恢复魔力。,本次行動等待並恢復魔力。,Wait this action and recover Magic.,この行動は待機し、魔力を回復する。
 enemycard_spirit_intent_adapter,,精灵意图,精靈意圖,Spirit Intent,精霊の意図,显示精灵当前已提交的专属意图。,顯示精靈當前已提交的專屬意圖。,Display the Spirit's currently committed dedicated intent.,精霊が確定した専用意図を表示する。
+enemycard_spirit_common_probing_strike,,试探突击,試探突擊,Probing Strike,探り突き,对生命最低的敌人造成{0}点伤害。,對生命最低的敵人造成{0}點傷害。,Deal {0} damage to the enemy with the lowest HP.,HPが最も低い敵に{0}ダメージを与える。
+enemycard_spirit_common_temporary_ward,,临时屏障,臨時屏障,Temporary Ward,一時障壁,为自身获得{0}点护盾。,為自身獲得{0}點護盾。,Gain {0} Shield.,自身が{0}シールドを得る。
+enemycard_spirit_common_emergency_heal,,应急治愈,應急治癒,Emergency Heal,応急治癒,为生命比例最低的受伤友方恢复{0}点生命。,為生命比例最低的受傷友方恢復{0}點生命。,Restore {0} HP to the most wounded ally.,最も傷ついた味方のHPを{0}回復する。
+enemycard_spirit_common_focused_chant,,集中咏唱,集中詠唱,Focused Chant,集中詠唱,下一次意图的直接数值提高40%。,下一次意圖的直接數值提高40%。,Increase the next intent's direct value by 40%.,次の意図の直接数値を40%増加する。
+enemycard_spirit_common_weakening_mark,,虚弱咒痕,虛弱咒痕,Weakening Mark,弱体刻印,对一名敌人施加1层{buff_weak}。,對一名敵人施加1層{buff_weak}。,Apply 1 {buff_weak} to one enemy.,敵1体に{buff_weak}を1付与する。
+enemycard_spirit_common_breaking_strike,,破势一击,破勢一擊,Breaking Strike,破勢の一撃,造成{0}点伤害并施加1层{buff_vulnerability}。,造成{0}點傷害並施加1層{buff_vulnerability}。,Deal {0} damage and apply 1 {buff_vulnerability}.,{0}ダメージを与え、{buff_vulnerability}を1付与する。
+enemycard_spirit_common_guardian_ward,,援护结界,援護結界,Guardian Ward,援護結界,为护盾最低的友方获得{0}点护盾。,為護盾最低的友方獲得{0}點護盾。,Grant {0} Shield to the ally with the least Shield.,シールドが最も少ない味方に{0}シールドを与える。
+enemycard_spirit_common_life_stream,,生命涓流,生命涓流,Life Stream,生命の細流,恢复{0}点生命，并在目标下次行动结束时再恢复3点。,恢復{0}點生命，並在目標下次行動結束時再恢復3點。,"Restore {0} HP, then 3 more after the target's next action.",HPを{0}回復し、対象の次の行動後にさらに3回復する。
+enemycard_spirit_common_magic_reflow,,魔能回流,魔能回流,Mana Reflow,魔力還流,主动恢复{0}点魔能。,主動恢復{0}點魔能。,Actively restore {0} Magic.,魔能を{0}回復する。
+enemycard_spirit_common_armor_break_mark,,破甲标记,破甲標記,Armor-Break Mark,破甲刻印,对一名敌人施加2层{buff_vulnerability}。,對一名敵人施加2層{buff_vulnerability}。,Apply 2 {buff_vulnerability} to one enemy.,敵1体に{buff_vulnerability}を2付与する。
+enemycard_spirit_common_swift_pierce,,迅捷穿刺,迅捷穿刺,Swift Pierce,迅速穿刺,以速度为额外基值造成{0}点伤害。,以速度為額外基值造成{0}點傷害。,Deal {0} damage with Speed as an additional base value.,速度を追加基礎値として{0}ダメージを与える。
+enemycard_spirit_common_astral_veil,,群星护幕,群星護幕,Astral Veil,星々の帳,所有友方各获得{0}点护盾。,所有友方各獲得{0}點護盾。,All allies gain {0} Shield.,味方全体が{0}シールドを得る。
+enemycard_spirit_common_life_echo,,生命回响,生命回響,Life Echo,生命反響,所有友方各恢复{0}点生命。,所有友方各恢復{0}點生命。,Restore {0} HP to all allies.,味方全体のHPを{0}回復する。
+enemycard_spirit_common_overflow_conversion,,余能转化,餘能轉化,Overflow Conversion,余剰変換,魔能全满时，使接下来2次意图的直接数值提高25%。,魔能全滿時，使接下來2次意圖的直接數值提高25%。,"At full Magic, empower the next 2 direct-value intents by 25%.",魔能最大時、次の2回の直接数値を25%増加する。
+enemycard_spirit_common_lockdown_seal,,封锁刻印,封鎖刻印,Lockdown Seal,封鎖刻印,所有敌人各获得1层{buff_weak}与1层{buff_vulnerability}。,所有敵人各獲得1層{buff_weak}與1層{buff_vulnerability}。,Apply 1 {buff_weak} and 1 {buff_vulnerability} to all enemies.,敵全体に{buff_weak}と{buff_vulnerability}を1ずつ付与する。
 enemycard_projection_staff_combo,,法杖连续敲头,法杖連續敲頭,Staff Bonk Barrage,杖連続ゴツン,连续3次对同一目标造成{0}点伤害；目标中途倒下时停止。,連續3次對同一目標造成{0}點傷害；目標中途倒下時停止。,Deal {0} damage to the same target 3 times; stop if it is defeated.,同じ対象に{0}ダメージを3回与える。途中で倒れた場合は停止する。
 enemycard_projection_magic_interference,,魔力干扰,魔力干擾,Mana Disruption,魔力妨害,给予单体敌人2层{buff_vulnerability}；优先选择易伤层数最低的敌人。,給予單體敵人2層{buff_vulnerability}；優先選擇易傷層數最低的敵人。,Apply 2 {buff_vulnerability} to one enemy; prioritize the enemy with the fewest stacks.,敵1体に{buff_vulnerability}を2付与する。スタックが最も少ない敵を優先する。
 enemycard_projection_you_are_enhanced,,你被强化了,你被強化了,You Are Empowered,強化された,所有友方获得50层{buff_extraordinary}。,所有友方獲得50層{buff_extraordinary}。,All allies gain 50 {buff_extraordinary}.,味方全体が{buff_extraordinary}を50得る。

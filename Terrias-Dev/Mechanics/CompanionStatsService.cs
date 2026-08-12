@@ -24,13 +24,13 @@ public static class CompanionStatsService
                             && SpiritGrowthRegistry.TryFind(snapshot.ProfileId, out var fixedProfile)
             ? fixedProfile
             : SpiritGrowthRegistry.Resolve(snapshot);
-        return SpiritGrowthService.BattleStats(growthProfile, new SpiritOriginVector
+        return SpiritAscensionService.ApplyStarBonus(SpiritGrowthService.BattleStats(growthProfile, new SpiritOriginVector
         {
             Magic = Math.Max(0, snapshot.OriginMagic),
             Spirit = Math.Max(0, snapshot.OriginSpirit),
             Luck = Math.Max(0, snapshot.OriginLuck),
             Perception = Math.Max(0, snapshot.OriginPerception)
-        }, profile);
+        }, profile, Math.Max(1, snapshot.SpiritSpeed)), snapshot.SpiritStarRank);
     }
 
     private static CompanionStats BaseStats()

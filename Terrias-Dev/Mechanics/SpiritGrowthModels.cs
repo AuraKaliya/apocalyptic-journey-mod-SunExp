@@ -299,6 +299,30 @@ public sealed class SpiritInstance
 
     public int Aptitude { get; set; } = 60;
 
+    public int Speed { get; set; }
+
+    public int GuiyuanValue { get; set; }
+
+    public SpiritOriginVector GuiyuanAllocations { get; set; } = new();
+
+    public int TrainingPlanVersion { get; set; }
+
+    public List<string> LearnedIntentIds { get; set; } = new();
+
+    public List<string> EquippedIntentIds { get; set; } = new();
+
+    public List<string> LearnedPassiveIds { get; set; } = new();
+
+    public string EquippedPassiveId { get; set; } = "";
+
+    public List<SpiritUnlockNode> UnlockPlan { get; set; } = new();
+
+    public List<string> NewAbilityIds { get; set; } = new();
+
+    public int LoadoutRevision { get; set; }
+
+    public string LoadoutHash { get; set; } = "";
+
     public bool Favorite { get; set; }
 
     public bool Locked { get; set; }
@@ -316,6 +340,18 @@ public sealed class SpiritInstance
             Level = Level,
             Experience = Experience,
             Aptitude = Aptitude,
+            Speed = Speed,
+            GuiyuanValue = GuiyuanValue,
+            GuiyuanAllocations = GuiyuanAllocations?.Clone() ?? new SpiritOriginVector(),
+            TrainingPlanVersion = TrainingPlanVersion,
+            LearnedIntentIds = new List<string>(LearnedIntentIds ?? new List<string>()),
+            EquippedIntentIds = new List<string>(EquippedIntentIds ?? new List<string>()),
+            LearnedPassiveIds = new List<string>(LearnedPassiveIds ?? new List<string>()),
+            EquippedPassiveId = EquippedPassiveId,
+            UnlockPlan = (UnlockPlan ?? new List<SpiritUnlockNode>()).Select(value => value.Clone()).ToList(),
+            NewAbilityIds = new List<string>(NewAbilityIds ?? new List<string>()),
+            LoadoutRevision = LoadoutRevision,
+            LoadoutHash = LoadoutHash,
             Favorite = Favorite,
             Locked = Locked,
             CapturedAt = CapturedAt
@@ -393,6 +429,8 @@ public sealed class SpiritExperienceResult
 
     public int GainedExperience { get; set; }
 
+    public List<string> UnlockedAbilityIds { get; set; } = new();
+
     public bool LeveledUp => Instance.Level > OldLevel;
 }
 
@@ -467,7 +505,7 @@ public sealed class SpiritGrowthViewSnapshot
 
     public SpiritOriginVector StandardOriginsAtLevel50Aptitude60 { get; set; } = new();
 
-    public CompanionStats BattleStats { get; set; } = new(1, 1, 1, 1);
+    public CompanionStats BattleStats { get; set; } = new(1, 1, 1, 1, 100);
 
     public string RadarScaleId { get; set; } = "";
 
@@ -508,10 +546,22 @@ public static class SpiritModelCloner
             ProfileId = source.ProfileId,
             SpiritLevel = source.SpiritLevel,
             SpiritAptitude = source.SpiritAptitude,
+            SpiritGuiyuanValue = source.SpiritGuiyuanValue,
+            SpiritStarRank = source.SpiritStarRank,
+            GuiyuanAllocationMagic = source.GuiyuanAllocationMagic,
+            GuiyuanAllocationSpirit = source.GuiyuanAllocationSpirit,
+            GuiyuanAllocationLuck = source.GuiyuanAllocationLuck,
+            GuiyuanAllocationPerception = source.GuiyuanAllocationPerception,
             OriginMagic = source.OriginMagic,
             OriginSpirit = source.OriginSpirit,
             OriginLuck = source.OriginLuck,
             OriginPerception = source.OriginPerception,
+            SpiritSpeed = source.SpiritSpeed,
+            EquippedIntentIds = new List<string>(source.EquippedIntentIds ?? new List<string>()),
+            EquippedPassiveId = source.EquippedPassiveId,
+            LoadoutRevision = source.LoadoutRevision,
+            LoadoutHash = source.LoadoutHash,
+            TrainingRegistryHash = source.TrainingRegistryHash,
             DeploymentToken = source.DeploymentToken
         };
     }

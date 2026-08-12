@@ -13,6 +13,12 @@ if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
     throw "AuraToolsExp behavior test project is missing: $project"
 }
 
+$modConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\ModConfig.json") | ConvertFrom-Json
+if ($modConfig.ModVersion -ne "0.5.0" -or $modConfig.MustSame -ne $true) {
+    throw "AuraToolsExp animated pixel-emoji RPC requires the 0.5.0 MustSame compatibility boundary."
+}
+
 & dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
     throw "AuraToolsExp behavior tests failed with exit code $LASTEXITCODE."
@@ -68,6 +74,18 @@ if ($matchSettings.damageMeter.showPanelByDefault -ne $false `
         -or $matchSettings.damageMeter.submitBatchIntervalMs -ne 250 `
         -or $matchSettings.damageMeter.maxEventsPerBatch -ne 24) {
     throw "AuraToolsExp damage-meter shipped defaults are invalid."
+}
+
+$rootSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\Config\AuraTools.json") | ConvertFrom-Json
+$pixelEmojiSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\Config\PixelEmojiSettings.json") | ConvertFrom-Json
+if ($rootSettings.pixelEmoji.configFile -ne "PixelEmojiSettings.json" `
+        -or $pixelEmojiSettings.schemaVersion -ne 1 `
+        -or $pixelEmojiSettings.enabled -ne $false `
+        -or $pixelEmojiSettings.syncRemote -ne $true `
+        -or $pixelEmojiSettings.maxFavorites -ne 64) {
+    throw "AuraToolsExp pixel emoji bundled config defaults drifted."
 }
 
 $loggingSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (

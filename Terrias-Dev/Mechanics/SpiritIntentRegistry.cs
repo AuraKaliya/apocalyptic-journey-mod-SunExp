@@ -351,7 +351,8 @@ public static class SpiritIntentRegistry
     private static SpiritIntentRegistryDocument Normalize(SpiritIntentRegistryDocument loaded)
     {
         var intents = new Dictionary<string, CompanionIntentDefinition>(StringComparer.Ordinal);
-        foreach (var intent in loaded.Intents ?? new List<CompanionIntentDefinition>())
+        foreach (var intent in (loaded.Intents ?? new List<CompanionIntentDefinition>())
+                     .Concat(SpiritTrainingRegistry.CommonIntents()))
         {
             var id = (intent.Id ?? "").Trim();
             if (id.Length == 0)
@@ -363,8 +364,11 @@ public static class SpiritIntentRegistry
             intent.EnemyCardId = (intent.EnemyCardId ?? TerriasIds.ProjectionActionWaitCardId).Trim();
             intent.Pool = string.IsNullOrWhiteSpace(intent.Pool) ? "Pve" : intent.Pool.Trim();
             intent.AdaptationNote = (intent.AdaptationNote ?? "").Trim();
+            intent.DisplayName = (intent.DisplayName ?? "").Trim();
+            intent.Description = (intent.Description ?? "").Trim();
             intent.Type = (intent.Type ?? "Attack").Trim();
             intent.HandlerId = (intent.HandlerId ?? "").Trim();
+            intent.EligibilityPolicy = (intent.EligibilityPolicy ?? "").Trim();
             intent.Target ??= new CompanionIntentTargetSpec();
             intent.Threat ??= new CompanionIntentThreatSpec();
             intent.HitCount = Math.Max(1, intent.HitCount);
@@ -513,6 +517,7 @@ public static class SpiritIntentRegistry
         intent.AttackScale = effect.AttackScale;
         intent.ArmorScale = effect.ArmorScale;
         intent.MagicScale = effect.MagicScale;
+        intent.SpeedScale = effect.SpeedScale;
     }
 
     private static void SetDocument(SpiritIntentRegistryDocument next)
@@ -539,7 +544,12 @@ public static class SpiritIntentRegistry
 
     private static SpiritIntentRegistryDocument BuiltInDocument()
     {
-        return new SpiritIntentRegistryDocument { SchemaVersion = 3, Profiles = new List<SpiritIntentProfile> { DefaultProfile() } };
+        return new SpiritIntentRegistryDocument
+        {
+            SchemaVersion = 3,
+            Intents = SpiritTrainingRegistry.CommonIntents().ToList(),
+            Profiles = new List<SpiritIntentProfile> { DefaultProfile() }
+        };
     }
 
     private static SpiritIntentProfile DefaultProfile()
@@ -601,9 +611,12 @@ public static class CompanionIntentResolver
 
     public static IReadOnlyList<CompanionIntentDefinition> IntentsFor(CompanionBattleState state, CompanionIntentTendency tendency)
     {
-        return IsSpirit(state)
-            ? SpiritIntentRegistry.IntentsFor(state.RoleId, tendency)
-            : CompanionIntentRegistry.IntentsForRole(state.RoleId, tendency);
+        if (!IsSpirit(state)) return CompanionIntentRegistry.IntentsForRole(state.RoleId, tendency);
+        return state.EquippedIntentIds
+            .Select(SpiritIntentRegistry.Find)
+            .Where(intent => intent != null && MatchesTendency(intent, tendency))
+            .Cast<CompanionIntentDefinition>()
+            .ToArray();
     }
 
     public static (int Attack, int Defense) TendencyWeightsFor(CompanionBattleState state)
@@ -621,5 +634,13 @@ public static class CompanionIntentResolver
     private static bool IsSpirit(CompanionBattleState? state)
     {
         return string.Equals(state?.EntityKind, "SpiritAttachment", StringComparison.Ordinal);
+    }
+
+    private static bool MatchesTendency(CompanionIntentDefinition intent, CompanionIntentTendency tendency)
+    {
+        var type = CompanionIntentRegistry.IntentType(intent);
+        return tendency == CompanionIntentTendency.Attack
+            ? type is CompanionIntentType.Attack or CompanionIntentType.Interference
+            : type is CompanionIntentType.Defense or CompanionIntentType.Recovery or CompanionIntentType.Support;
     }
 }

@@ -31,6 +31,10 @@ public static class CompanionIntentHandlerRegistry
     public const string BlockAll = "block.all";
     public const string ApplyBuff = "buff.apply";
     public const string HealSingle = "heal.single";
+    public const string HealAll = "heal.all";
+    public const string HealDelayed = "heal.delayed";
+    public const string MagicRecover = "magic.recover";
+    public const string NumericPrepare = "numeric.prepare";
     public const string PvpReserved = "pvp.reserved";
 
     private static readonly Dictionary<string, ICompanionIntentHandler> Handlers =
@@ -42,7 +46,11 @@ public static class CompanionIntentHandlerRegistry
             [BlockSingle] = new BlockHandler(BlockSingle, "Single"),
             [BlockAll] = new BlockHandler(BlockAll, "All"),
             [ApplyBuff] = new BuffHandler(),
-            [HealSingle] = new HealHandler(),
+            [HealSingle] = new HealHandler(HealSingle, "Single"),
+            [HealAll] = new HealHandler(HealAll, "All"),
+            [HealDelayed] = new DelayedHealHandler(),
+            [MagicRecover] = new MagicRecoverHandler(),
+            [NumericPrepare] = new NumericPrepareHandler(),
             [PvpReserved] = new ReservedPvpHandler()
         };
 
@@ -219,7 +227,46 @@ public static class CompanionIntentHandlerRegistry
 
     private sealed class HealHandler : ICompanionIntentHandler
     {
-        public string HandlerId => HealSingle;
+        private readonly string targetMode;
+
+        public HealHandler(string handlerId, string targetMode)
+        {
+            HandlerId = handlerId;
+            this.targetMode = targetMode;
+        }
+
+        public string HandlerId { get; }
+
+        public bool Validate(CompanionIntentDefinition intent, out string reason)
+        {
+            return ValidateTarget(intent, "Friendly", targetMode, out reason);
+        }
+
+        public CompanionResolvedEffect Resolve(
+            CompanionBattleState state,
+            CompanionIntentDefinition intent,
+            IReadOnlyList<IStatusManager> targets)
+        {
+            return Effect(intent, targets, CompanionIntentExecutor.ResolveValue(state, intent));
+        }
+
+        public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            foreach (var target in CompanionTargetPolicyRegistry.Alive(effect.TargetIds))
+            {
+                CompanionEffectCommitService.Heal(executor, target, Math.Max(0, effect.Value));
+            }
+        }
+
+        public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            executor.AddDescription("1", "Value", Math.Max(0, effect.Value).ToString());
+        }
+    }
+
+    private sealed class DelayedHealHandler : ICompanionIntentHandler
+    {
+        public string HandlerId => HealDelayed;
 
         public bool Validate(CompanionIntentDefinition intent, out string reason)
         {
@@ -237,12 +284,76 @@ public static class CompanionIntentHandlerRegistry
         public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
         {
             var target = CompanionTargetPolicyRegistry.FirstAlive(effect.TargetIds);
-            if (target == null)
+            if (target != null)
             {
-                return;
+                SpiritTrainingBattleRuntime.ScheduleDelayedHeal(
+                    executor.Self?.InstanceId ?? "",
+                    target.InstanceId,
+                    effect.Value);
             }
+        }
 
-            CompanionEffectCommitService.Heal(executor, target, Math.Max(0, effect.Value));
+        public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            executor.AddDescription("1", "Value", Math.Max(0, effect.Value).ToString());
+        }
+    }
+
+    private sealed class MagicRecoverHandler : ICompanionIntentHandler
+    {
+        public string HandlerId => MagicRecover;
+
+        public bool Validate(CompanionIntentDefinition intent, out string reason)
+        {
+            return ValidateTarget(intent, "Self", "Single", out reason);
+        }
+
+        public CompanionResolvedEffect Resolve(
+            CompanionBattleState state,
+            CompanionIntentDefinition intent,
+            IReadOnlyList<IStatusManager> targets)
+        {
+            return Effect(intent, targets, CompanionIntentExecutor.ResolveValue(state, intent));
+        }
+
+        public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            CompanionBattleStateStore.Find(executor.Self?.InstanceId)?.Stats.RecoverMagic(effect.Value);
+        }
+
+        public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            executor.AddDescription("1", "Value", Math.Max(0, effect.Value).ToString());
+        }
+    }
+
+    private sealed class NumericPrepareHandler : ICompanionIntentHandler
+    {
+        public string HandlerId => NumericPrepare;
+
+        public bool Validate(CompanionIntentDefinition intent, out string reason)
+        {
+            return ValidateTarget(intent, "Self", "Single", out reason);
+        }
+
+        public CompanionResolvedEffect Resolve(
+            CompanionBattleState state,
+            CompanionIntentDefinition intent,
+            IReadOnlyList<IStatusManager> targets)
+        {
+            var effect = Effect(intent, targets, Math.Max(1, intent.FlatValue));
+            effect.BuffStacks = Math.Max(1, intent.BuffStacks);
+            effect.BuffId = intent.BuffId;
+            return effect;
+        }
+
+        public void Execute(ScriptExecutor executor, CompanionResolvedEffect effect)
+        {
+            var state = CompanionBattleStateStore.Find(executor.Self?.InstanceId);
+            if (state != null)
+            {
+                SpiritTrainingBattleRuntime.PrepareNumeric(state, effect.Value, effect.BuffStacks);
+            }
         }
 
         public void AddDescription(ScriptExecutor executor, CompanionResolvedEffect effect)
@@ -321,6 +432,7 @@ public static class CompanionTargetPolicyRegistry
     public const string FriendlyOwnerOrSelfDefense = "friendly.owner_or_self_defense";
     public const string FriendlyAll = "friendly.all";
     public const string FriendlyMostWounded = "friendly.most_wounded";
+    public const string FriendlyLowestBlockThenHp = "friendly.lowest_block_then_hp";
     public const string Self = "self";
     public const string PvpOpponent = "pvp.opponent";
 
@@ -332,6 +444,7 @@ public static class CompanionTargetPolicyRegistry
         FriendlyOwnerOrSelfDefense,
         FriendlyAll,
         FriendlyMostWounded,
+        FriendlyLowestBlockThenHp,
         Self,
         PvpOpponent
     };
@@ -357,6 +470,7 @@ public static class CompanionTargetPolicyRegistry
             FriendlyOwnerOrSelfDefense => ("Friendly", "Single"),
             FriendlyAll => ("Friendly", "All"),
             FriendlyMostWounded => ("Friendly", "Single"),
+            FriendlyLowestBlockThenHp => ("Friendly", "Single"),
             Self => ("Self", "Single"),
             PvpOpponent => ("OpponentPlayer", "Single"),
             _ => ("", "")
@@ -409,6 +523,13 @@ public static class CompanionTargetPolicyRegistry
                     .Where(target => target.CurHp < target.MaxHp)
                     .OrderBy(HpPercent)
                     .ThenBy(target => string.Equals(target.InstanceId, state.OwnerStatusId, StringComparison.Ordinal) ? 0 : 1)
+                    .ThenBy(target => target.InstanceId, StringComparer.Ordinal)
+                    .Take(1)
+                    .ToArray();
+            case FriendlyLowestBlockThenHp:
+                return FriendlyStatuses()
+                    .OrderBy(target => target.Defend)
+                    .ThenBy(HpPercent)
                     .ThenBy(target => target.InstanceId, StringComparer.Ordinal)
                     .Take(1)
                     .ToArray();

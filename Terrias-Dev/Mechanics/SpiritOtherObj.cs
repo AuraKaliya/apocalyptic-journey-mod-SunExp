@@ -76,6 +76,11 @@ public sealed class SpiritOtherObj : Partner
             stats,
             OwnerPlayerId,
             "SpiritAttachment");
+        battleState.ConfigureLoadout(
+            snapshot.EquippedIntentIds,
+            snapshot.EquippedPassiveId,
+            snapshot.LoadoutRevision,
+            snapshot.LoadoutHash);
         EnsureActionIcons();
         SpiritSummonService.RegisterFightState(this);
         dataConfig.scriptExecutor.Self = Status;
@@ -134,7 +139,7 @@ public sealed class SpiritOtherObj : Partner
         var plan = battleState?.CurrentPlan;
         if (plan == null || plan.IsWait || !CompanionIntentExecutor.CanExecute(plan))
         {
-            battleState?.Stats.RecoverMagic(1);
+            battleState?.Stats.RecoverMagic(1 + SpiritTrainingBattleRuntime.WaitRecoveryBonus(battleState));
             battleState?.AdvanceTurn();
             RefreshIntent("DoAction.NoExecutableIntent");
             yield break;
@@ -169,6 +174,7 @@ public sealed class SpiritOtherObj : Partner
                 return;
             }
 
+            SpiritTrainingBattleRuntime.BeforePlan(this, state);
             var plan = CompanionIntentPlanner.Create(this, state);
             CompanionIntentPlanner.Commit(state, plan);
             RebuildAction(plan.EnemyCardId, plan.Priority);

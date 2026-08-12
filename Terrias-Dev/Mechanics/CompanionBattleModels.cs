@@ -28,13 +28,14 @@ public enum SpiritIntentPool
 
 public sealed class CompanionStats
 {
-    public CompanionStats(int maxHp, int maxMagic, int attack, int armor)
+    public CompanionStats(int maxHp, int maxMagic, int attack, int armor, int speed = 100)
     {
         MaxHp = Math.Max(1, maxHp);
         MaxMagic = Math.Max(1, maxMagic);
         CurrentMagic = MaxMagic;
         Attack = Math.Max(0, attack);
         Armor = Math.Max(0, armor);
+        Speed = Math.Max(1, speed);
     }
 
     public int MaxHp { get; }
@@ -46,6 +47,8 @@ public sealed class CompanionStats
     public int Attack { get; }
 
     public int Armor { get; }
+
+    public int Speed { get; }
 
     public bool TrySpendMagic(int amount)
     {
@@ -122,6 +125,10 @@ public sealed class CompanionIntentPlan
 
     public bool IsWait { get; set; }
 
+    public int NumericBonusPercent { get; set; }
+
+    public List<string> AppliedModifierKeys { get; set; } = new();
+
     public List<CompanionResolvedEffect> ResolvedEffects { get; set; } = new();
 
     public CompanionIntentPlan Snapshot()
@@ -141,6 +148,8 @@ public sealed class CompanionIntentPlan
             Priority = Priority,
             StateRevision = StateRevision,
             IsWait = IsWait,
+            NumericBonusPercent = NumericBonusPercent,
+            AppliedModifierKeys = new List<string>(AppliedModifierKeys ?? new List<string>()),
             ResolvedEffects = (ResolvedEffects ?? new List<CompanionResolvedEffect>())
                 .Select(effect => effect.Snapshot())
                 .ToList()
@@ -180,6 +189,7 @@ public sealed class CompanionResolvedEffect
 public sealed class CompanionBattleState
 {
     private readonly Dictionary<string, int> readyOnTurn = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> passiveState = new(StringComparer.Ordinal);
 
     public CompanionBattleState(
         string statusId,
@@ -217,6 +227,14 @@ public sealed class CompanionBattleState
     public int SlotIndex => Identity.SlotIndex;
 
     public CompanionStats Stats { get; }
+
+    public List<string> EquippedIntentIds { get; private set; } = new();
+
+    public string EquippedPassiveId { get; private set; } = "";
+
+    public int LoadoutRevision { get; private set; }
+
+    public string LoadoutHash { get; private set; } = "";
 
     public string CurrentIntentId { get; set; } = "";
 
@@ -277,6 +295,49 @@ public sealed class CompanionBattleState
         }
     }
 
+    public void ConfigureLoadout(
+        IEnumerable<string>? intentIds,
+        string passiveId,
+        int revision,
+        string hash)
+    {
+        EquippedIntentIds = (intentIds ?? Array.Empty<string>())
+            .Select(value => (value ?? "").Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Take(SpiritTrainingService.EquippedIntentCapacity)
+            .ToList();
+        EquippedPassiveId = (passiveId ?? "").Trim();
+        LoadoutRevision = Math.Max(0, revision);
+        LoadoutHash = (hash ?? "").Trim();
+    }
+
+    public int PassiveValue(string key)
+    {
+        return passiveState.TryGetValue(key ?? "", out var value) ? value : 0;
+    }
+
+    public void SetPassiveValue(string key, int value)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+        if (value == 0) passiveState.Remove(key);
+        else passiveState[key] = value;
+    }
+
+    public IReadOnlyDictionary<string, int> PassiveStateSnapshot()
+    {
+        return new Dictionary<string, int>(passiveState, StringComparer.Ordinal);
+    }
+
+    public void ApplyPassiveState(IReadOnlyDictionary<string, int>? values)
+    {
+        passiveState.Clear();
+        foreach (var entry in values ?? new Dictionary<string, int>())
+        {
+            if (!string.IsNullOrWhiteSpace(entry.Key)) passiveState[entry.Key] = entry.Value;
+        }
+    }
+
     public void AdvanceTurn()
     {
         TurnIndex++;
@@ -305,6 +366,10 @@ public sealed class CompanionIntentDefinition
 
     public string AdaptationNote { get; set; } = "";
 
+    public string DisplayName { get; set; } = "";
+
+    public string Description { get; set; } = "";
+
     public string Type { get; set; } = "Attack";
 
     public int Cost { get; set; }
@@ -330,6 +395,10 @@ public sealed class CompanionIntentDefinition
     public float ArmorScale { get; set; }
 
     public float MagicScale { get; set; }
+
+    public float SpeedScale { get; set; }
+
+    public string EligibilityPolicy { get; set; } = "";
 
     public string PriorityBonus { get; set; } = "";
 
@@ -361,6 +430,8 @@ public sealed class CompanionIntentEffectSpec
 
     public float MagicScale { get; set; }
 
+    public float SpeedScale { get; set; }
+
     public int DisplayIndex { get; set; } = 1;
 }
 
@@ -388,6 +459,8 @@ public static class CompanionIntentEffects
             EnemyCardId = parent.EnemyCardId,
             Pool = parent.Pool,
             AdaptationNote = parent.AdaptationNote,
+            DisplayName = parent.DisplayName,
+            Description = parent.Description,
             Type = parent.Type,
             Cost = parent.Cost,
             Cooldown = parent.Cooldown,
@@ -401,6 +474,8 @@ public static class CompanionIntentEffects
             AttackScale = effect.AttackScale,
             ArmorScale = effect.ArmorScale,
             MagicScale = effect.MagicScale,
+            SpeedScale = effect.SpeedScale,
+            EligibilityPolicy = parent.EligibilityPolicy,
             PriorityBonus = parent.PriorityBonus,
             Threat = parent.Threat
         };
@@ -419,6 +494,7 @@ public static class CompanionIntentEffects
             AttackScale = intent.AttackScale,
             ArmorScale = intent.ArmorScale,
             MagicScale = intent.MagicScale,
+            SpeedScale = intent.SpeedScale,
             DisplayIndex = 1
         };
     }

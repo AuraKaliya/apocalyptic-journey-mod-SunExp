@@ -17,6 +17,9 @@ public sealed class AuraToolsRootConfig
     [JsonProperty("matchExperience")]
     public ModuleFileConfig MatchExperience { get; set; } = new() { ConfigFile = "MatchExperienceSettings.json" };
 
+    [JsonProperty("pixelEmoji")]
+    public ModuleFileConfig PixelEmoji { get; set; } = new() { ConfigFile = "PixelEmojiSettings.json" };
+
     [JsonProperty("skillCg")]
     public ModuleFileConfig SkillCg { get; set; } = new() { ConfigFile = "SkillCgSettings.json" };
 
@@ -31,11 +34,13 @@ public sealed class AuraToolsRootConfig
         SchemaVersion = Math.Max(1, SchemaVersion);
         Audio ??= new ModuleFileConfig { ConfigFile = "AudioSettings.json" };
         MatchExperience ??= new ModuleFileConfig { ConfigFile = "MatchExperienceSettings.json" };
+        PixelEmoji ??= new ModuleFileConfig { ConfigFile = "PixelEmojiSettings.json" };
         SkillCg ??= new ModuleFileConfig { ConfigFile = "SkillCgSettings.json" };
         Skin ??= new ModuleFileConfig { ConfigFile = "SkinSettings.json" };
         Logging ??= new ModuleFileConfig { Enabled = true, ConfigFile = "LoggingSettings.json" };
         Audio.ConfigFile = string.IsNullOrWhiteSpace(Audio.ConfigFile) ? "AudioSettings.json" : Audio.ConfigFile.Trim();
         MatchExperience.ConfigFile = string.IsNullOrWhiteSpace(MatchExperience.ConfigFile) ? "MatchExperienceSettings.json" : MatchExperience.ConfigFile.Trim();
+        PixelEmoji.ConfigFile = string.IsNullOrWhiteSpace(PixelEmoji.ConfigFile) ? "PixelEmojiSettings.json" : PixelEmoji.ConfigFile.Trim();
         SkillCg.ConfigFile = string.IsNullOrWhiteSpace(SkillCg.ConfigFile) ? "SkillCgSettings.json" : SkillCg.ConfigFile.Trim();
         Skin.ConfigFile = string.IsNullOrWhiteSpace(Skin.ConfigFile) ? "SkinSettings.json" : Skin.ConfigFile.Trim();
         Logging.ConfigFile = string.IsNullOrWhiteSpace(Logging.ConfigFile) ? "LoggingSettings.json" : Logging.ConfigFile.Trim();
