@@ -50,34 +50,23 @@ public enum WitchArchiveSection
 
 public static class WitchArchiveStrings
 {
-    public static string EntryLabel => Resolve("魔女档案", "魔女檔案", "Witch Archive", "魔女アーカイブ");
+    public static string EntryLabel => TerriasTextCatalog.Get("ui.archive.entry");
 
-    public static string Basic => Resolve("基础资料", "基礎資料", "Profile", "基本資料");
+    public static string Basic => TerriasTextCatalog.Get("ui.archive.basic");
 
-    public static string Background => Resolve("背景资料", "背景資料", "Background", "背景資料");
+    public static string Background => TerriasTextCatalog.Get("ui.archive.background");
 
-    public static string Name => Resolve("姓名", "姓名", "Name", "名前");
+    public static string Name => TerriasTextCatalog.Get("ui.archive.name");
 
-    public static string Title => Resolve("称号", "稱號", "Title", "称号");
+    public static string Title => TerriasTextCatalog.Get("ui.archive.title");
 
-    public static string Summary => Resolve("角色简介", "角色簡介", "Summary", "人物概要");
+    public static string Summary => TerriasTextCatalog.Get("ui.archive.summary");
 
-    public static string Close => Resolve("关闭", "關閉", "Close", "閉じる");
+    public static string Close => TerriasTextCatalog.Get("ui.common.close");
 
-    public static string SwitchCharacter => Resolve("切换角色", "切換角色", "Switch Character", "キャラクター切替");
+    public static string SwitchCharacter => TerriasTextCatalog.Get("ui.archive.switch_character");
 
-    public static string SwitchSection => Resolve("切换栏目", "切換欄目", "Switch Section", "項目切替");
+    public static string SwitchSection => TerriasTextCatalog.Get("ui.archive.switch_section");
 
-    public static string Empty => Resolve("暂无可用的魔女档案。", "暫無可用的魔女檔案。", "No witch archive entries are available.", "利用可能な魔女記録がありません。");
-
-    private static string Resolve(string zhHans, string zhHant, string english, string japanese)
-    {
-        return new WitchArchiveLocalizedText
-        {
-            ZhHans = zhHans,
-            ZhHant = zhHant,
-            English = english,
-            Japanese = japanese
-        }.Resolve(zhHans);
-    }
+    public static string Empty => TerriasTextCatalog.Get("ui.archive.empty");
 }

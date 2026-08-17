@@ -10,7 +10,6 @@ public sealed class PolymorphState
     public PolymorphState(
         string ownerStatusId,
         string roleId,
-        string displayName,
         string originalCareerId,
         DataConfig? originalCareer,
         IReadOnlyDictionary<string, int>? originalCooldowns,
@@ -19,7 +18,6 @@ public sealed class PolymorphState
     {
         OwnerStatusId = ownerStatusId ?? "";
         RoleId = roleId ?? "";
-        DisplayName = displayName ?? "";
         OriginalCareerId = originalCareerId ?? "";
         OriginalCareer = originalCareer;
         OriginalCooldowns = PolymorphCooldownSnapshotPolicy.Normalize(originalCooldowns);
@@ -30,8 +28,6 @@ public sealed class PolymorphState
     public string OwnerStatusId { get; }
 
     public string RoleId { get; }
-
-    public string DisplayName { get; }
 
     public string OriginalCareerId { get; }
 
@@ -190,7 +186,6 @@ public static class PolymorphStateStore
             var state = new PolymorphState(
                 owner,
                 role.Id,
-                role.DisplayName,
                 originalCareerId,
                 originalCareer,
                 originalCooldowns,

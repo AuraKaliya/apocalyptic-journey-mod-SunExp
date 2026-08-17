@@ -409,6 +409,7 @@ public static class TerriasUiComponents
             resizeForBestFit: true);
         text.supportRichText = supportRichText;
         text.fontStyle = FontStyle.Normal;
+        TerriasLocalizationScope.BindLegacyIfAvailable(text, value);
         return text;
     }
 }

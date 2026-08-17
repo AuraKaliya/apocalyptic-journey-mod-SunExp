@@ -82,6 +82,7 @@ internal static class MatchReplayFightSandboxInitializer
             fightUi.gameObject.SetActive(true);
             FightUI.IsReset = false;
             fightUi.ResetButtonCheck();
+            MatchReplaySkillPresenter.Initialize(fightUi);
 
             if (manager.statuses.Count == 0)
             {

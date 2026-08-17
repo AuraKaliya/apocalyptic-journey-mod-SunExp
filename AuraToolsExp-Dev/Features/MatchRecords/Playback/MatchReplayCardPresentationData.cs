@@ -56,6 +56,25 @@ internal static class MatchReplayCardPresentationData
         };
     }
 
+    internal static void RestoreRuntimeIdentity(
+        IDictionary<string, string> vars,
+        string? replayCardId)
+    {
+        if (vars == null)
+        {
+            throw new ArgumentNullException(nameof(vars));
+        }
+
+        var normalized = (replayCardId ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            // DataConfig(IDictionary, IDictionary, ...) always replaces InstanceID with
+            // a new Guid. Replay identity is a recording contract, so it must be restored
+            // after construction before the config enters any runtime collection.
+            vars["InstanceID"] = normalized;
+        }
+    }
+
     private static Dictionary<string, string> RestoreValues(
         IEnumerable<MatchReplayStringValue>? values)
     {

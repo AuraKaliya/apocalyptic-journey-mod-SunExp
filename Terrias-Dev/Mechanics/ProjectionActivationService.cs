@@ -10,7 +10,7 @@ public static class ProjectionActivationService
     {
         if (!ProjectionUiApi.OpenRoleSelection(self))
         {
-            PlayerApi.ShowCaption("拜托了：角色选择界面暂时不可用。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.selection_unavailable"));
         }
     }
 
@@ -19,7 +19,7 @@ public static class ProjectionActivationService
         var role = PolymorphRoleRegistry.CurrentRole();
         if (role == null || string.IsNullOrWhiteSpace(role.Id))
         {
-            PlayerApi.ShowCaption("拜托了：未找到当前角色。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.current_role_missing"));
             return false;
         }
 
@@ -31,7 +31,7 @@ public static class ProjectionActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("拜托了：未找到目标角色。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.role_missing"));
             return false;
         }
 
@@ -51,13 +51,13 @@ public static class ProjectionActivationService
         var result = CardApi.GrantCardToHand(self, request);
         if (!result.Success)
         {
-            PlayerApi.ShowCaption("拜托了：投影牌生成失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.card_failed"));
             return false;
         }
 
         PlayerApi.ShowCaption(fixedAnotherMe
-            ? "拜托了：获得【另一个我】。"
-            : "拜托了：获得【" + role.DisplayName + "的投影】。");
+            ? TerriasTextCatalog.Get("caption.projection.another_me_granted")
+            : TerriasTextCatalog.Format("caption.projection.card_granted", "name", role.DisplayName));
         return true;
     }
 
@@ -65,7 +65,7 @@ public static class ProjectionActivationService
     {
         if (self == null)
         {
-            PlayerApi.ShowCaption("拜托了：召唤失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.summon_failed"));
             return false;
         }
 
@@ -73,7 +73,7 @@ public static class ProjectionActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("拜托了：投影目标已失效。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.target_expired"));
             return false;
         }
 
@@ -91,7 +91,7 @@ public static class ProjectionActivationService
         DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
             AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.ProjectionRoleCardMarker));
         DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleIdKey, role.Id);
-        DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleNameKey, role.DisplayName);
+        DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleNameKey, role.DisplayNameFor(TerriasLocale.ZhHans));
         DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleCardFacePathKey, role.CardFacePath);
     }
 
@@ -99,19 +99,20 @@ public static class ProjectionActivationService
         PolymorphRoleSpec role,
         bool fixedAnotherMe)
     {
-        var displayName = fixedAnotherMe ? "另一个我" : role.DisplayName + "的投影";
-        return new Dictionary<string, string>
+        var result = new Dictionary<string, string> { ["Icon"] = role.CardFacePath };
+        var arguments = new Dictionary<string, string>();
+        var nameKey = fixedAnotherMe ? "card.projection.another_me.name" : "card.projection.name";
+        var descriptionKey = fixedAnotherMe ? "card.projection.another_me.description" : "card.projection.description";
+        foreach (var locale in TerriasLocale.Supported)
         {
-            ["Icon"] = role.CardFacePath,
-            ["Name"] = displayName,
-            ["Name_zh-Hant"] = fixedAnotherMe ? "另一個我" : role.DisplayName + "的投影",
-            ["Name_en"] = fixedAnotherMe ? "Another Me" : role.DisplayName + " Projection",
-            ["Name_ja"] = fixedAnotherMe ? "もう一人の私" : role.DisplayName + "の投影",
-            ["Description"] = fixedAnotherMe ? "召唤另一个我。" : "召唤" + displayName + "。",
-            ["Description_zh-Hant"] = fixedAnotherMe ? "召喚另一個我。" : "召喚" + role.DisplayName + "的投影。",
-            ["Description_en"] = fixedAnotherMe ? "Summon another you." : "Summon " + role.DisplayName + "'s projection.",
-            ["Description_ja"] = fixedAnotherMe ? "もう一人の自分を召喚する。" : role.DisplayName + "の投影を召喚する。"
-        };
+            arguments["name"] = role.DisplayNameFor(locale);
+            result[TerriasLocale.FieldName("Name", locale)] =
+                TerriasTextCatalog.GetForLocale(nameKey, locale, arguments);
+            result[TerriasLocale.FieldName("Description", locale)] =
+                TerriasTextCatalog.GetForLocale(descriptionKey, locale, arguments);
+        }
+
+        return result;
     }
 
     private static string AppendToken(string existing, params string[] tokens)

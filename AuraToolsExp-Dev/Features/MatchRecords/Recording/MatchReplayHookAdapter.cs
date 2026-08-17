@@ -54,6 +54,31 @@ internal static class MatchReplayHookAdapter
             "SkillItem.TrueUse",
             context => MatchReplayRecorder.EndCardAction(context.Target),
             "MatchRecords.Replay.SkillAction"));
+        Register("before:FightUI.CallActionAnimation", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "FightUI.CallActionAnimation",
+            context => MatchReplayRecorder.CaptureActionPresentation(context.Arguments),
+            "MatchRecords.Replay.ActionPresentation"));
+        Register("remote-combat-actions", AuraRemoteCombatActionRouter.Register(
+            modConfig!,
+            AuraToolsIds.ModId + ".MatchRecords.Replay",
+            new AuraRemoteCombatActionSubscription
+            {
+                CommandObserved = MatchReplayRecorder.CaptureRemoteCommand,
+                AuthoritativeStatusApplied = MatchReplayRecorder.ObserveAuthoritativeStatus
+            },
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn));
+        Register("before:OtherObj.DoOneAction", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "OtherObj.DoOneAction",
+            context => MatchReplayRecorder.BeginEnemyIntentAction(context.Target, context.Arguments),
+            "MatchRecords.Replay.EnemyIntent"));
+        Register("after:OtherObj.DoOneAction", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "OtherObj.DoOneAction",
+            context => MatchReplayRecorder.EndEnemyIntentAction(context.Target),
+            "MatchRecords.Replay.EnemyIntent"));
         Register("card-lifecycle", AuraCardLifecycleRouter.Register(
             modConfig,
             AuraToolsIds.ModId,

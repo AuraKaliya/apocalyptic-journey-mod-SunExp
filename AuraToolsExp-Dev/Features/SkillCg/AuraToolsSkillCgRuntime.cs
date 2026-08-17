@@ -278,10 +278,32 @@ public static class AuraToolsSkillCgRuntime
 
     private static void SynchronizeRegisteredEffectiveState(AuraCgRegistrySnapshot snapshot)
     {
-        var globallyEnabled = AuraToolsConfigService.Root.SkillCg.Enabled
-                              && AuraToolsConfigService.SkillCg.Enabled;
-        foreach (var entry in snapshot.Entries.Where(entry => string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)))
+        var rootEnabled = AuraToolsConfigService.Root.SkillCg.Enabled && !safeModeDisabled;
+        var skillEnabled = rootEnabled && AuraToolsConfigService.SkillCg.Enabled;
+        var cardUseEnabled = rootEnabled && AuraToolsConfigService.SkillCg.CardUseCg.Enabled;
+        var overrides = new List<AuraCgLocalActivationOverride>();
+        foreach (var entry in snapshot.Entries)
         {
+            if (string.Equals(entry.Kind, SkillCgArbiterRuntime.CardUseCgKind, StringComparison.OrdinalIgnoreCase))
+            {
+                var cardConfigured = !AuraToolsConfigService.SkillCg.CardUseCg.RegisteredEntries.TryGetValue(
+                                         entry.QualifiedCgId,
+                                         out var enabled)
+                                     || enabled;
+                overrides.Add(new AuraCgLocalActivationOverride
+                {
+                    OwnerModId = entry.OwnerModId,
+                    CgId = entry.CgId,
+                    Enabled = cardUseEnabled && cardConfigured
+                });
+                continue;
+            }
+
+            if (!string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             var configured = AuraToolsConfigService.SkillCg.Roles.Values
                 .Where(role => role != null && role.Enabled)
                 .SelectMany(role => role.Rules ?? Enumerable.Empty<SkillCgRuleSettings>())
@@ -298,12 +320,15 @@ public static class AuraToolsSkillCgRuntime
                 .Any(rule => rule != null
                              && string.Equals(rule.SourceOwnerModId, entry.OwnerModId, StringComparison.OrdinalIgnoreCase)
                              && string.Equals(rule.SourceCgId, entry.CgId, StringComparison.OrdinalIgnoreCase));
-            AuraCgActivationRuntime.SetEnabledOverride(
-                entry.OwnerModId,
-                entry.CgId,
-                globallyEnabled && (!hasConfiguredRule || configured),
-                AuraToolsIds.ModId);
+            overrides.Add(new AuraCgLocalActivationOverride
+            {
+                OwnerModId = entry.OwnerModId,
+                CgId = entry.CgId,
+                Enabled = skillEnabled && (!hasConfiguredRule || configured)
+            });
         }
+
+        AuraCgActivationRuntime.ReplaceLocalOverrides(AuraToolsIds.ModId, overrides);
     }
 
     private static void PreloadAdventureCg()
@@ -377,6 +402,7 @@ public static class AuraToolsSkillCgRuntime
             }
 
             safeModeDisabled = true;
+            SynchronizeRegisteredEffectiveState(AuraCgRegistryRuntime.GetSnapshot());
             SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "safe-mode-disabled");
             AuraToolsSkillCgProvider.ClearOwnerRoles();
             AuraToolsLog.Warn("[SkillCG] safe mode disabled hooks after repeated failures. source="
@@ -524,7 +550,7 @@ public sealed class AuraToolsSkillCgProvider
 
                 if (!string.IsNullOrWhiteSpace(rule.SourceOwnerModId)
                     && !string.IsNullOrWhiteSpace(rule.SourceCgId)
-                    && !AuraCgActivationRuntime.CanConsumerPlay(rule.SourceOwnerModId, rule.SourceCgId, AuraToolsIds.ModId))
+                    && !AuraCgActivationRuntime.IsLocallyEnabled(rule.SourceOwnerModId, rule.SourceCgId))
                 {
                     AuraToolsSkillCgRuntime.LogDiagnostic(
                         "activation-skip:" + rule.SourceOwnerModId + ":" + rule.SourceCgId,

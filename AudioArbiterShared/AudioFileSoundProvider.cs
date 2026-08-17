@@ -143,6 +143,11 @@ public sealed class FileSoundProvider : IDisposable
         return loadState;
     }
 
+    public void Preload()
+    {
+        EnsureStarted();
+    }
+
     public AudioClip? GetClip(object? request)
     {
         EnsureStarted();

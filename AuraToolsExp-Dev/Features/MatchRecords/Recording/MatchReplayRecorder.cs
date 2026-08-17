@@ -12,6 +12,7 @@ using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.GameApi;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 using Witch;
@@ -74,7 +75,9 @@ internal static class MatchReplayRecorder
             MatchReplayCapabilities.CardPresentationReadyV1,
             MatchReplayCapabilities.IncrementalHandV1,
             MatchReplayCapabilities.OutcomeCuesV1,
-            MatchReplayCapabilities.PassiveHudV1
+            MatchReplayCapabilities.PassiveHudV1,
+            MatchReplayCapabilities.EnemyIntentFramesV1,
+            MatchReplayCapabilities.RemotePlayerActionsV1
         };
         if (!string.IsNullOrWhiteSpace(diceJson))
         {
@@ -97,7 +100,12 @@ internal static class MatchReplayRecorder
                 ToolBuild = typeof(AuraToolsMatchRecordsRuntime).Assembly.GetName().Version?.ToString() ?? "unknown",
                 ModFingerprint = CurrentRuntimeFingerprint(),
                 RequiredCapabilities = requiredCapabilities,
-                OptionalCapabilities = new List<string> { MatchReplayCapabilities.CausalityV1 },
+                OptionalCapabilities = new List<string>
+                {
+                    MatchReplayCapabilities.CausalityV1,
+                    MatchReplayCapabilities.NativeActionPresentationV1,
+                    MatchReplayCapabilities.NativeActionPresentationV2
+                },
                 InitialState = new MatchReplayInitialState
                 {
                     LevelId = levelId,
@@ -155,7 +163,9 @@ internal static class MatchReplayRecorder
 
     internal static void BeginCardAction(object? target)
     {
-        BeginAction(target, target is SkillItem ? "SkillUse" : "CardUse");
+        BeginAction(
+            target,
+            target is SkillItem ? MatchReplayActionKinds.SkillUse : MatchReplayActionKinds.CardUse);
     }
 
     internal static void EndCardAction(object? target)
@@ -182,6 +192,221 @@ internal static class MatchReplayRecorder
         EndAction();
     }
 
+    internal static void BeginEnemyIntentAction(object? target, object[]? arguments)
+    {
+        if (MatchReplaySessionState.IsPlayback)
+        {
+            return;
+        }
+
+        try
+        {
+            var intent = MatchReplayEnemyIntentApi.CaptureExecuting(target, arguments);
+            if (intent == null || string.IsNullOrWhiteSpace(intent.ActorId))
+            {
+                return;
+            }
+
+            BeginEnemyIntentAction(intent);
+        }
+        catch (Exception ex)
+        {
+            RecordCaptureDiagnostic("enemy intent begin", ex);
+        }
+    }
+
+    internal static void EndEnemyIntentAction(object? target)
+    {
+        if (MatchReplaySessionState.IsPlayback || target is not Enemy enemy)
+        {
+            return;
+        }
+
+        var actorId = enemy.Status?.InstanceId ?? enemy.InstanceId ?? "";
+        lock (Gate)
+        {
+            if (activeAction == null
+                || !string.Equals(activeAction.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+                || !string.Equals(activeAction.ActorId, actorId, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        EndAction();
+    }
+
+    internal static void CaptureActionPresentation(object[]? arguments)
+    {
+        if (MatchReplaySessionState.IsPlayback
+            || arguments == null
+            || arguments.Length == 0
+            || arguments[0] is not IScriptExecutor executor)
+        {
+            return;
+        }
+
+        try
+        {
+            var presentation = MatchReplayActionPresentationCapture.Capture(executor);
+            lock (Gate)
+            {
+                if (activeAction == null
+                    || presentation == null
+                    || (!string.IsNullOrWhiteSpace(activeAction.ActorId)
+                        && !string.Equals(activeAction.ActorId, executor.Self?.InstanceId, StringComparison.Ordinal)))
+                {
+                    return;
+                }
+
+                activeAction.NativePresentation = presentation;
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordCaptureDiagnostic("native action presentation", ex);
+        }
+    }
+
+    internal static void CaptureRemoteCommand(AuraRemoteCombatActionContext context)
+    {
+        if (context == null || MatchReplaySessionState.IsPlayback)
+        {
+            return;
+        }
+
+        try
+        {
+            if (string.Equals(context.Kind, AuraRemoteCombatActionKinds.CardUse, StringComparison.Ordinal))
+            {
+                BeginRemoteCardAction(context);
+                return;
+            }
+
+            if (string.Equals(context.Kind, AuraRemoteCombatActionKinds.ActionAnimation, StringComparison.Ordinal))
+            {
+                CaptureRemoteActionPresentation(context);
+            }
+        }
+        catch (Exception ex)
+        {
+            RecordCaptureDiagnostic("remote action", ex);
+        }
+    }
+
+    internal static void ObserveAuthoritativeStatus(AuraAuthoritativeStatusContext context)
+    {
+        if (context == null || MatchReplaySessionState.IsPlayback)
+        {
+            return;
+        }
+
+        string actionId;
+        lock (Gate)
+        {
+            if (activeAction == null || !activeAction.IsRemote)
+            {
+                return;
+            }
+
+            activeAction.Convergence.Reset();
+            if (activeAction.FinalizationScheduled)
+            {
+                return;
+            }
+
+            activeAction.FinalizationScheduled = true;
+            actionId = activeAction.ActionId;
+        }
+
+        ScheduleFinalization(actionId);
+    }
+
+    private static void BeginRemoteCardAction(AuraRemoteCombatActionContext context)
+    {
+        var config = context.CardData;
+        if (config == null || string.IsNullOrWhiteSpace(context.ActorId))
+        {
+            return;
+        }
+
+        lock (Gate)
+        {
+            if (activeRecord == null || workingBuffer == null)
+            {
+                return;
+            }
+
+            if (activeAction != null)
+            {
+                FlushPendingActionNoLock();
+            }
+
+            var sourceId = Value(config.data, "Id");
+            var sourceInstanceId = config is DataConfig dataConfig
+                ? dataConfig.InstanceID ?? ""
+                : Value(config.Vars, "InstanceID");
+            activeAction = new ActiveAction
+            {
+                ActionId = "action-" + (++nextActionIndex).ToString("D6"),
+                ActionIndex = nextActionIndex,
+                TurnIndex = Math.Max(1, turnIndex),
+                StartedMilliseconds = ElapsedMilliseconds(),
+                Kind = string.Equals(Value(config.data, "Action"), "Skill", StringComparison.OrdinalIgnoreCase)
+                    ? MatchReplayActionKinds.SkillUse
+                    : MatchReplayActionKinds.CardUse,
+                ActorId = context.ActorId,
+                SourceId = sourceId,
+                SourceInstanceId = sourceInstanceId,
+                Label = First(Value(config.data, "Name"), Value(config.data, "DisplayName"), sourceId),
+                SourcePresentation = MatchReplayCardStateCapture.CaptureOne(config),
+                Before = lastAuthoritativeState == null
+                    ? MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex)
+                    : MatchReplayProjectionState.Clone(lastAuthoritativeState),
+                IsRemote = true,
+                RemoteCommandSequence = context.CommandSequence
+            };
+        }
+    }
+
+    private static void CaptureRemoteActionPresentation(AuraRemoteCombatActionContext context)
+    {
+        lock (Gate)
+        {
+            if (activeAction == null
+                || !activeAction.IsRemote
+                || !string.Equals(activeAction.ActorId, context.ActorId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var targets = context.AnimationTargets ?? new List<AuraRemoteAnimationTarget>();
+            var actorState = targets.FirstOrDefault(item =>
+                string.Equals(item.StatusInstanceId, context.ActorId, StringComparison.Ordinal))
+                ?? targets.FirstOrDefault();
+            var presentation = new MatchReplayActionPresentationState
+            {
+                ActorAnimationState = actorState?.AnimationState ?? "",
+                EffectName = context.EffectName ?? "",
+                EffectDelayMilliseconds = 50,
+                PresentationDurationMilliseconds = 1040
+            };
+            foreach (var target in targets.Where(item =>
+                         !string.IsNullOrWhiteSpace(item.StatusInstanceId)
+                         && !ReferenceEquals(item, actorState)
+                         && !string.Equals(item.StatusInstanceId, context.ActorId, StringComparison.Ordinal)))
+            {
+                presentation.Targets.Add(new MatchReplayTargetPresentationState
+                {
+                    TargetId = target.StatusInstanceId,
+                    AnimationState = target.AnimationState
+                });
+            }
+
+            activeAction.NativePresentation = presentation;
+        }
+    }
+
     private static void BeginAction(object? target, string kind)
     {
         if (target == null || MatchReplaySessionState.IsPlayback)
@@ -204,6 +429,7 @@ internal static class MatchReplayRecorder
                     ? dataConfig.InstanceID ?? ""
                     : Value(config?.Vars, "InstanceID");
                 if (activeAction != null
+                    && !activeAction.IsRemote
                     && MatchReplayActionBoundaryPolicy.ShouldNest(activeAction.FinalizationScheduled))
                 {
                     activeAction.Depth++;
@@ -240,6 +466,48 @@ internal static class MatchReplayRecorder
         catch (Exception ex)
         {
             RecordCaptureDiagnostic("action begin", ex);
+        }
+    }
+
+    private static void BeginEnemyIntentAction(MatchReplayEnemyIntentState intent)
+    {
+        lock (Gate)
+        {
+            if (activeRecord == null || workingBuffer == null)
+            {
+                return;
+            }
+
+            if (activeAction != null
+                && !activeAction.IsRemote
+                && MatchReplayActionBoundaryPolicy.ShouldNest(activeAction.FinalizationScheduled))
+            {
+                activeAction.Depth++;
+                return;
+            }
+
+            if (activeAction != null)
+            {
+                FlushPendingActionNoLock();
+            }
+
+            activeAction = new ActiveAction
+            {
+                ActionId = "action-" + (++nextActionIndex).ToString("D6"),
+                ActionIndex = nextActionIndex,
+                TurnIndex = Math.Max(1, turnIndex),
+                StartedMilliseconds = ElapsedMilliseconds(),
+                Kind = MatchReplayActionKinds.EnemyIntentUse,
+                ActorId = intent.ActorId ?? "",
+                SourceId = intent.IntentId ?? "",
+                SourceInstanceId = intent.SourceInstanceId ?? "",
+                Label = intent.Label ?? intent.IntentId ?? "",
+                IntentPresentation = MatchReplayProjectionState.Clone(intent),
+                Before = lastAuthoritativeState == null
+                    ? MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex)
+                    : MatchReplayProjectionState.Clone(lastAuthoritativeState),
+                Depth = 1
+            };
         }
     }
 
@@ -471,6 +739,21 @@ internal static class MatchReplayRecorder
             ? MatchReplayStateCapture.CaptureProjectionSnapshot(action.TurnIndex)
             : MatchReplayProjectionState.Clone(settledState);
         lastAuthoritativeState = MatchReplayProjectionState.Clone(after);
+        var finalStateHash = MatchReplayProjectionState.Hash(after);
+        if (string.Equals(action.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+            && action.NativePresentation == null
+            && string.Equals(
+                MatchReplayProjectionState.Hash(action.Before),
+                finalStateHash,
+                StringComparison.Ordinal))
+        {
+            // OtherObj.DoOneAction can return before executing when the actor is unable to act.
+            // The routed hook has no return-value channel, so reject an attempt that produced
+            // neither native presentation nor an authoritative state change.
+            activeAction = null;
+            return;
+        }
+
         var delta = MatchReplayProjectionState.CreateDelta(action.Before, after);
         var derived = MatchReplayActionDerivation.Build(
             action.ActionId,
@@ -481,7 +764,9 @@ internal static class MatchReplayRecorder
             action.Label,
             action.SourcePresentation,
             action.Before,
-            after);
+            after,
+            action.NativePresentation,
+            action.IntentPresentation);
         var frame = new MatchReplayActionFrame
         {
             ActionId = action.ActionId,
@@ -496,18 +781,22 @@ internal static class MatchReplayRecorder
             SourceInstanceId = action.SourceInstanceId,
             Label = action.Label,
             SourcePresentation = action.SourcePresentation,
+            IntentPresentation = action.IntentPresentation,
+            NativePresentation = action.NativePresentation,
             Delta = delta,
             CardTransitions = derived.CardTransitions,
             Presentation = derived.Presentation,
             Semantics = derived.Semantics,
-            FinalStateHash = MatchReplayProjectionState.Hash(after)
+            FinalStateHash = finalStateHash
         };
         var semantic = new MatchSemanticEvent
         {
             EventId = "event-" + (nextSequence + 1),
             ActionId = action.ActionId,
             RootActionId = action.ActionId,
-            Category = MatchSemanticCategories.Card,
+            Category = string.Equals(action.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+                ? MatchSemanticCategories.EnemyIntent
+                : MatchSemanticCategories.Card,
             Action = action.Kind,
             ActorId = action.ActorId,
             SourceId = action.SourceId,
@@ -908,9 +1197,13 @@ internal static class MatchReplayRecorder
         internal string SourceInstanceId { get; set; } = "";
         internal string Label { get; set; } = "";
         internal MatchReplayCardState? SourcePresentation { get; set; }
+        internal MatchReplayEnemyIntentState? IntentPresentation { get; set; }
+        internal MatchReplayActionPresentationState? NativePresentation { get; set; }
         internal MatchReplayStateSnapshot Before { get; set; } = new();
         internal int Depth { get; set; }
         internal bool FinalizationScheduled { get; set; }
+        internal bool IsRemote { get; set; }
+        internal long RemoteCommandSequence { get; set; }
         internal MatchReplayActionConvergenceTracker Convergence { get; } = new();
     }
 

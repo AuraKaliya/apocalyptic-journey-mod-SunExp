@@ -14,7 +14,7 @@ public static class PolymorphBuffService
     {
         if (self?.Self == null || role == null)
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.switch_failed"));
             return false;
         }
 
@@ -34,7 +34,7 @@ public static class PolymorphBuffService
         {
             PolymorphStateStore.ClearPending(self.Self);
             TerriasLog.Warn("[Polymorph] failed to grant trait buff: " + ex.Message);
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.switch_failed"));
             return false;
         }
     }
@@ -99,7 +99,7 @@ public static class PolymorphBuffService
 
             PolymorphNetworkSync.BroadcastEnter(state, "PolymorphBuffService.Apply");
             PolymorphStateStore.ClearPending(owner);
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u4e3a\u3010" + state.DisplayName + "\u3011\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.polymorph.applied", "name", role.DisplayName));
             TerriasPerformanceCounters.Record("Polymorph.BuffApplied");
             return true;
         }
@@ -115,7 +115,7 @@ public static class PolymorphBuffService
             PolymorphCooldownService.Clear(owner);
             PolymorphStateStore.ClearPending(owner);
             TerriasLog.Warn("[Polymorph] trait apply failed: " + ex.Message);
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.switch_failed"));
             RemoveTraitBuff(ResolveBuffExecutor(owner, self));
             return false;
         }
@@ -251,18 +251,15 @@ public static class PolymorphBuffService
 
     private static Dictionary<string, string> BuildTraitPresentation(PolymorphRoleSpec role)
     {
-        var description = "\u53d8\u8eab\u6210\u4e3a\u3010" + role.DisplayName
-            + "\u3011\u3002\u767e\u53d8\u7ed3\u675f\u65f6\u6062\u590d\u539f\u89d2\u8272\uff1b\u539f\u89d2\u8272\u7684\u804c\u4e1a\u72b6\u6001\u4e0e\u6280\u80fd\u51b7\u5374\u5728\u6b64\u671f\u95f4\u51bb\u7ed3\u3002";
-        var traditionalDescription = "\u8b8a\u8eab\u6210\u70ba\u3010" + role.DisplayName
-            + "\u3011\u3002\u767e\u8b8a\u7d50\u675f\u6642\u6062\u5fa9\u539f\u89d2\u8272\uff1b\u539f\u89d2\u8272\u7684\u8077\u696d\u72c0\u614b\u8207\u6280\u80fd\u51b7\u537b\u5728\u6b64\u671f\u9593\u51cd\u7d50\u3002";
-        return new Dictionary<string, string>
+        var result = new Dictionary<string, string>();
+        var arguments = new Dictionary<string, string>();
+        foreach (var locale in TerriasLocale.Supported)
         {
-            ["Description"] = description,
-            ["Description_zh-Hant"] = traditionalDescription,
-            ["Description_ja"] = "\u3010" + role.DisplayName
-                + "\u3011\u306b\u5909\u8eab\u3059\u308b\u3002\u767e\u5909\u306e\u7d42\u4e86\u6642\u306b\u5143\u306e\u5f79\u5272\u3078\u623b\u308a\u3001\u305d\u306e\u9593\u306f\u5143\u306e\u5f79\u5272\u306e\u72b6\u614b\u3068\u30b9\u30ad\u30eb\u518d\u4f7f\u7528\u6642\u9593\u304c\u51cd\u7d50\u3055\u308c\u308b\u3002",
-            ["Description_en"] = "Polymorphed into " + role.DisplayName
-                + ". Restore the original role when Polymorph ends; its career state and skill cooldowns stay frozen meanwhile."
-        };
+            arguments["name"] = role.DisplayNameFor(locale);
+            result[TerriasLocale.FieldName("Description", locale)] =
+                TerriasTextCatalog.GetForLocale("buff.polymorph.description", locale, arguments);
+        }
+
+        return result;
     }
 }

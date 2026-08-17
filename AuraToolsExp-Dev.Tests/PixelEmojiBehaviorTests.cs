@@ -153,6 +153,92 @@ internal static partial class AuraToolsTestSuite
                && rejection.Contains("帧数据"),
             "pixel emoji presentation rejects frame counts above the eight-frame limit");
 
+        var serverUtcTicks = new DateTime(2026, 8, 17, 0, 0, 0, DateTimeKind.Utc).Ticks;
+        var sender = new AuraToolsRpcSender("client-a", "Client A", true, false, "test", true);
+        var acceptance = new PixelEmojiServerAcceptancePolicy();
+        var futureClockPresentation = CreatePresentation(
+            "clock-future",
+            serverUtcTicks + TimeSpan.FromHours(12).Ticks,
+            animationFrames,
+            PixelEmojiPlaybackMode.Once);
+        futureClockPresentation.IssuerPlayerId = "spoofed-player";
+        futureClockPresentation.IssuerPlayerName = "Spoofed Name";
+        Assert(acceptance.TryAccept(sender, futureClockPresentation, serverUtcTicks, 1000L, out rejection)
+               && rejection.Length == 0
+               && futureClockPresentation.CreatedUtcTicks == serverUtcTicks
+               && futureClockPresentation.IssuerPlayerId == sender.PlayerId
+               && futureClockPresentation.IssuerPlayerName == sender.PlayerName,
+            "pixel emoji server accepts client clock skew and stamps authoritative sender and receive time");
+
+        var pastClockPresentation = CreatePresentation(
+            "clock-past",
+            serverUtcTicks - TimeSpan.FromHours(12).Ticks,
+            animationFrames,
+            PixelEmojiPlaybackMode.Once);
+        Assert(acceptance.TryAccept(
+                   sender,
+                   pastClockPresentation,
+                   serverUtcTicks + TimeSpan.TicksPerSecond,
+                   2000L,
+                   out rejection)
+               && pastClockPresentation.CreatedUtcTicks == serverUtcTicks + TimeSpan.TicksPerSecond,
+            "pixel emoji server does not authorize requests using cross-machine wall-clock age");
+
+        var duplicatePresentation = CreatePresentation(
+            "clock-past",
+            long.MaxValue,
+            animationFrames,
+            PixelEmojiPlaybackMode.Once);
+        Assert(!acceptance.TryAccept(
+                   sender,
+                   duplicatePresentation,
+                   serverUtcTicks + TimeSpan.FromSeconds(2).Ticks,
+                   3000L,
+                   out rejection)
+               && rejection.Contains("重复"),
+            "pixel emoji server suppresses duplicate event ids independently of client timestamps");
+
+        var secondSender = new AuraToolsRpcSender("client-b", "Client B", true, false, "test", true);
+        var secondSenderPresentation = CreatePresentation(
+            "clock-past",
+            serverUtcTicks,
+            animationFrames,
+            PixelEmojiPlaybackMode.Once);
+        Assert(acceptance.TryAccept(
+                   secondSender,
+                   secondSenderPresentation,
+                   serverUtcTicks + TimeSpan.FromSeconds(2).Ticks,
+                   3000L,
+                   out rejection),
+            "pixel emoji duplicate identity is scoped by the server-bound sender");
+
+        var ratePolicy = new PixelEmojiServerAcceptancePolicy();
+        var rateFirst = CreatePresentation("rate-1", serverUtcTicks, animationFrames, PixelEmojiPlaybackMode.Once);
+        var rateRejected = CreatePresentation("rate-2", serverUtcTicks, animationFrames, PixelEmojiPlaybackMode.Once);
+        var rateNext = CreatePresentation("rate-3", serverUtcTicks, animationFrames, PixelEmojiPlaybackMode.Once);
+        Assert(ratePolicy.TryAccept(sender, rateFirst, serverUtcTicks, 10000L, out _)
+               && !ratePolicy.TryAccept(sender, rateRejected, serverUtcTicks, 10999L, out rejection)
+               && rejection.Contains("频繁")
+               && !ratePolicy.TryAccept(sender, rateRejected, serverUtcTicks, 12000L, out rejection)
+               && rejection.Contains("重复")
+               && ratePolicy.TryAccept(sender, rateNext, serverUtcTicks, 12000L, out _),
+            "pixel emoji monotonic rate limiting consumes rejected request ids and allows the next unique event after cooldown");
+
+        var outsider = new AuraToolsRpcSender("outsider", "Outsider", false, false, "test", true);
+        var outsiderPresentation = CreatePresentation(
+            "outsider-event",
+            serverUtcTicks,
+            animationFrames,
+            PixelEmojiPlaybackMode.Once);
+        Assert(!new PixelEmojiServerAcceptancePolicy().TryAccept(
+                   outsider,
+                   outsiderPresentation,
+                   serverUtcTicks,
+                   1000L,
+                   out rejection)
+               && rejection.Contains("房间成员"),
+            "pixel emoji server rejects presentations from senders outside the current lobby");
+
         var library = new PixelEmojiLibrary
         {
             SchemaVersion = 1,
@@ -224,5 +310,21 @@ internal static partial class AuraToolsTestSuite
                       | rgba[offset + 1] << 16
                       | rgba[offset + 2] << 8
                       | rgba[offset + 3]);
+    }
+
+    private static PixelEmojiPresentation CreatePresentation(
+        string eventId,
+        long createdUtcTicks,
+        IReadOnlyList<byte[]> frames,
+        PixelEmojiPlaybackMode playbackMode)
+    {
+        return new PixelEmojiPresentation
+        {
+            EventId = eventId,
+            CreatedUtcTicks = createdUtcTicks,
+            PlaybackMode = playbackMode,
+            FramesBase64 = PixelEmojiAnimationCodec.EncodeFrames(frames),
+            ContentHash = PixelEmojiAnimationCodec.Sha256(frames, playbackMode)
+        };
     }
 }

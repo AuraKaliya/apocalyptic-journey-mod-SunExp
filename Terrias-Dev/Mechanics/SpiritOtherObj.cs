@@ -67,7 +67,7 @@ public sealed class SpiritOtherObj : Partner
         ActionCount = 1;
         InstanceId = finalStatusId;
         MigrateNativeStatus(status, nativeStatusId, finalStatusId);
-        gameObject.name = "TerriasSpirit:" + snapshot.DisplayName + ":" + InstanceId;
+        gameObject.name = "TerriasSpirit:" + snapshot.EnemyId + ":" + InstanceId;
         battleState = CompanionBattleStateStore.Create(
             InstanceId,
             snapshot.IntentProfileKey,

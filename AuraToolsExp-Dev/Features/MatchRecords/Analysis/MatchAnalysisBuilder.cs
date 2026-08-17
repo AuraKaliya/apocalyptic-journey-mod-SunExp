@@ -59,6 +59,18 @@ internal static class MatchAnalysisBuilder
             {
                 turn.ActionCount++;
             }
+            if (item.ActionFrame != null
+                && string.Equals(
+                    item.ActionFrame.Kind,
+                    MatchReplayActionKinds.EnemyIntentUse,
+                    StringComparison.Ordinal))
+            {
+                // Enemy intent damage must never inherit attribution from the player's
+                // last card in the same numbered round.
+                activeCard = null;
+                actions.Clear();
+                activeTurn = turnIndex;
+            }
             var semantics = new List<MatchSemanticEvent>();
             if (item.Semantic != null)
             {

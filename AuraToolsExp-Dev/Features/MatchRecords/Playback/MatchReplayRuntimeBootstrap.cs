@@ -43,6 +43,8 @@ internal sealed class MatchReplayRuntimeReadiness
 
     internal bool GameAppReady { get; set; }
 
+    internal bool ChatUiReady { get; set; }
+
     internal bool IsReady => ServerActive
                              && ClientActive
                              && ClientConnected
@@ -57,7 +59,8 @@ internal sealed class MatchReplayRuntimeReadiness
                              && FightReady
                              && RoleTableReady
                              && UiReady
-                             && GameAppReady;
+                             && GameAppReady
+                             && ChatUiReady;
 
     internal string DescribeMissing()
     {
@@ -86,6 +89,7 @@ internal sealed class MatchReplayRuntimeReadiness
         if (!RoleTableReady) missing.Add("role-table");
         if (!UiReady) missing.Add("ui");
         if (!GameAppReady) missing.Add("game-app");
+        if (!ChatUiReady) missing.Add("chat-ui");
         return missing.Count == 0 ? "none" : string.Join(",", missing);
     }
 
@@ -105,7 +109,8 @@ internal sealed class MatchReplayRuntimeReadiness
                + ", fight=" + FightReady
                + ", roleTable=" + RoleTableReady
                + ", ui=" + UiReady
-               + ", gameApp=" + GameAppReady;
+               + ", gameApp=" + GameAppReady
+               + ", chatUi=" + ChatUiReady;
     }
 }
 
@@ -114,6 +119,7 @@ internal sealed class MatchReplayRuntimeBootstrap
     internal const int TimeoutMilliseconds = 15000;
 
     private int elapsedMilliseconds;
+    private bool observedClientRuntime;
 
     internal string Phase { get; private set; } = MatchReplayRuntimeBootstrapPhases.Idle;
 
@@ -159,6 +165,17 @@ internal sealed class MatchReplayRuntimeBootstrap
         }
 
         MissingRuntime = readiness.DescribeMissing();
+        var clientWasObserved = observedClientRuntime;
+        observedClientRuntime |= readiness.ClientActive || readiness.ClientConnected;
+        if (clientWasObserved && !readiness.ClientActive && !readiness.ClientConnected)
+        {
+            Phase = MatchReplayRuntimeBootstrapPhases.Failed;
+            FailureCode = "replay-host-disconnected";
+            FailureMessage = "专用回放客户端在视图初始化完成前已断开（缺少："
+                             + MissingRuntime + "）。";
+            return;
+        }
+
         if (readiness.IsReady)
         {
             Phase = MatchReplayRuntimeBootstrapPhases.Ready;
@@ -187,6 +204,7 @@ internal sealed class MatchReplayRuntimeBootstrap
     internal void Reset()
     {
         elapsedMilliseconds = 0;
+        observedClientRuntime = false;
         Phase = MatchReplayRuntimeBootstrapPhases.Idle;
         FailureCode = "";
         FailureMessage = "";

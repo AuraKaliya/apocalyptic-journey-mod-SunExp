@@ -94,6 +94,26 @@ internal sealed class SoundProviderHandle : IAudioProviderCandidate<AudioClip>
         return InvokeString("GetLoadState", "Disabled");
     }
 
+    public bool Preload()
+    {
+        try
+        {
+            var method = providerType.GetMethod("Preload", BindingFlags.Instance | BindingFlags.Public);
+            if (method == null)
+            {
+                return false;
+            }
+
+            method.Invoke(provider, Array.Empty<object>());
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[AudioArbiter] Provider preload failed: " + ProviderId + " -> " + ex.Message);
+            return false;
+        }
+    }
+
     public AudioClip? GetClip(object request)
     {
         try

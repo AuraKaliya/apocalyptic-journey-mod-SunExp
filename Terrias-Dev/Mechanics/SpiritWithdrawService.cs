@@ -25,7 +25,7 @@ public static class SpiritWithdrawService
         var owner = self?.Self ?? FightPlayer.Instance?.Status;
         if (owner == null)
         {
-            PlayerApi.ShowCaption("精灵：没有可换下的精灵。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.none_to_withdraw"));
             return false;
         }
         var token = Guid.NewGuid().ToString("N");
@@ -80,7 +80,7 @@ public static class SpiritWithdrawService
             || status.CurHp <= 0
             || status.state == IStatusManager.State.Dead)
         {
-            PlayerApi.ShowCaption("精灵：没有可换下的精灵。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.none_to_withdraw"));
             return;
         }
 

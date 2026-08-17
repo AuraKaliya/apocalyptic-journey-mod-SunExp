@@ -43,76 +43,22 @@ public sealed class WitchArchiveEntry
     public float PortraitOffsetY { get; set; }
 
     [JsonProperty("name")]
-    public WitchArchiveLocalizedText Name { get; set; } = new();
+    public TerriasLocalizedText Name { get; set; } = new();
 
     [JsonProperty("title")]
-    public WitchArchiveLocalizedText Title { get; set; } = new();
+    public TerriasLocalizedText Title { get; set; } = new();
 
     [JsonProperty("summary")]
-    public WitchArchiveLocalizedText Summary { get; set; } = new();
+    public TerriasLocalizedText Summary { get; set; } = new();
 
     [JsonProperty("background")]
-    public WitchArchiveLocalizedText Background { get; set; } = new();
+    public TerriasLocalizedText Background { get; set; } = new();
 
     [JsonProperty("backgroundFiles")]
-    public WitchArchiveLocalizedText BackgroundFiles { get; set; } = new();
+    public TerriasLocalizedText BackgroundFiles { get; set; } = new();
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
-}
-
-public sealed class WitchArchiveLocalizedText
-{
-    [JsonProperty("zh-Hans")]
-    public string ZhHans { get; set; } = "";
-
-    [JsonProperty("zh-Hant")]
-    public string ZhHant { get; set; } = "";
-
-    [JsonProperty("en")]
-    public string English { get; set; } = "";
-
-    [JsonProperty("ja")]
-    public string Japanese { get; set; } = "";
-
-    public string Resolve(string fallback = "")
-    {
-        var row = new Dictionary<string, string>
-        {
-            ["Text"] = Clean(ZhHans),
-            ["Text_zh-Hant"] = Clean(ZhHant),
-            ["Text_en"] = Clean(English),
-            ["Text_ja"] = Clean(Japanese)
-        };
-
-        try
-        {
-            var localized = row.Localize("Text");
-            if (!string.IsNullOrWhiteSpace(localized))
-            {
-                return localized.Trim();
-            }
-        }
-        catch
-        {
-            // The archive remains readable while the native language service is unavailable.
-        }
-
-        foreach (var value in new[] { ZhHans, English, ZhHant, Japanese, fallback })
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value.Trim();
-            }
-        }
-
-        return "";
-    }
-
-    private static string Clean(string? value)
-    {
-        return value?.Trim() ?? "";
-    }
 }
 
 public sealed class WitchArchiveDisplayEntry

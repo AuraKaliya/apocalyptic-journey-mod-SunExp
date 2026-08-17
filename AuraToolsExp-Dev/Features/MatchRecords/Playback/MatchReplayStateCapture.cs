@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.GameApi;
 using Newtonsoft.Json;
 using TMPro;
 using UnityEngine;
@@ -181,6 +182,8 @@ internal static class MatchReplayStateCapture
                 rebuild: restoreRoleTable);
         }
 
+        MatchReplayEnemyIntentPresenter.Project(snapshot.EnemyIntents);
+
         // UI-only BuffBar operations can enqueue native synchronization commands. The replay
         // view never consumes them; clear the queue after projection so state application
         // cannot turn back into combat simulation.
@@ -248,6 +251,7 @@ internal static class MatchReplayStateCapture
             .ToList();
         result.Cards = MatchReplayCardStateCapture.Capture(out var cardTopCount);
         result.CardTopCount = cardTopCount;
+        result.EnemyIntents = MatchReplayEnemyIntentApi.CapturePlans();
         return result;
     }
 

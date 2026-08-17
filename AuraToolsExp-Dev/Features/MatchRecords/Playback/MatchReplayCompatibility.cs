@@ -144,12 +144,21 @@ internal static class MatchReplayCompatibility
             .Where(value => !SupportedCapabilities.Contains(value))
             .ToList();
         var missingRuntimeContext = string.IsNullOrWhiteSpace(record.InitialState?.DiceJson);
-        var degraded = missingOptional.Count > 0 || missingRuntimeContext;
+        var missingEnemyIntents = !required.Contains(MatchReplayCapabilities.EnemyIntentFramesV1);
+        var missingRemotePlayerActions = !required.Contains(MatchReplayCapabilities.RemotePlayerActionsV1);
+        var degraded = missingOptional.Count > 0
+                       || missingRuntimeContext
+                       || missingEnemyIntents
+                       || missingRemotePlayerActions;
         var message = missingOptional.Count > 0
             ? "部分表现能力不可用，将降级播放。"
             : missingRuntimeContext
                 ? "记录未包含原始场景游标，将使用兼容视图环境。"
-                : "兼容当前数据驱动播放器。";
+                : missingEnemyIntents
+                    ? "历史记录未保存敌方意图动作，将以状态变化降级播放。"
+                    : missingRemotePlayerActions
+                        ? "历史联机记录未保存队友逐次行动，将以回合状态降级播放。"
+                        : "兼容当前数据驱动播放器。";
         return new MatchReplayCompatibilityResult
         {
             Level = degraded ? MatchReplayCompatibilityLevels.Degraded : MatchReplayCompatibilityLevels.Compatible,

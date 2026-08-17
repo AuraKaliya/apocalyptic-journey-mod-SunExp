@@ -126,8 +126,16 @@ internal static partial class AuraToolsTestSuite
                 }
             };
             Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
+                   == MatchReplayCompatibilityLevels.Degraded,
+                "older v8 records remain playable but disclose that enemy intent actions were not captured");
+            contextual.RequiredCapabilities.Add(MatchReplayCapabilities.EnemyIntentFramesV1);
+            Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
+                   == MatchReplayCompatibilityLevels.Degraded,
+                "older multiplayer v8 records disclose that teammate actions were only reflected at turn refresh");
+            contextual.RequiredCapabilities.Add(MatchReplayCapabilities.RemotePlayerActionsV1);
+            Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
                    == MatchReplayCompatibilityLevels.Compatible,
-                "the current authoritative-frame stream is compatible without a build fingerprint gate");
+                "the current full authoritative-frame stream is compatible without a build fingerprint gate");
             var savedTransitions = first[2].ActionFrame!.CardTransitions;
             first[2].ActionFrame!.CardTransitions = new List<MatchReplayCardTransition>();
             Assert(!MatchReplayCompatibility.Evaluate(contextual, first).CanPlay,
@@ -187,6 +195,10 @@ internal static partial class AuraToolsTestSuite
                    && delayedConvergence.Observe("state-b") == MatchReplayActionFinalizationDecision.Observe
                    && delayedConvergence.Observe("state-b") == MatchReplayActionFinalizationDecision.FinalizeStable,
                 "a next-frame state consequence resets convergence and is captured in the same action frame");
+            delayedConvergence.Reset();
+            Assert(delayedConvergence.ObservationCount == 0
+                   && delayedConvergence.Observe("state-c") == MatchReplayActionFinalizationDecision.Observe,
+                "a later authoritative multiplayer status update restarts the bounded convergence window");
             var deadlineConvergence = new MatchReplayActionConvergenceTracker();
             var deadlineDecision = MatchReplayActionFinalizationDecision.Observe;
             for (var observation = 0;
@@ -231,6 +243,152 @@ internal static partial class AuraToolsTestSuite
                                                           && item.ToZone == "Hand"
                                                           && item.Disposition == MatchReplayCardDispositionKinds.Draw),
                 "v8 records explicit hand removal and draw transitions by stable card identity");
+            var nativeSkillPresentation = new MatchReplayActionPresentationState
+            {
+                ActorAnimationState = "Idle",
+                EffectName = "强化",
+                EffectDelayMilliseconds = 75,
+                PresentationDurationMilliseconds = 1120,
+                Targets = new List<MatchReplayTargetPresentationState>
+                {
+                    new() { TargetId = "enemy-a", AnimationState = "Defend" }
+                }
+            };
+            var derivedSkill = MatchReplayActionDerivation.Build(
+                "action-skill",
+                "SkillUse",
+                "role",
+                "careercard_1",
+                "",
+                "神选",
+                sourceCard,
+                baseline,
+                derivedAfter,
+                nativeSkillPresentation);
+            var derivedSkillActorCue = derivedSkill.Presentation.Single(item =>
+                item.Kind == MatchReplayPresentationCueKinds.ActorAction);
+            Assert(derivedSkill.Presentation.Any(item => item.Kind == MatchReplayPresentationCueKinds.SkillUse)
+                   && derivedSkill.Presentation.All(item => item.Kind != MatchReplayPresentationCueKinds.CardUse)
+                   && derivedSkill.DurationMilliseconds == 1120
+                   && derivedSkillActorCue.AnimationState == "Idle"
+                   && derivedSkillActorCue.TargetIds.SequenceEqual(new[] { "enemy-a" }),
+                "skill actions stay in the native skill channel and retain the exact native action descriptor");
+            var nativePresentationRoundTrip = MatchReplayChunker.Decode(MatchReplayChunker.Build(
+                    new[]
+                    {
+                        new MatchReplayEvent
+                        {
+                            Sequence = 1,
+                            Kind = MatchReplayEventKinds.ActionFrame,
+                            ActionFrame = new MatchReplayActionFrame
+                            {
+                                ActionId = "native-presentation-round-trip",
+                                NativePresentation = nativeSkillPresentation
+                            }
+                        }
+                    },
+                    32 * 1024))
+                .Single()
+                .ActionFrame!
+                .NativePresentation;
+            Assert(nativePresentationRoundTrip?.ActorAnimationState == "Idle"
+                   && nativePresentationRoundTrip.EffectName == "强化"
+                   && nativePresentationRoundTrip.EffectDelayMilliseconds == 75
+                   && nativePresentationRoundTrip.PresentationDurationMilliseconds == 1120
+                   && nativePresentationRoundTrip.Targets.Single().AnimationState == "Defend",
+                "native actor/effect/timing/target presentation survives replay chunk serialization");
+            var enemyIntentBefore = MatchReplayProjectionState.Clone(baseline);
+            enemyIntentBefore.EnemyIntents.Add(new MatchReplayEnemyIntentState
+            {
+                ActorId = "enemy-a",
+                SlotIndex = 0,
+                IntentId = "enemy-card-bite",
+                SourceInstanceId = "enemy-card-bite-instance",
+                Label = "撕咬",
+                Icon = "Icon/ActionIcon/攻击",
+                BackIcon = "Icon/ActionIcon/攻击底",
+                DisplayValue = "8",
+                ActionState = "Attack",
+                EffectName = "bite-effect",
+                TargetIds = new List<string> { "role" }
+            });
+            var enemyIntentAfter = MatchReplayProjectionState.Clone(enemyIntentBefore);
+            enemyIntentAfter.Statuses[0].CurrentHp = 12;
+            enemyIntentAfter.EnemyIntents.Clear();
+            var enemyPresentation = new MatchReplayActionPresentationState
+            {
+                ActorAnimationState = "Attack",
+                EffectName = "bite-effect",
+                Targets = new List<MatchReplayTargetPresentationState>
+                {
+                    new() { TargetId = "role", AnimationState = "Hit" }
+                }
+            };
+            var enemyIntent = enemyIntentBefore.EnemyIntents.Single();
+            var derivedEnemyIntent = MatchReplayActionDerivation.Build(
+                "action-enemy-intent",
+                MatchReplayActionKinds.EnemyIntentUse,
+                "enemy-a",
+                enemyIntent.IntentId,
+                enemyIntent.SourceInstanceId,
+                enemyIntent.Label,
+                null,
+                enemyIntentBefore,
+                enemyIntentAfter,
+                enemyPresentation,
+                enemyIntent);
+            var enemyIntentDelta = MatchReplayProjectionState.CreateDelta(enemyIntentBefore, enemyIntentAfter);
+            var enemyIntentFrame = new MatchReplayActionFrame
+            {
+                ActionId = "action-enemy-intent",
+                Kind = MatchReplayActionKinds.EnemyIntentUse,
+                ActorId = "enemy-a",
+                DurationMilliseconds = derivedEnemyIntent.DurationMilliseconds,
+                IntentPresentation = enemyIntent,
+                NativePresentation = enemyPresentation,
+                Delta = enemyIntentDelta,
+                Presentation = derivedEnemyIntent.Presentation,
+                Semantics = derivedEnemyIntent.Semantics,
+                FinalStateHash = MatchReplayProjectionState.Hash(enemyIntentAfter)
+            };
+            var projectedEnemyIntentState = MatchReplayProjectionState.Apply(enemyIntentBefore, enemyIntentDelta);
+            Assert(enemyIntentDelta.ReplaceEnemyIntents
+                   && projectedEnemyIntentState.EnemyIntents.Count == 0
+                   && projectedEnemyIntentState.Statuses.Single(item => item.InstanceId == "role").CurrentHp == 12,
+                "enemy intent execution removes only the consumed intent and projects its authoritative damage");
+            Assert(derivedEnemyIntent.Presentation.Any(item => item.Kind == MatchReplayPresentationCueKinds.EnemyIntent)
+                   && derivedEnemyIntent.Presentation.All(item => item.Kind != MatchReplayPresentationCueKinds.CardUse
+                                                                   && item.Kind != MatchReplayPresentationCueKinds.SkillUse)
+                   && derivedEnemyIntent.Semantics.Any(item => item.Category == MatchSemanticCategories.Damage
+                                                               && item.ActorId == "enemy-a"
+                                                               && item.TargetId == "role"
+                                                               && item.Value == 8),
+                "enemy intents have an independent presentation channel and exact enemy-to-player outcome semantics");
+            Assert(MatchReplayPresentationSchedule.OutcomeProjectionDelay(
+                       enemyIntentFrame,
+                       MatchReplayPresentationModes.Standard) == 180
+                   && MatchReplayPresentationSchedule.OutcomeProjectionDelay(
+                       first[2].ActionFrame,
+                       MatchReplayPresentationModes.Standard) == 0,
+                "only enemy intent results wait for the recorded impact cue before visual state projection");
+            var enemyIntentRoundTrip = MatchReplayChunker.Decode(MatchReplayChunker.Build(
+                    new[]
+                    {
+                        new MatchReplayEvent
+                        {
+                            Sequence = 1,
+                            TurnIndex = 1,
+                            Kind = MatchReplayEventKinds.ActionFrame,
+                            ActionFrame = enemyIntentFrame
+                        }
+                    },
+                    32 * 1024))
+                .Single()
+                .ActionFrame;
+            Assert(enemyIntentRoundTrip?.IntentPresentation?.IntentId == "enemy-card-bite"
+                   && enemyIntentRoundTrip.IntentPresentation.TargetIds.SequenceEqual(new[] { "role" })
+                   && enemyIntentRoundTrip.Delta.ReplaceEnemyIntents,
+                "enemy intent source, targets, plan transition, and native animation survive replay chunk serialization");
             Assert(derived.Semantics.Any(item => item.Category == MatchSemanticCategories.Damage
                                                 && item.TargetInstanceId == "role"
                                                 && item.Value == 6)
@@ -254,9 +412,11 @@ internal static partial class AuraToolsTestSuite
                 "v8 preserves an explicit burn disposition for replay-specific card visuals");
             var dynamicCardAfter = MatchReplayProjectionState.Clone(baseline);
             dynamicCardAfter.Cards[0].Vars.Add(new MatchReplayStringValue { Key = "DesVal1", Value = "9" });
-            Assert(MatchReplayActionDerivation.BuildCardTransitions(baseline, dynamicCardAfter)
+            var dynamicTransitions = MatchReplayActionDerivation.BuildCardTransitions(baseline, dynamicCardAfter);
+            Assert(dynamicTransitions
                     .Any(item => item.ReplayCardId == "card-a-instance"
-                                 && item.Disposition == MatchReplayCardDispositionKinds.Update),
+                                 && item.Disposition == MatchReplayCardDispositionKinds.Update
+                                 && item.PresentationChanged),
                 "dynamic card text changes are explicit transitions even when hand order is unchanged");
             var shieldBefore = MatchReplayProjectionState.Clone(baseline);
             shieldBefore.Statuses[0].Defend = 5;
@@ -277,6 +437,26 @@ internal static partial class AuraToolsTestSuite
                    && shieldOutcome.Presentation.Any(item => item.Kind == MatchReplayPresentationCueKinds.Damage
                                                             && item.Value == 5),
                 "fully defended hits still produce attributed damage and a recorded hit reaction");
+
+            var playPlan = MatchReplayIncrementalHandPlan.Build(
+                MatchReplayActionDerivation.BuildCardTransitions(baseline, afterFirst, sourceCard));
+            Assert(playPlan.RemovedHandIds.SetEquals(new[] { "card-a-instance" })
+                   && playPlan.PresentationCandidateIds.Count == 0
+                   && playPlan.LayoutChanged,
+                "playing one card removes only that identity and never rebinds unchanged remaining card faces");
+            var updatePlan = MatchReplayIncrementalHandPlan.Build(dynamicTransitions);
+            Assert(updatePlan.PresentationCandidateIds.SetEquals(new[] { "card-a-instance" })
+                   && updatePlan.AddedHandIds.Count == 0
+                   && updatePlan.RemovedHandIds.Count == 0
+                   && !updatePlan.LayoutChanged,
+                "a dynamic face update rebinds only the affected identity without restarting hand layout");
+            var turnDrawPlan = MatchReplayIncrementalHandPlan.Build(
+                MatchReplayActionDerivation.BuildCardTransitions(afterFirst, secondTurn));
+            Assert(turnDrawPlan.AddedHandIds.SetEquals(new[] { "card-c-instance" })
+                   && turnDrawPlan.PresentationCandidateIds.Contains("card-c-instance")
+                   && !turnDrawPlan.PresentationCandidateIds.Contains("card-b-instance")
+                   && turnDrawPlan.LayoutChanged,
+                "turn draws create only the new card while preserving the unchanged hand presentation");
 
             var report = MatchAnalysisBuilder.Build(new MatchRecord { TurnCount = 2 }, first);
             Assert(report.CardUseCount == 2
@@ -362,12 +542,36 @@ internal static partial class AuraToolsTestSuite
                 "bootstrap blocks native view construction before an empty Dice pool can enter FightCardManager.Init");
 
             Assert(bootstrap.Begin(false, false, true, out _),
+                "bootstrap can validate the native ChatUI RPC target");
+            var missingChatUi = ReadyReplayRuntime();
+            missingChatUi.ChatUiReady = false;
+            bootstrap.Advance(1000, missingChatUi);
+            Assert(bootstrap.Phase == MatchReplayRuntimeBootstrapPhases.WaitingForRuntime
+                   && bootstrap.MissingRuntime.Contains("chat-ui", StringComparison.Ordinal),
+                "view bootstrap cannot complete without the native ChatUI required by RpcSendChat");
+
+            Assert(bootstrap.Begin(false, false, true, out _),
                 "bootstrap can reset for a later replay view");
             bootstrap.Advance(MatchReplayRuntimeBootstrap.TimeoutMilliseconds, new MatchReplayRuntimeReadiness());
             Assert(bootstrap.Phase == MatchReplayRuntimeBootstrapPhases.Failed
                    && bootstrap.FailureCode == "runtime-timeout"
                    && bootstrap.FailureMessage.Contains("server", StringComparison.Ordinal),
                 "bootstrap timeout produces an actionable component-level failure");
+
+            Assert(bootstrap.Begin(false, false, true, out _),
+                "bootstrap can start a later local-host disconnect check");
+            var connectedRuntime = ReadyReplayRuntime();
+            connectedRuntime.PlayerReady = false;
+            bootstrap.Advance(1, connectedRuntime);
+            var disconnectedRuntime = ReadyReplayRuntime();
+            disconnectedRuntime.ClientActive = false;
+            disconnectedRuntime.ClientConnected = false;
+            disconnectedRuntime.PlayerReady = false;
+            bootstrap.Advance(1, disconnectedRuntime);
+            Assert(bootstrap.Phase == MatchReplayRuntimeBootstrapPhases.Failed
+                   && bootstrap.FailureCode == "replay-host-disconnected"
+                   && bootstrap.FailureMessage.Contains("player", StringComparison.Ordinal),
+                "bootstrap fails immediately when an observed replay client disconnects before readiness");
 
             var presentationState = new MatchReplayCardState
             {
@@ -398,6 +602,15 @@ internal static partial class AuraToolsTestSuite
             Assert(presentationState.Data.Single(item => item.Key == "Expend").Value == "9"
                    && presentationState.Vars.All(item => item.Key != "Expend"),
                 "card presentation composition never mutates the recorded replay state");
+            var constructorReplacedVars = new Dictionary<string, string>(composed.Vars)
+            {
+                ["InstanceID"] = "native-constructor-guid"
+            };
+            MatchReplayCardPresentationData.RestoreRuntimeIdentity(
+                constructorReplacedVars,
+                presentationState.ReplayCardId);
+            Assert(constructorReplacedVars["InstanceID"] == "card-instance-current",
+                "rehydration restores recorded card identity after the native DataConfig constructor replaces it");
 
             var notification = new MatchReplayFailureNotificationState();
             var staleNotification = notification.Schedule();
@@ -423,6 +636,134 @@ internal static partial class AuraToolsTestSuite
             panelBuild.Adopt(true);
             Assert(panelBuild.IsBuilt && panelBuild.Begin() != 0,
                 "an adopted native panel retains built content and can still start an explicit later rebuild");
+
+            var managedUiOwnership = new MatchReplayManagedUiOwnership();
+            managedUiOwnership.Capture(new[] { 11, 12 });
+            Assert(!managedUiOwnership.IsReplayOwned(11, "CaptionUI")
+                   && managedUiOwnership.IsReplayOwned(13, "FightUI")
+                   && managedUiOwnership.IsReplayOwned(12, "ChatUI")
+                   && MatchReplayManagedUiOwnership.IsTransportSupport("ChatUI")
+                   && MatchReplayManagedUiOwnership.IsSelfClosingPresentation("TitleUI")
+                   && !MatchReplayManagedUiOwnership.IsSelfClosingPresentation("FightUI")
+                   && !managedUiOwnership.IsReplayPresentationOwned(12, "ChatUI"),
+                "replay UI ownership preserves baseline instances, keeps ChatUI as transport support, and lets native TitleUI finish its own lifecycle");
+            managedUiOwnership.Reset();
+            Assert(!managedUiOwnership.IsCaptured
+                   && !managedUiOwnership.IsReplayOwned(13, "FightUI")
+                   && managedUiOwnership.IsReplayOwned(12, "ChatUI")
+                   && !managedUiOwnership.IsReplayPresentationOwned(12, "ChatUI"),
+                "replay UI ownership reset cannot permit pre-network ChatUI destruction");
+
+            Assert(MatchReplayChatUiLifecyclePolicy.ResolveFinalization(false, true)
+                       == MatchReplayChatUiFinalizationModes.WaitForNetwork
+                   && MatchReplayChatUiLifecyclePolicy.ResolveFinalization(true, true)
+                       == MatchReplayChatUiFinalizationModes.NativeClose
+                   && MatchReplayChatUiLifecyclePolicy.ResolveFinalization(true, false)
+                       == MatchReplayChatUiFinalizationModes.PreserveQuarantined,
+                "ChatUI finalization waits for Mirror, requests native close only after callback detachment, and otherwise preserves a non-blocking live target");
+
+            var incompleteNetworkExit = new MatchReplayNetworkTeardownState
+            {
+                NetworkManagerOffline = true,
+                ServerSpawnedCount = 1
+            };
+            Assert(!MatchReplayExitPolicy.IsNetworkTeardownReady(incompleteNetworkExit),
+                "network booleans alone cannot complete replay exit while Mirror still owns spawned identities");
+            incompleteNetworkExit.ServerSpawnedCount = 0;
+            incompleteNetworkExit.NetworkManagerOffline = false;
+            Assert(!MatchReplayExitPolicy.IsNetworkTeardownReady(incompleteNetworkExit),
+                "replay exit waits for NetworkManager to return to Offline mode");
+            incompleteNetworkExit.NetworkManagerOffline = true;
+            incompleteNetworkExit.GameServerNetworkActive = true;
+            Assert(!MatchReplayExitPolicy.IsNetworkTeardownReady(incompleteNetworkExit)
+                   && MatchReplayExitPolicy.IsTransportQuiescent(incompleteNetworkExit),
+                "transport quiescence remains distinguishable from full native network-object settlement");
+            incompleteNetworkExit.GameServerNetworkActive = false;
+            Assert(MatchReplayExitPolicy.IsNetworkTeardownReady(incompleteNetworkExit),
+                "replay network exit completes only after transport, manager mode, dictionaries, and native identities settle");
+
+            var incompleteMenuExit = new MatchReplayMenuRestorationState
+            {
+                NativeReturnRequested = true,
+                ExpectedHouseActive = true,
+                HouseActive = true,
+                ResidualReplayUiCount = 1,
+                InputInfrastructureReady = true
+            };
+            Assert(!MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "a visible house is not a completed menu return while replay UI still exists");
+            incompleteMenuExit.ResidualReplayUiCount = 0;
+            incompleteMenuExit.SettingUiCount = 1;
+            Assert(!MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "menu restoration rejects a stale SettingUI instance left behind by replay launch");
+            incompleteMenuExit.SettingUiCount = 0;
+            incompleteMenuExit.ChatUiClosing = true;
+            Assert(!MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "menu restoration waits for the replay ChatUI native close lifecycle");
+            incompleteMenuExit.ChatUiClosing = false;
+            incompleteMenuExit.ReplayBackgroundAlive = true;
+            Assert(!MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "menu restoration rejects a replay background that survived the native return");
+            incompleteMenuExit.ReplayBackgroundAlive = false;
+            incompleteMenuExit.InputInfrastructureReady = false;
+            Assert(!MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "menu restoration waits for real EventSystem and raycaster infrastructure instead of visual activation alone");
+            incompleteMenuExit.InputInfrastructureReady = true;
+            Assert(MatchReplayExitPolicy.IsMenuRestorationReady(incompleteMenuExit),
+                "a native menu return completes after house, background, UI, chat, and input invariants all pass");
+
+            var readyMenuCache = new MatchReplayMenuCacheState
+            {
+                SettingUiCount = 1,
+                Registered = true,
+                RegisteredMatchesOnlyInstance = true,
+                ParentIsMainCanvas = true,
+                InputInfrastructureReady = true
+            };
+            Assert(MatchReplayExitPolicy.IsMenuCacheReady(readyMenuCache),
+                "menu readiness requires one registered, hidden, non-blocking SettingUI cache on the native main canvas");
+            readyMenuCache.ActiveSelf = true;
+            Assert(!MatchReplayExitPolicy.IsMenuCacheReady(readyMenuCache),
+                "a freshly instantiated but still active SettingUI cannot complete replay exit");
+            readyMenuCache.ActiveSelf = false;
+            readyMenuCache.BlocksRaycasts = true;
+            Assert(!MatchReplayExitPolicy.IsMenuCacheReady(readyMenuCache),
+                "an invisible SettingUI cache cannot complete replay exit while it still blocks pointer input");
+            readyMenuCache.BlocksRaycasts = false;
+            readyMenuCache.RegisteredMatchesOnlyInstance = false;
+            Assert(!MatchReplayExitPolicy.IsMenuCacheReady(readyMenuCache),
+                "a physical SettingUI that is not the UIManager cache cannot satisfy the first-click contract");
+            readyMenuCache.RegisteredMatchesOnlyInstance = true;
+            var consecutiveReplayCycles = new[]
+            {
+                new MatchReplayMenuCacheState
+                {
+                    SettingUiCount = 1,
+                    Registered = true,
+                    RegisteredMatchesOnlyInstance = true,
+                    ParentIsMainCanvas = true,
+                    InputInfrastructureReady = true
+                },
+                new MatchReplayMenuCacheState
+                {
+                    SettingUiCount = 1,
+                    Registered = true,
+                    RegisteredMatchesOnlyInstance = true,
+                    ParentIsMainCanvas = true,
+                    InputInfrastructureReady = true
+                }
+            };
+            Assert(consecutiveReplayCycles.All(MatchReplayExitPolicy.IsMenuCacheReady),
+                "each replay exit independently re-establishes the native SettingUI cache invariant");
+            Assert(!MatchReplayExitPolicy.CanStartReplay(true, false, false, false)
+                   && !MatchReplayExitPolicy.CanStartReplay(false, true, false, false)
+                   && !MatchReplayExitPolicy.CanStartReplay(false, false, true, false)
+                   && !MatchReplayExitPolicy.CanStartReplay(false, false, false, true)
+                   && MatchReplayExitPolicy.CanStartReplay(false, false, false, false),
+                "a second replay cannot start while the prior exit generation or local host still owns lifecycle state");
+            Assert(MatchReplayExitPolicy.CanWaitForUiBeforeNetworkStop(false)
+                   && !MatchReplayExitPolicy.CanWaitForUiBeforeNetworkStop(true),
+                "native replay presentation UI cannot enter a timeout/force-destroy barrier before Mirror stops");
 
             var bootstrapPoolA = MatchReplayBootstrapRandomPool.Create("record-a", 128);
             var bootstrapPoolB = MatchReplayBootstrapRandomPool.Create("record-a", 128);
@@ -622,7 +963,8 @@ internal static partial class AuraToolsTestSuite
             FightReady = true,
             RoleTableReady = true,
             UiReady = true,
-            GameAppReady = true
+            GameAppReady = true,
+            ChatUiReady = true
         };
     }
 }

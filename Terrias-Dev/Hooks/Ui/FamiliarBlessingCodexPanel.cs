@@ -64,6 +64,7 @@ public static class FamiliarBlessingCodexPanel
             pools = FamiliarBlessingCodexService.Pools();
             SelectInitialPool();
             activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
+            TerriasLocalizationScope.Attach(activePanel).RegisterRefresh(Refresh);
             TerriasTransientUiRegistry.Register(RegistryKey, Close);
 
             var windowSize = ResolveWindowSize(parent);
@@ -237,7 +238,9 @@ public static class FamiliarBlessingCodexPanel
             var selected = string.Equals(poolId, selectedPoolId, StringComparison.OrdinalIgnoreCase);
             TerriasUiComponents.CreateTextButton(
                 poolContent,
-                pool.Name + "  " + pool.Blessings.Count,
+                TerriasTextCatalog.Format("ui.familiar.codex.pool_count",
+                    "name", TerriasTextCatalog.ResolveLegacy(pool.Name),
+                    "count", pool.Blessings.Count.ToString()),
                 new Vector2(PoolPanelWidth - 20f, 40f),
                 null,
                 selected ? SelectedPoolTint : PoolTint,
@@ -270,7 +273,11 @@ public static class FamiliarBlessingCodexPanel
         var selected = pools.FirstOrDefault(pool => string.Equals(pool.Id, selectedPoolId, StringComparison.OrdinalIgnoreCase));
         if (poolTitleText != null)
         {
-            poolTitleText.text = selected == null ? "暂无祝福" : selected.Name + "（" + selected.Blessings.Count + "）";
+            poolTitleText.text = selected == null
+                ? TerriasTextCatalog.Get("ui.familiar.codex.empty")
+                : TerriasTextCatalog.Format("ui.familiar.codex.pool_title",
+                    "name", TerriasTextCatalog.ResolveLegacy(selected.Name),
+                    "count", selected.Blessings.Count.ToString());
         }
 
         if (selected == null)
@@ -283,8 +290,8 @@ public static class FamiliarBlessingCodexPanel
             TerriasUiComponents.CreateBadgeContentCard(
                 cardContent,
                 "Blessing-" + blessing.Id,
-                blessing.TierLabel,
-                blessing.Name,
+                TerriasTextCatalog.ResolveLegacy(blessing.TierLabel),
+                TerriasTextCatalog.ResolveLegacy(blessing.Name),
                 ParsedDescription(blessing),
                 66f,
                 22f,
@@ -302,17 +309,17 @@ public static class FamiliarBlessingCodexPanel
     {
         if (string.IsNullOrWhiteSpace(blessing.Description))
         {
-            return "暂无效果说明。";
+            return TerriasTextCatalog.Get("ui.familiar.codex.no_description");
         }
 
         try
         {
-            return blessing.Description.Description();
+            return TerriasTextCatalog.ResolveLegacy(blessing.Description.Description());
         }
         catch (Exception ex)
         {
             TerriasLog.Warn(LogPrefix + " failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
-            return blessing.Description;
+            return TerriasTextCatalog.ResolveLegacy(blessing.Description);
         }
     }
 

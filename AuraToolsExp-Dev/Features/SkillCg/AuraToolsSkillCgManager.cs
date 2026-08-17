@@ -111,15 +111,15 @@ public static class AuraToolsSkillCgManager
 
         AuraToolsUi.AddToggle(row.transform, entry.Enabled, enabled =>
         {
-            if (AuraCgActivationRuntime.SetEnabledOverride(entry.OwnerModId, entry.CgId, enabled, AuraToolsIds.ModId))
-            {
-                SetHint((enabled ? "\u5df2\u542f\u7528\uff1a" : "\u5df2\u5173\u95ed\uff1a") + DisplayName(entry));
-                RefreshRows();
-            }
-            else
-            {
-                SetHint("\u5199\u5165\u542f\u7528\u72b6\u6001\u5931\u8d25\uff1a" + DisplayName(entry));
-            }
+            AuraToolsConfigService.SkillCg.CardUseCg.RegisteredEntries[entry.QualifiedCgId] = enabled;
+            AuraCgActivationRuntime.SetLocalOverride(
+                AuraToolsIds.ModId,
+                entry.OwnerModId,
+                entry.CgId,
+                enabled);
+            AuraToolsConfigService.SaveSkillCg();
+            SetHint((enabled ? "\u5df2\u542f\u7528\uff1a" : "\u5df2\u5173\u95ed\uff1a") + DisplayName(entry));
+            RefreshRows();
         });
 
         var text = AuraToolsUi.AddText(

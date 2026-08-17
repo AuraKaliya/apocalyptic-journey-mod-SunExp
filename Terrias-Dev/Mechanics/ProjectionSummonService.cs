@@ -41,13 +41,13 @@ public static class ProjectionSummonService
     {
         if (self?.Self == null || role == null)
         {
-            PlayerApi.ShowCaption("拜托了：召唤失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.summon_failed"));
             return false;
         }
 
         if (FightManager.Instance == null || FightManager.Instance.fightType == FightType.None)
         {
-            PlayerApi.ShowCaption("拜托了：只能在战斗中召唤。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.battle_only"));
             return false;
         }
 
@@ -56,7 +56,7 @@ public static class ProjectionSummonService
             || localRecipe == null)
         {
             TerriasLog.Warn("[ProjectionDeck] local role deck unavailable: " + deckReason);
-            PlayerApi.ShowCaption("拜托了：当前牌组尚未准备完成。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.deck_not_ready"));
             return false;
         }
         var transaction = new ProjectionSummonTransaction(
@@ -72,7 +72,7 @@ public static class ProjectionSummonService
         if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
         {
             SendPendingTransaction(transaction, Time.unscaledTimeAsDouble, "Initial");
-            PlayerApi.ShowCaption("拜托了：正在同步投影。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.synchronizing"));
             return true;
         }
 
@@ -110,7 +110,7 @@ public static class ProjectionSummonService
             if (!transaction.TimeoutReported && now - transaction.CreatedAt >= 8d)
             {
                 transaction.TimeoutReported = true;
-                PlayerApi.ShowCaption("拜托了：投影同步较慢，正在向主机重试。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.retrying_host"));
             }
         }
     }
@@ -468,24 +468,27 @@ public static class ProjectionSummonService
     public static DataConfig CreateProjectionDataConfig(PolymorphRoleSpec role, CompanionStats? stats = null)
     {
         var activeStats = stats ?? CompanionStatsService.ProjectionStats(role);
-        var name = role.DisplayName + "的投影";
+        var overrides = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Attack"] = activeStats.Attack.ToString(),
+            ["Defend"] = activeStats.Armor.ToString(),
+            ["Hp"] = activeStats.MaxHp.ToString(),
+            ["ActionCount"] = "0",
+            ["CardList"] = ""
+        };
+        var arguments = new Dictionary<string, string>();
+        foreach (var locale in TerriasLocale.Supported)
+        {
+            arguments["name"] = role.DisplayNameFor(locale);
+            overrides[TerriasLocale.FieldName("Name", locale)] =
+                TerriasTextCatalog.GetForLocale("card.projection.name", locale, arguments);
+        }
         var handle = AuraGameDataHostApi.ResolveHandle(DataType.Career, role.Id)
             ?? throw new InvalidOperationException("Projection career definition is not registered: " + role.Id);
         var result = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
             Definition = handle,
-            DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["Name"] = name,
-                ["Name_zh-Hant"] = role.DisplayName + "的投影",
-                ["Name_en"] = role.DisplayName + " Projection",
-                ["Name_ja"] = role.DisplayName + "の投影",
-                ["Attack"] = activeStats.Attack.ToString(),
-                ["Defend"] = activeStats.Armor.ToString(),
-                ["Hp"] = activeStats.MaxHp.ToString(),
-                ["ActionCount"] = "0",
-                ["CardList"] = ""
-            }
+            DataOverrides = overrides
         });
         return result.Instance as DataConfig
             ?? throw new InvalidOperationException("Projection career materialization failed: " + result.Message);
@@ -571,14 +574,14 @@ public static class ProjectionSummonService
             var prefab = TerriasResourceCache.Load<GameObject>("Model/player", true, "projection");
             if (prefab == null)
             {
-                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.model_failed"));
                 return false;
             }
 
             var gameObject = UnityEngine.Object.Instantiate(prefab);
             if (gameObject == null)
             {
-                PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.model_failed"));
                 return false;
             }
 
@@ -602,7 +605,7 @@ public static class ProjectionSummonService
             if (!projection.InitProjection(role, ownerStatusId, slotIndex, stats, statusId, ownerPlayerId))
             {
                 UnityEngine.Object.Destroy(gameObject);
-                PlayerApi.ShowCaption("拜托了：投影初始化失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.initialize_failed"));
                 return false;
             }
 
@@ -610,7 +613,6 @@ public static class ProjectionSummonService
                 projection.InstanceId,
                 ownerStatusId,
                 role.Id,
-                role.DisplayName,
                 projection,
                 slotIndex,
                 projection.OwnerPlayerId,
@@ -634,13 +636,13 @@ public static class ProjectionSummonService
                     projection.InstanceId,
                     source + ".Hydrate");
             }
-            PlayerApi.ShowCaption("拜托了：" + role.DisplayName + "的投影加入战斗。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.projection.joined", "name", role.DisplayName));
             return true;
         }
         catch (Exception ex)
         {
             TerriasLog.Error("[Projection] summon failed from " + source, ex);
-            PlayerApi.ShowCaption("拜托了：召唤失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.summon_failed"));
             return false;
         }
     }
@@ -797,10 +799,9 @@ public static class ProjectionSummonService
         }
         if (!result.Terminal)
         {
-            var transient = ProjectionSummonFailureCatalog.Describe(result.FailureCode);
             if (transaction == null || transaction.Attempts <= 1)
             {
-                PlayerApi.ShowCaption("拜托了：" + transient.Message);
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get(ProjectionSummonFailureCatalog.LocalizationKey(result.FailureCode)));
             }
             return;
         }
@@ -810,7 +811,7 @@ public static class ProjectionSummonService
         }
 
         var failure = ProjectionSummonFailureCatalog.Describe(result.FailureCode);
-        PlayerApi.ShowCaption("拜托了：" + failure.Message);
+        PlayerApi.ShowCaption(TerriasTextCatalog.Get(ProjectionSummonFailureCatalog.LocalizationKey(result.FailureCode)));
         if (result.RefundCard
             && (transaction == null || transaction.TryClaimRefund()))
         {

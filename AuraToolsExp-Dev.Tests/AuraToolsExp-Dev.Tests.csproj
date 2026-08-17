@@ -100,6 +100,14 @@
              Link="MatchRecords\MatchReplayViewBootstrapContract.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayCardPresentationData.cs"
              Link="MatchRecords\MatchReplayCardPresentationData.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayIncrementalHandPlan.cs"
+             Link="MatchRecords\MatchReplayIncrementalHandPlan.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayManagedUiOwnership.cs"
+             Link="MatchRecords\MatchReplayManagedUiOwnership.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayChatUiLifecyclePolicy.cs"
+             Link="MatchRecords\MatchReplayChatUiLifecyclePolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayExitPolicy.cs"
+             Link="MatchRecords\MatchReplayExitPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayFailureNotificationState.cs"
              Link="MatchRecords\MatchReplayFailureNotificationState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\AuraToolsPanelBuildState.cs"
@@ -114,6 +122,10 @@
              Link="MatchRecords\MatchAnalysisBuilder.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\MjpegAviWriter.cs"
              Link="MatchRecords\MjpegAviWriter.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\MatchReplayExportPolicy.cs"
+             Link="MatchRecords\MatchReplayExportPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\MatchReplayVideoEncodingPolicy.cs"
+             Link="MatchRecords\MatchReplayVideoEncodingPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\ReplayFrameSpool.cs"
              Link="MatchRecords\ReplayFrameSpool.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Portability\MatchReplayPackageService.cs"

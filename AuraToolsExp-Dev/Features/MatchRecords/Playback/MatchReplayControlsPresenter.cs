@@ -12,7 +12,12 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 internal static class MatchReplayControlsPresenter
 {
     private const string RootName = "AuraToolsMatchReplayControls";
+    private const float ExpandedY = 22f;
+    private const float CollapsedY = -29f;
+    private const float AutoHideDelayMilliseconds = 2200f;
+    private const float SlideSpeed = 320f;
     private static GameObject? root;
+    private static RectTransform? toolbarRect;
     private static Text? status;
     private static Text? playLabel;
     private static Text? speedLabel;
@@ -24,6 +29,11 @@ internal static class MatchReplayControlsPresenter
     private static Button? continueButton;
     private static bool updating;
     private static bool draggingProgress;
+    private static bool pointerInside;
+    private static float idleMilliseconds;
+    private static float targetY = ExpandedY;
+
+    internal static GameObject? RootObject => root;
 
     internal static void Show()
     {
@@ -50,8 +60,34 @@ internal static class MatchReplayControlsPresenter
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
             new Vector2(1160f, 66f));
-        toolbar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 22f);
+        toolbar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, ExpandedY);
+        toolbarRect = toolbar.GetComponent<RectTransform>();
         AuraToolsUi.AddPanelImage(toolbar, AuraToolsUi.Background);
+        var toolbarTrigger = toolbar.AddComponent<EventTrigger>();
+        AddTrigger(toolbarTrigger, EventTriggerType.PointerEnter, _ =>
+        {
+            pointerInside = true;
+            Wake();
+        });
+        AddTrigger(toolbarTrigger, EventTriggerType.PointerExit, _ => pointerInside = false);
+        AddTrigger(toolbarTrigger, EventTriggerType.PointerDown, _ => Wake());
+
+        var revealTab = AuraToolsUi.CreateRect(
+            "RevealTab",
+            toolbar.transform,
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 1f),
+            new Vector2(0.5f, 0f),
+            new Vector2(168f, 18f));
+        revealTab.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -2f);
+        AuraToolsUi.EnsureLayoutElement(revealTab).ignoreLayout = true;
+        AuraToolsUi.AddPanelImage(revealTab, AuraToolsUi.Header);
+        AuraToolsUi.AddFillText(
+            revealTab.transform,
+            "回放控制",
+            12,
+            TextAnchor.MiddleCenter,
+            AuraToolsUi.MutedText);
         var layout = toolbar.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(10, 10, 8, 8);
         layout.spacing = 8f;
@@ -60,12 +96,12 @@ internal static class MatchReplayControlsPresenter
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        previousButton = AuraToolsUi.AddButton(toolbar.transform, "上一回合", () => MatchReplayPlayer.SeekTurn(-1), 104f);
-        playButton = AuraToolsUi.AddButton(toolbar.transform, "暂停", MatchReplayPlayer.TogglePause, 82f);
+        previousButton = AuraToolsUi.AddButton(toolbar.transform, "上一回合", () => InvokeAndWake(() => MatchReplayPlayer.SeekTurn(-1)), 104f);
+        playButton = AuraToolsUi.AddButton(toolbar.transform, "暂停", () => InvokeAndWake(MatchReplayPlayer.TogglePause), 82f);
         playLabel = playButton.GetComponentInChildren<Text>();
-        nextButton = AuraToolsUi.AddButton(toolbar.transform, "下一回合", () => MatchReplayPlayer.SeekTurn(1), 104f);
+        nextButton = AuraToolsUi.AddButton(toolbar.transform, "下一回合", () => InvokeAndWake(() => MatchReplayPlayer.SeekTurn(1)), 104f);
 
-        speedButton = AuraToolsUi.AddButton(toolbar.transform, "1x", MatchReplayPlayer.CycleSpeed, 64f);
+        speedButton = AuraToolsUi.AddButton(toolbar.transform, "1x", () => InvokeAndWake(MatchReplayPlayer.CycleSpeed), 64f);
         speedLabel = speedButton.GetComponentInChildren<Text>();
         progress = CreateProgress(toolbar.transform);
         status = AuraToolsUi.AddText(
@@ -76,9 +112,37 @@ internal static class MatchReplayControlsPresenter
             AuraToolsUi.Text,
             AuraToolsUi.TextMinHeight,
             1f);
-        continueButton = AuraToolsUi.AddButton(toolbar.transform, "降级继续", MatchReplayPlayer.ContinueDegraded, 92f);
-        AuraToolsUi.AddButton(toolbar.transform, "退出回放", MatchReplayPlayer.Stop, 104f);
+        continueButton = AuraToolsUi.AddButton(toolbar.transform, "降级继续", () => InvokeAndWake(MatchReplayPlayer.ContinueDegraded), 92f);
+        AuraToolsUi.AddButton(toolbar.transform, "退出回放", () => InvokeAndWake(MatchReplayPlayer.Stop), 104f);
+        pointerInside = false;
+        idleMilliseconds = 0f;
+        targetY = ExpandedY;
         Refresh();
+    }
+
+    internal static void Tick(float deltaMilliseconds)
+    {
+        if (toolbarRect == null)
+        {
+            return;
+        }
+
+        var elapsed = Math.Max(0f, deltaMilliseconds);
+        if (!pointerInside && !draggingProgress)
+        {
+            idleMilliseconds += elapsed;
+            if (idleMilliseconds >= AutoHideDelayMilliseconds)
+            {
+                targetY = CollapsedY;
+            }
+        }
+
+        var position = toolbarRect.anchoredPosition;
+        var nextY = Mathf.MoveTowards(position.y, targetY, SlideSpeed * elapsed / 1000f);
+        if (!Mathf.Approximately(position.y, nextY))
+        {
+            toolbarRect.anchoredPosition = new Vector2(position.x, nextY);
+        }
     }
 
     internal static void Refresh()
@@ -147,6 +211,7 @@ internal static class MatchReplayControlsPresenter
         }
 
         root = null;
+        toolbarRect = null;
         status = null;
         playLabel = null;
         speedLabel = null;
@@ -157,6 +222,9 @@ internal static class MatchReplayControlsPresenter
         speedButton = null;
         continueButton = null;
         draggingProgress = false;
+        pointerInside = false;
+        idleMilliseconds = 0f;
+        targetY = ExpandedY;
     }
 
     private static Slider CreateProgress(Transform parent)
@@ -207,11 +275,13 @@ internal static class MatchReplayControlsPresenter
         var trigger = sliderRoot.AddComponent<EventTrigger>();
         AddTrigger(trigger, EventTriggerType.PointerDown, _ =>
         {
+            Wake();
             draggingProgress = true;
             MatchReplayPlayer.BeginSeekPreview(slider.value);
         });
         AddTrigger(trigger, EventTriggerType.PointerUp, _ =>
         {
+            Wake();
             if (!draggingProgress)
             {
                 return;
@@ -221,6 +291,18 @@ internal static class MatchReplayControlsPresenter
             MatchReplayPlayer.CommitSeekPreview(slider.value);
         });
         return slider;
+    }
+
+    private static void InvokeAndWake(Action action)
+    {
+        Wake();
+        action();
+    }
+
+    private static void Wake()
+    {
+        idleMilliseconds = 0f;
+        targetY = ExpandedY;
     }
 
     private static void AddTrigger(

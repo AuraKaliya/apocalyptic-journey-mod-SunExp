@@ -79,6 +79,14 @@ public static class AuraToolsSettingsRuntime
     public static void AfterSettingOnEnable(SettingUI __instance)
     {
         InjectSettings(__instance, "attribute:OnEnable");
+        AuraToolsLog.Debug("[Settings] native SettingUI enabled: instance="
+                           + (__instance == null ? "none" : __instance.GetInstanceID().ToString())
+                           + ", active=" + (__instance != null && __instance.gameObject.activeInHierarchy)
+                           + ", registered="
+                           + (Witch.UI.UIManager.Instance?.GetUI<SettingUI>("SettingUI") == __instance)
+                           + ", auraPanel="
+                           + (activePanel == null ? "none" : activePanel.GetInstanceID().ToString())
+                           + ".");
     }
 
     internal static void HideActivePanel()
@@ -88,6 +96,16 @@ public static class AuraToolsSettingsRuntime
         {
             activePanel.SetActive(false);
         }
+    }
+
+    internal static void ReleaseForReplayTransition()
+    {
+        HideActivePanel();
+        activePanel = null;
+        activePanelHost = null;
+        activeTabParent = null;
+        PanelBuildState.Reset();
+        autoBattleSnapshotRevisionBuilt = -1;
     }
 
     private static void InjectSettings(ModHookContext context)
@@ -615,9 +633,16 @@ public static class AuraToolsSettingsRuntime
     {
         if (activePanel == null)
         {
+            AuraToolsLog.Warn("[Settings] AuraTools tab ignored because its active panel reference is missing.");
             return;
         }
 
+        AuraToolsLog.Debug("[Settings] AuraTools tab selected: panel="
+                           + activePanel.GetInstanceID()
+                           + ", parent=" + (activePanel.transform.parent == null
+                               ? "none"
+                               : activePanel.transform.parent.name)
+                           + ", built=" + PanelBuildState.IsBuilt + ".");
         activePanel.SetActive(true);
         activePanel.transform.SetAsLastSibling();
         var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
@@ -968,18 +993,6 @@ public static class AuraToolsSettingsRuntime
                 }
             }, 104f);
 
-            var presentationRow = CreateInlineRow(content, "MatchRecordPresentationRow");
-            AuraToolsUi.AddText(presentationRow.transform, "回放演出节奏", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            Button? presentationButton = null;
-            presentationButton = AuraToolsUi.AddButton(presentationRow.transform, matchRecords.Replay.PresentationMode, () =>
-            {
-                matchRecords.Replay.PresentationMode = matchRecords.Replay.PresentationMode == "Standard"
-                    ? "Compact"
-                    : matchRecords.Replay.PresentationMode == "Compact" ? "Showcase" : "Standard";
-                AuraToolsConfigService.SaveMatchExperience();
-                AuraToolsUi.SetButtonLabel(presentationButton, matchRecords.Replay.PresentationMode);
-            }, 104f);
-
             var videoRow = CreateInlineRow(content, "MatchRecordVideoRow");
             AuraToolsUi.AddText(videoRow.transform, "视频导出", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             Button? videoQualityButton = null;
@@ -996,7 +1009,7 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsConfigService.SaveMatchExperience();
                 AuraToolsUi.SetButtonLabel(videoFpsButton, matchRecords.Replay.Video.FramesPerSecond + " FPS");
             }, 86f);
-            AuraToolsUi.AddText(videoRow.transform, "UI", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 28f);
+            AuraToolsUi.AddText(videoRow.transform, "战斗HUD", AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 66f);
             AuraToolsUi.AddToggle(videoRow.transform, matchRecords.Replay.Video.IncludeUi, value =>
             {
                 matchRecords.Replay.Video.IncludeUi = value;
@@ -1014,48 +1027,6 @@ public static class AuraToolsSettingsRuntime
                 matchRecords.Replay.Video.PreferMp4 = value;
                 AuraToolsConfigService.SaveMatchExperience();
             });
-
-            var displayRow = CreateInlineRow(content, "DamageMeterDisplayModeRow");
-            AuraToolsUi.AddText(displayRow.transform, "展示方式", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            Button? displayModeButton = null;
-            displayModeButton = AuraToolsUi.AddButton(displayRow.transform, damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格", () =>
-            {
-                damageMeter.DisplayMode = damageMeter.DisplayMode == DamageMeterDisplayModes.Bars
-                    ? DamageMeterDisplayModes.Table
-                    : DamageMeterDisplayModes.Bars;
-                AuraToolsConfigService.SaveMatchExperience();
-                AuraToolsUi.SetButtonLabel(
-                    displayModeButton,
-                    damageMeter.DisplayMode == DamageMeterDisplayModes.Bars ? "进度条" : "表格");
-            }, 96f);
-
-            var scopeRow = CreateInlineRow(content, "DamageMeterDisplayScopeRow");
-            AuraToolsUi.AddText(scopeRow.transform, "统计范围", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            Button? displayScopeButton = null;
-            displayScopeButton = AuraToolsUi.AddButton(scopeRow.transform, damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗", () =>
-            {
-                damageMeter.DisplayScope = damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure
-                    ? DamageMeterDisplayScopes.Fight
-                    : DamageMeterDisplayScopes.Adventure;
-                AuraToolsConfigService.SaveMatchExperience();
-                AuraToolsUi.SetButtonLabel(
-                    displayScopeButton,
-                    damageMeter.DisplayScope == DamageMeterDisplayScopes.Adventure ? "本轮冒险" : "本场战斗");
-            }, 96f);
-
-            var teamRow = CreateInlineRow(content, "DamageMeterTeamFilterRow");
-            AuraToolsUi.AddText(teamRow.transform, "统计阵营", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
-            Button? teamFilterButton = null;
-            teamFilterButton = AuraToolsUi.AddButton(teamRow.transform, DamageMeterTeamFilterLabel(damageMeter.TeamFilter), () =>
-            {
-                damageMeter.TeamFilter = damageMeter.TeamFilter == DamageMeterTeamFilters.All
-                    ? DamageMeterTeamFilters.Friendly
-                    : damageMeter.TeamFilter == DamageMeterTeamFilters.Friendly
-                        ? DamageMeterTeamFilters.Enemy
-                        : DamageMeterTeamFilters.All;
-                AuraToolsConfigService.SaveMatchExperience();
-                AuraToolsUi.SetButtonLabel(teamFilterButton, DamageMeterTeamFilterLabel(damageMeter.TeamFilter));
-            }, 96f);
 
             var libraryRow = CreateInlineRow(content, "MatchRecordLibraryRow");
             AuraToolsUi.AddText(
@@ -1105,15 +1076,6 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(row.transform, "\u5df2\u6ce8\u518c\uff1a" + registeredCount, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "\u7ba1\u7406", () => AuraToolsSkillCgManager.Show(activePanel!.transform), 88f);
         });
-    }
-
-    private static string DamageMeterTeamFilterLabel(string teamFilter)
-    {
-        return teamFilter == DamageMeterTeamFilters.Friendly
-            ? "友方"
-            : teamFilter == DamageMeterTeamFilters.Enemy
-                ? "敌方"
-                : "全部";
     }
 
     private static void CreateBattleStrategySection(Transform parent)

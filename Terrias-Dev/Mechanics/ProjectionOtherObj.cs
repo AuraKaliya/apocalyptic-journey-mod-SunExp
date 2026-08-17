@@ -62,7 +62,7 @@ public sealed class ProjectionOtherObj : Partner
             slotIndex,
             stats,
             OwnerPlayerId);
-        gameObject.name = data.Localize("Name") + InstanceId;
+        gameObject.name = "TerriasProjection:" + RoleId + ":" + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this)
                      as StatusManager;
         if (status == null)

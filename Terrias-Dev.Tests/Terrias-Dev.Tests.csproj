@@ -8,12 +8,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
     <Compile Include="TestStubs.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedDictionary.cs" Link="Source\AuraSharedDictionary.cs" />
     <Compile Include="..\AuraSharedCore\AuraCombatCardZoneSnapshot.cs" Link="Source\AuraCombatCardZoneSnapshot.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\DictionaryUtil.cs" Link="Source\DictionaryUtil.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs" Link="Source\TerriasContentIdCompatibility.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasIds.cs" Link="Source\TerriasIds.cs" />
+    <Compile Include="..\Terrias-Dev\Infrastructure\TerriasLocale.cs" Link="Source\TerriasLocale.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs" Link="Source\TerriasFrameDispatcher.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs" Link="Source\TerriasPerformanceSettings.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CardApi.cs" Link="Source\CardApi.cs" />
@@ -71,6 +76,7 @@
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs" Link="Source\SolarMemoryContentIsolationService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\WitchArchiveSelectionPolicy.cs" Link="Source\WitchArchiveSelectionPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\WitchArchiveTextLoader.cs" Link="Source\WitchArchiveTextLoader.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\TerriasLocalizedText.cs" Link="Source\TerriasLocalizedText.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

@@ -39,6 +39,7 @@ public static class FamiliarGrowthPanel
     private static Transform? actionContent;
     private static InputField? titleNameInput;
     private static Text? hintText;
+    private static Func<string>? hintResolver;
     private static Sprite? renameIcon;
     private static string focusedInstanceId = "";
     private static string confirmingRebirthId = "";
@@ -78,6 +79,7 @@ public static class FamiliarGrowthPanel
         actionContent = null;
         titleNameInput = null;
         hintText = null;
+        hintResolver = null;
         confirmingRebirthId = "";
         editingName = false;
     }
@@ -91,6 +93,7 @@ public static class FamiliarGrowthPanel
         }
 
         activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
+        TerriasLocalizationScope.Attach(activePanel).RegisterRefresh(RefreshAll);
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
         ApplyPanelImage(window, PanelTint);
@@ -143,6 +146,7 @@ public static class FamiliarGrowthPanel
         footerLayout.childForceExpandHeight = false;
         footerLayout.childForceExpandWidth = false;
         hintText = AddTextBlock(footer.transform, "", 13, TextAnchor.MiddleLeft, Pale, ButtonHeight, 1f);
+        TerriasLocalizationScope.Find(hintText.transform)?.Bind(hintText, () => hintResolver?.Invoke() ?? "");
         TerriasUiComponents.CreateTextButton(
             footer.transform,
             "使魔祝福图鉴",
@@ -241,7 +245,7 @@ public static class FamiliarGrowthPanel
 
         CreateIconCell(row.transform, species, instance.Level.ToString());
         var selected = string.Equals(activePartnerId, instance.FullSpeciesId, StringComparison.OrdinalIgnoreCase)
-            ? "  [当前使魔]"
+            ? TerriasTextCatalog.Get("ui.familiar.current_marker")
             : "";
         AddTextBlock(row.transform, instance.Name + selected + "\nLv." + instance.Level,
             13, TextAnchor.MiddleLeft, Pale, 46f, 1f);
@@ -289,7 +293,9 @@ public static class FamiliarGrowthPanel
         AddInfo(detailContent, "\u79cd\u7c7b", SpeciesDisplayName(instance, species));
         AddInfo(detailContent, "\u7b49\u7ea7", "Lv." + instance.Level + " / " + FamiliarRosterService.MaxLevel);
         AddInfo(detailContent, "\u7ecf\u9a8c", ExperienceText(instance));
-        AddInfo(detailContent, "\u8d44\u8d28", FamiliarBlessingRoller.AptitudeLabel(instance.Aptitude) + " (" + instance.Aptitude + ")");
+        AddInfo(detailContent, "\u8d44\u8d28",
+            TerriasTextCatalog.ResolveLegacy(FamiliarBlessingRoller.AptitudeLabel(instance.Aptitude))
+            + " (" + instance.Aptitude + ")");
         AddInfo(detailContent, "重生次数", instance.RebirthCount.ToString());
         if (species != null && !string.IsNullOrWhiteSpace(species.NativeBlessingId))
         {
@@ -317,10 +323,14 @@ public static class FamiliarGrowthPanel
         AddTextBlock(actionContent, "进度", 14, TextAnchor.MiddleLeft, Gold, ButtonHeight, 0f, 64f);
         var next = instance.PendingBlessingChoices.FirstOrDefault();
         var progress = next != null
-            ? "待选择 Lv." + next.Level + (next.Kind == FamiliarChoiceKind.Final ? " 最终祝福" : " 成长祝福")
+            ? TerriasTextCatalog.Format("ui.familiar.pending_progress",
+                "level", next.Level.ToString(),
+                "kind", TerriasTextCatalog.Get(next.Kind == FamiliarChoiceKind.Final
+                    ? "ui.familiar.final_blessing"
+                    : "ui.familiar.growth_blessing"))
             : instance.Level >= FamiliarRosterService.RebirthLevel
-                ? "已达到重生等级"
-                : "胜利后获得经验，下一节点自动生成祝福候选";
+                ? TerriasTextCatalog.Get("ui.familiar.rebirth_level_reached")
+                : TerriasTextCatalog.Get("ui.familiar.progress_hint");
         AddTextBlock(actionContent, progress, 13, TextAnchor.MiddleLeft, Pale, ButtonHeight, 1f);
         if (!FamiliarGrowthApi.CanRebirth(instance.InstanceId))
         {
@@ -333,17 +343,24 @@ public static class FamiliarGrowthPanel
             if (!string.Equals(confirmingRebirthId, instance.InstanceId, StringComparison.Ordinal))
             {
                 confirmingRebirthId = instance.InstanceId;
-                UpdateHint("再次点击确认重生：等级、资质与祝福将被重置。");
+                UpdateHint(TerriasTextCatalog.Get("ui.familiar.rebirth_confirm_hint"));
                 RefreshAll();
                 return;
             }
 
             var result = FamiliarGrowthApi.Rebirth(instance.InstanceId);
             confirmingRebirthId = "";
-            UpdateHint(result == null
-                ? "重生条件尚未满足。"
-                : "重生完成：资质 " + result.Value.OldAptitude + " → " + result.Value.Instance.Aptitude
-                  + "（本次保底 " + result.Value.AptitudeFloor + "）");
+            if (result == null)
+            {
+                UpdateHint(TerriasTextCatalog.Get("ui.familiar.rebirth_unavailable"));
+            }
+            else
+            {
+                UpdateLocalizedHint("ui.familiar.rebirth_complete",
+                    "old", result.Value.OldAptitude.ToString(),
+                    "new", result.Value.Instance.Aptitude.ToString(),
+                    "floor", result.Value.AptitudeFloor.ToString());
+            }
             RefreshAll();
         });
     }
@@ -361,9 +378,12 @@ public static class FamiliarGrowthPanel
         {
             var choiceTitle = CreateLayoutObject("BlessingChoice-" + choice.ChoiceId, parent);
             choiceTitle.AddComponent<LayoutElement>().preferredHeight = 30f;
-            AddTextFill(choiceTitle.transform, "Lv." + choice.Level + "  "
-                + (choice.Kind == FamiliarChoiceKind.Final ? "最终祝福" : "成长祝福")
-                + "候选（最高 " + choice.Tier + "阶）",
+            AddTextFill(choiceTitle.transform, TerriasTextCatalog.Format("ui.familiar.choice_header",
+                    "level", choice.Level.ToString(),
+                    "kind", TerriasTextCatalog.Get(choice.Kind == FamiliarChoiceKind.Final
+                        ? "ui.familiar.final_blessing"
+                        : "ui.familiar.growth_blessing"),
+                    "tier", choice.Tier.ToString()),
                 14, TextAnchor.MiddleLeft, Green);
 
             foreach (var blessingId in choice.BlessingIds)
@@ -386,17 +406,18 @@ public static class FamiliarGrowthPanel
                 layout.childControlHeight = true;
                 layout.childForceExpandHeight = true;
                 layout.childForceExpandWidth = false;
-                AddTextBlock(row.transform, blessing.Tier + "\u9636", 14, TextAnchor.MiddleCenter, Green, 60f, 0f, 44f);
+                AddTextBlock(row.transform, TerriasTextCatalog.Format("ui.familiar.tier", "tier", blessing.Tier.ToString()), 14, TextAnchor.MiddleCenter, Green, 60f, 0f, 44f);
                 AddTextBlock(row.transform, BlessingDetailText(blessing), 13, TextAnchor.MiddleLeft, Pale, 60f, 1f);
                 CreateButton(row.transform, "\u9009\u62e9", new Vector2(82f, ButtonHeight), () =>
                 {
                     if (FamiliarGrowthApi.ChooseBlessing(instance.InstanceId, localChoiceId, localBlessingId))
                     {
-                        UpdateHint("\u5df2\u83b7\u5f97\u795d\u798f\uff1a" + blessing.Name);
+                        UpdateLocalizedHint("ui.familiar.blessing_received",
+                            "name", blessing.Name);
                     }
                     else
                     {
-                        UpdateHint("\u795d\u798f\u9009\u62e9\u5931\u8d25\u3002");
+                        UpdateHint(TerriasTextCatalog.Get("ui.familiar.blessing_failed"));
                     }
 
                     RefreshAll();
@@ -427,7 +448,7 @@ public static class FamiliarGrowthPanel
             layout.childControlHeight = true;
             layout.childForceExpandHeight = true;
             layout.childForceExpandWidth = false;
-            AddTextBlock(row.transform, blessing.Tier + "\u9636", 16, TextAnchor.MiddleCenter, Green, 54f, 0f, 44f);
+            AddTextBlock(row.transform, TerriasTextCatalog.Format("ui.familiar.tier", "tier", blessing.Tier.ToString()), 16, TextAnchor.MiddleCenter, Green, 54f, 0f, 44f);
             AddTextBlock(row.transform, BlessingDetailText(blessing), 13, TextAnchor.MiddleLeft, Pale, 54f, 1f);
         }
     }
@@ -479,11 +500,11 @@ public static class FamiliarGrowthPanel
             var name = titleNameInput?.text ?? "";
             if (FamiliarGrowthApi.Rename(instance.InstanceId, name))
             {
-                UpdateHint("\u5df2\u4fdd\u5b58\u540d\u79f0\u3002");
+                UpdateHint(TerriasTextCatalog.Get("ui.familiar.name_saved"));
             }
             else
             {
-                UpdateHint("\u540d\u79f0\u672a\u53d8\u66f4\u3002");
+                UpdateHint(TerriasTextCatalog.Get("ui.familiar.name_unchanged"));
             }
 
             editingName = false;
@@ -518,7 +539,9 @@ public static class FamiliarGrowthPanel
     private static string SpeciesDisplayName(FamiliarInstance instance, FamiliarSpeciesSpec? species)
     {
         var name = species?.DisplayName;
-        return string.IsNullOrWhiteSpace(name) ? instance.SpeciesId : name ?? instance.SpeciesId;
+        return string.IsNullOrWhiteSpace(name)
+            ? instance.SpeciesId
+            : TerriasTextCatalog.ResolveLegacy(name ?? instance.SpeciesId);
     }
 
     private static string BlessingDisplayName(string blessId)
@@ -532,7 +555,7 @@ public static class FamiliarGrowthPanel
         var familiarBlessing = FamiliarBlessingRegistry.Find(id);
         if (familiarBlessing != null && !string.IsNullOrWhiteSpace(familiarBlessing.Name))
         {
-            return familiarBlessing.Name;
+            return TerriasTextCatalog.ResolveLegacy(familiarBlessing.Name);
         }
 
         try
@@ -564,10 +587,11 @@ public static class FamiliarGrowthPanel
 
     private static string BlessingDetailText(FamiliarBlessingDefinition blessing)
     {
+        var name = TerriasTextCatalog.ResolveLegacy(blessing.Name);
         var description = ParsedBlessingDescription(blessing);
         return string.IsNullOrWhiteSpace(description)
-            ? blessing.Name
-            : blessing.Name + "\n" + description;
+            ? name
+            : name + "\n" + description;
     }
 
     private static string ParsedBlessingDescription(FamiliarBlessingDefinition blessing)
@@ -580,12 +604,12 @@ public static class FamiliarGrowthPanel
 
         try
         {
-            return raw.Description();
+            return TerriasTextCatalog.ResolveLegacy(raw.Description());
         }
         catch (Exception ex)
         {
             TerriasLog.Warn("[FamiliarGrowth] failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
-            return raw;
+            return TerriasTextCatalog.ResolveLegacy(raw);
         }
     }
 
@@ -835,14 +859,34 @@ public static class FamiliarGrowthPanel
     private static string ExperienceText(FamiliarInstance instance)
     {
         var needed = FamiliarRosterService.ExperienceForNextLevel(instance.Level);
-        return needed <= 0 ? "\u5df2\u8fbe\u4e0a\u9650" : instance.Experience + " / " + needed;
+        return needed <= 0 ? TerriasTextCatalog.Get("ui.familiar.max_level") : instance.Experience + " / " + needed;
     }
 
     private static void UpdateHint(string message)
     {
+        var source = message ?? "";
+        hintResolver = () => TerriasTextCatalog.ResolveLegacy(source);
         if (hintText != null)
         {
-            hintText.text = message;
+            hintText.text = hintResolver();
+        }
+    }
+
+    private static void UpdateLocalizedHint(string key, params string[] argumentPairs)
+    {
+        var sourcePairs = argumentPairs?.ToArray() ?? Array.Empty<string>();
+        hintResolver = () =>
+        {
+            var localizedPairs = sourcePairs.ToArray();
+            for (var index = 1; index < localizedPairs.Length; index += 2)
+            {
+                localizedPairs[index] = TerriasTextCatalog.ResolveLegacy(localizedPairs[index]);
+            }
+            return TerriasTextCatalog.Format(key, localizedPairs);
+        };
+        if (hintText != null)
+        {
+            hintText.text = hintResolver();
         }
     }
 

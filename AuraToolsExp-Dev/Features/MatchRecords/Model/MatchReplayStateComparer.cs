@@ -41,7 +41,47 @@ internal static class MatchReplayStateComparer
 
         CompareStatuses(diff, expected.Statuses, actual.Statuses);
         CompareCards(diff, expected.Cards, actual.Cards);
+        CompareEnemyIntents(diff, expected.EnemyIntents, actual.EnemyIntents);
         return diff;
+    }
+
+    private static void CompareEnemyIntents(
+        MatchReplayStateDiff diff,
+        IEnumerable<MatchReplayEnemyIntentState>? expected,
+        IEnumerable<MatchReplayEnemyIntentState>? actual)
+    {
+        var left = (expected ?? Enumerable.Empty<MatchReplayEnemyIntentState>())
+            .OrderBy(IntentKey, StringComparer.Ordinal)
+            .ToList();
+        var right = (actual ?? Enumerable.Empty<MatchReplayEnemyIntentState>())
+            .OrderBy(IntentKey, StringComparer.Ordinal)
+            .ToList();
+        if (left.Count != right.Count)
+        {
+            diff.Paths.Add("intent[count]");
+        }
+
+        for (var index = 0; index < Math.Min(left.Count, right.Count); index++)
+        {
+            var prefix = "intent[" + left[index].ActorId + ":" + left[index].SlotIndex + "]";
+            Add(diff, prefix + ".actor", left[index].ActorId, right[index].ActorId);
+            Add(diff, prefix + ".slot", left[index].SlotIndex, right[index].SlotIndex);
+            Add(diff, prefix + ".id", left[index].IntentId, right[index].IntentId);
+            Add(diff, prefix + ".instance", left[index].SourceInstanceId, right[index].SourceInstanceId);
+            Add(diff, prefix + ".label", left[index].Label, right[index].Label);
+            Add(diff, prefix + ".description", left[index].Description, right[index].Description);
+            Add(diff, prefix + ".icon", left[index].Icon, right[index].Icon);
+            Add(diff, prefix + ".backIcon", left[index].BackIcon, right[index].BackIcon);
+            Add(diff, prefix + ".value", left[index].DisplayValue, right[index].DisplayValue);
+            Add(diff, prefix + ".action", left[index].ActionState, right[index].ActionState);
+            Add(diff, prefix + ".effect", left[index].EffectName, right[index].EffectName);
+            var leftTargets = (left[index].TargetIds ?? new List<string>()).OrderBy(value => value, StringComparer.Ordinal);
+            var rightTargets = (right[index].TargetIds ?? new List<string>()).OrderBy(value => value, StringComparer.Ordinal);
+            if (!leftTargets.SequenceEqual(rightTargets, StringComparer.Ordinal))
+            {
+                diff.Paths.Add(prefix + ".targets");
+            }
+        }
     }
 
     private static void CompareStatuses(
@@ -123,6 +163,13 @@ internal static class MatchReplayStateComparer
     {
         return (card.Zone ?? "") + "\u001f" + card.Order.ToString("D8", CultureInfo.InvariantCulture)
                + "\u001f" + (card.ReplayCardId ?? "") + "\u001f" + (card.CardId ?? "");
+    }
+
+    private static string IntentKey(MatchReplayEnemyIntentState intent)
+    {
+        return (intent.ActorId ?? "") + "\u001f"
+               + intent.SlotIndex.ToString("D4", CultureInfo.InvariantCulture) + "\u001f"
+               + (intent.SourceInstanceId ?? "") + "\u001f" + (intent.IntentId ?? "");
     }
 
     private static void CompareFloatValues(

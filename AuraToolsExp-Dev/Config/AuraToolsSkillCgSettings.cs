@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsSkillCgSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -43,7 +43,7 @@ public sealed class AuraToolsSkillCgSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(4, SchemaVersion);
+        SchemaVersion = Math.Max(5, SchemaVersion);
         CardUseCg ??= new AuraToolsCardUseCgSettings();
         CardUseCg.Normalize();
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
@@ -94,8 +94,16 @@ public sealed class AuraToolsCardUseCgSettings
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
 
+    [JsonProperty("registeredEntries")]
+    public Dictionary<string, bool> RegisteredEntries { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public void Normalize()
     {
+        RegisteredEntries ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        RegisteredEntries = RegisteredEntries
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
+            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
     }
 }
 

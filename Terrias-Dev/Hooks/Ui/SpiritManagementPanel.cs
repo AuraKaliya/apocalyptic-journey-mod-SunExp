@@ -131,6 +131,7 @@ public static class SpiritManagementPanel
         var parent = TerriasModalHost.ModalParent();
         if (parent == null) return;
         root = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
+        TerriasLocalizationScope.Attach(root).RegisterRefresh(Refresh);
         var windowSize = ResolveWindowSize();
         var window = TerriasUiComponents.CreateRect(
             "Window",
@@ -248,7 +249,7 @@ public static class SpiritManagementPanel
             3 => items.OrderByDescending(item => item.CapturedAt, StringComparer.Ordinal),
             _ => items.OrderByDescending(item => item.Level).ThenByDescending(item => item.Aptitude)
         };
-        foreach (var item in ordered.ThenBy(item => item.Snapshot.DisplayName, StringComparer.Ordinal))
+        foreach (var item in ordered.ThenBy(item => SpiritPresentationResolver.Name(item), StringComparer.Ordinal))
         {
             CreateSpiritCell(gridContent, item, carried.Contains(item.SpiritUid), Same(item.SpiritUid, party.ActiveSpiritUid), forbiddenDonors);
         }
@@ -286,14 +287,14 @@ public static class SpiritManagementPanel
             68f,
             Portrait(item.Snapshot),
             new Color(0.18f, 0.20f, 0.24f, 1f));
-        var markers = target ? "归元目标"
-            : donorSelected ? "已选 · +" + SpiritAscensionService.ContributionOf(item)
-            : guiyuanSelectingDonors && !sameSpecies ? "非同类"
-            : guiyuanSelectingDonors && item.Locked ? "已锁定"
-            : guiyuanSelectingDonors && forbiddenDonors.Contains(item.SpiritUid) ? "编队中"
-            : guiyuanSelectingDonors ? "可选 · +" + SpiritAscensionService.ContributionOf(item)
-            : active ? "出战" : carried ? "携带中" : "仓库";
-        TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 13,
+        var markers = target ? L("ui.spirit.guiyuan.target")
+            : donorSelected ? L("ui.spirit.guiyuan.selected", "value", SpiritAscensionService.ContributionOf(item).ToString())
+            : guiyuanSelectingDonors && !sameSpecies ? L("ui.spirit.guiyuan.different_species")
+            : guiyuanSelectingDonors && item.Locked ? L("ui.spirit.locked")
+            : guiyuanSelectingDonors && forbiddenDonors.Contains(item.SpiritUid) ? L("ui.spirit.in_party")
+            : guiyuanSelectingDonors ? L("ui.spirit.guiyuan.available", "value", SpiritAscensionService.ContributionOf(item).ToString())
+            : active ? L("ui.spirit.active") : carried ? L("ui.spirit.carried") : L("ui.spirit.warehouse");
+        TerriasUiComponents.AddTextBlock(cell.transform, SpiritPresentationResolver.Name(item), 13,
             TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 20f, 1f);
         TerriasUiComponents.AddTextBlock(cell.transform, StarText(item), 12,
             TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : StarGold, 18f, 1f);
@@ -301,7 +302,7 @@ public static class SpiritManagementPanel
         TerriasUiComponents.ConfigureHorizontalLayout(meta, new RectOffset(2, 2, 0, 0), 4f);
         AddFixedTextBlock(meta.transform, "Lv." + item.Level, 11, TextAnchor.MiddleCenter,
             disabledForGuiyuan ? Muted : Pale, 18f, 1f);
-        AddFixedTextBlock(meta.transform, "资质 " + item.Aptitude, 11, TextAnchor.MiddleCenter,
+        AddFixedTextBlock(meta.transform, L("ui.spirit.aptitude_value", "value", item.Aptitude.ToString()), 11, TextAnchor.MiddleCenter,
             disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 18f, 1f);
         TerriasUiComponents.AddTextBlock(cell.transform, markers,
             11, TextAnchor.MiddleCenter, donorSelected || target ? Gold : active ? Green : Muted, 16f, 1f);
@@ -349,7 +350,7 @@ public static class SpiritManagementPanel
         var growth = SpiritCollectionApi.GrowthView(item);
         var detailHeader = LayoutObject("DetailHeader", detailContent, 36f);
         TerriasUiComponents.ConfigureHorizontalLayout(detailHeader, new RectOffset(0, 0, 0, 0), 8f);
-        AddFixedTextBlock(detailHeader.transform, item.Snapshot.DisplayName, 23,
+        AddFixedTextBlock(detailHeader.transform, SpiritPresentationResolver.Name(item), 23,
             TextAnchor.MiddleLeft, QualityAccent(item.Aptitude), 36f, 1f, FontStyle.Normal);
         AddFixedTextBlock(detailHeader.transform, "Lv." + item.Level, 19,
             TextAnchor.MiddleRight, Pale, 36f, 0f, FontStyle.Normal, 58f);
@@ -358,9 +359,9 @@ public static class SpiritManagementPanel
         var summary = LayoutObject("DetailSummary", detailContent, 24f);
         TerriasUiComponents.ConfigureHorizontalLayout(summary, new RectOffset(0, 0, 0, 0), 8f);
         AddFixedTextBlock(summary.transform,
-            TierName(growth.Tier) + (string.IsNullOrWhiteSpace(growth.FormLabel) ? "" : " · " + growth.FormLabel),
+            TierName(growth.Tier) + (string.IsNullOrWhiteSpace(growth.FormLabel) ? "" : " · " + TerriasTextCatalog.ResolveLegacy(growth.FormLabel)),
             13, TextAnchor.MiddleLeft, Muted, 24f, 1f);
-        AddFixedTextBlock(summary.transform, "资质 " + growth.Aptitude, 13,
+        AddFixedTextBlock(summary.transform, L("ui.spirit.aptitude_value", "value", growth.Aptitude.ToString()), 13,
             TextAnchor.MiddleRight, QualityAccent(growth.Aptitude), 24f, 0f, FontStyle.Normal, 82f);
         CreateDetailTabs(detailContent);
         var scroll = TerriasUiComponents.CreateVerticalScrollArea(
@@ -393,12 +394,12 @@ public static class SpiritManagementPanel
                 new Color(0.15f, 0.16f, 0.20f, 1f));
             if (item == null)
             {
-                TerriasUiComponents.AddTextBlock(cell.transform, (index + 1) + "  空位", 12,
+                TerriasUiComponents.AddTextBlock(cell.transform, L("ui.spirit.party.empty_slot", "slot", (index + 1).ToString()), 12,
                     TextAnchor.MiddleCenter, Pale, 38f, 1f);
             }
             else
             {
-                TerriasUiComponents.AddTextBlock(cell.transform, item.Snapshot.DisplayName, 12,
+                TerriasUiComponents.AddTextBlock(cell.transform, SpiritPresentationResolver.Name(item), 12,
                     TextAnchor.MiddleCenter, QualityAccent(item.Aptitude), 18f, 1f);
                 TerriasUiComponents.AddTextBlock(cell.transform, "Lv." + item.Level + "  " + StarText(item), 11,
                     TextAnchor.MiddleCenter, StarGold, 18f, 1f);
@@ -423,8 +424,10 @@ public static class SpiritManagementPanel
         var selected = SpiritCollectionApi.Find(selectedUid);
         TerriasUiComponents.AddTextBlock(actionContent,
             selected == null
-                ? "未选择精灵"
-                : selected.Snapshot.DisplayName + (mode == PanelMode.Adventure ? " · 本次旅程配置" : ""),
+                ? L("ui.spirit.none_selected")
+                : mode == PanelMode.Adventure
+                    ? L("ui.spirit.adventure_configuration", "name", SpiritPresentationResolver.Name(selected))
+                    : SpiritPresentationResolver.Name(selected),
             14, TextAnchor.MiddleLeft, Muted, 34f, 1f);
         if (selected != null && party.PartySlots.Contains(selected.SpiritUid, StringComparer.Ordinal))
         {
@@ -479,7 +482,7 @@ public static class SpiritManagementPanel
         {
             if (mode == PanelMode.Warehouse)
             {
-                PlayerApi.ShowCaption("空槽位 · 请通过“加入携带”按钮配置");
+                PlayerApi.ShowCaption(L("caption.spirit.empty_party_slot"));
             }
             return;
         }
@@ -630,9 +633,10 @@ public static class SpiritManagementPanel
         CreateVerticalStat(stats.transform, "速度", growth.BattleStats.Speed);
 
         CreateExperienceProgress(parent, growth);
-        if (!string.IsNullOrWhiteSpace(item.Snapshot.Description))
+        var localizedDescription = SpiritPresentationResolver.Description(item);
+        if (!string.IsNullOrWhiteSpace(localizedDescription))
         {
-            TerriasUiComponents.AddTextBlock(parent, PlayerFacingDescription(item.Snapshot.Description), 12, TextAnchor.UpperLeft, Muted, 72f, 1f);
+            TerriasUiComponents.AddTextBlock(parent, PlayerFacingDescription(localizedDescription), 12, TextAnchor.UpperLeft, Muted, 72f, 1f);
         }
     }
 
@@ -653,7 +657,7 @@ public static class SpiritManagementPanel
             {
                 TrainingSelection.SelectIntentSlot(slot, ability?.Id);
                 RefreshPreviewAndDetail();
-            }, "槽位 " + (index + 1));
+            }, L("ui.spirit.ability.slot", "slot", (index + 1).ToString()));
         }
 
         TerriasUiComponents.AddTextBlock(parent, "已装备被动", 12, TextAnchor.MiddleLeft, Muted, 22f, 1f);
@@ -662,7 +666,7 @@ public static class SpiritManagementPanel
             {
                 TrainingSelection.SelectPassiveSlot(training.EquippedPassive?.Id);
                 RefreshPreviewAndDetail();
-            }, "未装备被动");
+            }, L("ui.spirit.ability.passive_empty"));
 
         TerriasUiComponents.AddTextBlock(parent, "当前查看能力", 13, TextAnchor.MiddleLeft, Pale, 26f, 1f);
         CreateTrainingAbilityDetail(parent, item, training, focused);
@@ -694,19 +698,20 @@ public static class SpiritManagementPanel
         var title = LayoutObject("GuiyuanTitle", status.transform, 23f);
         TerriasUiComponents.ConfigureHorizontalLayout(title, new RectOffset(0, 0, 0, 0), 8f);
         AddFixedTextBlock(title.transform, StarText(rank), 18, TextAnchor.MiddleLeft, StarGold, 23f, 1f);
-        AddFixedTextBlock(title.transform, "归元值 " + item.GuiyuanValue + " / " + SpiritAscensionService.MaximumGuiyuanValue,
+        AddFixedTextBlock(title.transform, L("ui.spirit.guiyuan.value", "current", item.GuiyuanValue.ToString(),
+                "maximum", SpiritAscensionService.MaximumGuiyuanValue.ToString()),
             13, TextAnchor.MiddleRight, Pale, 23f, 0f, FontStyle.Normal, 112f);
         AddFixedTextBlock(status.transform,
             rank >= SpiritAscensionService.MaximumStarRank
-                ? "已达到五星"
-                : "下一星级需要归元值 " + SpiritAscensionService.ThresholdForStar(rank + 1),
+                ? L("ui.spirit.guiyuan.max_star")
+                : L("ui.spirit.guiyuan.next_star", "value", SpiritAscensionService.ThresholdForStar(rank + 1).ToString()),
             12, TextAnchor.MiddleLeft, rank >= SpiritAscensionService.MaximumStarRank ? Gold : Muted, 20f, 1f);
 
         var points = LayoutObject("OriginPointSummary", parent, 34f);
         ApplyPanel(points, new Color(0.025f, 0.050f, 0.070f, 0.94f));
         TerriasUiComponents.ConfigureHorizontalLayout(points, new RectOffset(10, 10, 0, 0), 8f);
         AddFixedTextBlock(points.transform, "四大本源", 14, TextAnchor.MiddleLeft, Pale, 32f, 1f, FontStyle.Bold);
-        AddFixedTextBlock(points.transform, "已分配 " + allocations.Total + " / " + budget,
+        AddFixedTextBlock(points.transform, L("ui.spirit.guiyuan.allocated", "current", allocations.Total.ToString(), "maximum", budget.ToString()),
             13, TextAnchor.MiddleRight, allocations.Total < budget ? Cyan : Gold, 32f, 0f, FontStyle.Normal, 118f);
 
         CreateOriginAllocationRow(parent, item, growth, allocations, "魔力", "magic");
@@ -720,10 +725,10 @@ public static class SpiritManagementPanel
                         && rank < SpiritAscensionService.MaximumStarRank
                         && !guiyuanSelectingDonors;
         var label = mode != PanelMode.Warehouse
-            ? "请前往精灵仓库归元"
+            ? L("ui.spirit.guiyuan.go_to_warehouse")
             : rank >= SpiritAscensionService.MaximumStarRank
-                ? "已达到五星"
-                : guiyuanSelectingDonors ? "正在左侧选择同类精灵" : "选择同类精灵归元";
+                ? L("ui.spirit.guiyuan.max_star")
+                : guiyuanSelectingDonors ? L("ui.spirit.guiyuan.selecting") : L("ui.spirit.guiyuan.select");
         var button = TerriasUiComponents.CreateTextButton(
             action.transform,
             label,
@@ -750,7 +755,8 @@ public static class SpiritManagementPanel
         var row = LayoutObject("OriginAllocation-" + key, parent, 42f);
         ApplyPanel(row, ItemTint);
         TerriasUiComponents.ConfigureHorizontalLayout(row, new RectOffset(8, 8, 5, 5), 5f);
-        AddFixedTextBlock(row.transform, label + "  " + (effective - allocated) + " +" + allocated,
+        AddFixedTextBlock(row.transform, L("ui.spirit.guiyuan.origin_value", "name", TerriasTextCatalog.ResolveLegacy(label),
+                "base", (effective - allocated).ToString(), "allocated", allocated.ToString()),
             12, TextAnchor.MiddleLeft, Pale, 30f, 0f, FontStyle.Normal, 92f);
         var minus = TerriasUiComponents.CreateTextButton(row.transform, "−", new Vector2(30f, 30f),
             TerriasUiSprites.Button("[SpiritManagement]"), BandTint, allocated > 0 ? Pale : Muted, 16,
@@ -823,11 +829,15 @@ public static class SpiritManagementPanel
         var donors = GuiyuanDonorUids.Select(SpiritCollectionApi.Find).Where(item => item != null).Cast<SpiritInstance>().ToList();
         var preview = SpiritAscensionService.Preview(target, donors);
         var summary = donors.Count == 0
-            ? "请选择同 SpeciesId 的仓库精灵"
-            : "已选 " + donors.Count + " 只 · 提供 " + preview.OfferedValue
-              + " · 生效 " + preview.AppliedValue
-              + (preview.OverflowValue > 0 ? " · 溢出损失 " + preview.OverflowValue : "")
-              + " · 结果 " + StarText(preview.ResultStarRank);
+            ? L("ui.spirit.guiyuan.choose_same_species")
+            : L(preview.OverflowValue > 0
+                    ? "ui.spirit.guiyuan.preview_overflow"
+                    : "ui.spirit.guiyuan.preview",
+                "count", donors.Count.ToString(),
+                "offered", preview.OfferedValue.ToString(),
+                "applied", preview.AppliedValue.ToString(),
+                "overflow", preview.OverflowValue.ToString(),
+                "stars", StarText(preview.ResultStarRank));
         AddFixedTextBlock(actionContent, summary, 13, TextAnchor.MiddleLeft,
             preview.OverflowValue > 0 ? Gold : Muted, 34f, 1f);
         TerriasUiComponents.CreateTextButton(actionContent, "取消", new Vector2(88f, 34f),
@@ -837,8 +847,8 @@ public static class SpiritManagementPanel
                 Refresh();
             });
         var confirmLabel = guiyuanConfirmArmed
-            ? "确认永久消耗 " + donors.Count + " 只"
-            : preview.OverflowValue > 0 ? "归元（含溢出）" : "归元";
+            ? L("ui.spirit.guiyuan.confirm_consume", "count", donors.Count.ToString())
+            : preview.OverflowValue > 0 ? L("ui.spirit.guiyuan.confirm_overflow") : L("ui.spirit.guiyuan.action");
         var confirm = TerriasUiComponents.CreateTextButton(actionContent, confirmLabel, new Vector2(164f, 34f),
             TerriasUiSprites.Button("[SpiritManagement]"), TargetTint,
             donors.Count > 0 ? Pale : Muted, 13, ConfirmGuiyuan);
@@ -857,7 +867,7 @@ public static class SpiritManagementPanel
         if (!result.Success)
         {
             guiyuanConfirmArmed = false;
-            PlayerApi.ShowCaption(string.IsNullOrWhiteSpace(result.Reason) ? "归元失败，未消耗任何精灵" : result.Reason);
+            PlayerApi.ShowCaption(string.IsNullOrWhiteSpace(result.Reason) ? L("caption.spirit.guiyuan_failed") : result.Reason);
             Refresh();
             return;
         }
@@ -865,7 +875,7 @@ public static class SpiritManagementPanel
         var donorCount = result.Preview.DonorCount;
         var gained = result.Preview.AppliedValue;
         ResetGuiyuanSelection();
-        PlayerApi.ShowCaption("归元完成 · 消耗 " + donorCount + " 只 · 归元值 +" + gained);
+        PlayerApi.ShowCaption(L("caption.spirit.guiyuan_complete", "count", donorCount.ToString(), "value", gained.ToString()));
         Refresh();
     }
 
@@ -906,8 +916,8 @@ public static class SpiritManagementPanel
         TerriasUiComponents.ConfigureVerticalLayout(progress, new RectOffset(10, 10, 7, 8), 6f,
             childForceExpandHeight: false, alignment: TextAnchor.MiddleCenter);
         var label = growth.Level >= growth.MaxLevel
-            ? "经验  MAX"
-            : "经验  " + growth.Experience + " / " + growth.ExperienceToNextLevel;
+            ? L("ui.spirit.experience_max")
+            : L("ui.spirit.experience", "current", growth.Experience.ToString(), "maximum", growth.ExperienceToNextLevel.ToString());
         AddFixedTextBlock(progress.transform, label, 12, TextAnchor.MiddleCenter, Cyan, 22f, 1f);
         var track = LayoutObject("Track", progress.transform, 10f);
         track.GetComponent<LayoutElement>().minHeight = 10f;
@@ -955,7 +965,7 @@ public static class SpiritManagementPanel
             childForceExpandHeight: false, alignment: anchor);
         AddFixedTextBlock(
             card.transform,
-            (targeted ? "目标 · " : "")
+            (targeted ? L("ui.spirit.ability.target_prefix") : "")
             + (ability == null ? emptyLabel : (ability.IsNew ? "NEW · " : "") + ability.DisplayName),
             14,
             anchor,
@@ -998,15 +1008,15 @@ public static class SpiritManagementPanel
             var emptyTitle = TrainingSelection.TargetKind switch
             {
                 SpiritTrainingTargetKind.IntentSlot =>
-                    "意图槽位 " + (TrainingSelection.IntentSlotIndex + 1) + " 尚未装备",
-                SpiritTrainingTargetKind.PassiveSlot => "当前未装备被动",
-                _ => "请选择一个能力查看详情"
+                    L("ui.spirit.ability.slot_empty", "slot", (TrainingSelection.IntentSlotIndex + 1).ToString()),
+                SpiritTrainingTargetKind.PassiveSlot => L("ui.spirit.ability.passive_empty"),
+                _ => L("ui.spirit.ability.choose_detail")
             };
             var emptyHint = TrainingSelection.TargetKind switch
             {
-                SpiritTrainingTargetKind.IntentSlot => "请从下方已学会意图中选择，确认后装备到该槽位。",
-                SpiritTrainingTargetKind.PassiveSlot => "请从下方已学会被动中选择，确认后设为当前被动。",
-                _ => "先选择一个装备槽位，再从已学会能力中查看候选。"
+                SpiritTrainingTargetKind.IntentSlot => L("ui.spirit.ability.choose_intent_hint"),
+                SpiritTrainingTargetKind.PassiveSlot => L("ui.spirit.ability.choose_passive_hint"),
+                _ => L("ui.spirit.ability.choose_slot_hint")
             };
             AddFixedTextBlock(card.transform, emptyTitle, 16,
                 TextAnchor.LowerCenter, Pale, 42f, 1f, FontStyle.Bold);
@@ -1024,7 +1034,7 @@ public static class SpiritManagementPanel
 
         var description = PlayerFacingDescription(ability.Description).Replace("\n", "  ");
         AddFixedTextBlock(card.transform,
-            description.Length == 0 ? "暂无能力说明。" : description,
+            description.Length == 0 ? L("ui.spirit.ability.no_description") : description,
             13,
             TextAnchor.UpperLeft,
             Pale,
@@ -1040,7 +1050,7 @@ public static class SpiritManagementPanel
         {
             if (TrainingSelection.TargetKind != SpiritTrainingTargetKind.IntentSlot)
             {
-                AddFixedTextBlock(actions.transform, "请先选择一个意图槽位", 12,
+                AddFixedTextBlock(actions.transform, L("ui.spirit.ability.choose_intent_slot"), 12,
                     TextAnchor.MiddleRight, Gold, 32f, 1f);
                 return;
             }
@@ -1051,17 +1061,19 @@ public static class SpiritManagementPanel
                 : "";
             if (Same(currentId, ability.Id))
             {
-                AddFixedTextBlock(actions.transform, "当前槽位已装备", 12,
+                AddFixedTextBlock(actions.transform, L("ui.spirit.ability.slot_equipped"), 12,
                     TextAnchor.MiddleRight, Green, 32f, 1f);
             }
             else
             {
                 var hasCurrentIntent = currentId.Length > 0;
                 AddFixedTextBlock(actions.transform,
-                    (hasCurrentIntent ? "将替换槽位 " : "将装备到槽位 ") + (intentSlot + 1), 12,
+                    L(hasCurrentIntent ? "ui.spirit.ability.will_replace_slot" : "ui.spirit.ability.will_equip_slot",
+                        "slot", (intentSlot + 1).ToString()), 12,
                     TextAnchor.MiddleRight, Muted, 32f, 1f);
                 TerriasUiComponents.CreateTextButton(actions.transform,
-                    (hasCurrentIntent ? "替换到槽位 " : "装备到槽位 ") + (intentSlot + 1),
+                    L(hasCurrentIntent ? "ui.spirit.ability.replace_slot" : "ui.spirit.ability.equip_slot",
+                        "slot", (intentSlot + 1).ToString()),
                     new Vector2(138f, 32f),
                     TerriasUiSprites.Button("[SpiritManagement]"),
                     SelectedTint,
@@ -1070,27 +1082,27 @@ public static class SpiritManagementPanel
                     () =>
                     {
                         if (!SpiritCollectionApi.EquipIntent(item.SpiritUid, intentSlot, ability.Id)) return;
-                        PlayerApi.ShowCaption("配置已更新 · 下一场战斗生效");
+                        PlayerApi.ShowCaption(L("caption.spirit.configuration_updated"));
                         RefreshPreviewAndDetail();
                     });
             }
         }
         else if (TrainingSelection.TargetKind != SpiritTrainingTargetKind.PassiveSlot)
         {
-            AddFixedTextBlock(actions.transform, "请先选择被动槽位", 12,
+            AddFixedTextBlock(actions.transform, L("ui.spirit.ability.choose_passive_slot"), 12,
                 TextAnchor.MiddleRight, Gold, 32f, 1f);
         }
         else if (Same(training.EquippedPassive?.Id ?? "", ability.Id))
         {
-            AddFixedTextBlock(actions.transform, "当前已装备被动", 12,
+            AddFixedTextBlock(actions.transform, L("ui.spirit.ability.passive_equipped"), 12,
                 TextAnchor.MiddleRight, Green, 32f, 1f);
         }
         else
         {
-            AddFixedTextBlock(actions.transform, "被动替换完全免费", 12,
+            AddFixedTextBlock(actions.transform, L("ui.spirit.ability.passive_replace_free"), 12,
                 TextAnchor.MiddleRight, Muted, 32f, 1f);
             TerriasUiComponents.CreateTextButton(actions.transform,
-                "设为当前被动",
+                L("ui.spirit.ability.set_passive"),
                 new Vector2(138f, 32f),
                 TerriasUiSprites.Button("[SpiritManagement]"),
                 SelectedTint,
@@ -1099,7 +1111,7 @@ public static class SpiritManagementPanel
                 () =>
                 {
                     if (!SpiritCollectionApi.EquipPassive(item.SpiritUid, ability.Id)) return;
-                    PlayerApi.ShowCaption("配置已更新 · 下一场战斗生效");
+                    PlayerApi.ShowCaption(L("caption.spirit.configuration_updated"));
                     RefreshPreviewAndDetail();
                 });
         }
@@ -1110,10 +1122,10 @@ public static class SpiritManagementPanel
         var type = AbilityTypeLabel(ability.Type);
         if (compact && string.Equals(ability.Kind, "Intent", StringComparison.Ordinal))
         {
-            return "魔能 " + ability.Cost + " · 冷却 " + ability.Cooldown;
+            return L("ui.spirit.ability.meta_compact", "cost", ability.Cost.ToString(), "cooldown", ability.Cooldown.ToString());
         }
         return string.Equals(ability.Kind, "Intent", StringComparison.Ordinal)
-            ? type + " · 魔能 " + ability.Cost + " · 冷却 " + ability.Cooldown
+            ? L("ui.spirit.ability.meta", "type", type, "cost", ability.Cost.ToString(), "cooldown", ability.Cooldown.ToString())
             : type;
     }
 
@@ -1122,17 +1134,17 @@ public static class SpiritManagementPanel
         var normalized = (type ?? "").Trim();
         return normalized switch
         {
-            "Attack" => "攻击",
-            "Defense" => "防御",
-            "Support" => "辅助",
-            "Recovery" => "恢复",
-            "Interference" => "干扰",
-            "Species" => "种族固有",
-            "Common.Core" => "通用·核心",
-            "Common.Advanced" => "通用·高级",
-            "Common.Basic" => "通用·基础",
-            "Common.Tactical" => "通用·战术",
-            _ => normalized.Length == 0 ? "能力" : normalized
+            "Attack" => L("ui.spirit.ability.type.attack"),
+            "Defense" => L("ui.spirit.ability.type.defense"),
+            "Support" => L("ui.spirit.ability.type.support"),
+            "Recovery" => L("ui.spirit.ability.type.recovery"),
+            "Interference" => L("ui.spirit.ability.type.interference"),
+            "Species" => L("ui.spirit.ability.type.species"),
+            "Common.Core" => L("ui.spirit.ability.type.common_core"),
+            "Common.Advanced" => L("ui.spirit.ability.type.common_advanced"),
+            "Common.Basic" => L("ui.spirit.ability.type.common_basic"),
+            "Common.Tactical" => L("ui.spirit.ability.type.common_tactical"),
+            _ => normalized.Length == 0 ? L("ui.spirit.ability.type.default") : normalized
         };
     }
 
@@ -1162,8 +1174,13 @@ public static class SpiritManagementPanel
 
     private static string AxisSummary(SpiritRadarAxisSnapshot axis)
     {
-        return axis.Label + "  当前 " + axis.RawCurrent + " / 潜力 " + axis.RawPotential
-               + " / 雷达上限 " + axis.Cap + "    基础 " + axis.BaseValue + " + 成长 " + axis.GrowthBudget;
+        return L("ui.spirit.radar.summary",
+            "name", TerriasTextCatalog.ResolveLegacy(axis.Label),
+            "current", axis.RawCurrent.ToString(),
+            "potential", axis.RawPotential.ToString(),
+            "cap", axis.Cap.ToString(),
+            "base", axis.BaseValue.ToString(),
+            "growth", axis.GrowthBudget.ToString());
     }
 
     private static string PlayerFacingDescription(string raw)
@@ -1331,22 +1348,29 @@ public static class SpiritManagementPanel
 
     private static float PartySlotWidth() => Mathf.Clamp((ResolveWindowSize().x - 106f) / 6f, 104f, 168f);
 
-    private static string FilterName() => warehouseFilter == 1 ? "筛选：携带" : warehouseFilter == 2 ? "筛选：仓库" : "筛选：全部";
+    private static string FilterName() => warehouseFilter == 1
+        ? L("ui.spirit.filter.carried")
+        : warehouseFilter == 2 ? L("ui.spirit.filter.warehouse") : L("ui.spirit.filter.all");
     private static string SortName() => warehouseSort switch
     {
-        1 => "排序：资质",
-        2 => "排序：阶级",
-        3 => "排序：捕获",
-        _ => "排序：等级"
+        1 => L("ui.spirit.sort.aptitude"),
+        2 => L("ui.spirit.sort.tier"),
+        3 => L("ui.spirit.sort.captured"),
+        _ => L("ui.spirit.sort.level")
     };
     private static bool Same(string left, string right) => string.Equals(left ?? "", right ?? "", StringComparison.Ordinal);
     private static string TierName(SpiritSpeciesTier tier) => tier switch
     {
-        SpiritSpeciesTier.Elite => "精英种族",
-        SpiritSpeciesTier.Boss => "首领种族",
-        SpiritSpeciesTier.FinalBoss => "最终首领种族",
-        _ => "普通种族"
+        SpiritSpeciesTier.Elite => L("ui.spirit.tier.elite"),
+        SpiritSpeciesTier.Boss => L("ui.spirit.tier.boss"),
+        SpiritSpeciesTier.FinalBoss => L("ui.spirit.tier.final_boss"),
+        _ => L("ui.spirit.tier.normal")
     };
+
+    private static string L(string key, params string[] argumentPairs)
+    {
+        return TerriasTextCatalog.Format(key, argumentPairs);
+    }
 }
 
 public sealed class SpiritPreviewAnimator : MonoBehaviour

@@ -10,6 +10,8 @@ internal sealed class AudioPendingPresentation
 
     public SoundPlaybackRequest Request { get; set; } = new();
 
+    public bool SyncRemote { get; set; }
+
     public long ExpiresAtUtcTicks { get; set; }
 }
 
@@ -29,7 +31,7 @@ internal sealed class AudioPendingPresentationQueue
 
     public int Count => entries.Count;
 
-    public bool Enqueue(SoundPlaybackRequest request, long nowUtcTicks)
+    public bool Enqueue(SoundPlaybackRequest request, long nowUtcTicks, bool syncRemote = false)
     {
         if (request == null)
         {
@@ -54,6 +56,7 @@ internal sealed class AudioPendingPresentationQueue
         {
             Key = key,
             Request = request,
+            SyncRemote = syncRemote,
             ExpiresAtUtcTicks = expiresAt
         };
         order.Enqueue(key);

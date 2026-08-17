@@ -13,8 +13,12 @@ public static class AuraCgActivationRuntime
     public const string SourceManifestDefault = "ManifestDefault";
     public const string SourceUserOverride = "UserOverride";
     private static readonly object CacheGate = new();
+    private static readonly object LocalOverrideGate = new();
+    private static readonly Dictionary<string, Dictionary<string, AuraCgLocalActivationEntry>> LocalOverrides =
+        new(StringComparer.OrdinalIgnoreCase);
     private static AuraSharedConfigSnapshot<AuraCgActivationDocument>? cachedSnapshot;
     private static DateTime cachedSnapshotUtc;
+    private static long localOverrideRevision;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
 
     public static bool ApplyManifestDefaults(string ownerModId, IEnumerable<AuraCgRegistryEntry> entries)
@@ -41,13 +45,164 @@ public static class AuraCgActivationRuntime
 
     public static bool CanConsumerPlay(AuraCgRegistryEntry entry, string consumerModId)
     {
+        return CanProducerEmit(entry, consumerModId) && IsLocallyEnabled(entry);
+    }
+
+    /// <summary>
+    /// Checks request-producer ownership only. Recipient-local enablement is intentionally
+    /// excluded so one peer cannot suppress another peer's locally enabled presentation.
+    /// </summary>
+    public static bool CanProducerEmit(AuraCgRegistryEntry entry, string producerModId)
+    {
         if (entry == null || !entry.Enabled)
         {
             return false;
         }
 
-        var state = GetEffectiveState(entry);
-        return CanConsumerPlayState(entry.OwnerModId, state, consumerModId);
+        var manifestState = AuraCgActivationEntryState.FromManifest(entry);
+        return CanConsumerPlayState(entry.OwnerModId, manifestState, producerModId);
+    }
+
+    public static bool IsLocallyEnabled(AuraCgRegistryEntry entry)
+    {
+        if (entry == null || !entry.Enabled)
+        {
+            return false;
+        }
+
+        return TryGetLocalOverride(entry.QualifiedCgId, out var enabled)
+            ? enabled
+            : GetEffectiveState(entry).Enabled;
+    }
+
+    private static bool TryGetLocalOverride(string qualifiedCgId, out bool enabled)
+    {
+        lock (LocalOverrideGate)
+        {
+            AuraCgLocalActivationEntry? selected = null;
+            foreach (var manager in LocalOverrides.Values)
+            {
+                if (!manager.TryGetValue(qualifiedCgId, out var candidate)
+                    || (selected != null && selected.Revision >= candidate.Revision))
+                {
+                    continue;
+                }
+
+                selected = candidate;
+            }
+
+            if (selected != null)
+            {
+                enabled = selected.Enabled;
+                return true;
+            }
+        }
+
+        enabled = true;
+        return false;
+    }
+
+    public static bool IsLocallyEnabled(string ownerModId, string cgId)
+    {
+        var registered = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
+            .FirstOrDefault(entry => string.Equals(entry.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (registered != null)
+        {
+            return IsLocallyEnabled(registered);
+        }
+
+        var qualifiedCgId = AuraCgRegistryEntry.Qualify(ownerModId, cgId);
+        if (TryGetLocalOverride(qualifiedCgId, out var enabled))
+        {
+            return enabled;
+        }
+
+        var state = GetStoredState(qualifiedCgId);
+        return state?.Enabled ?? true;
+    }
+
+    public static AuraCgActivationEntryState GetLocalEffectiveState(AuraCgRegistryEntry entry)
+    {
+        var effective = GetEffectiveState(entry);
+        return new AuraCgActivationEntryState
+        {
+            QualifiedCgId = effective.QualifiedCgId,
+            OwnerModId = effective.OwnerModId,
+            CgId = effective.CgId,
+            Enabled = IsLocallyEnabled(entry),
+            ConsumerMode = effective.ConsumerMode,
+            ConsumerModId = effective.ConsumerModId,
+            Source = effective.Source,
+            UserOverridden = effective.UserOverridden
+        };
+    }
+
+    public static void ReplaceLocalOverrides(
+        string managerModId,
+        IEnumerable<AuraCgLocalActivationOverride> overrides)
+    {
+        var manager = (managerModId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(manager))
+        {
+            return;
+        }
+
+        lock (LocalOverrideGate)
+        {
+            var revision = ++localOverrideRevision;
+            var replacement = new Dictionary<string, AuraCgLocalActivationEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in overrides ?? Array.Empty<AuraCgLocalActivationOverride>())
+            {
+                var key = AuraCgRegistryEntry.Qualify(item?.OwnerModId ?? "", item?.CgId ?? "");
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                replacement[key] = new AuraCgLocalActivationEntry(item!.Enabled, revision);
+            }
+
+            LocalOverrides[manager] = replacement;
+        }
+    }
+
+    public static void SetLocalOverride(
+        string managerModId,
+        string ownerModId,
+        string cgId,
+        bool enabled)
+    {
+        var manager = (managerModId ?? "").Trim();
+        var key = AuraCgRegistryEntry.Qualify(ownerModId, cgId);
+        if (string.IsNullOrWhiteSpace(manager) || string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        lock (LocalOverrideGate)
+        {
+            if (!LocalOverrides.TryGetValue(manager, out var entries))
+            {
+                entries = new Dictionary<string, AuraCgLocalActivationEntry>(StringComparer.OrdinalIgnoreCase);
+                LocalOverrides[manager] = entries;
+            }
+
+            entries[key] = new AuraCgLocalActivationEntry(enabled, ++localOverrideRevision);
+        }
+    }
+
+    public static void ClearLocalOverrides(string managerModId)
+    {
+        var manager = (managerModId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(manager))
+        {
+            return;
+        }
+
+        lock (LocalOverrideGate)
+        {
+            LocalOverrides.Remove(manager);
+        }
     }
 
     public static bool CanConsumerPlay(string ownerModId, string cgId, string consumerModId)
@@ -283,6 +438,28 @@ public static class AuraCgActivationRuntime
             cachedSnapshotUtc = DateTime.MinValue;
         }
     }
+}
+
+public sealed class AuraCgLocalActivationOverride
+{
+    public string OwnerModId { get; set; } = "";
+
+    public string CgId { get; set; } = "";
+
+    public bool Enabled { get; set; } = true;
+}
+
+internal sealed class AuraCgLocalActivationEntry
+{
+    public AuraCgLocalActivationEntry(bool enabled, long revision)
+    {
+        Enabled = enabled;
+        Revision = revision;
+    }
+
+    public bool Enabled { get; }
+
+    public long Revision { get; }
 }
 
 public static class AuraCgConsumerModes

@@ -15,6 +15,7 @@ internal static class Program
     private static void Main()
     {
         TestDictionaryUtil();
+        TestTerriasLocalizationValues();
         TestCardCostHelpers();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
@@ -127,6 +128,57 @@ internal static class Program
         True(TerriasIds.IsTechnicalBlessingId("*origin_strength_50"), "Hidden origin milestones are classified as technical blessings");
         True(TerriasIds.IsTechnicalBlessingId(TerriasIds.OriginFortune50Blessing), "Runtime origin milestone ids remain excluded from custom blessing pools");
         False(TerriasIds.IsTechnicalBlessingId("Terrias_terrias_solar_witch"), "Player-facing Solar blessings are not classified as technical");
+    }
+
+    private static void TestTerriasLocalizationValues()
+    {
+        Equal(TerriasLocale.ZhHans, TerriasLocale.Normalize("zh-CN"),
+            "locale aliases normalize Simplified Chinese deterministically");
+        Equal(TerriasLocale.ZhHant, TerriasLocale.Normalize("zh_TW"),
+            "locale aliases normalize Traditional Chinese deterministically");
+        Equal(TerriasLocale.English, TerriasLocale.Normalize("en-US"),
+            "regional English locales use the English catalog");
+        Equal(TerriasLocale.Japanese, TerriasLocale.Normalize("ja-JP"),
+            "regional Japanese locales use the Japanese catalog");
+        Equal("Name_ja", TerriasLocale.FieldName("Name", "ja-JP"),
+            "runtime presentation fields use the native Japanese suffix");
+        Equal("Description", TerriasLocale.FieldName("Description", "zh-CN"),
+            "Simplified Chinese keeps the native base field");
+
+        var text = new TerriasLocalizedText
+        {
+            ZhHans = "简体",
+            ZhHant = "繁體",
+            English = "English",
+            Japanese = "日本語",
+            LegacyFallback = "legacy"
+        };
+        Equal("English", text.Resolve("en-GB"),
+            "localized text resolves the exact normalized English value");
+        Equal("日本語", text.Resolve("jp"),
+            "localized text accepts the supported Japanese alias");
+
+        text.Japanese = "";
+        Equal("简体", text.Resolve("ja-JP"),
+            "missing Japanese text follows the deterministic Simplified Chinese fallback");
+        text.ZhHans = "";
+        text.English = "";
+        text.ZhHant = "";
+        Equal("legacy", text.Resolve("ja-JP", "caller fallback"),
+            "legacy persisted text wins only after all localized fields are unavailable");
+
+        var row = new Dictionary<string, string>
+        {
+            ["Name"] = "基础名",
+            ["Name_zh-Hant"] = "基礎名",
+            ["Name_en"] = "Base Name",
+            ["Name_ja"] = "基本名"
+        };
+        var fromRow = TerriasLocalizedText.FromRow(row, "Name", "stable-id");
+        Equal("Base Name", fromRow.Resolve("en"),
+            "localized text captures every native row locale independently");
+        Equal("stable-id", fromRow.LegacyFallback,
+            "localized row capture retains only a stable compatibility fallback");
     }
 
     private static void TestSolarFlameSealFormula()
@@ -408,6 +460,12 @@ internal static class Program
             "a temporarily unavailable host RoleTable asks the client to retry the same token");
         False(retryable.RefundCard,
             "ambiguous synchronization failures never refund before a terminal result");
+        Equal("caption.projection.failure.RoleDeckUnavailable",
+            ProjectionSummonFailureCatalog.LocalizationKey(ProjectionSummonFailureCode.RoleDeckUnavailable),
+            "projection failures expose a stable localization key instead of a host-language message");
+        Equal("caption.projection.failure.SpawnFailed",
+            ProjectionSummonFailureCatalog.LocalizationKey(ProjectionSummonFailureCode.None),
+            "an invalid display failure safely falls back to the generic stable key");
         var roleDeckTimedOut = ProjectionSummonFailureCatalog.Describe(
             ProjectionSummonFailureCode.RoleDeckTimedOut);
         True(roleDeckTimedOut.Terminal,

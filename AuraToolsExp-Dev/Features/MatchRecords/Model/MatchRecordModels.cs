@@ -22,6 +22,10 @@ internal static class MatchReplayCapabilities
     internal const string IncrementalHandV1 = "incremental-hand.v1";
     internal const string OutcomeCuesV1 = "outcome-cues.v1";
     internal const string PassiveHudV1 = "passive-hud.v1";
+    internal const string NativeActionPresentationV1 = "native-action-presentation.v1";
+    internal const string NativeActionPresentationV2 = "native-action-presentation.v2";
+    internal const string EnemyIntentFramesV1 = "enemy-intent-frames.v1";
+    internal const string RemotePlayerActionsV1 = "remote-player-actions.v1";
 
     internal static readonly string[] Supported =
     {
@@ -35,7 +39,11 @@ internal static class MatchReplayCapabilities
         CardPresentationReadyV1,
         IncrementalHandV1,
         OutcomeCuesV1,
-        PassiveHudV1
+        PassiveHudV1,
+        NativeActionPresentationV1,
+        NativeActionPresentationV2,
+        EnemyIntentFramesV1,
+        RemotePlayerActionsV1
     };
 }
 
@@ -190,6 +198,13 @@ internal static class MatchReplayActionPhases
     internal const string End = "End";
 }
 
+internal static class MatchReplayActionKinds
+{
+    internal const string CardUse = "CardUse";
+    internal const string SkillUse = "SkillUse";
+    internal const string EnemyIntentUse = "EnemyIntentUse";
+}
+
 internal sealed class MatchReplayActionBoundary
 {
     public string ActionId { get; set; } = "";
@@ -251,6 +266,35 @@ internal sealed class MatchReplayStateSnapshot
     public int CardTopCount { get; set; }
 
     public List<MatchReplayCardState> Cards { get; set; } = new();
+
+    public List<MatchReplayEnemyIntentState> EnemyIntents { get; set; } = new();
+}
+
+internal sealed class MatchReplayEnemyIntentState
+{
+    public string ActorId { get; set; } = "";
+
+    public int SlotIndex { get; set; }
+
+    public string IntentId { get; set; } = "";
+
+    public string SourceInstanceId { get; set; } = "";
+
+    public string Label { get; set; } = "";
+
+    public string Description { get; set; } = "";
+
+    public string Icon { get; set; } = "";
+
+    public string BackIcon { get; set; } = "";
+
+    public string DisplayValue { get; set; } = "";
+
+    public string ActionState { get; set; } = "";
+
+    public string EffectName { get; set; } = "";
+
+    public List<string> TargetIds { get; set; } = new();
 }
 
 internal sealed class MatchReplayCardState
@@ -321,6 +365,7 @@ internal sealed class MatchReplayBuffState
 internal static class MatchSemanticCategories
 {
     internal const string Card = "Card";
+    internal const string EnemyIntent = "EnemyIntent";
     internal const string Damage = "Damage";
     internal const string Heal = "Heal";
     internal const string Defend = "Defend";

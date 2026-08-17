@@ -5,6 +5,8 @@ using System.Reflection;
 using AuraShared.Core;
 using UiRaycastSafetyShared;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
@@ -34,7 +36,7 @@ public static class UiTransitionGuardRuntime
 {
     private const string GlobalObjectName = "UiTransitionGuard.Global";
     private const string ComponentFullName = "UiTransitionGuardShared.UiTransitionGuardRuntime+UiTransitionGuardComponent";
-    public const string CurrentBuildId = "ui-transition-guard-2026-08-13-v4";
+    public const string CurrentBuildId = "ui-transition-guard-2026-08-16-v6";
     public const int CurrentProtocolVersion = 2;
     public const int MinimumSupportedProtocolVersion = 1;
 
@@ -81,6 +83,22 @@ public static class UiTransitionGuardRuntime
         var guard = EnsureGuard(modConfig, ownerModId, null);
         var result = Invoke(guard, "ScrubNow", ownerModId, source);
         return result is int count ? count : UiRaycastSafeDestroyRuntime.ScrubGraphicRegistry(ownerModId + ":" + source, Log);
+    }
+
+    public static void RecoverNativeInput(
+        ModConfig? modConfig,
+        string ownerModId,
+        string source,
+        int frames = 12)
+    {
+        var guard = EnsureGuard(modConfig, ownerModId, null);
+        if (guard == null)
+        {
+            RecoverNativeInputPass(ownerModId, source + ":fallback", terminal: true, Log);
+            return;
+        }
+
+        Invoke(guard, "RecoverNativeInput", ownerModId, source, frames);
     }
 
     public static bool IsGuardActive(ModConfig? modConfig, string ownerModId)
@@ -152,7 +170,11 @@ public static class UiTransitionGuardRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "InitializeOwner", "BeginTransition", "DisableRaycasts", "RunAfterGuard", "ScrubNow" }
+        var methodsPresent = new[]
+            {
+                "InitializeOwner", "BeginTransition", "DisableRaycasts", "RunAfterGuard", "ScrubNow",
+                "RecoverNativeInput"
+            }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
@@ -276,6 +298,169 @@ public static class UiTransitionGuardRuntime
         Debug.Log("[UiTransitionGuard] " + message);
     }
 
+    private static void RecoverNativeInputPass(
+        string ownerModId,
+        string source,
+        bool terminal,
+        Action<string> log)
+    {
+        try
+        {
+            var manager = UIManager.Instance;
+            var upper = manager?.upperCanvasTf;
+            var activeUpperChildren = ActiveChildNames(upper);
+            var controller = upper?.GetComponent<UpperCanvasController>();
+            controller?.RefreshRaycasterState();
+
+            var eventSystem = EventSystem.current;
+            if (eventSystem != null)
+            {
+                eventSystem.enabled = true;
+                if (eventSystem.currentInputModule != null)
+                {
+                    eventSystem.currentInputModule.enabled = true;
+                }
+            }
+
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+            var mainRaycaster = manager?.canvasTf?.GetComponent<GraphicRaycaster>();
+            if (controller == null && mainRaycaster != null)
+            {
+                mainRaycaster.enabled = activeUpperChildren.Count == 0;
+            }
+
+            // UIBase.UpperBlock disables CanvasGroup.blocksRaycasts on every active-scene
+            // root except Upper Canvas. The native inverse lives in UIBase.OnDisable, so a
+            // force-destroyed or already-disabled upper UI can skip it. RefreshRaycasterState
+            // only restores Graphic/Physics raycasters and cannot repair this parent blocker.
+            // Match the native CancelUpperBlock contract once no upper modal remains.
+            var rootCanvasGroups = RecoverRootCanvasGroups(activeUpperChildren.Count == 0);
+
+            var upperRaycasters = upper == null
+                ? Array.Empty<GraphicRaycaster>()
+                : upper.GetComponents<GraphicRaycaster>();
+            UiRaycastSafeDestroyRuntime.ScrubGraphicRegistry(
+                ownerModId + ":" + source,
+                terminal ? log : null);
+            if (!terminal)
+            {
+                return;
+            }
+
+            var expectedMainEnabled = activeUpperChildren.Count == 0;
+            var mainEnabled = mainRaycaster != null && mainRaycaster.enabled;
+            log("Native input recovery terminal state. owner=" + ownerModId
+                + ", source=" + source
+                + ", eventSystem=" + (eventSystem != null)
+                + ", eventSystemEnabled=" + (eventSystem != null && eventSystem.enabled)
+                + ", inputModule=" + (eventSystem?.currentInputModule != null)
+                + ", inputModuleEnabled=" + (eventSystem?.currentInputModule != null
+                                               && eventSystem.currentInputModule.enabled)
+                + ", activeUpperChildren=" + activeUpperChildren.Count
+                + ", upperChildren=" + (activeUpperChildren.Count == 0
+                    ? "none"
+                    : string.Join("|", activeUpperChildren))
+                + ", upperRaycasters=" + upperRaycasters.Length
+                + ", upperRaycastersEnabled=" + upperRaycasters.Count(item => item != null && item.enabled)
+                + ", mainRaycaster=" + (mainRaycaster != null)
+                + ", mainRaycasterEnabled=" + mainEnabled
+                + ", expectedMainRaycasterEnabled=" + expectedMainEnabled
+                + ", rootCanvasGroups=" + rootCanvasGroups.Total
+                + ", rootCanvasGroupsRecovered=" + rootCanvasGroups.Recovered
+                + ", rootCanvasGroupsBlocked=" + rootCanvasGroups.Blocked
+                + ", blockedRootCanvasGroupNames=" + (rootCanvasGroups.BlockedNames.Count == 0
+                    ? "none"
+                    : string.Join("|", rootCanvasGroups.BlockedNames))
+                + ", ownershipConsistent=" + (mainRaycaster == null || mainEnabled == expectedMainEnabled)
+                + ", nativeInputReady=" + (activeUpperChildren.Count != 0
+                    || ((mainRaycaster == null || mainEnabled) && rootCanvasGroups.Blocked == 0)));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("[UiTransitionGuard] Native input recovery failed. owner="
+                             + ownerModId + ", source=" + source + " -> " + ex.Message);
+        }
+    }
+
+    private static RootCanvasGroupRecovery RecoverRootCanvasGroups(bool shouldRecover)
+    {
+        var result = new RootCanvasGroupRecovery();
+        try
+        {
+            foreach (var root in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                if (root == null
+                    || string.Equals(root.name, "Upper Canvas", StringComparison.Ordinal)
+                    || !root.TryGetComponent<CanvasGroup>(out var canvasGroup)
+                    || canvasGroup == null)
+                {
+                    continue;
+                }
+
+                result.Total++;
+                if (!canvasGroup.blocksRaycasts && shouldRecover)
+                {
+                    canvasGroup.blocksRaycasts = true;
+                    result.Recovered++;
+                }
+
+                if (!canvasGroup.blocksRaycasts)
+                {
+                    result.Blocked++;
+                    if (result.BlockedNames.Count < 12)
+                    {
+                        result.BlockedNames.Add(string.IsNullOrWhiteSpace(root.name)
+                            ? "<unnamed>"
+                            : root.name);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            result.BlockedNames.Add("diagnostic-failed:" + ex.Message);
+        }
+
+        return result;
+    }
+
+    private static List<string> ActiveChildNames(Transform? root)
+    {
+        var result = new List<string>();
+        if (root == null)
+        {
+            return result;
+        }
+
+        try
+        {
+            foreach (Transform child in root)
+            {
+                if (child != null && child.gameObject.activeInHierarchy)
+                {
+                    result.Add(child.name ?? "<unnamed>");
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return result;
+    }
+
+    private sealed class RootCanvasGroupRecovery
+    {
+        public int Total { get; set; }
+
+        public int Recovered { get; set; }
+
+        public int Blocked { get; set; }
+
+        public List<string> BlockedNames { get; } = new();
+    }
+
     [DefaultExecutionOrder(-32000)]
     public sealed class UiTransitionGuardComponent : MonoBehaviour
     {
@@ -296,6 +481,7 @@ public static class UiTransitionGuardRuntime
         private int guardUntilFrame = -1;
         private int lastScrubFrame = -1;
         private int lastGlobalScrubFrame = -1;
+        private int nativeInputRecoveryTicket;
         private string guardSource = "";
         private string primaryOwner = "";
         private bool hooksRegistered;
@@ -352,6 +538,8 @@ public static class UiTransitionGuardRuntime
             RegisterAfter(modConfig, "UpperCanvasController.ChangeRaycaster", AfterUpperCanvasRaycasterState);
             RegisterBefore(modConfig, "UpperCanvasController.OnTransformChildrenChanged", BeforeUiLifecycle);
             RegisterAfter(modConfig, "UpperCanvasController.OnTransformChildrenChanged", AfterUpperCanvasRaycasterState);
+            RegisterAfter(modConfig, "GameEntryUI.Init", ctx =>
+                RecoverNativeInput(primaryOwner, "GameEntryUI.Init", 12));
             RegisterBefore(modConfig, "Fight_Win.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Win.ResetStates.before", DefaultGuardFrames));
             RegisterAfter(modConfig, "Fight_Win.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Win.ResetStates.after", DefaultGuardFrames));
             RegisterBefore(modConfig, "Fight_Escape.ResetStates", ctx => BeginTransition(primaryOwner, "Fight_Escape.ResetStates.before", DefaultGuardFrames));
@@ -415,6 +603,42 @@ public static class UiTransitionGuardRuntime
             return UiRaycastSafeDestroyRuntime.ScrubGraphicRegistry(ownerModId + ":" + source, Trace);
         }
 
+        public void RecoverNativeInput(string ownerModId, string source, int frames = 12)
+        {
+            var maximumOffset = Math.Max(1, Math.Min(maxGuardFrames, frames));
+            var baseFrame = Math.Max(Time.frameCount, guardUntilFrame);
+            var ticket = ++nativeInputRecoveryTicket;
+            var offsets = new[] { 1, 2, 4, 8, maximumOffset }
+                .Where(offset => offset <= maximumOffset)
+                .Distinct()
+                .OrderBy(offset => offset)
+                .ToArray();
+            foreach (var offset in offsets)
+            {
+                var terminal = offset == offsets[offsets.Length - 1];
+                deferredActions.Add(new DeferredAction(
+                    ownerModId + ":" + source + ":recover:" + offset,
+                    baseFrame + offset,
+                    () =>
+                    {
+                        if (ticket != nativeInputRecoveryTicket)
+                        {
+                            return;
+                        }
+
+                        RecoverNativeInputPass(
+                            ownerModId,
+                            source + ":frame+" + offset,
+                            terminal,
+                            terminal ? Info : Trace);
+                    }));
+            }
+
+            Trace("Native input recovery queued. source=" + ownerModId + ":" + source
+                  + ", baseFrame=" + baseFrame
+                  + ", passes=" + string.Join(",", offsets));
+        }
+
         private void BeforeUiManagerCloseUi(ModHookContext context)
         {
             var uiName = ArgumentString(context, 0);
@@ -427,7 +651,6 @@ public static class UiTransitionGuardRuntime
             var root = FindUiRoot(uiName);
             if (root != null)
             {
-                DisableRaycasts(primaryOwner, root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
                 LeaseRaycasters(root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
                 ScrubRoot(root, "UIManager.CloseUI.before:" + EmptyAsUnknown(uiName));
             }
@@ -448,7 +671,6 @@ public static class UiTransitionGuardRuntime
             }
 
             BeginTransition(primaryOwner, "UIBase.Close.before:" + SafeObjectName(root), DefaultGuardFrames);
-            DisableRaycasts(primaryOwner, root, "UIBase.Close.before:" + SafeObjectName(root));
             LeaseRaycasters(root, "UIBase.Close.before:" + SafeObjectName(root));
             ScrubRoot(root, "UIBase.Close.before:" + SafeObjectName(root));
         }
@@ -476,6 +698,7 @@ public static class UiTransitionGuardRuntime
             }
 
             QueueGlobalScrub(primaryOwner, TargetName(context) + ":after-ui-lifecycle", 1);
+            RecoverNativeInput(primaryOwner, TargetName(context) + ":after-ui-lifecycle", 12);
             Verbose("Lifecycle scrub queued. target=" + TargetName(context)
                     + ", frame=" + Time.frameCount);
         }

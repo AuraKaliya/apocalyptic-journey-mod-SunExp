@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
@@ -45,6 +46,36 @@ internal static class MatchReplayPresentationSchedule
 
         var recorded = item.ActionFrame?.DurationMilliseconds ?? 0;
         return Scale(Math.Max(360, Math.Min(1200, recorded)), mode);
+    }
+
+    internal static int OutcomeProjectionDelay(MatchReplayActionFrame? frame, string mode)
+    {
+        if (frame == null
+            || !string.Equals(frame.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal))
+        {
+            return 0;
+        }
+
+        var outcomeKinds = new HashSet<string>(StringComparer.Ordinal)
+        {
+            MatchReplayPresentationCueKinds.Damage,
+            MatchReplayPresentationCueKinds.Heal,
+            MatchReplayPresentationCueKinds.Defend,
+            MatchReplayPresentationCueKinds.Buff,
+            MatchReplayPresentationCueKinds.Resource,
+            MatchReplayPresentationCueKinds.StateChange
+        };
+        var offset = (frame.Presentation ?? new List<MatchReplayPresentationCue>())
+            .Where(cue => outcomeKinds.Contains(cue.Kind))
+            .Select(cue => Math.Max(0, cue.StartOffsetMilliseconds))
+            .DefaultIfEmpty(180)
+            .Min();
+        return Math.Min(DurationMilliseconds(frame, mode), Scale(Math.Max(1, offset), mode));
+    }
+
+    private static int DurationMilliseconds(MatchReplayActionFrame frame, string mode)
+    {
+        return Scale(Math.Max(360, Math.Min(1200, frame.DurationMilliseconds)), mode);
     }
 
     private static int ActionGap(string mode)

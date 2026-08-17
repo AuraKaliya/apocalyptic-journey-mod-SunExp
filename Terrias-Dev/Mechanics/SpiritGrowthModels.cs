@@ -293,6 +293,8 @@ public sealed class SpiritInstance
 
     public CapturedEnemySnapshot Snapshot { get; set; } = new();
 
+    public SpiritLocalizedPresentation Presentation { get; set; } = new();
+
     public int Level { get; set; } = 1;
 
     public int Experience { get; set; }
@@ -337,6 +339,7 @@ public sealed class SpiritInstance
             SpeciesId = SpeciesId,
             ProfileId = ProfileId,
             Snapshot = SpiritModelCloner.CloneSnapshot(Snapshot),
+            Presentation = (Presentation ?? new SpiritLocalizedPresentation()).Clone(),
             Level = Level,
             Experience = Experience,
             Aptitude = Aptitude,

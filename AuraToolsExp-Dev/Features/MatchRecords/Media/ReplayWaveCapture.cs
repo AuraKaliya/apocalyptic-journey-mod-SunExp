@@ -67,6 +67,7 @@ internal sealed class ReplayWaveWriter : IDisposable
     private readonly int channels;
     private readonly int sampleRate;
     private long dataBytes;
+    private bool disposed;
 
     internal ReplayWaveWriter(string path, int sampleRate, int channels)
     {
@@ -77,8 +78,13 @@ internal sealed class ReplayWaveWriter : IDisposable
         WriteHeader(0);
     }
 
+    internal int SampleRate => sampleRate;
+
+    internal int Channels => channels;
+
     internal void Write(float[] samples, int sourceChannels)
     {
+        if (disposed) throw new ObjectDisposedException(nameof(ReplayWaveWriter));
         if (samples == null || samples.Length == 0) return;
         var normalizedSource = Math.Max(1, sourceChannels);
         for (var index = 0; index < samples.Length; index += normalizedSource)
@@ -93,8 +99,35 @@ internal sealed class ReplayWaveWriter : IDisposable
         }
     }
 
+    internal void NormalizeLength(long sampleFrames)
+    {
+        if (disposed) throw new ObjectDisposedException(nameof(ReplayWaveWriter));
+        var targetBytes = Math.Max(0L, sampleFrames) * channels * 2L;
+        writer.Flush();
+        if (dataBytes > targetBytes)
+        {
+            stream.SetLength(44L + targetBytes);
+            stream.Position = 44L + targetBytes;
+            dataBytes = targetBytes;
+            return;
+        }
+
+        var remaining = targetBytes - dataBytes;
+        if (remaining <= 0) return;
+        var silence = new byte[32 * 1024];
+        while (remaining > 0)
+        {
+            var count = (int)Math.Min(silence.Length, remaining);
+            writer.Write(silence, 0, count);
+            dataBytes += count;
+            remaining -= count;
+        }
+    }
+
     public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
         writer.Flush();
         stream.Position = 0;
         WriteHeader(dataBytes);

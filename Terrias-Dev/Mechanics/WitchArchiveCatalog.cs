@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
+using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
@@ -106,10 +107,11 @@ public static class WitchArchiveCatalog
     private static WitchArchiveDisplayEntry ToDisplayEntry(WitchArchiveEntry entry)
     {
         var career = entry.CareerId.Length == 0 ? null : TerriasConfigIndex.Row(DataType.Career, entry.CareerId);
-        var name = LocalizedCareerField(career, "Name", entry.Name.Resolve(entry.Id));
-        var title = LocalizedCareerField(career, "Title", entry.Title.Resolve());
-        var summary = entry.Summary.Resolve(LocalizedCareerField(career, "Description", ""));
-        var background = entry.Background.Resolve(summary);
+        var locale = TerriasLanguageApi.CurrentLocale;
+        var name = LocalizedCareerField(career, "Name", entry.Name.Resolve(locale, entry.Id));
+        var title = LocalizedCareerField(career, "Title", entry.Title.Resolve(locale));
+        var summary = entry.Summary.Resolve(locale, LocalizedCareerField(career, "Description", ""));
+        var background = entry.Background.Resolve(locale, summary);
         return new WitchArchiveDisplayEntry(
             entry.Id,
             entry.RoleId,
@@ -154,11 +156,11 @@ public static class WitchArchiveCatalog
         entry.CareerId = Clean(entry.CareerId);
         entry.AvatarPath = Clean(entry.AvatarPath);
         entry.PortraitPath = Clean(entry.PortraitPath);
-        entry.Name ??= new WitchArchiveLocalizedText();
-        entry.Title ??= new WitchArchiveLocalizedText();
-        entry.Summary ??= new WitchArchiveLocalizedText();
-        entry.Background ??= new WitchArchiveLocalizedText();
-        entry.BackgroundFiles ??= new WitchArchiveLocalizedText();
+        entry.Name ??= new TerriasLocalizedText();
+        entry.Title ??= new TerriasLocalizedText();
+        entry.Summary ??= new TerriasLocalizedText();
+        entry.Background ??= new TerriasLocalizedText();
+        entry.BackgroundFiles ??= new TerriasLocalizedText();
     }
 
     private static void ApplyExternalBackgrounds(

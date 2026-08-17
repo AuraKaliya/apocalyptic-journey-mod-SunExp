@@ -76,8 +76,8 @@ public static class EnemyCatalogApi
         var variantId = FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), enemyId);
         var description = string.Join("\n", new[]
         {
-            Localized(data, "Description1"),
-            Localized(data, "Description2")
+            DictionaryUtil.Get(data, "Description1"),
+            DictionaryUtil.Get(data, "Description2")
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
         var snapshot = new CapturedEnemySnapshot
         {
@@ -86,7 +86,7 @@ public static class EnemyCatalogApi
             EnemyId = enemyId,
             VariantId = variantId,
             InstanceId = target.InstanceId ?? "",
-            DisplayName = FirstNonEmpty(Localized(data, "Name"), enemyId),
+            DisplayName = FirstNonEmpty(DictionaryUtil.Get(data, "Name"), enemyId),
             Description = description,
             AnimationPath = animation,
             DictPath = dictPath,
@@ -123,18 +123,6 @@ public static class EnemyCatalogApi
                 started,
                 "found=" + found + ", path=" + path,
                 logFirstSample: true);
-        }
-    }
-
-    private static string Localized(IDictionary<string, string> data, string key)
-    {
-        try
-        {
-            return data.Localize(key) ?? "";
-        }
-        catch
-        {
-            return DictionaryUtil.Get(data, key);
         }
     }
 

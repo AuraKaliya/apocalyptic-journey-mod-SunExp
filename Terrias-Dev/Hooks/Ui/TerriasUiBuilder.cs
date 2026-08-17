@@ -90,6 +90,7 @@ public static class TerriasUiBuilder
         text.resizeTextMinSize = Math.Max(10, fontSize - minSizePadding);
         text.resizeTextMaxSize = fontSize;
         text.raycastTarget = false;
+        TerriasLocalizationScope.BindLegacyIfAvailable(text, value);
         return text;
     }
 }

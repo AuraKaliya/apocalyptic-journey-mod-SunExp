@@ -32,9 +32,7 @@ internal static class MjpegAviWriter
 
         var fps = Math.Max(1, Math.Min(120, framesPerSecond));
         var audio = WavePcmInfo.TryRead(wavPath);
-        var targetAudioBytes = audio == null
-            ? 0L
-            : Math.Min(audio.DataBytes, (long)Math.Ceiling(frames.Count / (double)fps * audio.BytesPerSecond));
+        var targetAudioBytes = TargetAudioBytes(audio, frames.Count, fps);
         var estimated = frames.Sum(item => item.Length + 8L + (item.Length & 1L)) + targetAudioBytes + 1024L * 1024L;
         if (estimated > MaximumAviBytes)
         {
@@ -56,33 +54,16 @@ internal static class MjpegAviWriter
 
         EndContainer(writer, hdrl);
         var movi = BeginContainer(writer, "LIST", "movi");
-        var index = new List<AviIndexEntry>(frames.Count + 64);
-        foreach (var frame in frames)
+        var index = new List<AviIndexEntry>(frames.Count * (audio == null ? 1 : 2) + 16);
+        using var audioInterleaver = audio == null || targetAudioBytes <= 0
+            ? null
+            : new AudioInterleaver(audio, targetAudioBytes);
+        for (var frameIndex = 0; frameIndex < frames.Count; frameIndex++)
         {
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
+            var frame = frames[frameIndex];
             WriteMediaChunk(writer, movi, "00dc", File.ReadAllBytes(frame.FullName), 0x10, index);
-        }
-
-        if (audio != null && targetAudioBytes > 0)
-        {
-            using var input = File.OpenRead(audio.Path);
-            input.Position = audio.DataOffset;
-            var remaining = targetAudioBytes;
-            var buffer = new byte[1024 * 1024];
-            while (remaining > 0)
-            {
-                if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
-                var requested = (int)Math.Min(buffer.Length, remaining);
-                var read = input.Read(buffer, 0, requested);
-                if (read <= 0)
-                {
-                    break;
-                }
-
-                var chunk = read == buffer.Length ? buffer : buffer.Take(read).ToArray();
-                WriteMediaChunk(writer, movi, "01wb", chunk, 0, index);
-                remaining -= read;
-            }
+            audioInterleaver?.WriteForFrame(writer, movi, frameIndex, frames.Count, index, isCancelled);
         }
 
         EndContainer(writer, movi);
@@ -122,9 +103,7 @@ internal static class MjpegAviWriter
 
         var fps = Math.Max(1, Math.Min(120, framesPerSecond));
         var audio = WavePcmInfo.TryRead(wavPath);
-        var targetAudioBytes = audio == null
-            ? 0L
-            : Math.Min(audio.DataBytes, (long)Math.Ceiling(frameCount / (double)fps * audio.BytesPerSecond));
+        var targetAudioBytes = TargetAudioBytes(audio, frameCount, fps);
         var estimated = Math.Max(0, framePayloadBytes) + frameCount * 10L + targetAudioBytes + 1024L * 1024L;
         if (estimated > MaximumAviBytes)
         {
@@ -145,12 +124,16 @@ internal static class MjpegAviWriter
 
         EndContainer(writer, hdrl);
         var movi = BeginContainer(writer, "LIST", "movi");
-        var index = new List<AviIndexEntry>(frameCount + 64);
+        var index = new List<AviIndexEntry>(frameCount * (audio == null ? 1 : 2) + 16);
+        using var audioInterleaver = audio == null || targetAudioBytes <= 0
+            ? null
+            : new AudioInterleaver(audio, targetAudioBytes);
         var writtenFrames = 0;
         foreach (var frame in ReplayFrameSpool.Read(spoolPath))
         {
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             WriteMediaChunk(writer, movi, "00dc", frame, 0x10, index);
+            audioInterleaver?.WriteForFrame(writer, movi, writtenFrames, frameCount, index, isCancelled);
             writtenFrames++;
         }
 
@@ -159,7 +142,6 @@ internal static class MjpegAviWriter
             throw new InvalidDataException("视频帧工作文件与帧计数不一致。");
         }
 
-        WriteAudioChunks(writer, movi, audio, targetAudioBytes, index, isCancelled);
         EndContainer(writer, movi);
         WriteFourCc(writer, "idx1");
         writer.Write(index.Count * 16);
@@ -178,29 +160,13 @@ internal static class MjpegAviWriter
         }
     }
 
-    private static void WriteAudioChunks(
-        BinaryWriter writer,
-        long movi,
-        WavePcmInfo? audio,
-        long targetAudioBytes,
-        List<AviIndexEntry> index,
-        Func<bool>? isCancelled)
+    private static long TargetAudioBytes(WavePcmInfo? audio, int frameCount, int fps)
     {
-        if (audio == null || targetAudioBytes <= 0) return;
-        using var input = File.OpenRead(audio.Path);
-        input.Position = audio.DataOffset;
-        var remaining = targetAudioBytes;
-        var buffer = new byte[1024 * 1024];
-        while (remaining > 0)
-        {
-            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
-            var requested = (int)Math.Min(buffer.Length, remaining);
-            var read = input.Read(buffer, 0, requested);
-            if (read <= 0) break;
-            var chunk = read == buffer.Length ? buffer : buffer.Take(read).ToArray();
-            WriteMediaChunk(writer, movi, "01wb", chunk, 0, index);
-            remaining -= read;
-        }
+        if (audio == null || frameCount <= 0) return 0L;
+        var raw = Math.Max(0L, (long)Math.Round(
+            frameCount / (double)Math.Max(1, fps) * audio.BytesPerSecond,
+            MidpointRounding.AwayFromZero));
+        return raw - raw % Math.Max(1, audio.BlockAlign);
     }
 
     private static void WriteMainHeader(
@@ -334,6 +300,63 @@ internal static class MjpegAviWriter
     {
         if (value == null || value.Length != 4) throw new ArgumentException("FOURCC must contain four characters.", nameof(value));
         writer.Write(Encoding.ASCII.GetBytes(value));
+    }
+
+    private sealed class AudioInterleaver : IDisposable
+    {
+        private readonly WavePcmInfo audio;
+        private readonly long targetBytes;
+        private readonly FileStream input;
+        private long writtenBytes;
+
+        internal AudioInterleaver(WavePcmInfo audio, long targetBytes)
+        {
+            this.audio = audio;
+            this.targetBytes = Math.Max(0L, targetBytes);
+            input = File.OpenRead(audio.Path);
+            input.Position = audio.DataOffset;
+        }
+
+        internal void WriteForFrame(
+            BinaryWriter writer,
+            long movi,
+            int frameIndex,
+            int frameCount,
+            List<AviIndexEntry> index,
+            Func<bool>? isCancelled)
+        {
+            if (targetBytes <= 0 || frameCount <= 0) return;
+            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
+            var cumulative = frameIndex + 1 >= frameCount
+                ? targetBytes
+                : (long)Math.Round(
+                    (frameIndex + 1d) / frameCount * targetBytes,
+                    MidpointRounding.AwayFromZero);
+            cumulative -= cumulative % Math.Max(1, audio.BlockAlign);
+            var requested = checked((int)Math.Max(0L, cumulative - writtenBytes));
+            if (requested <= 0) return;
+
+            var payload = new byte[requested];
+            var offset = 0;
+            var availableEnd = audio.DataOffset + audio.DataBytes;
+            while (offset < requested && input.Position < availableEnd)
+            {
+                var available = (int)Math.Min(requested - offset, availableEnd - input.Position);
+                var read = input.Read(payload, offset, available);
+                if (read <= 0) break;
+                offset += read;
+            }
+
+            // The WAV is normally normalized before encoding. Zero padding here
+            // keeps the container clock exact if a partial capture reaches us.
+            WriteMediaChunk(writer, movi, "01wb", payload, 0, index);
+            writtenBytes += requested;
+        }
+
+        public void Dispose()
+        {
+            input.Dispose();
+        }
     }
 
     private sealed class AviIndexEntry

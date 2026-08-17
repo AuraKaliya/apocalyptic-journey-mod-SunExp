@@ -25,6 +25,13 @@ internal sealed class MatchReplayActionConvergenceTracker
 
     internal int ObservationCount { get; private set; }
 
+    internal void Reset()
+    {
+        previousStateHash = "";
+        stableObservations = 0;
+        ObservationCount = 0;
+    }
+
     internal MatchReplayActionFinalizationDecision Observe(string stateHash)
     {
         var normalized = stateHash ?? "";

@@ -243,7 +243,7 @@ public static class TerriasSkillCgRuntime
             return "media";
         }
 
-        if (!AuraCgActivationRuntime.CanConsumerPlay(entry, TerriasIds.ModId))
+        if (!AuraCgActivationRuntime.CanProducerEmit(entry, TerriasIds.ModId))
         {
             return "activation";
         }

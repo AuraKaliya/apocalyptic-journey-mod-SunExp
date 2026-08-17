@@ -77,6 +77,7 @@ public static class ArchiveUiFactory
 
         text.supportRichText = true;
         text.raycastTarget = false;
+        TerriasLocalizationScope.BindLegacyIfAvailable(text, value);
         return text;
     }
 
@@ -107,6 +108,7 @@ public static class ArchiveUiFactory
         text.verticalOverflow = VerticalWrapMode.Overflow;
         text.supportRichText = true;
         text.raycastTarget = false;
+        TerriasLocalizationScope.BindLegacyIfAvailable(text, value);
         return text;
     }
 

@@ -4,6 +4,7 @@ using AuraUi.Shared;
 using Michsky.MUIP;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -78,6 +79,11 @@ public static class SpiritAdventureButtonRuntime
             target.name = ButtonName;
             target.transform.SetSiblingIndex(Math.Min(buttons.childCount - 1, template.GetSiblingIndex() + 1));
         }
+        if (target.GetComponent<TerriasLocalizationScope>() == null)
+        {
+            var localization = TerriasLocalizationScope.Attach(target);
+            localization.RegisterRefresh(() => Configure(target));
+        }
         Bind(target);
         Configure(target);
         return true;
@@ -100,13 +106,13 @@ public static class SpiritAdventureButtonRuntime
             if (component is Behaviour behaviour) behaviour.enabled = false;
             Object.Destroy(component);
         }
-        AuraUiNativeHoverHint.Attach(target, "精灵背包");
         if (target.GetComponent<SpiritAdventureButtonRelay>() == null) target.AddComponent<SpiritAdventureButtonRelay>();
     }
 
     private static void Configure(GameObject target)
     {
-        const string label = "精灵";
+        var label = TerriasTextCatalog.Get("ui.spirit.short_label");
+        AuraUiNativeHoverHint.Attach(target, TerriasTextCatalog.Get("ui.spirit.adventure_title"));
         var manager = target.GetComponent<ButtonManager>();
         if (manager != null)
         {

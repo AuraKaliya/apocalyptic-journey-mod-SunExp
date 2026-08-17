@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCollectionService
 {
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
     public const int PartyCapacity = 6;
     public const int LegacyCardMigrationVersion = 1;
     private const int OperationHistoryLimit = 512;
@@ -20,7 +20,14 @@ public static class SpiritCollectionService
         lock (SyncRoot)
         {
             store = profileStore ?? throw new ArgumentNullException(nameof(profileStore));
-            document = Normalize(store.Load());
+            var loaded = store.Load();
+            var requiresMigrationSave = loaded.Version < CurrentVersion;
+            document = Normalize(loaded);
+            if (requiresMigrationSave)
+            {
+                store.Save(CloneDocument(document));
+                TerriasLog.Info("[SpiritCollection] migrated collection to version " + CurrentVersion + ".");
+            }
         }
     }
 
@@ -92,6 +99,7 @@ public static class SpiritCollectionService
                 SpeciesId = identity.SpeciesId,
                 ProfileId = identity.ProfileId,
                 Snapshot = normalizedSnapshot,
+                Presentation = SpiritPresentationResolver.Capture(normalizedSnapshot),
                 Level = 1,
                 Experience = 0,
                 Aptitude = Math.Max(aptitudeRoll.Minimum, Math.Min(aptitudeRoll.Maximum,
@@ -357,6 +365,7 @@ public static class SpiritCollectionService
                     SpeciesId = identity.SpeciesId,
                     ProfileId = identity.ProfileId,
                     Snapshot = snapshot,
+                    Presentation = SpiritPresentationResolver.Capture(snapshot),
                     Level = 1,
                     Aptitude = SpiritGrowthService.LegacyAptitude,
                     CapturedAt = snapshot.CapturedAt
@@ -384,7 +393,8 @@ public static class SpiritCollectionService
     private static SpiritCollectionDocument Normalize(SpiritCollectionDocument? source)
     {
         source ??= new SpiritCollectionDocument();
-        var legacyTraining = source.Version < CurrentVersion;
+        var sourceVersion = source.Version;
+        var legacyTraining = sourceVersion < 5;
         source.Version = CurrentVersion;
         source.Instances ??= new List<SpiritInstance>();
         source.ProcessedCaptureTokens ??= new Dictionary<string, string>(StringComparer.Ordinal);
@@ -396,6 +406,11 @@ public static class SpiritCollectionService
                 item.SpiritUid = string.IsNullOrWhiteSpace(item.SpiritUid) ? Guid.NewGuid().ToString("N") : item.SpiritUid.Trim();
                 while (!seen.Add(item.SpiritUid)) item.SpiritUid = Guid.NewGuid().ToString("N");
                 item.Snapshot.SpiritUid = item.SpiritUid;
+                item.Presentation ??= new SpiritLocalizedPresentation();
+                if (sourceVersion < 6 || !HasPresentation(item.Presentation))
+                {
+                    item.Presentation = SpiritPresentationResolver.Capture(item.Snapshot);
+                }
                 if (string.IsNullOrWhiteSpace(item.SpeciesId) || string.IsNullOrWhiteSpace(item.ProfileId))
                 {
                     var identity = SpiritGrowthRegistry.ResolveIdentity(item.Snapshot);
@@ -534,6 +549,13 @@ public static class SpiritCollectionService
     private static SpiritGuiyuanResult GuiyuanFailure(string reason)
     {
         return new SpiritGuiyuanResult { Reason = reason ?? "归元失败。" };
+    }
+
+    private static bool HasPresentation(SpiritLocalizedPresentation presentation)
+    {
+        return presentation?.Name != null
+               && (TerriasLocale.Supported.Any(presentation.Name.HasExact)
+                   || !string.IsNullOrWhiteSpace(presentation.Name.LegacyFallback));
     }
 
     private static bool IsOwnedSource(string sourceModId)

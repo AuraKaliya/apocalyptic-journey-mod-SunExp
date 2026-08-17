@@ -106,7 +106,8 @@ internal static partial class AuraToolsTestSuite
         Assert(!defaults.MatchRecords.Enabled
                && defaults.MatchRecords.Statistics.Enabled
                && !defaults.MatchRecords.Replay.Enabled
-               && defaults.MatchRecords.Replay.AutoRecordLimit == 20,
+               && defaults.MatchRecords.Replay.AutoRecordLimit == 20
+               && defaults.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
             "match records and replay default off while the DPT child is ready when the module is enabled");
 
         var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
@@ -121,14 +122,15 @@ internal static partial class AuraToolsTestSuite
             "legacy damageMeter settings migrate into the match-record statistics child without enabling replay");
 
         var current = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-            "{\"matchRecords\":{\"enabled\":true,\"statistics\":{\"enabled\":false},\"replay\":{\"enabled\":true,\"autoRecordLimit\":9999}},\"damageMeter\":{\"enabled\":true}}")!;
+            "{\"matchRecords\":{\"enabled\":true,\"statistics\":{\"enabled\":false},\"replay\":{\"enabled\":true,\"autoRecordLimit\":9999,\"presentationMode\":\"Showcase\"}},\"damageMeter\":{\"enabled\":true}}")!;
         current.Normalize();
         var json = JsonConvert.SerializeObject(current);
         Assert(current.MatchRecords.Enabled
                && !current.MatchRecords.Statistics.Enabled
                && current.MatchRecords.Replay.Enabled
-               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit,
-            "the new matchRecords section wins over a stale legacy section and normalizes its retention limit");
+               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit
+               && current.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
+            "the new matchRecords section wins over stale settings and fixes replay presentation to Standard");
         Assert(json.Contains("\"matchRecords\"", StringComparison.Ordinal)
                && !json.Contains("\"damageMeter\"", StringComparison.Ordinal),
             "new configuration files serialize only the matchRecords ownership model");

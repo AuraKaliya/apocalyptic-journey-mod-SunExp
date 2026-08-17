@@ -45,6 +45,7 @@ public static class WitchArchivePanel
 
             var shell = ArchiveWindowShell.Create(parent);
             activeRoot = shell.Root;
+            TerriasLocalizationScope.Attach(activeRoot).RegisterRefresh(RefreshLocalizedContent);
             portraitViewport = ArchivePortraitViewport.Create(shell.PortraitLayer);
             identityHeader = ArchiveIdentityHeader.Create(shell.ChromeLayer);
             characterRail = ArchiveCharacterRail.Create(shell.ChromeLayer, SelectCharacter);
@@ -106,6 +107,29 @@ public static class WitchArchivePanel
         selectedSection = section;
         sectionTabs?.SetSelected(section);
         infoPanel?.SetSection(section);
+    }
+
+    private static void RefreshLocalizedContent()
+    {
+        if (activeRoot == null)
+        {
+            return;
+        }
+
+        entries = WitchArchiveCatalog.DisplayEntries();
+        characterRail?.Bind(entries);
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        if (entries.All(entry => !string.Equals(entry.Id, selectedCharacterId, StringComparison.Ordinal)))
+        {
+            selectedCharacterId = entries[0].Id;
+        }
+
+        SelectCharacter(selectedCharacterId);
+        SelectSection(selectedSection);
     }
 
     private static void MoveCharacter(int delta)
@@ -177,7 +201,7 @@ public static class WitchArchivePanel
             2f);
         ArchiveUiFactory.ApplyPanel(divider.gameObject, ArchiveUiTheme.Divider, false);
         var rect = ArchiveUiFactory.CreateTopLeft("NavigationHint", footer, 32f, 8f, 560f, 48f);
-        ArchiveUiFactory.CreateText(
+        var navigationHint = ArchiveUiFactory.CreateText(
             "Text",
             rect,
             "Q / E  ·  " + WitchArchiveStrings.SwitchCharacter + "    W / S  ·  " + WitchArchiveStrings.SwitchSection,
@@ -185,8 +209,11 @@ public static class WitchArchivePanel
             TextAnchor.MiddleLeft,
             ArchiveUiTheme.TextSecondary,
             true);
+        TerriasLocalizationScope.Find(navigationHint.transform)?.Bind(navigationHint,
+            () => "Q / E  ·  " + WitchArchiveStrings.SwitchCharacter
+                  + "    W / S  ·  " + WitchArchiveStrings.SwitchSection);
         var closeRect = ArchiveUiFactory.CreateTopLeft("CloseHint", footer, 1328f, 8f, 240f, 48f);
-        ArchiveUiFactory.CreateText(
+        var closeHint = ArchiveUiFactory.CreateText(
             "Text",
             closeRect,
             "ESC  ·  " + WitchArchiveStrings.Close,
@@ -194,5 +221,7 @@ public static class WitchArchivePanel
             TextAnchor.MiddleRight,
             ArchiveUiTheme.TextSecondary,
             true);
+        TerriasLocalizationScope.Find(closeHint.transform)?.Bind(closeHint,
+            () => "ESC  ·  " + WitchArchiveStrings.Close);
     }
 }

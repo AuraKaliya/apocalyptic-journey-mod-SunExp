@@ -15,7 +15,7 @@ public static class AudioArbiterRuntime
 {
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-08-12-v11";
+    public const string CurrentBuildId = "audio-arbiter-2026-08-17-v12";
     public const int CurrentProtocolVersion = 6;
     public const int MinimumSupportedProtocolVersion = 6;
     public const int SupportedManifestSchemaVersion = 2;
@@ -310,7 +310,7 @@ public static class AudioArbiterRuntime
         private readonly AudioLowHealthCoordinator lowHealthCoordinator = new();
         private readonly AudioNetworkRuntime networkRuntime = new();
         private readonly AudioReplacementCoordinator<AudioClip> replacementCoordinator = new();
-        private readonly AudioPendingPresentationQueue pendingRemotePresentations = new();
+        private readonly AudioPendingPresentationQueue pendingPresentations = new();
         private readonly HashSet<string> providerMismatchWarnings = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> cooldownUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, float> suppressNarrationUntil = new();
@@ -365,14 +365,14 @@ public static class AudioArbiterRuntime
 
         private void OnDestroy()
         {
-            pendingRemotePresentations.Clear();
+            pendingPresentations.Clear();
             hookAdapter?.Dispose();
             hookAdapter = null;
         }
 
         private void Update()
         {
-            RetryPendingRemotePresentations();
+            RetryPendingPresentations();
         }
 
         private void OnInitializationStepFailed(string step, Exception exception)
@@ -408,6 +408,10 @@ public static class AudioArbiterRuntime
                     b.QualifiedProviderId));
                 lowHealthCoordinator.ConfigureProviders(soundProviders.Select(provider =>
                     new AudioLowHealthProviderDescriptor(provider.Kind, provider.LowHealthCrossDownThreshold)));
+                if (handle.Preload())
+                {
+                    Log("Sound provider prewarm started: " + handle.QualifiedProviderId);
+                }
                 Log("Sound provider registered: " + handle.Describe() + ", count=" + soundProviders.Count);
             }
             catch (Exception ex)
@@ -530,11 +534,12 @@ public static class AudioArbiterRuntime
                 var resolvedMaybe = Resolve(request, out var transientUnavailable);
                 if (!resolvedMaybe.HasValue)
                 {
-                    if (request.IsRemote && transientUnavailable)
+                    if (transientUnavailable)
                     {
-                        if (pendingRemotePresentations.Enqueue(request, DateTime.UtcNow.Ticks))
+                        if (pendingPresentations.Enqueue(request, DateTime.UtcNow.Ticks, syncRemote))
                         {
-                            TraceRequest(request, "Remote presentation queued until provider is ready");
+                            TraceRequest(request, (request.IsRemote ? "Remote" : "Local")
+                                                  + " presentation queued until provider is ready");
                             LogCardUseOutcome(request, null, "provider-loading-pending");
                         }
 
@@ -570,10 +575,8 @@ public static class AudioArbiterRuntime
                     + provider.ProviderId + ", clip=" + clip.name));
 
             transientUnavailable = resolution.HasTransientCandidate
-                                   || (request.IsRemote
-                                       && soundProviders.Count == 0)
-                                   || (request.IsRemote
-                                       && resolution.Status == AudioProviderResolutionStatus.IdentityMismatch);
+                                   || soundProviders.Count == 0
+                                   || resolution.Status == AudioProviderResolutionStatus.IdentityMismatch;
 
             if (resolution.ShouldWarnRemoteMismatch && !transientUnavailable)
             {
@@ -658,19 +661,19 @@ public static class AudioArbiterRuntime
             return true;
         }
 
-        private void RetryPendingRemotePresentations()
+        private void RetryPendingPresentations()
         {
-            if (pendingRemotePresentations.Count == 0)
+            if (pendingPresentations.Count == 0)
             {
                 return;
             }
 
             var nowUtcTicks = DateTime.UtcNow.Ticks;
-            foreach (var pending in pendingRemotePresentations.Snapshot())
+            foreach (var pending in pendingPresentations.Snapshot())
             {
                 if (nowUtcTicks >= pending.ExpiresAtUtcTicks)
                 {
-                    pendingRemotePresentations.Remove(pending.Key);
+                    pendingPresentations.Remove(pending.Key);
                     LogCardUseOutcome(pending.Request, null, "provider-loading-timeout");
                     continue;
                 }
@@ -685,18 +688,18 @@ public static class AudioArbiterRuntime
                             continue;
                         }
 
-                        pendingRemotePresentations.Remove(pending.Key);
+                        pendingPresentations.Remove(pending.Key);
                         LogCardUseOutcome(pending.Request, null, "provider-unavailable");
                         continue;
                     }
 
-                    pendingRemotePresentations.Remove(pending.Key);
-                    PresentResolvedRequest(pending.Request, resolved.Value, syncRemote: false);
+                    pendingPresentations.Remove(pending.Key);
+                    PresentResolvedRequest(pending.Request, resolved.Value, pending.SyncRemote);
                 }
                 catch (Exception ex)
                 {
-                    pendingRemotePresentations.Remove(pending.Key);
-                    Warn("Pending remote presentation failed: " + ex.Message);
+                    pendingPresentations.Remove(pending.Key);
+                    Warn("Pending presentation failed: " + ex.Message);
                 }
             }
         }
@@ -718,7 +721,7 @@ public static class AudioArbiterRuntime
                 soundProviders.Remove(provider);
             }
 
-            pendingRemotePresentations.Clear();
+            pendingPresentations.Clear();
             replacementCoordinator.Clear();
             cooldownUntil.Clear();
             lowHealthCoordinator.ConfigureProviders(soundProviders.Select(provider =>
@@ -806,7 +809,7 @@ public static class AudioArbiterRuntime
 
         private void OnFightStartBefore(ModHookContext context)
         {
-            pendingRemotePresentations.Clear();
+            pendingPresentations.Clear();
             replacementCoordinator.Clear();
             cooldownUntil.Clear();
             lowHealthCoordinator.ResetFight();
@@ -822,7 +825,7 @@ public static class AudioArbiterRuntime
             }
 
             replacementCoordinator.ClearPairingClaims();
-            pendingRemotePresentations.Clear();
+            pendingPresentations.Clear();
         }
 
         public void ApplyServerCardUsePresentation(SoundPlaybackRequest request, AuraRpcSender sender)
@@ -876,8 +879,10 @@ public static class AudioArbiterRuntime
                 return;
             }
 
-            lastAnnouncedCareerSelectionId = observation.CareerId;
-            RequestSoundInternal(AudioRequestFactory.CreateCareerSelected(observation), syncRemote: true);
+            if (RequestSoundInternal(AudioRequestFactory.CreateCareerSelected(observation), syncRemote: true))
+            {
+                lastAnnouncedCareerSelectionId = observation.CareerId;
+            }
         }
 
         private void OnCombatActionBefore(AuraCombatActionContext context)

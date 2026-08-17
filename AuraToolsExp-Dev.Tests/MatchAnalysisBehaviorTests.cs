@@ -54,6 +54,77 @@ internal static partial class AuraToolsTestSuite
             "analysis aggregates card usage and labels only observed follow-up damage");
         Assert(report.KeyMoments.Any(item => item.EventSequence == 4),
             "analysis exposes replay-addressable key moments");
+
+        var framedEvents = new List<MatchReplayEvent>
+        {
+            new()
+            {
+                Sequence = 1,
+                TurnIndex = 1,
+                Kind = MatchReplayEventKinds.ActionFrame,
+                Semantic = new MatchSemanticEvent
+                {
+                    EventId = "player-card",
+                    ActionId = "player-action",
+                    RootActionId = "player-action",
+                    Category = MatchSemanticCategories.Card,
+                    SourceId = "card-a",
+                    Label = "卡牌A"
+                },
+                ActionFrame = new MatchReplayActionFrame
+                {
+                    ActionId = "player-action",
+                    Kind = MatchReplayActionKinds.CardUse,
+                    Semantics = new List<MatchSemanticEvent>()
+                }
+            },
+            new()
+            {
+                Sequence = 2,
+                TurnIndex = 1,
+                Kind = MatchReplayEventKinds.ActionFrame,
+                Semantic = new MatchSemanticEvent
+                {
+                    EventId = "enemy-intent",
+                    ActionId = "enemy-action",
+                    RootActionId = "enemy-action",
+                    Category = MatchSemanticCategories.EnemyIntent,
+                    ActorId = "enemy-a",
+                    SourceId = "enemy-card-bite",
+                    Label = "撕咬"
+                },
+                ActionFrame = new MatchReplayActionFrame
+                {
+                    ActionId = "enemy-action",
+                    Kind = MatchReplayActionKinds.EnemyIntentUse,
+                    Semantics = new List<MatchSemanticEvent>
+                    {
+                        new()
+                        {
+                            EventId = "enemy-damage",
+                            ActionId = "enemy-action",
+                            RootActionId = "enemy-action",
+                            Category = MatchSemanticCategories.Damage,
+                            ActorId = "enemy-a",
+                            TargetId = "role-1",
+                            SourceInstanceId = "enemy-a",
+                            TargetInstanceId = "role-1",
+                            Value = 9
+                        }
+                    }
+                }
+            }
+        };
+        var framedReport = MatchAnalysisBuilder.Build(new MatchRecord
+        {
+            TurnCount = 1,
+            StatisticsJson = AuraSharedJson.SerializeCompact(snapshot)
+        }, framedEvents);
+        Assert(framedReport.CardUseCount == 1
+               && framedReport.Cards.Single().AttributedDamage == 0
+               && framedReport.Cards.Single().ObservedFollowUpDamage == 0
+               && framedReport.DamageFlows.Any(item => item.TargetTeam == "Friendly" && item.HpDamage == 9),
+            "enemy intent damage is never attributed to the player's previous card and remains an enemy-to-friendly flow");
     }
 
     public static void TestMjpegAviWriter()
@@ -104,6 +175,27 @@ internal static partial class AuraToolsTestSuite
                 var streamed = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(streamedOutput));
                 Assert(streamed.Contains("MJPG", StringComparison.Ordinal) && streamed.Contains("idx1", StringComparison.Ordinal),
                     "bounded frame spool feeds the background AVI encoder without thousands of frame files");
+
+                var wavePath = Path.Combine(root, "audio.wav");
+                WriteTestPcmWave(wavePath, sampleRate: 48000, channels: 2, sampleFrames: 4800);
+                var interleavedOutput = Path.Combine(root, "interleaved-replay.avi");
+                MjpegAviWriter.WriteFromSpool(
+                    interleavedOutput,
+                    spool.Path,
+                    spool.FrameCount,
+                    spool.MaximumFrameBytes,
+                    spool.PayloadBytes,
+                    1,
+                    1,
+                    30,
+                    wavePath);
+                var interleaved = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(interleavedOutput));
+                var movi = interleaved.IndexOf("movi", StringComparison.Ordinal);
+                var video1 = interleaved.IndexOf("00dc", movi, StringComparison.Ordinal);
+                var audio1 = interleaved.IndexOf("01wb", video1 + 4, StringComparison.Ordinal);
+                var video2 = interleaved.IndexOf("00dc", audio1 + 4, StringComparison.Ordinal);
+                Assert(movi >= 0 && video1 > movi && audio1 > video1 && video2 > audio1,
+                    "built-in AVI interleaves PCM after each MJPEG frame instead of appending one audio tail");
             }
         }
         finally
@@ -154,7 +246,9 @@ internal static partial class AuraToolsTestSuite
                     MatchReplayCapabilities.CardPresentationReadyV1,
                     MatchReplayCapabilities.IncrementalHandV1,
                     MatchReplayCapabilities.OutcomeCuesV1,
-                    MatchReplayCapabilities.PassiveHudV1
+                    MatchReplayCapabilities.PassiveHudV1,
+                    MatchReplayCapabilities.EnemyIntentFramesV1,
+                    MatchReplayCapabilities.RemotePlayerActionsV1
                 },
                 InitialState = new MatchReplayInitialState
                 {

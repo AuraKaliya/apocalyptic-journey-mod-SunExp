@@ -17,8 +17,10 @@ internal sealed partial class AudioArbiterContractTests
         first.EventId = "pending-1";
         first.CreatedAtUtcTicks = now;
         first.MaxAgeMilliseconds = 5000;
-        True(queue.Enqueue(first, now), "first unresolved remote presentation is queued");
+        True(queue.Enqueue(first, now, syncRemote: true), "first unresolved local presentation is queued");
         Equal(false, queue.Enqueue(first, now), "pending presentation identity is deduplicated");
+        Equal(true, queue.Snapshot().Single().SyncRemote,
+            "pending local presentation retains its one-time network relay decision");
         Equal(now + TimeSpan.TicksPerMillisecond * AudioPendingPresentationQueue.DefaultWaitMilliseconds,
             queue.Snapshot().Single().ExpiresAtUtcTicks,
             "pending audio uses its shorter local readiness deadline");

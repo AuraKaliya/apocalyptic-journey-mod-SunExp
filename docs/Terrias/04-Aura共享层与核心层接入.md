@@ -156,11 +156,11 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.3 Audio 与 BGM
 
-`AuraAudioRuntime` 负责共享初始化；`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、上下文匹配、优先级、fallback 和必要的表现同步。Terrias 的 `AudioApi` 提供内容侧初始化和上下文。
+`AuraAudioRuntime` 负责共享初始化；`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、上下文匹配、优先级、fallback 和必要的表现同步。文件语音 provider 在注册时即开始预热；本地或远端请求若遇到尚未就绪/尚未注册的目标 provider，会进入有界等待队列，并保留原请求的联机同步决策。Terrias 的 `AudioApi` 提供内容侧初始化和上下文。
 
 ### 6.4 CG
 
-`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责触发请求、播放、session、网络事件和去重。Terrias 的 Skill CG Feature 只做内容匹配和请求提交，不建立第二套私有 RPC relay。
+`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责触发请求、播放、session、网络事件和去重。内容生产权与本机展示开关是两条独立链路：Terrias 只按 manifest owner 产生并转发请求，AuraToolsExp 只维护本机激活覆盖；本机播放先入队，不能因联机转发准备失败而被丢弃。Terrias 的 Skill CG Feature 不建立第二套私有 RPC relay。
 
 ### 6.5 Skin
 
@@ -172,7 +172,7 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.7 UI 安全
 
-`AuraUiShared` 提供无业务语义的 UI 构造能力；Terrias 的 `TerriasUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。
+`AuraUiShared` 提供无业务语义的 UI 构造能力；Terrias 的 `TerriasUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。关闭中的 UI 只能临时租借并恢复原有 `GraphicRaycaster` 状态，不能把原生画布永久禁用；过渡结束后由共享 guard 分帧刷新 `UpperCanvasController`、`EventSystem`、输入模块与 GraphicRegistry，并在终态日志中校验主画布射线所有权。
 
 ## 7. Hook 与性能共享
 

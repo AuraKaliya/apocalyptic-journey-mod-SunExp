@@ -8,6 +8,8 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 internal static class MatchReplayPresentationCueKinds
 {
     internal const string CardUse = "CardUse";
+    internal const string SkillUse = "SkillUse";
+    internal const string EnemyIntent = "EnemyIntent";
     internal const string ActorAction = "ActorAction";
     internal const string Damage = "Damage";
     internal const string Heal = "Heal";
@@ -15,6 +17,26 @@ internal static class MatchReplayPresentationCueKinds
     internal const string Buff = "Buff";
     internal const string Resource = "Resource";
     internal const string StateChange = "StateChange";
+}
+
+internal sealed class MatchReplayActionPresentationState
+{
+    public string ActorAnimationState { get; set; } = "";
+
+    public string EffectName { get; set; } = "";
+
+    public int EffectDelayMilliseconds { get; set; } = 50;
+
+    public int PresentationDurationMilliseconds { get; set; } = 1040;
+
+    public List<MatchReplayTargetPresentationState> Targets { get; set; } = new();
+}
+
+internal sealed class MatchReplayTargetPresentationState
+{
+    public string TargetId { get; set; } = "";
+
+    public string AnimationState { get; set; } = "";
 }
 
 internal static class MatchReplayCardDispositionKinds
@@ -44,6 +66,8 @@ internal sealed class MatchReplayCardTransition
     public int ToOrder { get; set; } = -1;
 
     public string Disposition { get; set; } = MatchReplayCardDispositionKinds.Move;
+
+    public bool PresentationChanged { get; set; }
 }
 
 internal sealed class MatchReplayPresentationCue
@@ -104,6 +128,10 @@ internal sealed class MatchReplayActionFrame
 
     public MatchReplayCardState? SourcePresentation { get; set; }
 
+    public MatchReplayEnemyIntentState? IntentPresentation { get; set; }
+
+    public MatchReplayActionPresentationState? NativePresentation { get; set; }
+
     public MatchReplayStateDelta Delta { get; set; } = new();
 
     public List<MatchReplayCardTransition> CardTransitions { get; set; } = new();
@@ -156,21 +184,50 @@ internal static class MatchReplayActionDerivation
         string label,
         MatchReplayCardState? sourcePresentation,
         MatchReplayStateSnapshot before,
-        MatchReplayStateSnapshot after)
+        MatchReplayStateSnapshot after,
+        MatchReplayActionPresentationState? nativePresentation = null,
+        MatchReplayEnemyIntentState? intentPresentation = null)
     {
         var result = new MatchReplayDerivedActionData
         {
-            DurationMilliseconds = ActionDurationMilliseconds,
+            DurationMilliseconds = Math.Max(
+                360,
+                Math.Min(
+                    1600,
+                    nativePresentation?.PresentationDurationMilliseconds ?? ActionDurationMilliseconds)),
             CardTransitions = BuildCardTransitions(before, after, sourcePresentation)
         };
-        if (sourcePresentation != null)
+        if (sourcePresentation != null
+            && (string.Equals(actionKind, MatchReplayActionKinds.CardUse, StringComparison.Ordinal)
+                || string.Equals(actionKind, MatchReplayActionKinds.SkillUse, StringComparison.Ordinal)))
         {
             result.Presentation.Add(new MatchReplayPresentationCue
             {
-                CueId = actionId + ":card",
-                Kind = MatchReplayPresentationCueKinds.CardUse,
+                CueId = actionId + (string.Equals(actionKind, MatchReplayActionKinds.SkillUse, StringComparison.Ordinal)
+                    ? ":skill"
+                    : ":card"),
+                Kind = string.Equals(actionKind, MatchReplayActionKinds.SkillUse, StringComparison.Ordinal)
+                    ? MatchReplayPresentationCueKinds.SkillUse
+                    : MatchReplayPresentationCueKinds.CardUse,
                 DurationMilliseconds = 640,
                 ActorId = actorId,
+                Label = label
+            });
+        }
+
+        if (string.Equals(actionKind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+            && intentPresentation != null)
+        {
+            result.Presentation.Add(new MatchReplayPresentationCue
+            {
+                CueId = actionId + ":intent",
+                Kind = MatchReplayPresentationCueKinds.EnemyIntent,
+                DurationMilliseconds = 600,
+                ActorId = actorId,
+                TargetIds = (intentPresentation.TargetIds ?? new List<string>())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList(),
                 Label = label
             });
         }
@@ -182,7 +239,15 @@ internal static class MatchReplayActionDerivation
             StartOffsetMilliseconds = 80,
             DurationMilliseconds = 880,
             ActorId = actorId,
-            AnimationState = Value(sourcePresentation?.Data, "Action"),
+            TargetIds = (nativePresentation?.Targets?.Select(item => item.TargetId)
+                         ?? intentPresentation?.TargetIds
+                         ?? Enumerable.Empty<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToList(),
+            AnimationState = string.IsNullOrWhiteSpace(nativePresentation?.ActorAnimationState)
+                ? First(Value(sourcePresentation?.Data, "Action"), intentPresentation?.ActionState)
+                : nativePresentation!.ActorAnimationState,
             Label = label
         });
         BuildOutcomes(
@@ -231,7 +296,10 @@ internal static class MatchReplayActionDerivation
                 ToZone = to?.Zone ?? "",
                 FromOrder = from?.Order ?? -1,
                 ToOrder = to?.Order ?? -1,
-                Disposition = disposition
+                Disposition = disposition,
+                PresentationChanged = from == null
+                                      || to == null
+                                      || !EquivalentCardContent(from, to)
             });
         }
 
@@ -465,6 +533,11 @@ internal static class MatchReplayActionDerivation
         return values?.LastOrDefault(item => string.Equals(item.Key, key, StringComparison.Ordinal))?.Value ?? "";
     }
 
+    private static string First(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+    }
+
     private static bool IsTrue(string value)
     {
         return bool.TryParse(value, out var parsed) && parsed;
@@ -528,6 +601,10 @@ internal sealed class MatchReplayStateDelta
     public int CardTopCount { get; set; }
 
     public List<MatchReplayCardState> Cards { get; set; } = new();
+
+    public bool ReplaceEnemyIntents { get; set; }
+
+    public List<MatchReplayEnemyIntentState> EnemyIntents { get; set; } = new();
 }
 
 /// <summary>
@@ -580,6 +657,8 @@ internal static class MatchReplayProjectionState
             StringComparer.Ordinal);
         var replaceCards = stateDiff.Paths.Any(path =>
             path.StartsWith("card", StringComparison.Ordinal));
+        var replaceEnemyIntents = stateDiff.Paths.Any(path =>
+            path.StartsWith("intent[", StringComparison.Ordinal));
         return new MatchReplayStateDelta
         {
             LevelId = after.LevelId ?? "",
@@ -597,7 +676,11 @@ internal static class MatchReplayProjectionState
                 .ToList(),
             ReplaceCards = replaceCards,
             CardTopCount = after.CardTopCount,
-            Cards = replaceCards ? after.Cards.Select(Clone).ToList() : new List<MatchReplayCardState>()
+            Cards = replaceCards ? after.Cards.Select(Clone).ToList() : new List<MatchReplayCardState>(),
+            ReplaceEnemyIntents = replaceEnemyIntents,
+            EnemyIntents = replaceEnemyIntents
+                ? (after.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Select(Clone).ToList()
+                : new List<MatchReplayEnemyIntentState>()
         };
     }
 
@@ -638,6 +721,14 @@ internal static class MatchReplayProjectionState
             result.Cards = (delta.Cards ?? new List<MatchReplayCardState>()).Select(Clone).ToList();
         }
 
+
+        if (delta.ReplaceEnemyIntents)
+        {
+            result.EnemyIntents = (delta.EnemyIntents ?? new List<MatchReplayEnemyIntentState>())
+                .Select(Clone)
+                .ToList();
+        }
+
         return result;
     }
 
@@ -654,7 +745,8 @@ internal static class MatchReplayProjectionState
             RoleTableJson = source.RoleTableJson ?? "",
             CardTopCount = source.CardTopCount,
             Statuses = (source.Statuses ?? new List<MatchReplayStatusState>()).Select(Clone).ToList(),
-            Cards = (source.Cards ?? new List<MatchReplayCardState>()).Select(Clone).ToList()
+            Cards = (source.Cards ?? new List<MatchReplayCardState>()).Select(Clone).ToList(),
+            EnemyIntents = (source.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Select(Clone).ToList()
         };
     }
 
@@ -699,6 +791,28 @@ internal static class MatchReplayProjectionState
                     hash.Add(value.Key);
                     hash.Add(value.Value);
                 }
+            }
+        }
+
+        foreach (var intent in (state.EnemyIntents ?? new List<MatchReplayEnemyIntentState>())
+                     .OrderBy(item => item.ActorId, StringComparer.Ordinal)
+                     .ThenBy(item => item.SlotIndex)
+                     .ThenBy(item => item.SourceInstanceId, StringComparer.Ordinal))
+        {
+            hash.Add(intent.ActorId);
+            hash.Add(intent.SlotIndex);
+            hash.Add(intent.IntentId);
+            hash.Add(intent.SourceInstanceId);
+            hash.Add(intent.Label);
+            hash.Add(intent.Description);
+            hash.Add(intent.Icon);
+            hash.Add(intent.BackIcon);
+            hash.Add(intent.DisplayValue);
+            hash.Add(intent.ActionState);
+            hash.Add(intent.EffectName);
+            foreach (var targetId in (intent.TargetIds ?? new List<string>()).OrderBy(id => id, StringComparer.Ordinal))
+            {
+                hash.Add(targetId);
             }
         }
 
@@ -773,6 +887,25 @@ internal static class MatchReplayProjectionState
             DataType = source.DataType,
             Data = (source.Data ?? new List<MatchReplayStringValue>()).Select(Clone).ToList(),
             Vars = (source.Vars ?? new List<MatchReplayStringValue>()).Select(Clone).ToList()
+        };
+    }
+
+    internal static MatchReplayEnemyIntentState Clone(MatchReplayEnemyIntentState source)
+    {
+        return new MatchReplayEnemyIntentState
+        {
+            ActorId = source.ActorId ?? "",
+            SlotIndex = source.SlotIndex,
+            IntentId = source.IntentId ?? "",
+            SourceInstanceId = source.SourceInstanceId ?? "",
+            Label = source.Label ?? "",
+            Description = source.Description ?? "",
+            Icon = source.Icon ?? "",
+            BackIcon = source.BackIcon ?? "",
+            DisplayValue = source.DisplayValue ?? "",
+            ActionState = source.ActionState ?? "",
+            EffectName = source.EffectName ?? "",
+            TargetIds = (source.TargetIds ?? new List<string>()).Where(id => !string.IsNullOrWhiteSpace(id)).ToList()
         };
     }
 

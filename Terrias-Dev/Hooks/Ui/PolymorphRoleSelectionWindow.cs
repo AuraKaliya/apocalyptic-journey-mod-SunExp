@@ -55,6 +55,7 @@ public static class PolymorphRoleSelectionWindow
                 WindowName,
                 parent,
                 new Color(0f, 0f, 0f, 0.72f));
+            var localization = TerriasLocalizationScope.Attach(activeRoot);
             TerriasTransientUiRegistry.Register("PolymorphRoleSelection", Close);
 
             var window = CreateRect("Window", activeRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
@@ -67,14 +68,14 @@ public static class PolymorphRoleSelectionWindow
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
-            CreateHeader(window.transform, roles.Count, request);
+            CreateHeader(window.transform, roles.Count, request, localization);
             roleListContent = CreateRoleScroll(window.transform);
             for (var i = 0; i < roles.Count; i++)
             {
                 CreateRoleCard(roleListContent, self, roles[i], i, request);
             }
 
-            CreateFooter(window.transform, request);
+            CreateFooter(window.transform, request, localization);
             TerriasLog.Info("[" + request.LogPrefix + "] opened; roles=" + roles.Count);
             return true;
         }
@@ -95,7 +96,11 @@ public static class PolymorphRoleSelectionWindow
         TerriasTransientUiRegistry.Unregister("PolymorphRoleSelection");
     }
 
-    private static void CreateHeader(Transform parent, int roleCount, PolymorphRoleSelectionRequest request)
+    private static void CreateHeader(
+        Transform parent,
+        int roleCount,
+        PolymorphRoleSelectionRequest request,
+        TerriasLocalizationScope localization)
     {
         var header = CreateLayoutObject("Header", parent);
         header.AddComponent<LayoutElement>().preferredHeight = 74f;
@@ -107,8 +112,10 @@ public static class PolymorphRoleSelectionWindow
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
-        AddTextBlock(header.transform, request.Title, 28, TextAnchor.MiddleCenter, Gold, 32f);
-        AddTextBlock(header.transform, request.Subtitle + roleCount, 15, TextAnchor.MiddleCenter, TextColor, 22f);
+        var title = AddTextBlock(header.transform, request.Title, 28, TextAnchor.MiddleCenter, Gold, 32f);
+        localization.Bind(title, () => TerriasTextCatalog.ResolveLegacy(request.Title));
+        var subtitle = AddTextBlock(header.transform, request.Subtitle + roleCount, 15, TextAnchor.MiddleCenter, TextColor, 22f);
+        localization.Bind(subtitle, () => TerriasTextCatalog.ResolveLegacy(request.Subtitle) + roleCount);
     }
 
     private static Transform CreateRoleScroll(Transform parent)
@@ -146,7 +153,10 @@ public static class PolymorphRoleSelectionWindow
         return content;
     }
 
-    private static void CreateFooter(Transform parent, PolymorphRoleSelectionRequest request)
+    private static void CreateFooter(
+        Transform parent,
+        PolymorphRoleSelectionRequest request,
+        TerriasLocalizationScope localization)
     {
         var footer = CreateLayoutObject("Footer", parent);
         footer.AddComponent<LayoutElement>().preferredHeight = 42f;
@@ -159,6 +169,7 @@ public static class PolymorphRoleSelectionWindow
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
         hintText = AddTextBlock(footer.transform, request.FooterHint, 14, TextAnchor.MiddleLeft, TextColor, 30f, 1f);
+        localization.Bind(hintText, () => TerriasTextCatalog.ResolveLegacy(request.FooterHint));
         CreateButton(footer.transform, "关闭", new Vector2(102f, 30f), () => Close("PolymorphRoleSelection.CloseButton"));
     }
 
@@ -177,7 +188,9 @@ public static class PolymorphRoleSelectionWindow
             }
             else if (hintText != null)
             {
-                hintText.text = request.SelectionFailureText;
+                var scope = TerriasLocalizationScope.Find(hintText.transform);
+                if (scope != null) scope.Bind(hintText, () => request.SelectionFailureText);
+                else hintText.text = request.SelectionFailureText;
             }
         });
 
@@ -344,12 +357,24 @@ public static class PolymorphRoleSelectionWindow
             roleId = role.Id;
             if (nameText != null)
             {
-                nameText.text = role.DisplayName;
+                var scope = TerriasLocalizationScope.Find(nameText.transform);
+                if (scope != null) scope.Bind(nameText, () => role.DisplayName);
+                else nameText.text = role.DisplayName;
             }
 
             if (lockText != null)
             {
-                lockText.text = role.IsLocked ? "未解锁" : "";
+                var scope = TerriasLocalizationScope.Find(lockText.transform);
+                if (scope != null)
+                {
+                    scope.Bind(lockText, () => role.IsLocked
+                        ? TerriasTextCatalog.Get("ui.role_selection.locked")
+                        : "");
+                }
+                else
+                {
+                    lockText.text = role.IsLocked ? "未解锁" : "";
+                }
             }
 
             if (image != null)

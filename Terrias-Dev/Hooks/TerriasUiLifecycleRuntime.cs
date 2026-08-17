@@ -78,12 +78,37 @@ public static class TerriasUiLifecycleRuntime
 
     private static string TargetName(object? target)
     {
-        return target switch
+        if (target == null)
         {
-            UnityEngine.Component component => component.gameObject != null ? component.gameObject.name : target.GetType().Name,
-            GameObject gameObject => gameObject.name,
-            null => "",
-            _ => target.GetType().Name
-        };
+            return "";
+        }
+
+        // Hook contexts can retain a managed wrapper after Unity has destroyed
+        // the native object. C# pattern matching still succeeds in that state,
+        // so check Unity's overloaded null semantics before touching gameObject.
+        if (target is UnityEngine.Object unityObject && unityObject == null)
+        {
+            return "";
+        }
+
+        try
+        {
+            return target switch
+            {
+                UnityEngine.Component component => component.gameObject == null
+                    ? component.GetType().Name
+                    : component.gameObject.name,
+                GameObject gameObject => gameObject.name,
+                _ => target.GetType().Name
+            };
+        }
+        catch (MissingReferenceException)
+        {
+            return "";
+        }
+        catch (NullReferenceException)
+        {
+            return "";
+        }
     }
 }

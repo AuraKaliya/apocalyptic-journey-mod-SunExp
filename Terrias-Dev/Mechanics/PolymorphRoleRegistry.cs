@@ -27,7 +27,7 @@ public static class PolymorphRoleRegistry
                 .Where(row => row != null)
                 .Select(row => ToSpec(row!))
                 .Where(spec => !string.IsNullOrWhiteSpace(spec.Id) && !spec.IsLocked)
-                .OrderBy(spec => spec.DisplayName, StringComparer.Ordinal)
+                .OrderBy(spec => spec.Id, StringComparer.Ordinal)
                 .ThenBy(spec => spec.Id, StringComparer.Ordinal)
                 .ToArray();
         }
@@ -94,7 +94,7 @@ public static class PolymorphRoleRegistry
         var crop = PolymorphRoleCropRegistry.CropFor(id);
         return new PolymorphRoleSpec(
             id,
-            DisplayName(data, id),
+            TerriasLocalizedText.FromRow(data, "Name", id),
             FirstNonEmpty(
                 DictionaryUtil.Get(data, "CareerImage"),
                 DictionaryUtil.Get(data, "Character"),
@@ -127,24 +127,6 @@ public static class PolymorphRoleRegistry
         }
     }
 
-    private static string DisplayName(Dictionary<string, string> data, string fallback)
-    {
-        try
-        {
-            var localized = data.Localize("Name");
-            if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
-            {
-                return localized;
-            }
-        }
-        catch
-        {
-            // Fall through to raw name fields.
-        }
-
-        return FirstNonEmpty(DictionaryUtil.Get(data, "Name"), fallback);
-    }
-
     private static bool IsLocked(string id)
     {
         try
@@ -172,7 +154,7 @@ public static class PolymorphRoleRegistry
 
     private static PolymorphRoleSpec EmptySpec()
     {
-        return new PolymorphRoleSpec("", "", "", "", "", "", false, 0, 0, PolymorphRoleCropRegistry.DefaultCropSize);
+        return new PolymorphRoleSpec("", new TerriasLocalizedText(), "", "", "", "", false, 0, 0, PolymorphRoleCropRegistry.DefaultCropSize);
     }
 
     private static string NormalizeRoleId(string roleId)

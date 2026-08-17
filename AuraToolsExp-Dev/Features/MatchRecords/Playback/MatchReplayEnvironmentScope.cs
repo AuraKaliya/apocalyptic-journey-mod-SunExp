@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 using UnityEngine;
 using Witch;
@@ -27,6 +28,15 @@ internal static class MatchReplayEnvironmentScope
     private static string previousMapMode = "";
     private static MatchReplayModeContext? replayModeContext;
     private static bool captured;
+    private static bool nativeMenuReturnRequested;
+
+    internal static bool IsCaptured => captured;
+
+    internal static bool ExpectedHouseActive => previousHouseActive;
+
+    internal static bool IsReplayBackgroundAlive => replayBackground != null;
+
+    internal static bool NativeMenuReturnRequested => nativeMenuReturnRequested;
 
     internal static void CaptureAndInstallRoleTable(MatchReplayInitialState initialState)
     {
@@ -59,6 +69,7 @@ internal static class MatchReplayEnvironmentScope
                 + "|" + (initialState.RoleTableJson ?? ""));
             TempDataManager.seeds = replayRandomSeeds;
         }
+        nativeMenuReturnRequested = false;
         captured = true;
     }
 
@@ -176,6 +187,50 @@ internal static class MatchReplayEnvironmentScope
         RoleTable.Instance.ResetFight(restored);
     }
 
+    internal static bool BeginNativeMenuReturn()
+    {
+        if (!captured)
+        {
+            return false;
+        }
+
+        var app = GameApp.Instance;
+        if (app == null || app.HouseItem == null)
+        {
+            return false;
+        }
+
+        // ReturnToMenu intentionally performs no work while HouseItem is already
+        // active. Keep the house inactive until the game's own delayed StartHouse
+        // callback has closed battle/map UI and rebuilt the native menu lifecycle.
+        if (app.HouseItem.activeSelf)
+        {
+            app.HouseItem.SetActive(false);
+        }
+
+        nativeMenuReturnRequested = true;
+        app.ReturnToMenu();
+        AuraToolsLog.Info("[MatchRecords] native menu return requested: expectedHouseActive="
+                          + previousHouseActive + ", replayBackground="
+                          + (replayBackground == null ? "none" : replayBackground.name) + ".");
+        return true;
+    }
+
+    internal static void CompleteNativeMenuReturn()
+    {
+        if (!captured)
+        {
+            return;
+        }
+
+        if (!nativeMenuReturnRequested)
+        {
+            throw new InvalidOperationException("Native menu return was not requested for the replay environment.");
+        }
+
+        Restore();
+    }
+
     internal static void Restore()
     {
         if (!captured)
@@ -267,6 +322,7 @@ internal static class MatchReplayEnvironmentScope
             previousModeMapManager = null;
             previousMapMode = "";
             replayModeContext = null;
+            nativeMenuReturnRequested = false;
             captured = false;
         }
 

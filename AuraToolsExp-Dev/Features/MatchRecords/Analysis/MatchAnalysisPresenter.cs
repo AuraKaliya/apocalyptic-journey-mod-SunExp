@@ -209,14 +209,14 @@ internal static class MatchAnalysisPresenter
 
     private static void StartVideoExport(string recordId)
     {
-        if (!MatchReplayVideoExporter.TryStart(recordId, out var result))
+        if (!MatchReplayVideoExporter.TryStart(
+                recordId,
+                () => CloseForPlayback("Video export launch"),
+                out var result))
         {
             message = result;
             Build();
-            return;
         }
-
-        CloseForPlayback("Video export started");
     }
 
     private static void StartReplay(long sequence)

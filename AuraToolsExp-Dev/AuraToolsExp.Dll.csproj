@@ -60,6 +60,10 @@
       <HintPath>$(DllPath)\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(DllPath)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.VideoModule">
       <HintPath>$(DllPath)\UnityEngine.VideoModule.dll</HintPath>
       <Private>false</Private>
@@ -114,6 +118,10 @@
     </Reference>
     <Reference Include="MemoryPack.Core">
       <HintPath>$(DllPath)\MemoryPack.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="DOTween">
+      <HintPath>$(DllPath)\DOTween.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="System.IO.Compression" />

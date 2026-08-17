@@ -13,7 +13,12 @@ public static class SpiritCardFactory
 
     public static CardGrantResult GrantDeploymentToHand(ScriptExecutor self, CapturedEnemySnapshot snapshot)
     {
-        return Grant(self, snapshot, 0, new SpiritCardBattleState(), "spirit-deployment");
+        return Grant(
+            self,
+            snapshot,
+            0,
+            SpiritBattleDeploymentService.CreateInitialBattleState(snapshot),
+            "spirit-deployment");
     }
 
     public static CardGrantResult GrantReturnedToHand(
@@ -201,21 +206,22 @@ public static class SpiritCardFactory
         SpiritCardBattleState battleState)
     {
         var runtime = new Dictionary<string, string>();
-        var name = "精灵·" + snapshot.DisplayName;
-        var traditionalName = "精靈·" + snapshot.DisplayName;
-        var description = "召唤一只" + snapshot.DisplayName;
-        var traditionalDescription = "召喚一隻" + snapshot.DisplayName;
+        var names = SpiritPresentationResolver.Names(snapshot);
+        var descriptions = SpiritPresentationResolver.Descriptions(snapshot);
+        var arguments = new Dictionary<string, string>(StringComparer.Ordinal);
 
         Set(runtime, "Tag", "Retain,Burnout");
         Set(runtime, "Icon", TerriasIds.SpiritBallIconPath);
-        Set(runtime, "Name", name);
-        Set(runtime, "Name_zh-Hant", traditionalName);
-        Set(runtime, "Name_en", "Spirit: " + snapshot.DisplayName);
-        Set(runtime, "Name_ja", "精霊・" + snapshot.DisplayName);
-        Set(runtime, "Description", description);
-        Set(runtime, "Description_zh-Hant", traditionalDescription);
-        Set(runtime, "Description_en", "Summon one " + snapshot.DisplayName + ".");
-        Set(runtime, "Description_ja", snapshot.DisplayName + "を一体召喚する。");
+        foreach (var locale in TerriasLocale.Supported)
+        {
+            arguments["name"] = names.Resolve(locale, snapshot.EnemyId);
+            Set(runtime,
+                TerriasLocale.FieldName("Name", locale),
+                TerriasTextCatalog.GetForLocale("card.spirit.name", locale, arguments));
+            Set(runtime,
+                TerriasLocale.FieldName("Description", locale),
+                TerriasTextCatalog.GetForLocale("card.spirit.description", locale, arguments));
+        }
         Set(runtime, TerriasIds.RuntimeMarkersKey, TerriasIds.SpiritCardMarker);
         Set(runtime, TerriasIds.SpiritUidKey, snapshot.SpiritUid);
         Set(runtime, TerriasIds.SpiritSourceModIdKey, snapshot.SourceModId);
@@ -223,8 +229,8 @@ public static class SpiritCardFactory
         Set(runtime, TerriasIds.SpiritGrowthProfileIdKey, snapshot.ProfileId);
         Set(runtime, TerriasIds.SpiritEnemyIdKey, snapshot.EnemyId);
         Set(runtime, TerriasIds.SpiritVariantIdKey, snapshot.VariantId);
-        Set(runtime, TerriasIds.SpiritDisplayNameKey, snapshot.DisplayName);
-        Set(runtime, TerriasIds.SpiritDescriptionKey, snapshot.Description);
+        Set(runtime, TerriasIds.SpiritDisplayNameKey, names.Resolve(TerriasLocale.ZhHans, snapshot.EnemyId));
+        Set(runtime, TerriasIds.SpiritDescriptionKey, descriptions.Resolve(TerriasLocale.ZhHans));
         Set(runtime, TerriasIds.SpiritAnimationPathKey, snapshot.AnimationPath);
         Set(runtime, TerriasIds.SpiritDictPathKey, snapshot.DictPath);
         Set(runtime, TerriasIds.SpiritIdlePathKey, snapshot.IdlePath);

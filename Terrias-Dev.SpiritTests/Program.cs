@@ -307,14 +307,18 @@ var legacyStore = new MemorySpiritStore(new SpiritCollectionDocument
 });
 SpiritCollectionService.Configure(legacyStore);
 var migratedCollection = SpiritCollectionService.Snapshot();
-Assert(migratedCollection.Version == 5
+Assert(migratedCollection.Version == SpiritCollectionService.CurrentVersion
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].SpeciesId)
        && !string.IsNullOrWhiteSpace(migratedCollection.Instances[0].ProfileId)
        && migratedCollection.Instances[0].Level == 7
        && migratedCollection.Instances[0].Speed is >= 80 and <= 120
        && migratedCollection.Instances[0].LoadoutRevision >= 1
-       && legacyStore.SaveCount == 0,
-    "legacy collections gain deterministic training state in memory without rewriting a profile merely because it was opened");
+       && migratedCollection.Instances[0].Presentation != null
+       && legacyStore.SaveCount == 1,
+    "legacy collections persist deterministic training and localized presentation state during the version migration");
+SpiritCollectionService.Configure(legacyStore);
+Assert(legacyStore.SaveCount == 1,
+    "an already migrated spirit collection is not rewritten merely because it was opened");
 
 var memoryStore = new MemorySpiritStore();
 SpiritCollectionService.Configure(memoryStore);
@@ -425,6 +429,19 @@ Assert(deployment?.SpiritUid == "uid-0"
        && deployment.LoadoutHash == SpiritTrainingService.LoadoutHash(deployment)
        && !string.IsNullOrWhiteSpace(deployment.DeploymentToken),
     "battle start freezes speed, loadout revision, and registry identity into one deployment card payload");
+var initialBattleState = SpiritBattleDeploymentService.CreateInitialBattleState(deployment!);
+var initialProfile = SpiritIntentRegistry.ResolveProfileIdentity(deployment!.ProfileId, deployment.ProfileKey).Profile;
+var initialStats = CompanionStatsService.SpiritStats(deployment, initialProfile);
+Assert(initialBattleState.CurrentMagic == initialStats.MaxMagic
+       && initialBattleState.MaxHp == initialStats.MaxHp
+       && initialBattleState.CurrentHp == initialStats.MaxHp,
+    "battle initialization fills a Spirit's magic and health from its frozen deployment attributes");
+var spentDeploymentStats = new CompanionStats(initialStats.MaxHp, initialStats.MaxMagic, initialStats.Attack, initialStats.Armor);
+spentDeploymentStats.SetCurrentMagic(Math.Max(0, initialStats.MaxMagic - 1));
+var withdrawnBattleState = SpiritCardBattleState.From(new CompanionBattleState(
+    "withdrawn-spirit", deployment.ProfileId, "owner", -1, spentDeploymentStats, "player", "SpiritAttachment"));
+Assert(withdrawnBattleState.CurrentMagic == Math.Max(0, initialStats.MaxMagic - 1),
+    "withdrawing and resummoning preserves remaining magic instead of refilling it per summon");
 Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
     "the frozen deployment card is initially legal");
 var forgedSpeed = SpiritModelCloner.CloneSnapshot(deployment!);

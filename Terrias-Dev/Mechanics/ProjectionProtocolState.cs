@@ -65,6 +65,15 @@ public sealed class ProjectionSummonFailureDescriptor
 
 public static class ProjectionSummonFailureCatalog
 {
+    public static string LocalizationKey(ProjectionSummonFailureCode code)
+    {
+        var normalized = code != ProjectionSummonFailureCode.None
+                         && Enum.IsDefined(typeof(ProjectionSummonFailureCode), code)
+            ? code
+            : ProjectionSummonFailureCode.SpawnFailed;
+        return "caption.projection.failure." + normalized;
+    }
+
     public static ProjectionSummonFailureDescriptor Describe(ProjectionSummonFailureCode code)
     {
         return code switch

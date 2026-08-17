@@ -10,7 +10,7 @@ public static class PolymorphActivationService
     {
         if (!PolymorphUiApi.OpenRoleSelection(self))
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u89d2\u8272\u9009\u62e9\u754c\u9762\u6682\u65f6\u4e0d\u53ef\u7528\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.selection_unavailable"));
         }
     }
 
@@ -19,7 +19,7 @@ public static class PolymorphActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u672a\u627e\u5230\u76ee\u6807\u89d2\u8272\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.role_missing"));
             return false;
         }
 
@@ -34,11 +34,11 @@ public static class PolymorphActivationService
         var result = CardApi.GrantCardToHand(self, request);
         if (!result.Success)
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u724c\u751f\u6210\u5931\u8d25\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.card_failed"));
             return false;
         }
 
-        PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u83b7\u5f97\u3010" + role.DisplayName + "\u3011\u5316\u8eab\u724c\u3002");
+        PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.polymorph.card_granted", "name", role.DisplayName));
         return true;
     }
 
@@ -46,7 +46,7 @@ public static class PolymorphActivationService
     {
         if (self == null)
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.switch_failed"));
             return false;
         }
 
@@ -54,7 +54,7 @@ public static class PolymorphActivationService
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
-            PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u76ee\u6807\u5df2\u5931\u6548\u3002");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.polymorph.target_expired"));
             return false;
         }
 
@@ -74,7 +74,7 @@ public static class PolymorphActivationService
         DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
             AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.PolymorphRoleCardMarker));
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleIdKey, role.Id);
-        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleNameKey, role.DisplayName);
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleNameKey, role.DisplayNameFor(TerriasLocale.ZhHans));
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCardFacePathKey, role.CardFacePath);
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropXKey, role.CropOffsetX.ToString());
         DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropYKey, role.CropOffsetY.ToString());
@@ -82,18 +82,18 @@ public static class PolymorphActivationService
 
     private static Dictionary<string, string> BuildRoleCardPresentation(PolymorphRoleSpec role)
     {
-        return new Dictionary<string, string>
+        var result = new Dictionary<string, string> { ["Icon"] = role.CardFacePath };
+        var arguments = new Dictionary<string, string>();
+        foreach (var locale in TerriasLocale.Supported)
         {
-            ["Icon"] = role.CardFacePath,
-            ["Name"] = "\u767e\u53d8\uff1a" + role.DisplayName,
-            ["Name_zh-Hant"] = "\u767e\u8b8a\uff1a" + role.DisplayName,
-            ["Name_en"] = "Polymorph: " + role.DisplayName,
-            ["Name_ja"] = "\u767e\u5909\uff1a" + role.DisplayName,
-            ["Description"] = "\u767e\u53d8\uff1a" + role.DisplayName,
-            ["Description_zh-Hant"] = "\u767e\u8b8a\uff1a" + role.DisplayName,
-            ["Description_en"] = "Polymorph: " + role.DisplayName,
-            ["Description_ja"] = "\u767e\u5909\uff1a" + role.DisplayName
-        };
+            arguments["name"] = role.DisplayNameFor(locale);
+            result[TerriasLocale.FieldName("Name", locale)] =
+                TerriasTextCatalog.GetForLocale("card.polymorph.name", locale, arguments);
+            result[TerriasLocale.FieldName("Description", locale)] =
+                TerriasTextCatalog.GetForLocale("card.polymorph.description", locale, arguments);
+        }
+
+        return result;
     }
 
     private static string AppendToken(string existing, params string[] tokens)

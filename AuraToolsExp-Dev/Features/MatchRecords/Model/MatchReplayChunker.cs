@@ -95,6 +95,12 @@ internal static class MatchReplayChunker
         {
             var frame = item.ActionFrame;
             size += 640 + Estimate(frame.SourcePresentation) + Estimate(frame.Delta);
+            size += frame.IntentPresentation == null
+                ? 0
+                : Estimate(frame.IntentPresentation);
+            size += frame.NativePresentation == null
+                ? 0
+                : 192L + (frame.NativePresentation.Targets?.Count ?? 0) * 96L;
             size += (frame.CardTransitions?.Count ?? 0) * 160L;
             size += (frame.Presentation?.Count ?? 0) * 240L;
             size += (frame.Semantics?.Count ?? 0) * 320L;
@@ -117,6 +123,7 @@ internal static class MatchReplayChunker
             + (status.Buffs?.Count ?? 0) * 192L
             + (status.Buffs?.Sum(buff => buff.Vars?.Count ?? 0) ?? 0) * 64L);
         size += (state.Cards ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        size += (state.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Sum(Estimate);
         return size;
     }
 
@@ -134,7 +141,29 @@ internal static class MatchReplayChunker
             + (status.Buffs?.Count ?? 0) * 192L
             + (status.Buffs?.Sum(buff => buff.Vars?.Count ?? 0) ?? 0) * 64L);
         size += (delta.Cards ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        size += (delta.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Sum(Estimate);
         return size;
+    }
+
+    private static long Estimate(MatchReplayEnemyIntentState? intent)
+    {
+        if (intent == null)
+        {
+            return 0;
+        }
+
+        return 384L
+               + (intent.ActorId?.Length ?? 0) * 2L
+               + (intent.IntentId?.Length ?? 0) * 2L
+               + (intent.SourceInstanceId?.Length ?? 0) * 2L
+               + (intent.Label?.Length ?? 0) * 2L
+               + (intent.Description?.Length ?? 0) * 2L
+               + (intent.Icon?.Length ?? 0) * 2L
+               + (intent.BackIcon?.Length ?? 0) * 2L
+               + (intent.DisplayValue?.Length ?? 0) * 2L
+               + (intent.ActionState?.Length ?? 0) * 2L
+               + (intent.EffectName?.Length ?? 0) * 2L
+               + (intent.TargetIds?.Sum(id => 32L + (id?.Length ?? 0) * 2L) ?? 0L);
     }
 
     private static long Estimate(MatchReplayCardState? card)

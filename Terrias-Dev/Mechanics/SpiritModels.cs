@@ -12,6 +12,8 @@ public sealed class CapturedEnemySnapshot
     public string EnemyId { get; set; } = "";
     public string VariantId { get; set; } = "";
     public string InstanceId { get; set; } = "";
+    // Protocol v15 treats these as compatibility fallbacks only. Identity and local
+    // presentation resolution must use EnemyId/VariantId instead of trusting wire text.
     public string DisplayName { get; set; } = "";
     public string Description { get; set; } = "";
     public string AnimationPath { get; set; } = "";

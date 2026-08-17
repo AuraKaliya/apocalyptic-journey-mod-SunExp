@@ -55,7 +55,7 @@ public static class SpiritSummonService
     {
         if (!CanSummon(self?.dataConfig, self?.Self, out var reason, out var snapshot))
         {
-            PlayerApi.ShowCaption("精灵：" + reason);
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit.reason", "reason", TerriasTextCatalog.ResolveLegacy(reason)));
             return false;
         }
 
@@ -68,7 +68,7 @@ public static class SpiritSummonService
             TerriasNetworkRuntime.Send(
                 new RpcSpiritSummonRequest(snapshot!, ownerStatusId, token, exchangeCount, battleState),
                 "SpiritSummonService.TrySummon");
-            PlayerApi.ShowCaption("精灵：正在同步召唤。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.synchronizing"));
             return true;
         }
 
@@ -140,7 +140,7 @@ public static class SpiritSummonService
             QueueReturnedCard(snapshot, null, source);
             if (SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
             {
-                PlayerApi.ShowCaption("精灵：" + RejectionMessage(snapshot.RejectionReason));
+                PlayerApi.ShowCaption(RejectionMessage(snapshot.RejectionReason));
             }
             return;
         }
@@ -335,7 +335,7 @@ public static class SpiritSummonService
             var prefab = TerriasResourceCache.Load<GameObject>("Model/player", true, "spirit");
             if (prefab == null)
             {
-                PlayerApi.ShowCaption("精灵：战斗模型加载失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.model_failed"));
                 return false;
             }
 
@@ -386,7 +386,7 @@ public static class SpiritSummonService
             if (!spirit.InitSpirit(snapshot, ownerStatusId, -1, stats, ownerPlayerId, statusId))
             {
                 UnityEngine.Object.Destroy(root);
-                PlayerApi.ShowCaption("精灵：初始化失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.initialize_failed"));
                 return false;
             }
 
@@ -419,7 +419,7 @@ public static class SpiritSummonService
                 }
                 state?.ApplyRemoteProgress(initialBattleState?.TurnIndex ?? 0, 0);
                 spirit.Activate(source);
-                PlayerApi.ShowCaption("精灵：【" + snapshot.DisplayName + "】加入战斗。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit.joined", "name", SpiritPresentationResolver.Name(snapshot)));
             }
             else
             {
@@ -432,7 +432,7 @@ public static class SpiritSummonService
         catch (Exception ex)
         {
             TerriasLog.Error("[Spirit] summon failed from " + source, ex);
-            PlayerApi.ShowCaption("精灵：召唤失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.summon_failed"));
             return false;
         }
         finally
@@ -463,28 +463,34 @@ public static class SpiritSummonService
     {
         var handle = AuraGameDataHostApi.ResolveHandle(DataType.Enemy, snapshot.EnemyId)
             ?? throw new InvalidOperationException("Spirit enemy definition is not registered: " + snapshot.EnemyId);
+        var names = SpiritPresentationResolver.Names(snapshot);
+        var overrides = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Animation"] = snapshot.AnimationPath,
+            ["Attack"] = stats.Attack.ToString(),
+            ["Defend"] = stats.Armor.ToString(),
+            ["Hp"] = Math.Max(1, stats.MaxHp).ToString(),
+            ["ActionCount"] = "1",
+            ["CardList"] = string.Join(",", new[]
+            {
+                TerriasIds.ProjectionActionStaffTapCardId,
+                TerriasIds.ProjectionActionShieldBlessingCardId,
+                TerriasIds.ProjectionActionStaffComboCardId,
+                TerriasIds.ProjectionActionMagicInterferenceCardId,
+                TerriasIds.ProjectionActionYouAreEnhancedCardId,
+                TerriasIds.ProjectionActionChargeCardId,
+                TerriasIds.ProjectionActionHolyHealCardId
+            })
+        };
+        foreach (var locale in TerriasLocale.Supported)
+        {
+            overrides[TerriasLocale.FieldName("Name", locale)] = names.Resolve(locale, snapshot.EnemyId);
+        }
+
         var result = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
             Definition = handle,
-            DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["Name"] = snapshot.DisplayName,
-                ["Animation"] = snapshot.AnimationPath,
-                ["Attack"] = stats.Attack.ToString(),
-                ["Defend"] = stats.Armor.ToString(),
-                ["Hp"] = Math.Max(1, stats.MaxHp).ToString(),
-                ["ActionCount"] = "1",
-                ["CardList"] = string.Join(",", new[]
-                {
-                    TerriasIds.ProjectionActionStaffTapCardId,
-                    TerriasIds.ProjectionActionShieldBlessingCardId,
-                    TerriasIds.ProjectionActionStaffComboCardId,
-                    TerriasIds.ProjectionActionMagicInterferenceCardId,
-                    TerriasIds.ProjectionActionYouAreEnhancedCardId,
-                    TerriasIds.ProjectionActionChargeCardId,
-                    TerriasIds.ProjectionActionHolyHealCardId
-                })
-            }
+            DataOverrides = overrides
         });
         return result.Instance as DataConfig
             ?? throw new InvalidOperationException("Spirit enemy materialization failed: " + result.Message);
@@ -795,7 +801,7 @@ public static class SpiritSummonService
         else
         {
             QueueReturnedCard(rejection, preferredExecutor, source + ".Reject");
-            PlayerApi.ShowCaption("精灵：" + RejectionMessage(reason));
+            PlayerApi.ShowCaption(RejectionMessage(reason));
         }
     }
 
@@ -912,7 +918,7 @@ public static class SpiritSummonService
             GrantedCardEvents.Add(pending.EventId);
             PendingCardGrants.Remove(pending.EventId);
         }
-        PlayerApi.ShowCaption("精灵：【" + pending.Card.DisplayName + "】的出战卡已返回手牌。");
+        PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit.card_returned", "name", SpiritPresentationResolver.Name(pending.Card)));
         TerriasPerformanceCounters.Record("Spirit.Card.ReturnedToHand");
         return true;
     }
@@ -1038,17 +1044,18 @@ public static class SpiritSummonService
 
     private static string RejectionMessage(string reason)
     {
-        return (reason ?? "") switch
+        var key = (reason ?? "") switch
         {
-            "protocol-mismatch" => "召唤协议版本不一致。",
-            "battle-epoch-mismatch" => "当前战斗状态已失效，请重新使用。",
-            "registry-mismatch" => "精灵行动配置不一致。",
-            "intent-state-invalid" => "精灵行动冷却记录无效。",
-            "sender-invalid" => "无法确认操作玩家。",
-            "owner-mismatch" => "当前角色不属于该玩家。",
-            "snapshot-invalid" => "捕获记录或来源动画已经失效。",
-            _ => "召唤失败，请稍后重试。"
+            "protocol-mismatch" => "caption.spirit.rejection.protocol_mismatch",
+            "battle-epoch-mismatch" => "caption.spirit.rejection.battle_epoch_mismatch",
+            "registry-mismatch" => "caption.spirit.rejection.registry_mismatch",
+            "intent-state-invalid" => "caption.spirit.rejection.intent_state_invalid",
+            "sender-invalid" => "caption.spirit.rejection.sender_invalid",
+            "owner-mismatch" => "caption.spirit.rejection.owner_mismatch",
+            "snapshot-invalid" => "caption.spirit.rejection.snapshot_invalid",
+            _ => "caption.spirit.rejection.default"
         };
+        return TerriasTextCatalog.Get(key);
     }
 
     private static bool HasIdle(string idlePath)

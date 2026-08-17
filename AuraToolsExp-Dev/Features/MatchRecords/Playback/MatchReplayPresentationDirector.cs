@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.GameApi;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
@@ -17,11 +18,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 internal static class MatchReplayPresentationDirector
 {
     private const float CardPresentationMilliseconds = 640f;
-    private const float StatusPresentationMilliseconds = 880f;
-    private const float OutcomeStartMilliseconds = 180f;
-    private const float OutcomeEndMilliseconds = 500f;
     private static readonly List<ActiveCardVisual> CardVisuals = new();
-    private static readonly List<ActiveStatusVisual> StatusVisuals = new();
     private static string lastActiveActorId = "";
 
     internal static void Reset()
@@ -35,12 +32,8 @@ internal static class MatchReplayPresentationDirector
         }
 
         CardVisuals.Clear();
-        foreach (var visual in StatusVisuals)
-        {
-            ResetVisual(visual);
-        }
-
-        StatusVisuals.Clear();
+        MatchReplaySkillPresenter.ResetAnimation();
+        MatchReplayEnemyIntentPresenter.Reset();
         lastActiveActorId = "";
         MatchReplayCardStateCapture.Reset();
         MatchReplayPassiveBuffPresenter.Reset();
@@ -57,10 +50,7 @@ internal static class MatchReplayPresentationDirector
             return;
         }
 
-        foreach (var status in manager.statuses.Values.Where(item => item != null))
-        {
-            ResetStatus(status);
-        }
+        MatchReplayNativePresentationApi.Reset(manager.statuses.Values.Where(item => item != null));
 
         manager.ActionQueue?.Clear();
     }
@@ -68,7 +58,9 @@ internal static class MatchReplayPresentationDirector
     internal static void Tick(float deltaMilliseconds)
     {
         var elapsed = Math.Max(0f, deltaMilliseconds);
-        MatchReplayCardStateCapture.Tick(elapsed);
+        MatchReplayNativePresentationApi.Tick(elapsed);
+        MatchReplaySkillPresenter.Tick(elapsed);
+        MatchReplayEnemyIntentPresenter.Tick(elapsed);
         for (var index = CardVisuals.Count - 1; index >= 0; index--)
         {
             var visual = CardVisuals[index];
@@ -116,69 +108,6 @@ internal static class MatchReplayPresentationDirector
             }
         }
 
-        for (var index = StatusVisuals.Count - 1; index >= 0; index--)
-        {
-            var visual = StatusVisuals[index];
-            visual.ElapsedMilliseconds += elapsed;
-            if (visual.Status == null)
-            {
-                StatusVisuals.RemoveAt(index);
-                continue;
-            }
-
-            if (visual.HasHitOutcome
-                && !visual.OutcomeStateSet
-                && visual.ElapsedMilliseconds >= OutcomeStartMilliseconds)
-            {
-                visual.Status.animatedState = IStatusManager.AnimatedState.Hit;
-                visual.OutcomeStateSet = true;
-            }
-
-            if (visual.IsActor)
-            {
-                var progress = Mathf.Clamp01(visual.ElapsedMilliseconds / StatusPresentationMilliseconds);
-                if (progress < 0.22f)
-                {
-                    visual.Status.transform.position = Vector3.LerpUnclamped(
-                        visual.StartPosition,
-                        visual.PeakPosition,
-                        EaseOutCubic(progress / 0.22f));
-                }
-                else if (progress < 0.58f)
-                {
-                    visual.Status.transform.position = visual.PeakPosition;
-                }
-                else
-                {
-                    visual.Status.transform.position = Vector3.LerpUnclamped(
-                        visual.PeakPosition,
-                        visual.StartPosition,
-                        EaseOutCubic((progress - 0.58f) / 0.42f));
-                }
-            }
-            else if (visual.ElapsedMilliseconds >= OutcomeStartMilliseconds
-                     && visual.ElapsedMilliseconds < OutcomeEndMilliseconds)
-            {
-                var progress = (visual.ElapsedMilliseconds - OutcomeStartMilliseconds)
-                               / (OutcomeEndMilliseconds - OutcomeStartMilliseconds);
-                var amplitude = (1f - progress) * 0.34f;
-                visual.Status.transform.position = visual.StartPosition + new Vector3(
-                    Mathf.Sin(visual.ElapsedMilliseconds * 0.085f) * amplitude,
-                    Mathf.Sin(visual.ElapsedMilliseconds * 0.137f) * amplitude * 0.18f,
-                    0f);
-            }
-            else
-            {
-                visual.Status.transform.position = visual.StartPosition;
-            }
-
-            visual.Status.UpdateObjPos();
-            if (visual.ElapsedMilliseconds >= StatusPresentationMilliseconds)
-            {
-                ResetVisual(visual);
-                StatusVisuals.RemoveAt(index);
-            }
-        }
     }
 
     internal static void ShowTurn(int turnIndex, string activeActorId)
@@ -223,7 +152,23 @@ internal static class MatchReplayPresentationDirector
         }
 
         ShowTurn(frame.TurnIndex, frame.ActorId);
-        PlayCardVisual(fightUi, frame);
+        var cues = frame.Presentation ?? new List<MatchReplayPresentationCue>();
+        if (string.Equals(frame.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+            || cues.Any(cue => cue.Kind == MatchReplayPresentationCueKinds.EnemyIntent))
+        {
+            MatchReplayEnemyIntentPresenter.Play(frame);
+        }
+        else if (string.Equals(frame.Kind, MatchReplayActionKinds.SkillUse, StringComparison.Ordinal)
+            || cues.Any(cue => cue.Kind == MatchReplayPresentationCueKinds.SkillUse))
+        {
+            MatchReplaySkillPresenter.Play(frame);
+        }
+        else if (string.Equals(frame.Kind, MatchReplayActionKinds.CardUse, StringComparison.Ordinal)
+                 || cues.Any(cue => cue.Kind == MatchReplayPresentationCueKinds.CardUse))
+        {
+            PlayCardVisual(fightUi, frame);
+        }
+
         PlayStatusAnimation(frame);
     }
 
@@ -294,71 +239,100 @@ internal static class MatchReplayPresentationDirector
             return;
         }
 
-        var targetIds = frame.Presentation
-            .Where(cue => cue.Kind == MatchReplayPresentationCueKinds.Damage)
-            .SelectMany(cue => cue.TargetIds ?? new List<string>())
-            .Concat(frame.Semantics
-                .Where(item => item.Category == MatchSemanticCategories.Damage)
-                .Select(item => item.TargetInstanceId))
-            .Concat(frame.Semantics
-                .Where(item => item.Category == MatchSemanticCategories.Damage)
-                .Select(item => item.TargetId))
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        var actionCue = frame.Presentation.FirstOrDefault(item =>
+        var actionCue = (frame.Presentation ?? new List<MatchReplayPresentationCue>()).FirstOrDefault(item =>
             item.Kind == MatchReplayPresentationCueKinds.ActorAction);
-        var actionState = ParseAnimation(actionCue?.AnimationState, frame.Kind);
-        var targets = new List<StatusManager>();
-        var actorIsTarget = targetIds.Any(targetId =>
-            string.Equals(targetId, actor.InstanceId, StringComparison.Ordinal));
-        foreach (var targetId in targetIds)
+        var actionState = ParseAnimation(FirstNonBlank(
+            frame.NativePresentation?.ActorAnimationState,
+            actionCue?.AnimationState,
+            frame.IntentPresentation?.ActionState,
+            Value(frame.SourcePresentation?.Data, "Action")));
+        var targetStates = ResolveTargetStates(frame);
+        var targets = new List<MatchReplayNativeAnimationTarget>();
+        foreach (var targetState in targetStates)
         {
-            if (manager.statuses.TryGetValue(targetId, out var target)
+            if (manager.statuses.TryGetValue(targetState.TargetId, out var target)
                 && target != null
-                && target != actor
-                && !targets.Contains(target))
+                && target != actor)
             {
-                targets.Add(target);
+                targets.Add(new MatchReplayNativeAnimationTarget
+                {
+                    Status = target,
+                    AnimationState = ParseAnimation(targetState.AnimationState)
+                });
             }
         }
 
-        RemoveStatusVisual(actor);
-        var actorStart = actor.transform.position;
-        var actorDirection = targets.Count == 0
-            ? new Vector3(actorStart.x <= 0f ? 1f : -1f, 0f, 0f)
-            : targets.Aggregate(Vector3.zero, (sum, target) => sum + target.transform.position) / targets.Count
-              - actorStart;
-        actorDirection.y *= 0.15f;
-        actorDirection.z = 0f;
-        if (actorDirection.sqrMagnitude < 0.001f)
+        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
+        if (fightUi == null)
         {
-            actorDirection = Vector3.right;
+            return;
         }
 
-        actor.animatedState = actionState;
-        StatusVisuals.Add(new ActiveStatusVisual
+        if (!MatchReplayNativePresentationApi.TryPlay(
+                fightUi,
+                actor,
+                actionState,
+                targets,
+                FirstNonBlank(
+                    frame.NativePresentation?.EffectName,
+                    frame.IntentPresentation?.EffectName,
+                    Value(frame.SourcePresentation?.Data, "Effects")),
+                frame.NativePresentation?.EffectDelayMilliseconds ?? 50,
+                out var detail))
         {
-            Status = actor,
-            IsActor = true,
-            HasHitOutcome = actorIsTarget,
-            StartPosition = actorStart,
-            PeakPosition = actorStart + actorDirection.normalized * 0.78f
-        });
-        foreach (var target in targets)
-        {
-            RemoveStatusVisual(target);
-            StatusVisuals.Add(new ActiveStatusVisual
+            actor.animatedState = actionState;
+            foreach (var target in targets)
             {
-                Status = target,
-                HasHitOutcome = true,
-                StartPosition = target.transform.position,
-                PeakPosition = target.transform.position
-            });
+                target.Status.animatedState = target.AnimationState;
+            }
+
+            AuraToolsLog.Warn("[MatchRecords] native action presentation degraded: " + detail);
         }
     }
 
-    private static IStatusManager.AnimatedState ParseAnimation(string? value, string actionKind)
+    private static List<MatchReplayTargetPresentationState> ResolveTargetStates(MatchReplayActionFrame frame)
+    {
+        if (frame.NativePresentation != null)
+        {
+            return (frame.NativePresentation.Targets ?? new List<MatchReplayTargetPresentationState>())
+                .Where(item => !string.IsNullOrWhiteSpace(item.TargetId))
+                .GroupBy(item => item.TargetId, StringComparer.Ordinal)
+                .Select(group => group.Last())
+                .ToList();
+        }
+
+        var reactions = new Dictionary<string, IStatusManager.AnimatedState>(StringComparer.Ordinal);
+        foreach (var cue in frame.Presentation ?? new List<MatchReplayPresentationCue>())
+        {
+            var reaction = cue.Kind == MatchReplayPresentationCueKinds.Defend
+                ? IStatusManager.AnimatedState.Defend
+                : cue.Kind == MatchReplayPresentationCueKinds.Damage
+                    ? IStatusManager.AnimatedState.Hit
+                    : IStatusManager.AnimatedState.Idle;
+            foreach (var targetId in cue.TargetIds ?? new List<string>())
+            {
+                if (string.IsNullOrWhiteSpace(targetId))
+                {
+                    continue;
+                }
+
+                if (!reactions.TryGetValue(targetId, out var current)
+                    || current == IStatusManager.AnimatedState.Idle
+                    || reaction == IStatusManager.AnimatedState.Defend)
+                {
+                    reactions[targetId] = reaction;
+                }
+            }
+        }
+
+        return reactions.Select(item => new MatchReplayTargetPresentationState
+        {
+            TargetId = item.Key,
+            AnimationState = item.Value.ToString()
+        }).ToList();
+    }
+
+    private static IStatusManager.AnimatedState ParseAnimation(string? value)
     {
         if (!string.IsNullOrWhiteSpace(value)
             && Enum.TryParse(value, ignoreCase: true, out IStatusManager.AnimatedState parsed))
@@ -366,45 +340,17 @@ internal static class MatchReplayPresentationDirector
             return parsed;
         }
 
-        return string.Equals(actionKind, "SkillUse", StringComparison.Ordinal)
-            ? IStatusManager.AnimatedState.Skill
-            : IStatusManager.AnimatedState.Attack;
+        return IStatusManager.AnimatedState.Idle;
     }
 
-    private static void ResetStatus(StatusManager? status)
+    private static string FirstNonBlank(params string?[] values)
     {
-        if (status != null)
-        {
-            status.transform.position = status.initPos;
-            status.UpdateObjPos();
-            status.animatedState = IStatusManager.AnimatedState.Idle;
-        }
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
     }
 
-    private static void RemoveStatusVisual(StatusManager status)
+    private static string Value(IEnumerable<MatchReplayStringValue>? values, string key)
     {
-        for (var index = StatusVisuals.Count - 1; index >= 0; index--)
-        {
-            if (StatusVisuals[index].Status != status)
-            {
-                continue;
-            }
-
-            ResetVisual(StatusVisuals[index]);
-            StatusVisuals.RemoveAt(index);
-        }
-    }
-
-    private static void ResetVisual(ActiveStatusVisual visual)
-    {
-        if (visual.Status == null)
-        {
-            return;
-        }
-
-        visual.Status.transform.position = visual.StartPosition;
-        visual.Status.UpdateObjPos();
-        visual.Status.animatedState = IStatusManager.AnimatedState.Idle;
+        return values?.LastOrDefault(item => string.Equals(item.Key, key, StringComparison.Ordinal))?.Value ?? "";
     }
 
     private static float EaseOutCubic(float value)
@@ -430,14 +376,4 @@ internal static class MatchReplayPresentationDirector
         internal float ElapsedMilliseconds { get; set; }
     }
 
-    private sealed class ActiveStatusVisual
-    {
-        internal StatusManager? Status { get; set; }
-        internal bool IsActor { get; set; }
-        internal bool HasHitOutcome { get; set; }
-        internal bool OutcomeStateSet { get; set; }
-        internal Vector3 StartPosition { get; set; }
-        internal Vector3 PeakPosition { get; set; }
-        internal float ElapsedMilliseconds { get; set; }
-    }
 }

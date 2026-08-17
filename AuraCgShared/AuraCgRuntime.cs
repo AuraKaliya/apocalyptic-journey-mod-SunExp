@@ -18,7 +18,7 @@ public static class SkillCgArbiterRuntime
     public const string FeastCgKind = "feast";
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-07-20-v12";
+    public const string CurrentBuildId = "aura-cg-shared-2026-08-17-v13";
     public const int CurrentProtocolVersion = 9;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
@@ -31,7 +31,7 @@ public static class SkillCgArbiterRuntime
     private static readonly Dictionary<string, AssetBundle> RegisteredBundles = new(StringComparer.OrdinalIgnoreCase);
     private static readonly AuraCgRegisteredRequestResolver RegisteredRequestResolver = new(
         ownerModId => AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId),
-        entry => AuraCgActivationRuntime.GetEffectiveState(entry).Enabled,
+        AuraCgActivationRuntime.IsLocallyEnabled,
         (ownerModId, imageResource) => ResolveImagePath(ownerModId, imageResource),
         () => Time.unscaledTime,
         AuraCgLog.WarnOnce,
@@ -189,7 +189,7 @@ public static class SkillCgArbiterRuntime
     {
         return AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
             .Where(entry => IsRegisteredCgEntry(entry, kind))
-            .Select(entry => new SkillCgRegisteredEntryView(entry, AuraCgActivationRuntime.GetEffectiveState(entry)))
+            .Select(entry => new SkillCgRegisteredEntryView(entry, AuraCgActivationRuntime.GetLocalEffectiveState(entry)))
             .OrderBy(view => view.OwnerModId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(view => view.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(view => view.CgId, StringComparer.OrdinalIgnoreCase)
@@ -266,7 +266,7 @@ public static class SkillCgArbiterRuntime
             entry,
             kind,
             context,
-            AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId),
+            AuraCgActivationRuntime.CanProducerEmit(entry, consumerModId),
             disableSync);
     }
 
@@ -361,7 +361,7 @@ public static class SkillCgArbiterRuntime
             .Where(entry => kindSet.Any(kind => IsRegisteredCgEntry(entry, kind)))
             .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
             .Where(entry => !string.Equals(entry.Kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase) || EntryMatchesEnabledRuntimeCardPack(entry))
-            .Where(entry => AuraCgActivationRuntime.CanConsumerPlay(entry, consumerModId))
+            .Where(AuraCgActivationRuntime.IsLocallyEnabled)
             .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
             {
                 CardId = (entry.CardIds ?? new List<string>()).FirstOrDefault() ?? "*",
@@ -1194,6 +1194,7 @@ public static class SkillCgArbiterRuntime
                 return false;
             }
 
+            var accepted = EnqueueBatch(batch.Where(IsLocalPlaybackEnabled));
             SkillCgPlaybackSnapshot? playback = null;
             var syncBatch = batch
                 .Where(request => !request.DisableSync && !request.IsRemote)
@@ -1204,10 +1205,10 @@ public static class SkillCgArbiterRuntime
                     options.DuplicateWindowSeconds,
                     out playback))
             {
-                return false;
+                AuraCgLog.DebugLog("Local CG retained while network relay preparation was unavailable."
+                                   + " owner=" + syncBatch[0].OwnerModId
+                                   + ", card=" + syncBatch[0].CardId);
             }
-
-            var accepted = EnqueueBatch(batch);
             if (accepted <= 0 && playback == null)
             {
                 return false;
@@ -1224,6 +1225,24 @@ public static class SkillCgArbiterRuntime
             }
 
             return accepted > 0 || playback != null;
+        }
+
+        private static bool IsLocalPlaybackEnabled(SkillCgRequest request)
+        {
+            var owner = request?.OwnerModId?.Trim() ?? "";
+            var providerId = request?.ProviderId?.Trim() ?? "";
+            var prefix = owner + ".SkillCG.";
+            if (string.IsNullOrWhiteSpace(owner)
+                || string.IsNullOrWhiteSpace(providerId)
+                || !providerId.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var cgId = providerId.Substring(prefix.Length);
+            var entry = AuraCgRegistryRuntime.GetRegisteredEntries(owner)
+                .FirstOrDefault(candidate => string.Equals(candidate.CgId, cgId, StringComparison.OrdinalIgnoreCase));
+            return entry == null || AuraCgActivationRuntime.IsLocallyEnabled(entry);
         }
 
         private int EnqueueBatch(IEnumerable<SkillCgRequest> requests)

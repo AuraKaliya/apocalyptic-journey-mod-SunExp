@@ -119,7 +119,7 @@ public static class SpiritRuntime
 
         SpiritUseGate[card.GetInstanceID()] = CardItem.canUse;
         CardItem.canUse = false;
-        PlayerApi.ShowCaption("精灵：请先使用【换下】让当前精灵返回手牌。");
+        PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.recall_first"));
     }
 
     private static void RestoreSpiritCardUseGate(ModHookContext context)
@@ -159,7 +159,7 @@ public static class SpiritRuntime
             if (!grant.Success)
             {
                 TerriasLog.Warn("[SpiritCollection] deployment card grant failed: " + grant.FailureReason);
-                PlayerApi.ShowCaption("精灵：出战卡生成失败。");
+                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.deployment_card_failed"));
             }
         }
         catch (Exception ex)
@@ -182,10 +182,15 @@ public static class SpiritRuntime
             {
                 if (result.LeveledUp)
                 {
-                    var unlock = result.UnlockedAbilityIds.Count == 0
-                        ? ""
-                        : " · 解锁 " + string.Join("、", result.UnlockedAbilityIds.Select(SpiritTrainingRegistry.AbilityDisplayName));
-                    PlayerApi.ShowCaption("精灵成长：" + result.Instance.Snapshot.DisplayName + " Lv." + result.Instance.Level + unlock);
+                    var names = string.Join(TerriasTextCatalog.Get("ui.common.list_separator"),
+                        result.UnlockedAbilityIds.Select(SpiritTrainingRegistry.AbilityDisplayName));
+                    PlayerApi.ShowCaption(TerriasTextCatalog.Format(
+                        result.UnlockedAbilityIds.Count == 0
+                            ? "caption.spirit.level_up"
+                            : "caption.spirit.level_up_unlock",
+                        "name", SpiritPresentationResolver.Name(result.Instance),
+                        "level", result.Instance.Level.ToString(),
+                        "abilities", names));
                 }
             }
         }
@@ -231,7 +236,8 @@ public static class SpiritRuntime
 
         AttackUseGate[card.GetInstanceID()] = card.hasUse;
         card.hasUse = true;
-        PlayerApi.ShowCaption("精灵球：" + result.Reason);
+        PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit_capture.reason",
+            "reason", TerriasTextCatalog.ResolveLegacy(result.Reason)));
     }
 
     private static void RestoreCaptureUse(ModHookContext context)

@@ -67,6 +67,23 @@ public static class SpiritBattleDeploymentService
         }
     }
 
+    public static SpiritCardBattleState CreateInitialBattleState(CapturedEnemySnapshot snapshot)
+    {
+        if (snapshot == null)
+        {
+            return new SpiritCardBattleState();
+        }
+
+        var profile = SpiritIntentRegistry.ResolveProfileIdentity(snapshot.ProfileId, snapshot.ProfileKey).Profile;
+        var stats = CompanionStatsService.SpiritStats(snapshot, profile);
+        return new SpiritCardBattleState
+        {
+            MaxHp = stats.MaxHp,
+            CurrentHp = stats.MaxHp,
+            CurrentMagic = stats.MaxMagic
+        };
+    }
+
     public static bool CanSummon(CapturedEnemySnapshot snapshot, string ownerStatusId, bool acceptRemotePayload, out string reason)
     {
         lock (SyncRoot)

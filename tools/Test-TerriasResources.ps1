@@ -225,6 +225,63 @@ try {
         Assert-True ($entry.packBelong -eq "Terrias") "Role registry packBelong must be Terrias: $($entry.roleId)"
     }
 
+    $localizationPath = Join-Path $modRoot "localization.registry.json"
+    Assert-True ([IO.File]::Exists($localizationPath)) "Terrias localization registry is missing."
+    if ([IO.File]::Exists($localizationPath)) {
+        $localization = Get-Content -LiteralPath $localizationPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        Assert-True ([int]$localization.schemaVersion -eq 1) "Terrias localization registry schemaVersion must be 1."
+        $localizationKeys = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        $requiredLocales = @('zh-Hans', 'zh-Hant', 'en', 'ja')
+        foreach ($property in $localization.entries.PSObject.Properties) {
+            $key = [string]$property.Name
+            $entry = $property.Value
+            Assert-True ($localizationKeys.Add($key)) "Duplicate localization key: $key"
+            Assert-True ($key -match '^[a-z0-9_]+(?:\.[A-Za-z0-9_]+)+$') "Invalid localization key: $key"
+
+            $referencePlaceholders = $null
+            foreach ($locale in $requiredLocales) {
+                $value = [string]$entry.$locale
+                Assert-True (-not [string]::IsNullOrWhiteSpace($value)) "Localization '$key' is missing locale '$locale'."
+                $placeholders = @([regex]::Matches($value, '\{([A-Za-z][A-Za-z0-9_]*)\}') |
+                    ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+                if ($null -eq $referencePlaceholders) {
+                    $referencePlaceholders = $placeholders
+                }
+                else {
+                    Assert-True (($referencePlaceholders -join '|') -ceq ($placeholders -join '|')) `
+                        "Localization '$key' has inconsistent placeholders in locale '$locale'."
+                }
+            }
+        }
+
+        $localizationSourceRoot = Join-Path $repoRoot "Terrias-Dev"
+        $referencedLocalizationKeys = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+        foreach ($sourceFile in Get-ChildItem -LiteralPath $localizationSourceRoot -Recurse -File -Filter *.cs) {
+            if ($sourceFile.FullName -match '\\(?:bin|obj|UnityProject\\(?:Library|Temp|Logs|Build))\\') {
+                continue
+            }
+            $source = Get-Content -LiteralPath $sourceFile.FullName -Raw -Encoding UTF8
+            foreach ($match in [regex]::Matches($source, 'TerriasTextCatalog\.(?:Get|Format|GetForLocale|FormatForLocale)\(\s*"([^"]+)"')) {
+                $referencedLocalizationKeys.Add($match.Groups[1].Value) | Out-Null
+            }
+            foreach ($match in [regex]::Matches($source, '\bL\(\s*"([^"]+)"')) {
+                $referencedLocalizationKeys.Add($match.Groups[1].Value) | Out-Null
+            }
+        }
+        foreach ($key in $referencedLocalizationKeys) {
+            Assert-True ($localizationKeys.Contains($key)) "Code references missing localization key: $key"
+        }
+
+        foreach ($failureCode in @(
+            'TransportNotSent', 'ProtocolMismatch', 'BattleEpochMismatch', 'CardModelMismatch',
+            'RoleDeckUnavailable', 'RoleDeckTimedOut', 'UnknownRole', 'MissingSender',
+            'SenderOutsideLobby', 'OwnerMismatch', 'TokenConflict', 'OwnerAlreadyHasProjection',
+            'FriendlySeatsFull', 'SeatReservationExpired', 'SpawnFailed', 'Cancelled')) {
+            $key = "caption.projection.failure.$failureCode"
+            Assert-True ($localizationKeys.Contains($key)) "Projection failure is missing localization key: $key"
+        }
+    }
+
     $witchArchive = Get-Content -LiteralPath (Join-Path $modRoot "witch.archive.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ([int]$witchArchive.schemaVersion -eq 2) "Witch Archive registry schemaVersion must be 2."
     Assert-True ($witchArchive.ownerModId -eq "Terrias") "Witch Archive registry ownerModId must be Terrias."

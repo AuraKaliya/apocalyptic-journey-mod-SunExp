@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 
 namespace AuraToolsExp.Dll.Features.PixelEmoji;
@@ -549,6 +550,8 @@ public sealed class PixelEmojiPresentation
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
     public string EventId { get; set; } = "";
+    // Requests carry the client's local time for diagnostics only. The server
+    // overwrites this value with its authoritative acceptance time before relay.
     public long CreatedUtcTicks { get; set; }
     public string IssuerPlayerId { get; set; } = "";
     public string IssuerPlayerName { get; set; } = "";
@@ -596,5 +599,117 @@ public sealed class PixelEmojiPresentation
         }
 
         return true;
+    }
+}
+
+internal sealed class PixelEmojiServerAcceptancePolicy
+{
+    internal const long SendCooldownMilliseconds = 1000L;
+    internal const long EventRetentionMilliseconds = 2L * 60L * 1000L;
+    internal const int MaximumTrackedEvents = 512;
+    internal const int MaximumTrackedPlayers = 128;
+
+    private readonly object sync = new();
+    private readonly Dictionary<string, long> seenRequests = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> lastAcceptedByPlayer = new(StringComparer.Ordinal);
+
+    internal bool TryAccept(
+        AuraToolsRpcSender? sender,
+        PixelEmojiPresentation? presentation,
+        long serverUtcTicks,
+        long monotonicMilliseconds,
+        out string rejection)
+    {
+        rejection = "";
+        if (sender == null || !sender.IsAvailable || !sender.IsLobbyMember)
+        {
+            rejection = "发送者不是当前房间成员";
+            return false;
+        }
+        if (presentation == null)
+        {
+            rejection = "表情事件为空";
+            return false;
+        }
+        if (serverUtcTicks < DateTime.MinValue.Ticks || serverUtcTicks > DateTime.MaxValue.Ticks)
+        {
+            rejection = "服务端时间无效";
+            return false;
+        }
+        if (!presentation.TryReadFrames(out _, out rejection))
+        {
+            return false;
+        }
+
+        var now = Math.Max(0L, monotonicMilliseconds);
+        var playerId = sender.PlayerId;
+        var requestKey = playerId.Length.ToString() + ":" + playerId + ":" + presentation.EventId;
+        lock (sync)
+        {
+            Prune(seenRequests, now, EventRetentionMilliseconds);
+            Prune(lastAcceptedByPlayer, now, EventRetentionMilliseconds);
+            if (seenRequests.ContainsKey(requestKey))
+            {
+                rejection = "表情事件重复";
+                return false;
+            }
+
+            // Consume every authenticated, structurally valid request id even
+            // when rate limiting rejects it, so a delayed retry cannot bypass
+            // the original rate decision.
+            seenRequests[requestKey] = now;
+            TrimOldest(seenRequests, MaximumTrackedEvents);
+
+            if (lastAcceptedByPlayer.TryGetValue(playerId, out var lastAccepted)
+                && ElapsedMilliseconds(lastAccepted, now) < SendCooldownMilliseconds)
+            {
+                rejection = "表情发送过于频繁";
+                return false;
+            }
+
+            lastAcceptedByPlayer[playerId] = now;
+            TrimOldest(lastAcceptedByPlayer, MaximumTrackedPlayers);
+        }
+
+        presentation.CreatedUtcTicks = serverUtcTicks;
+        presentation.IssuerPlayerId = playerId;
+        presentation.IssuerPlayerName = sender.PlayerName;
+        presentation.RejectionReason = "";
+        return true;
+    }
+
+    private static long ElapsedMilliseconds(long started, long current)
+    {
+        return current <= started ? 0L : current - started;
+    }
+
+    private static void Prune(Dictionary<string, long> values, long now, long ttlMilliseconds)
+    {
+        foreach (var key in values
+                     .Where(pair => ElapsedMilliseconds(pair.Value, now) >= ttlMilliseconds)
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            values.Remove(key);
+        }
+    }
+
+    private static void TrimOldest(Dictionary<string, long> values, int maximumCount)
+    {
+        var overflow = values.Count - Math.Max(1, maximumCount);
+        if (overflow <= 0)
+        {
+            return;
+        }
+
+        foreach (var key in values
+                     .OrderBy(pair => pair.Value)
+                     .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                     .Take(overflow)
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            values.Remove(key);
+        }
     }
 }

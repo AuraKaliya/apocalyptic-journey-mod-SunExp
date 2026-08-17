@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
@@ -17,8 +19,10 @@ namespace AuraToolsExp.Dll.Features.PixelEmoji;
 public static class AuraToolsPixelEmojiRuntime
 {
     private const string InjectedPrefix = "AuraToolsPixelEmoji-";
-    private static readonly Dictionary<string, DateTime> LastServerSendByPlayer = new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, DateTime> ReceivedEvents = new(StringComparer.Ordinal);
+    private const long ReceivedEventRetentionMilliseconds = 30L * 1000L;
+    private const int MaximumReceivedEvents = 256;
+    private static readonly PixelEmojiServerAcceptancePolicy ServerAcceptance = new();
+    private static readonly Dictionary<string, long> ReceivedEvents = new(StringComparer.Ordinal);
     private static bool initialized;
 
     public static bool Enabled => AuraToolsConfigService.Root.PixelEmoji.Enabled
@@ -131,40 +135,12 @@ public static class AuraToolsPixelEmojiRuntime
 
     internal static bool AcceptOnServer(AuraToolsRpcSender sender, PixelEmojiPresentation presentation, out string rejection)
     {
-        rejection = "";
-        if (sender == null || !sender.IsAvailable || !sender.IsLobbyMember)
-        {
-            rejection = "发送者不是当前房间成员";
-            return false;
-        }
-        if (!presentation.TryReadFrames(out _, out rejection))
-        {
-            return false;
-        }
-
-        var age = DateTime.UtcNow - new DateTime(Math.Max(DateTime.MinValue.Ticks, Math.Min(DateTime.MaxValue.Ticks, presentation.CreatedUtcTicks)), DateTimeKind.Utc);
-        if (age.TotalSeconds > 10 || age.TotalSeconds < -3)
-        {
-            rejection = "表情事件已过期";
-            return false;
-        }
-
-        lock (LastServerSendByPlayer)
-        {
-            Prune(LastServerSendByPlayer, TimeSpan.FromMinutes(2));
-            if (LastServerSendByPlayer.TryGetValue(sender.PlayerId, out var last)
-                && (DateTime.UtcNow - last).TotalSeconds < 1)
-            {
-                rejection = "表情发送过于频繁";
-                return false;
-            }
-            LastServerSendByPlayer[sender.PlayerId] = DateTime.UtcNow;
-        }
-
-        presentation.IssuerPlayerId = sender.PlayerId;
-        presentation.IssuerPlayerName = sender.PlayerName;
-        presentation.RejectionReason = "";
-        return true;
+        return ServerAcceptance.TryAccept(
+            sender,
+            presentation,
+            DateTime.UtcNow.Ticks,
+            MonotonicMilliseconds(),
+            out rejection);
     }
 
     internal static void Receive(PixelEmojiPresentation presentation)
@@ -178,14 +154,16 @@ public static class AuraToolsPixelEmojiRuntime
         }
 
         var key = presentation.IssuerPlayerId + ":" + presentation.EventId + ":" + presentation.ContentHash;
+        var now = MonotonicMilliseconds();
         lock (ReceivedEvents)
         {
-            Prune(ReceivedEvents, TimeSpan.FromSeconds(30));
+            Prune(ReceivedEvents, now, ReceivedEventRetentionMilliseconds);
             if (ReceivedEvents.ContainsKey(key))
             {
                 return;
             }
-            ReceivedEvents[key] = DateTime.UtcNow;
+            ReceivedEvents[key] = now;
+            TrimOldest(ReceivedEvents, MaximumReceivedEvents);
         }
 
         var asset = PixelEmojiAssetCache.Get("remote-" + presentation.ContentHash, frames, presentation.PlaybackMode);
@@ -302,10 +280,31 @@ public static class AuraToolsPixelEmojiRuntime
         }
     }
 
-    private static void Prune(Dictionary<string, DateTime> values, TimeSpan ttl)
+    private static long MonotonicMilliseconds()
     {
-        var threshold = DateTime.UtcNow - ttl;
-        foreach (var key in values.Where(pair => pair.Value < threshold).Select(pair => pair.Key).ToList())
+        return Math.Max(0L, (long)(Stopwatch.GetTimestamp() * 1000d / Stopwatch.Frequency));
+    }
+
+    private static void Prune(Dictionary<string, long> values, long now, long ttlMilliseconds)
+    {
+        foreach (var key in values
+                     .Where(pair => now > pair.Value && now - pair.Value >= ttlMilliseconds)
+                     .Select(pair => pair.Key)
+                     .ToList())
+        {
+            values.Remove(key);
+        }
+    }
+
+    private static void TrimOldest(Dictionary<string, long> values, int maximumCount)
+    {
+        var overflow = values.Count - Math.Max(1, maximumCount);
+        foreach (var key in values
+                     .OrderBy(pair => pair.Value)
+                     .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                     .Take(Math.Max(0, overflow))
+                     .Select(pair => pair.Key)
+                     .ToList())
         {
             values.Remove(key);
         }
@@ -337,19 +336,41 @@ public sealed class AuraToolsPixelEmojiCommand : RpcCommandBase, IAuraToolsServe
     public override void CmdExecute()
     {
         Presentation ??= new PixelEmojiPresentation();
+        var clientCreatedUtcTicks = Presentation.CreatedUtcTicks;
         if (!AuraToolsPixelEmojiRuntime.AcceptOnServer(serverSender, Presentation, out var rejection))
         {
             Presentation.RejectionReason = rejection;
             Presentation.FramesBase64 = new List<string>();
             Presentation.ContentHash = "";
-            AuraToolsLog.Warn("[PixelEmoji] server rejected presentation: " + rejection);
+            AuraToolsLog.Warn("[PixelEmoji] server rejected presentation: reason=" + rejection
+                              + ", sender=" + serverSender.PlayerId
+                              + ", event=" + Presentation.EventId + ".");
+            return;
         }
+
+        AuraToolsLog.Debug("[PixelEmoji] server accepted presentation: sender=" + serverSender.PlayerId
+                           + ", event=" + Presentation.EventId
+                           + ", frames=" + Presentation.FramesBase64.Count
+                           + ", clientClockOffsetMs=" + FormatClockOffsetMilliseconds(
+                               clientCreatedUtcTicks,
+                               Presentation.CreatedUtcTicks) + ".");
     }
 
     public override void RpcExecute()
     {
         Presentation ??= new PixelEmojiPresentation();
         AuraToolsPixelEmojiRuntime.Receive(Presentation);
+    }
+
+    private static string FormatClockOffsetMilliseconds(long clientUtcTicks, long serverUtcTicks)
+    {
+        if (clientUtcTicks <= 0L || clientUtcTicks > DateTime.MaxValue.Ticks)
+        {
+            return "unknown";
+        }
+
+        return ((clientUtcTicks - serverUtcTicks) / (double)TimeSpan.TicksPerMillisecond)
+            .ToString("0", CultureInfo.InvariantCulture);
     }
 }
 

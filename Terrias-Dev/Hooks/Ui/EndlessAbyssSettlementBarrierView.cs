@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.Mechanics;
 using Terrias.Dll.Network;
 using UnityEngine;
 using UnityEngine.UI;
@@ -64,28 +65,32 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
         if (!detailsShown)
         {
             actionButton.interactable = true;
-            actionText.text = "查看结算详情";
+            actionText.text = TerriasTextCatalog.Get("ui.abyss_settlement.view_details");
             statusText.text = isClient
-                ? "结算由房主统一结束；完成本地结算后会安全返回。"
-                : "所有玩家完成本地结算后，房主将最后关闭联机房间。";
+                ? TerriasTextCatalog.Get("ui.abyss_settlement.client_intro")
+                : TerriasTextCatalog.Get("ui.abyss_settlement.host_intro");
             return;
         }
 
         if (isClient)
         {
             actionButton.interactable = !localCommitStarted && !closing;
-            actionText.text = localCommitStarted ? "正在保存并返回…" : "完成结算";
+            actionText.text = TerriasTextCatalog.Get(localCommitStarted
+                ? "ui.abyss_settlement.saving"
+                : "ui.abyss_settlement.complete");
             statusText.text = hostReady
-                ? "房主已准备结束房间，请完成本地结算。"
-                : "可以先完成本地结算；系统会向房主确认保存完成。";
+                ? TerriasTextCatalog.Get("ui.abyss_settlement.host_ready_client")
+                : TerriasTextCatalog.Get("ui.abyss_settlement.client_ready_hint");
             return;
         }
 
         actionButton.interactable = !hostReady && !closing;
-        actionText.text = closing ? "正在安全结束…" : hostReady ? "等待其他玩家…" : "结束本次挑战";
+        actionText.text = TerriasTextCatalog.Get(closing
+            ? "ui.abyss_settlement.closing"
+            : hostReady ? "ui.abyss_settlement.waiting_players" : "ui.abyss_settlement.end_challenge");
         if (!hostReady)
         {
-            statusText.text = "确认后将等待其他玩家保存，再由房主最后结束房间。";
+            statusText.text = TerriasTextCatalog.Get("ui.abyss_settlement.host_confirm_hint");
             return;
         }
 
@@ -96,8 +101,11 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
             ? Math.Max(0, (int)Math.Ceiling(TimeSpan.FromTicks(deadline - DateTime.UtcNow.Ticks).TotalSeconds))
             : 0;
         statusText.text = closing
-            ? "玩家结算已确认，房主正在最后关闭房间。"
-            : "等待玩家保存：" + committed + "/" + expected + "（最长 " + seconds + " 秒）";
+            ? TerriasTextCatalog.Get("ui.abyss_settlement.players_confirmed")
+            : TerriasTextCatalog.Format("ui.abyss_settlement.waiting_progress",
+                "committed", committed.ToString(),
+                "expected", expected.ToString(),
+                "seconds", seconds.ToString());
     }
 
     private void Update()
@@ -120,6 +128,7 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
     private void BuildUi()
     {
         var shield = TerriasUiComponents.CreateFillRect("EndlessAbyssSettlementBarrier", transform);
+        TerriasLocalizationScope.Attach(shield).RegisterRefresh(Refresh);
         shield.transform.SetAsLastSibling();
         var shieldImage = shield.AddComponent<Image>();
         shieldImage.color = new Color(0f, 0f, 0f, 0.01f);

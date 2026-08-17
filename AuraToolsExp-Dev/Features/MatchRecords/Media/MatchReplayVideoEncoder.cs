@@ -1,8 +1,8 @@
 using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
@@ -28,10 +28,16 @@ internal static class MatchReplayVideoEncoder
                 EncodeMp4(ffmpeg!, spool.Path, mp4, framesPerSecond, wavePath, cancelled);
                 return mp4;
             }
-            catch when (!cancelled())
+            catch (Exception ex) when (!cancelled())
             {
                 TryDelete(mp4);
+                AuraToolsLog.Warn("[MatchRecords] FFmpeg MP4 encoding failed; falling back to built-in AVI: "
+                                  + ex.Message);
             }
+        }
+        else if (settings.PreferMp4)
+        {
+            AuraToolsLog.Info("[MatchRecords] FFmpeg was not found; using built-in interleaved AVI output.");
         }
 
         var avi = outputBase + ".avi";
@@ -79,11 +85,10 @@ internal static class MatchReplayVideoEncoder
     {
         var temporary = output + ".tmp.mp4";
         TryDelete(temporary);
-        var audio = !string.IsNullOrWhiteSpace(wavePath) && File.Exists(wavePath);
-        var arguments = "-hide_banner -loglevel error -y -f image2pipe -vcodec mjpeg -framerate "
-                        + framesPerSecond.ToString(CultureInfo.InvariantCulture) + " -i pipe:0 "
-                        + (audio ? "-i \"" + wavePath + "\" -shortest -c:a aac -b:a 160k " : "-an ")
-                        + "-c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p -movflags +faststart \"" + temporary + "\"";
+        var arguments = MatchReplayVideoEncodingPolicy.BuildFfmpegArguments(
+            framesPerSecond,
+            wavePath,
+            temporary);
         var process = new Process
         {
             StartInfo = new ProcessStartInfo(ffmpeg, arguments)

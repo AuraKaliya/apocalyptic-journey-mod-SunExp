@@ -32,6 +32,7 @@ TestDamageHistoryDatabase();
 TestMatchRecordDatabase();
 TestMatchReplayRuntimeCore();
 TestMatchAnalysis();
+TestMatchReplayExportPolicy();
 TestMjpegAviWriter();
 TestMatchReplayPackage();
 TestDamageMeterSettingsNormalization();

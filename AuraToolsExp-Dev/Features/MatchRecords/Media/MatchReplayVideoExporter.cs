@@ -8,16 +8,23 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
+using Witch.UI.Window;
 using Object = UnityEngine.Object;
+using WitchUiManager = Witch.UI.UIManager;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
 internal static class MatchReplayVideoExporter
 {
+    private const float PreparationTimeoutMilliseconds = 6000f;
+    private const int StablePreparationFrames = 2;
+    private const double TailSeconds = 0.5d;
     private static MatchReplayExportJob? current;
     private static bool cancelRequested;
+    private static bool captureColorPolicyLogged;
 
     internal static MatchReplayExportJob? Current => current;
 
@@ -33,7 +40,7 @@ internal static class MatchReplayVideoExporter
         }
     }
 
-    internal static bool TryStart(string recordId, out string message)
+    internal static bool TryStart(string recordId, Action closeOrigin, out string message)
     {
         message = "";
         if (current != null && !IsTerminal(current.State))
@@ -42,45 +49,35 @@ internal static class MatchReplayVideoExporter
             return false;
         }
 
-        if (!MatchReplayPlayer.TryStartForExport(recordId, out message)) return false;
-        var settings = AuraToolsConfigService.MatchExperience.MatchRecords.Replay.Video;
-        settings.Normalize();
-        var dimensions = Dimensions(settings.Quality);
-        var estimatedBytes = EstimateBytes(
-            Math.Max(5000L, MatchReplayPlayer.DurationMilliseconds + 1000L),
-            dimensions.width,
-            dimensions.height,
-            settings.FramesPerSecond,
-            settings.IncludeAudio);
-        if (!HasFreeSpace(estimatedBytes, out var available))
-        {
-            MatchReplayPlayer.Stop();
-            message = "预计需要 " + FormatBytes(estimatedBytes) + "，临时目录仅剩 " + FormatBytes(available) + "。";
-            return false;
-        }
-
+        var settings = SnapshotSettings();
         cancelRequested = false;
-        current = new MatchReplayExportJob
+        var job = new MatchReplayExportJob
         {
             JobId = Guid.NewGuid().ToString("N"),
             RecordId = recordId,
             State = MatchReplayExportStates.Preparing,
-            Message = "初始化回放场景",
-            EstimatedBytes = estimatedBytes
+            Message = "关闭原界面并等待战斗场景",
+            EstimatedBytes = 0
         };
-        Persist(current);
+        current = job;
+        Persist(job);
         MatchReplayExportControlsPresenter.Show();
-        if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Capture(current, settings)) == null)
+
+        var accepted = MatchReplayLaunchCoordinator.TryStartForExport(
+            recordId,
+            closeOrigin,
+            () => BeginCapture(job, settings),
+            result => FailBeforeCapture(job, result),
+            out var launchMessage);
+        if (!accepted)
         {
-            MatchReplayPlayer.Stop();
-            current.State = MatchReplayExportStates.Failed;
-            current.Message = "无法启动导出协程。";
-            Persist(current);
-            message = current.Message;
+            FailBeforeCapture(job, launchMessage);
+            MatchReplayExportControlsPresenter.Close();
+            message = launchMessage;
             return false;
         }
 
-        message = "视频导出已开始，预计临时空间 " + FormatBytes(estimatedBytes) + "。";
+        message = launchMessage;
         return true;
     }
 
@@ -101,6 +98,57 @@ internal static class MatchReplayVideoExporter
         cancelRequested = true;
         current.Message = "正在取消";
         Persist(current);
+    }
+
+    private static void BeginCapture(MatchReplayExportJob job, MatchReplayVideoSettings settings)
+    {
+        if (current != job || IsTerminal(job.State))
+        {
+            if (MatchReplayPlayer.IsActive) MatchReplayPlayer.Stop();
+            return;
+        }
+
+        if (cancelRequested)
+        {
+            job.State = MatchReplayExportStates.Cancelled;
+            job.Message = "导出任务已取消";
+            Persist(job);
+            if (MatchReplayPlayer.IsActive) MatchReplayPlayer.Stop();
+            return;
+        }
+
+        var dimensions = Dimensions(settings.Quality);
+        var estimatedBytes = EstimateBytes(
+            Math.Max(5000L, MatchReplayPlayer.DurationMilliseconds + 1000L),
+            dimensions.width,
+            dimensions.height,
+            settings.FramesPerSecond,
+            settings.IncludeAudio);
+        job.EstimatedBytes = estimatedBytes;
+        if (!HasFreeSpace(estimatedBytes, out var available))
+        {
+            FailBeforeCapture(job,
+                "预计需要 " + FormatBytes(estimatedBytes) + "，临时目录仅剩 " + FormatBytes(available) + "。");
+            MatchReplayPlayer.Stop();
+            return;
+        }
+
+        job.Message = "等待纯净战斗画面，预计临时空间 " + FormatBytes(estimatedBytes);
+        Persist(job);
+        if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Capture(job, settings)) == null)
+        {
+            FailBeforeCapture(job, "无法启动导出协程。");
+            MatchReplayPlayer.Stop();
+        }
+    }
+
+    private static void FailBeforeCapture(MatchReplayExportJob job, string reason)
+    {
+        if (IsTerminal(job.State)) return;
+        job.State = MatchReplayExportStates.Failed;
+        job.Message = string.IsNullOrWhiteSpace(reason) ? "无法开始视频导出。" : reason;
+        Persist(job);
+        AuraToolsLog.Warn("[MatchRecords] video export launch failed: " + job.Message);
     }
 
     private static IEnumerator Capture(MatchReplayExportJob job, MatchReplayVideoSettings settings)
@@ -140,9 +188,21 @@ internal static class MatchReplayVideoExporter
     {
         Directory.CreateDirectory(context.TemporaryDirectory);
         context.FrameSpool = new ReplayFrameSpool(context.FrameSpoolPath);
-        while (MatchReplayPlayer.IsActive && !MatchReplayPlayer.IsReadyForExport && !cancelRequested)
+
+        var preparationElapsed = 0f;
+        var stableFrames = 0;
+        MatchReplayExportReadinessState readiness = default;
+        while (!cancelRequested && MatchReplayPlayer.IsActive)
         {
-            yield return null;
+            yield return new WaitForEndOfFrame();
+            readiness = ReadReadiness();
+            stableFrames = readiness.CanCapture ? stableFrames + 1 : 0;
+            if (stableFrames >= StablePreparationFrames) break;
+            preparationElapsed += Math.Max(1f, Time.unscaledDeltaTime * 1000f);
+            if (preparationElapsed >= PreparationTimeoutMilliseconds)
+            {
+                throw new TimeoutException("战斗画面准备超时：" + DescribeReadiness(readiness));
+            }
         }
 
         if (cancelRequested) throw new OperationCanceledException();
@@ -153,21 +213,40 @@ internal static class MatchReplayVideoExporter
                     ? "回放环境在视频导出前意外停止。"
                     : MatchReplayPlayer.LastStartFailure);
         }
-        if (!context.Settings.IncludeUi) context.HideUi();
+
+        context.Visibility = new BattleCaptureVisibility(context.Settings.IncludeUi);
         var listener = context.Settings.IncludeAudio ? Object.FindAnyObjectByType<AudioListener>() : null;
         if (listener != null)
         {
             context.AudioCapture = listener.gameObject.AddComponent<ReplayWaveCapture>();
+            context.WaveWriter = new ReplayWaveWriter(context.WavePath, AudioSettings.outputSampleRate, 2);
             context.AudioCapture.BeginCapture();
-            context.WaveWriter = new ReplayWaveWriter(context.WavePath, context.AudioCapture.SampleRate, 2);
+            context.RealtimeAudio = true;
+        }
+        else if (context.Settings.IncludeAudio)
+        {
+            AuraToolsLog.Warn("[MatchRecords] no AudioListener was available; export continues without audio.");
         }
 
-        Time.captureFramerate = context.FramesPerSecond;
+        if (!context.RealtimeAudio)
+        {
+            Time.captureFramerate = context.FramesPerSecond;
+        }
+
         context.Job.State = MatchReplayExportStates.Rendering;
-        context.Job.Message = "录制 " + context.Width + "x" + context.Height + " / " + context.FramesPerSecond + " FPS";
+        context.Job.Message = "仅录制战斗画面 " + context.Width + "x" + context.Height + " / "
+                              + context.FramesPerSecond + " FPS"
+                              + (context.RealtimeAudio ? " / DSP 实时音频" : " / 无音频快速模式");
         Persist(context.Job);
+
         var lastTurn = 0;
         var tailFrames = 0;
+        var frameClock = new MatchReplayExportFrameClock(context.FramesPerSecond);
+        var startedAtDsp = AudioSettings.dspTime;
+        var lastDsp = startedAtDsp;
+        var tailEndsAtDsp = -1d;
+        frameClock.Start(startedAtDsp);
+
         while (!cancelRequested && MatchReplayPlayer.IsActive)
         {
             if (MatchReplayPlayer.HasBlockingError)
@@ -175,20 +254,56 @@ internal static class MatchReplayVideoExporter
                 throw new InvalidDataException("回放已失步，视频导出停止：" + MatchReplayPlayer.PlaybackIssue);
             }
 
-            if (!MatchReplayPlayer.IsFinished)
+            var framesDue = 1;
+            if (context.RealtimeAudio)
+            {
+                var now = AudioSettings.dspTime;
+                if (!MatchReplayPlayer.IsFinished)
+                {
+                    MatchReplayPlayer.AdvanceExportClock((float)Math.Max(0d, now - lastDsp) * 1000f);
+                }
+                lastDsp = now;
+                if (MatchReplayPlayer.IsFinished)
+                {
+                    if (tailEndsAtDsp < 0d) tailEndsAtDsp = now + TailSeconds;
+                    if (now >= tailEndsAtDsp) break;
+                }
+
+                framesDue = frameClock.DueFrames(now);
+                context.AudioCapture?.DrainTo(context.WaveWriter!);
+                if (framesDue <= 0)
+                {
+                    yield return null;
+                    continue;
+                }
+            }
+            else if (!MatchReplayPlayer.IsFinished)
             {
                 MatchReplayPlayer.AdvanceExportClock(1000f / context.FramesPerSecond);
             }
-            else if (++tailFrames > context.FramesPerSecond / 2)
+            else if (++tailFrames > Math.Max(1, context.FramesPerSecond / 2))
             {
                 break;
             }
 
+            byte[] bytes;
             MatchReplayExportControlsPresenter.SetCaptured(true);
-            yield return new WaitForEndOfFrame();
-            var bytes = CaptureFrame(context.Width, context.Height, context.JpegQuality);
-            context.FrameSpool.Enqueue(bytes);
-            MatchReplayExportControlsPresenter.SetCaptured(false);
+            context.Visibility.HideForCapture();
+            try
+            {
+                yield return new WaitForEndOfFrame();
+                bytes = CaptureFrame(context.Width, context.Height, context.JpegQuality);
+            }
+            finally
+            {
+                context.Visibility.RestoreAfterCapture();
+                MatchReplayExportControlsPresenter.SetCaptured(false);
+            }
+
+            for (var duplicate = 0; duplicate < framesDue; duplicate++)
+            {
+                context.FrameSpool.Enqueue(bytes);
+            }
             context.AudioCapture?.DrainTo(context.WaveWriter!);
 
             var turn = MatchReplayPlayer.CurrentTurn;
@@ -218,16 +333,27 @@ internal static class MatchReplayVideoExporter
         if (cancelRequested) throw new OperationCanceledException();
         context.AudioCapture?.EndCapture();
         context.AudioCapture?.DrainTo(context.WaveWriter!);
-        context.WaveWriter?.Dispose();
-        context.WaveWriter = null;
+        if (context.WaveWriter != null)
+        {
+            var sampleFrames = MatchReplayExportFrameClock.ExpectedPcmSampleFrames(
+                context.FrameSpool.FrameCount,
+                context.FramesPerSecond,
+                context.WaveWriter.SampleRate);
+            context.WaveWriter.NormalizeLength(sampleFrames);
+            context.WaveWriter.Dispose();
+            context.WaveWriter = null;
+        }
         context.FrameSpool.Complete();
         MatchReplayPlayer.Stop();
         Time.captureFramerate = context.PreviousCaptureFrameRate;
-        context.RestoreUi();
+        context.Visibility.Dispose();
+        context.Visibility = null;
 
         context.Job.State = MatchReplayExportStates.Encoding;
         context.Job.Progress = 0.82f;
-        context.Job.Message = context.Settings.PreferMp4 ? "后台编码 MP4（不可用时回退 AVI）" : "后台封装 MJPEG/PCM AVI";
+        context.Job.Message = context.Settings.PreferMp4
+            ? "后台编码 MP4（FFmpeg 不可用时生成单文件 AVI）"
+            : "后台封装交织式 MJPEG/PCM AVI";
         Persist(context.Job);
         var mediaDirectory = Path.Combine(MatchRecordStorage.MediaDirectory, context.Job.RecordId);
         Directory.CreateDirectory(mediaDirectory);
@@ -254,27 +380,43 @@ internal static class MatchReplayVideoExporter
         var duration = context.FrameSpool.FrameCount * 1000L / context.FramesPerSecond;
         var asset = MatchReplayMediaStore.RegisterGenerated(
             context.Job.RecordId, output, duration, context.Width, context.Height, context.FramesPerSecond, context.Timeline);
-        if (audio != null)
-        {
-            var waveOutput = outputBase + ".wav";
-            if (!File.Exists(waveOutput)) File.Copy(audio, waveOutput, overwrite: false);
-        }
 
         context.Job.OutputPath = asset.FilePath;
         context.Job.State = MatchReplayExportStates.Completed;
         context.Job.Progress = 1f;
-        context.Job.Message = "已保存 " + Path.GetFileName(output);
+        context.Job.Message = "已保存单个视频文件 " + Path.GetFileName(output);
         Persist(context.Job);
+    }
+
+    private static MatchReplayExportReadinessState ReadReadiness()
+    {
+        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
+        return new MatchReplayExportReadinessState(
+            MatchReplayPlayer.IsReadyForExport,
+            fightUi != null && fightUi.gameObject != null && fightUi.gameObject.activeInHierarchy,
+            MatchReplayUiLifecycle.SettingUiCount,
+            MatchReplayUiLifecycle.SnapshotOriginTransitionRoots().Count);
+    }
+
+    private static string DescribeReadiness(MatchReplayExportReadinessState state)
+    {
+        return "replay=" + state.ReplayReady
+               + ",fightUI=" + state.FightUiReady
+               + ",settings=" + state.SettingUiCount
+               + ",originOverlays=" + state.OriginOverlayCount;
     }
 
     private static void Cleanup(ExportContext context)
     {
         MatchReplayExportControlsPresenter.SetCaptured(false);
         Time.captureFramerate = context.PreviousCaptureFrameRate;
-        context.RestoreUi();
+        context.Visibility?.RestoreAfterCapture();
+        context.Visibility?.Dispose();
+        context.Visibility = null;
         context.AudioCapture?.EndCapture();
         if (context.AudioCapture != null && context.WaveWriter != null) context.AudioCapture.DrainTo(context.WaveWriter);
         context.WaveWriter?.Dispose();
+        context.WaveWriter = null;
         context.FrameSpool?.Dispose();
         if (context.AudioCapture != null) Object.Destroy(context.AudioCapture);
         if (MatchReplayPlayer.IsActive) MatchReplayPlayer.Stop();
@@ -283,8 +425,6 @@ internal static class MatchReplayVideoExporter
 
     private sealed class ExportContext
     {
-        private readonly List<Canvas> hiddenCanvases = new();
-
         internal ExportContext(MatchReplayExportJob job, MatchReplayVideoSettings settings)
         {
             Job = job;
@@ -312,20 +452,98 @@ internal static class MatchReplayVideoExporter
         internal List<MatchMediaTimelineEntry> Timeline { get; } = new();
         internal ReplayWaveCapture? AudioCapture { get; set; }
         internal ReplayWaveWriter? WaveWriter { get; set; }
+        internal BattleCaptureVisibility? Visibility { get; set; }
+        internal bool RealtimeAudio { get; set; }
+    }
 
-        internal void HideUi()
+    private sealed class BattleCaptureVisibility : IDisposable
+    {
+        private readonly List<CanvasGroupState> groups = new();
+        private bool hidden;
+
+        internal BattleCaptureVisibility(bool includeBattleHud)
         {
-            foreach (var item in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None).Where(item => item.enabled))
+            var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
+            var manager = WitchUiManager.Instance;
+            var roots = (manager?.GetAllUI() ?? Array.Empty<Witch.UI.UIBase>())
+                .Where(item => item != null && item.gameObject != null && item.gameObject.activeInHierarchy)
+                .Select(item => item.gameObject)
+                .Concat(Object.FindObjectsByType<AuraToolsOwnedOverlay>(
+                        FindObjectsInactive.Include,
+                        FindObjectsSortMode.None)
+                    .Where(item => item != null && item.gameObject != null && item.gameObject.activeInHierarchy)
+                    .Select(item => item.gameObject))
+                .Where(root => root != null)
+                .Distinct()
+                .Where(root => !includeBattleHud || fightUi == null || root != fightUi.gameObject);
+            foreach (var root in roots)
             {
-                hiddenCanvases.Add(item);
-                item.enabled = false;
+                var group = root.GetComponent<CanvasGroup>();
+                var added = group == null;
+                group ??= root.AddComponent<CanvasGroup>();
+                groups.Add(new CanvasGroupState(group, added));
             }
         }
 
-        internal void RestoreUi()
+        internal void HideForCapture()
         {
-            foreach (var item in hiddenCanvases.Where(item => item != null)) item.enabled = true;
-            hiddenCanvases.Clear();
+            if (hidden) return;
+            hidden = true;
+            foreach (var state in groups) state.Hide();
+        }
+
+        internal void RestoreAfterCapture()
+        {
+            if (!hidden) return;
+            foreach (var state in groups) state.Restore();
+            hidden = false;
+        }
+
+        public void Dispose()
+        {
+            RestoreAfterCapture();
+            foreach (var state in groups) state.Dispose();
+            groups.Clear();
+        }
+
+        private sealed class CanvasGroupState : IDisposable
+        {
+            private readonly CanvasGroup group;
+            private readonly bool added;
+            private readonly float alpha;
+            private readonly bool interactable;
+            private readonly bool blocksRaycasts;
+
+            internal CanvasGroupState(CanvasGroup group, bool added)
+            {
+                this.group = group;
+                this.added = added;
+                alpha = group.alpha;
+                interactable = group.interactable;
+                blocksRaycasts = group.blocksRaycasts;
+            }
+
+            internal void Hide()
+            {
+                if (group == null) return;
+                group.alpha = 0f;
+                group.interactable = false;
+                group.blocksRaycasts = false;
+            }
+
+            internal void Restore()
+            {
+                if (group == null) return;
+                group.alpha = alpha;
+                group.interactable = interactable;
+                group.blocksRaycasts = blocksRaycasts;
+            }
+
+            public void Dispose()
+            {
+                Restore();
+                if (added && group != null) Object.Destroy(group);
+            }
         }
     }
 
@@ -333,25 +551,58 @@ internal static class MatchReplayVideoExporter
     {
         var source = ScreenCapture.CaptureScreenshotAsTexture();
         if (source == null) throw new InvalidOperationException("无法读取当前游戏画面。");
-        var temporary = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+        var colorPolicy = MatchReplayCaptureColorPolicy.PreserveDisplayPixels(source.isDataSRGB);
+        var readWrite = colorPolicy.UseSrgbRenderTarget
+            ? RenderTextureReadWrite.sRGB
+            : RenderTextureReadWrite.Linear;
+        var temporary = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, readWrite);
         var previous = RenderTexture.active;
+        var previousSrgbWrite = GL.sRGBWrite;
         Texture2D? resized = null;
         try
         {
+            GL.sRGBWrite = colorPolicy.EnableSrgbWrite;
             Graphics.Blit(source, temporary);
             RenderTexture.active = temporary;
             resized = new Texture2D(width, height, TextureFormat.RGB24, mipChain: false);
             resized.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, recalculateMipMaps: false);
             resized.Apply(updateMipmaps: false, makeNoLongerReadable: false);
+            if (!captureColorPolicyLogged)
+            {
+                captureColorPolicyLogged = true;
+                AuraToolsLog.Info("[MatchRecords] capture color policy: active="
+                                  + QualitySettings.activeColorSpace
+                                  + ",sourceSrgb=" + source.isDataSRGB
+                                  + ",targetSrgb=" + temporary.sRGB
+                                  + ",srgbWrite=" + colorPolicy.EnableSrgbWrite + ".");
+            }
             return resized.EncodeToJPG(quality);
         }
         finally
         {
+            GL.sRGBWrite = previousSrgbWrite;
             RenderTexture.active = previous;
             RenderTexture.ReleaseTemporary(temporary);
             Object.Destroy(source);
             if (resized != null) Object.Destroy(resized);
         }
+    }
+
+    private static MatchReplayVideoSettings SnapshotSettings()
+    {
+        var source = AuraToolsConfigService.MatchExperience.MatchRecords.Replay.Video;
+        source.Normalize();
+        var result = new MatchReplayVideoSettings
+        {
+            Quality = source.Quality,
+            FramesPerSecond = source.FramesPerSecond,
+            IncludeUi = source.IncludeUi,
+            IncludeAudio = source.IncludeAudio,
+            PreferMp4 = source.PreferMp4,
+            FfmpegPath = source.FfmpegPath
+        };
+        result.Normalize();
+        return result;
     }
 
     private static (int width, int height) Dimensions(string quality)
@@ -421,7 +672,7 @@ internal static class MatchReplayVideoExporter
         for (var index = 1; index < 1000; index++)
         {
             var candidate = index == 1 ? path : path + "-" + index;
-            if (!File.Exists(candidate + ".mp4") && !File.Exists(candidate + ".avi") && !File.Exists(candidate + ".wav")) return candidate;
+            if (!File.Exists(candidate + ".mp4") && !File.Exists(candidate + ".avi")) return candidate;
         }
 
         return path + "-" + Guid.NewGuid().ToString("N");

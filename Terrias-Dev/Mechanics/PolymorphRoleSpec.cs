@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.GameApi;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -6,7 +7,7 @@ public sealed class PolymorphRoleSpec
 {
     public PolymorphRoleSpec(
         string id,
-        string displayName,
+        TerriasLocalizedText name,
         string cardFacePath,
         string avatarPath,
         string skill1,
@@ -17,7 +18,7 @@ public sealed class PolymorphRoleSpec
         int cropSize)
     {
         Id = id ?? "";
-        DisplayName = string.IsNullOrWhiteSpace(displayName) ? Id : displayName.Trim();
+        Name = name ?? new TerriasLocalizedText { LegacyFallback = Id };
         CardFacePath = cardFacePath ?? "";
         AvatarPath = avatarPath ?? "";
         Skill1 = skill1 ?? "";
@@ -30,7 +31,11 @@ public sealed class PolymorphRoleSpec
 
     public string Id { get; }
 
-    public string DisplayName { get; }
+    public TerriasLocalizedText Name { get; }
+
+    public string DisplayName => Name.Resolve(TerriasLanguageApi.CurrentLocale, Id);
+
+    public string DisplayNameFor(string locale) => Name.Resolve(locale, Id);
 
     public string CardFacePath { get; }
 

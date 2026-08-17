@@ -34,7 +34,8 @@ public static class SpiritCaptureService
         var inspected = EnemyCatalogApi.Inspect(target, "battle:" + CompanionAuthorityService.BattleEpoch);
         if (!inspected.Eligible || inspected.Snapshot == null)
         {
-            PlayerApi.ShowCaption("精灵球：" + inspected.Reason);
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit_capture.reason",
+                "reason", TerriasTextCatalog.ResolveLegacy(inspected.Reason)));
             return false;
         }
 
@@ -44,7 +45,7 @@ public static class SpiritCaptureService
             TerriasNetworkRuntime.Send(
                 new RpcSpiritCaptureRequest(self.Self.InstanceId, target!.InstanceId, token),
                 "SpiritCaptureService.TryCapture");
-            PlayerApi.ShowCaption("精灵球：正在等待主机结算。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit_capture.waiting_host"));
             return true;
         }
 
@@ -128,22 +129,24 @@ public static class SpiritCaptureService
         if (!state.Success || state.CapturedEnemy == null)
         {
             var reason = string.IsNullOrWhiteSpace(state.Reason)
-                ? "捕获失败（" + state.ChanceBasisPoints / 100 + "%）。"
-                : state.Reason;
-            PlayerApi.ShowCaption("精灵球：" + reason);
+                ? TerriasTextCatalog.Format("caption.spirit_capture.failed_chance",
+                    "chance", (state.ChanceBasisPoints / 100).ToString())
+                : TerriasTextCatalog.ResolveLegacy(state.Reason);
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit_capture.reason", "reason", reason));
             return;
         }
 
         var recorded = SpiritCollectionApi.RecordCapture(state.CapturedEnemy, state.Token);
         if (!recorded.Success)
         {
-            PlayerApi.ShowCaption("精灵球：捕获已结算，但精灵档案同步失败。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit_capture.archive_sync_failed"));
             TerriasLog.Warn("[SpiritCapture] network collection write failed: " + recorded.Reason);
             return;
         }
 
-        PlayerApi.ShowCaption("精灵球：成功捕获【" + state.CapturedEnemy.DisplayName + "】，已进入"
-                              + (recorded.AddedToParty ? "携带背包。" : "精灵仓库。"));
+        PlayerApi.ShowCaption(TerriasTextCatalog.Format(
+            recorded.AddedToParty ? "caption.spirit_capture.captured_party" : "caption.spirit_capture.captured_warehouse",
+            "name", SpiritPresentationResolver.Name(state.CapturedEnemy)));
     }
 
     private static bool ResolveLocal(
@@ -156,14 +159,16 @@ public static class SpiritCaptureService
         TerriasLog.Info("[SpiritCapture] roll enemy=" + snapshot.EnemyId + ", chance=" + chance + ", roll=" + roll + ", success=" + success);
         if (!success)
         {
-            PlayerApi.ShowCaption("精灵球：捕获失败（" + chance / 100 + "%）。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Format("caption.spirit_capture.reason", "reason",
+                TerriasTextCatalog.Format("caption.spirit_capture.failed_chance",
+                    "chance", (chance / 100).ToString())));
             return false;
         }
 
         var recorded = SpiritCollectionApi.RecordCapture(snapshot, seed);
         if (!recorded.Success)
         {
-            PlayerApi.ShowCaption("精灵球：精灵档案写入失败，本次捕获未结算。");
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit_capture.archive_write_failed"));
             TerriasLog.Warn("[SpiritCapture] collection write failed: " + recorded.Reason);
             return false;
         }
@@ -172,9 +177,10 @@ public static class SpiritCaptureService
         LogProfileResolution(snapshot, resolution, "local");
         var settled = EnemyCaptureSettlementApi.Settle(target, snapshot, resolution.Profile, seed);
         PlayerApi.ShowCaption(settled
-            ? "精灵球：成功捕获【" + snapshot.DisplayName + "】，已进入"
-              + (recorded.AddedToParty ? "携带背包。" : "精灵仓库。")
-            : "精灵球：精灵已记录，但敌人离场结算使用了兼容兜底。");
+            ? TerriasTextCatalog.Format(
+                recorded.AddedToParty ? "caption.spirit_capture.captured_party" : "caption.spirit_capture.captured_warehouse",
+                "name", SpiritPresentationResolver.Name(snapshot))
+            : TerriasTextCatalog.Get("caption.spirit_capture.settlement_fallback"));
         return true;
     }
 
