@@ -129,4 +129,59 @@ if ($registration.schemaVersion -ne 4 `
     throw "AuraToolsExp shared resource and CG ownership contract is invalid."
 }
 
+$moduleSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolsBuiltInModules.cs")
+$expectedModuleIds = @(
+    "gameplay.starter-deck",
+    "gameplay.card-refresh",
+    "gameplay.feast",
+    "gameplay.safe-box",
+    "presentation.skin",
+    "presentation.battle-bgm",
+    "presentation.card-use-audio",
+    "presentation.pixel-emoji",
+    "presentation.skill-cg",
+    "presentation.card-use-cg",
+    "records.damage-statistics",
+    "records.battle-replay",
+    "multiplayer.mod-sync",
+    "intelligence.auto-battle",
+    "system.file-logging"
+)
+foreach ($moduleId in $expectedModuleIds) {
+    if ($moduleSource -notmatch [regex]::Escape('"' + $moduleId + '"')) {
+        throw "AuraToolsExp built-in module catalog is missing: $moduleId"
+    }
+}
+
+$entrySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Entry.cs")
+if ($entrySource -notmatch "AuraToolModuleHost\.Initialize" `
+        -or $entrySource -match "AuraTools(?:Audio|AutoBattle|CardRefresh|DamageMeter|CardUiBenchmark|Feast|FileLog|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)Runtime\.Initialize") {
+    throw "AuraToolsExp Entry must compose feature initialization through AuraToolModuleHost."
+}
+
+$settingsSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
+$shellSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxSettingsShell.cs")
+if ($settingsSource -notmatch "ToolboxSettingsShell\.Build\(panel\)" `
+        -or $settingsSource -match "AutoInstallBundledSkins\s*=\s*true" `
+        -or $settingsSource -match "PreferRoleModProfile\s*=\s*true" `
+        -or $settingsSource -match "feast\.PlayCg\s*=\s*true" `
+        -or $shellSource -match "using\s+AuraToolsExp\.Dll\.Features\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)") {
+    throw "AuraToolsExp toolbox shell boundary or render-purity contract is invalid."
+}
+
+$uiSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
+$viewStateSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraUiShared\AuraUiViewState.cs")
+if ($uiSource -notmatch "SetIsOnWithoutNotify" `
+        -or $viewStateSource -notmatch "AnchorId" `
+        -or $viewStateSource -notmatch "FocusedId" `
+        -or $viewStateSource -notmatch "AuraUiKeyedListReconciler") {
+    throw "AuraToolsExp stable toggle, scroll-anchor, focus, or keyed-list contract is invalid."
+}
+
 Write-Host "AuraToolsExp behavior and Tool-owned content tests passed."

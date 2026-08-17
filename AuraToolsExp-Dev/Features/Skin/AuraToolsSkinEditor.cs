@@ -51,6 +51,7 @@ public static class AuraToolsSkinEditor
             return;
         }
 
+        var viewState = AuraUi.Shared.AuraUiViewState.CaptureForContent(careerContent);
         Settings.AuraToolsUi.ClearChildren(careerContent);
         var careerIds = AuraToolsSkinRuntime.CandidateCareerIds();
         if (careerIds.Count == 0)
@@ -70,6 +71,10 @@ public static class AuraToolsSkinEditor
         {
             CreateCareerCard(careerId);
         }
+        AuraUi.Shared.AuraUiViewState.RestoreAfterLayout(
+            careerContent,
+            viewState,
+            "AuraTools.Skin.Careers");
     }
 
     private static void CreateCareerCard(string careerId)
@@ -136,12 +141,17 @@ public static class AuraToolsSkinEditor
             return;
         }
 
+        var viewState = AuraUi.Shared.AuraUiViewState.CaptureForContent(skinContent);
         Settings.AuraToolsUi.ClearChildren(skinContent);
         var candidates = AuraToolsSkinRuntime.CandidateDefinitions(activeCareerId);
         foreach (var candidate in candidates)
         {
             CreateSkinCard(candidate);
         }
+        AuraUi.Shared.AuraUiViewState.RestoreAfterLayout(
+            skinContent,
+            viewState,
+            "AuraTools.Skin.Candidates");
     }
 
     private static void CreateSkinCard(SkinDefinition candidate)
@@ -154,6 +164,9 @@ public static class AuraToolsSkinEditor
         var card = Settings.AuraToolsUi.CreateLayout(
             "SkinCandidate-" + candidate.QualifiedSkinId,
             skinContent!);
+        AuraUi.Shared.AuraUiStableId.Assign(
+            card,
+            "skin.candidate." + candidate.QualifiedSkinId);
         Settings.AuraToolsUi.SetFixedHeight(card, 92f);
         Settings.AuraToolsUi.AddPanelImage(
             card,
@@ -166,12 +179,15 @@ public static class AuraToolsSkinEditor
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        Settings.AuraToolsUi.AddToggle(card.transform, enabled, value =>
+        var toggle = Settings.AuraToolsUi.AddToggle(card.transform, enabled, value =>
         {
             AuraToolsSkinRuntime.SetCandidateEnabled(candidate.QualifiedSkinId, value);
             RefreshSkinCards();
             RefreshCareers();
         });
+        AuraUi.Shared.AuraUiStableId.Assign(
+            toggle.gameObject,
+            "skin.candidate." + candidate.QualifiedSkinId + ".toggle");
         Settings.AuraToolsUi.AddText(
             card.transform,
             candidate.Name

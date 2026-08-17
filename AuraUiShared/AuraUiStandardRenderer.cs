@@ -120,6 +120,9 @@ public sealed class AuraUiScrollHandle
     public float VerticalNormalizedPosition { get => Scroll.verticalNormalizedPosition; set => Scroll.verticalNormalizedPosition = value; }
     private ScrollRect Scroll { get; }
     public void StopMovement() => Scroll.StopMovement();
+    public AuraUiViewStateSnapshot CaptureViewState() => AuraUiViewState.Capture(Scroll);
+    public void RestoreViewStateAfterLayout(AuraUiViewStateSnapshot snapshot, string source = "AuraUi.Scroll") =>
+        AuraUiViewState.RestoreAfterLayout(Content, snapshot, source);
 }
 
 public sealed class AuraUiContext

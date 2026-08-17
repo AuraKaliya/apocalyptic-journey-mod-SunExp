@@ -134,6 +134,36 @@
           "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
         },
         {
+          "id": "toolbox-shell-module-boundary",
+          "description": "The AuraTools toolbox shell may depend on module contracts but not concrete feature runtimes.",
+          "roots": ["AuraToolsExp-Dev/Features/Settings"],
+          "filePattern": "ToolboxSettingsShell.cs",
+          "deny": [
+            "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)"
+          ]
+        },
+        {
+          "id": "tool-entry-module-host-boundary",
+          "description": "AuraTools Entry must compose feature behavior through AuraToolModuleHost.",
+          "roots": ["AuraToolsExp-Dev"],
+          "filePattern": "Entry.cs",
+          "deny": [
+            "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)",
+            "AuraTools(?:Audio|AutoBattle|CardRefresh|DamageMeter|CardUiBenchmark|Feast|FileLog|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)Runtime\\.Initialize"
+          ]
+        },
+        {
+          "id": "tool-settings-render-purity",
+          "description": "Building AuraTools settings must not silently force durable feature choices.",
+          "roots": ["AuraToolsExp-Dev/Features/Settings"],
+          "filePattern": "AuraToolsSettingsRuntime.cs",
+          "deny": [
+            "AutoInstallBundledSkins\\s*=\\s*true",
+            "PreferRoleModProfile\\s*=\\s*true",
+            "feast\\.PlayCg\\s*=\\s*true"
+          ]
+        },
+        {
           "id": "content-hook-entrypoint",
           "description": "Terrias feature hooks must route through TerriasHookRegistry.",
           "roots": ["Terrias-Dev"],

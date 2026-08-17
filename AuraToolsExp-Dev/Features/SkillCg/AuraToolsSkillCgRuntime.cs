@@ -7,6 +7,7 @@ using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -804,11 +805,16 @@ public static class AuraToolsSkillCgEditor
             return;
         }
 
+        var viewState = AuraUiViewState.CaptureForContent(roleContent);
         Settings.AuraToolsUi.ClearChildren(roleContent);
         foreach (var pair in AuraToolsConfigService.SkillCg.Roles.OrderBy(pair => RoleDisplayName(pair.Value)).ThenBy(pair => pair.Key))
         {
             CreateRoleRow(pair.Key, pair.Value);
         }
+        AuraUiViewState.RestoreAfterLayout(
+            roleContent,
+            viewState,
+            "AuraTools.SkillCg.Roles");
     }
 
     private static void CreateRoleRow(string key, SkillCgRoleSettings role)

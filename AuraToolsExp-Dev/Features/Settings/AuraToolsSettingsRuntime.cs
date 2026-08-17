@@ -20,6 +20,7 @@ using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using Michsky.MUIP;
 using StarterDeckArbiter.Shared;
 using TMPro;
@@ -649,6 +650,7 @@ public static class AuraToolsSettingsRuntime
         AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
             autoBattle.Profile,
             autoBattle.SelectedModelId);
+        activePanel.GetComponent<ToolboxSettingsShell>()?.Activate();
         if (!PanelBuildState.IsBuilt)
         {
             BeginInitialPanelBuild(activePanel);
@@ -698,25 +700,9 @@ public static class AuraToolsSettingsRuntime
             layout.childForceExpandWidth = true;
             layout.childForceExpandHeight = false;
 
-            var content = AuraToolsUi.CreateScroll(panel, "AuraToolsSettings");
+            ToolboxSettingsShell.Build(panel);
             yield return null;
             if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateDataDirectorySection(content);
-            yield return null;
-            if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateSkinSection(content);
-            yield return null;
-            if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateAudioSection(content);
-            yield return null;
-            if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateMatchExperienceSection(content);
-            yield return null;
-            if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateBattleStrategySection(content);
-            yield return null;
-            if (!CanContinuePanelBuild(panel, ticket)) yield break;
-            CreateLoggingSection(content);
             marker.Completed = true;
             var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
             autoBattleSnapshotRevisionBuilt =
@@ -737,6 +723,367 @@ public static class AuraToolsSettingsRuntime
                && panel.gameObject.activeInHierarchy
                && activePanel == panel.gameObject
                && PanelBuildState.IsCurrent(ticket);
+    }
+
+    internal static void ShowAudioSettings(Transform parent, bool battleBgm)
+    {
+        var title = battleBgm ? "战斗背景音乐设置" : "出牌音效设置";
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.AudioSettings." + (battleBgm ? "BattleBgm" : "CardUse"),
+            parent,
+            title);
+        var content = AuraToolsUi.CreateScroll(window.transform, "AudioSettings");
+        var settings = battleBgm
+            ? AuraToolsConfigService.Audio.BattleBgm
+            : AuraToolsConfigService.Audio.CardUse;
+        CreateModeRow(content, settings, battleBgm);
+        CreateAudioCommonRows(content, settings, battleBgm);
+        AuraToolsUi.AddText(
+            content,
+            battleBgm
+                ? "通用模式对所有角色使用同一首战斗音乐；高级模式可为每个角色单独配置。"
+                : "通用模式对所有角色使用同一出牌音效；高级模式可为每个角色单独配置。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+    }
+
+    internal static void ShowStarterDeckSettings(Transform parent)
+    {
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.StarterDeckSettings",
+            parent,
+            "开局卡组设置");
+        var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
+        var content = AuraToolsUi.CreateScroll(window.transform, "StarterDeckSettings");
+        var modeRow = CreateInlineRow(content, "StarterDeckMode");
+        var modeText = AuraToolsUi.AddText(
+            modeRow.transform,
+            settings.Mode == StarterDeckModes.RoleSpecific
+                ? "当前模式：按角色"
+                : "当前模式：全局",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        Button? modeButton = null;
+        modeButton = AuraToolsUi.AddButton(
+            modeRow.transform,
+            settings.Mode == StarterDeckModes.RoleSpecific ? "切到全局" : "切到按角色",
+            () =>
+            {
+                settings.Mode = settings.Mode == StarterDeckModes.RoleSpecific
+                    ? StarterDeckModes.Global
+                    : StarterDeckModes.RoleSpecific;
+                AuraToolsConfigService.SaveMatchExperience();
+                modeText.text = settings.Mode == StarterDeckModes.RoleSpecific
+                    ? "当前模式：按角色"
+                    : "当前模式：全局";
+                AuraToolsUi.SetButtonLabel(
+                    modeButton,
+                    settings.Mode == StarterDeckModes.RoleSpecific
+                        ? "切到全局"
+                        : "切到按角色");
+            },
+            112f);
+
+        var globalRow = CreateInlineRow(content, "StarterDeckGlobal");
+        AuraToolsUi.AddText(
+            globalRow.transform,
+            "全局卡组：" + settings.GlobalProfile.CardIds.Count
+            + "/" + settings.GlobalProfile.DeckSize + " 张",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            globalRow.transform,
+            "编辑全局卡组",
+            () => AuraToolsStarterDeckEditor.ShowGlobal(window.transform),
+            124f);
+
+        var roleRow = CreateInlineRow(content, "StarterDeckRoles");
+        AuraToolsUi.AddText(
+            roleRow.transform,
+            "本地角色卡组：" + settings.Roles.Count
+            + "；MOD 注册 Profile："
+            + StarterDeckArbiterRuntime.GetRegisteredProfiles(AuraToolsIds.ModId).Count,
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            roleRow.transform,
+            "管理角色卡组",
+            () => AuraToolsStarterDeckRoleManager.Show(window.transform),
+            124f);
+        AuraToolsUi.AddText(
+            content,
+            "没有本地角色卡组时，会优先使用角色所属 MOD 注册的推荐 Profile，再回退到全局卡组。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+    }
+
+    internal static void ShowReplaySettings(Transform parent)
+    {
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.ReplaySettings",
+            parent,
+            "战斗回放设置");
+        var content = AuraToolsUi.CreateScroll(window.transform, "ReplaySettings");
+        BuildReplaySettingsDetails(content, window.transform);
+    }
+
+    internal static void ShowAutoBattleSettings(Transform parent)
+    {
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.AutoBattleSettings",
+            parent,
+            "战斗策略实验室",
+            maxWidth: 1240f);
+        var content = AuraToolsUi.CreateScroll(window.transform, "AutoBattleSettings");
+        BuildAutoBattleDetails(
+            content,
+            AuraToolsConfigService.MatchExperience.AutoBattle);
+    }
+
+    internal static void ShowLoggingSettings(Transform parent)
+    {
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.LoggingSettings",
+            parent,
+            "文件日志设置");
+        var content = AuraToolsUi.CreateScroll(window.transform, "LoggingSettings");
+        BuildLoggingSettingsDetails(content);
+    }
+
+    private static void BuildReplaySettingsDetails(
+        Transform content,
+        Transform overlayParent)
+    {
+        var records = AuraToolsConfigService.MatchExperience.MatchRecords;
+        var replay = records.Replay;
+        var replayLimitRow = CreateInlineRow(content, "ReplayLimit");
+        AuraToolsUi.AddText(
+            replayLimitRow.transform,
+            "自动回放保存上限",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddInput(
+            replayLimitRow.transform,
+            replay.AutoRecordLimit.ToString(CultureInfo.InvariantCulture),
+            value =>
+            {
+                if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+                {
+                    replay.AutoRecordLimit = parsed;
+                    replay.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                }
+            },
+            104f);
+
+        var videoRow = CreateInlineRow(content, "ReplayVideo");
+        AuraToolsUi.AddText(
+            videoRow.transform,
+            "视频导出",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        Button? qualityButton = null;
+        qualityButton = AuraToolsUi.AddButton(videoRow.transform, replay.Video.Quality, () =>
+        {
+            replay.Video.Quality = replay.Video.Quality == "1080p" ? "720p" : "1080p";
+            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsUi.SetButtonLabel(qualityButton, replay.Video.Quality);
+        }, 86f);
+        Button? fpsButton = null;
+        fpsButton = AuraToolsUi.AddButton(videoRow.transform, replay.Video.FramesPerSecond + " FPS", () =>
+        {
+            replay.Video.FramesPerSecond = replay.Video.FramesPerSecond >= 60 ? 30 : 60;
+            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsUi.SetButtonLabel(fpsButton, replay.Video.FramesPerSecond + " FPS");
+        }, 86f);
+
+        CreateReplayToggle(content, "导出战斗 HUD", replay.Video.IncludeUi, value =>
+        {
+            replay.Video.IncludeUi = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        });
+        CreateReplayToggle(content, "导出音频", replay.Video.IncludeAudio, value =>
+        {
+            replay.Video.IncludeAudio = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        });
+        CreateReplayToggle(content, "配置 FFmpeg 时优先 MP4", replay.Video.PreferMp4, value =>
+        {
+            replay.Video.PreferMp4 = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        });
+
+        var libraryRow = CreateInlineRow(content, "ReplayLibrary");
+        AuraToolsUi.AddText(
+            libraryRow.transform,
+            "自动记录 " + AuraToolsMatchRecordsRuntime.AutoRecordCount
+            + " · 收藏 " + AuraToolsMatchRecordsRuntime.FavoriteRecordCount,
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            libraryRow.transform,
+            "打开对局资料库",
+            () => AuraToolsMatchRecordsRuntime.OpenLibrary(overlayParent),
+            132f);
+    }
+
+    private static void CreateReplayToggle(
+        Transform parent,
+        string label,
+        bool value,
+        Action<bool> changed)
+    {
+        var row = CreateInlineRow(parent, "ReplayToggle-" + label);
+        AuraToolsUi.AddToggle(row.transform, value, changed);
+        AuraToolsUi.AddText(
+            row.transform,
+            label,
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+    }
+
+    private static void BuildLoggingSettingsDetails(Transform content)
+    {
+        var settings = AuraToolsConfigService.Logging;
+        var diagnosticsRow = CreateInlineRow(content, "PerformanceDiagnostics");
+        AuraToolsUi.AddToggle(diagnosticsRow.transform, settings.PerformanceDiagnostics, value =>
+        {
+            settings.PerformanceDiagnostics = value;
+            AuraToolsConfigService.SaveLogging();
+        });
+        AuraToolsUi.AddText(
+            diagnosticsRow.transform,
+            "性能诊断（重启后生效）",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        var levelRow = CreateInlineRow(content, "LoggingLevel");
+        var levelLabels = new List<string> { "Debug", "Info", "Warning", "Error" };
+        AuraToolsUi.AddText(levelRow.transform, "最低等级", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 90f);
+        AuraToolsUi.AddSelectButton(levelRow.transform, levelLabels,
+            SelectedLoggingLevelIndex(settings.MinimumLevel), index =>
+            {
+                if (index >= 0 && index < levelLabels.Count)
+                {
+                    settings.MinimumLevel = levelLabels[index];
+                    settings.Normalize();
+                    AuraToolsConfigService.SaveLogging();
+                }
+            }, 180f);
+
+        var mirrorRow = CreateInlineRow(content, "LoggingMirror");
+        AuraToolsUi.AddToggle(mirrorRow.transform, settings.MirrorUnityLog, value =>
+        {
+            settings.MirrorUnityLog = value;
+            AuraToolsConfigService.SaveLogging();
+        });
+        AuraToolsUi.AddText(mirrorRow.transform, "镜像 Unity 日志", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+        AuraToolsUi.AddToggle(mirrorRow.transform, settings.MirrorCommandsLog, value =>
+        {
+            settings.MirrorCommandsLog = value;
+            AuraToolsConfigService.SaveLogging();
+        });
+        AuraToolsUi.AddText(mirrorRow.transform, "镜像 Commands 日志", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+
+        var sourceRow = CreateInlineRow(content, "LoggingSource");
+        AuraToolsUi.AddText(sourceRow.transform, "来源", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 48f);
+        CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "AuraTools");
+        CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "Unity");
+        CreateLoggingListToggle(sourceRow.transform, settings.EnabledSources, "Command");
+
+        var unityRow = CreateInlineRow(content, "LoggingUnityTypes");
+        AuraToolsUi.AddText(unityRow.transform, "Unity 类型", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 82f);
+        foreach (var type in new[] { "Log", "Warning", "Error", "Exception", "Assert" })
+        {
+            CreateLoggingListToggle(unityRow.transform, settings.UnityLogTypes, type);
+        }
+
+        var stackRow = CreateInlineRow(content, "LoggingStack");
+        var stackLabels = new List<string> { "关闭", "仅错误", "全部" };
+        var stackValues = new List<string>
+        {
+            LoggingStackTraceModes.Off,
+            LoggingStackTraceModes.ErrorsOnly,
+            LoggingStackTraceModes.All
+        };
+        AuraToolsUi.AddText(stackRow.transform, "堆栈", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 60f);
+        AuraToolsUi.AddSelectButton(stackRow.transform, stackLabels,
+            SelectedLoggingStackIndex(settings.StackTraceMode), index =>
+            {
+                if (index >= 0 && index < stackValues.Count)
+                {
+                    settings.StackTraceMode = stackValues[index];
+                    AuraToolsConfigService.SaveLogging();
+                }
+            }, 180f);
+
+        var queueRow = CreateInlineRow(content, "LoggingQueue");
+        AuraToolsUi.AddText(queueRow.transform, "队列上限", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+        AuraToolsUi.AddInput(queueRow.transform, settings.MaxQueueLength.ToString(), value =>
+        {
+            if (int.TryParse(value, out var parsed))
+            {
+                settings.MaxQueueLength = parsed;
+                settings.Normalize();
+                AuraToolsConfigService.SaveLogging();
+            }
+        }, 110f);
+        AuraToolsUi.AddText(queueRow.transform, "Flush ms", AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 72f);
+        AuraToolsUi.AddInput(queueRow.transform, settings.FlushIntervalMs.ToString(), value =>
+        {
+            if (int.TryParse(value, out var parsed))
+            {
+                settings.FlushIntervalMs = parsed;
+                settings.Normalize();
+                AuraToolsConfigService.SaveLogging();
+            }
+        }, 110f);
+
+        var directoryRow = CreateInlineRow(content, "LoggingDirectory");
+        AuraToolsUi.AddText(directoryRow.transform,
+            "日志目录：" + AuraToolsConfigService.LogsDirectory,
+            AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        AuraToolsUi.AddButton(directoryRow.transform, "打开目录",
+            () => FileResourceUtil.OpenDirectory(AuraToolsConfigService.LogsDirectory), 92f);
     }
 
     private static void CreateDataDirectorySection(Transform parent)
@@ -788,7 +1135,6 @@ public static class AuraToolsSettingsRuntime
         }, content =>
         {
             var statusRow = CreateInlineRow(content, "SkinStatusRow");
-            AuraToolsConfigService.Skin.AutoInstallBundledSkins = true;
             var skinCandidates = AuraToolsSkinRuntime.CandidateDefinitions();
             var enabledCandidates = skinCandidates.Count(candidate =>
                 AuraToolsConfigService.Skin.IsCandidateEnabled(candidate.QualifiedSkinId));
@@ -873,7 +1219,6 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddButton(row.transform, "角色配置", () => AuraToolsStarterDeckRoleManager.Show(activePanel!.transform), 96f);
 
             var policyRow = CreateInlineRow(content, "StarterDeckPolicyRow");
-            settings.PreferRoleModProfile = true;
             AuraToolsUi.AddText(policyRow.transform, "说明：没有本地角色卡组时，会自动使用角色所属 MOD 注册的推荐开局卡组；没有推荐时再回退到全局卡组。", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         }, starterDeckEnabled ? new Color(0.58f, 0.94f, 0.62f, 1f) : AuraToolsUi.MutedText);
 
@@ -934,7 +1279,6 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.TextMinHeight,
                 1f);
             AuraToolsUi.AddButton(row.transform, "按角色配置", () => AuraToolsFeastRoleEditor.Show(activePanel!.transform), 112f);
-            feast.PlayCg = true;
         }, feast.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         CreateSubmodule(parent, "随身保险箱", AuraToolsConfigService.MatchExperience.SafeBox.Enabled, value =>
@@ -1086,47 +1430,58 @@ public static class AuraToolsSettingsRuntime
         {
             autoBattle.Enabled = value;
             AuraToolsConfigService.SaveMatchExperience();
-        }, content =>
-        {
-            CreateSectionLabel(content, "当前策略");
-            CreateAutoBattleModelApplicationRows(content);
-            AuraToolsUi.AddText(
-                content,
-                "应用模式下，可执行的模型决策不会被规则评分、低置信度或质量门禁替换。只有模型未能加载、推理超时或连续无进展时，才会临时使用技术兜底。",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            CreateAutoBattleToggleRow(
-                content,
-                "完整应用时进入战斗自动接管",
-                autoBattle.StartActive,
-                value =>
-                {
-                    autoBattle.StartActive = value;
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
-            CreateAutoBattleToggleRow(
-                content,
-                "显示 AI 预测标记",
-                autoBattle.ShowPredictionMarkers,
-                value =>
-                {
-                    autoBattle.ShowPredictionMarkers = value;
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
+        }, content => BuildAutoBattleDetails(content, autoBattle),
+            autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+    }
 
-            var modelLibrary = CreateCompactFoldout(content, "模型库与导入", "AutoBattle.ModelLibrary");
-            CreateAutoBattleModelManagementSection(modelLibrary, autoBattle);
+    private static void BuildAutoBattleDetails(
+        Transform content,
+        AutoBattleSettings autoBattle)
+    {
+        CreateSectionLabel(content, "当前策略");
+        CreateAutoBattleModelApplicationRows(content);
+        AuraToolsUi.AddText(
+            content,
+            "应用模式下，可执行的模型决策不会被规则评分、低置信度或质量门禁替换。只有模型未能加载、推理超时或连续无进展时，才会临时使用技术兜底。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        CreateAutoBattleToggleRow(
+            content,
+            "完整应用时进入战斗自动接管",
+            autoBattle.StartActive,
+            value =>
+            {
+                autoBattle.StartActive = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+        CreateAutoBattleToggleRow(
+            content,
+            "显示 AI 预测标记",
+            autoBattle.ShowPredictionMarkers,
+            value =>
+            {
+                autoBattle.ShowPredictionMarkers = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
 
-            var developerTools = CreateCompactFoldout(content, "训练、评估与开发者工具", "AutoBattle.DeveloperTools");
-            CreateGameParametersSection(developerTools);
-            CreateSectionLabel(developerTools, "玩家适配");
-            CreateAutoBattlePlayerAdaptationSection(developerTools, autoBattle);
-            CreateSectionLabel(developerTools, "评估与诊断");
-            CreateAutoBattleAdvancedDiagnosticsSection(developerTools, autoBattle);
-        }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+        var modelLibrary = CreateCompactFoldout(
+            content,
+            "模型库与导入",
+            "AutoBattle.ModelLibrary");
+        CreateAutoBattleModelManagementSection(modelLibrary, autoBattle);
+
+        var developerTools = CreateCompactFoldout(
+            content,
+            "训练、评估与开发者工具",
+            "AutoBattle.DeveloperTools");
+        CreateGameParametersSection(developerTools);
+        CreateSectionLabel(developerTools, "玩家适配");
+        CreateAutoBattlePlayerAdaptationSection(developerTools, autoBattle);
+        CreateSectionLabel(developerTools, "评估与诊断");
+        CreateAutoBattleAdvancedDiagnosticsSection(developerTools, autoBattle);
     }
 
     private static void CreateAutoBattlePlayerAdaptationSection(
@@ -1558,8 +1913,13 @@ public static class AuraToolsSettingsRuntime
 
     private static void RebuildGameParametersSection(Transform host)
     {
+        var viewState = AuraUiViewState.CaptureForContent(host);
         AuraToolsUi.ClearChildren(host);
         BuildGameParametersSection(host);
+        AuraUiViewState.RestoreAfterLayout(
+            host,
+            viewState,
+            "AuraTools.AutoBattle.GameParameters");
     }
 
     private static void BuildGameParametersSection(Transform parent)
@@ -2071,6 +2431,7 @@ public static class AuraToolsSettingsRuntime
     private static void CreateSubmodule(Transform parent, string title, bool enabled, Action<bool> setEnabled, Action<Transform> buildContent, Color? titleColor = null)
     {
         var box = AuraToolsUi.CreateLayout("Submodule-" + title, parent);
+        AuraUiStableId.Assign(box, "submodule." + title);
         AuraToolsUi.AddPanelImage(box, AuraToolsUi.Panel);
         var boxLayout = box.AddComponent<VerticalLayoutGroup>();
         boxLayout.padding = new RectOffset(8, 8, 6, 6);
@@ -2168,6 +2529,7 @@ public static class AuraToolsSettingsRuntime
             return;
         }
         autoBattleSnapshotRevisionBuilt = snapshot.Revision;
+        AuraToolModuleHost.RefreshState(AuraToolModuleIds.AutoBattle);
     }
 
     private static void CreateToggleModule(Transform parent, string title, bool enabled, Action<bool> setEnabled, Color? titleColor = null)
@@ -2196,6 +2558,7 @@ public static class AuraToolsSettingsRuntime
     private static GameObject CreateInlineRow(Transform parent, string name)
     {
         var row = AuraToolsUi.CreateLayout(name, parent);
+        AuraUiStableId.Assign(row, "row." + name);
         var rowElement = row.AddComponent<LayoutElement>();
         rowElement.minHeight = AuraToolsUi.InlineRowHeight;
         rowElement.preferredHeight = AuraToolsUi.InlineRowHeight;
@@ -2213,6 +2576,7 @@ public static class AuraToolsSettingsRuntime
         float spacing = 6f)
     {
         var host = AuraToolsUi.CreateLayout(name, parent);
+        AuraUiStableId.Assign(host, "stack." + name);
         var layout = host.AddComponent<VerticalLayoutGroup>();
         layout.spacing = spacing;
         layout.childControlWidth = true;
@@ -3716,6 +4080,7 @@ internal sealed class AuraToolsLocalSectionRefreshView : MonoBehaviour
         rebuilding = true;
         try
         {
+            var viewState = AuraUiViewState.CaptureForContent(transform);
             signature = current;
             rebuild();
             Canvas.ForceUpdateCanvases();
@@ -3727,6 +4092,10 @@ internal sealed class AuraToolsLocalSectionRefreshView : MonoBehaviour
             {
                 LayoutRebuilder.MarkLayoutForRebuild(parentRect);
             }
+            AuraUiViewState.RestoreAfterLayout(
+                transform,
+                viewState,
+                "AuraTools.Settings.LocalSection");
             signature = signatureProvider?.Invoke() ?? current;
         }
         finally

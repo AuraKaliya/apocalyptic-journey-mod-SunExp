@@ -112,6 +112,14 @@
              Link="MatchRecords\MatchReplayFailureNotificationState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\AuraToolsPanelBuildState.cs"
              Link="Settings\AuraToolsPanelBuildState.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\Contracts\AuraToolModuleContracts.cs"
+             Link="Modules\AuraToolModuleContracts.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolModuleCatalog.cs"
+             Link="Modules\AuraToolModuleCatalog.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolModuleStateStore.cs"
+             Link="Modules\AuraToolModuleStateStore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolsMatchRecordModulePolicy.cs"
+             Link="Modules\AuraToolsMatchRecordModulePolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchReplayPayload.cs"
              Link="MatchRecords\MatchReplayPayload.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordsDatabaseMigrator.cs"

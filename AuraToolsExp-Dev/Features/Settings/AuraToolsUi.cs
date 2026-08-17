@@ -1,9 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraUi.Shared;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UiRaycastSafetyShared;
 using Witch.Core;
@@ -223,7 +226,13 @@ internal static class AuraToolsUi
         var toggle = root.AddComponent<Toggle>();
         toggle.targetGraphic = background.GetComponent<Image>();
         toggle.graphic = check.GetComponent<Image>();
-        toggle.isOn = value;
+        toggle.SetIsOnWithoutNotify(value);
+        var parentId = parent.GetComponent<AuraUiStableId>()?.Value;
+        AuraUiStableId.Assign(
+            root,
+            string.IsNullOrWhiteSpace(parentId)
+                ? "toggle." + parent.name + "." + root.transform.GetSiblingIndex()
+                : parentId + ".toggle." + root.transform.GetSiblingIndex());
         toggle.onValueChanged.AddListener(v => changed(v));
         return toggle;
     }
@@ -311,6 +320,7 @@ internal static class AuraToolsUi
     public static Transform CreateScroll(Transform parent, string name)
     {
         var root = CreateLayout("Scroll-" + name, parent);
+        AuraUiStableId.Assign(root, "scroll." + name);
         var element = root.AddComponent<LayoutElement>();
         element.flexibleHeight = 1f;
         element.flexibleWidth = 1f;
@@ -323,6 +333,7 @@ internal static class AuraToolsUi
         viewport.AddComponent<Mask>().showMaskGraphic = false;
 
         var content = CreateRect("Content", viewport.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 1f), Vector2.zero);
+        AuraUiStableId.Assign(content, "scroll." + name + ".content");
         var layout = content.AddComponent<VerticalLayoutGroup>();
         layout.spacing = 8f;
         layout.padding = new RectOffset(0, 0, 0, 0);
@@ -359,6 +370,7 @@ internal static class AuraToolsUi
 
     public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f)
     {
+        var returnFocus = EventSystem.current?.currentSelectedGameObject;
         var overlayRoot = ResolveOverlayRoot(parent);
         if (singleInstance)
         {
@@ -418,9 +430,21 @@ internal static class AuraToolsUi
             onClose?.Invoke();
             UiRaycastSafeDestroyRuntime.DisableAndHide(overlay, "AuraTools overlay close");
             Object.Destroy(overlay);
+            AuraSharedFrameScheduler.StartCoroutine(
+                "AuraTools.Overlay.RestoreFocus",
+                RestoreFocusNextFrame(returnFocus));
         }, ButtonMinWidth, ButtonHeight);
 
         return window;
+    }
+
+    private static IEnumerator RestoreFocusNextFrame(GameObject? target)
+    {
+        yield return null;
+        if (target != null && target.activeInHierarchy)
+        {
+            EventSystem.current?.SetSelectedGameObject(target);
+        }
     }
 
     public static void CloseOverlay(Transform parent, string name, string source = "AuraTools overlay close")

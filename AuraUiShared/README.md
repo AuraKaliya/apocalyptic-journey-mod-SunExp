@@ -93,6 +93,20 @@ Normal Aura modal windows continue to use `ModalParent`. `AuraUiNativeOverlayVis
 that an invoked native overlay is active, shares the anchor's root Canvas, and renders above the
 anchor branch; event entry alone is not visibility proof.
 
+## View-state preservation
+
+`AuraUiStableId` assigns a logical identity to rows and controls that may be
+recreated. `AuraUiViewState` captures the focused identity, the first visible
+anchor and its viewport-relative offset, then restores them after the next
+layout pass. Use the normalized scroll position only as a fallback because it
+cannot preserve the same visible row when content height changes.
+
+`AuraUiKeyedListReconciler<TKey, TModel>` updates lists by stable key. It reuses
+unchanged rows, creates only new rows, removes stale rows and restores the
+captured view state after structural changes. Toggle callbacks should update
+their row in place; do not clear and rebuild an entire scroll content merely to
+change one enabled state.
+
 ## Font policy
 
 The native bridge loads the game's `HarmonyOS_Sans_Medium SDF` through the shared resource cache.

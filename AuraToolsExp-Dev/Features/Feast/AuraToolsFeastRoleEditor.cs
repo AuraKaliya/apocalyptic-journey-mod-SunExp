@@ -6,6 +6,7 @@ using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 using Settings = AuraToolsExp.Dll.Features.Settings;
@@ -79,6 +80,7 @@ public static class AuraToolsFeastRoleEditor
             return;
         }
 
+        var viewState = AuraUiViewState.CaptureForContent(roleContent);
         Settings.AuraToolsUi.ClearChildren(roleContent);
         var roles = AllRoles(forceScan);
         if (roles.Count == 0)
@@ -98,6 +100,10 @@ public static class AuraToolsFeastRoleEditor
         {
             CreateRoleCard(role);
         }
+        AuraUiViewState.RestoreAfterLayout(
+            roleContent,
+            viewState,
+            "AuraTools.Feast.Roles");
     }
 
     private static void CreateRoleCard(RoleInfo role)
@@ -109,6 +115,7 @@ public static class AuraToolsFeastRoleEditor
         var enabledCount = candidates.Count(candidate => roleSettings.IsCandidateEnabled(candidate.QualifiedCgId));
 
         var card = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
+        AuraUiStableId.Assign(card, "feast.role." + role.Id);
         Settings.AuraToolsUi.SetFixedHeight(card, 126f);
         Settings.AuraToolsUi.AddPanelImage(
             card,
@@ -124,11 +131,12 @@ public static class AuraToolsFeastRoleEditor
         layout.childForceExpandHeight = false;
 
         var top = CreateHorizontal("Top", card.transform, Settings.AuraToolsUi.ButtonHeight);
-        Settings.AuraToolsUi.AddToggle(top.transform, roleSettings.Enabled, enabled =>
+        var roleToggle = Settings.AuraToolsUi.AddToggle(top.transform, roleSettings.Enabled, enabled =>
         {
             AuraToolsFeastRuntime.SetRoleEnabled(role.Id, enabled);
             RefreshRoleCards(false);
         });
+        AuraUiStableId.Assign(roleToggle.gameObject, "feast.role." + role.Id + ".toggle");
         Settings.AuraToolsUi.AddText(
             top.transform,
             RoleTitle(role) + "\n" + role.Id,
@@ -269,6 +277,7 @@ public static class AuraToolsFeastRoleEditor
             return;
         }
 
+        var viewState = AuraUiViewState.CaptureForContent(resourceContent);
         Settings.AuraToolsUi.ClearChildren(resourceContent);
         var role = activeRole;
         var roleSettings = AuraToolsFeastRuntime.EnsureRoleSettings(role.Id, role.DisplayName);
@@ -291,6 +300,10 @@ public static class AuraToolsFeastRoleEditor
         {
             CreateResourceCard(role, roleSettings, candidate, candidateIds);
         }
+        AuraUiViewState.RestoreAfterLayout(
+            resourceContent,
+            viewState,
+            "AuraTools.Feast.Resources");
     }
 
     private static void CreateResourceCard(
@@ -303,6 +316,7 @@ public static class AuraToolsFeastRoleEditor
         var card = Settings.AuraToolsUi.CreateLayout(
             "FeastResource-" + candidate.QualifiedCgId,
             resourceContent!);
+        AuraUiStableId.Assign(card, "feast.resource." + candidate.QualifiedCgId);
         Settings.AuraToolsUi.SetFixedHeight(card, 88f);
         Settings.AuraToolsUi.AddPanelImage(
             card,
@@ -315,7 +329,7 @@ public static class AuraToolsFeastRoleEditor
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        Settings.AuraToolsUi.AddToggle(card.transform, enabled, value =>
+        var resourceToggle = Settings.AuraToolsUi.AddToggle(card.transform, enabled, value =>
         {
             AuraToolsFeastRuntime.SetCandidateEnabledForRole(
                 role.Id,
@@ -325,6 +339,9 @@ public static class AuraToolsFeastRoleEditor
             RefreshResourceCards();
             RefreshRoleCards(false);
         });
+        AuraUiStableId.Assign(
+            resourceToggle.gameObject,
+            "feast.resource." + candidate.QualifiedCgId + ".toggle");
         Settings.AuraToolsUi.AddText(
             card.transform,
             candidate.DisplayName

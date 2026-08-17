@@ -62,6 +62,7 @@ TestStarterDeckDeckBuilder();
 TestBundledFoundationRegistrationPlanner();
 TestBundledFoundationModelLayout();
 TestAutoBattleTechnicalFallbackState();
+TestAuraToolModuleCatalogAndStateStore();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
 return;

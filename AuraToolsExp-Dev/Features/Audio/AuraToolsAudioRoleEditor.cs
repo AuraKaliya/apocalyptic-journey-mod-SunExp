@@ -4,6 +4,7 @@ using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -74,11 +75,16 @@ public static class AuraToolsAudioRoleEditor
             return;
         }
 
+        var viewState = AuraUiViewState.CaptureForContent(roleContent);
         AuraToolsUi.ClearChildren(roleContent);
         foreach (var pair in Feature.Roles.OrderBy(pair => pair.Value.DisplayName).ThenBy(pair => pair.Key))
         {
             CreateRoleBlock(pair.Key, pair.Value);
         }
+        AuraUiViewState.RestoreAfterLayout(
+            roleContent,
+            viewState,
+            "AuraTools.Audio.Roles");
     }
 
     private static void CreateRoleBlock(string key, AudioRoleSettings settings)

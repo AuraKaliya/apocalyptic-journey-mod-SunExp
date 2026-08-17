@@ -5,6 +5,7 @@ using AuraCg.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,6 +52,7 @@ public static class AuraToolsSkillCgManager
             return;
         }
 
+        var viewState = AuraUiViewState.CaptureForContent(content);
         AuraToolsUi.ClearChildren(content);
         var entries = SkillCgArbiterRuntime.GetRegisteredCardUseCgEntries().ToList();
         SetHint("\u5171 " + entries.Count + " \u4e2a\u5df2\u6ce8\u518c\u5361\u724c\u4f7f\u7528CG\u3002");
@@ -75,6 +77,10 @@ public static class AuraToolsSkillCgManager
                 CreateEntryRow(entry);
             }
         }
+        AuraUiViewState.RestoreAfterLayout(
+            content,
+            viewState,
+            "AuraTools.CardUseCg.Rows");
     }
 
     private static void CreateOwnerHeader(string ownerModId, int count)
@@ -99,6 +105,7 @@ public static class AuraToolsSkillCgManager
     private static void CreateEntryRow(SkillCgRegisteredEntryView entry)
     {
         var row = AuraToolsUi.CreateLayout("SkillCg-" + entry.QualifiedCgId, content!);
+        AuraUiStableId.Assign(row, "card-use-cg." + entry.QualifiedCgId);
         AuraToolsUi.SetFixedHeight(row, 54f);
         AuraToolsUi.AddPanelImage(row, entry.Enabled ? AuraToolsUi.ActiveRow : AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
@@ -109,7 +116,7 @@ public static class AuraToolsSkillCgManager
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        AuraToolsUi.AddToggle(row.transform, entry.Enabled, enabled =>
+        var toggle = AuraToolsUi.AddToggle(row.transform, entry.Enabled, enabled =>
         {
             AuraToolsConfigService.SkillCg.CardUseCg.RegisteredEntries[entry.QualifiedCgId] = enabled;
             AuraCgActivationRuntime.SetLocalOverride(
@@ -121,6 +128,9 @@ public static class AuraToolsSkillCgManager
             SetHint((enabled ? "\u5df2\u542f\u7528\uff1a" : "\u5df2\u5173\u95ed\uff1a") + DisplayName(entry));
             RefreshRows();
         });
+        AuraUiStableId.Assign(
+            toggle.gameObject,
+            "card-use-cg." + entry.QualifiedCgId + ".toggle");
 
         var text = AuraToolsUi.AddText(
             row.transform,
