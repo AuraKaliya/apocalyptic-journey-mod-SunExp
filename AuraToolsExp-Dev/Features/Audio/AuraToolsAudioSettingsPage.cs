@@ -65,7 +65,7 @@ public static class AuraToolsAudioSettingsPage
                 settings.Mode = settings.Mode == AudioModes.Advanced
                     ? AudioModes.Common
                     : AudioModes.Advanced;
-                AuraToolsConfigService.SaveAudio();
+                AuraToolsConfigService.SaveAudioFeature(battleBgm);
                 modeText.text = "模式：" + (settings.Mode == AudioModes.Advanced
                     ? "高级（按角色）"
                     : "通用");
@@ -164,7 +164,7 @@ public static class AuraToolsAudioSettingsPage
         if (string.IsNullOrWhiteSpace(trimmed))
         {
             settings.Common.RelativePath = "";
-            AuraToolsConfigService.SaveAudio();
+            AuraToolsConfigService.SaveAudioFeature(battleBgm);
             refreshed();
             return;
         }
@@ -194,7 +194,7 @@ public static class AuraToolsAudioSettingsPage
             "user-imports",
             FileResourceUtil.CommonAudioDirectory(),
             out _);
-        AuraToolsConfigService.SaveAudio();
+        AuraToolsConfigService.SaveAudioFeature(battleBgm);
         refreshed();
     }
 

@@ -7,6 +7,7 @@ using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
@@ -41,7 +42,12 @@ public static class AuraToolsSkillCgRuntime
         });
         SkillCgArbiterRuntime.RegisterProvider(modConfig, AuraToolsIds.ModId, new AuraToolsSkillCgProvider());
 
-        AuraToolsConfigService.Changed += Reconfigure;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.SkillCg,
+            Reconfigure);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.CardUseCg,
+            Reconfigure);
         AuraCgRegistryRuntime.Changed += OnRegistryChanged;
         EnsureRegistryStateCurrent();
         EnsureHooksMatchConfig();
@@ -62,8 +68,7 @@ public static class AuraToolsSkillCgRuntime
         EnsureHooksMatchConfig();
     }
 
-    private static bool HooksEnabled => AuraToolsConfigService.Root.SkillCg.Enabled
-                                        && !safeModeDisabled
+    private static bool HooksEnabled => !safeModeDisabled
                                         && (AuraToolsConfigService.SkillCg.Enabled
                                             || AuraToolsConfigService.SkillCg.CardUseCg.Enabled);
 
@@ -138,8 +143,7 @@ public static class AuraToolsSkillCgRuntime
         RunHook("card action", () =>
         {
             EnsureRegistryStateCurrent();
-            if (!AuraToolsConfigService.Root.SkillCg.Enabled
-                || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
+            if ((!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
                 || !context.IsCardAction)
             {
                 return;
@@ -279,7 +283,7 @@ public static class AuraToolsSkillCgRuntime
 
     private static void SynchronizeRegisteredEffectiveState(AuraCgRegistrySnapshot snapshot)
     {
-        var rootEnabled = AuraToolsConfigService.Root.SkillCg.Enabled && !safeModeDisabled;
+        var rootEnabled = !safeModeDisabled;
         var skillEnabled = rootEnabled && AuraToolsConfigService.SkillCg.Enabled;
         var cardUseEnabled = rootEnabled && AuraToolsConfigService.SkillCg.CardUseCg.Enabled;
         var overrides = new List<AuraCgLocalActivationOverride>();
@@ -334,11 +338,6 @@ public static class AuraToolsSkillCgRuntime
 
     private static void PreloadAdventureCg()
     {
-        if (!AuraToolsConfigService.Root.SkillCg.Enabled)
-        {
-            return;
-        }
-
         var key = "AuraToolsExp.Adventure." + (++adventurePreloadSequence).ToString();
         if (AuraToolsConfigService.SkillCg.Enabled)
         {
@@ -515,8 +514,7 @@ public sealed class AuraToolsSkillCgProvider
             yield break;
         }
 
-        if (!AuraToolsConfigService.Root.SkillCg.Enabled
-            || (!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled))
+        if ((!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled))
         {
             yield break;
         }

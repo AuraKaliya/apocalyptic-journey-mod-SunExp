@@ -2079,7 +2079,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             settings.TrainedModelMode = "off";
             settings.CaptureTrainingSamples = false;
             settings.Normalize();
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveAutoBattle();
             AuraToolsAutoBattleRuntime.ReloadModels();
             message = "旧战斗样本、训练快照、候选/冠军/模型库和模拟结果已直接删除；知识包与规则配置已保留";
             return true;
@@ -3837,7 +3837,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         settings.ExperimentalModelAcknowledgement =
             ExperimentalAcknowledgementKey(entry);
         settings.Normalize();
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveAutoBattle();
         message = string.Equals(
                 entry.CapabilityStatus,
                 CombatFoundationModelPackageProtocol.CapabilityStatusFail,

@@ -55,8 +55,7 @@ public static class AuraToolsLog
     {
         try
         {
-            return AuraToolsConfigService.Root.Logging.Enabled
-                   && AuraToolsConfigService.Logging.Enabled
+            return AuraToolsConfigService.Logging.Enabled
                    && string.Equals(AuraToolsConfigService.Logging.MinimumLevel, LoggingLevelNames.Debug, StringComparison.OrdinalIgnoreCase);
         }
         catch

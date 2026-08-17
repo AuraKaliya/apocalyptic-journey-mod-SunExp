@@ -7,6 +7,7 @@ using AuraShared.Core;
 using AudioArbiter.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using BattleBgmArbiter.Shared;
 using Witch.Mod;
 
@@ -33,7 +34,12 @@ public static class AuraToolsAudioRuntime
             AuraToolsLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
         }
         BattleBgmArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
-        AuraToolsConfigService.AudioChanged += RegisterProviders;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.BattleBgm,
+            RegisterProviders);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.CardUseAudio,
+            RegisterProviders);
         initialized = true;
         RegisterProviders();
     }
@@ -74,7 +80,7 @@ public static class AuraToolsAudioRuntime
         var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var changes = 0;
         var feature = AuraToolsConfigService.Audio.BattleBgm;
-        if (AuraToolsConfigService.Root.Audio.Enabled && feature.Enabled)
+        if (feature.Enabled)
         {
             if (feature.Mode == AudioModes.Common)
             {
@@ -139,7 +145,7 @@ public static class AuraToolsAudioRuntime
         var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var changes = 0;
         var feature = AuraToolsConfigService.Audio.CardUse;
-        if (AuraToolsConfigService.Root.Audio.Enabled && feature.Enabled)
+        if (feature.Enabled)
         {
             if (feature.Mode == AudioModes.Common)
             {
@@ -336,8 +342,7 @@ public static class AuraToolsAudioRuntime
     private static bool IsCommonBattleBgmEnabled(object? context)
     {
         var settings = AuraToolsConfigService.Audio.BattleBgm;
-        return AuraToolsConfigService.Root.Audio.Enabled
-               && settings.Enabled
+        return settings.Enabled
                && settings.Mode == AudioModes.Common
                && CachedPathExists(settings.Common.RelativePath);
     }
@@ -345,8 +350,7 @@ public static class AuraToolsAudioRuntime
     private static bool IsRoleBattleBgmEnabled(object? context, string roleId)
     {
         var settings = AuraToolsConfigService.Audio.BattleBgm;
-        if (!AuraToolsConfigService.Root.Audio.Enabled
-            || !settings.Enabled
+        if (!settings.Enabled
             || settings.Mode != AudioModes.Advanced
             || !settings.Roles.TryGetValue(roleId, out var role)
             || role == null
@@ -363,8 +367,7 @@ public static class AuraToolsAudioRuntime
     private static bool IsCommonCardUseEnabled(object? context)
     {
         var settings = AuraToolsConfigService.Audio.CardUse;
-        return AuraToolsConfigService.Root.Audio.Enabled
-               && settings.Enabled
+        return settings.Enabled
                && settings.Mode == AudioModes.Common
                && IsCardUse(context)
                && CachedPathExists(settings.Common.RelativePath);
@@ -373,8 +376,7 @@ public static class AuraToolsAudioRuntime
     private static bool IsRoleCardUseEnabled(object? context, string roleId)
     {
         var settings = AuraToolsConfigService.Audio.CardUse;
-        if (!AuraToolsConfigService.Root.Audio.Enabled
-            || !settings.Enabled
+        if (!settings.Enabled
             || settings.Mode != AudioModes.Advanced
             || !IsCardUse(context)
             || !settings.Roles.TryGetValue(roleId, out var role)

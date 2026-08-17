@@ -5,6 +5,7 @@ using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using Newtonsoft.Json;
 using Witch.Mod;
 
@@ -14,6 +15,7 @@ public static class AuraToolsConfigService
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<string, long> Revisions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly AuraToolModuleConfigStore ModuleStore = new();
 
     public static AuraToolsRootConfig Root { get; private set; } = new();
 
@@ -35,6 +37,11 @@ public static class AuraToolsConfigService
 
     public static string ConfigDirectory => AuraToolsPaths.ConfigDirectory;
 
+    public static string ModuleConfigDirectory =>
+        AuraSharedPaths.OwnerSystemConfigDirectory(
+            AuraToolsIds.ModId,
+            AuraToolModuleConfigStore.ConfigSystem);
+
     public static string ResourceDirectory => AuraToolsPaths.ResourceDirectory;
 
     public static string AudioDirectory => AuraToolsPaths.AudioDirectory;
@@ -52,6 +59,13 @@ public static class AuraToolsConfigService
     public static event Action? MatchExperienceChanged;
 
     public static event Action? LoggingChanged;
+
+    public static IDisposable SubscribeModule(string moduleId, Action changed)
+    {
+        return AuraToolConfigChangeBus.Subscribe(
+            moduleId,
+            _ => changed());
+    }
 
     public static void Initialize(ModConfig config)
     {
@@ -84,46 +98,173 @@ public static class AuraToolsConfigService
 
     public static void SaveAudio()
     {
-        SaveModule(Audio, Root.Audio.ConfigFile);
+        SaveBattleBgm();
+        SaveCardUseAudio();
         AudioChanged?.Invoke();
-        Changed?.Invoke();
     }
 
     public static void SaveMatchExperience()
     {
-        SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
+        SaveStarterDeck();
+        SaveCardRefresh();
+        SaveFeast();
+        SaveSafeBox();
+        SaveModSync();
+        SaveDamageStatistics();
+        SaveBattleReplay();
+        SaveAutoBattle();
         MatchExperienceChanged?.Invoke();
-        Changed?.Invoke();
     }
 
     public static void SavePixelEmoji()
     {
         PixelEmoji.Normalize();
-        SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile);
-        Changed?.Invoke();
+        SaveModuleSetting(
+            AuraToolModuleIds.PixelEmoji,
+            PixelEmoji,
+            () => SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile));
     }
 
     public static void SaveSkillCg()
     {
-        SaveModule(SkillCg, Root.SkillCg.ConfigFile);
-        Changed?.Invoke();
+        SkillCg.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.SkillCg,
+            SkillCg,
+            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
+    }
+
+    public static void SaveCardUseCg()
+    {
+        SkillCg.CardUseCg.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.CardUseCg,
+            SkillCg.CardUseCg,
+            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
     }
 
     public static void SaveSkin()
     {
-        SaveModule(Skin, Root.Skin.ConfigFile);
-        Changed?.Invoke();
+        Skin.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.Skin,
+            Skin,
+            () => SaveModule(Skin, Root.Skin.ConfigFile));
     }
 
     public static void SaveLogging()
     {
-        SaveModule(Logging, Root.Logging.ConfigFile);
+        Logging.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.FileLogging,
+            Logging,
+            () => SaveModule(Logging, Root.Logging.ConfigFile));
         LoggingChanged?.Invoke();
-        Changed?.Invoke();
+    }
+
+    public static void SaveBattleBgm()
+    {
+        Audio.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.BattleBgm,
+            Audio.BattleBgm,
+            () => SaveModule(Audio, Root.Audio.ConfigFile));
+    }
+
+    public static void SaveCardUseAudio()
+    {
+        Audio.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.CardUseAudio,
+            Audio.CardUse,
+            () => SaveModule(Audio, Root.Audio.ConfigFile));
+    }
+
+    public static void SaveAudioFeature(bool battleBgm)
+    {
+        if (battleBgm)
+        {
+            SaveBattleBgm();
+        }
+        else
+        {
+            SaveCardUseAudio();
+        }
+    }
+
+    public static void SaveStarterDeck()
+    {
+        MatchExperience.StarterDeck.Normalize();
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.StarterDeck,
+            MatchExperience.StarterDeck);
+    }
+
+    public static void SaveCardRefresh()
+    {
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.CardRefresh,
+            MatchExperience.CardRefresh);
+    }
+
+    public static void SaveFeast()
+    {
+        MatchExperience.Feast.Normalize();
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.Feast,
+            MatchExperience.Feast);
+    }
+
+    public static void SaveSafeBox()
+    {
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.SafeBox,
+            MatchExperience.SafeBox);
+    }
+
+    public static void SaveModSync()
+    {
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.ModSync,
+            MatchExperience.ModSync);
+    }
+
+    public static void SaveDamageStatistics()
+    {
+        MatchExperience.DamageMeter.Normalize();
+        MatchExperience.MatchRecords.Enabled =
+            MatchExperience.DamageMeter.Enabled
+            || MatchExperience.MatchRecords.Replay.Enabled;
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.DamageStatistics,
+            MatchExperience.DamageMeter);
+    }
+
+    public static void SaveBattleReplay()
+    {
+        MatchExperience.MatchRecords.Replay.Normalize();
+        MatchExperience.MatchRecords.Enabled =
+            MatchExperience.DamageMeter.Enabled
+            || MatchExperience.MatchRecords.Replay.Enabled;
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.BattleReplay,
+            MatchExperience.MatchRecords.Replay);
+    }
+
+    public static void SaveAutoBattle()
+    {
+        MatchExperience.AutoBattle.Normalize();
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.AutoBattle,
+            MatchExperience.AutoBattle);
     }
 
     private static void NotifyAllModules()
     {
+        foreach (var moduleId in AuraToolModuleIds.Persisted)
+        {
+            AuraToolConfigChangeBus.Publish(moduleId, 0);
+        }
         AudioChanged?.Invoke();
         MatchExperienceChanged?.Invoke();
         LoggingChanged?.Invoke();
@@ -153,8 +294,15 @@ public static class AuraToolsConfigService
     private static void ReloadNoLock()
     {
         Revisions.Clear();
+        ModuleStore.Reset();
         Root = LoadOrDefault(AuraToolsIds.RootConfigFileName, new AuraToolsRootConfig());
         Root.Normalize();
+        Root.Audio.Enabled = true;
+        Root.MatchExperience.Enabled = true;
+        Root.PixelEmoji.Enabled = true;
+        Root.SkillCg.Enabled = true;
+        Root.Skin.Enabled = true;
+        Root.Logging.Enabled = true;
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
         MatchExperience = LoadOrDefault(Root.MatchExperience.ConfigFile, new AuraToolsMatchExperienceSettings());
         PixelEmoji = LoadOrDefault(Root.PixelEmoji.ConfigFile, new AuraToolsPixelEmojiSettings());
@@ -166,28 +314,120 @@ public static class AuraToolsConfigService
         MatchExperience.Normalize();
         PixelEmoji.Normalize();
         SkillCg.Normalize();
+        Skin.Normalize();
+        Logging.Normalize();
+
+        var migrated = 0;
+        Audio.BattleBgm = LoadModuleSetting(
+            AuraToolModuleIds.BattleBgm,
+            Audio.BattleBgm,
+            ref migrated);
+        Audio.CardUse = LoadModuleSetting(
+            AuraToolModuleIds.CardUseAudio,
+            Audio.CardUse,
+            ref migrated);
+        MatchExperience.StarterDeck = LoadModuleSetting(
+            AuraToolModuleIds.StarterDeck,
+            MatchExperience.StarterDeck,
+            ref migrated);
+        MatchExperience.CardRefresh = LoadModuleSetting(
+            AuraToolModuleIds.CardRefresh,
+            MatchExperience.CardRefresh,
+            ref migrated);
+        MatchExperience.Feast = LoadModuleSetting(
+            AuraToolModuleIds.Feast,
+            MatchExperience.Feast,
+            ref migrated);
+        MatchExperience.SafeBox = LoadModuleSetting(
+            AuraToolModuleIds.SafeBox,
+            MatchExperience.SafeBox,
+            ref migrated);
+        MatchExperience.ModSync = LoadModuleSetting(
+            AuraToolModuleIds.ModSync,
+            MatchExperience.ModSync,
+            ref migrated);
+
+        var legacyStatistics = MatchExperience.MatchRecords.Statistics;
+        legacyStatistics.Enabled = MatchExperience.MatchRecords.Enabled
+                                   && legacyStatistics.Enabled;
+        var legacyReplay = MatchExperience.MatchRecords.Replay;
+        legacyReplay.Enabled = MatchExperience.MatchRecords.Enabled
+                               && legacyReplay.Enabled;
+        MatchExperience.MatchRecords.Statistics = LoadModuleSetting(
+            AuraToolModuleIds.DamageStatistics,
+            legacyStatistics,
+            ref migrated);
+        MatchExperience.MatchRecords.Replay = LoadModuleSetting(
+            AuraToolModuleIds.BattleReplay,
+            legacyReplay,
+            ref migrated);
+        MatchExperience.MatchRecords.Enabled =
+            MatchExperience.MatchRecords.Statistics.Enabled
+            || MatchExperience.MatchRecords.Replay.Enabled;
+        MatchExperience.AutoBattle = LoadModuleSetting(
+            AuraToolModuleIds.AutoBattle,
+            MatchExperience.AutoBattle,
+            ref migrated);
+        PixelEmoji = LoadModuleSetting(
+            AuraToolModuleIds.PixelEmoji,
+            PixelEmoji,
+            ref migrated);
+        SkillCg = LoadModuleSetting(
+            AuraToolModuleIds.SkillCg,
+            SkillCg,
+            ref migrated);
+        SkillCg.CardUseCg = LoadModuleSetting(
+            AuraToolModuleIds.CardUseCg,
+            SkillCg.CardUseCg,
+            ref migrated);
+        Skin = LoadModuleSetting(
+            AuraToolModuleIds.Skin,
+            Skin,
+            ref migrated);
+        Logging = LoadModuleSetting(
+            AuraToolModuleIds.FileLogging,
+            Logging,
+            ref migrated);
+
+        Audio.Normalize();
+        MatchExperience.Normalize();
+        PixelEmoji.Normalize();
+        SkillCg.Normalize();
         ImportRegisteredSkillCgDefaultsNoLock();
         SkillCg.Normalize();
         Skin.Normalize();
         Logging.Normalize();
+        if (migrated > 0)
+        {
+            AuraToolsLog.Info(
+                "[Config] migrated legacy aggregate settings into module files: "
+                + migrated);
+        }
     }
 
     public static bool ImportRegisteredSkillCgDefaults()
     {
         bool changed;
+        var revision = 0L;
         lock (Gate)
         {
             changed = ImportRegisteredSkillCgDefaultsNoLock();
             if (changed)
             {
                 SkillCg.Normalize();
+                SaveModuleSettingNoNotify(
+                    AuraToolModuleIds.SkillCg,
+                    SkillCg,
+                    out revision);
                 SaveModule(SkillCg, Root.SkillCg.ConfigFile);
             }
         }
 
         if (changed)
         {
-            Changed?.Invoke();
+            AuraToolConfigChangeBus.Publish(
+                AuraToolModuleIds.SkillCg,
+                revision);
         }
 
         return changed;
@@ -202,6 +442,117 @@ public static class AuraToolsConfigService
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
         SaveModule(Skin, Root.Skin.ConfigFile);
         SaveModule(Logging, Root.Logging.ConfigFile);
+        SaveAllModuleSettingsNoLock();
+    }
+
+    private static T LoadModuleSetting<T>(
+        string moduleId,
+        T fallback,
+        ref int migratedCount)
+    {
+        var value = ModuleStore.Load(moduleId, fallback, out var migrated);
+        if (migrated)
+        {
+            migratedCount++;
+        }
+        return value;
+    }
+
+    private static void SaveAllModuleSettingsNoLock()
+    {
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.BattleBgm,
+            Audio.BattleBgm,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.CardUseAudio,
+            Audio.CardUse,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.StarterDeck,
+            MatchExperience.StarterDeck,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.CardRefresh,
+            MatchExperience.CardRefresh,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.Feast,
+            MatchExperience.Feast,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.SafeBox,
+            MatchExperience.SafeBox,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.ModSync,
+            MatchExperience.ModSync,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.DamageStatistics,
+            MatchExperience.DamageMeter,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.BattleReplay,
+            MatchExperience.MatchRecords.Replay,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.AutoBattle,
+            MatchExperience.AutoBattle,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.PixelEmoji,
+            PixelEmoji,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.SkillCg,
+            SkillCg,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.CardUseCg,
+            SkillCg.CardUseCg,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.Skin,
+            Skin,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.FileLogging,
+            Logging,
+            out _);
+    }
+
+    private static void SaveMatchExperienceModule<T>(string moduleId, T settings)
+    {
+        SaveModuleSetting(
+            moduleId,
+            settings,
+            () => SaveModule(MatchExperience, Root.MatchExperience.ConfigFile));
+    }
+
+    private static void SaveModuleSetting<T>(
+        string moduleId,
+        T settings,
+        Action saveLegacy)
+    {
+        long revision;
+        lock (Gate)
+        {
+            if (!SaveModuleSettingNoNotify(moduleId, settings, out revision))
+            {
+                return;
+            }
+            saveLegacy();
+        }
+        AuraToolConfigChangeBus.Publish(moduleId, revision);
+    }
+
+    private static bool SaveModuleSettingNoNotify<T>(
+        string moduleId,
+        T settings,
+        out long revision)
+    {
+        return ModuleStore.Save(moduleId, settings, out revision);
     }
 
     private static T LoadOrDefault<T>(string fileName, T fallback)

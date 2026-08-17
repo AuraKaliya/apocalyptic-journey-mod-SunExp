@@ -534,8 +534,7 @@ public static class DamageSettlementCgRuntime
 
     private static bool IsEnabled()
     {
-        return AuraToolsConfigService.Root.MatchExperience.Enabled
-               && AuraToolsConfigService.MatchExperience.DamageMeter.Enabled
+        return AuraToolsConfigService.MatchExperience.DamageMeter.Enabled
                && AuraToolsConfigService.MatchExperience.DamageMeter.SettlementCg.Enabled;
     }
 

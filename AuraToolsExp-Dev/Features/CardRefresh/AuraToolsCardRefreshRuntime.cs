@@ -20,8 +20,7 @@ public static class AuraToolsCardRefreshRuntime
     private static bool initialized;
     private static IDisposable? selectionSubscription;
 
-    internal static bool Enabled => AuraToolsConfigService.Root.MatchExperience.Enabled
-                                    && AuraToolsConfigService.MatchExperience.CardRefresh.Enabled;
+    internal static bool Enabled => AuraToolsConfigService.MatchExperience.CardRefresh.Enabled;
 
     public static void Initialize(ModConfig modConfig)
     {

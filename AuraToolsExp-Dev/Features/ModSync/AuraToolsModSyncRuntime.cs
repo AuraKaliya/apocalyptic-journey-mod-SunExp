@@ -10,6 +10,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using AuraUi.Shared;
 using UiRaycastSafetyShared;
 using UnityEngine;
@@ -67,7 +68,9 @@ public static class AuraToolsModSyncRuntime
 
         initialized = true;
         SyncSession.Changed += RefreshOverlay;
-        AuraToolsConfigService.Changed += OnConfigChanged;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.ModSync,
+            OnConfigChanged);
         RegisterAfter(modConfig, "GameEntryUI.UpdateLobby", UpdateLobby);
         RegisterAfter(modConfig, "GameEntryUI.Init", _ => RefreshButton());
         RegisterAfter(modConfig, "GameEntryUI.ShowCareer", _ => RefreshButton());
@@ -114,8 +117,7 @@ public static class AuraToolsModSyncRuntime
 
     private static bool IsEnabled()
     {
-        return AuraToolsConfigService.Root.MatchExperience.Enabled
-               && AuraToolsConfigService.MatchExperience.ModSync.Enabled;
+        return AuraToolsConfigService.MatchExperience.ModSync.Enabled;
     }
 
     private static void RefreshButton()

@@ -18,7 +18,7 @@
 - 阶段 0 已完成：稳定 ID、滚动锚点、焦点恢复、差量列表和高风险刷新保护已进入生产代码。
 - 阶段 1 已完成：模块契约、Catalog、Host、StateStore 和分类式一级工具箱已经接管初始化与一级展示。
 - 阶段 2 已完成：音频、开局卡组、战斗回放、文件日志和战斗策略实验室均由所属 Feature 提供设置页；`AuraToolsSettingsRuntime` 已收缩为原生 `SettingUI` 注入适配器。
-- 阶段 3 尚未完成：模块独立配置文件、模块级配置事件和旧聚合配置迁移仍按本文后续设计推进。
+- 阶段 3 已完成：15 个可持久化模块使用独立配置文档和模块级变更总线；旧聚合配置作为首次迁移回退并继续双写兼容，Root 隐藏开关不再参与运行时有效状态。
 
 ## 2. 设计结论
 
@@ -370,18 +370,19 @@ public static class AuraToolsBuiltInModules
 
 ```text
 ModsData/AuraShared/Config/Owners/AuraToolsExp/AuraTools/
-├─ shell.json
-└─ Modules/
-   ├─ presentation.skin.json
-   ├─ presentation.battle-bgm.json
-   ├─ presentation.card-use-audio.json
-   ├─ gameplay.starter-deck.json
-   ├─ records.damage-statistics.json
-   ├─ records.battle-replay.json
-   └─ ...
+└─ 旧聚合配置（迁移兼容）
+
+ModsData/AuraShared/Config/Owners/AuraToolsExp/AuraTools.Modules/
+├─ presentation.skin.json
+├─ presentation.battle-bgm.json
+├─ presentation.card-use-audio.json
+├─ gameplay.starter-deck.json
+├─ records.damage-statistics.json
+├─ records.battle-replay.json
+└─ ...
 ```
 
-`shell.json` 只保存纯 UI 偏好，例如上次分类和搜索状态；不保存功能开关。
+工具箱分类、搜索和滚动位置当前只保存在进程会话中，不写入模块配置；将来如需跨进程保存，应使用独立 `shell.json`，不得混入功能开关。
 
 模块配置继续通过 `AuraSharedConfigStore` 读写，保留 owner、system、revision 和 schemaVersion 语义。
 

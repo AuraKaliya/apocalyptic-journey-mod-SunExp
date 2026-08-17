@@ -5,6 +5,9 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestAuraToolModuleCatalogAndStateStore()
     {
+        Assert(AuraToolModuleIds.Persisted.Length == 15
+               && AuraToolModuleIds.Persisted.Distinct(StringComparer.Ordinal).Count() == 15,
+            "tool module config inventory contains fifteen unique persisted module ids");
         var second = new FakeModule("module.second", "presentation", 20, visible: true);
         var first = new FakeModule("module.first", "gameplay", 10, visible: true);
         var hidden = new FakeModule("module.hidden", "system", 1, visible: false);
@@ -93,6 +96,62 @@ internal static partial class AuraToolsTestSuite
                && !records.Replay.Enabled
                && !records.Statistics.Enabled,
             "disabling the final record module closes the legacy parent gate");
+
+        TestAuraToolModuleConfigIsolation();
+    }
+
+    private static void TestAuraToolModuleConfigIsolation()
+    {
+        var firstChanges = 0;
+        var secondChanges = 0;
+        using var firstSubscription = AuraToolsExp.Dll.Config
+            .AuraToolConfigChangeBus.Subscribe(
+                "module.first",
+                change =>
+                {
+                    if (change.Revision == 3)
+                    {
+                        firstChanges++;
+                    }
+                });
+        using var secondSubscription = AuraToolsExp.Dll.Config
+            .AuraToolConfigChangeBus.Subscribe(
+                "module.second",
+                _ => secondChanges++);
+        AuraToolsExp.Dll.Config.AuraToolConfigChangeBus.Publish(
+            "module.first",
+            3);
+        Assert(firstChanges == 1 && secondChanges == 0,
+            "module config change bus only wakes subscribers for the changed module");
+
+        AuraShared.Core.AuraSharedConfigStore.ResetForTests();
+        var store = new AuraToolsExp.Dll.Config.AuraToolModuleConfigStore();
+        var fallback = new AuraToolsExp.Dll.Config.CardRefreshSettings
+        {
+            Enabled = true
+        };
+        var loaded = store.Load(
+            AuraToolModuleIds.CardRefresh,
+            fallback,
+            out var migrated);
+        Assert(migrated && loaded.Enabled,
+            "missing module config migrates from the supplied legacy aggregate slice");
+        Assert(store.Save(
+                   AuraToolModuleIds.CardRefresh,
+                   new AuraToolsExp.Dll.Config.CardRefreshSettings
+                   {
+                       Enabled = false
+                   },
+                   out var revision)
+               && revision > 0,
+            "module config store persists an owner-qualified module document");
+        store.Reset();
+        loaded = store.Load(
+            AuraToolModuleIds.CardRefresh,
+            fallback,
+            out migrated);
+        Assert(!migrated && !loaded.Enabled,
+            "persisted module config wins over the legacy aggregate fallback");
     }
 
     private sealed class FakeModule : IAuraToolModule

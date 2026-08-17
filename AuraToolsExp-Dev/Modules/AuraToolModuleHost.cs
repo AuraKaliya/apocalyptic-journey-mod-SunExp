@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using AuraShared.Core;
+using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules.Contracts;
 using Witch.Mod;
@@ -9,6 +11,7 @@ namespace AuraToolsExp.Dll.Modules;
 public static class AuraToolModuleHost
 {
     private static bool initialized;
+    private static readonly List<IDisposable> ConfigSubscriptions = new();
 
     public static AuraToolModuleCatalog Catalog { get; private set; } =
         new(Array.Empty<IAuraToolModule>());
@@ -33,6 +36,14 @@ public static class AuraToolModuleHost
                     module.Initialize(context);
                     module.ApplyCurrentConfiguration();
                     States.Publish(module.SnapshotState());
+                    if (module.Descriptor.Visible)
+                    {
+                        var moduleId = module.Descriptor.ModuleId;
+                        ConfigSubscriptions.Add(
+                            AuraToolsConfigService.SubscribeModule(
+                                moduleId,
+                                () => RefreshState(moduleId)));
+                    }
                 },
                 (step, ex) =>
                 {

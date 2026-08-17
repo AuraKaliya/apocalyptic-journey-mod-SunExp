@@ -120,6 +120,10 @@
              Link="Modules\AuraToolModuleStateStore.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolsMatchRecordModulePolicy.cs"
              Link="Modules\AuraToolsMatchRecordModulePolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolModuleIds.cs"
+             Link="Modules\AuraToolModuleIds.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolModuleConfig.cs"
+             Link="Config\AuraToolModuleConfig.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchReplayPayload.cs"
              Link="MatchRecords\MatchReplayPayload.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordsDatabaseMigrator.cs"

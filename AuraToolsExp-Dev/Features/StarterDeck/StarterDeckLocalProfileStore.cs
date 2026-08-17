@@ -67,7 +67,7 @@ internal static class StarterDeckLocalProfileStore
             settings.SelectedProfileByRole.Remove(normalizedRole);
         }
 
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveStarterDeck();
     }
 
     internal static void SelectProfileForRole(string roleId, string profileId)
@@ -79,13 +79,13 @@ internal static class StarterDeckLocalProfileStore
         }
 
         AuraToolsConfigService.MatchExperience.StarterDeck.SelectedProfileByRole[normalizedRole] = profileId.Trim();
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveStarterDeck();
     }
 
     internal static void ClearSelectedProfileForRole(string roleId)
     {
         AuraToolsConfigService.MatchExperience.StarterDeck.SelectedProfileByRole.Remove(RoleCatalog.NormalizeRoleId(roleId));
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveStarterDeck();
     }
     internal static string ConfiguredSelectedProfileIdForRole(string roleId)
     {

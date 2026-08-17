@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using AuraLog.Shared;
 using UnityEngine;
 using Witch.Mod;
@@ -24,14 +25,15 @@ public static class AuraToolsFileLogRuntime
 
     public static void Initialize(ModConfig config)
     {
-        AuraToolsConfigService.LoggingChanged += ApplyConfig;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.FileLogging,
+            ApplyConfig);
         ApplyConfig();
     }
 
     public static void RecordCommand(string level, string? tag, string? message)
     {
-        if (!AuraToolsConfigService.Root.Logging.Enabled
-            || !AuraToolsConfigService.Logging.Enabled
+        if (!AuraToolsConfigService.Logging.Enabled
             || !AuraToolsConfigService.Logging.MirrorCommandsLog
             || !ShouldWrite("Command", NormalizeCommandLevel(level), tag))
         {
@@ -53,7 +55,7 @@ public static class AuraToolsFileLogRuntime
     {
         lock (Gate)
         {
-            if (!AuraToolsConfigService.Root.Logging.Enabled || !AuraToolsConfigService.Logging.Enabled)
+            if (!AuraToolsConfigService.Logging.Enabled)
             {
                 StopNoLock();
                 return;
@@ -90,8 +92,7 @@ public static class AuraToolsFileLogRuntime
     private static void OnUnityLog(string condition, string stackTrace, LogType type)
     {
         var level = NormalizeUnityLevel(type);
-        if (!AuraToolsConfigService.Root.Logging.Enabled
-            || !AuraToolsConfigService.Logging.Enabled
+        if (!AuraToolsConfigService.Logging.Enabled
             || !AuraToolsConfigService.Logging.MirrorUnityLog
             || !UnityTypeAllowed(type)
             || !ShouldWrite("Unity", level, null))
@@ -206,8 +207,7 @@ public static class AuraToolsFileLogRuntime
 
     private static void SyncHooksNoLock()
     {
-        var shouldHookUnity = AuraToolsConfigService.Root.Logging.Enabled
-                              && AuraToolsConfigService.Logging.Enabled
+        var shouldHookUnity = AuraToolsConfigService.Logging.Enabled
                               && AuraToolsConfigService.Logging.MirrorUnityLog;
         if (shouldHookUnity && !unityLogHooked)
         {

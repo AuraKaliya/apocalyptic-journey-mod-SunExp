@@ -6,6 +6,7 @@ using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using AuraUi.Shared;
 using Michsky.MUIP;
 using UnityEngine;
@@ -67,7 +68,9 @@ public static class AuraToolsSafeBoxRuntime
         RegisterAfter(modConfig, "EventUI.FadeIn", CloseSafeBoxForBlockingUi);
         RegisterAfter(modConfig, "EventUI.Init", CloseSafeBoxForBlockingUi);
 
-        AuraToolsConfigService.Changed += RefreshTopBarButton;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.SafeBox,
+            RefreshTopBarButton);
     }
 
     internal static void HandleButtonClicked()
@@ -76,8 +79,7 @@ public static class AuraToolsSafeBoxRuntime
         OpenSafeBox();
     }
 
-    private static bool Enabled => AuraToolsConfigService.Root.MatchExperience.Enabled
-                                   && AuraToolsConfigService.MatchExperience.SafeBox.Enabled;
+    private static bool Enabled => AuraToolsConfigService.MatchExperience.SafeBox.Enabled;
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {

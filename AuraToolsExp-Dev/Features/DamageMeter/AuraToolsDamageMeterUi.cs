@@ -521,7 +521,7 @@ internal static class AuraToolsDamageMeterUi
         settings.DisplayMode = settings.DisplayMode == DamageMeterDisplayModes.Bars
             ? DamageMeterDisplayModes.Table
             : DamageMeterDisplayModes.Bars;
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveDamageStatistics();
         AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
     }
 
@@ -531,7 +531,7 @@ internal static class AuraToolsDamageMeterUi
         settings.DisplayScope = settings.DisplayScope == DamageMeterDisplayScopes.Adventure
             ? DamageMeterDisplayScopes.Fight
             : DamageMeterDisplayScopes.Adventure;
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveDamageStatistics();
         AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
     }
 
@@ -543,7 +543,7 @@ internal static class AuraToolsDamageMeterUi
             : settings.TeamFilter == DamageMeterTeamFilters.Friendly
                 ? DamageMeterTeamFilters.Enemy
                 : DamageMeterTeamFilters.All;
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveDamageStatistics();
         AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
     }
 

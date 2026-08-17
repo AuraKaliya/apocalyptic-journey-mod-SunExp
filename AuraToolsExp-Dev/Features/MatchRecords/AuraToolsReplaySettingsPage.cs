@@ -45,7 +45,7 @@ public static class AuraToolsReplaySettingsPage
                 {
                     replay.AutoRecordLimit = parsed;
                     replay.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsConfigService.SaveBattleReplay();
                 }
             },
             104f);
@@ -68,7 +68,7 @@ public static class AuraToolsReplaySettingsPage
                 replay.Video.Quality = replay.Video.Quality == "1080p"
                     ? "720p"
                     : "1080p";
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveBattleReplay();
                 AuraToolsUi.SetButtonLabel(qualityButton, replay.Video.Quality);
             },
             86f);
@@ -81,7 +81,7 @@ public static class AuraToolsReplaySettingsPage
                 replay.Video.FramesPerSecond = replay.Video.FramesPerSecond >= 60
                     ? 30
                     : 60;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveBattleReplay();
                 AuraToolsUi.SetButtonLabel(
                     fpsButton,
                     replay.Video.FramesPerSecond + " FPS");
@@ -91,17 +91,17 @@ public static class AuraToolsReplaySettingsPage
         CreateToggle(content, "导出战斗 HUD", replay.Video.IncludeUi, value =>
         {
             replay.Video.IncludeUi = value;
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveBattleReplay();
         });
         CreateToggle(content, "导出音频", replay.Video.IncludeAudio, value =>
         {
             replay.Video.IncludeAudio = value;
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveBattleReplay();
         });
         CreateToggle(content, "配置 FFmpeg 时优先 MP4", replay.Video.PreferMp4, value =>
         {
             replay.Video.PreferMp4 = value;
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveBattleReplay();
         });
 
         var libraryRow = CreateInlineRow(content, "Library");

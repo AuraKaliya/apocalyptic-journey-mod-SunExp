@@ -25,8 +25,7 @@ public static class AuraToolsPixelEmojiRuntime
     private static readonly Dictionary<string, long> ReceivedEvents = new(StringComparer.Ordinal);
     private static bool initialized;
 
-    public static bool Enabled => AuraToolsConfigService.Root.PixelEmoji.Enabled
-                                  && AuraToolsConfigService.PixelEmoji.Enabled;
+    public static bool Enabled => AuraToolsConfigService.PixelEmoji.Enabled;
 
     public static void Initialize(ModConfig modConfig)
     {

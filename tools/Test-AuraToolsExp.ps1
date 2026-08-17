@@ -131,6 +131,8 @@ if ($registration.schemaVersion -ne 4 `
 
 $moduleSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolsBuiltInModules.cs")
+$moduleIdSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolModuleIds.cs")
 $expectedModuleIds = @(
     "gameplay.starter-deck",
     "gameplay.card-refresh",
@@ -149,7 +151,7 @@ $expectedModuleIds = @(
     "system.file-logging"
 )
 foreach ($moduleId in $expectedModuleIds) {
-    if ($moduleSource -notmatch [regex]::Escape('"' + $moduleId + '"')) {
+    if ($moduleIdSource -notmatch [regex]::Escape('"' + $moduleId + '"')) {
         throw "AuraToolsExp built-in module catalog is missing: $moduleId"
     }
 }
@@ -196,6 +198,49 @@ if ($moduleSource -match "AuraToolsSettingsRuntime" `
         -or $moduleSource -notmatch "AuraToolsLoggingSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage") {
     throw "AuraToolsExp built-in modules must route to feature-owned settings pages."
+}
+
+$configSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigService.cs")
+$moduleConfigSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolModuleConfig.cs")
+foreach ($saveMethod in @(
+        "SaveBattleBgm",
+        "SaveCardUseAudio",
+        "SaveStarterDeck",
+        "SaveCardRefresh",
+        "SaveFeast",
+        "SaveSafeBox",
+        "SaveModSync",
+        "SaveDamageStatistics",
+        "SaveBattleReplay",
+        "SaveAutoBattle",
+        "SavePixelEmoji",
+        "SaveSkillCg",
+        "SaveCardUseCg",
+        "SaveSkin",
+        "SaveLogging")) {
+    if ($configSource -notmatch ("public static void " + $saveMethod + "\s*\(")) {
+        throw "AuraToolsExp module-scoped config save is missing: $saveMethod"
+    }
+}
+if ($moduleConfigSource -notmatch 'ConfigSystem = "AuraTools\.Modules"' `
+        -or $moduleConfigSource -notmatch "AuraToolConfigChangeBus" `
+        -or $moduleConfigSource -notmatch "AuraToolModuleConfigDocument") {
+    throw "AuraToolsExp module config store, document, or change bus contract is invalid."
+}
+
+$consumerConfigSource = @(
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features") `
+        -Recurse -File -Filter "*.cs"
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Modules") `
+        -Recurse -File -Filter "*.cs"
+) | ForEach-Object { Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName }
+$consumerConfigText = $consumerConfigSource -join "`n"
+if ($consumerConfigText -match "AuraToolsConfigService\.(?:Changed|AudioChanged|MatchExperienceChanged|LoggingChanged)\s*\+=" `
+        -or $consumerConfigText -match "AuraToolsConfigService\.(?:SaveAudio|SaveMatchExperience)\s*\(" `
+        -or $consumerConfigText -match "AuraToolsConfigService\.Root\.(?:Audio|MatchExperience|PixelEmoji|SkillCg|Skin|Logging)\.Enabled") {
+    throw "AuraToolsExp feature consumers must use module-scoped config saves, subscriptions, and enablement."
 }
 
 $uiSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

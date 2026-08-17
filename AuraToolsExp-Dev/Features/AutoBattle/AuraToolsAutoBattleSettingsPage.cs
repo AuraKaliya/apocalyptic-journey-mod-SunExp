@@ -59,7 +59,7 @@ public static class AuraToolsAutoBattleSettingsPage
             value =>
             {
                 autoBattle.StartActive = value;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             });
         CreateAutoBattleToggleRow(
             content,
@@ -68,7 +68,7 @@ public static class AuraToolsAutoBattleSettingsPage
             value =>
             {
                 autoBattle.ShowPredictionMarkers = value;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             });
 
         var modelLibrary = CreateCompactFoldout(
@@ -131,7 +131,7 @@ public static class AuraToolsAutoBattleSettingsPage
             value =>
             {
                 autoBattle.CaptureTrainingSamples = value;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             });
         var journeyCaptureText = AuraToolsUi.AddText(
             parent,
@@ -164,7 +164,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 autoBattle.TrainingMode =
                     NextAutoBattleTrainingMode(autoBattle.TrainingMode);
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 trainingModeText.text =
                     "采集模式："
                     + AutoBattleTrainingModeLabel(autoBattle.TrainingMode);
@@ -204,7 +204,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 {
                     autoBattle.Training.MarkCustom();
                 }
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 if (trainingPresetSummary != null)
                 {
                     trainingPresetSummary.text =
@@ -460,7 +460,7 @@ public static class AuraToolsAutoBattleSettingsPage
             {
                 gameValidationSettings.HidePresentation = value;
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             });
         AuraToolsUi.AddText(
             gameValidationOptionsRow.transform,
@@ -561,7 +561,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 }
                 parameters.SelectedPresetId = parameters.Presets[index].Id;
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 RebuildGameParametersSection(parent);
             },
             172f);
@@ -583,7 +583,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 parameters.Presets.Add(clone);
                 parameters.SelectedPresetId = clone.Id;
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 RebuildGameParametersSection(parent);
             },
             88f);
@@ -599,7 +599,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 parameters.Presets.Remove(preset);
                 parameters.SelectedPresetId = parameters.Presets[0].Id;
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 RebuildGameParametersSection(parent);
             },
             66f);
@@ -662,7 +662,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 AuraToolsAutoBattleGameParameterRuntime
                     .ResolvePresetReferences(autoBattle);
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             },
             164f);
         AuraToolsUi.AddText(
@@ -699,7 +699,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 preset.ResolvedFamiliarBlessingIds =
                     partnerItems[index].BlessingIds.ToList();
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             },
             164f);
         AttachAutoBattleWorkLock(identityRow, roleButton, partnerButton);
@@ -776,7 +776,7 @@ public static class AuraToolsAutoBattleSettingsPage
                         preset.EnabledRewardCardPackIds.Add(pack.Id);
                     }
                     autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsConfigService.SaveAutoBattle();
                     packSummaryText.text =
                         "奖励卡包范围："
                         + preset.EnabledRewardCardPackIds.Count
@@ -1222,7 +1222,7 @@ public static class AuraToolsAutoBattleSettingsPage
                     autoBattle.TrainedModelMode = "shadow";
                 }
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 AuraToolsAutoBattleRuntime.ReloadModels();
                 AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
                     autoBattle.Profile,
@@ -1499,7 +1499,7 @@ public static class AuraToolsAutoBattleSettingsPage
                         {
                             autoBattle.EvaluationModelId = externalModelId;
                             autoBattle.Normalize();
-                            AuraToolsConfigService.SaveMatchExperience();
+                            AuraToolsConfigService.SaveAutoBattle();
                             AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
                                 autoBattle.Profile,
                                 externalModelId,
@@ -1546,7 +1546,7 @@ public static class AuraToolsAutoBattleSettingsPage
                     autoBattle.TrainedModelMode = "off";
                     AuraToolsAutoBattleModelRuntime
                         .ClearExternalValidationModel();
-                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsConfigService.SaveAutoBattle();
                     AuraToolsAutoBattleRuntime.ReloadModels();
                     AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
                         autoBattle.Profile,
@@ -1571,7 +1571,7 @@ public static class AuraToolsAutoBattleSettingsPage
             {
                 AuraToolsAutoBattleModelRuntime.ClearExternalValidationModel();
                 autoBattle.EvaluationModelId = "";
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             },
             80f);
         externalRow
@@ -1674,7 +1674,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 {
                     autoBattle.Simulation.ScenarioId = scenarios[index];
                     autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsConfigService.SaveAutoBattle();
                 }
             },
             260f);
@@ -1744,7 +1744,7 @@ public static class AuraToolsAutoBattleSettingsPage
             {
                 autoBattle.Simulation.DifficultyId = index == 1 ? "advanced" : "normal";
                 autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
             },
             260f);
         lockedControls.Add(difficultyButton);
@@ -1823,7 +1823,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 value =>
                 {
                     autoBattle.Simulation.RetainDivergentTraces = value;
-                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsConfigService.SaveAutoBattle();
                 }));
         }
 
@@ -1968,7 +1968,7 @@ public static class AuraToolsAutoBattleSettingsPage
             parsed = Math.Max(minimum, Math.Min(maximum, parsed));
             apply(parsed);
             autoBattle.Normalize();
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveAutoBattle();
             if (input != null)
             {
                 input.text = parsed.ToString(CultureInfo.InvariantCulture);
@@ -2002,7 +2002,7 @@ public static class AuraToolsAutoBattleSettingsPage
             }
             autoBattle.Training.MarkCustom();
             autoBattle.Normalize();
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveAutoBattle();
         }, 86f);
         input.contentType = InputField.ContentType.IntegerNumber;
     }
@@ -2031,7 +2031,7 @@ public static class AuraToolsAutoBattleSettingsPage
             }
             autoBattle.Training.MarkCustom();
             autoBattle.Normalize();
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveAutoBattle();
         }, 86f);
         input.contentType = InputField.ContentType.DecimalNumber;
     }

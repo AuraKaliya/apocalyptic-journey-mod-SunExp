@@ -4,6 +4,7 @@ using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using System.Collections;
 using UnityEngine;
 using Witch.Mod;
@@ -15,8 +16,7 @@ public static class AuraToolsMatchRecordsRuntime
     private static bool initialized;
     private static GameObject? driverRoot;
 
-    public static bool Enabled => AuraToolsConfigService.Root.MatchExperience.Enabled
-                                  && AuraToolsConfigService.MatchExperience.MatchRecords.Enabled;
+    public static bool Enabled => AuraToolsConfigService.MatchExperience.MatchRecords.Enabled;
 
     public static bool ReplayEnabled => Enabled
                                         && AuraToolsConfigService.MatchExperience.MatchRecords.Replay.Enabled;
@@ -38,7 +38,12 @@ public static class AuraToolsMatchRecordsRuntime
         Media.MatchReplayVideoExporter.Initialize();
         MatchReplayHookAdapter.Initialize(modConfig);
         MatchReplayChatUiHookAdapter.Initialize(modConfig);
-        AuraToolsConfigService.MatchExperienceChanged += OnConfigChanged;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.DamageStatistics,
+            OnConfigChanged);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.BattleReplay,
+            OnConfigChanged);
         EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
                           + Model.MatchReplayProtocol.Version + ".");

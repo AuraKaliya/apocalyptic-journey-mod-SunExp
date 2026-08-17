@@ -37,8 +37,7 @@ internal static class StarterDeckApplicationCoordinator
         ModHookContext context,
         string source)
     {
-        if (!AuraToolsConfigService.Root.MatchExperience.Enabled
-            || !AuraToolsConfigService.MatchExperience.StarterDeck.Enabled
+        if (!AuraToolsConfigService.MatchExperience.StarterDeck.Enabled
             || roleTable == null)
         {
             return;

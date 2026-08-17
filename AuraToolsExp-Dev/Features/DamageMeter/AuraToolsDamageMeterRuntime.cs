@@ -3,6 +3,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using UnityEngine;
 using Witch.Mod;
 
@@ -21,8 +22,7 @@ public static class AuraToolsDamageMeterRuntime
 
     public static bool Available => DamageMeterAvailabilityRuntime.Available;
 
-    public static bool Enabled => AuraToolsConfigService.Root.MatchExperience.Enabled
-                                  && AuraToolsConfigService.MatchExperience.MatchRecords.Enabled
+    public static bool Enabled => AuraToolsConfigService.MatchExperience.MatchRecords.Enabled
                                   && AuraToolsConfigService.MatchExperience.MatchRecords.Statistics.Enabled;
 
     internal static DamageLedger Ledger => DamageMeterNetworkRuntime.Ledger;
@@ -59,7 +59,9 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         initialized = true;
-        AuraToolsConfigService.Changed += OnConfigChanged;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.DamageStatistics,
+            OnConfigChanged);
         DamageMeterHookAdapter.Initialize(modConfig);
         AuraToolsLog.Info("[DamageMeter] DPT runtime initialized. Network protocol v"
                           + DamageMeterProtocol.Version + ".");

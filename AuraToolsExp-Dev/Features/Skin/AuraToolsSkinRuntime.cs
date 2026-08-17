@@ -7,6 +7,7 @@ using AuraSkin.Shared.Mechanics;
 using AuraSkin.Shared.Models;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using Network.Command;
 using Witch.Mod;
 using Witch.UI.Window;
@@ -32,7 +33,9 @@ public static class AuraToolsSkinRuntime
         {
             initialized = true;
             SkinRuntime.LocalSelectionChanged += OnLocalSelectionChanged;
-            AuraToolsConfigService.Changed += ConfigureFromSettings;
+            AuraToolsConfigService.SubscribeModule(
+                AuraToolModuleIds.Skin,
+                ConfigureFromSettings);
         }
 
         RegisterHooks(modConfig);
@@ -47,8 +50,7 @@ public static class AuraToolsSkinRuntime
             return;
         }
 
-        if (!AuraToolsConfigService.Root.Skin.Enabled
-            || !AuraToolsConfigService.Skin.Enabled)
+        if (!AuraToolsConfigService.Skin.Enabled)
         {
             lastInstallStatus = "Bundled skin package install is disabled.";
             return;
@@ -160,8 +162,7 @@ public static class AuraToolsSkinRuntime
 
     public static void ReceiveRemoteSelection(SkinSelectionSnapshot snapshot)
     {
-        if (!AuraToolsConfigService.Root.Skin.Enabled
-            || !AuraToolsConfigService.Skin.Enabled
+        if (!AuraToolsConfigService.Skin.Enabled
             || !AuraToolsConfigService.Skin.SyncRemote)
         {
             return;
@@ -223,7 +224,7 @@ public static class AuraToolsSkinRuntime
         }
 
         SkinRuntime.ConfigurePresentation(
-            AuraToolsConfigService.Root.Skin.Enabled && AuraToolsConfigService.Skin.Enabled,
+            AuraToolsConfigService.Skin.Enabled,
             AuraToolsConfigService.Skin.ShowEntrySkinButton);
         SkinRuntime.ConfigureCandidateOverrides(effectiveOverrides);
     }
@@ -314,8 +315,7 @@ public static class AuraToolsSkinRuntime
 
     private static void BroadcastLocalSelection()
     {
-        if (!AuraToolsConfigService.Root.Skin.Enabled
-            || !AuraToolsConfigService.Skin.Enabled
+        if (!AuraToolsConfigService.Skin.Enabled
             || !AuraToolsConfigService.Skin.SyncRemote)
         {
             return;

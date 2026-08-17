@@ -47,7 +47,7 @@ public static class AuraToolsStarterDeckEditor
         profile.DerivedFromProfileId = source.QualifiedProfileId;
         profile.DisplayName = (string.IsNullOrWhiteSpace(displayName) ? RoleCatalog.NormalizeRoleId(roleId) : displayName) + " 自定义卡组";
         AuraToolsStarterDeckRuntime.SelectProfileForRole(roleId, AuraToolsStarterDeckRuntime.LocalRoleProfileId(roleId));
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveStarterDeck();
         ShowRole(parent, roleId, displayName);
     }
 
@@ -402,7 +402,7 @@ public static class AuraToolsStarterDeckEditor
                 AuraToolsStarterDeckRuntime.SelectProfileForRole(editingRoleId, AuraToolsStarterDeckRuntime.LocalRoleProfileId(editingRoleId));
             }
 
-            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsConfigService.SaveStarterDeck();
             SetHint(string.IsNullOrWhiteSpace(editingRoleId) ? "已保存全局开局卡组预设。" : "已保存本角色开局卡组预设。");
         }
 

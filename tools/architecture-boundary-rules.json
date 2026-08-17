@@ -177,6 +177,20 @@
           ]
         },
         {
+          "id": "tool-module-config-isolation",
+          "description": "AuraTools features use module-scoped saves and subscriptions instead of aggregate config broadcasts or hidden root gates.",
+          "roots": ["AuraToolsExp-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": [
+            "^AuraToolsExp-Dev/Config/"
+          ],
+          "deny": [
+            "AuraToolsConfigService\\.(?:Changed|AudioChanged|MatchExperienceChanged|LoggingChanged)\\s*\\+=",
+            "AuraToolsConfigService\\.(?:SaveAudio|SaveMatchExperience)\\s*\\(",
+            "AuraToolsConfigService\\.Root\\.(?:Audio|MatchExperience|PixelEmoji|SkillCg|Skin|Logging)\\.Enabled"
+          ]
+        },
+        {
           "id": "content-hook-entrypoint",
           "description": "Terrias feature hooks must route through TerriasHookRegistry.",
           "roots": ["Terrias-Dev"],

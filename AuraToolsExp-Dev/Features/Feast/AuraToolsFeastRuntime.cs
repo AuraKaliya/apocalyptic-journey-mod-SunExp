@@ -8,6 +8,7 @@ using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using UnityEngine;
 using Witch;
 using Witch.Core;
@@ -52,7 +53,9 @@ public static class AuraToolsFeastRuntime
         RegisterAfter(modConfig, "TeachMapManager.InitRoleTable", CaptureCurrentRole);
         RegisterAfter(modConfig, "FightManager.CmdChangeCareer", CaptureCurrentRole);
         RegisterAfter(modConfig, "FightManager.RpcChangeCareer", CaptureCurrentRole);
-        AuraToolsConfigService.Changed += Reconfigure;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.Feast,
+            Reconfigure);
         AuraSharedResourceProtocol.ScopeChanged += OnSharedScopeChanged;
         RefreshCatalog();
     }
@@ -475,7 +478,7 @@ public static class AuraToolsFeastRuntime
     public static void SaveRoleSettings(FeastRoleSettings role)
     {
         role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.DefaultPresentation);
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveFeast();
         var scope = FeastScope(role.RoleId);
         var current = AuraSharedResourceProtocol.ReadUserOverride(AuraToolsIds.ModId, scope);
         var local = CreateLocalOverride(role, current);
@@ -604,8 +607,7 @@ public static class AuraToolsFeastRuntime
 
     private static bool IsEnabled()
     {
-        return AuraToolsConfigService.Root.MatchExperience.Enabled
-               && AuraToolsConfigService.MatchExperience.Feast.Enabled;
+        return AuraToolsConfigService.MatchExperience.Feast.Enabled;
     }
 
     private static void CaptureCurrentRole(ModHookContext context)

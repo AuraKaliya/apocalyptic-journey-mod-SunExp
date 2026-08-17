@@ -433,7 +433,7 @@ public static class AuraToolsFeastRoleEditor
     private static void RefreshAndSave()
     {
         AuraToolsConfigService.MatchExperience.Feast.Normalize();
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveFeast();
         SetStatus("已保存一键美餐配置。");
     }
 

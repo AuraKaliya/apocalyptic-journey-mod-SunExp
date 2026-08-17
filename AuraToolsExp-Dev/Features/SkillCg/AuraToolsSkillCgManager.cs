@@ -124,7 +124,7 @@ public static class AuraToolsSkillCgManager
                 entry.OwnerModId,
                 entry.CgId,
                 enabled);
-            AuraToolsConfigService.SaveSkillCg();
+            AuraToolsConfigService.SaveCardUseCg();
             SetHint((enabled ? "\u5df2\u542f\u7528\uff1a" : "\u5df2\u5173\u95ed\uff1a") + DisplayName(entry));
             RefreshRows();
         });

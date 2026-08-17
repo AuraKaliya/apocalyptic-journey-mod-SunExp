@@ -22,26 +22,6 @@ using AuraToolsExp.Dll.Modules.Contracts;
 
 namespace AuraToolsExp.Dll.Modules;
 
-public static class AuraToolModuleIds
-{
-    public const string StarterDeck = "gameplay.starter-deck";
-    public const string CardRefresh = "gameplay.card-refresh";
-    public const string Feast = "gameplay.feast";
-    public const string SafeBox = "gameplay.safe-box";
-    public const string Skin = "presentation.skin";
-    public const string BattleBgm = "presentation.battle-bgm";
-    public const string CardUseAudio = "presentation.card-use-audio";
-    public const string PixelEmoji = "presentation.pixel-emoji";
-    public const string SkillCg = "presentation.skill-cg";
-    public const string CardUseCg = "presentation.card-use-cg";
-    public const string DamageStatistics = "records.damage-statistics";
-    public const string BattleReplay = "records.battle-replay";
-    public const string ModSync = "multiplayer.mod-sync";
-    public const string AutoBattle = "intelligence.auto-battle";
-    public const string FileLogging = "system.file-logging";
-    internal const string Diagnostics = "system.card-ui-diagnostics";
-}
-
 internal static class AuraToolsBuiltInModules
 {
     public static IReadOnlyList<IAuraToolModule> Create()
@@ -77,8 +57,7 @@ internal static class AuraToolsBuiltInModules
             "文件日志",
             "将工具运行信息写入独立日志文件。",
             context => AuraToolsFileLogRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.Logging.Enabled
-                  && AuraToolsConfigService.Logging.Enabled,
+            () => AuraToolsConfigService.Logging.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.Logging.Enabled = enabled;
@@ -86,8 +65,7 @@ internal static class AuraToolsBuiltInModules
             },
             () => State(
                 AuraToolModuleIds.FileLogging,
-                AuraToolsConfigService.Root.Logging.Enabled
-                && AuraToolsConfigService.Logging.Enabled,
+                AuraToolsConfigService.Logging.Enabled,
                 AuraToolsConfigService.Logging.MinimumLevel + " 及以上"),
             AuraToolsLoggingSettingsPage.Show,
             new[] { "日志", "log", "诊断" });
@@ -103,8 +81,7 @@ internal static class AuraToolsBuiltInModules
             "角色皮肤",
             "管理已注册皮肤并选择本地显示效果。",
             context => AuraToolsSkinRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.Skin.Enabled
-                  && AuraToolsConfigService.Skin.Enabled,
+            () => AuraToolsConfigService.Skin.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.Skin.Enabled = enabled;
@@ -123,8 +100,7 @@ internal static class AuraToolsBuiltInModules
                         candidate.QualifiedSkinId));
                 return State(
                     AuraToolModuleIds.Skin,
-                    AuraToolsConfigService.Root.Skin.Enabled
-                    && AuraToolsConfigService.Skin.Enabled,
+                    AuraToolsConfigService.Skin.Enabled,
                     "已启用 " + enabledCount + "/" + candidates.Count + " 个候选皮肤",
                     candidates.Count);
             },
@@ -142,17 +118,15 @@ internal static class AuraToolsBuiltInModules
             "战斗背景音乐",
             "替换战斗音乐，并可按角色设置不同曲目。",
             context => AuraToolsAudioRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.Audio.Enabled
-                  && AuraToolsConfigService.Audio.BattleBgm.Enabled,
+            () => AuraToolsConfigService.Audio.BattleBgm.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.Audio.BattleBgm.Enabled = enabled;
-                AuraToolsConfigService.SaveAudio();
+                AuraToolsConfigService.SaveBattleBgm();
             },
             () => State(
                 AuraToolModuleIds.BattleBgm,
-                AuraToolsConfigService.Root.Audio.Enabled
-                && AuraToolsConfigService.Audio.BattleBgm.Enabled,
+                AuraToolsConfigService.Audio.BattleBgm.Enabled,
                 AudioModeSummary(AuraToolsConfigService.Audio.BattleBgm)),
             AuraToolsAudioSettingsPage.ShowBattleBgm,
             new[] { "音乐", "BGM", "音频" });
@@ -168,17 +142,15 @@ internal static class AuraToolsBuiltInModules
             "出牌音效",
             "替换卡牌使用音效，并可按角色设置。",
             context => AuraToolsAudioRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.Audio.Enabled
-                  && AuraToolsConfigService.Audio.CardUse.Enabled,
+            () => AuraToolsConfigService.Audio.CardUse.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.Audio.CardUse.Enabled = enabled;
-                AuraToolsConfigService.SaveAudio();
+                AuraToolsConfigService.SaveCardUseAudio();
             },
             () => State(
                 AuraToolModuleIds.CardUseAudio,
-                AuraToolsConfigService.Root.Audio.Enabled
-                && AuraToolsConfigService.Audio.CardUse.Enabled,
+                AuraToolsConfigService.Audio.CardUse.Enabled,
                 AudioModeSummary(AuraToolsConfigService.Audio.CardUse)),
             AuraToolsAudioSettingsPage.ShowCardUse,
             new[] { "音效", "出牌", "音频" });
@@ -194,12 +166,11 @@ internal static class AuraToolsBuiltInModules
             "开局卡组",
             "为世界推演配置全局或按角色开局卡组。",
             context => AuraToolsStarterDeckRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.StarterDeck.Enabled,
+            () => AuraToolsConfigService.MatchExperience.StarterDeck.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.StarterDeck.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveStarterDeck();
             },
             () =>
             {
@@ -210,8 +181,7 @@ internal static class AuraToolsBuiltInModules
                       + "/" + settings.GlobalProfile.DeckSize + " 张";
                 return State(
                     AuraToolModuleIds.StarterDeck,
-                    AuraToolsConfigService.Root.MatchExperience.Enabled
-                    && settings.Enabled,
+                    settings.Enabled,
                     summary,
                     settings.Roles.Count);
             },
@@ -229,17 +199,15 @@ internal static class AuraToolsBuiltInModules
             "卡牌刷新",
             "在战斗奖励选牌时提供一次重新抽取。",
             context => AuraToolsCardRefreshRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.CardRefresh.Enabled,
+            () => AuraToolsConfigService.MatchExperience.CardRefresh.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.CardRefresh.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveCardRefresh();
             },
             () => State(
                 AuraToolModuleIds.CardRefresh,
-                AuraToolsConfigService.Root.MatchExperience.Enabled
-                && AuraToolsConfigService.MatchExperience.CardRefresh.Enabled,
+                AuraToolsConfigService.MatchExperience.CardRefresh.Enabled,
                 "战斗奖励选牌可刷新"),
             null,
             new[] { "卡牌", "奖励", "刷新" });
@@ -255,17 +223,15 @@ internal static class AuraToolsBuiltInModules
             "一键美餐",
             "进食一次后自动处理剩余食物，并播放角色表现。",
             context => AuraToolsFeastRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.Feast.Enabled,
+            () => AuraToolsConfigService.MatchExperience.Feast.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.Feast.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveFeast();
             },
             () => State(
                 AuraToolModuleIds.Feast,
-                AuraToolsConfigService.Root.MatchExperience.Enabled
-                && AuraToolsConfigService.MatchExperience.Feast.Enabled,
+                AuraToolsConfigService.MatchExperience.Feast.Enabled,
                 "已配置 " + AuraToolsConfigService.MatchExperience.Feast.Roles.Count + " 个角色",
                 AuraToolsConfigService.MatchExperience.Feast.Roles.Count),
             AuraToolsFeastRoleEditor.Show,
@@ -282,17 +248,15 @@ internal static class AuraToolsBuiltInModules
             "随身保险箱",
             "在冒险顶部栏直接打开保险箱。",
             context => AuraToolsSafeBoxRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.SafeBox.Enabled,
+            () => AuraToolsConfigService.MatchExperience.SafeBox.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.SafeBox.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveSafeBox();
             },
             () => State(
                 AuraToolModuleIds.SafeBox,
-                AuraToolsConfigService.Root.MatchExperience.Enabled
-                && AuraToolsConfigService.MatchExperience.SafeBox.Enabled,
+                AuraToolsConfigService.MatchExperience.SafeBox.Enabled,
                 "冒险顶部栏显示入口"),
             null,
             new[] { "保险箱", "仓库", "冒险" });
@@ -308,8 +272,7 @@ internal static class AuraToolsBuiltInModules
             "像素表情",
             "制作并收藏可在冒险中使用的像素表情。",
             context => AuraToolsPixelEmojiRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.PixelEmoji.Enabled
-                  && AuraToolsConfigService.PixelEmoji.Enabled,
+            () => AuraToolsConfigService.PixelEmoji.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.PixelEmoji.Enabled = enabled;
@@ -320,8 +283,7 @@ internal static class AuraToolsBuiltInModules
                 var items = PixelEmojiLibraryStore.GetItems();
                 return State(
                     AuraToolModuleIds.PixelEmoji,
-                    AuraToolsConfigService.Root.PixelEmoji.Enabled
-                    && AuraToolsConfigService.PixelEmoji.Enabled,
+                    AuraToolsConfigService.PixelEmoji.Enabled,
                     "作品 " + items.Count + " · 收藏 "
                     + AuraToolsConfigService.PixelEmoji.FavoriteIds.Count,
                     items.Count);
@@ -340,17 +302,15 @@ internal static class AuraToolsBuiltInModules
             "MOD 配置同步",
             "在联机大厅同步房主的 MOD 启用状态。",
             context => AuraToolsModSyncRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.ModSync.Enabled,
+            () => AuraToolsConfigService.MatchExperience.ModSync.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.ModSync.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveModSync();
             },
             () => State(
                 AuraToolModuleIds.ModSync,
-                AuraToolsConfigService.Root.MatchExperience.Enabled
-                && AuraToolsConfigService.MatchExperience.ModSync.Enabled,
+                AuraToolsConfigService.MatchExperience.ModSync.Enabled,
                 "联机大厅由房主发起同步"),
             null,
             new[] { "联机", "MOD", "同步", "房主" });
@@ -373,7 +333,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsMatchRecordModulePolicy.SetDamageStatistics(
                     records,
                     enabled);
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveDamageStatistics();
                 if (!enabled)
                 {
                     AuraToolsDamageMeterRuntime.SetVisible(false);
@@ -409,7 +369,7 @@ internal static class AuraToolsBuiltInModules
             {
                 var records = AuraToolsConfigService.MatchExperience.MatchRecords;
                 AuraToolsMatchRecordModulePolicy.SetBattleReplay(records, enabled);
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveBattleReplay();
             },
             () =>
             {
@@ -433,12 +393,11 @@ internal static class AuraToolsBuiltInModules
             "战斗策略实验室",
             "使用模型评估、学习并接管战斗决策。",
             context => AuraToolsAutoBattleRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.MatchExperience.Enabled
-                  && AuraToolsConfigService.MatchExperience.AutoBattle.Enabled,
+            () => AuraToolsConfigService.MatchExperience.AutoBattle.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.AutoBattle.Enabled = enabled;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveAutoBattle();
                 if (!enabled)
                 {
                     AuraToolsAutoBattleRuntime.SetActive(false);
@@ -454,8 +413,7 @@ internal static class AuraToolsBuiltInModules
                       + " · " + ShortModelId(settings.SelectedModelId);
                 return State(
                     AuraToolModuleIds.AutoBattle,
-                    AuraToolsConfigService.Root.MatchExperience.Enabled
-                    && settings.Enabled,
+                    settings.Enabled,
                     summary,
                     attention: status.ModelIsolatedForBattle
                         ? status.Diagnostic
@@ -477,8 +435,7 @@ internal static class AuraToolsBuiltInModules
             "技能 CG",
             "按角色和技能播放自定义战斗 CG。",
             context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.SkillCg.Enabled
-                  && AuraToolsConfigService.SkillCg.Enabled,
+            () => AuraToolsConfigService.SkillCg.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.SkillCg.Enabled = enabled;
@@ -490,8 +447,7 @@ internal static class AuraToolsBuiltInModules
                     .Sum(role => role.Rules.Count);
                 return State(
                     AuraToolModuleIds.SkillCg,
-                    AuraToolsConfigService.Root.SkillCg.Enabled
-                    && AuraToolsConfigService.SkillCg.Enabled,
+                    AuraToolsConfigService.SkillCg.Enabled,
                     "角色规则 " + count + " 条 · 联机同步"
                     + (AuraToolsConfigService.SkillCg.SyncRemote ? "开启" : "关闭"),
                     count);
@@ -510,12 +466,11 @@ internal static class AuraToolsBuiltInModules
             "卡牌使用 CG",
             "管理其他 MOD 注册的卡牌使用表现。",
             context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
-            () => AuraToolsConfigService.Root.SkillCg.Enabled
-                  && AuraToolsConfigService.SkillCg.CardUseCg.Enabled,
+            () => AuraToolsConfigService.SkillCg.CardUseCg.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.SkillCg.CardUseCg.Enabled = enabled;
-                AuraToolsConfigService.SaveSkillCg();
+                AuraToolsConfigService.SaveCardUseCg();
             },
             () =>
             {
@@ -526,8 +481,7 @@ internal static class AuraToolsBuiltInModules
                     || value);
                 return State(
                     AuraToolModuleIds.CardUseCg,
-                    AuraToolsConfigService.Root.SkillCg.Enabled
-                    && AuraToolsConfigService.SkillCg.CardUseCg.Enabled,
+                    AuraToolsConfigService.SkillCg.CardUseCg.Enabled,
                     "已启用 " + enabledCount + "/" + entries.Count + " 个注册项",
                     entries.Count);
             },
@@ -627,16 +581,14 @@ internal static class AuraToolsBuiltInModules
     private static bool DamageStatisticsEnabled()
     {
         var records = AuraToolsConfigService.MatchExperience.MatchRecords;
-        return AuraToolsConfigService.Root.MatchExperience.Enabled
-               && records.Enabled
+        return records.Enabled
                && records.Statistics.Enabled;
     }
 
     private static bool BattleReplayEnabled()
     {
         var records = AuraToolsConfigService.MatchExperience.MatchRecords;
-        return AuraToolsConfigService.Root.MatchExperience.Enabled
-               && records.Enabled
+        return records.Enabled
                && records.Replay.Enabled;
     }
 

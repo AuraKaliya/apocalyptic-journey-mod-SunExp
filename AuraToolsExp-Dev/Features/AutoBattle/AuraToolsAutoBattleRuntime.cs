@@ -11,6 +11,7 @@ using AuraCombatAi.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using AuraUi.Shared;
 using Michsky.MUIP;
 using UnityEngine;
@@ -32,8 +33,7 @@ public static class AuraToolsAutoBattleRuntime
     private static IDisposable? automationCapabilityRegistration;
 
     internal static bool ModuleEnabled =>
-        AuraToolsConfigService.Root.MatchExperience.Enabled
-        && AuraToolsConfigService.MatchExperience.AutoBattle.Enabled;
+        AuraToolsConfigService.MatchExperience.AutoBattle.Enabled;
 
     public static bool Active => controller != null && controller.Active;
 
@@ -113,7 +113,9 @@ public static class AuraToolsAutoBattleRuntime
             AuraToolsIds.ModId,
             "JsonLinesV4",
             new AuraToolsAutoBattleTrainingSink());
-        AuraToolsConfigService.Changed += OnConfigurationChanged;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.AutoBattle,
+            OnConfigurationChanged);
     }
 
     public static void SetActive(bool active)
@@ -165,7 +167,7 @@ public static class AuraToolsAutoBattleRuntime
 
         settings.TrainedModelMode = mode;
         settings.Normalize();
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsConfigService.SaveAutoBattle();
         EnsureController().ApplyConfiguration();
         status = SnapshotModelApplicationStatus();
         var applied = string.Equals(

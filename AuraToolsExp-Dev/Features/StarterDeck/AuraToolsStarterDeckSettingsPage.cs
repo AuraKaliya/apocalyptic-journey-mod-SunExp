@@ -38,7 +38,7 @@ public static class AuraToolsStarterDeckSettingsPage
                 settings.Mode = settings.Mode == StarterDeckModes.RoleSpecific
                     ? StarterDeckModes.Global
                     : StarterDeckModes.RoleSpecific;
-                AuraToolsConfigService.SaveMatchExperience();
+                AuraToolsConfigService.SaveStarterDeck();
                 modeText.text = settings.Mode == StarterDeckModes.RoleSpecific
                     ? "当前模式：按角色"
                     : "当前模式：全局";
