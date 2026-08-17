@@ -10,7 +10,7 @@ Id,Weight,OwnScript,FightScript,Icon,Type,Source,Rarity,PackBelong
 solar_witch,7,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""solar_witch"");",Icon/Blessing/太阳,正面,技能,4,Terrias_terrias_cardpack_solar_ember_crown_canopy
 white_radiance_saint,4,"CS.Terrias.Dll.Scripting.BlessingScripts.Own(self, ""white_radiance_saint"");",,Icon/Blessing/天使,正面,技能,3,Terrias_terrias_cardpack_solar_ember_crown_canopy
 sun_priest,4,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""sun_priest"");",Icon/Blessing/主教,正面,技能,3,Terrias_terrias_cardpack_solar_ember_crown_canopy
-forgotten_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""forgotten_one"");",Icon/Blessing/命运之轮,正面,技能,2,Terrias_terrias_cardpack_solar_ember_crown_canopy
+forgotten_one,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""forgotten_one"");",Icon/Blessing/命运之轮,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
 dream_talker,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""dream_talker"");",Icon/Blessing/月亮,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
 delirious_talker,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""delirious_talker"");",Icon/Blessing/癫狂之手,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture
 wisher,3,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""wisher"");",Icon/Blessing/星星,正面,技能,2,Terrias_terrias_cardpack_morning_star_overture

@@ -7,6 +7,73 @@ namespace Terrias.Dll.Mechanics;
 
 public static class MorningStarRelicService
 {
+    public static void RegisterBlackSunCross(ScriptExecutor self)
+    {
+        const string hookKey = "TerriasBlackSunCrossHook";
+        const string tokenKey = "TerriasBlackSunCrossToken";
+        var ownerId = self?.Self?.InstanceId ?? "";
+        var registrationKey = "TerriasBlackSunCrossRegistered_" + ownerId;
+        if (self?.Self == null
+            || string.IsNullOrWhiteSpace(ownerId)
+            || ExecutorApi.CombatIntGet(registrationKey) > 0)
+        {
+            return;
+        }
+
+        ExecutorApi.CombatIntSet(registrationKey, 1);
+        var token = ExecutorApi.RegisterHook(self, hookKey, tokenKey);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            ExecutorApi.CombatIntSet(registrationKey, 0);
+            return;
+        }
+
+        void Cleanup()
+        {
+            ExecutorApi.CombatIntSet(registrationKey, 0);
+            ExecutorApi.ClearHook(self, hookKey, tokenKey);
+        }
+
+        ExecutorApi.TryAddTokenedEvent(
+            self,
+            "StartRoundEnd",
+            tokenKey,
+            token,
+            new Action(() =>
+            {
+                var count = MorningStarCurseService.HandCurses(self).Count;
+                if (count <= 0)
+                {
+                    return;
+                }
+
+                self.SetStatus("Self");
+                self.AddBuff(TerriasIds.VowPower, count.ToString());
+                self.UpdateRelicShow();
+            }),
+            TerriasIds.BlackSunCrossRelic);
+        ExecutorApi.TryAddTokenedEvent(
+            self,
+            "EndRound",
+            tokenKey,
+            token,
+            new Action(() =>
+            {
+                var owner = self.Self;
+                var recovery = MorningStarCurseFormula.BlackSunCrossRecovery(
+                    owner?.MaxHp ?? 0,
+                    owner?.CurHp ?? 0,
+                    ExecutorApi.SelfBuffLevel(self, TerriasIds.VowPower));
+                if (recovery > 0 && StatusApi.TryHeal(owner, recovery))
+                {
+                    self.UpdateRelicShow();
+                }
+            }),
+            TerriasIds.BlackSunCrossRelic);
+        ExecutorApi.TryAddTokenedEvent(self, "Win", tokenKey, token, new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
+        ExecutorApi.TryAddTokenedEvent(self, "Escape", tokenKey, token, new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
+    }
+
     public static void RegisterTimelessClock(ScriptExecutor self)
     {
         const string countKey = "TerriasTimelessClockActionCount";

@@ -27,7 +27,8 @@ public static class RelicScripts
         [TerriasIds.TimelessClockRelic] = MorningStarRelicService.RegisterTimelessClock,
         [TerriasIds.LoneerStarStonePouchRelic] = MorningStarRelicService.RegisterLoneerStarStonePouch,
         [TerriasIds.FoxWomanHarpRelic] = MorningStarRelicService.RegisterFoxWomanHarp,
-        [TerriasIds.DimStarStoneRelic] = MorningStarRelicService.RegisterDimStarStone
+        [TerriasIds.DimStarStoneRelic] = MorningStarRelicService.RegisterDimStarStone,
+        [TerriasIds.BlackSunCrossRelic] = MorningStarRelicService.RegisterBlackSunCross
     };
 
     public static void Fight(ScriptExecutor self, string id)

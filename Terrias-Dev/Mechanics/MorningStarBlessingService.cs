@@ -11,6 +11,7 @@ public static class MorningStarBlessingService
     {
         [TerriasIds.DreamTalkerBlessing] = RegisterDreamTalker,
         [TerriasIds.DeliriousTalkerBlessing] = RegisterDeliriousTalker,
+        [TerriasIds.ForgottenOneBlessing] = RegisterForgottenOne,
         [TerriasIds.WisherBlessing] = RegisterWisher,
         [TerriasIds.UnspeakableOneBlessing] = RegisterUnspeakableOne,
         [TerriasIds.WitheredOneBlessing] = RegisterWitheredOne,
@@ -47,6 +48,18 @@ public static class MorningStarBlessingService
             TerriasIds.DeliriousTalkerBlessing,
             new[] { TerriasIds.ThoughtDisorderCardId },
             () => AddSelfBuff(self, TerriasIds.KeenEdge, 2));
+    }
+
+    private static void RegisterForgottenOne(ScriptExecutor self)
+    {
+        Register(
+            self,
+            TerriasIds.ForgottenOneBlessing,
+            new[] { TerriasIds.ForgottenCardId },
+            () => AddSelfBuff(
+                self,
+                UnityEngine.Random.Range(0, 2) == 0 ? TerriasIds.KeenEdge : TerriasIds.Resilient,
+                2));
     }
 
     private static void RegisterWisher(ScriptExecutor self)

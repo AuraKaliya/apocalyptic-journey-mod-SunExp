@@ -206,7 +206,7 @@ public static class PlayerApi
 
     public static int GetMoney()
     {
-        return Math.Max(0, DictionaryUtil.ParseInt(Convert.ToString(GetStaticMember(PlayerInfo, "Money"))));
+        return RuntimeMemberApi.ReadStaticNonNegativeInt(PlayerInfo, "Money", "PlayerApi.GetMoney");
     }
 
     public static bool TrySpendMoney(int amount)
@@ -376,14 +376,7 @@ public static class PlayerApi
 
     private static object? GetStaticMember(object? typeObject, string name)
     {
-        var type = typeObject as Type;
-        if (type == null)
-        {
-            return null;
-        }
-
-        return type.GetProperty(name, BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
-            ?? type.GetField(name, BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+        return RuntimeMemberApi.ReadStaticMember(typeObject, name, "PlayerApi");
     }
 
     private static object? GetInstanceMember(object? target, string name)
@@ -502,6 +495,23 @@ public static class PlayerApi
         {
             return "";
         }
+    }
+
+    public static bool IsLocalPlayerOwner(IStatusManager? status)
+    {
+        if (status == null)
+        {
+            return false;
+        }
+
+        if (!IsMultiplayerSession())
+        {
+            return true;
+        }
+
+        var localStatusId = LocalPlayerStatusId();
+        return !string.IsNullOrWhiteSpace(localStatusId)
+               && string.Equals(status.InstanceId, localStatusId, StringComparison.Ordinal);
     }
 
     private static Type? FindType(string name)

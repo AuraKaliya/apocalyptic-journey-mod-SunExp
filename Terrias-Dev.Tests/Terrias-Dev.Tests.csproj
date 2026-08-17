@@ -22,6 +22,7 @@
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs" Link="Source\TerriasFrameDispatcher.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs" Link="Source\TerriasPerformanceSettings.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CardApi.cs" Link="Source\CardApi.cs" />
+    <Compile Include="..\Terrias-Dev\GameApi\RuntimeMemberApi.cs" Link="Source\RuntimeMemberApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CombatCardViewPoolApi.cs" Link="Source\CombatCardViewPoolApi.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs" Link="Source\CombatCardViewPoolCatalog.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PooledCardViewExit.cs" Link="Source\PooledCardViewExit.cs" />
@@ -45,6 +46,8 @@
     <Compile Include="..\Terrias-Dev\Mechanics\SolarFlameSealFormula.cs" Link="Source\SolarFlameSealFormula.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\MorningStarRelicFormula.cs" Link="Source\MorningStarRelicFormula.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\MorningStarBlessingFormula.cs" Link="Source\MorningStarBlessingFormula.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\MorningStarCurseFormula.cs" Link="Source\MorningStarCurseFormula.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\MorningStarCurseReversalRegistry.cs" Link="Source\MorningStarCurseReversalRegistry.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SunCardPackSelectionMigration.cs" Link="Source\SunCardPackSelectionMigration.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\LoneerCombatState.cs" Link="Source\LoneerCombatState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\StarScoreNote.cs" Link="Source\StarScoreNote.cs" />

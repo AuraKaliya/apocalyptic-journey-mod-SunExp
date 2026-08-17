@@ -38,9 +38,6 @@ public static class SolarBlessingService
             case TerriasIds.SunPriestBlessing:
                 RegisterSunPriest(self);
                 break;
-            case TerriasIds.ForgottenOneBlessing:
-                RegisterForgottenOne(self);
-                break;
         }
     }
 
@@ -82,38 +79,6 @@ public static class SolarBlessingService
                 self.AddBuff(TerriasIds.SolarRadiance, "3");
             }),
             TerriasIds.SunPriestBlessing);
-    }
-
-    private static void RegisterForgottenOne(ScriptExecutor self)
-    {
-        const string tokenKey = "TerriasForgottenOneToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasForgottenOneHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return;
-        }
-
-        ExecutorApi.TryAddTokenedEvent(
-            self,
-            "FightStart",
-            tokenKey,
-            token!,
-            new Action(() => CardApi.AddCardToDiscardPile(self, TerriasIds.ForgottenCardId)),
-            TerriasIds.ForgottenOneBlessing);
-        ExecutorApi.TryAddTokenedEvent(
-            self,
-            "StartRound",
-            tokenKey,
-            token!,
-            new Action(() =>
-            {
-                var buffId = UnityEngine.Random.Range(0, 2) == 0
-                    ? TerriasIds.KeenEdge
-                    : TerriasIds.Resilient;
-                self.SetStatus("Self");
-                self.AddBuff(buffId, "2");
-            }),
-            TerriasIds.ForgottenOneBlessing);
     }
 
     private static void ResolveSolarWitch(ScriptExecutor self)

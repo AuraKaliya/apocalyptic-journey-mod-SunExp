@@ -300,9 +300,10 @@ public static class CardScripts
     private static void InitWager(ScriptExecutor self)
     {
         InitGoldDreamCommon(self);
-        var cost = GoldDreamRules.WagerCost(PlayerApi.GetMoney());
+        var money = PlayerApi.GetMoney();
+        var cost = GoldDreamRules.WagerCost(money);
         ExecutorApi.AddValueDescription(self, "1", cost);
-        DictionaryUtil.Set(self.Vars, "Usable", PlayerApi.GetMoney() >= cost ? "1" : "0");
+        DictionaryUtil.Set(self.Vars, "Usable", money >= cost ? "1" : "0");
     }
 
     private static void InitFortuneThrow(ScriptExecutor self)

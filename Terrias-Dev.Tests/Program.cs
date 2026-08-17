@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Infrastructure;
@@ -15,6 +16,7 @@ internal static class Program
     private static void Main()
     {
         TestDictionaryUtil();
+        TestRuntimeMemberApi();
         TestTerriasLocalizationValues();
         TestCardCostHelpers();
         TestGoldDreamRules();
@@ -23,6 +25,7 @@ internal static class Program
         TestSolarFlameSealFormula();
         TestMorningStarRelicFormula();
         TestMorningStarBlessingFormula();
+        TestMorningStarCurseFormula();
         TestSunCardPackSelectionMigration();
         TestCardGrantRequest();
         TestCombatCardViewPoolCatalog();
@@ -340,6 +343,72 @@ internal static class Program
         Equal(1, MorningStarBlessingFormula.MissingHealthRecovery(300, 101), "Withered One follows the base-game integer one-percent precedent");
         Equal(2, MorningStarBlessingFormula.MissingHealthRecovery(300, 100), "Withered One heals two HP at two hundred missing health");
         Equal(0, MorningStarBlessingFormula.MissingHealthRecovery(-5, -9), "Withered One normalizes invalid health values safely");
+    }
+
+    private static void TestRuntimeMemberApi()
+    {
+        Equal(42, RuntimeMemberApi.ReadStaticMember(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.Healthy)),
+            "runtime member access reads an initialized static property");
+        Equal(7, RuntimeMemberApi.ReadStaticMember(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.HealthyField)),
+            "runtime member access falls back to a public static field");
+        Equal(null, RuntimeMemberApi.ReadStaticMember(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.Unavailable)),
+            "runtime member access isolates a host getter that throws before its context exists");
+        Equal(null, RuntimeMemberApi.ReadStaticMember(typeof(RuntimeMemberFixture), "Missing"),
+            "runtime member access returns null for a missing member");
+        Equal(null, RuntimeMemberApi.ReadStaticMember(null, nameof(RuntimeMemberFixture.Healthy)),
+            "runtime member access rejects a missing host type");
+        Equal(42, RuntimeMemberApi.ReadStaticNonNegativeInt(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.Healthy)),
+            "player economy reads an initialized non-negative value");
+        Equal(0, RuntimeMemberApi.ReadStaticNonNegativeInt(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.Unavailable)),
+            "player economy falls back to zero when the native getter has no role context");
+        Equal(0, RuntimeMemberApi.ReadStaticNonNegativeInt(typeof(RuntimeMemberFixture), nameof(RuntimeMemberFixture.Negative)),
+            "player economy clamps an invalid negative runtime value");
+    }
+
+    private static void TestMorningStarCurseFormula()
+    {
+        Equal(50, MorningStarCurseFormula.ElegyHealthLoss(100), "Morning Star Elegy loses half of current HP");
+        Equal(0, MorningStarCurseFormula.ElegyHealthLoss(1), "Morning Star Elegy cannot directly kill a one-HP owner");
+        Equal(7, MorningStarCurseFormula.ElegyTriggerCount(50, 100), "Morning Star Elegy reaches seven triggers at the full-health example");
+        Equal(0, MorningStarCurseFormula.ElegyTriggerCount(0, 100), "Morning Star Elegy creates no Curse when no HP was lost");
+        Equal(7, MorningStarCurseFormula.ElegyTriggerCount(int.MaxValue, 1), "Morning Star Elegy clamps extreme values to seven triggers");
+
+        Equal(270L, MorningStarCurseFormula.BlackSunCrossTheoreticalRecovery(200, 135), "Black Sun Cross does not cap Vow Power at one hundred");
+        Equal(150, MorningStarCurseFormula.BlackSunCrossRecovery(200, 50, 135), "Black Sun Cross caps healing only at missing HP");
+        Equal(1, MorningStarCurseFormula.BlackSunCrossRecovery(200, 199, 1), "Black Sun Cross heals at least one HP when recovery is positive");
+        Equal(0, MorningStarCurseFormula.BlackSunCrossRecovery(200, 200, 135), "Black Sun Cross does not heal at full HP");
+        Equal(int.MaxValue, MorningStarCurseFormula.BlackSunCrossRecovery(int.MaxValue, 0, int.MaxValue), "Black Sun Cross saturates safely for extreme values");
+
+        Equal(4, MorningStarCurseFormula.NormalizeTier(99), "Curse fallback rarity is capped at tier four");
+        Equal(1, MorningStarCurseFormula.NormalizeTier(-1), "Invalid Curse rarity falls back to tier one");
+        Equal(1, MorningStarCurseFormula.ImpregnableGain(7, 5), "Curse reversal respects the native Impregnable cap");
+        Equal(0, MorningStarCurseFormula.ImpregnableGain(8, 1), "Curse reversal cannot exceed eight Impregnable");
+
+        var knownStarlight = MorningStarCurseReversalRegistry.Resolve("cursecard_2", 3);
+        Equal(6, knownStarlight.Starlight, "Disordered Thoughts uses its registered Starlight reversal");
+        var knownPower = MorningStarCurseReversalRegistry.Resolve("Terrias_cursecard_abyss_deficit", 4);
+        Equal(1, knownPower.Power, "Terrias Deficit uses its registered Mana reversal");
+        var unknown = MorningStarCurseReversalRegistry.Resolve("OtherMod_cards_unknown_curse", 99);
+        Equal(4, unknown.VowPower, "Unknown Curse fallback grants normalized-tier Vow Power");
+        Equal(4, unknown.Starlight, "Unknown Curse fallback grants normalized-tier Starlight");
+
+        Equal(
+            3,
+            MorningStarCurseFormula.DistinctBlessingCount(
+                new[] { "dream_talker", "dream_talker", "wisher", "blind_one", "other" },
+                new[] { "dream_talker", "wisher", "blind_one" }),
+            "All-Beings Wish counts distinct registered blessing ids only");
+
+        var executor = new ScriptExecutor();
+        var config = new DataConfig(
+            new Dictionary<string, string> { ["Id"] = "cursecard_1", ["Tag"] = "Curse" },
+            new Dictionary<string, string>());
+        var cardItem = new CardItem { dataConfig = config };
+        executor.HandCard.Add(cardItem);
+        Witch.UI.Window.FightUI.cardItemList.Add(cardItem);
+        var snapshot = AuraCombatCardZoneSnapshot.Capture(executor);
+        Equal(1, snapshot.Cards.Count, "Combat card zone snapshots deduplicate the same runtime card across UI and executor hand references");
+        Witch.UI.Window.FightUI.cardItemList.Clear();
     }
 
     private static void TestSunCardPackSelectionMigration()
@@ -1712,6 +1781,17 @@ internal static class Program
         {
             throw new InvalidOperationException("Assertion failed: " + message + ". Did not expect <" + actual + ">.");
         }
+    }
+
+    private static class RuntimeMemberFixture
+    {
+        public static int Healthy => 42;
+
+        public static int HealthyField = 7;
+
+        public static int Unavailable => throw new NullReferenceException("role table unavailable");
+
+        public static int Negative => -5;
     }
 
     private sealed class TurnEntry

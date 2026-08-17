@@ -9,6 +9,17 @@ namespace Terrias.Dll.Scripting;
 
 public static class MorningStarCardScripts
 {
+    private static readonly Dictionary<string, Action<ScriptExecutor>> InitHandlers = new(StringComparer.Ordinal)
+    {
+        [TerriasIds.ReverseFormulaCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.ReverseFormulaCardShortId),
+        [TerriasIds.MorningStarAfterglowCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.MorningStarAfterglowCardShortId),
+        [TerriasIds.OmenTransferCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.OmenTransferCardShortId),
+        [TerriasIds.AllBeingsAspectCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.AllBeingsAspectCardShortId),
+        [TerriasIds.AllBeingsWishCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.AllBeingsWishCardShortId),
+        [TerriasIds.AllBeingsFerryCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.AllBeingsFerryCardShortId),
+        [TerriasIds.MorningStarElegyCardShortId] = self => MorningStarCurseService.InitCard(self, TerriasIds.MorningStarElegyCardShortId)
+    };
+
     private static readonly Dictionary<string, Action<ScriptExecutor>> UseHandlers = new(StringComparer.Ordinal)
     {
         ["star_map"] = UseStarMap,
@@ -18,7 +29,14 @@ public static class MorningStarCardScripts
         ["star_orbit_transpose"] = UseStarOrbitTranspose,
         ["rest_mark"] = UseRestMark,
         ["morning_star_stage"] = UseMorningStarStage,
-        ["star_score_echo"] = UseStarScoreEcho
+        ["star_score_echo"] = UseStarScoreEcho,
+        [TerriasIds.ReverseFormulaCardShortId] = MorningStarCurseService.UseReverseFormula,
+        [TerriasIds.MorningStarAfterglowCardShortId] = MorningStarCurseService.UseMorningStarAfterglow,
+        [TerriasIds.OmenTransferCardShortId] = MorningStarCurseService.UseOmenTransfer,
+        [TerriasIds.AllBeingsAspectCardShortId] = MorningStarCurseService.UseAllBeingsAspect,
+        [TerriasIds.AllBeingsWishCardShortId] = MorningStarCurseService.UseAllBeingsWish,
+        [TerriasIds.AllBeingsFerryCardShortId] = MorningStarCurseService.UseAllBeingsFerry,
+        [TerriasIds.MorningStarElegyCardShortId] = MorningStarCurseService.UseMorningStarElegy
     };
 
     public static bool IsMorningStarCard(string id)
@@ -30,6 +48,13 @@ public static class MorningStarCardScripts
     {
         try
         {
+            id = NormalizeId(id);
+            if (InitHandlers.TryGetValue(id, out var handler))
+            {
+                handler(self);
+                return;
+            }
+
             ExecutorApi.SetBaseScript(self, "CommonCardItem");
         }
         catch (Exception ex)

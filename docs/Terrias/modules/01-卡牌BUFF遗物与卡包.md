@@ -10,20 +10,21 @@
 
 | 内容 | 数量 | 数据入口 |
 | --- | ---: | --- |
-| 卡牌 | 60 | `Terrias/Data/Card/*.csv` |
-| Buff | 47 | `Terrias/Data/Buff/*.csv` |
-| 遗物 | 17 | `Terrias/Data/Relic/terrias.csv` |
-| 卡包 | 3 | `Terrias/Data/CardPack/terrias.csv` |
+| 卡牌 | 66 | `Terrias/Data/Card/*.csv` |
+| Buff | 55 | `Terrias/Data/Buff/*.csv` |
+| 遗物 | 18 | `Terrias/Data/Relic/terrias.csv` |
+| 卡包 | 4 | `Terrias/Data/CardPack/terrias.csv` |
 
-卡牌总数由 `Card/terrias.csv` 的 52 张、乌娜 3 张、洛奈尔 1 张、哥伦比娅 2 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
+卡牌数量按当前仓库 inventory 脚本统计：56 张属于四个主题卡包，10 张为职业牌、衍生牌或无卡包内部牌。数量不包含 CSV 的 schema 与说明行。
 
-## 2. 三个卡包
+## 2. 四个卡包
 
 | 运行时完整 id | 显示名 | 机制定位 |
 | --- | --- | --- |
 | `Terrias_terrias_cardpack_solar_ember_crown_canopy` | 日耀：烬冠天幕 | 整合日耀、聚焰、烬衣、圣冕、场地、自身灼烧管理与敌方灼烧扩散 |
 | `Terrias_terrias_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
 | `Terrias_terrias_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
+| `Terrias_terrias_cardpack_false_gold_dream` | 虚假的黄金梦 | 伪金、债务、黄金梦与黄金之资 |
 
 卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 Terrias 的 `GameCompatibilityApi` 负责按包查询。
 
@@ -61,7 +62,9 @@ flowchart LR
 
 ### 3.2 晨星卡
 
-8 张公开晨星卡由 `CardScripts` 转交 `MorningStarCardScripts`：星图、空白星谱、星律重订、星律锚定、星轨换位、休止符、晨星：星台、晨星：复奏。
+15 张公开晨星卡由 `CardScripts` 转交 `MorningStarCardScripts`。原有 8 张为星图、空白星谱、星律重订、星律锚定、星轨换位、休止符、晨星：星台、晨星：复奏；新增 7 张为逆转术式、晨星：回光、恶兆转移、众生相、众生愿、众生渡和晨星：悲歌。
+
+新增系列通过精确 `Curse` 标签把主体、Terrias 与其他启用 MOD 的诅咒统一视为资源：`MorningStarCurseCatalog` 负责识别、缓存随机池和反转配方，`MorningStarCurseCardApi` 负责手牌/等待区/抽牌堆/弃牌堆快照与标准焚毁事件，`MorningStarCurseService` 负责愿力、星辉、抽牌和目标减益结算。
 
 4 张星辰序曲和“魔女的星谱”是带 `*` 的锁定内部卡。它们仍然是标准 DataConfig，但不作为普通可解锁卡进入公开池。
 
@@ -159,7 +162,7 @@ Clear 时清除 hook、token 和本地 Vars。这样 Buff 被移除后，旧回�
 
 ## 6. 遗物运行方式
 
-17 件遗物全部由 `RelicScripts.Fight` 的 `FightHandlers` 分派。**反编译确认**，游戏 `BlessingRelic` 在进入战斗时为遗物 DataConfig 设置 Self/Object 并运行 `FightScript`。
+18 件遗物全部由 `RelicScripts.Fight` 的 `FightHandlers` 分派。**反编译确认**，游戏 `BlessingRelic` 在进入战斗时为遗物 DataConfig 设置 Self/Object 并运行 `FightScript`。
 
 遗物 handler 不在 FightScript 当场执行所有效果，而是注册到语义事件：
 
@@ -170,7 +173,8 @@ Clear 时清除 hook、token 和本地 Vars。这样 Buff 被移除后，旧回�
 | `Action` | 环日镜计数、授冕圣座/棱镜状态检查、无刻时钟 |
 | `AddBuff` | 狐女的竖琴统计玩家向敌方施加负面 Buff 的次数 |
 | Buff level change | 聚炎护符、授冕圣座、日心棱镜 |
-| `EndRound` | 灰烬护符等结算 |
+| `StartRoundEnd` | 黑日十字在基础抽牌后统计手牌诅咒并增加愿力 |
+| `EndRound` | 灰烬护符、黑日十字恢复等结算 |
 
 所有事件通过 `ExecutorApi.TryAddEvent/TryAddTempEvent` 进入 `ScriptEventApi`，而不是在 Scripting 中裸调用宿主 AddEvent。
 
@@ -223,6 +227,7 @@ Terrias 会在战斗中创建或修改卡牌副本，例如：
 - 场地由主机权威，客户端请求并接收 snapshot；
 - runtime hand attachment 使用 Terrias RPC 同步声明而不是传输 Unity 对象；
 - 玩家私有角色状态按 owner status/player id 隔离；
+- 众生相仅由本地使用者随机并写入自己的 `RoleTable.blessingConfigs`，联机时沿用主体 `CmdSyncRoleTable` 提交；
 - 纯视觉刷新不反向写权威进度。
 
 “本地卡牌脚本成功执行”不自动证明其他客户端拥有相同 Terrias 扩展状态。

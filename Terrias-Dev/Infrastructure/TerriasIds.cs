@@ -120,10 +120,26 @@ public static class TerriasIds
     public const string WitheredOneBlessing = "withered_one";
     public const string BlindOneBlessing = "blind_one";
 
+    public const string ReverseFormulaCardShortId = "reverse_formula";
+    public const string MorningStarAfterglowCardShortId = "morning_star_afterglow";
+    public const string OmenTransferCardShortId = "omen_transfer";
+    public const string AllBeingsAspectCardShortId = "all_beings_aspect";
+    public const string AllBeingsWishCardShortId = "all_beings_wish";
+    public const string AllBeingsFerryCardShortId = "all_beings_ferry";
+    public const string MorningStarElegyCardShortId = "morning_star_elegy";
+    public const string ReverseFormulaCardId = "Terrias_terrias_reverse_formula";
+    public const string MorningStarAfterglowCardId = "Terrias_terrias_morning_star_afterglow";
+    public const string OmenTransferCardId = "Terrias_terrias_omen_transfer";
+    public const string AllBeingsAspectCardId = "Terrias_terrias_all_beings_aspect";
+    public const string AllBeingsWishCardId = "Terrias_terrias_all_beings_wish";
+    public const string AllBeingsFerryCardId = "Terrias_terrias_all_beings_ferry";
+    public const string MorningStarElegyCardId = "Terrias_terrias_morning_star_elegy";
+
     public const string TimelessClockRelic = "timeless_clock";
     public const string LoneerStarStonePouchRelic = "loneer_star_stone_pouch";
     public const string FoxWomanHarpRelic = "fox_woman_harp";
     public const string DimStarStoneRelic = "dim_star_stone";
+    public const string BlackSunCrossRelic = "black_sun_cross";
     public const string TimelessClockZeroCostMarker = "TerriasTimelessClockZeroCost";
 
     public const string SolarRadiance = "Terrias_terrias_solar_radiance";
@@ -132,6 +148,7 @@ public static class TerriasIds
     public const string GatheredFlame = "Terrias_terrias_gathered_flame";
     public const string Burn = "buff_burn";
     public const string Vulnerability = "buff_vulnerability";
+    public const string Weak = "buff_weak";
     public const string PyroAttachment = "Terrias_terrias_element_pyro";
     public const string ElectroAttachment = "Terrias_terrias_element_electro";
     public const string CryoAttachment = "Terrias_terrias_element_cryo";
