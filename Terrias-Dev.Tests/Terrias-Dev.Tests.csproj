@@ -39,6 +39,7 @@
     <Compile Include="..\Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs" Link="Source\CardGrantPostCommitQueue.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CardMutationService.cs" Link="Source\CardMutationService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs" Link="Source\RuntimeCardAttachmentService.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\GoldDreamRules.cs" Link="Source\GoldDreamRules.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\StarBlessingCostOverrideStore.cs" Link="Source\StarBlessingCostOverrideStore.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ResonanceCostTransactionStore.cs" Link="Source\ResonanceCostTransactionStore.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarFlameSealFormula.cs" Link="Source\SolarFlameSealFormula.cs" />

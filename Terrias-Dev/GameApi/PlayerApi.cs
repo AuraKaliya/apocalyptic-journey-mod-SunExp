@@ -200,9 +200,31 @@ public static class PlayerApi
             return true;
         }
 
-        var current = GetStaticMember(PlayerInfo, "Money");
-        var next = DictionaryUtil.ParseInt(Convert.ToString(current)) + amount;
-        return SetStaticMember(PlayerInfo, "Money", next);
+        var next = Math.Max(0L, Math.Min(int.MaxValue, (long)GetMoney() + amount));
+        return SetStaticMember(PlayerInfo, "Money", (int)next);
+    }
+
+    public static int GetMoney()
+    {
+        return Math.Max(0, DictionaryUtil.ParseInt(Convert.ToString(GetStaticMember(PlayerInfo, "Money"))));
+    }
+
+    public static bool TrySpendMoney(int amount)
+    {
+        var requested = Math.Max(0, amount);
+        if (requested == 0)
+        {
+            return true;
+        }
+
+        var current = GetMoney();
+        return current >= requested && SetStaticMember(PlayerInfo, "Money", current - requested);
+    }
+
+    public static int SpendMoneyUpTo(int amount)
+    {
+        var spent = Math.Min(GetMoney(), Math.Max(0, amount));
+        return spent > 0 && !TrySpendMoney(spent) ? 0 : spent;
     }
 
     public static void AddCard(string cardId)

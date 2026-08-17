@@ -49,6 +49,7 @@ public static class TerriasIds
     public const string EmberCrownCardPackId = "Terrias_terrias_cardpack_ember_crown";
     public const string SolarCanopyCardPackId = "Terrias_terrias_cardpack_solar_canopy";
     public const string MorningStarOvertureCardPackId = "Terrias_terrias_cardpack_morning_star_overture";
+    public const string FalseGoldDreamCardPackId = "Terrias_terrias_cardpack_false_gold_dream";
     public const string EmberCloakLiningRelicId = "*ember_cloak_lining";
     public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";
 
@@ -104,6 +105,10 @@ public static class TerriasIds
     public const string WhiteRadianceTag = "白曜";
     public const string MorningStarSealTag = "启明星";
     public const string SolarFlameSealTag = "阳炣";
+    public const string GoldDreamTag = "黄金梦";
+    public const string GoldDreamTemporaryMarker = "TerriasTempGoldDream";
+    public const string GoldDreamSkipOnce = "TerriasGoldDreamSkipOnce";
+    public const string FortuneThrowAscension = "TerriasFortuneThrowAscension";
     public const string SolarWitchBlessing = "solar_witch";
     public const string WhiteRadianceSaintBlessing = "white_radiance_saint";
     public const string SunPriestBlessing = "sun_priest";
@@ -168,6 +173,16 @@ public static class TerriasIds
     public const string KeenEdge = "buff_keenedge";
     public const string Resilient = "buff_resilient";
     public const string Evergreen = "buff_evergreen";
+    public const string Impregnable = "buff_impregnable";
+    public const string Poised = "buff_poised";
+    public const string FalseGold = "Terrias_terrias_false_gold";
+    public const string DebtDueOne = "Terrias_terrias_debt_due_1";
+    public const string DebtDueTwo = "Terrias_terrias_debt_due_2";
+    public const string DebtDueThree = "Terrias_terrias_debt_due_3";
+    public const string GoldenPotentialZero = "Terrias_terrias_golden_potential_zero";
+    public const string GoldenPotentialK = "Terrias_terrias_golden_potential_k";
+    public const string GoldenPotentialM = "Terrias_terrias_golden_potential_m";
+    public const string GoldenPotentialB = "Terrias_terrias_golden_potential_b";
     public const string VowPower = "buff_VowPower";
     public const string ForgottenCardId = "cursecard_6";
     public const string DreamCardId = "cursecard_11";
@@ -220,6 +235,18 @@ public static class TerriasIds
     public const string RestMarkCardId = "Terrias_terrias_rest_mark";
     public const string MorningStarStageCardId = "Terrias_terrias_morning_star_stage";
     public const string StarScoreEchoCardId = "Terrias_terrias_star_score_echo";
+    public const string GildedButterflyCardShortId = "gilded_butterfly";
+    public const string WagerCardShortId = "wager";
+    public const string FortuneThrowCardShortId = "fortune_throw";
+    public const string DisplayWealthCardShortId = "display_wealth";
+    public const string BlankCheckCardShortId = "blank_check";
+    public const string GoldenDreamlandCardShortId = "golden_dreamland";
+    public const string GildedButterflyCardId = "Terrias_terrias_gilded_butterfly";
+    public const string WagerCardId = "Terrias_terrias_wager";
+    public const string FortuneThrowCardId = "Terrias_terrias_fortune_throw";
+    public const string DisplayWealthCardId = "Terrias_terrias_display_wealth";
+    public const string BlankCheckCardId = "Terrias_terrias_blank_check";
+    public const string GoldenDreamlandCardId = "Terrias_terrias_golden_dreamland";
     public const string PolymorphCardShortId = "polymorph";
     public const string PolymorphRoleTemplateShortId = "polymorph_role_template";
     public const string PolymorphRoleTemplateCardId = "Terrias_terrias_polymorph_role_template";

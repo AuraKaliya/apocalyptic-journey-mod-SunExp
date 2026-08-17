@@ -5792,6 +5792,8 @@ Update the shipped-config contract to schema 29 and assert the new `displayMode`
 **Severity**: medium
 **Status**: resolved
 **Area**: packaging
+**Recurrence-Count**: 2
+**Last-Seen**: 2026-08-17
 
 ## What failed
 
@@ -5800,6 +5802,8 @@ Update the shipped-config contract to schema 29 and assert the new `displayMode`
 ## Resolution
 
 Synchronize the generated `Aura.Shared.dll` package copy across all three shared-runtime consumers before rerunning the packaging gate.
+
+The mismatch recurred after rebuilding only AuraToolsExp during the settings-page migration. Running `Build-MainSharedConsumers.ps1` synchronized all three package copies and restored the gate.
 
 ---
 # ERR-20260812-007: Quoted ripgrep alternation was malformed
@@ -5840,6 +5844,8 @@ Run validation scripts as separate shell tool calls; use the supported parallel 
 **Severity**: low
 **Status**: resolved
 **Area**: tooling
+**Recurrence-Count**: 2
+**Last-Seen**: 2026-08-17
 
 ## What failed
 
@@ -5848,6 +5854,8 @@ Source inspections guessed `CombatObservationModels.cs` and later `CombatActionS
 ## Resolution
 
 Read the exact path returned by `rg`, and pass directories plus `-g` patterns rather than wildcard path arguments on Windows.
+
+The pattern recurred on 2026-08-17 when a quoted Windows wildcard was passed to `rg`; directory plus `-g` remains the required form.
 
 ---
 # ERR-20260812-010: Projection executor overload names were swapped
@@ -5896,3 +5904,167 @@ Running `Test-NetworkRpcAuthority.ps1` with Windows PowerShell failed because it
 ## Resolution
 
 Run repository validation scripts that use modern .NET APIs with `pwsh`; the RPC authority scan then passed.
+
+---
+# ERR-20260817-001: PowerShell New-Object did not bind the Bitmap pixel-format enum
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+The first card-art resize command passed `[System.Drawing.Imaging.PixelFormat]::Format32bppArgb` through `New-Object` positional arguments. PowerShell treated the enum expression as text, so `Bitmap` construction failed and the later graphics calls received null.
+
+## Resolution
+
+Construct typed GDI+ objects with `[System.Drawing.Bitmap]::new(...)` when enum overloads are involved, and validate that the output exists before continuing the art pipeline.
+
+---
+# ERR-20260817-002: PowerShell edge-validation loop had parser-sensitive expressions
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+The first border-pixel validation piped a `foreach` statement directly into `Format-Table`, which PowerShell parsed as an empty pipeline element. The next attempt used `@(0,$bmp.Height-1)`, which bound subtraction to the array expression instead of the height value.
+
+## Resolution
+
+Capture `foreach` output in an array before piping, and calculate typed `$lastX` and `$lastY` values before constructing edge-index arrays.
+
+---
+# ERR-20260817-003: System Python lacked Pillow for the image helper
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+The bundled chroma-key helper was first invoked with the system `python`, whose environment did not include Pillow, so no alpha output was written.
+
+## Resolution
+
+Load Codex workspace dependencies and invoke the helper with the bundled Python runtime at the returned path instead of installing packages into the project or system environment.
+
+---
+# ERR-20260817-004: PowerShell parsed a colon as part of an interpolated variable
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+The prepared-art resize command used `$name:` inside a double-quoted error message. PowerShell treated the colon as part of a scoped variable reference and rejected the script before it executed.
+
+## Resolution
+
+Use `${name}:` when punctuation immediately follows an interpolated PowerShell variable.
+
+---
+# ERR-20260817-005: Built-in image generation accepts at most five reference paths
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tooling
+
+## What failed
+
+The first False Gold Dream cover request supplied seven local references, but the built-in image generation tool rejects `referenced_image_paths` lists longer than five.
+
+## Resolution
+
+Compose related series references into an unlabeled contact sheet and pass that sheet together with the approved benchmark and one structural cover reference.
+
+---
+# ERR-20260817-006: Gold Dream HUD runtime missed the ModHookContext namespace
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The first Terrias build could not resolve `ModHookContext` in `GoldDreamHudRuntime.cs` because the new hook runtime omitted `using Witch.Core;`. The build wrapper also returned shell exit code 0 even though MSBuild reported compilation errors.
+
+## Resolution
+
+Import `Witch.Core` in the HUD runtime and inspect build output for `生成失败`/compiler errors rather than relying only on the wrapper process exit code.
+
+---
+# ERR-20260817-007: Terrias branding gate is blocked by pre-existing tracked diagnostics
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: pending
+**Area**: tests
+
+## What failed
+
+`tools/Test-TerriasBranding.ps1` found the retired brand token inside tracked `tmp/resume-diagnostic/*.json` absolute paths. The same gate also still requires `ModVersion` 0.5.0 while the existing `Terrias/ModConfig.json` was already 0.5.1 before the False Gold Dream work.
+
+## Resolution
+
+This task leaves unrelated diagnostic artifacts and the stale branding-test version contract unchanged. Clean or exclude those tracked diagnostics and align the gate with the current release version in a dedicated branding-maintenance change.
+
+---
+# ERR-20260817-002: First AuraTools module-host build retained an old initializer and missed shared UI imports
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The first AuraToolsExp build after moving feature initialization into `AuraToolModuleHost` still called `AuraToolsFileLogRuntime` from `Entry.cs`. The Feast and card-use-CG editors also used the new `AuraUiViewState` types without importing `AuraUi.Shared`.
+
+## Suggested Fix
+
+Remove the obsolete Entry logging initialization so logging has one module owner, add the missing shared UI namespace imports, and rebuild before continuing the refactor.
+
+## Resolution
+
+Removed the old Entry initializer, imported `AuraUi.Shared` in the affected editors, and rebuilt AuraToolsExp with zero warnings and errors.
+
+---
+# ERR-20260817-003: Shared-write gate has pre-existing consumer write violations
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: pending
+**Area**: tests
+
+## What failed
+
+`tools/Test-SharedWriteEntrypoints.ps1` reported existing direct file writes in AuraToolsExp match-record media/portability code, PixelEmoji storage, and Terrias SpiritCollection code. The current toolbox refactor did not edit those write paths.
+
+## Suggested Fix
+
+Handle this as a separate storage-boundary task: route durable writes through approved owner stores where appropriate, and explicitly classify legitimate media stream writers before changing the shared-write exclusions.
+
+---
+# ERR-20260817-005: Settings runtime extraction left one obsolete AutoBattle field write
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The first build after moving the AutoBattle settings page out of `AuraToolsSettingsRuntime` failed because `ClearPanel` still assigned the removed `autoBattleSnapshotRevisionBuilt` field.
+
+## Resolution
+
+Removed the stale cleanup assignment and rebuilt AuraToolsExp with zero warnings and errors.

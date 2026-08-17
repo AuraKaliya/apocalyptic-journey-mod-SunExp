@@ -54,6 +54,7 @@ public static class RuntimeHooks
         RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
         RunHookStep("ember adventure state", () => EmberAdventureStateRuntime.Initialize(modConfig));
+        RunHookStep("gold dream runtime", () => GoldDreamRuntime.Initialize(modConfig));
         RunHookStep("terrias UI lifecycle", () => TerriasUiLifecycleRuntime.Initialize(modConfig));
         RunHookStep("endless sea mode", () => EndlessSeaModeRuntime.Initialize(modConfig));
         RunHookStep("endless sea combat", () => EndlessSeaCombatRuntime.Initialize(modConfig));

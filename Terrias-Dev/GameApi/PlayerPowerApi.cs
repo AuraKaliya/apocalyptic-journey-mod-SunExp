@@ -71,4 +71,24 @@ public static class PlayerPowerApi
             return false;
         }
     }
+
+    public static bool TrySetPower(int amount)
+    {
+        var player = FightPlayer.Instance;
+        if (player == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            player.CurPowerCount = Math.Max(0, amount);
+            return player.CurPowerCount == Math.Max(0, amount);
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("FightPlayer power set failed: " + ex.Message);
+            return false;
+        }
+    }
 }

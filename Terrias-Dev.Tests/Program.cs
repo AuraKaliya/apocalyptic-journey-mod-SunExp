@@ -17,6 +17,7 @@ internal static class Program
         TestDictionaryUtil();
         TestTerriasLocalizationValues();
         TestCardCostHelpers();
+        TestGoldDreamRules();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
         TestSolarFlameSealFormula();
@@ -128,6 +129,32 @@ internal static class Program
         True(TerriasIds.IsTechnicalBlessingId("*origin_strength_50"), "Hidden origin milestones are classified as technical blessings");
         True(TerriasIds.IsTechnicalBlessingId(TerriasIds.OriginFortune50Blessing), "Runtime origin milestone ids remain excluded from custom blessing pools");
         False(TerriasIds.IsTechnicalBlessingId("Terrias_terrias_solar_witch"), "Player-facing Solar blessings are not classified as technical");
+    }
+
+    private static void TestGoldDreamRules()
+    {
+        Equal(GoldenPotentialTier.Zero, GoldDreamRules.PotentialTier(0), "Zero False Gold uses Golden Potential zero");
+        Equal(GoldenPotentialTier.Zero, GoldDreamRules.PotentialTier(999), "Golden Potential K requires one thousand False Gold");
+        Equal(GoldenPotentialTier.K, GoldDreamRules.PotentialTier(1_000), "Golden Potential K starts at one thousand");
+        Equal(GoldenPotentialTier.M, GoldDreamRules.PotentialTier(1_000_000), "Golden Potential M starts at one million");
+        Equal(GoldenPotentialTier.B, GoldDreamRules.PotentialTier(1_000_000_000), "Golden Potential B starts at one billion");
+
+        Equal(50, GoldDreamRules.WagerCost(0), "Wager always includes its fifty Gold base payment");
+        Equal(150, GoldDreamRules.WagerCost(1_000), "Wager adds ten percent of current real Gold");
+        Equal(0, GoldDreamRules.TenPercentIncrease(0), "Golden Dream does not create value from zero");
+        Equal(1, GoldDreamRules.TenPercentIncrease(1), "Golden Dream ten percent rounds up");
+        Equal(2, GoldDreamRules.TenPercentIncrease(11), "Golden Dream rounds fractional ten percent upward");
+
+        Equal(10, GoldDreamRules.FortuneThrowDamage(100, 0), "Fortune Throw divides the check by ten");
+        Equal(27, GoldDreamRules.FortuneThrowDamage(99, 2), "Fortune Throw multiplies by one plus prior Ascensions");
+        Equal(int.MaxValue, GoldDreamRules.FortuneThrowDamage(100, int.MaxValue), "Fortune Throw damage saturates instead of overflowing");
+        Equal(500, GoldDreamRules.ConvertedRealGold(1_001), "Golden Dreamland converts False Gold at floor fifty percent");
+        Equal(int.MaxValue, GoldDreamRules.TotalDebt(int.MaxValue, 20, 30), "Debt totals saturate at the runtime integer limit");
+
+        var normalized = GoldDreamRules.NormalizeDebt(int.MaxValue - 2, 5, 9);
+        Equal(int.MaxValue - 2, normalized.DueOne, "Debt normalization preserves the nearest due bucket");
+        Equal(2, normalized.DueTwo, "Debt normalization spends remaining capacity on the second bucket");
+        Equal(0, normalized.DueThree, "Debt normalization drops only overflow from the latest bucket");
     }
 
     private static void TestTerriasLocalizationValues()
@@ -1428,6 +1455,20 @@ internal static class Program
         False(config.Vars.ContainsKey(TerriasIds.TempWhiteRadianceLockId), "Runtime attachment cleanup removes the temporary white radiance lock");
         False(card.Tags.Contains("Burnout"), "Runtime attachment cleanup removes temporary Burnout from visible card tags");
         False(card.Tags.Contains(WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from visible card tags");
+
+        var goldDreamResult = RuntimeCardAttachmentService.AttachToCurrentHand(
+            executor,
+            RuntimeCardAttachmentService.GoldDreamHandAttachment());
+        True(goldDreamResult.Changed > 0, "Golden Dream attachment changes the current hand card");
+        True(CardConfigApi.HasGoldDream(config), "Golden Dream attachment is visible to the action runtime");
+        True(card.Tags.Contains(TerriasIds.GoldDreamTag), "Golden Dream attachment is visible on the card item");
+        RuntimeCardAttachmentService.ClearTemporaryAttachments("test.gold-dream");
+        False(CardConfigApi.HasGoldDream(config), "Golden Dream attachment is cleared at the fight boundary");
+        False(card.Tags.Contains(TerriasIds.GoldDreamTag), "Generic attachment cleanup removes Golden Dream from visible tags");
+
+        DictionaryUtil.Set(config.Vars, TerriasIds.GoldDreamSkipOnce, "1");
+        True(CardConfigApi.TryClaimGoldDreamSkipOnce(config), "Wager claims its deferred Golden Dream trigger once");
+        False(CardConfigApi.TryClaimGoldDreamSkipOnce(config), "Wager cannot claim the same Golden Dream skip twice");
 
         FightCardManager.Instance.cardList.Clear();
         Witch.UI.Window.FightUI.cardItemList.Clear();

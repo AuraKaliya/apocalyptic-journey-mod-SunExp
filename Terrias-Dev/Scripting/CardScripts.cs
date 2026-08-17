@@ -36,6 +36,12 @@ public static class CardScripts
         [TerriasIds.SpiritWithdrawCardShortId] = InitSpiritWithdraw,
         [TerriasIds.HeartChangeCardShortId] = InitHeartChange,
         [TerriasIds.FateStarCardShortId] = InitFateStar,
+        [TerriasIds.GildedButterflyCardShortId] = InitGoldDreamCommon,
+        [TerriasIds.WagerCardShortId] = InitWager,
+        [TerriasIds.FortuneThrowCardShortId] = InitFortuneThrow,
+        [TerriasIds.DisplayWealthCardShortId] = InitGoldDreamCommon,
+        [TerriasIds.BlankCheckCardShortId] = InitGoldDreamCommon,
+        [TerriasIds.GoldenDreamlandCardShortId] = InitGoldDreamCommon,
         ["lucky_jackpot_b"] = InitCommonCard
     };
 
@@ -80,6 +86,12 @@ public static class CardScripts
         [TerriasIds.SpiritWithdrawCardShortId] = UseSpiritWithdraw,
         [TerriasIds.HeartChangeCardShortId] = UseHeartChange,
         [TerriasIds.FateStarCardShortId] = UseFateStar,
+        [TerriasIds.GildedButterflyCardShortId] = UseGildedButterfly,
+        [TerriasIds.WagerCardShortId] = UseWager,
+        [TerriasIds.FortuneThrowCardShortId] = UseFortuneThrow,
+        [TerriasIds.DisplayWealthCardShortId] = UseDisplayWealth,
+        [TerriasIds.BlankCheckCardShortId] = UseBlankCheck,
+        [TerriasIds.GoldenDreamlandCardShortId] = UseGoldenDreamland,
         ["lucky_jackpot_b"] = UseLuckyJackpotB
     };
 
@@ -279,6 +291,34 @@ public static class CardScripts
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
     }
 
+    private static void InitGoldDreamCommon(ScriptExecutor self)
+    {
+        InitCommonCard(self);
+        GoldDreamEconomyService.Activate(self);
+    }
+
+    private static void InitWager(ScriptExecutor self)
+    {
+        InitGoldDreamCommon(self);
+        var cost = GoldDreamRules.WagerCost(PlayerApi.GetMoney());
+        ExecutorApi.AddValueDescription(self, "1", cost);
+        DictionaryUtil.Set(self.Vars, "Usable", PlayerApi.GetMoney() >= cost ? "1" : "0");
+    }
+
+    private static void InitFortuneThrow(ScriptExecutor self)
+    {
+        InitTargetedAttackCard(self);
+        GoldDreamEconomyService.Activate(self);
+        ExecutorApi.AddValueDescription(
+            self,
+            "1",
+            Math.Max(0, DictionaryUtil.GetInt(self.Vars, TerriasIds.FortuneThrowAscension)));
+        DictionaryUtil.Set(
+            self.Vars,
+            "Usable",
+            GoldDreamEconomyService.CanPayGold(self.Self, 1_000) ? "1" : "0");
+    }
+
     private static void UseLuckyJackpotB(ScriptExecutor self)
     {
         var result = self.CheckDice.Roll().Value;
@@ -303,6 +343,87 @@ public static class CardScripts
 
         self.SetStatus("Self");
         self.DrawCount("1");
+    }
+
+    private static void UseGildedButterfly(ScriptExecutor self)
+    {
+        GoldDreamEconomyService.Activate(self);
+        var result = RuntimeCardAttachmentService.AttachToCurrentHand(
+            self,
+            RuntimeCardAttachmentService.GoldDreamHandAttachment());
+        TerriasLog.Info("Gilded Butterfly attached Golden Dream: " + result.ToLogString());
+    }
+
+    private static void UseWager(ScriptExecutor self)
+    {
+        GoldDreamEconomyService.ResolveWager(self, out _);
+    }
+
+    private static void UseFortuneThrow(ScriptExecutor self)
+    {
+        var target = ExecutorApi.PrimaryTarget(self);
+        if (target == null || !GoldDreamEconomyService.PayGold(self, 1_000))
+        {
+            return;
+        }
+
+        var ascension = Math.Max(0, DictionaryUtil.GetInt(self.Vars, TerriasIds.FortuneThrowAscension));
+        for (var i = 0; i < 6; i++)
+        {
+            var damage = GoldDreamRules.FortuneThrowDamage(self.CheckDice.Roll().Value, ascension);
+            if (damage > 0)
+            {
+                ExecutorApi.DealDamageToTarget(self, target, damage, "Target", "True");
+            }
+        }
+
+        DictionaryUtil.Set(
+            self.Vars,
+            TerriasIds.FortuneThrowAscension,
+            GoldDreamRules.SaturatingAdd(ascension, 1).ToString());
+        RestorePrimaryTargetForAnimation(self, target);
+        TerriasCardRefreshQueue.RequestDataUpdateForHandCards(
+            self.HandCard,
+            new[] { TerriasIds.FortuneThrowCardId, TerriasIds.FortuneThrowCardShortId },
+            "FortuneThrow.Ascension");
+    }
+
+    private static void UseDisplayWealth(ScriptExecutor self)
+    {
+        var discarded = CardApi.ThrowAllHandCards(self);
+        for (var i = 0; i < discarded; i++)
+        {
+            CardApi.AddCardToHand(self, TerriasIds.WagerCardId);
+        }
+    }
+
+    private static void UseBlankCheck(ScriptExecutor self)
+    {
+        var snapshot = GoldDreamEconomyService.AddBlankCheckResources(self);
+        self.SetStatus("Self");
+        switch (snapshot.Tier)
+        {
+            case GoldenPotentialTier.K:
+                self.DrawCount("3");
+                self.ChangePower("1");
+                break;
+            case GoldenPotentialTier.M:
+                self.ChangeDefence("1000000");
+                break;
+            case GoldenPotentialTier.B:
+                self.AddBuff(TerriasIds.Extraordinary, "99999");
+                self.AddBuff(TerriasIds.KeenEdge, "9999");
+                self.AddBuff(TerriasIds.Resilient, "9999");
+                self.AddBuff(TerriasIds.Impregnable, "8");
+                self.AddBuff(TerriasIds.Poised, "999");
+                self.AddBuff(TerriasIds.Evergreen, "9999");
+                break;
+        }
+    }
+
+    private static void UseGoldenDreamland(ScriptExecutor self)
+    {
+        GoldDreamEconomyService.ConvertFalseGoldAndAccelerateDebt(self);
     }
 
     private static void UseFateStar(ScriptExecutor self)

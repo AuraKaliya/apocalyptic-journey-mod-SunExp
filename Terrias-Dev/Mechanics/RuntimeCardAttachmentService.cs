@@ -117,6 +117,13 @@ public static class RuntimeCardAttachmentService
             temporaryWhiteRadiance: true);
     }
 
+    public static RuntimeCardAttachment GoldDreamHandAttachment()
+    {
+        return new RuntimeCardAttachment(
+            specialTags: new[] { TerriasIds.GoldDreamTag },
+            markers: new[] { TerriasIds.GoldDreamTemporaryMarker });
+    }
+
     public static CardGrantMutation AttachMutation(RuntimeCardAttachment attachment)
     {
         return new CardGrantMutation("runtime-card-attachment", config => AttachToConfig(config, attachment));
@@ -572,14 +579,15 @@ public static class RuntimeCardAttachmentService
             return changed;
         }
 
-        if (DictionaryUtil.ContainsToken(addedVisibleTags, BurnoutTag) && card.Tags.Remove(BurnoutTag))
+        foreach (var tag in (addedVisibleTags ?? "").Split(',')
+                     .Select(value => value.Trim())
+                     .Where(value => value.Length > 0)
+                     .Distinct(StringComparer.Ordinal))
         {
-            changed++;
-        }
-
-        if (DictionaryUtil.ContainsToken(addedVisibleTags, TerriasIds.WhiteRadianceTag) && card.Tags.Remove(TerriasIds.WhiteRadianceTag))
-        {
-            changed++;
+            if (card.Tags.Remove(tag))
+            {
+                changed++;
+            }
         }
 
         return changed;

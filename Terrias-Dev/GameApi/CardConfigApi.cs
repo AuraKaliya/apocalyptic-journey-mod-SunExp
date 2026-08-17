@@ -181,6 +181,29 @@ public static class CardConfigApi
         return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.WhiteRadianceTag);
     }
 
+    public static bool HasGoldDream(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return false;
+        }
+
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), TerriasIds.GoldDreamTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "Tag"), TerriasIds.GoldDreamTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.GoldDreamTag);
+    }
+
+    public static bool TryClaimGoldDreamSkipOnce(IDataConfig? config)
+    {
+        if (DictionaryUtil.Get(config?.Vars, TerriasIds.GoldDreamSkipOnce, "0") != "1")
+        {
+            return false;
+        }
+
+        DictionaryUtil.Set(config?.Vars, TerriasIds.GoldDreamSkipOnce, "0");
+        return true;
+    }
+
     public static bool TryClaimTemporaryWhiteRadiance(IDataConfig config)
     {
         var lockId = EnsureTemporaryWhiteRadianceLockId(config);
