@@ -75,7 +75,11 @@ public sealed class DamageRunLedger
 
     public bool Apply(DamageEvent damage)
     {
-        if (damage == null || damage.ProtocolVersion != DamageMeterProtocol.Version)
+        if (damage == null
+            || !DamageMeterProtocol.IsCompatible(
+                damage.ProtocolVersion,
+                damage.MinimumProtocolVersion,
+                damage.RequiredCapabilities))
         {
             return false;
         }
@@ -162,7 +166,11 @@ public sealed class DamageRunLedger
 
     public bool ApplySnapshot(DamageRunAggregateSnapshot snapshot)
     {
-        if (snapshot == null || snapshot.ProtocolVersion != DamageMeterProtocol.Version)
+        if (snapshot == null
+            || !DamageMeterProtocol.IsReadable(
+                snapshot.ProtocolVersion,
+                snapshot.MinimumProtocolVersion,
+                snapshot.RequiredCapabilities))
         {
             return false;
         }
@@ -331,6 +339,10 @@ public sealed class DamageRunLedger
 public sealed class DamageRunAggregateSnapshot
 {
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
+
+    public int MinimumProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
 
     public string AdventureId { get; set; } = "";
 

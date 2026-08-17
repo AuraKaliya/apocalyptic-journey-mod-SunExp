@@ -15,8 +15,39 @@ if (-not (Test-Path -LiteralPath $project -PathType Leaf)) {
 
 $modConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\ModConfig.json") | ConvertFrom-Json
-if ($modConfig.ModVersion -ne "0.5.0" -or $modConfig.MustSame -ne $true) {
-    throw "AuraToolsExp animated pixel-emoji RPC requires the 0.5.0 MustSame compatibility boundary."
+if ([string]$modConfig.ModVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$' `
+        -or $modConfig.MustSame -ne $false) {
+    throw "AuraToolsExp must use semantic release metadata without a global exact-version lobby gate."
+}
+
+$protocolManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\protocol.compatibility.json") |
+    ConvertFrom-Json
+$requiredProtocolFeatures = @{
+    "multiplayer.mod-sync" = @(1, 2)
+    "presentation.pixel-emoji" = @(2, 2)
+    "records.damage-meter" = @(4, 4)
+    "presentation.damage-settlement-cg" = @(1, 1)
+    "records.match-replay" = @(8, 8)
+}
+if ($protocolManifest.schemaVersion -ne 1 `
+        -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
+        -or $protocolManifest.globalExactModVersionRequired -ne $false) {
+    throw "AuraToolsExp protocol inventory must disable the global exact-version gate."
+}
+foreach ($entry in $requiredProtocolFeatures.GetEnumerator()) {
+    $feature = @($protocolManifest.features | Where-Object id -eq $entry.Key)
+    if ($feature.Count -ne 1 `
+            -or [int]$feature[0].minimumSupportedVersion -ne $entry.Value[0] `
+            -or [int]$feature[0].currentVersion -ne $entry.Value[1] `
+            -or @($feature[0].requiredCapabilities).Count -eq 0 `
+            -or [string]::IsNullOrWhiteSpace([string]$feature[0].fallback)) {
+        throw "AuraToolsExp protocol inventory is incomplete or invalid: $($entry.Key)"
+    }
+}
+$damageProtocol = @($protocolManifest.features | Where-Object id -eq "records.damage-meter")[0]
+if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
+    throw "AuraToolsExp damage-meter protocol inventory must distinguish v4 live networking from v3 persisted-data migration."
 }
 
 & dotnet run --project $project -c $Configuration
@@ -84,9 +115,13 @@ if ($matchSettings.matchRecords.enabled -ne $false `
 
 $rootSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\AuraTools.json") | ConvertFrom-Json
+$audioSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\Config\AudioSettings.json") | ConvertFrom-Json
 $pixelEmojiSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\PixelEmojiSettings.json") | ConvertFrom-Json
-if ($rootSettings.pixelEmoji.configFile -ne "PixelEmojiSettings.json" `
+if ($audioSettings.schemaVersion -ne 3 `
+        -or $null -ne $audioSettings.audioSystemVersion `
+        -or $rootSettings.pixelEmoji.configFile -ne "PixelEmojiSettings.json" `
         -or $pixelEmojiSettings.schemaVersion -ne 1 `
         -or $pixelEmojiSettings.enabled -ne $false `
         -or $pixelEmojiSettings.syncRemote -ne $true `
@@ -252,6 +287,22 @@ if ($uiSource -notmatch "SetIsOnWithoutNotify" `
         -or $viewStateSource -notmatch "FocusedId" `
         -or $viewStateSource -notmatch "AuraUiKeyedListReconciler") {
     throw "AuraToolsExp stable toggle, scroll-anchor, focus, or keyed-list contract is invalid."
+}
+
+$toolingProtocolSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolingShared\AuraToolExtensionProtocol.cs")
+$extensionAdapterSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolSharedExtensionAdapter.cs")
+$moduleHostSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolModuleHost.cs")
+if ($toolingProtocolSource -notmatch "CurrentVersion = 1" `
+        -or $toolingProtocolSource -notmatch "MinimumSupportedVersion = 1" `
+        -or $toolingProtocolSource -notmatch "ownerModId" `
+        -or $toolingProtocolSource -notmatch "RegistrationHandle" `
+        -or $extensionAdapterSource -notmatch "IAuraToolExtensionProvider" `
+        -or $moduleHostSource -notmatch "AuraToolExtensionRegistry\.Changed" `
+        -or $shellSource -notmatch 'Id = "extensions"') {
+    throw "AuraToolsExp shared tooling extension protocol or dynamic catalog integration is invalid."
 }
 
 Write-Host "AuraToolsExp behavior and Tool-owned content tests passed."

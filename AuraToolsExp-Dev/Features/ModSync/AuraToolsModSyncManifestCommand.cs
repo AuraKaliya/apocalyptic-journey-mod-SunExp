@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AuraOnline.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
@@ -21,6 +22,10 @@ public sealed class AuraToolsModSyncManifestQueryResult
 {
     public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
 
+    public int MinimumProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
+
     public string RequesterPlayerId { get; set; } = "";
 
     public string RequestId { get; set; } = "";
@@ -35,11 +40,32 @@ public sealed class AuraToolsModSyncManifestQueryResult
 [Serializable]
 public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
-    public const int CurrentProtocolVersion = 2;
+    public const int CurrentProtocolVersion =
+        AuraToolsModSyncProtocolPolicy.CurrentProtocolVersion;
+    public const int MinimumSupportedProtocolVersion =
+        AuraToolsModSyncProtocolPolicy.MinimumSupportedProtocolVersion;
+    public const string ManifestCapability = "host-manifest.v1";
+    public const string TargetedResponseCapability = "targeted-response.v1";
+    public const string ChunkedManifestCapability = "chunked-manifest.v1";
+
+    public static readonly AuraToolsProtocolContract Protocol = new(
+        "mod-sync",
+        CurrentProtocolVersion,
+        MinimumSupportedProtocolVersion,
+        new[]
+        {
+            ManifestCapability,
+            TargetedResponseCapability,
+            ChunkedManifestCapability
+        });
 
     private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
+
+    public int MinimumProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
 
     public string RequesterPlayerId { get; set; } = "";
 
@@ -71,9 +97,13 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
     public override void CmdExecute()
     {
         RequesterPlayerId = serverSender.PlayerId;
-        if (ProtocolVersion != CurrentProtocolVersion)
+        var compatibility = Protocol.Negotiate(
+            ProtocolVersion,
+            MinimumProtocolVersion,
+            RequiredCapabilities);
+        if (!compatibility.Compatible)
         {
-            RejectionReason = "协议版本不匹配。";
+            RejectionReason = "协议不兼容：" + compatibility.Message;
             HostManifest = null;
             return;
         }
@@ -150,6 +180,7 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
                     RequesterPlayerId,
                     RequestId,
                     transferId,
+                    ProtocolVersion,
                     payloadJson,
                     out var chunkRejection))
             {
@@ -186,6 +217,8 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
 public sealed class AuraToolsModSyncManifestChunkCommand : RpcCommandBase
 {
     public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
+
+    public int MinimumProtocolVersion { get; set; }
 
     public string RequesterPlayerId { get; set; } = "";
 

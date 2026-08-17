@@ -15,6 +15,7 @@ public static class PixelEmojiLibraryStore
     private static PixelEmojiLibrary library = new();
     private static long revision;
     private static bool loaded;
+    private static bool readOnly;
 
     public static string DataDirectory => AuraSharedPaths.OwnerSystemDataDirectory(AuraToolsIds.ModId, "PixelEmoji");
 
@@ -61,6 +62,11 @@ public static class PixelEmojiLibraryStore
         lock (Gate)
         {
             EnsureLoadedNoLock();
+            if (readOnly)
+            {
+                error = "作品库来自更新版本，当前仅可查看，不能覆盖。";
+                return false;
+            }
             var id = (itemId ?? "").Trim();
             var existing = library.Items.FirstOrDefault(value => string.Equals(value.Id, id, StringComparison.OrdinalIgnoreCase));
             var now = DateTime.UtcNow.Ticks;
@@ -110,6 +116,11 @@ public static class PixelEmojiLibraryStore
         lock (Gate)
         {
             EnsureLoadedNoLock();
+            if (readOnly)
+            {
+                error = "作品库来自更新版本，当前仅可查看，不能覆盖。";
+                return false;
+            }
             var removed = library.Items.RemoveAll(value => string.Equals(value.Id, itemId, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
             {
@@ -248,6 +259,22 @@ public static class PixelEmojiLibraryStore
             FileName,
             new PixelEmojiLibrary());
         library = snapshot.Value ?? new PixelEmojiLibrary();
+        readOnly = snapshot.Found
+                   && (snapshot.SchemaVersion
+                       > PixelEmojiLibrary.CurrentSchemaVersion
+                       || library.SchemaVersion
+                       > PixelEmojiLibrary.CurrentSchemaVersion);
+        if (readOnly)
+        {
+            library.Items ??= new List<PixelEmojiDocument>();
+            revision = snapshot.Revision;
+            loaded = true;
+            AuraToolsLog.Warn(
+                "[PixelEmoji] newer library schema opened read-only: envelope="
+                + snapshot.SchemaVersion
+                + ", value=" + library.SchemaVersion);
+            return;
+        }
         library.Normalize();
         revision = snapshot.Revision;
         loaded = true;
@@ -255,6 +282,11 @@ public static class PixelEmojiLibraryStore
 
     private static bool WriteNoLock(IReadOnlyCollection<string> deletedIds, out string error)
     {
+        if (readOnly)
+        {
+            error = "作品库来自更新版本，当前仅可查看，不能覆盖。";
+            return false;
+        }
         var result = AuraSharedConfigStore.WriteOwner(
             AuraToolsIds.ModId,
             AuraToolsPaths.ConfigSystem,

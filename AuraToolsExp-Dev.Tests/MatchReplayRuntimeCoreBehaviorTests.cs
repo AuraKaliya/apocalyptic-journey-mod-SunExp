@@ -136,6 +136,11 @@ internal static partial class AuraToolsTestSuite
             Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
                    == MatchReplayCompatibilityLevels.Compatible,
                 "the current full authoritative-frame stream is compatible without a build fingerprint gate");
+            contextual.ReplayProtocol = MatchReplayProtocol.Version + 1;
+            Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
+                   == MatchReplayCompatibilityLevels.Degraded,
+                "a future replay protocol remains playable when all required projection capabilities are understood");
+            contextual.ReplayProtocol = MatchReplayProtocol.Version;
             var savedTransitions = first[2].ActionFrame!.CardTransitions;
             first[2].ActionFrame!.CardTransitions = new List<MatchReplayCardTransition>();
             Assert(!MatchReplayCompatibility.Evaluate(contextual, first).CanPlay,

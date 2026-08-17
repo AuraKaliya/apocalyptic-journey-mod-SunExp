@@ -73,7 +73,10 @@ public sealed class DamageLedger
     {
         if (damage == null
             || !InFight
-            || damage.ProtocolVersion != DamageMeterProtocol.Version
+            || !DamageMeterProtocol.IsCompatible(
+                damage.ProtocolVersion,
+                damage.MinimumProtocolVersion,
+                damage.RequiredCapabilities)
             || !string.Equals(damage.SessionId, SessionId, StringComparison.Ordinal)
             || damage.ServerSequence != ServerSequence + 1)
         {
@@ -147,7 +150,11 @@ public sealed class DamageLedger
 
     public bool ApplySnapshot(DamageMeterSnapshot snapshot)
     {
-        if (snapshot == null || snapshot.ProtocolVersion != DamageMeterProtocol.Version)
+        if (snapshot == null
+            || !DamageMeterProtocol.IsReadable(
+                snapshot.ProtocolVersion,
+                snapshot.MinimumProtocolVersion,
+                snapshot.RequiredCapabilities))
         {
             return false;
         }

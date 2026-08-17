@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using AuraToolsExp.Dll.Modules.Contracts;
@@ -36,6 +37,7 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
         new() { Id = "records", Label = "对局记录" },
         new() { Id = "multiplayer", Label = "联机工具" },
         new() { Id = "intelligence", Label = "智能战斗" },
+        new() { Id = "extensions", Label = "扩展工具" },
         new() { Id = "system", Label = "系统与数据" }
     };
 
@@ -74,6 +76,7 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
 
         built = true;
         AuraToolModuleHost.States.Changed += OnModuleStateChanged;
+        AuraToolModuleHost.Catalog.Changed += OnCatalogChanged;
 
         var toolbar = AuraToolsUi.CreateLayout("ToolboxToolbar", panel);
         AuraToolsUi.SetFixedHeight(toolbar, AuraToolsUi.ToolbarHeight);
@@ -192,6 +195,7 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
     private void OnDestroy()
     {
         AuraToolModuleHost.States.Changed -= OnModuleStateChanged;
+        AuraToolModuleHost.Catalog.Changed -= OnCatalogChanged;
         ToolboxSettingsPageRouter.Close();
     }
 
@@ -320,10 +324,27 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
         }
     }
 
+    private void OnCatalogChanged()
+    {
+        ToolboxSettingsPageRouter.CloseIfUnavailable();
+        if (string.Equals(
+                SessionState.CategoryId,
+                "extensions",
+                StringComparison.Ordinal)
+            && !HasExtensionModules())
+        {
+            SessionState.CategoryId = "all";
+        }
+        RebuildRows(preserveCurrentView: true);
+    }
+
     private void RefreshCategoryButtons()
     {
+        var hasExtensions = HasExtensionModules();
         foreach (var pair in categoryButtons)
         {
+            pair.Value.gameObject.SetActive(
+                pair.Key != "extensions" || hasExtensions);
             var label = pair.Value.GetComponentInChildren<Text>(true);
             if (label != null)
             {
@@ -335,6 +356,15 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
                     : AuraToolsUi.Text;
             }
         }
+    }
+
+    private static bool HasExtensionModules()
+    {
+        return AuraToolModuleHost.Catalog.VisibleModules.Any(module =>
+            string.Equals(
+                module.Descriptor.CategoryId,
+                "extensions",
+                StringComparison.Ordinal));
     }
 
     private static bool MatchesSearch(
@@ -537,6 +567,11 @@ internal static class ToolboxSettingsPageRouter
     public static void Open(IAuraToolModule module, Transform source)
     {
         Close();
+        if (AuraToolsConfigService.IsModuleConfigReadOnly(
+                module.Descriptor.ModuleId))
+        {
+            return;
+        }
         activePage = module.CreateSettingsPage();
         if (activePage == null)
         {
@@ -557,5 +592,14 @@ internal static class ToolboxSettingsPageRouter
         activePage.Deactivate();
         activePage.Dispose();
         activePage = null;
+    }
+
+    public static void CloseIfUnavailable()
+    {
+        if (activePage != null
+            && !AuraToolModuleHost.Catalog.TryGet(activePage.ModuleId, out _))
+        {
+            Close();
+        }
     }
 }

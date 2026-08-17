@@ -11,9 +11,6 @@ public sealed class AuraToolsAudioSettings
     [JsonProperty("schemaVersion")]
     public int SchemaVersion { get; set; } = 3;
 
-    [JsonProperty("audioSystemVersion")]
-    public string AudioSystemVersion { get; set; } = "2.0.0";
-
     [JsonProperty("battleBgm")]
     public AudioFeatureSettings BattleBgm { get; set; } = AudioFeatureSettings.CreateBattleBgmDefault();
 
@@ -23,7 +20,6 @@ public sealed class AuraToolsAudioSettings
     public void Normalize()
     {
         SchemaVersion = Math.Max(3, SchemaVersion);
-        AudioSystemVersion = string.IsNullOrWhiteSpace(AudioSystemVersion) ? "2.0.0" : AudioSystemVersion.Trim();
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
         BattleBgm.Normalize("Audio/Global/all/BattleBgm/AuraToolsExp/default-battle-bgm/content.mp3", -1000, false);

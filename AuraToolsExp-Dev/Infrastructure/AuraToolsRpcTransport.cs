@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using AuraOnline.Shared;
 using AuraShared.Core;
 using Network.Command;
 
@@ -41,6 +42,12 @@ public static class AuraToolsRpcTransport
         if (manager == null || command == null)
         {
             Log("skipped", source, command, 0, "manager or command missing");
+            return false;
+        }
+
+        if (!IsLobbyCompatible(out var compatibilityReason))
+        {
+            Log("blocked", source, command, 0, compatibilityReason);
             return false;
         }
 
@@ -259,6 +266,49 @@ public static class AuraToolsRpcTransport
         AuraToolsLog.Info("[NetworkTraffic] windowMs=" + elapsedMs + "; lobby=" + lobbyCount + "; top=" + top + ".");
         TrafficByCommand.Clear();
         trafficWindowStartedUtc = now;
+    }
+
+    public static bool IsLobbyCompatible(out string reason)
+    {
+        reason = "";
+        var serverPlayers = GameServer.Instance?.LobbyInfo?.AddedPlayers;
+        var clientPlayers = PlayerManager.Instance?.LobbyInfos?.AddedPlayers;
+        var players = serverPlayers != null
+            ? serverPlayers.Cast<object>().ToList()
+            : clientPlayers?.Cast<object>().ToList();
+        if (players == null || players.Count <= 1)
+        {
+            return true;
+        }
+
+        var state = AuraChatModSyncSnapshot.BuildState(
+            players,
+            AuraToolsIds.ModId,
+            PlayerManager.Instance?.PlayerId ?? "");
+        var compatibility = AuraToolsPeerCompatibility.Evaluate(
+            state.Players.Select(player => new AuraToolsPeerModState
+            {
+                PlayerId = player.PlayerId,
+                PlayerName = player.PlayerName,
+                ToolEnabled = (player.Mods ?? new List<AuraChatModSnapshot>())
+                    .Any(mod => mod.Enabled
+                                && (string.Equals(
+                                        mod.ModId,
+                                        AuraToolsIds.ModId,
+                                        StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(
+                                        mod.ModName,
+                                        AuraToolsIds.ModId,
+                                        StringComparison.OrdinalIgnoreCase)))
+            }));
+        if (compatibility.Compatible)
+        {
+            return true;
+        }
+
+        reason = "AuraTools RPC disabled because lobby peers are missing the tool: "
+                 + string.Join(", ", compatibility.MissingPeers);
+        return false;
     }
 
     private sealed class TrafficStat

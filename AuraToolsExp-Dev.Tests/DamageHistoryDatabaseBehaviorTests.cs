@@ -15,6 +15,11 @@ internal static partial class AuraToolsTestSuite
             for (var sequence = 1; sequence <= 75; sequence++)
             {
                 var record = CreateStoredFight(sequence);
+                if (sequence == 1)
+                {
+                    record.Snapshot.ProtocolVersion =
+                        DamageMeterProtocol.MinimumReadableVersion;
+                }
                 var stored = database.AppendFight(adventureId, record);
                 Assert(stored?.Sequence == sequence, "SQLite assigns monotonic fight sequence " + sequence);
             }
@@ -37,8 +42,10 @@ internal static partial class AuraToolsTestSuite
                    && secondPage.Items[0].Sequence == 45
                    && thirdPage.Items.Count == 15
                    && thirdPage.Items[^1].Sequence == 1
+                   && thirdPage.Items[^1].Snapshot.ProtocolVersion
+                   == DamageMeterProtocol.Version
                    && !thirdPage.HasMore,
-                "fight history pages backward without gaps or duplicates");
+                "fight history pages backward without gaps or duplicates and migrates supported legacy snapshots");
 
             database.SaveRunState(adventureId, new DamageRunAggregateSnapshot
             {

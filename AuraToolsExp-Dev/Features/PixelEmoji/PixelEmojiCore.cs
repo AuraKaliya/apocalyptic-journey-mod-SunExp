@@ -224,12 +224,20 @@ public static class PixelEmojiAnimationCodec
 {
     public const int MinimumFrames = 1;
     public const int MaximumFrames = 8;
+    public const int MinimumFrameDurationMilliseconds = 80;
+    public const int MaximumFrameDurationMilliseconds = 1000;
     public const int FrameDurationMilliseconds = 200;
     public const float FrameDurationSeconds = FrameDurationMilliseconds / 1000f;
 
     public static bool IsValidPlaybackMode(PixelEmojiPlaybackMode mode)
     {
         return mode == PixelEmojiPlaybackMode.Once || mode == PixelEmojiPlaybackMode.Loop;
+    }
+
+    public static bool IsSupportedFrameDuration(int milliseconds)
+    {
+        return milliseconds >= MinimumFrameDurationMilliseconds
+               && milliseconds <= MaximumFrameDurationMilliseconds;
     }
 
     public static bool IsValidFrames(IReadOnlyList<byte[]>? frames)
@@ -532,7 +540,7 @@ public sealed class PixelEmojiLibrary
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(CurrentSchemaVersion, SchemaVersion);
+        SchemaVersion = CurrentSchemaVersion;
         Items = (Items ?? new List<PixelEmojiDocument>())
             .Where(item => item != null && item.TryNormalize())
             .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
@@ -547,8 +555,25 @@ public sealed class PixelEmojiLibrary
 public sealed class PixelEmojiPresentation
 {
     public const int CurrentProtocolVersion = 2;
+    public const int MinimumSupportedProtocolVersion = 2;
+    public const string IndexedFramesCapability = "indexed-frames.v1";
+    public const string PaletteIndicesCapability = "palette-indices.v1";
+    public const string ContentHashCapability = "content-sha256.v1";
+
+    public static readonly AuraToolsProtocolContract Protocol = new(
+        "pixel-emoji",
+        CurrentProtocolVersion,
+        MinimumSupportedProtocolVersion,
+        new[]
+        {
+            IndexedFramesCapability,
+            PaletteIndicesCapability,
+            ContentHashCapability
+        });
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
+    public int MinimumProtocolVersion { get; set; }
+    public List<string> RequiredCapabilities { get; set; } = new();
     public string EventId { get; set; } = "";
     // Requests carry the client's local time for diagnostics only. The server
     // overwrites this value with its authoritative acceptance time before relay.
@@ -566,9 +591,18 @@ public sealed class PixelEmojiPresentation
     {
         frames = new List<byte[]>();
         rejection = "";
-        if (ProtocolVersion != CurrentProtocolVersion || PaletteVersion != PixelEmojiCodec.PaletteVersion)
+        var compatibility = Protocol.Negotiate(
+            ProtocolVersion,
+            MinimumProtocolVersion,
+            RequiredCapabilities);
+        if (!compatibility.Compatible)
         {
-            rejection = "协议或色板版本不匹配";
+            rejection = "协议不兼容：" + compatibility.Message;
+            return false;
+        }
+        if (PaletteVersion != PixelEmojiCodec.PaletteVersion)
+        {
+            rejection = "不支持的色板版本：" + PaletteVersion;
             return false;
         }
         if (string.IsNullOrWhiteSpace(EventId) || EventId.Length > 80)
@@ -576,7 +610,8 @@ public sealed class PixelEmojiPresentation
             rejection = "事件编号无效";
             return false;
         }
-        if (FrameDurationMilliseconds != PixelEmojiAnimationCodec.FrameDurationMilliseconds)
+        if (!PixelEmojiAnimationCodec.IsSupportedFrameDuration(
+                FrameDurationMilliseconds))
         {
             rejection = "动画帧间隔无效";
             return false;
@@ -597,6 +632,12 @@ public sealed class PixelEmojiPresentation
             rejection = "内容校验失败";
             return false;
         }
+
+        // v2 content hashes bind the fixed playback cadence. Compatible senders
+        // may declare another bounded cadence, but this reader renders it at the
+        // canonical cadence rather than trusting unbound timing metadata.
+        FrameDurationMilliseconds =
+            PixelEmojiAnimationCodec.FrameDurationMilliseconds;
 
         return true;
     }

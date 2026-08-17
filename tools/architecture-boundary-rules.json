@@ -22,6 +22,7 @@
             "AuraOnlineShared",
             "AuraRoleShared",
             "AuraGameDataShared",
+            "AuraToolingShared",
             "AudioArbiterShared",
             "BattleBgmArbiterShared",
             "StarterDeckArbiterShared",
@@ -188,6 +189,15 @@
             "AuraToolsConfigService\\.(?:Changed|AudioChanged|MatchExperienceChanged|LoggingChanged)\\s*\\+=",
             "AuraToolsConfigService\\.(?:SaveAudio|SaveMatchExperience)\\s*\\(",
             "AuraToolsConfigService\\.Root\\.(?:Audio|MatchExperience|PixelEmoji|SkillCg|Skin|Logging)\\.Enabled"
+          ]
+        },
+        {
+          "id": "tool-shared-extension-adapter-boundary",
+          "description": "Shared tool extension adapters may depend on the public Tooling protocol and internal module contracts, not concrete AuraTools features.",
+          "roots": ["AuraToolsExp-Dev/Modules"],
+          "filePattern": "AuraToolSharedExtensionAdapter.cs",
+          "deny": [
+            "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)"
           ]
         },
         {

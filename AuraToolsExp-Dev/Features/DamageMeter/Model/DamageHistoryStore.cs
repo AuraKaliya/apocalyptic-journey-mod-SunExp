@@ -120,6 +120,9 @@ public sealed class DamageHistoryStore
         var cloneSource = new DamageMeterSnapshot
         {
             ProtocolVersion = source.ProtocolVersion,
+            MinimumProtocolVersion = source.MinimumProtocolVersion,
+            RequiredCapabilities = new List<string>(
+                source.RequiredCapabilities ?? new List<string>()),
             SessionId = source.SessionId ?? "",
             InFight = source.InFight,
             SharedEnabled = source.SharedEnabled,

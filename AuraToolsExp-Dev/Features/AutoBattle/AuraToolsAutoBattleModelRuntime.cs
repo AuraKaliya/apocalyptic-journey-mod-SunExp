@@ -274,6 +274,8 @@ internal sealed class AutoBattleModelLibraryDocument
     public int SchemaVersion { get; set; } = 6;
 
     public List<AutoBattleModelLibraryEntry> Models { get; set; } = new();
+
+    internal bool ReadOnlyDueToNewerSchema { get; set; }
 }
 
 internal sealed class AutoBattleExternalValidationEntry
@@ -1427,6 +1429,11 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 EnsureModelLibraryMigratedNoLock(storage);
                 var library = ReadLibraryNoMigration();
+                if (library.ReadOnlyDueToNewerSchema)
+                {
+                    outcome = "模型库来自更新版本，当前只能查看，不能改名";
+                    return false;
+                }
                 var entry = library.Models.FirstOrDefault(item =>
                     string.Equals(item.ModelId, id, StringComparison.Ordinal));
                 if (entry == null)
@@ -1465,6 +1472,11 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 EnsureModelLibraryMigratedNoLock(storage);
                 var library = ReadLibraryNoMigration();
+                if (library.ReadOnlyDueToNewerSchema)
+                {
+                    outcome = "模型库来自更新版本，当前只能查看，不能修改命名";
+                    return false;
+                }
                 var entry = library.Models.FirstOrDefault(item =>
                     string.Equals(item.ModelId, id, StringComparison.Ordinal));
                 if (entry == null)
@@ -3146,6 +3158,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                 var fileName = ModelBundleFileName(modelId);
                 var bundlePath = Path.Combine(ModelLibraryDirectory(), fileName);
                 var library = ReadLibraryNoMigration();
+                EnsureLibraryWritable(library);
                 var existing = library.Models.FirstOrDefault(item =>
                     string.Equals(item.ModelId, modelId, StringComparison.Ordinal));
                 var generatedName = string.Equals(
@@ -3423,6 +3436,7 @@ internal static class AuraToolsAutoBattleModelRuntime
 
                         EnsureModelLibraryMigratedNoLock(storage);
                         var library = ReadLibraryNoMigration();
+                        EnsureLibraryWritable(library);
                         var existingIdentities = library.Models
                             .Select(BundledRegistrationIdentity)
                             .ToList();
@@ -3576,7 +3590,7 @@ internal static class AuraToolsAutoBattleModelRuntime
 
                 if (libraryTouched)
                 {
-                    library.SchemaVersion = Math.Max(6, library.SchemaVersion);
+                    library.SchemaVersion = 6;
                     if (BundledFoundationFileTransaction.TryCommitIndex(
                             pending.Select(outcome => outcome.FileTransaction)
                                 .ToList(),
@@ -4521,7 +4535,13 @@ internal static class AuraToolsAutoBattleModelRuntime
             AutoBattleModelLibraryEntry? entry;
             lock (LibraryGate)
             {
-                entry = ReadLibrary().Models.FirstOrDefault(item =>
+                var library = ReadLibrary();
+                if (library.ReadOnlyDueToNewerSchema)
+                {
+                    reason = "模型库来自更新版本，当前仅可查看模型信息";
+                    return false;
+                }
+                entry = library.Models.FirstOrDefault(item =>
                     string.Equals(item.ModelId, id, StringComparison.Ordinal)
                     && string.Equals(
                         NormalizeProfile(item.Profile),
@@ -4904,7 +4924,14 @@ internal static class AuraToolsAutoBattleModelRuntime
         var library = AuraSharedJson.Deserialize<AutoBattleModelLibraryDocument>(
                           File.ReadAllText(path))
                       ?? new AutoBattleModelLibraryDocument();
-        library.SchemaVersion = Math.Max(6, library.SchemaVersion);
+        if (library.SchemaVersion > 6)
+        {
+            library.ReadOnlyDueToNewerSchema = true;
+        }
+        else
+        {
+            library.SchemaVersion = 6;
+        }
         library.Models ??= new List<AutoBattleModelLibraryEntry>();
         return library;
     }
@@ -4928,12 +4955,25 @@ internal static class AuraToolsAutoBattleModelRuntime
         AutoBattleModelLibraryDocument library,
         AuraSharedStorageCoordinator storage)
     {
-        library.SchemaVersion = Math.Max(6, library.SchemaVersion);
+        EnsureLibraryWritable(library);
+        library.SchemaVersion = 6;
         Directory.CreateDirectory(ModelLibraryDirectory());
         storage.WriteTextAtomic(
             ModelLibraryManifestPath(),
             AuraSharedJson.Serialize(library),
             createBackup: true);
+    }
+
+    private static void EnsureLibraryWritable(
+        AutoBattleModelLibraryDocument library)
+    {
+        if (library == null
+            || library.ReadOnlyDueToNewerSchema
+            || library.SchemaVersion > 6)
+        {
+            throw new InvalidOperationException(
+                "模型库来自更新版本，当前只能查看，不能覆盖");
+        }
     }
 
     private static AutoBattleModelLibraryEntry CloneLibraryEntry(

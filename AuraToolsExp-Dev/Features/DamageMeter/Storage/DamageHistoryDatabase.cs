@@ -55,7 +55,14 @@ internal sealed class DamageHistoryDatabase
 
     internal DamageFightRecord? AppendFight(string adventureId, DamageFightRecord record)
     {
-        if (record == null || string.IsNullOrWhiteSpace(adventureId) || string.IsNullOrWhiteSpace(record.SessionId))
+        if (record == null
+            || string.IsNullOrWhiteSpace(adventureId)
+            || string.IsNullOrWhiteSpace(record.SessionId)
+            || record.Snapshot == null
+            || !DamageMeterProtocol.IsReadable(
+                record.Snapshot.ProtocolVersion,
+                record.Snapshot.MinimumProtocolVersion,
+                record.Snapshot.RequiredCapabilities))
         {
             return null;
         }
@@ -119,7 +126,12 @@ internal sealed class DamageHistoryDatabase
 
     internal void SaveRunState(string adventureId, DamageRunAggregateSnapshot snapshot)
     {
-        if (snapshot == null || string.IsNullOrWhiteSpace(adventureId))
+        if (snapshot == null
+            || string.IsNullOrWhiteSpace(adventureId)
+            || !DamageMeterProtocol.IsReadable(
+                snapshot.ProtocolVersion,
+                snapshot.MinimumProtocolVersion,
+                snapshot.RequiredCapabilities))
         {
             return;
         }
@@ -158,12 +170,24 @@ internal sealed class DamageHistoryDatabase
             }
 
             var snapshot = DamageHistoryPayload.Decode<DamageRunAggregateSnapshot>(statement.Blob(0));
-            if (snapshot != null)
+            if (snapshot != null
+                && DamageMeterProtocol.IsReadable(
+                    snapshot.ProtocolVersion,
+                    snapshot.MinimumProtocolVersion,
+                    snapshot.RequiredCapabilities))
             {
                 snapshot.ProtocolVersion = DamageMeterProtocol.Version;
+                snapshot.MinimumProtocolVersion =
+                    DamageMeterProtocol.MinimumSupportedVersion;
+                snapshot.RequiredCapabilities = new List<string>
+                {
+                    DamageMeterProtocol.SequencedEventsCapability,
+                    DamageMeterProtocol.SplitDamageCapability,
+                    DamageMeterProtocol.SnapshotCapability
+                };
+                return snapshot;
             }
-
-            return snapshot;
+            return null;
         }
     }
 
@@ -194,8 +218,10 @@ internal sealed class DamageHistoryDatabase
                     }
 
                     record.Sequence = (int)Math.Max(0, Math.Min(int.MaxValue, statement.Int64(0)));
-                    NormalizeFight(record);
-                    items.Add(record);
+                    if (NormalizeFight(record))
+                    {
+                        items.Add(record);
+                    }
                 }
             }
 
@@ -720,14 +746,30 @@ internal sealed class DamageHistoryDatabase
         return clone;
     }
 
-    private static void NormalizeFight(DamageFightRecord record)
+    private static bool NormalizeFight(DamageFightRecord record)
     {
         record.SessionId ??= "";
         record.Result ??= "";
         record.EndedUtc ??= "";
         record.Snapshot ??= new DamageMeterSnapshot();
+        if (!DamageMeterProtocol.IsReadable(
+                record.Snapshot.ProtocolVersion,
+                record.Snapshot.MinimumProtocolVersion,
+                record.Snapshot.RequiredCapabilities))
+        {
+            return false;
+        }
         record.Snapshot.ProtocolVersion = DamageMeterProtocol.Version;
+        record.Snapshot.MinimumProtocolVersion =
+            DamageMeterProtocol.MinimumSupportedVersion;
+        record.Snapshot.RequiredCapabilities = new List<string>
+        {
+            DamageMeterProtocol.SequencedEventsCapability,
+            DamageMeterProtocol.SplitDamageCapability,
+            DamageMeterProtocol.SnapshotCapability
+        };
         record.Snapshot.RunAggregate = null;
+        return true;
     }
 
     private static int NormalizePageSize(int pageSize)

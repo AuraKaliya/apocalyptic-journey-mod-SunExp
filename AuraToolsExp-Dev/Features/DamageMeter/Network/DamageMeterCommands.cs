@@ -133,7 +133,7 @@ public sealed class DamageMeterSnapshotCommand : RpcCommandBase, IAuraToolsServe
 
     public override void CmdExecute()
     {
-        if (ProtocolVersion == DamageMeterProtocol.Version)
+        if (DamageMeterProtocol.IsCompatible(ProtocolVersion))
         {
             if (!DamageMeterNetworkRuntime.TryCreateServerSnapshot(serverSender, out var snapshot, out var rejection))
             {
@@ -143,8 +143,25 @@ public sealed class DamageMeterSnapshotCommand : RpcCommandBase, IAuraToolsServe
                 return;
             }
 
+            if (snapshot == null)
+            {
+                RejectionReason = "快照为空。";
+                Snapshot = null;
+                return;
+            }
+
+            snapshot.ProtocolVersion = ProtocolVersion;
+            if (snapshot.RunAggregate != null)
+            {
+                snapshot.RunAggregate.ProtocolVersion = ProtocolVersion;
+            }
             Snapshot = snapshot;
             DamageMeterNetworkRuntime.EnsureSnapshotResponseFits(this);
+        }
+        else
+        {
+            RejectionReason = "协议不兼容。";
+            Snapshot = null;
         }
     }
 

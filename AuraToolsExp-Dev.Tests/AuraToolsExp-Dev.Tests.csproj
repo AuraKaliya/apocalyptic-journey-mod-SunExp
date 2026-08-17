@@ -14,6 +14,8 @@
              Link="Infrastructure\AuraToolsRpcSender.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcPayloadGuard.cs"
              Link="Infrastructure\AuraToolsRpcPayloadGuard.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsProtocolCompatibility.cs"
+             Link="Infrastructure\AuraToolsProtocolCompatibility.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs"
              Link="Shared\AuraSharedJson.cs" />
     <Compile Include="..\AuraSharedCore\AuraRpcSender.cs"
@@ -124,6 +126,12 @@
              Link="Modules\AuraToolModuleIds.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolModuleConfig.cs"
              Link="Config\AuraToolModuleConfig.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsConfigSchemaPolicy.cs"
+             Link="Config\AuraToolsConfigSchemaPolicy.cs" />
+    <Compile Include="..\AuraToolingShared\AuraToolExtensionProtocol.cs"
+             Link="Shared\AuraToolExtensionProtocol.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolSharedExtensionAdapter.cs"
+             Link="Modules\AuraToolSharedExtensionAdapter.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchReplayPayload.cs"
              Link="MatchRecords\MatchReplayPayload.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordsDatabaseMigrator.cs"

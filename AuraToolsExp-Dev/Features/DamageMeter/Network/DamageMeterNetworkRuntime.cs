@@ -684,7 +684,11 @@ internal static class DamageMeterNetworkRuntime
     private static bool ValidateCandidate(DamageEvent value, out string rejection)
     {
         rejection = "";
-        if (value == null || value.ProtocolVersion != DamageMeterProtocol.Version)
+        if (value == null
+            || !DamageMeterProtocol.IsCompatible(
+                value.ProtocolVersion,
+                value.MinimumProtocolVersion,
+                value.RequiredCapabilities))
         {
             rejection = "protocol mismatch";
             return false;

@@ -137,12 +137,16 @@ public static class AuraToolConfigChangeBus
 internal sealed class AuraToolModuleConfigStore
 {
     public const string ConfigSystem = "AuraTools.Modules";
+    public const int CurrentSchemaVersion = 1;
     private readonly Dictionary<string, long> revisions =
+        new(StringComparer.Ordinal);
+    private readonly HashSet<string> incompatible =
         new(StringComparer.Ordinal);
 
     public void Reset()
     {
         revisions.Clear();
+        incompatible.Clear();
     }
 
     public T Load<T>(string moduleId, T fallback, out bool migrated)
@@ -159,6 +163,24 @@ internal sealed class AuraToolModuleConfigStore
             document);
         revisions[moduleId] = snapshot.Revision;
         migrated = !snapshot.Found;
+        object? storedSettings = snapshot.Value == null
+            ? null
+            : snapshot.Value.Settings;
+        if (snapshot.Found
+            && (snapshot.SchemaVersion > CurrentSchemaVersion
+                || snapshot.Value?.SchemaVersion > CurrentSchemaVersion
+                || AuraToolsConfigSchemaPolicy.IsNewer(
+                    snapshot.SchemaVersion,
+                    storedSettings,
+                    fallback)))
+        {
+            incompatible.Add(moduleId);
+            migrated = false;
+            AuraToolsLog.Warn(
+                "Module config uses a newer schema and was not overwritten: "
+                + moduleId);
+            return fallback;
+        }
         if (!snapshot.Found
             || snapshot.Value == null
             || !string.Equals(
@@ -180,6 +202,15 @@ internal sealed class AuraToolModuleConfigStore
 
     public bool Save<T>(string moduleId, T settings, out long revision)
     {
+        if (incompatible.Contains(moduleId))
+        {
+            revision = revisions.TryGetValue(moduleId, out var knownRevision)
+                ? knownRevision
+                : 0;
+            AuraToolsLog.Warn(
+                "Refusing to overwrite newer module config schema: " + moduleId);
+            return false;
+        }
         var expected = revisions.TryGetValue(moduleId, out var known)
             ? known
             : 0;
@@ -193,7 +224,7 @@ internal sealed class AuraToolModuleConfigStore
                 Settings = settings
             },
             expected,
-            schemaVersion: 1);
+            schemaVersion: CurrentSchemaVersion);
         revision = result.Revision;
         if (!result.Success)
         {
@@ -206,8 +237,14 @@ internal sealed class AuraToolModuleConfigStore
         return true;
     }
 
+    public bool IsReadOnly(string moduleId)
+    {
+        return incompatible.Contains(moduleId ?? "");
+    }
+
     public static string FileName(string moduleId)
     {
         return (moduleId ?? "unknown").Trim() + ".json";
     }
+
 }

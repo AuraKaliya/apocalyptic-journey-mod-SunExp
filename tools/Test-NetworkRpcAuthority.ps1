@@ -22,10 +22,10 @@ $records = foreach ($root in $roots) {
             continue
         }
 
+        $relativePath = $file.FullName.Substring($repoRoot.Length)
+        $relativePath = $relativePath.TrimStart([char[]]@("\", "/"))
         [pscustomobject]@{
-            RelativePath = [IO.Path]::GetRelativePath(
-                $repoRoot,
-                $file.FullName).Replace("\", "/")
+            RelativePath = $relativePath.Replace("\", "/")
             Text = [IO.File]::ReadAllText($file.FullName)
         }
     }
@@ -150,7 +150,9 @@ if ($null -eq $solarCommit) {
         "SolarMemoryRoleCommitApi.ReceiveAuthoritativeResult("
     )
     foreach ($contract in $solarAckContracts) {
-        if (-not $solarCommit.Text.Contains($contract, [StringComparison]::Ordinal)) {
+        if ($solarCommit.Text.IndexOf(
+                $contract,
+                [StringComparison]::Ordinal) -lt 0) {
             $violations.Add(
                 "$($solarCommit.RelativePath): authoritative role commit acknowledgement contract is missing: $contract")
         }
@@ -161,9 +163,9 @@ $solarPreparation = $records | Where-Object {
     $_.RelativePath -eq "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs"
 } | Select-Object -First 1
 if ($null -eq $solarPreparation `
-        -or -not $solarPreparation.Text.Contains(
+        -or $solarPreparation.Text.IndexOf(
             "submission == SolarMemoryRoleCommitSubmission.Pending",
-            [StringComparison]::Ordinal)) {
+            [StringComparison]::Ordinal) -lt 0) {
     $violations.Add(
         "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs: preparation UI must remain pending until the host acknowledges the final role")
 }

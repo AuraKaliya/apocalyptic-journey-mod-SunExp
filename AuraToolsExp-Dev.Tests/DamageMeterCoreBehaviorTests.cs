@@ -58,6 +58,22 @@ internal static partial class AuraToolsTestSuite
                && tracker.IsPendingRequest("request-b")
                && !tracker.Matches("request-a"),
             "mod sync request tracker replaces a timed-out targeted request with one broadcast fallback");
+        Assert(AuraToolsModSyncProtocolPolicy.TryNextFallback(
+                   AuraToolsModSyncRequestMode.Targeted,
+                   out var broadcastMode)
+               && broadcastMode == AuraToolsModSyncRequestMode.BroadcastFallback
+               && AuraToolsModSyncProtocolPolicy.ProtocolVersionFor(broadcastMode)
+               == AuraToolsModSyncProtocolPolicy.CurrentProtocolVersion
+               && AuraToolsModSyncProtocolPolicy.TryNextFallback(
+                   broadcastMode,
+                   out var legacyMode)
+               && legacyMode == AuraToolsModSyncRequestMode.LegacyBroadcastFallback
+               && AuraToolsModSyncProtocolPolicy.ProtocolVersionFor(legacyMode)
+               == AuraToolsModSyncProtocolPolicy.MinimumSupportedProtocolVersion
+               && !AuraToolsModSyncProtocolPolicy.TryNextFallback(
+                   legacyMode,
+                   out _),
+            "mod sync retries current targeted, current broadcast, then legacy broadcast exactly once");
     
         tracker.Clear();
         Assert(!tracker.IsPending && !tracker.Matches("request-b"),

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "releaseBaseline": "0.6.0",
+  "globalExactModVersionRequired": false,
+  "features": [
+    {
+      "id": "multiplayer.mod-sync",
+      "currentVersion": 2,
+      "minimumSupportedVersion": 1,
+      "requiredCapabilities": [
+        "host-manifest.v1"
+      ],
+      "fallback": "targeted-v2 -> broadcast-v2 -> broadcast-v1 -> lobby-summary"
+    },
+    {
+      "id": "presentation.pixel-emoji",
+      "currentVersion": 2,
+      "minimumSupportedVersion": 2,
+      "requiredCapabilities": [
+        "indexed-frames.v1",
+        "palette-indices.v1",
+        "content-sha256.v1"
+      ],
+      "fallback": "reject-presentation-only"
+    },
+    {
+      "id": "records.damage-meter",
+      "currentVersion": 4,
+      "minimumSupportedVersion": 4,
+      "minimumReadableVersion": 3,
+      "requiredCapabilities": [
+        "sequenced-events.v1",
+        "hp-shield-damage.v1",
+        "snapshot-state.v1"
+      ],
+      "fallback": "request-compatible-snapshot-or-disable-damage-meter-only"
+    },
+    {
+      "id": "presentation.damage-settlement-cg",
+      "currentVersion": 1,
+      "minimumSupportedVersion": 1,
+      "requiredCapabilities": [
+        "ranked-entries.v1"
+      ],
+      "fallback": "skip-settlement-presentation-only"
+    },
+    {
+      "id": "records.match-replay",
+      "currentVersion": 8,
+      "minimumSupportedVersion": 8,
+      "requiredCapabilities": [
+        "authoritative-frames.v1",
+        "state-projection.v1",
+        "presentation-timeline.v1",
+        "indexed-seek.v1"
+      ],
+      "fallback": "analysis-only"
+    }
+  ]
+}

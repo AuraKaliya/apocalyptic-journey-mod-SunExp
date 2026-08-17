@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraShared.Core;
+using AuraTooling.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules.Contracts;
@@ -12,6 +14,8 @@ public static class AuraToolModuleHost
 {
     private static bool initialized;
     private static readonly List<IDisposable> ConfigSubscriptions = new();
+    private static readonly HashSet<string> ExternalModuleIds =
+        new(StringComparer.Ordinal);
 
     public static AuraToolModuleCatalog Catalog { get; private set; } =
         new(Array.Empty<IAuraToolModule>());
@@ -60,6 +64,9 @@ public static class AuraToolModuleHost
                 });
         }
 
+        AuraToolExtensionRegistry.Changed += OnSharedExtensionsChanged;
+        AuraToolExtensionRegistry.StateChanged += OnSharedExtensionStateChanged;
+        RefreshSharedExtensions();
         initialized = true;
     }
 
@@ -68,6 +75,11 @@ public static class AuraToolModuleHost
         if (!Catalog.TryGet(moduleId, out var module))
         {
             return AuraToolOperationResult.Fail("未找到工具模块：" + moduleId);
+        }
+        if (AuraToolsConfigService.IsModuleConfigReadOnly(moduleId))
+        {
+            return AuraToolOperationResult.Fail(
+                "该模块配置来自更新版本，当前为只读状态。");
         }
 
         try
@@ -127,5 +139,70 @@ public static class AuraToolModuleHost
             Summary = "状态读取失败",
             Attention = message ?? ""
         });
+    }
+
+    private static void OnSharedExtensionsChanged(long revision)
+    {
+        if (!AuraSharedFrameScheduler.RunOnceNextFrame(
+                new AuraSharedFrameActionRequest
+                {
+                    OwnerId = AuraToolsIds.ModId,
+                    Key = "tool-extension-registry-refresh",
+                    Source = "AuraTools.ToolExtensions.RegistryChanged",
+                    Action = RefreshSharedExtensions
+                }))
+        {
+            RefreshSharedExtensions();
+        }
+    }
+
+    private static void RefreshSharedExtensions()
+    {
+        try
+        {
+            var adapters = AuraToolExtensionRegistry.Snapshot()
+                .Select(registration =>
+                    (IAuraToolModule)new AuraToolSharedExtensionAdapter(registration))
+                .ToArray();
+            var nextIds = new HashSet<string>(
+                adapters.Select(module => module.Descriptor.ModuleId),
+                StringComparer.Ordinal);
+            foreach (var removed in ExternalModuleIds.Where(id => !nextIds.Contains(id)).ToArray())
+            {
+                States.Remove(removed);
+            }
+
+            ExternalModuleIds.Clear();
+            foreach (var moduleId in nextIds)
+            {
+                ExternalModuleIds.Add(moduleId);
+            }
+            Catalog.ReplaceExternal(adapters);
+            foreach (var adapter in adapters)
+            {
+                RefreshState(adapter.Descriptor.ModuleId);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Error("[ToolExtensions] registry refresh failed", ex);
+        }
+    }
+
+    private static void OnSharedExtensionStateChanged(
+        string qualifiedModuleId,
+        long stateRevision)
+    {
+        if (!AuraSharedFrameScheduler.RunOnceNextFrame(
+                new AuraSharedFrameActionRequest
+                {
+                    OwnerId = AuraToolsIds.ModId,
+                    Key = "tool-extension-state:" + qualifiedModuleId,
+                    Source = "AuraTools.ToolExtensions.StateChanged",
+                    Action = () => RefreshState(qualifiedModuleId)
+                }))
+        {
+            RefreshState(qualifiedModuleId);
+        }
     }
 }

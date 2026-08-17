@@ -115,9 +115,31 @@ internal static partial class AuraToolsTestSuite
             "pixel emoji presentation rejects tampered content");
         presentation.ContentHash = PixelEmojiAnimationCodec.Sha256(animationFrames, PixelEmojiPlaybackMode.Once);
         presentation.FrameDurationMilliseconds = 100;
+        Assert(presentation.TryReadFrames(out _, out rejection)
+               && presentation.FrameDurationMilliseconds
+               == PixelEmojiAnimationCodec.FrameDurationMilliseconds,
+            "pixel emoji presentation accepts bounded legacy timing metadata and normalizes playback cadence");
+        presentation.FrameDurationMilliseconds =
+            PixelEmojiAnimationCodec.MinimumFrameDurationMilliseconds - 1;
         Assert(!presentation.TryReadFrames(out _, out rejection)
                && rejection.Contains("间隔"),
-            "pixel emoji presentation rejects variable frame timing");
+            "pixel emoji presentation still rejects unsafe frame timing");
+        presentation.FrameDurationMilliseconds =
+            PixelEmojiAnimationCodec.FrameDurationMilliseconds;
+        presentation.ProtocolVersion = PixelEmojiPresentation.CurrentProtocolVersion + 1;
+        presentation.MinimumProtocolVersion = PixelEmojiPresentation.CurrentProtocolVersion;
+        presentation.RequiredCapabilities = new List<string>
+        {
+            PixelEmojiPresentation.IndexedFramesCapability,
+            PixelEmojiPresentation.PaletteIndicesCapability,
+            PixelEmojiPresentation.ContentHashCapability
+        };
+        Assert(presentation.TryReadFrames(out _, out rejection),
+            "pixel emoji presentation accepts a future additive protocol that declares a compatible baseline");
+        presentation.RequiredCapabilities.Add("future-required-renderer.v1");
+        Assert(!presentation.TryReadFrames(out _, out rejection)
+               && rejection.Contains("能力"),
+            "pixel emoji presentation rejects unknown required capabilities without disabling unrelated tools");
 
         var maximumFrames = Enumerable.Range(0, PixelEmojiAnimationCodec.MaximumFrames)
             .Select(index =>

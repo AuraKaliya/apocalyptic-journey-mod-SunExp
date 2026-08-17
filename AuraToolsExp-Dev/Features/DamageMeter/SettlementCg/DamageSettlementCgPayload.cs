@@ -3,13 +3,35 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+
+public static class DamageSettlementCgProtocol
+{
+    public const int CurrentVersion = 1;
+    public const int MinimumSupportedVersion = 1;
+    public const string RankedEntriesCapability = "ranked-entries.v1";
+
+    public static readonly AuraToolsProtocolContract Contract = new(
+        "damage-settlement-cg",
+        CurrentVersion,
+        MinimumSupportedVersion,
+        new[] { RankedEntriesCapability });
+}
 
 [Serializable]
 public sealed class DamageSettlementCgPayload
 {
+    // Retained as the source damage-data schema for compatibility with v4 peers.
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
+
+    public int PresentationProtocolVersion { get; set; } =
+        DamageSettlementCgProtocol.CurrentVersion;
+
+    public int MinimumPresentationProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
 
     public string AdventureId { get; set; } = "";
 

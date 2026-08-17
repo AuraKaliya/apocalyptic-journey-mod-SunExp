@@ -50,6 +50,7 @@ TestFeastRoleResourceIdentity();
 TestSkinRemoteSelectionPolicy();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
+TestProtocolCompatibilityContracts();
 TestModSyncRequestTracker();
 TestDamageMeterAuthorityPolicy();
 TestDamageCaptureFrameWindow();

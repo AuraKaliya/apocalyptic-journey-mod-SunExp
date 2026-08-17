@@ -1,17 +1,66 @@
 using System;
 using System.Collections.Generic;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
 public static class DamageMeterProtocol
 {
     public const int Version = 4;
+    public const int MinimumSupportedVersion = 4;
+    public const int MinimumReadableVersion = 3;
+    public const string SequencedEventsCapability = "sequenced-events.v1";
+    public const string SplitDamageCapability = "hp-shield-damage.v1";
+    public const string SnapshotCapability = "snapshot-state.v1";
+
+    public static readonly AuraToolsProtocolContract Contract = new(
+        "damage-meter",
+        Version,
+        MinimumSupportedVersion,
+        new[]
+        {
+            SequencedEventsCapability,
+            SplitDamageCapability,
+            SnapshotCapability
+        });
+    public static readonly AuraToolsProtocolContract DataContract = new(
+        "damage-meter-data",
+        Version,
+        MinimumReadableVersion,
+        new[]
+        {
+            SequencedEventsCapability,
+            SplitDamageCapability,
+            SnapshotCapability
+        });
     public const int MaxDamagePerEvent = 100000000;
     public const int MaxStringLength = 160;
     public const int MaxDetailsPerCombatant = 64;
     public const int MaxRoundsKept = 100;
     public const int MaxTeamMembers = 4;
     public const int MaxHistoryNameLength = 12;
+
+    public static bool IsCompatible(
+        int version,
+        int minimumVersion = 0,
+        IEnumerable<string>? requiredCapabilities = null)
+    {
+        return Contract.Negotiate(
+            version,
+            minimumVersion,
+            requiredCapabilities).Compatible;
+    }
+
+    public static bool IsReadable(
+        int version,
+        int minimumVersion = 0,
+        IEnumerable<string>? requiredCapabilities = null)
+    {
+        return DataContract.Negotiate(
+            version,
+            minimumVersion,
+            requiredCapabilities).Compatible;
+    }
 }
 
 public static class DamageMeterRecordNames
@@ -106,6 +155,10 @@ public enum DamageAttributionConfidence
 public sealed class DamageEvent
 {
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
+
+    public int MinimumProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
 
     public string SessionId { get; set; } = "";
 
@@ -263,6 +316,10 @@ public sealed class CombatantDamageStat
 public sealed class DamageMeterSnapshot
 {
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
+
+    public int MinimumProtocolVersion { get; set; }
+
+    public List<string> RequiredCapabilities { get; set; } = new();
 
     public string SessionId { get; set; } = "";
 

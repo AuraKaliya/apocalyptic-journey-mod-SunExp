@@ -42,6 +42,7 @@
     <Compile Include="..\BattleBgmArbiterShared\*.cs" Link="BattleBgmArbiterShared\%(Filename)%(Extension)" />
     <Compile Include="..\StarterDeckArbiterShared\*.cs" Link="StarterDeckArbiterShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraUiShared\*.cs" Link="AuraUiShared\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraToolingShared\*.cs" Link="AuraToolingShared\%(Filename)%(Extension)" />
     <Compile Include="..\UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" Link="UiRaycastSafetyShared\UiRaycastSafeDestroyRuntime.cs" />
     <Compile Include="..\UiTransitionGuardShared\UiTransitionGuardRuntime.cs" Link="UiTransitionGuardShared\UiTransitionGuardRuntime.cs" />
   </ItemGroup>

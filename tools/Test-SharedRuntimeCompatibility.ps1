@@ -34,6 +34,11 @@ foreach ($directory in @("AudioArbiterShared", "BattleBgmArbiterShared", "Starte
     }
 }
 
+$toolingCompile = "..\AuraToolingShared\*.cs"
+if ($compileIncludes -notcontains $toolingCompile) {
+    throw "Aura.Shared must compile the public tooling protocol through: $toolingCompile"
+}
+
 $baseline = Get-Content -Raw -LiteralPath $baselinePath | ConvertFrom-Json
 if ($baseline.schemaVersion -ne 1) {
     throw "Unsupported shared runtime compatibility schemaVersion: $($baseline.schemaVersion)"

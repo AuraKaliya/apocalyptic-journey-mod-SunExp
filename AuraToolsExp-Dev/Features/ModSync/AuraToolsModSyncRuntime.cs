@@ -102,6 +102,13 @@ public static class AuraToolsModSyncRuntime
         {
             AuraToolsLog.Warn("[ModSync] lobby update failed: " + ex.Message);
         }
+        finally
+        {
+            AuraToolModuleHost.RefreshState(AuraToolModuleIds.ModSync);
+            AuraToolModuleHost.RefreshState(AuraToolModuleIds.PixelEmoji);
+            AuraToolModuleHost.RefreshState(
+                AuraToolModuleIds.DamageStatistics);
+        }
     }
 
     private static void OnConfigChanged()
@@ -750,7 +757,10 @@ public static class AuraToolsModSyncRuntime
         RefreshOverlay();
     }
 
-    private static bool RequestHostManifest(AuraChatModSyncState state, bool forceBroadcast = false)
+    private static bool RequestHostManifest(
+        AuraChatModSyncState state,
+        AuraToolsModSyncRequestMode requestedMode =
+            AuraToolsModSyncRequestMode.Targeted)
     {
         var manager = PlayerManager.Instance;
         if (manager == null || manager.isServer)
@@ -761,16 +771,17 @@ public static class AuraToolsModSyncRuntime
         try
         {
             var requestId = AuraToolsRpcTransport.NewTransferId("modsync-request");
-            var mode = forceBroadcast
-                ? AuraToolsModSyncRequestMode.BroadcastFallback
-                : AuraToolsModSyncRequestMode.Targeted;
+            var mode = requestedMode;
+            var forceBroadcast = mode != AuraToolsModSyncRequestMode.Targeted;
             var timeout = forceBroadcast
                 ? BroadcastManifestRequestTimeout
                 : TargetedManifestRequestTimeout;
             ManifestRequest.Begin(requestId, DateTime.UtcNow, timeout, mode);
-            SyncSession.SetActionStatus(forceBroadcast
-                ? "定向响应超时，正在使用兼容传输重试..."
-                : "正在向房主请求完整MOD配置...");
+            SyncSession.SetActionStatus(mode == AuraToolsModSyncRequestMode.LegacyBroadcastFallback
+                ? "正在使用旧版兼容协议请求房主配置..."
+                : forceBroadcast
+                    ? "定向响应超时，正在使用兼容传输重试..."
+                    : "正在向房主请求完整MOD配置...");
 
             if (TryUseCachedHostManifest(state, requestId))
             {
@@ -803,12 +814,13 @@ public static class AuraToolsModSyncRuntime
                 RequesterPlayerId = state.LocalPlayerId,
                 RequestId = requestId,
                 TargetQueryId = targetQueryId,
-                ForceBroadcastResponse = mode == AuraToolsModSyncRequestMode.BroadcastFallback,
+                ForceBroadcastResponse = forceBroadcast,
                 RequesterToolVersion = FindToolVersion(
                     AuraOnlineLocalModManifestBuilder.CreateLocalPlayerSnapshot(
                         state.LocalPlayerId,
                         PlayerManager.Instance?.playerInfo?.Name ?? "")),
-                ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion
+                ProtocolVersion =
+                    AuraToolsModSyncProtocolPolicy.ProtocolVersionFor(mode)
             };
             if (!AuraToolsRpcTransport.Send(manager, command, "ModSync.ManifestRequest"))
             {
@@ -877,14 +889,18 @@ public static class AuraToolsModSyncRuntime
         var state = currentState;
         var mode = ManifestRequest.Mode;
         ClearPendingManifestRequest();
-        if (mode == AuraToolsModSyncRequestMode.Targeted
-            && state != null
+        if (state != null
             && IsKnownLocalPlayer(state)
-            && !SyncSession.IsLocalHost(state))
+            && !SyncSession.IsLocalHost(state)
+            && AuraToolsModSyncProtocolPolicy.TryNextFallback(
+                mode,
+                out var nextMode))
         {
-            AuraToolsLog.Warn("[ModSync] targeted host manifest request timed out; retrying broadcast transport. request="
+            AuraToolsLog.Warn("[ModSync] host manifest request timed out; retrying mode="
+                              + nextMode
+                              + ". request="
                               + requestId);
-            if (RequestHostManifest(state, forceBroadcast: true))
+            if (RequestHostManifest(state, nextMode))
             {
                 RefreshOverlay();
                 return AuraSharedFrameStepResult.Complete;
@@ -940,6 +956,8 @@ public static class AuraToolsModSyncRuntime
             ReceiveHostModManifest(new AuraToolsModSyncManifestCommand
             {
                 ProtocolVersion = result.ProtocolVersion,
+                MinimumProtocolVersion = result.MinimumProtocolVersion,
+                RequiredCapabilities = result.RequiredCapabilities,
                 RequesterPlayerId = result.RequesterPlayerId,
                 RequestId = result.RequestId,
                 HostToolVersion = result.HostToolVersion,
@@ -979,6 +997,8 @@ public static class AuraToolsModSyncRuntime
         var result = new AuraToolsModSyncManifestQueryResult
         {
             ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
+            MinimumProtocolVersion =
+                AuraToolsModSyncManifestCommand.MinimumSupportedProtocolVersion,
             RequesterPlayerId = requesterPlayerId ?? "",
             RequestId = requestId.Trim(),
             HostToolVersion = hostToolVersion ?? "",
@@ -1054,6 +1074,7 @@ public static class AuraToolsModSyncRuntime
         string requesterPlayerId,
         string requestId,
         string transferId,
+        int protocolVersion,
         string payloadJson,
         out string rejection)
     {
@@ -1106,6 +1127,7 @@ public static class AuraToolsModSyncRuntime
             safePayloadJson,
             chunk => new AuraToolsModSyncManifestChunkCommand
             {
+                ProtocolVersion = protocolVersion,
                 RequesterPlayerId = targetRequester,
                 RequestId = targetRequestId,
                 TransferId = chunk.TransferId,
@@ -1127,13 +1149,19 @@ public static class AuraToolsModSyncRuntime
 
         var isLocalRequester = IsLocalRequester(command.RequesterPlayerId);
         var matchesPendingRequest = isLocalRequester && ManifestRequest.Matches(command.RequestId);
-        if (command.ProtocolVersion != AuraToolsModSyncManifestCommand.CurrentProtocolVersion)
+        var compatibility = AuraToolsModSyncManifestCommand.Protocol.Negotiate(
+            command.ProtocolVersion,
+            command.MinimumProtocolVersion,
+            command.RequiredCapabilities);
+        if (!compatibility.Compatible)
         {
             if (matchesPendingRequest)
             {
                 AuraToolsLog.Warn("[ModSync] ignored incompatible host manifest response: received="
                                   + command.ProtocolVersion
                                   + ", supported="
+                                  + AuraToolsModSyncManifestCommand.MinimumSupportedProtocolVersion
+                                  + ".."
                                   + AuraToolsModSyncManifestCommand.CurrentProtocolVersion
                                   + ".");
                 FallbackToLobbySummary(
@@ -1165,12 +1193,13 @@ public static class AuraToolsModSyncRuntime
 
         if (command.HostManifestChunked)
         {
+            var activeMode = ManifestRequest.Mode;
             RemovePendingTargetQuery();
             ManifestRequest.Begin(
                 command.RequestId,
                 DateTime.UtcNow,
                 BroadcastManifestRequestTimeout,
-                AuraToolsModSyncRequestMode.BroadcastFallback);
+                activeMode);
             SyncSession.SetActionStatus("Receiving host mod manifest chunks...");
             AuraToolsLog.Info("[ModSync] host manifest chunk transfer announced: transfer="
                               + command.TransferId
@@ -1184,6 +1213,13 @@ public static class AuraToolsModSyncRuntime
         {
             var reason = string.IsNullOrWhiteSpace(command.RejectionReason) ? "host manifest unavailable" : command.RejectionReason;
             AuraToolsLog.Warn("[ModSync] host manifest unavailable: " + reason);
+            if (reason.IndexOf("协议", StringComparison.OrdinalIgnoreCase) >= 0
+                && ManifestRequest.Mode
+                != AuraToolsModSyncRequestMode.LegacyBroadcastFallback
+                && TryRetryLegacyManifestRequest())
+            {
+                return;
+            }
             FallbackToLobbySummary("房主完整配置不可用：" + reason, reason);
             return;
         }
@@ -1247,7 +1283,9 @@ public static class AuraToolsModSyncRuntime
         var isLocalRequester = command != null && IsLocalRequester(command.RequesterPlayerId);
         var isActiveLocalRequester = isLocalRequester && ManifestRequest.Matches(command?.RequestId ?? "");
         if (command == null
-            || command.ProtocolVersion != AuraToolsModSyncManifestCommand.CurrentProtocolVersion
+            || !AuraToolsModSyncManifestCommand.Protocol.Negotiate(
+                command.ProtocolVersion,
+                command.MinimumProtocolVersion).Compatible
             || string.IsNullOrWhiteSpace(command.TransferId))
         {
             return;
@@ -1350,7 +1388,7 @@ public static class AuraToolsModSyncRuntime
                 {
                     RequesterPlayerId = command.RequesterPlayerId,
                     RequestId = command.RequestId,
-                    ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
+                    ProtocolVersion = command.ProtocolVersion,
                     HostManifest = manifest
                 });
             }
@@ -1389,6 +1427,18 @@ public static class AuraToolsModSyncRuntime
             HostManifest = cachedHostManifest
         });
         return true;
+    }
+
+    private static bool TryRetryLegacyManifestRequest()
+    {
+        var state = currentState;
+        ClearPendingManifestRequest();
+        return state != null
+               && IsKnownLocalPlayer(state)
+               && !SyncSession.IsLocalHost(state)
+               && RequestHostManifest(
+                   state,
+                   AuraToolsModSyncRequestMode.LegacyBroadcastFallback);
     }
 
     private static void CacheHostManifest(AuraChatModPlayerSnapshot manifest)

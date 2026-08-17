@@ -75,7 +75,12 @@ public static class DamageSettlementCgRuntime
 
     private static void PlayPayload(DamageSettlementCgPayload payload, bool broadcast)
     {
-        if (payload == null || payload.ProtocolVersion != DamageMeterProtocol.Version)
+        if (payload == null
+            || !DamageMeterProtocol.IsReadable(payload.ProtocolVersion)
+            || !DamageSettlementCgProtocol.Contract.Negotiate(
+                payload.PresentationProtocolVersion,
+                payload.MinimumPresentationProtocolVersion,
+                payload.RequiredCapabilities).Compatible)
         {
             return;
         }

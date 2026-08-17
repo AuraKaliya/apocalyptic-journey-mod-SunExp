@@ -35,4 +35,9 @@ public sealed class AuraToolModuleStateStore
     {
         return states.TryGetValue(moduleId ?? "", out state!);
     }
+
+    public bool Remove(string moduleId)
+    {
+        return states.Remove(moduleId ?? "");
+    }
 }

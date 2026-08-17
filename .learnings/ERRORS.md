@@ -6068,3 +6068,67 @@ The first build after moving the AutoBattle settings page out of `AuraToolsSetti
 ## Resolution
 
 Removed the stale cleanup assignment and rebuilt AuraToolsExp with zero warnings and errors.
+
+---
+# ERR-20260817-008: Forward-schema guard was inserted into PixelEmoji read methods
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+An ambiguous patch context inserted the PixelEmoji library read-only write guard
+into `GetItems` and `Find`, where no `error` output exists and the methods do not
+return `bool`. The first full DLL build caught the invalid returns. The first
+AuraTooling test command also used the wrong project filename.
+
+## Resolution
+
+Moved the guard into the mutating `Save` and `Delete` methods, retained reads for
+newer-schema inspection, added the nullable snapshot success check, and used the
+actual `AuraToolingShared.Tests.csproj` filename for validation.
+
+---
+# ERR-20260817-009: Unconstrained generic settings cannot use null propagation
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The main-consumer build rejected `snapshot.Value?.Settings` in the generic
+module configuration store with CS8978 because unconstrained `T` cannot be made
+nullable through the null-propagation operator.
+
+## Resolution
+
+Projected the optional generic setting into an explicit `object?` with a
+conditional expression before passing it to the reflection-based schema policy,
+then reran the main-consumer build.
+
+---
+# ERR-20260817-010: Network authority gate requires PowerShell 7
+
+**Logged**: 2026-08-17
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+Running `Test-NetworkRpcAuthority.ps1` through Windows PowerShell failed because
+its .NET Framework runtime does not provide `System.IO.Path.GetRelativePath`.
+
+## Resolution
+
+Ran the unchanged gate with `pwsh`, where the required API is available. The
+authority scan then passed all 868 files with four server-bound command markers.
+
+The first compatibility rewrite also exposed that Windows PowerShell cannot
+continue a fluent method chain on a new line after a backtick. The final helper
+uses two ordinary assignments, which is valid in both Windows PowerShell and
+PowerShell 7.

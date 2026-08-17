@@ -281,7 +281,7 @@ internal static class AuraToolsBuiltInModules
             () =>
             {
                 var items = PixelEmojiLibraryStore.GetItems();
-                return State(
+                return NetworkState(
                     AuraToolModuleIds.PixelEmoji,
                     AuraToolsConfigService.PixelEmoji.Enabled,
                     "作品 " + items.Count + " · 收藏 "
@@ -308,7 +308,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.MatchExperience.ModSync.Enabled = enabled;
                 AuraToolsConfigService.SaveModSync();
             },
-            () => State(
+            () => NetworkState(
                 AuraToolModuleIds.ModSync,
                 AuraToolsConfigService.MatchExperience.ModSync.Enabled,
                 "联机大厅由房主发起同步"),
@@ -345,7 +345,7 @@ internal static class AuraToolsBuiltInModules
                 var summary = DamageScopeLabel(settings.DisplayScope)
                               + " · " + DamageTeamLabel(settings.TeamFilter)
                               + " · " + DamageDisplayLabel(settings.DisplayMode);
-                return State(
+                return NetworkState(
                     AuraToolModuleIds.DamageStatistics,
                     DamageStatisticsEnabled(),
                     summary);
@@ -552,7 +552,7 @@ internal static class AuraToolsBuiltInModules
         string attention = "",
         bool experimental = false)
     {
-        return new AuraToolModuleState
+        var state = new AuraToolModuleState
         {
             ModuleId = moduleId,
             ConfiguredEnabled = enabled,
@@ -564,6 +564,32 @@ internal static class AuraToolsBuiltInModules
             Attention = attention ?? "",
             ItemCount = count
         };
+        if (AuraToolsConfigService.IsModuleConfigReadOnly(moduleId))
+        {
+            state.Availability = AuraToolModuleAvailability.Degraded;
+            state.Attention =
+                "配置来自更新版本；当前使用安全默认值并保持原文件只读。";
+        }
+        return state;
+    }
+
+    private static AuraToolModuleState NetworkState(
+        string moduleId,
+        bool enabled,
+        string summary,
+        int? count = null)
+    {
+        var state = State(moduleId, enabled, summary, count);
+        if (enabled && !AuraToolsRpcTransport.IsLobbyCompatible(out _))
+        {
+            state.Availability = AuraToolModuleAvailability.Degraded;
+            var networkAttention =
+                "当前房间有玩家未启用妙妙工具；联机部分已暂停，本地功能仍可使用。";
+            state.Attention = string.IsNullOrWhiteSpace(state.Attention)
+                ? networkAttention
+                : state.Attention + " " + networkAttention;
+        }
+        return state;
     }
 
     private static string AudioModeSummary(AudioFeatureSettings settings)

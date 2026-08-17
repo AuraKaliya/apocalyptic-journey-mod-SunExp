@@ -58,8 +58,7 @@ internal static class MatchReplayCompatibility
             };
         }
 
-        if (record.ReplayProtocol < MatchReplayProtocol.MinimumSupportedVersion
-            || record.ReplayProtocol > MatchReplayProtocol.Version)
+        if (record.ReplayProtocol < MatchReplayProtocol.MinimumSupportedVersion)
         {
             return new MatchReplayCompatibilityResult
             {
@@ -143,14 +142,19 @@ internal static class MatchReplayCompatibility
         var missingOptional = (record.OptionalCapabilities ?? new List<string>())
             .Where(value => !SupportedCapabilities.Contains(value))
             .ToList();
+        var newerCompatibleProtocol =
+            record.ReplayProtocol > MatchReplayProtocol.Version;
         var missingRuntimeContext = string.IsNullOrWhiteSpace(record.InitialState?.DiceJson);
         var missingEnemyIntents = !required.Contains(MatchReplayCapabilities.EnemyIntentFramesV1);
         var missingRemotePlayerActions = !required.Contains(MatchReplayCapabilities.RemotePlayerActionsV1);
-        var degraded = missingOptional.Count > 0
+        var degraded = newerCompatibleProtocol
+                       || missingOptional.Count > 0
                        || missingRuntimeContext
                        || missingEnemyIntents
                        || missingRemotePlayerActions;
-        var message = missingOptional.Count > 0
+        var message = newerCompatibleProtocol
+            ? "记录来自更新的回放协议；必要能力兼容，已按当前只读投影降级播放。"
+            : missingOptional.Count > 0
             ? "部分表现能力不可用，将降级播放。"
             : missingRuntimeContext
                 ? "记录未包含原始场景游标，将使用兼容视图环境。"

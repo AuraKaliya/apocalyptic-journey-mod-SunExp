@@ -18,7 +18,10 @@ public static class OutOfRunDamageHistoryBuilder
         var snapshots = (fights ?? Array.Empty<DamageFightRecord>())
             .Where(record => record?.Snapshot != null)
             .Select(record => record.Snapshot)
-            .Where(snapshot => snapshot.ProtocolVersion == DamageMeterProtocol.Version)
+            .Where(snapshot => DamageMeterProtocol.IsReadable(
+                snapshot.ProtocolVersion,
+                snapshot.MinimumProtocolVersion,
+                snapshot.RequiredCapabilities))
             .ToList();
 
         var totalRounds = snapshots.Sum(snapshot => Math.Max(0, snapshot.CompletedRoundCount));

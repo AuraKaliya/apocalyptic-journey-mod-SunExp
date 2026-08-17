@@ -15,7 +15,6 @@ namespace AuraToolsExp.Dll.Features.Audio;
 
 public static class AuraToolsAudioRuntime
 {
-    public const string AudioSystemVersion = "2.0.0";
     private static readonly Dictionary<string, bool> PathExistsCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredBattleBgmSignatures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredCardUseSignatures = new(StringComparer.OrdinalIgnoreCase);

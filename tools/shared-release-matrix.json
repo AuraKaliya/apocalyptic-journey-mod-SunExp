@@ -27,6 +27,18 @@
       "passConfiguration": true
     },
     {
+      "id": "tooling-extension-protocol",
+      "kind": "script",
+      "path": "tools/Test-AuraToolingShared.ps1",
+      "owner": "AuraToolingShared",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["tooling", "public-api", "protocol", "consumer-contract"],
+      "profiles": ["domain", "compatibility", "consumer", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "shared-runtime-compatibility",
       "kind": "script",
       "path": "tools/Test-SharedRuntimeCompatibility.ps1",

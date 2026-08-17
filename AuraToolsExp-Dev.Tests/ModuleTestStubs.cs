@@ -20,6 +20,7 @@ namespace AuraShared.Core
     {
         public bool Found { get; set; }
         public long Revision { get; set; }
+        public int SchemaVersion { get; set; }
         public T Value { get; set; } = default!;
     }
 
@@ -32,7 +33,7 @@ namespace AuraShared.Core
 
     public static class AuraSharedConfigStore
     {
-        private static readonly Dictionary<string, (object Value, long Revision)>
+        private static readonly Dictionary<string, (object Value, long Revision, int SchemaVersion)>
             Values = new();
 
         public static AuraSharedConfigSnapshot<T> ReadOwner<T>(
@@ -55,6 +56,7 @@ namespace AuraShared.Core
             {
                 Found = true,
                 Revision = stored.Revision,
+                SchemaVersion = stored.SchemaVersion,
                 Value = value
             };
         }
@@ -71,7 +73,7 @@ namespace AuraShared.Core
             var revision = Values.TryGetValue(key, out var stored)
                 ? stored.Revision + 1
                 : 1;
-            Values[key] = (value!, revision);
+            Values[key] = (value!, revision, schemaVersion);
             return new AuraSharedConfigWriteResult
             {
                 Success = true,
@@ -80,6 +82,18 @@ namespace AuraShared.Core
         }
 
         public static void ResetForTests() => Values.Clear();
+
+        public static void SetForTests<T>(
+            string ownerModId,
+            string system,
+            string fileName,
+            T value,
+            long revision,
+            int schemaVersion)
+        {
+            var key = ownerModId + "|" + system + "|" + fileName;
+            Values[key] = (value!, revision, schemaVersion);
+        }
     }
 }
 
@@ -88,6 +102,10 @@ namespace AuraToolsExp.Dll.Infrastructure
     public static class AuraToolsLog
     {
         public static void Warn(string message)
+        {
+        }
+
+        public static void Error(string message, System.Exception? exception = null)
         {
         }
     }

@@ -19,6 +19,7 @@
 - 阶段 1 已完成：模块契约、Catalog、Host、StateStore 和分类式一级工具箱已经接管初始化与一级展示。
 - 阶段 2 已完成：音频、开局卡组、战斗回放、文件日志和战斗策略实验室均由所属 Feature 提供设置页；`AuraToolsSettingsRuntime` 已收缩为原生 `SettingUI` 注入适配器。
 - 阶段 3 已完成：15 个可持久化模块使用独立配置文档和模块级变更总线；旧聚合配置作为首次迁移回退并继续双写兼容，Root 隐藏开关不再参与运行时有效状态。
+- 阶段 4 已完成：`AuraTooling.Shared` v1 提供 owner-qualified 第三方工具注册协议、revision 快照、注销句柄和兼容校验；AuraToolsExp 可动态投影、更新和移除扩展工具，不要求第三方引用 `AuraToolsExp.Dll`。
 
 ## 2. 设计结论
 
@@ -594,9 +595,9 @@ system.reload-tool-config
 
 这可以避免“每个资源包都占一个工具卡片”，也保持内容与工具的边界。
 
-### 15.2 可选的未来阶段
+### 15.2 第四阶段公共扩展协议
 
-如果确实需要第三方工具 MOD 把一个新工具加入 AuraToolsExp 的一级壳层，应在共享层新增 owner-qualified 的 `AuraTooling.Shared` 协议，而不是让第三方引用 `AuraToolsExp.Dll`。
+第三方工具 MOD 通过共享层 owner-qualified 的 `AuraTooling.Shared` 协议加入 AuraToolsExp 一级壳层，不得引用 `AuraToolsExp.Dll`。
 
 未来协议至少需要：
 
@@ -607,7 +608,7 @@ system.reload-tool-config
 - 注销句柄、重复注册保护和故障隔离。
 - 不允许注册者获得 AuraToolsExp 私有配置或任意修改其他模块。
 
-在没有第二个真实工具消费者之前，不提前实现该公共协议。
+当前 v1 采用精简的进程内 Provider 协议，不持久化第三方状态，也不授予网络权威。完整契约见 `docs/aura-tooling-shared-contract.md`。
 
 ## 16. 测试设计
 
@@ -683,27 +684,32 @@ system.reload-tool-config
 - `Entry.cs` 只保留 Foundation + ModuleHost + SettingsShell。
 - 中央设置 Runtime 不再引用具体 Feature。
 - 添加模块边界、配置归属和 UI 刷新规则。
-- 评估是否存在真实需求，再决定是否设计公开的 `AuraTooling.Shared`。
+- 发布 `AuraTooling.Shared` v1，并由 ModuleHost 动态投影、刷新和移除共享扩展。
+- 保持 Provider 的配置、运行时、设置页和多人权威归其 owner 所有。
 
 ## 18. 文件级改造落点
 
-第一轮实现预计主要触及：
+实际改造主要落在：
 
 ```text
 AuraToolsExp-Dev/Entry.cs
 AuraToolsExp-Dev/Config/AuraToolsConfigService.cs
+AuraToolsExp-Dev/Config/AuraToolModuleConfig.cs
 AuraToolsExp-Dev/Features/Settings/AuraToolsSettingsRuntime.cs
 AuraToolsExp-Dev/Features/Settings/AuraToolsUi.cs
 AuraToolsExp-Dev/Features/Settings/AuraToolsPanelBuildState.cs
+AuraToolsExp-Dev/Features/*/*SettingsPage.cs
 AuraToolsExp-Dev/Modules/**
 AuraUiShared/AuraUiStandardRenderer.cs
 AuraUiShared/AuraUiViewState.cs
-AuraUiShared/AuraUiKeyedListReconciler.cs
+AuraToolingShared/**
 AuraToolsExp-Dev.Tests/**
+AuraToolingShared.Tests/**
 tools/architecture-boundary-rules.json
+tools/shared-release-matrix.json
 ```
 
-不应在第一轮顺手改动具体玩法逻辑、模型格式、回放协议、资源身份或多人 RPC 协议。
+本次迁移没有改动具体玩法逻辑、模型格式、回放协议、资源身份或多人 RPC 协议。
 
 ## 19. 完成标准
 
@@ -720,17 +726,11 @@ tools/architecture-boundary-rules.json
 - AuraToolsExp 与 Terrias 继续保持兄弟消费者关系。
 - 构建、AuraToolsExp 行为测试、共享兼容测试、架构门禁和手工 UI 清单全部通过。
 
-## 20. 第一轮实施建议
+## 20. 实施轮次记录
 
-建议首先实施阶段 0 与阶段 1，不同时迁移全部配置。
+1. 第一轮完成滚动与焦点保护、模块契约、Catalog、Host、StateStore 和分类式一级工具箱。
+2. 第二轮将复杂设置页与动态状态视图迁回各自 Feature，并把中央 Settings Runtime 收缩为原生注入适配器。
+3. 第三轮完成 15 个模块独立配置、旧聚合配置迁移与双写兼容、模块级通知和隐藏 Root 门禁退役。
+4. 第四轮发布 `AuraTooling.Shared` v1，并完成第三方扩展的动态注册、状态刷新、设置路由、注销和发布门禁。
 
-这轮应交付：
-
-1. 共享滚动和焦点保护基础设施。
-2. 内部模块契约、Catalog、Host 和 StateStore。
-3. 新的分类式一级工具箱页面。
-4. 现有功能的薄模块适配器。
-5. 现有二级 Editor 的路由接入。
-6. 一级开关、滚动、焦点、模块目录和初始化隔离测试。
-
-这样可以先解决用户直接感知的页面结构和跳顶问题，同时把后续配置拆分、功能迁移和公共扩展建立在稳定契约之上。
+剩余验收项是实际游戏进程中的首次旧配置迁移，以及鼠标、键盘、手柄和不同分辨率下的完整 UI 手工清单。

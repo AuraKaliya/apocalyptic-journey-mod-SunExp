@@ -163,10 +163,28 @@ internal static partial class AuraToolsTestSuite
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
         audio.Normalize();
         Assert(audio.SchemaVersion == 3
-               && audio.AudioSystemVersion == "2.0.0"
                && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
                && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3",
             "audio config preserves user resource paths while recovering missing domains");
+        Assert(AuraToolsConfigSchemaPolicy.IsNewer(
+                   storedEnvelopeVersion: 2,
+                   storedValue: new AuraToolsAudioSettings(),
+                   supportedValue: new AuraToolsAudioSettings())
+               && AuraToolsConfigSchemaPolicy.IsNewer(
+                   storedEnvelopeVersion: 1,
+                   storedValue: new AuraToolsAudioSettings
+                   {
+                       SchemaVersion = 4
+                   },
+                   supportedValue: new AuraToolsAudioSettings())
+               && !AuraToolsConfigSchemaPolicy.IsNewer(
+                   storedEnvelopeVersion: 1,
+                   storedValue: new AuraToolsAudioSettings
+                   {
+                       SchemaVersion = 2
+                   },
+                   supportedValue: new AuraToolsAudioSettings()),
+            "config schema policy migrates older values but keeps newer envelopes and values read-only");
     
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;

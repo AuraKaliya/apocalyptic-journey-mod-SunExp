@@ -1,6 +1,5 @@
 {
-  "schemaVersion": 2,
-  "audioSystemVersion": "2.0.0",
+  "schemaVersion": 3,
   "battleBgm": {
     "enabled": true,
     "mode": "Common",

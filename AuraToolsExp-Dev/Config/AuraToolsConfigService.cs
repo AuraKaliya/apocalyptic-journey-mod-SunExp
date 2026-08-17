@@ -15,6 +15,8 @@ public static class AuraToolsConfigService
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<string, long> Revisions = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> ReadOnlyConfigFiles =
+        new(StringComparer.OrdinalIgnoreCase);
     private static readonly AuraToolModuleConfigStore ModuleStore = new();
 
     public static AuraToolsRootConfig Root { get; private set; } = new();
@@ -59,6 +61,14 @@ public static class AuraToolsConfigService
     public static event Action? MatchExperienceChanged;
 
     public static event Action? LoggingChanged;
+
+    public static bool IsModuleConfigReadOnly(string moduleId)
+    {
+        lock (Gate)
+        {
+            return ModuleStore.IsReadOnly(moduleId);
+        }
+    }
 
     public static IDisposable SubscribeModule(string moduleId, Action changed)
     {
@@ -294,6 +304,7 @@ public static class AuraToolsConfigService
     private static void ReloadNoLock()
     {
         Revisions.Clear();
+        ReadOnlyConfigFiles.Clear();
         ModuleStore.Reset();
         Root = LoadOrDefault(AuraToolsIds.RootConfigFileName, new AuraToolsRootConfig());
         Root.Normalize();
@@ -565,6 +576,23 @@ public static class AuraToolsConfigService
             safeName,
             bundled);
         Revisions[safeName] = snapshot.Revision;
+        if (snapshot.Found
+            && AuraToolsConfigSchemaPolicy.IsNewer(
+                snapshot.SchemaVersion,
+                snapshot.Value,
+                fallback))
+        {
+            ReadOnlyConfigFiles.Add(safeName);
+            AuraToolsLog.Warn(
+                "Config uses a newer schema and was opened read-only: "
+                + safeName
+                + "; envelope=" + snapshot.SchemaVersion
+                + "; value="
+                + AuraToolsConfigSchemaPolicy.ReadValueVersion(snapshot.Value)
+                + "; supported="
+                + AuraToolsConfigSchemaPolicy.ReadValueVersion(fallback));
+            return bundled;
+        }
         return snapshot.Value;
     }
 
@@ -849,6 +877,13 @@ public static class AuraToolsConfigService
         lock (Gate)
         {
             var safeName = SafeConfigFileName(fileName);
+            if (ReadOnlyConfigFiles.Contains(safeName))
+            {
+                AuraToolsLog.Warn(
+                    "Refusing to overwrite newer read-only config: "
+                    + safeName);
+                return;
+            }
             var expectedRevision = Revisions.TryGetValue(safeName, out var revision) ? revision : 0;
             var result = AuraSharedConfigStore.WriteOwner(
                 AuraToolsIds.ModId,
@@ -856,7 +891,8 @@ public static class AuraToolsConfigService
                 safeName,
                 value,
                 expectedRevision,
-                schemaVersion: 1);
+                schemaVersion:
+                    AuraToolsConfigSchemaPolicy.CurrentEnvelopeVersion);
             if (!result.Success)
             {
                 AuraToolsLog.Warn("Failed to save config " + safeName + ": " + result.Message);
@@ -872,4 +908,5 @@ public static class AuraToolsConfigService
         var safe = Path.GetFileName((fileName ?? "").Trim());
         return string.IsNullOrWhiteSpace(safe) ? AuraToolsIds.RootConfigFileName : safe;
     }
+
 }
