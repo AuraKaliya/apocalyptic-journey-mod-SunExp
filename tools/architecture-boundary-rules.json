@@ -153,14 +153,27 @@
           ]
         },
         {
-          "id": "tool-settings-render-purity",
-          "description": "Building AuraTools settings must not silently force durable feature choices.",
+          "id": "tool-settings-runtime-injection-only",
+          "description": "AuraToolsSettingsRuntime owns native SettingUI injection only; modules own concrete settings pages.",
           "roots": ["AuraToolsExp-Dev/Features/Settings"],
           "filePattern": "AuraToolsSettingsRuntime.cs",
           "deny": [
+            "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)",
+            "AuraToolsConfigService",
+            "Show(?:Audio|StarterDeck|Replay|AutoBattle|Logging)Settings",
             "AutoInstallBundledSkins\\s*=\\s*true",
             "PreferRoleModProfile\\s*=\\s*true",
             "feast\\.PlayCg\\s*=\\s*true"
+          ]
+        },
+        {
+          "id": "tool-module-settings-page-ownership",
+          "description": "Built-in modules must route settings directly to feature-owned pages, not back through the settings injector.",
+          "roots": ["AuraToolsExp-Dev/Modules"],
+          "filePattern": "AuraToolsBuiltInModules.cs",
+          "deny": [
+            "AuraToolsSettingsRuntime",
+            "Features\\.Settings"
           ]
         },
         {

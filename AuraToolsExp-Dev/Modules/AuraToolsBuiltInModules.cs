@@ -14,7 +14,6 @@ using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.SafeBox;
-using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.StarterDeck;
@@ -90,7 +89,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.Root.Logging.Enabled
                 && AuraToolsConfigService.Logging.Enabled,
                 AuraToolsConfigService.Logging.MinimumLevel + " 及以上"),
-            parent => AuraToolsSettingsRuntime.ShowLoggingSettings(parent),
+            AuraToolsLoggingSettingsPage.Show,
             new[] { "日志", "log", "诊断" });
     }
 
@@ -155,7 +154,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.Root.Audio.Enabled
                 && AuraToolsConfigService.Audio.BattleBgm.Enabled,
                 AudioModeSummary(AuraToolsConfigService.Audio.BattleBgm)),
-            parent => AuraToolsSettingsRuntime.ShowAudioSettings(parent, true),
+            AuraToolsAudioSettingsPage.ShowBattleBgm,
             new[] { "音乐", "BGM", "音频" });
     }
 
@@ -181,7 +180,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.Root.Audio.Enabled
                 && AuraToolsConfigService.Audio.CardUse.Enabled,
                 AudioModeSummary(AuraToolsConfigService.Audio.CardUse)),
-            parent => AuraToolsSettingsRuntime.ShowAudioSettings(parent, false),
+            AuraToolsAudioSettingsPage.ShowCardUse,
             new[] { "音效", "出牌", "音频" });
     }
 
@@ -216,7 +215,7 @@ internal static class AuraToolsBuiltInModules
                     summary,
                     settings.Roles.Count);
             },
-            AuraToolsSettingsRuntime.ShowStarterDeckSettings,
+            AuraToolsStarterDeckSettingsPage.Show,
             new[] { "卡组", "开局", "世界推演" });
     }
 
@@ -420,7 +419,7 @@ internal static class AuraToolsBuiltInModules
                     BattleReplayEnabled(),
                     "自动保存上限 " + replay.AutoRecordLimit + " 场");
             },
-            AuraToolsSettingsRuntime.ShowReplaySettings,
+            AuraToolsReplaySettingsPage.Show,
             new[] { "回放", "录像", "对局", "视频" });
     }
 
@@ -463,7 +462,7 @@ internal static class AuraToolsBuiltInModules
                         : "",
                     experimental: true);
             },
-            AuraToolsSettingsRuntime.ShowAutoBattleSettings,
+            AuraToolsAutoBattleSettingsPage.Show,
             new[] { "AI", "自动战斗", "模型", "训练", "评估" },
             experimental: true);
     }

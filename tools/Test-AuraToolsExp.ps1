@@ -166,11 +166,36 @@ $settingsSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $shellSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxSettingsShell.cs")
 if ($settingsSource -notmatch "ToolboxSettingsShell\.Build\(panel\)" `
+        -or @($settingsSource -split "`n").Count -gt 900 `
+        -or $settingsSource -match "AuraToolsConfigService" `
+        -or $settingsSource -match "using\s+AuraToolsExp\.Dll\.Features\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)" `
+        -or $settingsSource -match "Show(?:Audio|StarterDeck|Replay|AutoBattle|Logging)Settings" `
         -or $settingsSource -match "AutoInstallBundledSkins\s*=\s*true" `
         -or $settingsSource -match "PreferRoleModProfile\s*=\s*true" `
         -or $settingsSource -match "feast\.PlayCg\s*=\s*true" `
         -or $shellSource -match "using\s+AuraToolsExp\.Dll\.Features\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)") {
     throw "AuraToolsExp toolbox shell boundary or render-purity contract is invalid."
+}
+
+$moduleSettingsPages = @(
+    "AuraToolsExp-Dev\Features\Audio\AuraToolsAudioSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\MatchRecords\AuraToolsReplaySettingsPage.cs",
+    "AuraToolsExp-Dev\Features\Logging\AuraToolsLoggingSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSettingsPage.cs"
+)
+foreach ($relativePage in $moduleSettingsPages) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $relativePage) -PathType Leaf)) {
+        throw "AuraToolsExp feature-owned settings page is missing: $relativePage"
+    }
+}
+if ($moduleSource -match "AuraToolsSettingsRuntime" `
+        -or $moduleSource -notmatch "AuraToolsAudioSettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsStarterDeckSettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsReplaySettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsLoggingSettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage") {
+    throw "AuraToolsExp built-in modules must route to feature-owned settings pages."
 }
 
 $uiSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

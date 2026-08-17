@@ -763,6 +763,32 @@ public static class AuraToolsSkillCgEditor
         Settings.AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () => RefreshRoles(true), 92f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
+        var behavior = Settings.AuraToolsUi.CreateLayout("Behavior", window.transform);
+        Settings.AuraToolsUi.SetFixedHeight(
+            behavior,
+            Settings.AuraToolsUi.InlineRowHeight);
+        var behaviorLayout = behavior.AddComponent<HorizontalLayoutGroup>();
+        behaviorLayout.spacing = 8f;
+        behaviorLayout.childControlWidth = true;
+        behaviorLayout.childControlHeight = true;
+        behaviorLayout.childForceExpandWidth = false;
+        Settings.AuraToolsUi.AddToggle(
+            behavior.transform,
+            AuraToolsConfigService.SkillCg.SyncRemote,
+            value =>
+            {
+                AuraToolsConfigService.SkillCg.SyncRemote = value;
+                AuraToolsConfigService.SaveSkillCg();
+            });
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "联机同步技能 CG 播放",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+
         roleContent = Settings.AuraToolsUi.CreateScroll(window.transform, "SkillCgRoles");
         RefreshRoles(false);
     }

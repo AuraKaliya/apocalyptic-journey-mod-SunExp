@@ -92,6 +92,26 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
     public void Build(Transform parent)
     {
         var body = AuraToolsUi.CreateScroll(parent, "PixelEmojiWorkshopBody");
+        var settingsRow = HorizontalRow(
+            body,
+            "WorkshopSettings",
+            AuraToolsUi.InlineRowHeight);
+        AuraToolsUi.AddToggle(
+            settingsRow.transform,
+            AuraToolsConfigService.PixelEmoji.SyncRemote,
+            value =>
+            {
+                AuraToolsConfigService.PixelEmoji.SyncRemote = value;
+                AuraToolsConfigService.SavePixelEmoji();
+            });
+        AuraToolsUi.AddText(
+            settingsRow.transform,
+            "联机展示收藏表情",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
         Canvas.ForceUpdateCanvases();
         var availableWidth = (parent as RectTransform)?.rect.width ?? 0f;
         var narrow = availableWidth < 1040f;

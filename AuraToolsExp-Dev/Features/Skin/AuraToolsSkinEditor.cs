@@ -25,7 +25,7 @@ public static class AuraToolsSkinEditor
         var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
         Settings.AuraToolsUi.AddText(
             toolbar.transform,
-            "ManualSelection",
+            "按角色管理已注册皮肤",
             Settings.AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.MutedText,
@@ -39,6 +39,43 @@ public static class AuraToolsSkinEditor
             AuraToolsSkinRuntime.Reload();
             RefreshCareers();
         }, 112f);
+
+        var behavior = CreateHorizontal(
+            "Behavior",
+            window.transform,
+            Settings.AuraToolsUi.InlineRowHeight);
+        Settings.AuraToolsUi.AddToggle(
+            behavior.transform,
+            AuraToolsConfigService.Skin.SyncRemote,
+            value =>
+            {
+                AuraToolsConfigService.Skin.SyncRemote = value;
+                AuraToolsConfigService.SaveSkin();
+            });
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "联机同步皮肤选择",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
+        Settings.AuraToolsUi.AddToggle(
+            behavior.transform,
+            AuraToolsConfigService.Skin.ShowEntrySkinButton,
+            value =>
+            {
+                AuraToolsConfigService.Skin.ShowEntrySkinButton = value;
+                AuraToolsConfigService.SaveSkin();
+            });
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "角色选择页显示皮肤按钮",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            1f);
 
         careerContent = Settings.AuraToolsUi.CreateFixedScroll(window.transform, "SkinCareers", 560f);
         RefreshCareers();
