@@ -59,6 +59,8 @@ public static class AuraToolsModSyncRuntime
     private static string cachedHostPlayerId = "";
     private static DateTime cachedHostManifestAtUtc;
 
+    internal static bool CanShowOverlay => IsEnabled() && currentState != null && currentEntry != null;
+
     public static void Initialize(ModConfig modConfig)
     {
         if (initialized)
@@ -232,6 +234,12 @@ public static class AuraToolsModSyncRuntime
         layout.childForceExpandHeight = false;
 
         BuildOverlayContent();
+    }
+
+    internal static void ShowOverlayFromLobbyStatus()
+    {
+        RefreshButton();
+        ShowOverlay();
     }
 
     private static void PositionOverlayWindow(GameObject window)

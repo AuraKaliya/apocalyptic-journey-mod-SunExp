@@ -21,7 +21,8 @@
 - 阶段 0 已完成：稳定 ID、滚动锚点、焦点恢复、差量列表和高风险刷新保护已进入生产代码。
 - 阶段 1 已完成：模块契约、Catalog、Host、StateStore 和分类式一级工具箱已经接管初始化与一级展示。
 - 阶段 2 已完成：音频、自定义开局、战斗回放、文件日志和战斗策略实验室均由所属 Feature 提供设置页；`AuraToolsSettingsRuntime` 已收缩为原生 `SettingUI` 注入适配器。
-- 阶段 3 已完成：15 个可持久化模块使用独立配置文档和模块级变更总线；旧聚合配置作为首次迁移回退并继续双写兼容，Root 隐藏开关不再参与运行时有效状态。
+- 阶段 3 已完成：20 个可持久化模块使用独立配置文档和模块级变更总线；旧聚合配置作为首次迁移回退并继续双写兼容，Root 隐藏开关不再参与运行时有效状态。
+- 基础工具扩展已完成：妙妙方案库、MOD 健康检查、大厅状态面板和冒险档案馆已进入内置目录；实现边界见 [foundation-modules.md](foundation-modules.md)。
 - 阶段 4 已完成：`AuraTooling.Shared` v1 提供 owner-qualified 第三方工具注册协议、revision 快照、注销句柄和兼容校验；AuraToolsExp 可动态投影、更新和移除扩展工具，不要求第三方引用 `AuraToolsExp.Dll`。
 - 一级 UI 改版已完成：妙妙工具页会租借并隐藏原生设置内容，使用不透明工作区、左侧分类栏、紧凑 TMP 模块行、图标按钮与 Switch；二级 Overlay 的标题和关闭入口也已统一。
 - HTML + Playwright 快速预览已接入：多分辨率、长文本、异常、空结果、扩展模块与交互路径可在不启动游戏的情况下生成截图和断言报告。
@@ -289,11 +290,11 @@ public static class AuraToolsBuiltInModules
 | CategoryId | 显示名 | 模块 |
 |---|---|---|
 | `gameplay` | 游戏体验 | 自定义开局、卡牌刷新、一键美餐、随身保险箱 |
-| `presentation` | 表现与资源 | 角色皮肤、战斗 BGM、出牌音效、像素表情、技能 CG、卡牌使用 CG |
-| `records` | 对局与记录 | DPT 统计、战斗回放、对局资料库 |
-| `multiplayer` | 联机工具 | MOD 配置同步及将来的联机工具 |
+| `presentation` | 表现与资源 | 角色皮肤、战斗 BGM、出牌音效、美餐 CG、像素表情、技能 CG、卡牌使用 CG |
+| `records` | 对局与记录 | DPT 统计、战斗回放、冒险档案馆 |
+| `multiplayer` | 联机工具 | MOD 配置同步、大厅状态面板 |
 | `intelligence` | 智能战斗 | 战斗策略实验室 |
-| `system` | 系统与数据 | 文件日志、数据目录、诊断入口 |
+| `system` | 系统与数据 | 文件日志、妙妙方案库、MOD 健康检查、数据目录 |
 
 一级页面采用分类导航，不再把所有模块放进一个无限增长的长滚动区。默认进入“全部”或最近使用分类；搜索结果可以跨分类显示。
 
@@ -340,15 +341,20 @@ public static class AuraToolsBuiltInModules
 | 自定义开局 | `全局 · 卡牌 7/15 · 遗物 2/6` / `按角色覆盖 3 个` |
 | 卡牌刷新 | `战斗奖励可刷新` |
 | 像素表情 | `作品 12 · 收藏 5` |
-| 一键美餐 | `已配置 8 个角色` |
+| 一键美餐 | `单次最多处理 64 份食物` |
+| 美餐 CG | `已配置 8 个角色` / `随一键美餐暂停` |
 | 随身保险箱 | `冒险顶部栏显示入口` |
 | MOD 配置同步 | `仅房主可发起同步` / `当前不在联机大厅` |
 | DPT 统计 | `本场 · 全部阵营 · 表格` |
 | 战斗回放 | `自动保存上限 20` |
+| 冒险档案馆 | `已保存 28 轮冒险` |
+| 大厅状态面板 | `大厅玩家 3` / `等待进入联机大厅` |
 | 技能 CG | `角色规则 6 条 · 联机同步开启` |
 | 卡牌使用 CG | `已启用 4/7 个注册项` |
 | 战斗策略实验室 | `未选择模型` / `完整应用 · 模型名称` |
 | 文件日志 | `Info 及以上` / `写入失败` |
+| 妙妙方案库 | `本地方案 6 个` |
+| MOD 健康检查 | `正常` / `警告 · 问题 2` |
 
 ## 9. 二级设置页归属
 
@@ -359,13 +365,18 @@ public static class AuraToolsBuiltInModules
 | 出牌音效 | 通用/角色模式、增益、文件选择、角色覆盖、联机行为说明 |
 | 自定义开局 | 全局/角色模式、卡牌与遗物编辑、当前配置导入导出 |
 | 像素表情 | 工坊、作品库、收藏、联机展示设置 |
-| 一键美餐 | 角色开关、候选 CG、选择策略、人工资源、预览 |
+| 一键美餐 | 仅保留游戏体验主开关；自动处理数量沿用内部安全上限 |
+| 美餐 CG | 角色开关、候选 CG、选择策略、人工资源、预览；有效状态依赖一键美餐 |
 | DPT 统计 | 展示模式、范围、阵营和历史统计入口 |
 | 战斗回放 | 自动记录、保存上限、视频导出、兼容性和资料库 |
 | 技能 CG | 角色规则、触发技能、优先级、表现、图片资源、同步 |
 | 卡牌使用 CG | 注册项启停、Owner、资源目录和本地覆盖 |
 | 战斗策略实验室 | 模型库、运行模式、游戏主体、训练、评估、实机验证和诊断 |
 | 文件日志 | 等级、来源、Unity 类型、堆栈、队列、Flush 和文件保留 |
+| 妙妙方案库 | 当前配置保存、导入、兼容预检、差异、Codec 审计和事务应用 |
+| MOD 健康检查 | 原生加载状态、依赖、入口 DLL、游戏表 CSV 与资源引用诊断 |
+| 大厅状态面板 | 玩家、角色、准备状态、游戏版本、MOD 差异和本机健康摘要 |
+| 冒险档案馆 | 冒险列表、时间线、关键快照、战斗记录关联和保留策略 |
 
 二级设置页可以继续使用 Overlay，但由 `ToolboxSettingsPageRouter` 统一管理打开、返回、销毁、焦点恢复和页面标题。
 
@@ -569,6 +580,7 @@ public sealed class ToolboxSettingsShellState
 gameplay.starter-deck
 gameplay.card-refresh
 gameplay.feast
+presentation.feast-cg
 gameplay.safe-box
 presentation.skin
 presentation.battle-bgm
@@ -578,9 +590,13 @@ presentation.skill-cg
 presentation.card-use-cg
 records.damage-statistics
 records.battle-replay
+records.adventure-archive
 multiplayer.mod-sync
+multiplayer.lobby-status
 intelligence.auto-battle
 system.file-logging
+system.preset-library
+system.mod-health
 ```
 
 系统动作：
@@ -662,7 +678,7 @@ system.reload-tool-config
 ### 阶段 0：先解决视图状态问题
 
 - 在 `AuraUiShared` 实现 StableId、ViewState 和 MutationScope。
-- 将皮肤、一键美餐、卡牌使用 CG 和自动战斗局部刷新改为差量更新或状态事务。
+- 将皮肤、美餐 CG、卡牌使用 CG 和自动战斗局部刷新改为差量更新或状态事务。
 - 禁止设置页 Build 方法修改配置。
 - 为现有页面补滚动和焦点回归测试。
 
@@ -736,7 +752,7 @@ tools/shared-release-matrix.json
 
 1. 第一轮完成滚动与焦点保护、模块契约、Catalog、Host、StateStore 和分类式一级工具箱。
 2. 第二轮将复杂设置页与动态状态视图迁回各自 Feature，并把中央 Settings Runtime 收缩为原生注入适配器。
-3. 第三轮完成 15 个模块独立配置、旧聚合配置迁移与双写兼容、模块级通知和隐藏 Root 门禁退役。
+3. 第三轮完成并扩展至 20 个模块独立配置、旧聚合配置迁移与双写兼容、模块级通知和隐藏 Root 门禁退役。
 4. 第四轮发布 `AuraTooling.Shared` v1，并完成第三方扩展的动态注册、状态刷新、设置路由、注销和发布门禁。
 
 剩余验收项是实际游戏进程中的首次旧配置迁移，以及鼠标、键盘、手柄和不同分辨率下的完整 UI 手工清单。

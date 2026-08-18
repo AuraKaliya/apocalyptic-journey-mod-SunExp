@@ -5,6 +5,7 @@ public static class AuraToolModuleIds
     public const string StarterDeck = "gameplay.starter-deck";
     public const string CardRefresh = "gameplay.card-refresh";
     public const string Feast = "gameplay.feast";
+    public const string FeastCg = "presentation.feast-cg";
     public const string SafeBox = "gameplay.safe-box";
     public const string Skin = "presentation.skin";
     public const string BattleBgm = "presentation.battle-bgm";
@@ -14,9 +15,13 @@ public static class AuraToolModuleIds
     public const string CardUseCg = "presentation.card-use-cg";
     public const string DamageStatistics = "records.damage-statistics";
     public const string BattleReplay = "records.battle-replay";
+    public const string AdventureArchive = "records.adventure-archive";
     public const string ModSync = "multiplayer.mod-sync";
+    public const string LobbyStatus = "multiplayer.lobby-status";
     public const string AutoBattle = "intelligence.auto-battle";
     public const string FileLogging = "system.file-logging";
+    public const string PresetLibrary = "system.preset-library";
+    public const string ModHealth = "system.mod-health";
     internal const string Diagnostics = "system.card-ui-diagnostics";
 
     public static readonly string[] Persisted =
@@ -24,6 +29,7 @@ public static class AuraToolModuleIds
         StarterDeck,
         CardRefresh,
         Feast,
+        FeastCg,
         SafeBox,
         Skin,
         BattleBgm,
@@ -33,8 +39,12 @@ public static class AuraToolModuleIds
         CardUseCg,
         DamageStatistics,
         BattleReplay,
+        AdventureArchive,
         ModSync,
+        LobbyStatus,
         AutoBattle,
-        FileLogging
+        FileLogging,
+        PresetLibrary,
+        ModHealth
     };
 }

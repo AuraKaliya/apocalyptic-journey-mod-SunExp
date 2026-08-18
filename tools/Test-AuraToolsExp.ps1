@@ -86,12 +86,17 @@ if ($officialSummerSkins.Count -ne 1) {
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
 $standardPreset = @($matchSettings.autoBattle.gameParameters.presets | Where-Object id -eq "standard")
-if ($matchSettings.schemaVersion -ne 31 `
+if ($matchSettings.schemaVersion -ne 32 `
         -or $matchSettings.starterDeck.schemaVersion -ne 2 `
         -or $matchSettings.starterDeck.globalProfile.cardIds.Count -ne 0 `
         -or $matchSettings.starterDeck.globalProfile.relicIds.Count -ne 0 `
         -or $matchSettings.starterDeck.PSObject.Properties.Name -contains "selectedProfileByRole" `
         -or $matchSettings.starterDeck.PSObject.Properties.Name -contains "preferRoleModProfile" `
+        -or $matchSettings.feast.schemaVersion -ne 2 `
+        -or $matchSettings.feast.cg.schemaVersion -ne 1 `
+        -or $matchSettings.feast.enabled -ne $true `
+        -or $matchSettings.feast.cg.enabled -ne $true `
+        -or $matchSettings.feast.PSObject.Properties.Name -contains "playCg" `
         -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `
@@ -177,6 +182,7 @@ $expectedModuleIds = @(
     "gameplay.starter-deck",
     "gameplay.card-refresh",
     "gameplay.feast",
+    "presentation.feast-cg",
     "gameplay.safe-box",
     "presentation.skin",
     "presentation.battle-bgm",
@@ -186,9 +192,13 @@ $expectedModuleIds = @(
     "presentation.card-use-cg",
     "records.damage-statistics",
     "records.battle-replay",
+    "records.adventure-archive",
     "multiplayer.mod-sync",
+    "multiplayer.lobby-status",
     "intelligence.auto-battle",
-    "system.file-logging"
+    "system.file-logging",
+    "system.preset-library",
+    "system.mod-health"
 )
 foreach ($moduleId in $expectedModuleIds) {
     if ($moduleIdSource -notmatch [regex]::Escape('"' + $moduleId + '"')) {
@@ -261,9 +271,10 @@ $expectedToolboxIcons = @(
     "all.png", "gameplay.png", "presentation.png", "records.png",
     "multiplayer.png", "intelligence.png", "system.png", "extensions.png",
     "file-logging.png", "skin.png", "battle-bgm.png", "card-use-audio.png",
-    "starter-deck.png", "card-refresh.png", "feast.png", "safe-box.png",
-    "pixel-emoji.png", "mod-sync.png", "damage-statistics.png", "battle-replay.png",
+    "starter-deck.png", "card-refresh.png", "feast.png", "feast-cg.png", "safe-box.png",
+    "pixel-emoji.png", "mod-sync.png", "lobby-status.png", "damage-statistics.png", "battle-replay.png", "adventure-archive.png",
     "auto-battle.png", "skill-cg.png", "card-use-cg.png", "search.png",
+    "preset-library.png", "mod-health.png",
     "clear.png", "folder.png", "settings.png", "warning.png",
     "switch-track.png", "switch-thumb.png"
 )
@@ -288,9 +299,14 @@ foreach ($assetName in @(
 $moduleSettingsPages = @(
     "AuraToolsExp-Dev\Features\Audio\AuraToolsAudioSettingsPage.cs",
     "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\Feast\AuraToolsFeastRoleEditor.cs",
     "AuraToolsExp-Dev\Features\MatchRecords\AuraToolsReplaySettingsPage.cs",
     "AuraToolsExp-Dev\Features\Logging\AuraToolsLoggingSettingsPage.cs",
-    "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSettingsPage.cs"
+    "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\PresetLibrary\AuraPresetLibraryPage.cs",
+    "AuraToolsExp-Dev\Features\ModHealth\ModHealthPage.cs",
+    "AuraToolsExp-Dev\Features\LobbyStatus\LobbyStatusRuntime.cs",
+    "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchivePage.cs"
 )
 foreach ($relativePage in $moduleSettingsPages) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $relativePage) -PathType Leaf)) {
@@ -300,6 +316,7 @@ foreach ($relativePage in $moduleSettingsPages) {
 if ($moduleSource -match "AuraToolsSettingsRuntime" `
         -or $moduleSource -notmatch "AuraToolsAudioSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsStarterDeckSettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsFeastRoleEditor" `
         -or $moduleSource -notmatch "AuraToolsReplaySettingsPage" `
         -or $moduleSource -notmatch "AuraToolsLoggingSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage") {
@@ -316,6 +333,7 @@ foreach ($saveMethod in @(
         "SaveStarterDeck",
         "SaveCardRefresh",
         "SaveFeast",
+        "SaveFeastCg",
         "SaveSafeBox",
         "SaveModSync",
         "SaveDamageStatistics",
@@ -325,15 +343,66 @@ foreach ($saveMethod in @(
         "SaveSkillCg",
         "SaveCardUseCg",
         "SaveSkin",
-        "SaveLogging")) {
+        "SaveLogging",
+        "SavePresetLibrary",
+        "SaveModHealth",
+        "SaveLobbyStatus",
+        "SaveAdventureArchive")) {
     if ($configSource -notmatch ("public static void " + $saveMethod + "\s*\(")) {
         throw "AuraToolsExp module-scoped config save is missing: $saveMethod"
     }
 }
 if ($moduleConfigSource -notmatch 'ConfigSystem = "AuraTools\.Modules"' `
         -or $moduleConfigSource -notmatch "AuraToolConfigChangeBus" `
-        -or $moduleConfigSource -notmatch "AuraToolModuleConfigDocument") {
+        -or $moduleConfigSource -notmatch "AuraToolModuleConfigDocument" `
+        -or $moduleConfigSource -notmatch "BeginBatch") {
     throw "AuraToolsExp module config store, document, or change bus contract is invalid."
+}
+
+$codecSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\PresetLibrary\AuraToolConfigCodecs.cs")
+$presetServiceSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\PresetLibrary\AuraPresetLibraryService.cs")
+$codecNames = @([regex]::Matches(
+        $codecSource,
+        'Codec\(Audit\(AuraToolModuleIds\.(\w+)') | ForEach-Object { $_.Groups[1].Value })
+$expectedCodecNames = @(
+    "StarterDeck", "CardRefresh", "Feast", "FeastCg", "SafeBox", "Skin",
+    "BattleBgm", "CardUseAudio", "PixelEmoji", "SkillCg", "CardUseCg",
+    "DamageStatistics", "BattleReplay", "AdventureArchive", "ModSync",
+    "LobbyStatus", "AutoBattle", "FileLogging", "PresetLibrary", "ModHealth")
+if ($codecNames.Count -ne 20 `
+        -or @($codecNames | Sort-Object -Unique).Count -ne 20 `
+        -or @(Compare-Object ($codecNames | Sort-Object) ($expectedCodecNames | Sort-Object)).Count -ne 0 `
+        -or $codecSource -notmatch 'payload\.Remove\("cardUseCg"\)' `
+        -or $codecSource -notmatch 'experimentalModelAcknowledgement' `
+        -or $codecSource -notmatch 'captureTrainingSamples' `
+        -or $presetServiceSource -notmatch 'AuraToolConfigChangeBus\.BeginBatch' `
+        -or $presetServiceSource -notmatch 'AsEnumerable\(\)\.Reverse' `
+        -or $presetServiceSource -notmatch '应用前备份') {
+    throw "AuraToolsExp per-module preset Codec inventory, exclusions, or transaction rollback contract is invalid."
+}
+
+$healthSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\ModHealth\ModHealthRuntime.cs")
+$lobbyStatusSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\LobbyStatus\LobbyStatusRuntime.cs")
+$archiveDatabaseSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveDatabase.cs")
+$archiveStorageSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveStorage.cs")
+if ($healthSource -notmatch 'loadedModDirectories' `
+        -or $healthSource -notmatch 'ModConfig\.json' `
+        -or $healthSource -notmatch 'Assembly\.LoadFrom' `
+        -or $healthSource -notmatch 'CsvReader' `
+        -or $healthSource -match 'Aura(?:Cg|Skin|Audio|Journey|Tool)Registry' `
+        -or $lobbyStatusSource -notmatch 'AuraChatModSyncSnapshot\.BuildState' `
+        -or $lobbyStatusSource -notmatch 'GameEntryUI\.UpdateLobby' `
+        -or $lobbyStatusSource -match 'AuraToolsRpcSender|SendCommand|SendRPC' `
+        -or $archiveStorageSource -notmatch 'DamageHistoryStorage\.Database\.DatabasePath' `
+        -or $archiveDatabaseSource -notmatch 'adventure_archives' `
+        -or $archiveDatabaseSource -notmatch 'battle_records') {
+    throw "AuraToolsExp health, lobby-read-model, or shared AdventureId storage boundary is invalid."
 }
 
 $consumerConfigSource = @(

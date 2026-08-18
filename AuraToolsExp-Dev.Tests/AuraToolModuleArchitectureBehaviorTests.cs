@@ -5,9 +5,14 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestAuraToolModuleCatalogAndStateStore()
     {
-        Assert(AuraToolModuleIds.Persisted.Length == 15
-               && AuraToolModuleIds.Persisted.Distinct(StringComparer.Ordinal).Count() == 15,
-            "tool module config inventory contains fifteen unique persisted module ids");
+        Assert(AuraToolModuleIds.Persisted.Length == 20
+               && AuraToolModuleIds.Persisted.Distinct(StringComparer.Ordinal).Count() == 20
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.FeastCg)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.PresetLibrary)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.ModHealth)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.LobbyStatus)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.AdventureArchive),
+            "tool module config inventory contains twenty unique persisted module ids including the four foundation modules");
         var second = new FakeModule("module.second", "presentation", 20, visible: true);
         var first = new FakeModule("module.first", "gameplay", 10, visible: true);
         var hidden = new FakeModule("module.hidden", "system", 1, visible: false);
@@ -61,6 +66,15 @@ internal static partial class AuraToolsTestSuite
             Availability = AuraToolModuleAvailability.Disabled,
             Summary = "关闭"
         });
+        var dependencyBlocked = store.Publish(new AuraToolModuleState
+        {
+            ModuleId = "module.first",
+            ConfiguredEnabled = false,
+            EffectiveEnabled = false,
+            Availability = AuraToolModuleAvailability.Disabled,
+            Summary = "关闭",
+            EnableControlInteractable = false
+        });
         var enabled = store.Publish(new AuraToolModuleState
         {
             ModuleId = "module.first",
@@ -71,9 +85,10 @@ internal static partial class AuraToolsTestSuite
         });
 
         Assert(initial.Revision == unchanged.Revision
-               && enabled.Revision > unchanged.Revision
-               && changes == 2,
-            "tool module state store only publishes observable state changes");
+               && dependencyBlocked.Revision > unchanged.Revision
+               && enabled.Revision > dependencyBlocked.Revision
+               && changes == 3,
+            "tool module state store publishes dependency-control changes but suppresses identical snapshots");
 
         var records = new AuraToolsExp.Dll.Config.MatchRecordSettings();
         AuraToolsMatchRecordModulePolicy.SetBattleReplay(records, true);
@@ -124,6 +139,28 @@ internal static partial class AuraToolsTestSuite
             3);
         Assert(firstChanges == 1 && secondChanges == 0,
             "module config change bus only wakes subscribers for the changed module");
+
+        var batchedFirst = 0;
+        var batchedSecond = 0;
+        long batchedRevision = 0;
+        using var batchedFirstSubscription = AuraToolsExp.Dll.Config
+            .AuraToolConfigChangeBus.Subscribe("module.batch.first", change =>
+            {
+                batchedFirst++;
+                batchedRevision = change.Revision;
+            });
+        using var batchedSecondSubscription = AuraToolsExp.Dll.Config
+            .AuraToolConfigChangeBus.Subscribe("module.batch.second", _ => batchedSecond++);
+        using (AuraToolsExp.Dll.Config.AuraToolConfigChangeBus.BeginBatch())
+        {
+            AuraToolsExp.Dll.Config.AuraToolConfigChangeBus.Publish("module.batch.first", 4);
+            AuraToolsExp.Dll.Config.AuraToolConfigChangeBus.Publish("module.batch.first", 9);
+            AuraToolsExp.Dll.Config.AuraToolConfigChangeBus.Publish("module.batch.second", 5);
+            Assert(batchedFirst == 0 && batchedSecond == 0,
+                "module config batch suppresses partial configuration notifications");
+        }
+        Assert(batchedFirst == 1 && batchedSecond == 1 && batchedRevision == 9,
+            "module config batch publishes one final notification per changed module");
 
         AuraShared.Core.AuraSharedConfigStore.ResetForTests();
         var store = new AuraToolsExp.Dll.Config.AuraToolModuleConfigStore();

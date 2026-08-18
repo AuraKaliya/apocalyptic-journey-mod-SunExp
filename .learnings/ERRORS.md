@@ -6689,3 +6689,104 @@ convert them to `Point[]` before reaching the updated custom-start icon.
 
 Cast every polygon point collection to `System.Drawing.PointF[]`; the generator
 then rebuilt all 30 toolbox icons successfully.
+
+---
+# ERR-20260818-027: Feast split left stale preview and documentation counts
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+The first documentation patch targeted an outdated “表现资源” label, and the
+Unity preview build updated only its error text while leaving the icon and
+module-count conditions at 30 and 15. After those were corrected, the warning
+capture matched the default capture because the newly inserted Feast CG row
+pushed all warning-state rows below the first viewport.
+
+## Resolution
+
+Patched the current documentation wording, changed preview contracts to 31
+icons and 16 modules, and made the warning scenario exercise the visible Feast
+CG dependency-paused state. The 12-capture preview suite then passed.
+
+---
+# ERR-20260818-028: Shared packaging copies lagged the current shared build
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The AuraTools product gate packaged a newer workspace `Aura.Shared.dll`, while
+the Terrias and SanGuoShaExp copies still held the previous hash, so the shared
+DLL packaging gate rejected Terrias first.
+
+## Resolution
+
+Rebuilt Terrias and SanGuoShaExp serially against the current shared runtime;
+all packaged Aura.Shared copies then passed hash validation.
+
+---
+# ERR-20260818-029: Game-reference index pointed at an older decompile snapshot
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+The first MOD-loader search used the game-reference index path for
+`v1.0.24591395`, but the workspace had already advanced to the complete
+`v1.0.24605918` snapshot. A follow-up also assumed the report name was
+`decompile-summary.md` instead of the actual `decompile-report.md`.
+
+## Resolution
+
+Enumerated `开发参考资料` and `artifacts/game-reference` before continuing,
+then based the MOD loading and hot-sync investigation on the complete
+`v1.0.24605918` decompile and its actual report.
+
+---
+# ERR-20260818-030: New runtime files assumed the wrong Witch namespaces
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: build
+
+## What failed
+
+The first lobby and preset builds placed `ModHookContext`, `Globals`, and
+`DataType` under inferred namespaces instead of the namespaces exposed by the
+current managed game assemblies. This produced several short compile failures.
+
+## Resolution
+
+Matched the imports used by existing AuraTools runtimes and the current
+decompile: `ModHookContext` from `Witch.Core`, and `Globals`/`DataType` from
+`Witch`. The release build now completes without warnings.
+
+---
+# ERR-20260818-031: HTML preview retained the pre-expansion module count
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+After adding the four foundation modules to the HTML preview data, its
+Playwright source contract still required the earlier 15-module inventory and
+the records interaction still expected two rows.
+
+## Resolution
+
+Updated the preview contract to 20 production IDs and added category-count
+checks for the three-record, two-multiplayer, and three-system module groups.

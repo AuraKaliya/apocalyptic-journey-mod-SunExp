@@ -56,6 +56,9 @@ public static class AuraToolsFeastRuntime
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.Feast,
             Reconfigure);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.FeastCg,
+            Reconfigure);
         AuraSharedResourceProtocol.ScopeChanged += OnSharedScopeChanged;
         RefreshCatalog();
     }
@@ -154,7 +157,7 @@ public static class AuraToolsFeastRuntime
     public static FeastRoleSettings EnsureRoleSettings(string roleId, string displayName = "")
     {
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
-        var settings = AuraToolsConfigService.MatchExperience.Feast;
+        var settings = AuraToolsConfigService.MatchExperience.Feast.Cg;
         settings.Normalize();
         if (!settings.Roles.TryGetValue(normalizedRole, out var roleSettings) || roleSettings == null)
         {
@@ -349,7 +352,7 @@ public static class AuraToolsFeastRuntime
 
     private static void PlayFeastForRole(string roleId, bool force)
     {
-        if (!force && !AuraToolsConfigService.MatchExperience.Feast.PlayCg)
+        if (!force && !IsCgEffective())
         {
             return;
         }
@@ -405,7 +408,7 @@ public static class AuraToolsFeastRuntime
         long selectionSequence,
         out SkillCgPresentationSettings presentation)
     {
-        var settings = AuraToolsConfigService.MatchExperience.Feast;
+        var settings = AuraToolsConfigService.MatchExperience.Feast.Cg;
         settings.Normalize();
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
         var candidates = BuildCandidateCgsForRole(normalizedRole);
@@ -472,13 +475,13 @@ public static class AuraToolsFeastRuntime
         {
             role.EnabledCgIds = AuraSharedJson.Deserialize<List<string>>(enabledJson) ?? new List<string>();
         }
-        role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.DefaultPresentation);
+        role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.Cg.DefaultPresentation);
     }
 
     public static void SaveRoleSettings(FeastRoleSettings role)
     {
-        role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.DefaultPresentation);
-        AuraToolsConfigService.SaveFeast();
+        role.Normalize(role.RoleId, AuraToolsConfigService.MatchExperience.Feast.Cg.DefaultPresentation);
+        AuraToolsConfigService.SaveFeastCg();
         var scope = FeastScope(role.RoleId);
         var current = AuraSharedResourceProtocol.ReadUserOverride(AuraToolsIds.ModId, scope);
         var local = CreateLocalOverride(role, current);
@@ -608,6 +611,12 @@ public static class AuraToolsFeastRuntime
     private static bool IsEnabled()
     {
         return AuraToolsConfigService.MatchExperience.Feast.Enabled;
+    }
+
+    public static bool IsCgEffective()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.Feast;
+        return settings.IsCgEffective;
     }
 
     private static void CaptureCurrentRole(ModHookContext context)

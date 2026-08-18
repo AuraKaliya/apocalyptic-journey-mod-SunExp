@@ -25,6 +25,7 @@ TestRunAggregateSurvivesHistoryRetention();
 TestFilteringAndGrandTotal();
 TestDetailLimit();
 TestAdventureHistory();
+TestAdventureArchiveDatabase();
 TestBestHitAndScientificFormat();
 TestOutOfRunHistoryBuilder();
 TestDeterministicAllocation();

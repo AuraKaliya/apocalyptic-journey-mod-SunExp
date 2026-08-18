@@ -12,6 +12,7 @@ using AuraToolsExp.Dll.Features.Logging;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraSkin.Shared.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 internal static partial class AuraToolsTestSuite
 {
     public static void TestAutoBattleTechnicalFallbackState()
@@ -113,7 +114,7 @@ internal static partial class AuraToolsTestSuite
         var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":29,\"damageMeter\":{\"enabled\":true,\"displayMode\":\"Bars\",\"teamFilter\":\"Enemy\"}}")!;
         legacy.Normalize();
-        Assert(legacy.SchemaVersion == 31
+        Assert(legacy.SchemaVersion == 32
                && legacy.MatchRecords.Enabled
                && legacy.MatchRecords.Statistics.Enabled
                && legacy.MatchRecords.Statistics.DisplayMode == DamageMeterDisplayModes.Bars
@@ -158,6 +159,25 @@ internal static partial class AuraToolsTestSuite
                && rootJson.Contains("\"pixelEmoji\"")
                && rootJson.Contains("\"configFile\""),
             "root config keeps its established JSON property contract across a round trip");
+
+        var presetLibrary = new PresetLibrarySettings { SchemaVersion = 0, MaximumPresets = 9999 };
+        var archive = new AdventureArchiveSettings { SchemaVersion = 0, MaximumAdventures = 1 };
+        var health = new ModHealthSettings { SchemaVersion = 0 };
+        var lobby = new LobbyStatusSettings { SchemaVersion = 0 };
+        presetLibrary.Normalize();
+        archive.Normalize();
+        health.Normalize();
+        lobby.Normalize();
+        Assert(presetLibrary.SchemaVersion == 1
+               && presetLibrary.MaximumPresets == 256
+               && archive.SchemaVersion == 1
+               && archive.MaximumAdventures == 10
+               && archive.CaptureSnapshots
+               && health.SchemaVersion == 1
+               && health.ScanOnOpen
+               && lobby.SchemaVersion == 1
+               && lobby.ShowLocalHealthSummary,
+            "foundation module settings normalize bounded retention and safe default behaviors");
     
         var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
@@ -189,7 +209,7 @@ internal static partial class AuraToolsTestSuite
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":1,\"starterDeck\":{\"globalProfile\":{\"cardIds\":[\"card_1\"],\"deckSize\":11},\"roles\":{\"role_a\":{\"roleId\":\"role_a\",\"cardIds\":[\"card_2\"]}}},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
         matchExperience.Normalize();
-        Assert(matchExperience.SchemaVersion == 31
+        Assert(matchExperience.SchemaVersion == 32
                && matchExperience.StarterDeck.SchemaVersion == StarterDeckSettings.CurrentSchemaVersion
                && matchExperience.StarterDeck.GlobalProfile.CardIds.SequenceEqual(new[] { "card_1" })
                && matchExperience.StarterDeck.GlobalProfile.RelicIds.Count == 0
@@ -358,10 +378,14 @@ internal static partial class AuraToolsTestSuite
             "preset migration is idempotent across repeated config save and reload cycles");
     
         var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
-            "{\"roles\":{\"role-a\":{\"selectedCgId\":\"Terrias:feast-a\"}}}")!;
+            "{\"enabled\":true,\"playCg\":true,\"roles\":{\"role-a\":{\"selectedCgId\":\"Terrias:feast-a\"}}}")!;
         legacyFeast.Normalize();
-        var migratedRole = legacyFeast.Roles["role-a"];
-        Assert(migratedRole.CandidateSelectionConfigured
+        var migratedRole = legacyFeast.Cg.Roles["role-a"];
+        Assert(legacyFeast.SchemaVersion == FeastSettings.CurrentSchemaVersion
+               && legacyFeast.Cg.SchemaVersion == FeastCgSettings.CurrentSchemaVersion
+               && legacyFeast.Cg.Enabled
+               && legacyFeast.IsCgEffective
+               && migratedRole.CandidateSelectionConfigured
                && migratedRole.EnabledCgIds.SequenceEqual(new[] { "Terrias:feast-a" })
                && migratedRole.SelectionMode == "priority",
             "legacy single Feast selection migrates to the enabled candidate list");
@@ -383,6 +407,22 @@ internal static partial class AuraToolsTestSuite
                && !legacyManualRole.LocalCustomized
                && string.IsNullOrWhiteSpace(legacyManualRole.LocalResource),
             "legacy Feast manual files migrate once and cannot reappear after the manual candidate is removed");
+        legacyFeast.Enabled = false;
+        Assert(legacyFeast.Cg.Enabled && !legacyFeast.IsCgEffective,
+            "disabling one-click Feast pauses Feast CG without changing the stored CG preference");
+        legacyFeast.Enabled = true;
+        Assert(legacyFeast.IsCgEffective,
+            "re-enabling one-click Feast restores the preserved Feast CG preference");
+        legacyFeast.Cg.Enabled = false;
+        legacyFeast.Normalize();
+        Assert(!legacyFeast.Cg.Enabled && !legacyFeast.IsCgEffective && legacyFeast.Enabled,
+            "Feast automation remains enabled when only Feast CG is disabled");
+        var splitFeastJson = JsonConvert.SerializeObject(legacyFeast);
+        var splitFeastObject = JObject.Parse(splitFeastJson);
+        Assert(splitFeastObject["cg"] != null
+               && splitFeastObject["playCg"] == null
+               && splitFeastObject["roles"] == null,
+            "Feast serialization moves presentation configuration under the Feast CG child without legacy flat fields");
     
         var skin = JsonConvert.DeserializeObject<AuraToolsSkinSettings>(
             "{\"schemaVersion\":0,\"autoInstallBundledSkins\":false}")!;
@@ -416,14 +456,14 @@ internal static partial class AuraToolsTestSuite
             CardRefresh = null!
         };
         settings.Normalize();
-        Assert(settings.SchemaVersion == 31, "match-experience settings migrate to the current custom-start schema");
+        Assert(settings.SchemaVersion == 32, "match-experience settings migrate to the current Feast-CG split schema");
         Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
             "card refresh is restored with a disabled default during normalization");
         var removedFoundationConfig =
             JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
                 "{\"schemaVersion\":25,\"autoBattle\":{\"foundationTraining\":{\"parallelismProfile\":\"auto\",\"iterations\":8}}}")!;
         removedFoundationConfig.Normalize();
-        Assert(removedFoundationConfig.SchemaVersion == 31
+        Assert(removedFoundationConfig.SchemaVersion == 32
                && removedFoundationConfig.AutoBattle.Training.Preset
                   == AutoBattleTrainingSettings.SteadyPreset,
             "removed in-game foundation-training settings are ignored by the current config schema");

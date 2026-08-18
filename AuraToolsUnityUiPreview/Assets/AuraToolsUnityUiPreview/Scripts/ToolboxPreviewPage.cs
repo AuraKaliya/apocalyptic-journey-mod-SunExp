@@ -158,6 +158,12 @@ namespace AuraTools.UnityUiPreview
             EventSystem.current?.SetSelectedGameObject(search.gameObject);
         }
 
+        internal void SelectCategoryForPreview(string id)
+        {
+            var normalized = string.IsNullOrWhiteSpace(id) ? "all" : id.Trim();
+            if (categories.ContainsKey(normalized)) SelectCategory(normalized);
+        }
+
         internal List<string> Validate(IReadOnlyList<GameObject> nativePages)
         {
             var errors = new List<string>();

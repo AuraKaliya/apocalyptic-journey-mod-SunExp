@@ -23,8 +23,8 @@ function Sync-PreviewIcons {
     $target = Join-Path $projectPath "Assets\AuraToolsUnityUiPreview\Resources\ToolboxIcons"
     [System.IO.Directory]::CreateDirectory($target) | Out-Null
     $icons = @(Get-ChildItem -LiteralPath $source -Filter "*.png" -File)
-    if ($icons.Count -ne 30) {
-        throw "Expected 30 AuraTools toolbox icons, found $($icons.Count)."
+    if ($icons.Count -ne 35) {
+        throw "Expected 35 AuraTools toolbox icons, found $($icons.Count)."
     }
     $icons | Copy-Item -Destination $target -Force
 
@@ -61,8 +61,8 @@ function Assert-PreviewSourceContract {
     $previewModels = Get-Content -Raw -LiteralPath (Join-Path $projectPath "Assets\AuraToolsUnityUiPreview\Scripts\PreviewModels.cs")
     $moduleIds = [regex]::Matches($moduleIdsSource, 'public const string \w+ = "([^"]+)";') |
         ForEach-Object { $_.Groups[1].Value }
-    if ($moduleIds.Count -ne 15) {
-        throw "Expected 15 production AuraTools module ids, found $($moduleIds.Count)."
+    if ($moduleIds.Count -ne 20) {
+        throw "Expected 20 production AuraTools module ids, found $($moduleIds.Count)."
     }
     foreach ($moduleId in $moduleIds) {
         if ($previewModels -notmatch [regex]::Escape('"' + $moduleId + '"')) {
@@ -178,7 +178,7 @@ if (-not $SkipCapture) {
         throw "Unity preview capture failed with exit code $exitCode. See $playerLog"
     }
     $report = Get-Content -Raw -LiteralPath $reportPath | ConvertFrom-Json
-    if (-not $report.passed -or $report.captures -ne 12) {
+    if (-not $report.passed -or $report.captures -ne 15) {
         throw "Unity preview validation failed: $($report.errors -join '; ')"
     }
     foreach ($result in $report.results) {

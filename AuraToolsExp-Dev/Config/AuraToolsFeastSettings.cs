@@ -9,20 +9,67 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class FeastSettings
 {
+    public const int CurrentSchemaVersion = 2;
+
+    private int schemaVersion = CurrentSchemaVersion;
+    private bool schemaVersionRead;
+    private bool legacyShapeRead;
+    private bool? legacyPlayCg;
+    private SkillCgPresentationSettings? legacyDefaultPresentation;
+    private Dictionary<string, FeastRoleSettings>? legacyRoles;
+
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion
+    {
+        get => schemaVersion;
+        set
+        {
+            schemaVersion = value;
+            schemaVersionRead = true;
+        }
+    }
+
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
-
-    [JsonProperty("playCg")]
-    public bool PlayCg { get; set; } = true;
 
     [JsonProperty("maxBatchCount")]
     public int MaxBatchCount { get; set; } = 64;
 
+    [JsonProperty("cg")]
+    public FeastCgSettings Cg { get; set; } = new();
+
+    [JsonIgnore]
+    public bool IsCgEffective => Enabled && Cg.Enabled;
+
+    [JsonProperty("playCg")]
+    private bool LegacyPlayCg
+    {
+        set
+        {
+            legacyPlayCg = value;
+            legacyShapeRead = true;
+        }
+    }
+
     [JsonProperty("defaultPresentation")]
-    public SkillCgPresentationSettings DefaultPresentation { get; set; } = CreateDefaultPresentation();
+    private SkillCgPresentationSettings? LegacyDefaultPresentation
+    {
+        set
+        {
+            legacyDefaultPresentation = value;
+            legacyShapeRead = true;
+        }
+    }
 
     [JsonProperty("roles")]
-    public Dictionary<string, FeastRoleSettings> Roles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, FeastRoleSettings>? LegacyRoles
+    {
+        set
+        {
+            legacyRoles = value;
+            legacyShapeRead = true;
+        }
+    }
 
     public static SkillCgPresentationSettings CreateDefaultPresentation()
     {
@@ -41,9 +88,54 @@ public sealed class FeastSettings
 
     public void Normalize()
     {
-        PlayCg = true;
+        var loadedSchemaVersion = schemaVersionRead
+            ? SchemaVersion
+            : legacyShapeRead ? 1 : CurrentSchemaVersion;
+        Cg ??= new FeastCgSettings();
+        if (loadedSchemaVersion < CurrentSchemaVersion || legacyShapeRead)
+        {
+            Cg.Enabled = legacyPlayCg ?? true;
+            if (legacyDefaultPresentation != null)
+            {
+                Cg.DefaultPresentation = legacyDefaultPresentation;
+            }
+            if (legacyRoles != null)
+            {
+                Cg.Roles = legacyRoles;
+            }
+            legacyPlayCg = null;
+            legacyDefaultPresentation = null;
+            legacyRoles = null;
+            legacyShapeRead = false;
+        }
+
         MaxBatchCount = Math.Max(1, Math.Min(128, MaxBatchCount));
-        DefaultPresentation = (DefaultPresentation ?? CreateDefaultPresentation()).Resolve(CreateDefaultPresentation());
+        Cg.Normalize();
+        SchemaVersion = CurrentSchemaVersion;
+    }
+}
+
+public sealed class FeastCgSettings
+{
+    public const int CurrentSchemaVersion = 1;
+
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
+
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("defaultPresentation")]
+    public SkillCgPresentationSettings DefaultPresentation { get; set; } = FeastSettings.CreateDefaultPresentation();
+
+    [JsonProperty("roles")]
+    public Dictionary<string, FeastRoleSettings> Roles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public void Normalize()
+    {
+        SchemaVersion = Math.Max(CurrentSchemaVersion, SchemaVersion);
+        DefaultPresentation = (DefaultPresentation ?? FeastSettings.CreateDefaultPresentation())
+            .Resolve(FeastSettings.CreateDefaultPresentation());
         Roles ??= new Dictionary<string, FeastRoleSettings>(StringComparer.OrdinalIgnoreCase);
 
         var normalizedRoles = new Dictionary<string, FeastRoleSettings>(StringComparer.OrdinalIgnoreCase);

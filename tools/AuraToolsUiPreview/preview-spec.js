@@ -34,7 +34,8 @@ window.AURA_TOOLBOX_PREVIEW_SPEC = Object.freeze({
   modules: [
     { id: "gameplay.starter-deck", category: "gameplay", name: "自定义开局", description: "为世界推演配置全局或按角色的开局卡牌与遗物。", summary: "全局 · 卡牌 0/15 · 遗物 0/6", icon: "starter-deck", enabled: false, settings: true },
     { id: "gameplay.card-refresh", category: "gameplay", name: "卡牌刷新", description: "在战斗奖励选牌时提供一次重新抽取。", summary: "战斗奖励选牌可刷新", icon: "card-refresh", enabled: false, settings: false },
-    { id: "gameplay.feast", category: "gameplay", name: "一键美餐", description: "进食一次后自动处理剩余食物，并播放角色表现。", summary: "已配置 16 个角色", icon: "feast", enabled: true, settings: true },
+    { id: "gameplay.feast", category: "gameplay", name: "一键美餐", description: "进食一次后自动处理剩余食物。", summary: "单次最多处理 64 份食物", icon: "feast", enabled: true, settings: false },
+    { id: "presentation.feast-cg", category: "presentation", name: "美餐 CG", description: "在一键美餐完成后播放按角色配置的 CG。", summary: "已配置 16 个角色", icon: "feast-cg", enabled: true, settings: true },
     { id: "gameplay.safe-box", category: "gameplay", name: "随身保险箱", description: "在冒险顶部栏直接打开保险箱。", summary: "冒险顶部栏显示入口", icon: "safe-box", enabled: false, settings: false },
     { id: "presentation.skin", category: "presentation", name: "角色皮肤", description: "管理已注册皮肤并选择本地显示效果。", summary: "已启用 3/3 个候选皮肤", icon: "skin", enabled: true, settings: true },
     { id: "presentation.battle-bgm", category: "presentation", name: "战斗背景音乐", description: "替换战斗音乐，并可按角色设置不同曲目。", summary: "通用音频", icon: "battle-bgm", enabled: false, settings: true },
@@ -44,8 +45,12 @@ window.AURA_TOOLBOX_PREVIEW_SPEC = Object.freeze({
     { id: "presentation.card-use-cg", category: "presentation", name: "卡牌使用 CG", description: "管理注册卡牌的使用演出。", summary: "已启用 4/7 个注册项", icon: "card-use-cg", enabled: true, settings: true },
     { id: "records.damage-statistics", category: "records", name: "伤害统计", description: "记录本场伤害并提供局内和冒险统计。", summary: "本场 · 全部阵营 · 表格", icon: "damage-statistics", enabled: true, settings: true },
     { id: "records.battle-replay", category: "records", name: "战斗回放", description: "自动记录对局并提供回放与视频导出。", summary: "自动保存上限 20", icon: "battle-replay", enabled: true, settings: true },
+    { id: "records.adventure-archive", category: "records", name: "冒险档案馆", description: "按轮次保存冒险时间线、关键快照并关联战斗记录。", summary: "已保存 28 轮冒险", icon: "adventure-archive", enabled: true, settings: true },
     { id: "multiplayer.mod-sync", category: "multiplayer", name: "MOD 配置同步", description: "在联机大厅中检查并同步工具配置。", summary: "当前不在联机大厅", icon: "mod-sync", enabled: true, settings: true },
+    { id: "multiplayer.lobby-status", category: "multiplayer", name: "大厅状态面板", description: "集中查看玩家、角色、准备状态、游戏版本与 MOD 差异。", summary: "大厅玩家 3", icon: "lobby-status", enabled: true, settings: true },
     { id: "intelligence.auto-battle", category: "intelligence", name: "战斗策略实验室", description: "管理模型、训练、评估和实机验证。", summary: "未选择模型", icon: "auto-battle", enabled: false, settings: true, experimental: true },
-    { id: "system.file-logging", category: "system", name: "文件日志", description: "将工具运行信息写入独立日志文件。", summary: "Info 及以上", icon: "file-logging", enabled: true, settings: true }
+    { id: "system.file-logging", category: "system", name: "文件日志", description: "将工具运行信息写入独立日志文件。", summary: "Info 及以上", icon: "file-logging", enabled: true, settings: true },
+    { id: "system.preset-library", category: "system", name: "妙妙方案库", description: "保存、预检并事务式应用跨模块配置方案。", summary: "本地方案 6 个", icon: "preset-library", enabled: true, settings: true },
+    { id: "system.mod-health", category: "system", name: "MOD 健康检查", description: "按游戏原生 MOD 加载契约检查依赖、入口与注册资源。", summary: "警告 · 问题 2", icon: "mod-health", enabled: true, settings: true }
   ]
 });

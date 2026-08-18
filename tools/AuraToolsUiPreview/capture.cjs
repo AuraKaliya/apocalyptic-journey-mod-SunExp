@@ -70,7 +70,7 @@ function assertSourceContract() {
   ];
   for (const [source, token, message] of required) assert(source.includes(token), message);
   const moduleIds = [...files.ids.matchAll(/public const string \w+ = "([^"]+)";/g)].map(match => match[1]);
-  assert(moduleIds.length === 15, `expected 15 production module ids, found ${moduleIds.length}`);
+  assert(moduleIds.length === 20, `expected 20 production module ids, found ${moduleIds.length}`);
   return moduleIds.sort();
 }
 
@@ -114,7 +114,15 @@ async function verifyInteractions(page, productionModuleIds, report) {
 
   await page.locator('[data-category-id="records"]').click();
   await waitUntilReady(page);
-  assert(await page.locator(".module-row").count() === 2, "records category should contain two tools");
+  assert(await page.locator(".module-row").count() === 3, "records category should contain three tools");
+
+  await page.locator('[data-category-id="multiplayer"]').click();
+  await waitUntilReady(page);
+  assert(await page.locator(".module-row").count() === 2, "multiplayer category should contain two tools");
+
+  await page.locator('[data-category-id="system"]').click();
+  await waitUntilReady(page);
+  assert(await page.locator(".module-row").count() === 3, "system category should contain three tools");
 
   await page.locator("#search-input").fill("皮肤");
   await waitUntilReady(page);

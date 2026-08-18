@@ -26,7 +26,7 @@ public static class AuraToolsFeastRoleEditor
         var window = Settings.AuraToolsUi.CreateOverlay(
             "AuraTools.FeastRoleEditor",
             parent,
-            "一键美餐 - 角色资源",
+            "美餐 CG - 角色资源",
             RefreshAndSave);
         editorRoot = window.transform;
         var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
@@ -41,6 +41,11 @@ public static class AuraToolsFeastRoleEditor
         Settings.AuraToolsUi.AddButton(toolbar.transform, "重新扫描", () => RefreshRoles(true), 104f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "历史资源", () => ShowHistory(window.transform), 96f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
+
+        if (!AuraToolsConfigService.MatchExperience.Feast.Enabled)
+        {
+            SetStatus("一键美餐未开启；自动播放已暂停，资源配置保持不变。");
+        }
 
         roleContent = Settings.AuraToolsUi.CreateScroll(window.transform, "FeastRoles");
         RefreshRoles(false);
@@ -193,7 +198,7 @@ public static class AuraToolsFeastRoleEditor
         var window = Settings.AuraToolsUi.CreateOverlay(
             "AuraTools.FeastResourceEditor",
             parent,
-            "一键美餐 - " + RoleTitle(role),
+            "美餐 CG - " + RoleTitle(role),
             () => activeRole = null,
             true,
             1040f);
@@ -432,9 +437,11 @@ public static class AuraToolsFeastRoleEditor
 
     private static void RefreshAndSave()
     {
-        AuraToolsConfigService.MatchExperience.Feast.Normalize();
-        AuraToolsConfigService.SaveFeast();
-        SetStatus("已保存一键美餐配置。");
+        AuraToolsConfigService.MatchExperience.Feast.Cg.Normalize();
+        AuraToolsConfigService.SaveFeastCg();
+        SetStatus(AuraToolsConfigService.MatchExperience.Feast.Enabled
+            ? "已保存美餐 CG 配置。"
+            : "已保存美餐 CG 配置；自动播放仍随一键美餐暂停。");
     }
 
     private static void SetStatus(string message)

@@ -74,6 +74,10 @@
              Link="DamageMeter\WinSqlite.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\DamageHistoryDatabase.cs"
              Link="DamageMeter\DamageHistoryDatabase.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveModels.cs"
+             Link="AdventureArchive\AdventureArchiveModels.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveDatabase.cs"
+             Link="AdventureArchive\AdventureArchiveDatabase.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Model\MatchRecordModels.cs"
              Link="MatchRecords\MatchRecordModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Model\MatchReplayProjectionModels.cs"

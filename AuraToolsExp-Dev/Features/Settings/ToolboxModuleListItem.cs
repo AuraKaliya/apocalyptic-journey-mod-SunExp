@@ -193,11 +193,13 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
         checkbox?.SetValueWithoutNotify(state.ConfiguredEnabled);
         suppressToggle = false;
         checkbox?.SetInteractable(
-            state.Availability != AuraToolModuleAvailability.Unavailable
+            state.EnableControlInteractable
+            && state.Availability != AuraToolModuleAvailability.Unavailable
             && state.Availability != AuraToolModuleAvailability.Busy);
         if (settingsButton != null)
         {
             settingsButton.Interactable = hasSettings
+                                         && state.SettingsControlInteractable
                                          && state.Availability
                                          != AuraToolModuleAvailability.Unavailable;
         }

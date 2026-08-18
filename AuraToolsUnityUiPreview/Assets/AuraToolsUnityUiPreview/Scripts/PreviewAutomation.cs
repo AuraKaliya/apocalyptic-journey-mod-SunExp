@@ -44,6 +44,7 @@ namespace AuraTools.UnityUiPreview
             internal int Height;
             internal bool Toolbox;
             internal bool Overlay;
+            internal string Category;
         }
 
         private SettingsPreviewController controller;
@@ -82,6 +83,9 @@ namespace AuraTools.UnityUiPreview
                 Case("toolbox-long-text-1280x720", 4, "long-text", 1280, 720, true),
                 Case("toolbox-empty-1280x720", 4, "empty", 1280, 720, true),
                 Case("toolbox-extensions-1280x720", 4, "extensions", 1280, 720, true),
+                Case("toolbox-records-1280x720", 4, "default", 1280, 720, true, false, "records"),
+                Case("toolbox-multiplayer-1280x720", 4, "default", 1280, 720, true, false, "multiplayer"),
+                Case("toolbox-system-1280x720", 4, "default", 1280, 720, true, false, "system"),
                 Case("toolbox-default-920x848", 4, "default", 920, 848, true),
                 Case("toolbox-compact-1024x640", 4, "default", 1024, 640, true),
                 Case("toolbox-overlay-1280x720", 4, "default", 1280, 720, true, true)
@@ -93,6 +97,7 @@ namespace AuraTools.UnityUiPreview
             foreach (var captureCase in cases)
             {
                 controller.SetToolboxScenario(captureCase.Scenario);
+                controller.SetToolboxCategory(captureCase.Category);
                 controller.SelectTab(captureCase.Tab);
                 if (captureCase.Overlay)
                 {
@@ -272,7 +277,8 @@ namespace AuraTools.UnityUiPreview
             int width,
             int height,
             bool toolbox = false,
-            bool overlay = false)
+            bool overlay = false,
+            string category = "all")
         {
             return new CaptureCase
             {
@@ -282,7 +288,8 @@ namespace AuraTools.UnityUiPreview
                 Width = width,
                 Height = height,
                 Toolbox = toolbox,
-                Overlay = overlay
+                Overlay = overlay,
+                Category = category
             };
         }
 

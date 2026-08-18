@@ -171,6 +171,11 @@ namespace AuraTools.UnityUiPreview
             }
         }
 
+        internal void SetToolboxCategory(string category)
+        {
+            toolbox.SelectCategoryForPreview(category);
+        }
+
         internal void SetPreviewChromeVisible(bool visible)
         {
             previewChrome?.SetActive(visible);

@@ -14,8 +14,9 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 
 $iconNames = @(
     "all", "gameplay", "presentation", "records", "multiplayer", "intelligence", "system", "extensions",
-    "file-logging", "skin", "battle-bgm", "card-use-audio", "starter-deck", "card-refresh", "feast", "safe-box",
-    "pixel-emoji", "mod-sync", "damage-statistics", "battle-replay", "auto-battle", "skill-cg", "card-use-cg",
+    "file-logging", "skin", "battle-bgm", "card-use-audio", "starter-deck", "card-refresh", "feast", "feast-cg", "safe-box",
+    "pixel-emoji", "mod-sync", "lobby-status", "damage-statistics", "battle-replay", "adventure-archive", "auto-battle", "skill-cg", "card-use-cg",
+    "preset-library", "mod-health",
     "search", "clear", "folder", "settings", "warning"
 )
 
@@ -172,6 +173,12 @@ function Draw-Icon($graphics, [string]$name) {
                 $graphics.DrawArc($pen, 12, 24, 40, 28, 0, 180); $graphics.DrawLine($pen, 14, 38, 50, 38); $graphics.DrawLine($pen, 22, 49, 42, 49)
                 $graphics.DrawLine($thin, 24, 13, 24, 27); $graphics.DrawLine($thin, 32, 10, 32, 27); $graphics.DrawLine($thin, 40, 13, 40, 27)
             }
+            "feast-cg" {
+                Draw-RoundedRect $graphics $pen 9 12 46 38 3
+                $graphics.DrawEllipse($thin, 16, 20, 8, 8)
+                $graphics.DrawLines($thin, [Drawing.PointF[]]@([Drawing.PointF]::new(15, 43), [Drawing.PointF]::new(27, 31), [Drawing.PointF]::new(35, 38), [Drawing.PointF]::new(43, 28), [Drawing.PointF]::new(50, 43)))
+                Draw-Sparkle $graphics $thin 50 13 6
+            }
             "safe-box" {
                 Draw-RoundedRect $graphics $pen 10 13 44 40 5; $graphics.DrawEllipse($pen, 23, 23, 18, 18)
                 $graphics.DrawLine($thin, 32, 26, 32, 38); $graphics.DrawLine($thin, 26, 32, 38, 32)
@@ -183,6 +190,12 @@ function Draw-Icon($graphics, [string]$name) {
             "mod-sync" {
                 Draw-Arrow $graphics $pen 13 23 49 23; Draw-Arrow $graphics $pen 51 41 15 41 $true
             }
+            "lobby-status" {
+                $graphics.DrawEllipse($pen, 24, 10, 16, 16)
+                $graphics.DrawArc($pen, 17, 27, 30, 27, 185, 170)
+                $graphics.DrawEllipse($thin, 7, 20, 11, 11); $graphics.DrawEllipse($thin, 46, 20, 11, 11)
+                $graphics.DrawLine($thin, 7, 42, 18, 35); $graphics.DrawLine($thin, 46, 35, 57, 42)
+            }
             "damage-statistics" {
                 $graphics.DrawLine($pen, 12, 52, 52, 52); $graphics.DrawLine($pen, 12, 52, 12, 12)
                 $graphics.DrawLine($pen, 18, 43, 27, 33); $graphics.DrawLine($pen, 27, 33, 35, 39); $graphics.DrawLine($pen, 35, 39, 49, 20)
@@ -190,6 +203,11 @@ function Draw-Icon($graphics, [string]$name) {
             "battle-replay" {
                 $graphics.DrawEllipse($pen, 10, 10, 44, 44)
                 $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(27, 21), [Drawing.PointF]::new(27, 43), [Drawing.PointF]::new(44, 32)))
+            }
+            "adventure-archive" {
+                Draw-Document $graphics $pen
+                $graphics.DrawEllipse($thin, 8, 34, 23, 23)
+                $graphics.DrawLine($thin, 19.5, 39, 19.5, 46); $graphics.DrawLine($thin, 19.5, 46, 25, 49)
             }
             "auto-battle" {
                 Draw-Gear $graphics $thin
@@ -202,6 +220,15 @@ function Draw-Icon($graphics, [string]$name) {
             "card-use-cg" {
                 Draw-Card $graphics $pen -4 0
                 $graphics.DrawPolygon($thin, [Drawing.PointF[]]@([Drawing.PointF]::new(34, 28), [Drawing.PointF]::new(34, 42), [Drawing.PointF]::new(46, 35)))
+            }
+            "preset-library" {
+                Draw-RoundedRect $graphics $thin 9 18 34 34 3
+                Draw-RoundedRect $graphics $pen 17 10 38 38 3
+                Draw-Sparkle $graphics $thin 38 29 9
+            }
+            "mod-health" {
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(32, 8), [Drawing.PointF]::new(51, 15), [Drawing.PointF]::new(48, 39), [Drawing.PointF]::new(32, 55), [Drawing.PointF]::new(16, 39), [Drawing.PointF]::new(13, 15)))
+                $graphics.DrawLine($pen, 22, 31, 29, 38); $graphics.DrawLine($pen, 29, 38, 43, 23)
             }
             "search" {
                 $graphics.DrawEllipse($pen, 11, 11, 30, 30); $graphics.DrawLine($pen, 39, 39, 53, 53)

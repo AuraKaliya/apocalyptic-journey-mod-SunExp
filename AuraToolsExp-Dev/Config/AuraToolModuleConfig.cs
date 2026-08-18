@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
@@ -33,6 +34,17 @@ public static class AuraToolConfigChangeBus
     private static readonly object Gate = new();
     private static readonly Dictionary<string, List<Action<AuraToolConfigChangedEvent>>>
         Handlers = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, long> Pending = new(StringComparer.Ordinal);
+    private static int batchDepth;
+
+    public static IDisposable BeginBatch()
+    {
+        lock (Gate)
+        {
+            batchDepth++;
+        }
+        return new BatchScope();
+    }
 
     public static IDisposable Subscribe(
         string moduleId,
@@ -64,6 +76,11 @@ public static class AuraToolConfigChangeBus
         Action<AuraToolConfigChangedEvent>[] handlers;
         lock (Gate)
         {
+            if (batchDepth > 0)
+            {
+                Pending[moduleId ?? ""] = revision;
+                return;
+            }
             handlers = Handlers.TryGetValue(moduleId ?? "", out var values)
                 ? values.ToArray()
                 : Array.Empty<Action<AuraToolConfigChangedEvent>>();
@@ -86,6 +103,25 @@ public static class AuraToolConfigChangeBus
                     "Module config subscriber failed for " + change.ModuleId
                     + ": " + ex.Message);
             }
+        }
+    }
+
+    private static void EndBatch()
+    {
+        KeyValuePair<string, long>[] pending;
+        lock (Gate)
+        {
+            batchDepth = Math.Max(0, batchDepth - 1);
+            if (batchDepth > 0 || Pending.Count == 0)
+            {
+                return;
+            }
+            pending = Pending.ToArray();
+            Pending.Clear();
+        }
+        foreach (var pair in pending)
+        {
+            Publish(pair.Key, pair.Value);
         }
     }
 
@@ -130,6 +166,21 @@ public static class AuraToolConfigChangeBus
             handler = null;
             Unsubscribe(moduleId, value);
             moduleId = "";
+        }
+    }
+
+    private sealed class BatchScope : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (disposed)
+            {
+                return;
+            }
+            disposed = true;
+            EndBatch();
         }
     }
 }

@@ -17,21 +17,30 @@ public static class AuraToolsConfigService
     private static readonly Dictionary<string, long> Revisions = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> ReadOnlyConfigFiles =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, bool> LastModuleSaveResults = new(StringComparer.Ordinal);
     private static readonly AuraToolModuleConfigStore ModuleStore = new();
 
-    public static AuraToolsRootConfig Root { get; private set; } = new();
+    public static AuraToolsRootConfig Root { get; internal set; } = new();
 
-    public static AuraToolsAudioSettings Audio { get; private set; } = new();
+    public static AuraToolsAudioSettings Audio { get; internal set; } = new();
 
-    public static AuraToolsMatchExperienceSettings MatchExperience { get; private set; } = new();
+    public static AuraToolsMatchExperienceSettings MatchExperience { get; internal set; } = new();
 
-    public static AuraToolsPixelEmojiSettings PixelEmoji { get; private set; } = new();
+    public static AuraToolsPixelEmojiSettings PixelEmoji { get; internal set; } = new();
 
-    public static AuraToolsSkillCgSettings SkillCg { get; private set; } = new();
+    public static AuraToolsSkillCgSettings SkillCg { get; internal set; } = new();
 
-    public static AuraToolsSkinSettings Skin { get; private set; } = new();
+    public static AuraToolsSkinSettings Skin { get; internal set; } = new();
 
-    public static AuraToolsLoggingSettings Logging { get; private set; } = new();
+    public static AuraToolsLoggingSettings Logging { get; internal set; } = new();
+
+    public static PresetLibrarySettings PresetLibrary { get; internal set; } = new();
+
+    public static ModHealthSettings ModHealth { get; internal set; } = new();
+
+    public static LobbyStatusSettings LobbyStatus { get; internal set; } = new();
+
+    public static AdventureArchiveSettings AdventureArchive { get; internal set; } = new();
 
     public static string ModDirectory => AuraToolsPaths.PackageDirectory;
 
@@ -77,6 +86,17 @@ public static class AuraToolsConfigService
             _ => changed());
     }
 
+    internal static void RequireLastModuleSaveSucceeded(string moduleId)
+    {
+        lock (Gate)
+        {
+            if (!LastModuleSaveResults.TryGetValue(moduleId ?? "", out var succeeded) || !succeeded)
+            {
+                throw new IOException("模块配置未能持久化：" + moduleId);
+            }
+        }
+    }
+
     public static void Initialize(ModConfig config)
     {
         lock (Gate)
@@ -118,6 +138,7 @@ public static class AuraToolsConfigService
         SaveStarterDeck();
         SaveCardRefresh();
         SaveFeast();
+        SaveFeastCg();
         SaveSafeBox();
         SaveModSync();
         SaveDamageStatistics();
@@ -170,6 +191,30 @@ public static class AuraToolsConfigService
             Logging,
             () => SaveModule(Logging, Root.Logging.ConfigFile));
         LoggingChanged?.Invoke();
+    }
+
+    public static void SavePresetLibrary()
+    {
+        PresetLibrary.Normalize();
+        SaveModuleSetting(AuraToolModuleIds.PresetLibrary, PresetLibrary, () => { });
+    }
+
+    public static void SaveModHealth()
+    {
+        ModHealth.Normalize();
+        SaveModuleSetting(AuraToolModuleIds.ModHealth, ModHealth, () => { });
+    }
+
+    public static void SaveLobbyStatus()
+    {
+        LobbyStatus.Normalize();
+        SaveModuleSetting(AuraToolModuleIds.LobbyStatus, LobbyStatus, () => { });
+    }
+
+    public static void SaveAdventureArchive()
+    {
+        AdventureArchive.Normalize();
+        SaveModuleSetting(AuraToolModuleIds.AdventureArchive, AdventureArchive, () => { });
     }
 
     public static void SaveBattleBgm()
@@ -241,6 +286,14 @@ public static class AuraToolsConfigService
         SaveMatchExperienceModule(
             AuraToolModuleIds.Feast,
             MatchExperience.Feast);
+    }
+
+    public static void SaveFeastCg()
+    {
+        MatchExperience.Feast.Cg.Normalize();
+        SaveMatchExperienceModule(
+            AuraToolModuleIds.FeastCg,
+            MatchExperience.Feast.Cg);
     }
 
     public static void SaveSafeBox()
@@ -323,6 +376,7 @@ public static class AuraToolsConfigService
     {
         Revisions.Clear();
         ReadOnlyConfigFiles.Clear();
+        LastModuleSaveResults.Clear();
         ModuleStore.Reset();
         Root = LoadOrDefault(AuraToolsIds.RootConfigFileName, new AuraToolsRootConfig());
         Root.Normalize();
@@ -366,6 +420,11 @@ public static class AuraToolsConfigService
         MatchExperience.Feast = LoadModuleSetting(
             AuraToolModuleIds.Feast,
             MatchExperience.Feast,
+            ref migrated);
+        MatchExperience.Feast.Normalize();
+        MatchExperience.Feast.Cg = LoadModuleSetting(
+            AuraToolModuleIds.FeastCg,
+            MatchExperience.Feast.Cg,
             ref migrated);
         MatchExperience.SafeBox = LoadModuleSetting(
             AuraToolModuleIds.SafeBox,
@@ -417,6 +476,22 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.FileLogging,
             Logging,
             ref migrated);
+        PresetLibrary = LoadModuleSetting(
+            AuraToolModuleIds.PresetLibrary,
+            PresetLibrary,
+            ref migrated);
+        ModHealth = LoadModuleSetting(
+            AuraToolModuleIds.ModHealth,
+            ModHealth,
+            ref migrated);
+        LobbyStatus = LoadModuleSetting(
+            AuraToolModuleIds.LobbyStatus,
+            LobbyStatus,
+            ref migrated);
+        AdventureArchive = LoadModuleSetting(
+            AuraToolModuleIds.AdventureArchive,
+            AdventureArchive,
+            ref migrated);
 
         Audio.Normalize();
         MatchExperience.Normalize();
@@ -426,6 +501,10 @@ public static class AuraToolsConfigService
         SkillCg.Normalize();
         Skin.Normalize();
         Logging.Normalize();
+        PresetLibrary.Normalize();
+        ModHealth.Normalize();
+        LobbyStatus.Normalize();
+        AdventureArchive.Normalize();
         if (migrated > 0)
         {
             AuraToolsLog.Info(
@@ -510,6 +589,10 @@ public static class AuraToolsConfigService
             MatchExperience.Feast,
             out _);
         SaveModuleSettingNoNotify(
+            AuraToolModuleIds.FeastCg,
+            MatchExperience.Feast.Cg,
+            out _);
+        SaveModuleSettingNoNotify(
             AuraToolModuleIds.SafeBox,
             MatchExperience.SafeBox,
             out _);
@@ -549,6 +632,22 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.FileLogging,
             Logging,
             out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.PresetLibrary,
+            PresetLibrary,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.ModHealth,
+            ModHealth,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.LobbyStatus,
+            LobbyStatus,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.AdventureArchive,
+            AdventureArchive,
+            out _);
     }
 
     private static void SaveMatchExperienceModule<T>(string moduleId, T settings)
@@ -569,8 +668,10 @@ public static class AuraToolsConfigService
         {
             if (!SaveModuleSettingNoNotify(moduleId, settings, out revision))
             {
+                LastModuleSaveResults[moduleId] = false;
                 return;
             }
+            LastModuleSaveResults[moduleId] = true;
             saveLegacy();
         }
         AuraToolConfigChangeBus.Publish(moduleId, revision);

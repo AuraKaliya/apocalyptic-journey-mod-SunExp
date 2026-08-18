@@ -60,6 +60,10 @@ public sealed class AuraToolModuleState
 
     public int? ItemCount { get; set; }
 
+    public bool EnableControlInteractable { get; set; } = true;
+
+    public bool SettingsControlInteractable { get; set; } = true;
+
     internal AuraToolModuleState CloneWithRevision(long revision)
     {
         return new AuraToolModuleState
@@ -71,7 +75,9 @@ public sealed class AuraToolModuleState
             Availability = Availability,
             Summary = Summary,
             Attention = Attention,
-            ItemCount = ItemCount
+            ItemCount = ItemCount,
+            EnableControlInteractable = EnableControlInteractable,
+            SettingsControlInteractable = SettingsControlInteractable
         };
     }
 
@@ -83,7 +89,9 @@ public sealed class AuraToolModuleState
                && Availability == other.Availability
                && string.Equals(Summary, other.Summary, StringComparison.Ordinal)
                && string.Equals(Attention, other.Attention, StringComparison.Ordinal)
-               && ItemCount == other.ItemCount;
+               && ItemCount == other.ItemCount
+               && EnableControlInteractable == other.EnableControlInteractable
+               && SettingsControlInteractable == other.SettingsControlInteractable;
     }
 }
 

@@ -51,7 +51,8 @@ namespace AuraTools.UnityUiPreview
         {
             Module("gameplay.starter-deck", "gameplay", "自定义开局", "为世界推演配置全局或按角色的开局卡牌与遗物。", "全局 · 卡牌 0/15 · 遗物 0/6", "starter-deck", false, true),
             Module("gameplay.card-refresh", "gameplay", "卡牌刷新", "在战斗奖励选牌时提供一次重新抽取。", "战斗奖励选牌可刷新", "card-refresh", false, false),
-            Module("gameplay.feast", "gameplay", "一键美餐", "进食一次后自动处理剩余食物，并播放角色表现。", "已配置 16 个角色", "feast", true, true),
+            Module("gameplay.feast", "gameplay", "一键美餐", "进食一次后自动处理剩余食物。", "单次最多处理 64 份食物", "feast", true, false),
+            Module("presentation.feast-cg", "presentation", "美餐 CG", "在一键美餐完成后播放按角色配置的 CG。", "已配置 16 个角色", "feast-cg", true, true),
             Module("gameplay.safe-box", "gameplay", "随身保险箱", "在冒险顶部栏直接打开保险箱。", "冒险顶部栏显示入口", "safe-box", false, false),
             Module("presentation.skin", "presentation", "角色皮肤", "管理已注册皮肤并选择本地显示效果。", "已启用 3/3 个候选皮肤", "skin", true, true),
             Module("presentation.battle-bgm", "presentation", "战斗背景音乐", "替换战斗音乐，并可按角色设置不同曲目。", "通用音频", "battle-bgm", false, true),
@@ -61,9 +62,13 @@ namespace AuraTools.UnityUiPreview
             Module("presentation.card-use-cg", "presentation", "卡牌使用 CG", "管理注册卡牌的使用演出。", "已启用 4/7 个注册项", "card-use-cg", true, true),
             Module("records.damage-statistics", "records", "伤害统计", "记录本场伤害并提供局内和冒险统计。", "本场 · 全部阵营 · 表格", "damage-statistics", true, true),
             Module("records.battle-replay", "records", "战斗回放", "自动记录对局并提供回放与视频导出。", "自动保存上限 20", "battle-replay", true, true),
+            Module("records.adventure-archive", "records", "冒险档案馆", "按轮次保存冒险时间线、关键快照并关联战斗记录。", "已保存 28 轮冒险", "adventure-archive", true, true),
             Module("multiplayer.mod-sync", "multiplayer", "MOD 配置同步", "在联机大厅中检查并同步工具配置。", "当前不在联机大厅", "mod-sync", true, true),
+            Module("multiplayer.lobby-status", "multiplayer", "大厅状态面板", "集中查看玩家、角色、准备状态、游戏版本与 MOD 差异。", "大厅玩家 3", "lobby-status", true, true),
             Module("intelligence.auto-battle", "intelligence", "战斗策略实验室", "管理模型、训练、评估和实机验证。", "未选择模型", "auto-battle", false, true, true),
-            Module("system.file-logging", "system", "文件日志", "将工具运行信息写入独立日志文件。", "Info 及以上", "file-logging", true, true)
+            Module("system.file-logging", "system", "文件日志", "将工具运行信息写入独立日志文件。", "Info 及以上", "file-logging", true, true),
+            Module("system.preset-library", "system", "妙妙方案库", "保存、预检并事务式应用跨模块配置方案。", "本地方案 6 个", "preset-library", true, true),
+            Module("system.mod-health", "system", "MOD 健康检查", "按游戏原生 MOD 加载契约检查依赖、入口与注册资源。", "警告 · 问题 2", "mod-health", true, true)
         };
 
         internal static List<PreviewModule> ForScenario(string scenario)
@@ -82,6 +87,10 @@ namespace AuraTools.UnityUiPreview
                     auto.Availability = "warning";
                     break;
                 case "warning":
+                    var feastCg = modules.First(module => module.Id == "presentation.feast-cg");
+                    feastCg.Summary = "随一键美餐暂停 · 已配置 16 个角色";
+                    feastCg.Attention = "开启一键美餐后恢复自动播放";
+                    feastCg.Availability = "warning";
                     var skin = modules.First(module => module.Id == "presentation.skin");
                     skin.Summary = "已启用 2/3 个候选皮肤";
                     skin.Attention = "1 个资源目录缺失";

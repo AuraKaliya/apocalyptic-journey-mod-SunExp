@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraCg.Shared;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.AdventureArchive;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.CardRefresh;
@@ -10,9 +11,12 @@ using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
+using AuraToolsExp.Dll.Features.LobbyStatus;
 using AuraToolsExp.Dll.Features.MatchRecords;
+using AuraToolsExp.Dll.Features.ModHealth;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.PixelEmoji;
+using AuraToolsExp.Dll.Features.PresetLibrary;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.Skin;
@@ -34,16 +38,21 @@ internal static class AuraToolsBuiltInModules
             CardUseAudioModule(),
             StarterDeckModule(),
             FeastModule(),
+            FeastCgModule(),
             SafeBoxModule(),
             CardRefreshModule(),
             PixelEmojiModule(),
             AutoBattleModule(),
             ModSyncModule(),
+            LobbyStatusModule(),
             DamageStatisticsModule(),
             BattleReplayModule(),
+            AdventureArchiveModule(),
             DiagnosticsModule(),
             SkillCgModule(),
-            CardUseCgModule()
+            CardUseCgModule(),
+            PresetLibraryModule(),
+            ModHealthModule()
         };
     }
 
@@ -221,21 +230,42 @@ internal static class AuraToolsBuiltInModules
             130,
             50,
             "一键美餐",
-            "进食一次后自动处理剩余食物，并播放角色表现。",
+            "进食一次后自动处理剩余食物。",
             context => AuraToolsFeastRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.MatchExperience.Feast.Enabled,
             enabled =>
             {
                 AuraToolsConfigService.MatchExperience.Feast.Enabled = enabled;
                 AuraToolsConfigService.SaveFeast();
+                AuraToolModuleHost.RefreshState(AuraToolModuleIds.FeastCg);
             },
             () => State(
                 AuraToolModuleIds.Feast,
                 AuraToolsConfigService.MatchExperience.Feast.Enabled,
-                "已配置 " + AuraToolsConfigService.MatchExperience.Feast.Roles.Count + " 个角色",
-                AuraToolsConfigService.MatchExperience.Feast.Roles.Count),
+                "单次最多处理 " + AuraToolsConfigService.MatchExperience.Feast.MaxBatchCount + " 份食物"),
+            null,
+            new[] { "食物", "美餐", "自动进食" });
+    }
+
+    private static IAuraToolModule FeastCgModule()
+    {
+        return Module(
+            AuraToolModuleIds.FeastCg,
+            "presentation",
+            240,
+            51,
+            "美餐 CG",
+            "在一键美餐完成后播放按角色配置的 CG。",
+            null,
+            () => AuraToolsConfigService.MatchExperience.Feast.Cg.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.MatchExperience.Feast.Cg.Enabled = enabled;
+                AuraToolsConfigService.SaveFeastCg();
+            },
+            FeastCgState,
             AuraToolsFeastRoleEditor.Show,
-            new[] { "食物", "美餐", "CG" });
+            new[] { "美餐", "CG", "食物", "角色", "表现资源" });
     }
 
     private static IAuraToolModule SafeBoxModule()
@@ -316,6 +346,33 @@ internal static class AuraToolsBuiltInModules
             new[] { "联机", "MOD", "同步", "房主" });
     }
 
+    private static IAuraToolModule LobbyStatusModule()
+    {
+        return Module(
+            AuraToolModuleIds.LobbyStatus,
+            "multiplayer",
+            520,
+            101,
+            "大厅状态面板",
+            "集中查看玩家、角色、准备状态、游戏版本与 MOD 差异。",
+            context => LobbyStatusRuntime.Initialize(context.ModConfig),
+            () => AuraToolsConfigService.LobbyStatus.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.LobbyStatus.Enabled = enabled;
+                AuraToolsConfigService.SaveLobbyStatus();
+            },
+            () => NetworkState(
+                AuraToolModuleIds.LobbyStatus,
+                AuraToolsConfigService.LobbyStatus.Enabled,
+                LobbyStatusRuntime.Current.Players.Count == 0
+                    ? "等待进入联机大厅"
+                    : "大厅玩家 " + LobbyStatusRuntime.Current.Players.Count,
+                LobbyStatusRuntime.Current.Players.Count),
+            LobbyStatusRuntime.Show,
+            new[] { "大厅", "玩家", "准备", "版本", "MOD" });
+    }
+
     private static IAuraToolModule DamageStatisticsModule()
     {
         return Module(
@@ -381,6 +438,33 @@ internal static class AuraToolsBuiltInModules
             },
             AuraToolsReplaySettingsPage.Show,
             new[] { "回放", "录像", "对局", "视频" });
+    }
+
+    private static IAuraToolModule AdventureArchiveModule()
+    {
+        return Module(
+            AuraToolModuleIds.AdventureArchive,
+            "records",
+            330,
+            112,
+            "冒险档案馆",
+            "按轮次保存冒险时间线、关键快照并关联战斗记录。",
+            context => AdventureArchiveRuntime.Initialize(context.ModConfig),
+            () => AuraToolsConfigService.AdventureArchive.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.AdventureArchive.Enabled = enabled;
+                AuraToolsConfigService.SaveAdventureArchive();
+            },
+            () => State(
+                AuraToolModuleIds.AdventureArchive,
+                AuraToolsConfigService.AdventureArchive.Enabled,
+                AuraToolsConfigService.AdventureArchive.Enabled
+                    ? "已保存 " + AdventureArchiveRuntime.Count + " 轮冒险"
+                    : "档案采集已关闭",
+                AuraToolsConfigService.AdventureArchive.Enabled ? AdventureArchiveRuntime.Count : 0),
+            AdventureArchivePage.Show,
+            new[] { "冒险", "档案", "时间线", "快照", "对局" });
     }
 
     private static IAuraToolModule AutoBattleModule()
@@ -507,6 +591,64 @@ internal static class AuraToolsBuiltInModules
             visible: false);
     }
 
+    private static IAuraToolModule PresetLibraryModule()
+    {
+        return Module(
+            AuraToolModuleIds.PresetLibrary,
+            "system",
+            620,
+            140,
+            "妙妙方案库",
+            "保存、预检并事务式应用跨模块配置方案。",
+            _ => AuraPresetLibraryService.RefreshCount(),
+            () => AuraToolsConfigService.PresetLibrary.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.PresetLibrary.Enabled = enabled;
+                AuraToolsConfigService.SavePresetLibrary();
+            },
+            () => State(
+                AuraToolModuleIds.PresetLibrary,
+                AuraToolsConfigService.PresetLibrary.Enabled,
+                "本地方案 " + AuraPresetLibraryService.CachedCount + " 个",
+                AuraPresetLibraryService.CachedCount),
+            AuraPresetLibraryPage.Show,
+            new[] { "方案", "预设", "导入", "导出", "配置", "Codec" });
+    }
+
+    private static IAuraToolModule ModHealthModule()
+    {
+        return Module(
+            AuraToolModuleIds.ModHealth,
+            "system",
+            630,
+            150,
+            "MOD 健康检查",
+            "按游戏原生 MOD 加载契约检查依赖、入口与注册资源。",
+            null,
+            () => AuraToolsConfigService.ModHealth.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.ModHealth.Enabled = enabled;
+                AuraToolsConfigService.SaveModHealth();
+            },
+            () =>
+            {
+                var report = ModHealthRuntime.Current;
+                var summary = string.IsNullOrWhiteSpace(report.ScannedUtc)
+                    ? "尚未扫描"
+                    : report.Level + " · 问题 " + report.Issues.Count;
+                return State(
+                    AuraToolModuleIds.ModHealth,
+                    AuraToolsConfigService.ModHealth.Enabled,
+                    summary,
+                    report.Issues.Count,
+                    report.CriticalCount + report.ErrorCount > 0 ? "检测到需要处理的 MOD 加载问题。" : "");
+            },
+            ModHealthPage.Show,
+            new[] { "MOD", "健康", "依赖", "加载", "版本", "资源" });
+    }
+
     private static IAuraToolModule Module(
         string id,
         string category,
@@ -589,6 +731,35 @@ internal static class AuraToolsBuiltInModules
             state.Attention = string.IsNullOrWhiteSpace(state.Attention)
                 ? networkAttention
                 : state.Attention + " " + networkAttention;
+        }
+        return state;
+    }
+
+    private static AuraToolModuleState FeastCgState()
+    {
+        var feast = AuraToolsConfigService.MatchExperience.Feast;
+        var configured = feast.Cg.Enabled;
+        var effective = feast.IsCgEffective;
+        var count = feast.Cg.Roles.Count;
+        var state = new AuraToolModuleState
+        {
+            ModuleId = AuraToolModuleIds.FeastCg,
+            ConfiguredEnabled = configured,
+            EffectiveEnabled = effective,
+            Availability = effective
+                ? AuraToolModuleAvailability.Ready
+                : AuraToolModuleAvailability.Disabled,
+            Summary = feast.Enabled
+                ? "已配置 " + count + " 个角色"
+                : "随一键美餐暂停 · 已配置 " + count + " 个角色",
+            ItemCount = count,
+            EnableControlInteractable = feast.Enabled,
+            SettingsControlInteractable = true
+        };
+        if (AuraToolsConfigService.IsModuleConfigReadOnly(AuraToolModuleIds.FeastCg))
+        {
+            state.Availability = AuraToolModuleAvailability.Degraded;
+            state.Attention = "配置来自更新版本；当前保持只读。";
         }
         return state;
     }
