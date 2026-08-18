@@ -107,7 +107,7 @@ internal static partial class AuraToolsTestSuite
                 "pre-release v7 projections are intentionally analysis-only after the v8 visual contract ships");
             var contextual = new MatchRecord
             {
-                ReplayProtocol = MatchReplayProtocol.Version,
+                ReplayProtocol = 8,
                 InitialState = new MatchReplayInitialState
                 {
                     DiceJson = "{\"_cursor\":{\"val\":7}}",
@@ -136,6 +136,7 @@ internal static partial class AuraToolsTestSuite
             Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
                    == MatchReplayCompatibilityLevels.Compatible,
                 "the current full authoritative-frame stream is compatible without a build fingerprint gate");
+            contextual.RequiredCapabilities.Add(MatchReplayCapabilities.EntityDeltaV2);
             contextual.ReplayProtocol = MatchReplayProtocol.Version + 1;
             Assert(MatchReplayCompatibility.Evaluate(contextual, first).Level
                    == MatchReplayCompatibilityLevels.Degraded,
@@ -194,6 +195,23 @@ internal static partial class AuraToolsTestSuite
                    && stableConvergence.Observe("state-a") == MatchReplayActionFinalizationDecision.Observe
                    && stableConvergence.Observe("state-a") == MatchReplayActionFinalizationDecision.FinalizeStable,
                 "an action finalizes after a short minimum window with two matching authoritative projections");
+            var probeConvergence = new MatchReplayActionConvergenceTracker();
+            var stableProbe = new MatchReplayRevisionProbe(7, 0xA55AUL, 0);
+            Assert(probeConvergence.Observe(stableProbe) == MatchReplayActionFinalizationDecision.Observe
+                   && probeConvergence.Observe(stableProbe) == MatchReplayActionFinalizationDecision.Observe
+                   && probeConvergence.Observe(stableProbe) == MatchReplayActionFinalizationDecision.FinalizeStable,
+                "cheap revision fingerprints converge without constructing full projection snapshots");
+            var pendingWriterConvergence = new MatchReplayActionConvergenceTracker();
+            var pendingProbe = new MatchReplayRevisionProbe(7, 0xA55AUL, 1);
+            var pendingDecision = MatchReplayActionFinalizationDecision.Observe;
+            for (var observation = 0;
+                 observation < MatchReplayActionConvergenceTracker.MaximumObservations;
+                 observation++)
+            {
+                pendingDecision = pendingWriterConvergence.Observe(pendingProbe);
+            }
+            Assert(pendingDecision == MatchReplayActionFinalizationDecision.FinalizeDeadline,
+                "pending native writers cannot be mistaken for a stable replay projection");
             var delayedConvergence = new MatchReplayActionConvergenceTracker();
             Assert(delayedConvergence.Observe("state-a") == MatchReplayActionFinalizationDecision.Observe
                    && delayedConvergence.Observe("state-a") == MatchReplayActionFinalizationDecision.Observe
@@ -357,7 +375,8 @@ internal static partial class AuraToolsTestSuite
                 FinalStateHash = MatchReplayProjectionState.Hash(enemyIntentAfter)
             };
             var projectedEnemyIntentState = MatchReplayProjectionState.Apply(enemyIntentBefore, enemyIntentDelta);
-            Assert(enemyIntentDelta.ReplaceEnemyIntents
+            Assert(!enemyIntentDelta.ReplaceEnemyIntents
+                   && enemyIntentDelta.RemovedEnemyIntentIds.Count == 1
                    && projectedEnemyIntentState.EnemyIntents.Count == 0
                    && projectedEnemyIntentState.Statuses.Single(item => item.InstanceId == "role").CurrentHp == 12,
                 "enemy intent execution removes only the consumed intent and projects its authoritative damage");
@@ -392,7 +411,8 @@ internal static partial class AuraToolsTestSuite
                 .ActionFrame;
             Assert(enemyIntentRoundTrip?.IntentPresentation?.IntentId == "enemy-card-bite"
                    && enemyIntentRoundTrip.IntentPresentation.TargetIds.SequenceEqual(new[] { "role" })
-                   && enemyIntentRoundTrip.Delta.ReplaceEnemyIntents,
+                   && !enemyIntentRoundTrip.Delta.ReplaceEnemyIntents
+                   && enemyIntentRoundTrip.Delta.RemovedEnemyIntentIds.Count == 1,
                 "enemy intent source, targets, plan transition, and native animation survive replay chunk serialization");
             Assert(derived.Semantics.Any(item => item.Category == MatchSemanticCategories.Damage
                                                 && item.TargetInstanceId == "role"
@@ -418,11 +438,17 @@ internal static partial class AuraToolsTestSuite
             var dynamicCardAfter = MatchReplayProjectionState.Clone(baseline);
             dynamicCardAfter.Cards[0].Vars.Add(new MatchReplayStringValue { Key = "DesVal1", Value = "9" });
             var dynamicTransitions = MatchReplayActionDerivation.BuildCardTransitions(baseline, dynamicCardAfter);
+            var dynamicDelta = MatchReplayProjectionState.CreateDelta(baseline, dynamicCardAfter);
             Assert(dynamicTransitions
                     .Any(item => item.ReplayCardId == "card-a-instance"
                                  && item.Disposition == MatchReplayCardDispositionKinds.Update
                                  && item.PresentationChanged),
                 "dynamic card text changes are explicit transitions even when hand order is unchanged");
+            Assert(!dynamicDelta.ReplaceCards
+                   && dynamicDelta.CardUpserts.Count == 1
+                   && dynamicDelta.CardUpserts[0].ReplayCardId == "card-a-instance"
+                   && dynamicDelta.RemovedCardIds.Count == 0,
+                "v9 card deltas upsert only the changed identity instead of copying the complete hand and piles");
             var shieldBefore = MatchReplayProjectionState.Clone(baseline);
             shieldBefore.Statuses[0].Defend = 5;
             var shieldAfter = MatchReplayProjectionState.Clone(baseline);

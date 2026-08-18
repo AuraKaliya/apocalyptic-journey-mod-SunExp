@@ -141,7 +141,11 @@ internal static class MatchReplayChunker
             + (status.Buffs?.Count ?? 0) * 192L
             + (status.Buffs?.Sum(buff => buff.Vars?.Count ?? 0) ?? 0) * 64L);
         size += (delta.Cards ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        size += (delta.CardUpserts ?? new List<MatchReplayCardState>()).Sum(Estimate);
+        size += (delta.RemovedCardIds?.Count ?? 0) * 64L;
         size += (delta.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Sum(Estimate);
+        size += (delta.EnemyIntentUpserts ?? new List<MatchReplayEnemyIntentState>()).Sum(Estimate);
+        size += (delta.RemovedEnemyIntentIds?.Count ?? 0) * 96L;
         return size;
     }
 

@@ -654,7 +654,7 @@ internal static class MatchReplayPlayer
                                 ChangedStatusIds = item.ActionFrame.Delta.StatusUpserts
                                     .Select(status => status.InstanceId)
                                     .ToList(),
-                                ReplaceCards = item.ActionFrame.Delta.ReplaceCards,
+                                ReplaceCards = MatchReplayProjectionState.HasCardChanges(item.ActionFrame.Delta),
                                 CardTransitions = item.ActionFrame.CardTransitions ?? new List<MatchReplayCardTransition>()
                             };
                         }
@@ -681,7 +681,7 @@ internal static class MatchReplayPlayer
                     ReadModel.Reset(item.SeekCheckpoint.State);
                     break;
                 default:
-                    throw new InvalidOperationException("v8 播放器拒绝命令重演事件：" + item.Kind);
+                    throw new InvalidOperationException("只读投影播放器拒绝命令重演事件：" + item.Kind);
             }
 
             return true;
@@ -854,7 +854,7 @@ internal static class MatchReplayPlayer
             SeekToIndex(target);
         }
 
-        AuraToolsLog.Info("[MatchRecords] v8 replay started: record=" + record.RecordId
+        AuraToolsLog.Info("[MatchRecords] v" + record.ReplayProtocol + " replay started: record=" + record.RecordId
                           + ", events=" + events.Count
                           + ", kinds=" + preparedKindsDescription
                           + ", compatibility=" + playbackHealth
@@ -920,7 +920,7 @@ internal static class MatchReplayPlayer
             restoreCards: false,
             restoreRoleTable: false,
             frame.Delta.StatusUpserts.Select(status => status.InstanceId).ToList());
-        if (frame.Delta.ReplaceCards)
+        if (MatchReplayProjectionState.HasCardChanges(frame.Delta))
         {
             MatchReplayCardStateCapture.ApplyTransitions(
                 ReadModel.Current.Cards,

@@ -47,13 +47,23 @@ public sealed class GoldDreamSnapshot
 
 public static class GoldDreamRules
 {
-    public const int KThreshold = 1_000;
-    public const int MThreshold = 1_000_000;
-    public const int BThreshold = 1_000_000_000;
+    public const long KThreshold = 1_000L;
+    public const long MThreshold = 1_000_000L;
+    public const long BThreshold = 1_000_000_000L;
 
-    public static GoldenPotentialTier PotentialTier(int falseGold)
+    public static long TotalAssets(int falseGold, int realGold)
     {
-        var value = Math.Max(0, falseGold);
+        return (long)Math.Max(0, falseGold) + Math.Max(0, realGold);
+    }
+
+    public static GoldenPotentialTier PotentialTier(int falseGold, int realGold)
+    {
+        return PotentialTier(TotalAssets(falseGold, realGold));
+    }
+
+    public static GoldenPotentialTier PotentialTier(long assets)
+    {
+        var value = Math.Max(0L, assets);
         if (value >= BThreshold)
         {
             return GoldenPotentialTier.B;

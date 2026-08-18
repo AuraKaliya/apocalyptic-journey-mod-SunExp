@@ -75,9 +75,13 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
     private Button? previewButton;
     private Button? loopButton;
     private Button? onceButton;
+    private GameObject? referenceDetails;
+    private LayoutElement? referencePanelElement;
+    private bool referenceControlsExpanded;
     private int referenceScalePercent = PixelEmojiReferencePolicy.DefaultScalePercent;
     private int referenceOpacityPercent = PixelEmojiReferencePolicy.DefaultOpacityPercent;
     private int referenceLoadSequence;
+    private PixelEmojiWorkshopLayoutMetrics layoutMetrics;
 
     private byte[] pixels
     {
@@ -114,11 +118,11 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             1f);
         Canvas.ForceUpdateCanvases();
         var availableWidth = (parent as RectTransform)?.rect.width ?? 0f;
-        var narrow = availableWidth < 1040f;
+        layoutMetrics = PixelEmojiWorkshopLayoutPolicy.Resolve(availableWidth);
         var workspace = AuraToolsUi.CreateLayout("Workspace", body);
-        AuraToolsUi.SetFixedHeight(workspace, narrow ? 1200f : 590f);
+        AuraToolsUi.SetFixedHeight(workspace, layoutMetrics.WorkspaceHeight);
         HorizontalOrVerticalLayoutGroup workspaceLayout;
-        if (narrow)
+        if (layoutMetrics.StackVertically)
         {
             workspaceLayout = workspace.AddComponent<VerticalLayoutGroup>();
         }
@@ -126,11 +130,11 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         {
             workspaceLayout = workspace.AddComponent<HorizontalLayoutGroup>();
         }
-        workspaceLayout.spacing = 14f;
+        workspaceLayout.spacing = PixelEmojiWorkshopLayoutPolicy.ColumnGap;
         workspaceLayout.childControlHeight = true;
         workspaceLayout.childControlWidth = true;
         workspaceLayout.childForceExpandHeight = false;
-        workspaceLayout.childForceExpandWidth = narrow;
+        workspaceLayout.childForceExpandWidth = layoutMetrics.StackVertically;
 
         BuildCanvas(workspace.transform);
         BuildTools(workspace.transform);
@@ -143,8 +147,14 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         libraryHeaderLayout.childControlWidth = true;
         libraryHeaderLayout.childForceExpandWidth = false;
         AuraToolsUi.AddText(libraryHeader.transform, "作品库", AuraToolsUi.ModuleTitleFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 46f, 1f);
-        AuraToolsUi.AddButton(libraryHeader.transform, "新建", NewDocument, 82f);
-        AuraToolsUi.AddButton(libraryHeader.transform, "打开目录", () => FileResourceUtil.OpenDirectory(PixelEmojiLibraryStore.DataDirectory), 104f);
+        AddCompactButton(libraryHeader.transform, "新建", NewDocument, 72f);
+        ToolboxIconButtonV2.Create(
+            libraryHeader.transform,
+            "action.folder",
+            "打开表情作品目录",
+            () => FileResourceUtil.OpenDirectory(PixelEmojiLibraryStore.DataDirectory),
+            42f,
+            "夹");
 
         libraryContent = AuraToolsUi.CreateFixedScroll(body, "PixelEmojiLibrary", 180f);
         RebuildLibrary();
@@ -154,7 +164,10 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
     private void BuildCanvas(Transform parent)
     {
         var column = AuraToolsUi.CreateLayout("CanvasColumn", parent);
-        AuraToolsUi.SetFixedSize(column, 450f, 590f);
+        AuraToolsUi.SetFixedSize(
+            column,
+            layoutMetrics.CanvasColumnWidth,
+            layoutMetrics.ContentHeight);
         var columnLayout = column.AddComponent<VerticalLayoutGroup>();
         columnLayout.spacing = 8f;
         columnLayout.childControlWidth = true;
@@ -163,8 +176,11 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         columnLayout.childForceExpandHeight = false;
 
         var holder = AuraToolsUi.CreateLayout("CanvasHolder", column.transform);
-        AuraToolsUi.SetFixedSize(holder, 450f, 450f);
-        AuraToolsUi.AddPanelImage(holder, new Color(0.02f, 0.02f, 0.035f, 1f));
+        AuraToolsUi.SetFixedSize(
+            holder,
+            layoutMetrics.CanvasColumnWidth,
+            layoutMetrics.CanvasColumnWidth);
+        ToolboxSurfaceV2.ApplyControl(holder).raycastTarget = false;
 
         var canvasObject = AuraToolsUi.CreateRect(
             "PixelCanvas",
@@ -172,7 +188,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
-            new Vector2(424f, 424f));
+            new Vector2(layoutMetrics.CanvasSize, layoutMetrics.CanvasSize));
         referenceViewportRect = canvasObject.GetComponent<RectTransform>();
         canvasObject.AddComponent<RectMask2D>();
         var checkerObject = AuraToolsUi.CreateRect(
@@ -239,8 +255,11 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
     private void BuildAnimationPanel(Transform parent)
     {
         var panel = AuraToolsUi.CreateLayout("AnimationFrames", parent);
-        AuraToolsUi.SetFixedSize(panel, 450f, 132f);
-        AuraToolsUi.AddPanelImage(panel, AuraToolsUi.Panel);
+        AuraToolsUi.SetFixedSize(
+            panel,
+            layoutMetrics.CanvasColumnWidth,
+            layoutMetrics.AnimationPanelHeight);
+        ToolboxSurfaceV2.ApplyControl(panel).raycastTarget = false;
         var panelLayout = panel.AddComponent<VerticalLayoutGroup>();
         panelLayout.padding = new RectOffset(6, 6, 6, 6);
         panelLayout.spacing = 4f;
@@ -258,25 +277,30 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             AddFrameSlot(strip.transform, index);
         }
 
-        var controls = HorizontalRow(panel.transform, "FrameControls", 52f);
+        var controls = HorizontalRow(panel.transform, "FrameControls", 44f);
         var controlsLayout = controls.GetComponent<HorizontalLayoutGroup>();
-        controlsLayout.padding = new RectOffset(0, 0, 2, 2);
+        controlsLayout.padding = new RectOffset(0, 0, 0, 0);
         controlsLayout.spacing = 4f;
-        AuraToolsUi.AddButton(controls.transform, "+空", AddBlankFrame, 48f);
-        AuraToolsUi.AddButton(controls.transform, "+继", DuplicateFrame, 48f);
-        AuraToolsUi.AddButton(controls.transform, "删除", DeleteSelectedFrame, 48f);
-        movePreviousButton = AuraToolsUi.AddButton(controls.transform, "←", () => MoveSelectedFrame(-1), 48f);
-        moveNextButton = AuraToolsUi.AddButton(controls.transform, "→", () => MoveSelectedFrame(1), 48f);
-        previewButton = AuraToolsUi.AddButton(controls.transform, "播放", TogglePreview, 52f);
-        loopButton = AuraToolsUi.AddButton(controls.transform, "循环", () => SetPlaybackMode(PixelEmojiPlaybackMode.Loop), 52f);
-        onceButton = AuraToolsUi.AddButton(controls.transform, "单次", () => SetPlaybackMode(PixelEmojiPlaybackMode.Once), 52f);
+        AddCompactButton(controls.transform, "+空", AddBlankFrame, 44f, 42f);
+        AddCompactButton(controls.transform, "+继", DuplicateFrame, 44f, 42f);
+        AddCompactButton(controls.transform, "删除", DeleteSelectedFrame, 52f, 42f);
+        movePreviousButton = AddCompactButton(controls.transform, "←", () => MoveSelectedFrame(-1), 44f, 42f);
+        moveNextButton = AddCompactButton(controls.transform, "→", () => MoveSelectedFrame(1), 44f, 42f);
+
+        var playback = HorizontalRow(panel.transform, "PlaybackControls", 44f);
+        var playbackLayout = playback.GetComponent<HorizontalLayoutGroup>();
+        playbackLayout.padding = new RectOffset(0, 0, 0, 0);
+        playbackLayout.spacing = 4f;
+        previewButton = AddCompactButton(playback.transform, "播放", TogglePreview, 64f, 42f);
+        loopButton = AddCompactButton(playback.transform, "循环", () => SetPlaybackMode(PixelEmojiPlaybackMode.Loop), 64f, 42f);
+        onceButton = AddCompactButton(playback.transform, "单次", () => SetPlaybackMode(PixelEmojiPlaybackMode.Once), 64f, 42f);
         RefreshAnimationPanel(true);
     }
 
     private void AddFrameSlot(Transform parent, int frameIndex)
     {
         var slot = AuraToolsUi.CreateLayout("Frame-" + (frameIndex + 1), parent);
-        AuraToolsUi.SetFixedSize(slot, 48f, 60f);
+        AuraToolsUi.SetFixedSize(slot, layoutMetrics.FrameSlotWidth, 60f);
         var border = slot.AddComponent<PixelEmojiFrameBorderGraphic>();
         border.raycastTarget = false;
 
@@ -290,7 +314,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
             new Vector2(0.5f, 1f),
-            new Vector2(38f, 38f));
+            new Vector2(layoutMetrics.FrameArtSize, layoutMetrics.FrameArtSize));
         var artRect = art.GetComponent<RectTransform>();
         artRect.anchoredPosition = new Vector2(0f, -4f);
         var checker = art.AddComponent<PixelEmojiCheckerboardGraphic>();
@@ -364,41 +388,31 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
     {
         var tools = AuraToolsUi.CreateLayout("Tools", parent);
         var toolsElement = AuraToolsUi.EnsureLayoutElement(tools);
-        toolsElement.minWidth = 550f;
-        toolsElement.preferredWidth = 550f;
+        toolsElement.minWidth = layoutMetrics.ToolsMinimumWidth;
+        toolsElement.preferredWidth = layoutMetrics.ToolsPreferredWidth;
         toolsElement.flexibleWidth = 1f;
-        toolsElement.minHeight = 590f;
-        toolsElement.preferredHeight = 590f;
-        AuraToolsUi.AddPanelImage(tools, AuraToolsUi.Panel);
+        toolsElement.minHeight = layoutMetrics.ContentHeight;
+        toolsElement.preferredHeight = layoutMetrics.ContentHeight;
+        ToolboxSurfaceV2.Apply(tools).raycastTarget = false;
         var layout = tools.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(12, 12, 10, 10);
-        layout.spacing = 7f;
+        layout.padding = new RectOffset(10, 10, 10, 10);
+        layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        var nameRow = HorizontalRow(tools.transform, "Name", 48f);
-        AuraToolsUi.AddText(nameRow.transform, "名称", AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 46f, 0f, 52f);
-        nameInput = AuraToolsUi.AddInput(nameRow.transform, currentName, value => currentName = NormalizeName(value), 250f);
-        AuraToolsUi.AddButton(nameRow.transform, "仅保存", () => Save(false), 86f);
-        AuraToolsUi.AddButton(nameRow.transform, "保存并收藏", () => Save(true), 122f);
-
-        var toolRow = HorizontalRow(tools.transform, "ToolRow", 48f);
-        AddToolButton(toolRow.transform, "画笔", PixelEmojiTool.Pencil);
-        AddToolButton(toolRow.transform, "橡皮", PixelEmojiTool.Eraser);
-        AddToolButton(toolRow.transform, "填充", PixelEmojiTool.Fill);
-        AddToolButton(toolRow.transform, "吸色", PixelEmojiTool.Eyedropper);
-        AuraToolsUi.AddButton(toolRow.transform, "撤销", Undo, 72f);
-        AuraToolsUi.AddButton(toolRow.transform, "重做", Redo, 72f);
-        AuraToolsUi.AddButton(toolRow.transform, "清空", Clear, 72f);
-
-        AuraToolsUi.AddText(tools.transform, "有限色板（32 色，左上角为透明色）", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 40f);
+        AuraToolsUi.AddText(tools.transform, "有限色板 · 32 色（左上角透明）", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 32f);
         var palette = AuraToolsUi.CreateLayout("Palette", tools.transform);
-        AuraToolsUi.SetFixedHeight(palette, 184f);
+        AuraToolsUi.SetFixedHeight(palette, layoutMetrics.PaletteHeight);
         var paletteGrid = palette.AddComponent<GridLayoutGroup>();
-        paletteGrid.cellSize = new Vector2(48f, 40f);
-        paletteGrid.spacing = new Vector2(8f, 7f);
+        paletteGrid.cellSize = new Vector2(
+            layoutMetrics.PaletteCellWidth,
+            layoutMetrics.PaletteCellHeight);
+        paletteGrid.spacing = new Vector2(
+            layoutMetrics.PaletteSpacing,
+            layoutMetrics.PaletteSpacing);
+        paletteGrid.childAlignment = TextAnchor.UpperCenter;
         paletteGrid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         paletteGrid.constraintCount = 8;
         for (byte index = 0; index < PixelEmojiCodec.PaletteRgba.Length; index++)
@@ -406,15 +420,65 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             AddPaletteButton(palette.transform, index);
         }
 
-        AuraToolsUi.AddText(tools.transform, "参考叠图（100%=1源像素/1画布格，仅当前会话）", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 40f);
-        var referenceActions = HorizontalRow(tools.transform, "ReferenceActions", 48f);
-        AuraToolsUi.AddButton(referenceActions.transform, "导入参考图", ImportReference, 118f);
-        referenceMoveButton = AuraToolsUi.AddButton(referenceActions.transform, "移动参考图", ToggleReferenceMove, 112f);
-        AuraToolsUi.AddButton(referenceActions.transform, "居中", CenterReference, 76f);
-        AuraToolsUi.AddButton(referenceActions.transform, "移除", RemoveReference, 76f);
+        var toolRow = HorizontalRow(tools.transform, "ToolRow", 46f);
+        var toolLayout = toolRow.GetComponent<HorizontalLayoutGroup>();
+        toolLayout.padding = new RectOffset(0, 0, 0, 0);
+        toolLayout.spacing = 6f;
+        AddToolButton(toolRow.transform, "画笔", PixelEmojiTool.Pencil);
+        AddToolButton(toolRow.transform, "橡皮", PixelEmojiTool.Eraser);
+        AddToolButton(toolRow.transform, "填充", PixelEmojiTool.Fill);
+        AddToolButton(toolRow.transform, "吸色", PixelEmojiTool.Eyedropper);
+
+        var editRow = HorizontalRow(tools.transform, "EditRow", 42f);
+        var editLayout = editRow.GetComponent<HorizontalLayoutGroup>();
+        editLayout.padding = new RectOffset(0, 0, 0, 0);
+        editLayout.spacing = 6f;
+        AuraToolsUi.AddText(editRow.transform, "编辑", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 40f, 1f);
+        ToolboxIconButtonV2.Create(editRow.transform, "history.undo", "撤销", Undo, 42f, "↶");
+        ToolboxIconButtonV2.Create(editRow.transform, "history.redo", "重做", Redo, 42f, "↷");
+        ToolboxIconButtonV2.Create(editRow.transform, "action.clear", "清空当前帧", Clear, 42f, "清");
+
+        var referencePanel = AuraToolsUi.CreateLayout("ReferencePanel", tools.transform);
+        referencePanelElement = AuraToolsUi.SetFixedHeight(referencePanel, 46f);
+        ToolboxSurfaceV2.ApplyControl(referencePanel).raycastTarget = false;
+        var referenceLayout = referencePanel.AddComponent<VerticalLayoutGroup>();
+        referenceLayout.padding = new RectOffset(4, 4, 2, 2);
+        referenceLayout.spacing = 4f;
+        referenceLayout.childControlWidth = true;
+        referenceLayout.childControlHeight = true;
+        referenceLayout.childForceExpandWidth = true;
+        referenceLayout.childForceExpandHeight = false;
+
+        var referenceHeader = HorizontalRow(referencePanel.transform, "ReferenceHeader", 42f);
+        var referenceHeaderLayout = referenceHeader.GetComponent<HorizontalLayoutGroup>();
+        referenceHeaderLayout.padding = new RectOffset(4, 0, 0, 0);
+        AuraToolsUi.AddText(referenceHeader.transform, "参考叠图", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 1f);
+        AddCompactButton(referenceHeader.transform, "导入", ImportReference, 64f, 40f);
+        ToolboxIconButtonV2.Create(
+            referenceHeader.transform,
+            "reference.expand",
+            "展开或收起参考图控制",
+            () => SetReferenceControlsExpanded(!referenceControlsExpanded),
+            40f,
+            "⌄");
+
+        referenceDetails = AuraToolsUi.CreateLayout("ReferenceDetails", referencePanel.transform);
+        AuraToolsUi.SetFixedHeight(referenceDetails, 104f);
+        var detailsLayout = referenceDetails.AddComponent<VerticalLayoutGroup>();
+        detailsLayout.spacing = 3f;
+        detailsLayout.childControlWidth = true;
+        detailsLayout.childControlHeight = true;
+        detailsLayout.childForceExpandWidth = true;
+        detailsLayout.childForceExpandHeight = false;
+        var referenceActions = HorizontalRow(referenceDetails.transform, "ReferenceActions", 34f);
+        var referenceActionLayout = referenceActions.GetComponent<HorizontalLayoutGroup>();
+        referenceActionLayout.padding = new RectOffset(0, 0, 0, 0);
+        referenceMoveButton = AddCompactButton(referenceActions.transform, "移动参考图", ToggleReferenceMove, 92f, 34f);
+        AddCompactButton(referenceActions.transform, "居中", CenterReference, 64f, 34f);
+        AddCompactButton(referenceActions.transform, "移除", RemoveReference, 64f, 34f);
 
         referenceScaleSlider = AddRangeSlider(
-            tools.transform,
+            referenceDetails.transform,
             "缩放",
             PixelEmojiReferencePolicy.MinimumScalePercent,
             PixelEmojiReferencePolicy.MaximumScalePercent,
@@ -422,7 +486,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             value => SetReferenceScale((int)value),
             "%");
         referenceOpacitySlider = AddRangeSlider(
-            tools.transform,
+            referenceDetails.transform,
             "透明度",
             PixelEmojiReferencePolicy.MinimumOpacityPercent,
             PixelEmojiReferencePolicy.MaximumOpacityPercent,
@@ -430,16 +494,39 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             value => SetReferenceOpacity((int)value),
             "%");
 
-        status = AuraToolsUi.AddText(tools.transform, "", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.SuccessText, 42f);
+        var actionSpacer = AuraToolsUi.CreateLayout("PrimaryActionSpacer", tools.transform);
+        var actionSpacerElement = AuraToolsUi.EnsureLayoutElement(actionSpacer);
+        actionSpacerElement.minHeight = 0f;
+        actionSpacerElement.preferredHeight = 0f;
+        actionSpacerElement.flexibleHeight = 1f;
+
+        var nameRow = HorizontalRow(tools.transform, "Name", 46f);
+        var nameLayout = nameRow.GetComponent<HorizontalLayoutGroup>();
+        nameLayout.padding = new RectOffset(0, 0, 0, 0);
+        nameInput = AuraToolsUi.AddInput(nameRow.transform, currentName, value => currentName = NormalizeName(value), 100f, 42f);
+        var nameElement = AuraToolsUi.EnsureLayoutElement(nameInput.gameObject);
+        nameElement.minWidth = 100f;
+        nameElement.preferredWidth = 100f;
+        nameElement.minHeight = 42f;
+        nameElement.preferredHeight = 42f;
+        nameElement.flexibleWidth = 1f;
+        ToolboxSurfaceV2.ApplyControl(nameInput.gameObject);
+        var namePlaceholder = nameInput.placeholder as Text;
+        if (namePlaceholder != null) namePlaceholder.text = "作品名称";
+        AddCompactButton(nameRow.transform, "仅保存", () => Save(false), 64f, 42f);
+        AddCompactButton(nameRow.transform, "保存收藏", () => Save(true), 104f, 42f);
+
+        status = AuraToolsUi.AddText(tools.transform, "", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.SuccessText, 36f);
+        SetReferenceControlsExpanded(false);
         RefreshStatus("画笔 · 色板 #01");
     }
 
     private void AddToolButton(Transform parent, string label, PixelEmojiTool value)
     {
-        AuraToolsUi.AddButton(parent, label, () =>
+        AddCompactButton(parent, label, () =>
         {
             SetTool(value, label + " · 色板 #" + selectedColor.ToString("00"));
-        }, 72f);
+        }, 68f, 42f);
     }
 
     private void AddPaletteButton(Transform parent, byte index)
@@ -447,7 +534,10 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         var packed = PixelEmojiCodec.PaletteRgba[index];
         var color = new Color32((byte)(packed >> 24), (byte)(packed >> 16), (byte)(packed >> 8), (byte)packed);
         var buttonObject = AuraToolsUi.CreateLayout("Palette-" + index, parent);
-        AuraToolsUi.SetFixedSize(buttonObject, 48f, 40f);
+        AuraToolsUi.SetFixedSize(
+            buttonObject,
+            layoutMetrics.PaletteCellWidth,
+            layoutMetrics.PaletteCellHeight);
         var image = AuraToolsUi.AddImage(buttonObject, index == 0 ? new Color(0.42f, 0.42f, 0.45f, 1f) : color);
         var button = buttonObject.AddComponent<Button>();
         AuraUiButtonFeedback.Apply(button, image, AuraToolsUi.Accent);
@@ -467,15 +557,18 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         Action<float> changed,
         string suffix)
     {
-        var row = HorizontalRow(parent, label + "Row", 36f);
+        var row = HorizontalRow(parent, label + "Row", 32f);
         var compactLayout = row.GetComponent<HorizontalLayoutGroup>();
-        compactLayout.padding = new RectOffset(6, 6, 0, 0);
+        compactLayout.padding = new RectOffset(0, 0, 0, 0);
         compactLayout.childAlignment = TextAnchor.MiddleLeft;
-        AddCompactText(row.transform, label, 72f, 36f, TextAnchor.MiddleLeft, AuraToolsUi.Text);
+        AddCompactText(row.transform, label, 52f, 32f, TextAnchor.MiddleLeft, AuraToolsUi.Text);
 
         var sliderObject = AuraToolsUi.CreateLayout(label + "Slider", row.transform);
-        AuraToolsUi.SetFixedSize(sliderObject, 320f, 24f);
-        AuraToolsUi.AddImage(sliderObject, new Color(0.025f, 0.022f, 0.045f, 0.98f)).raycastTarget = true;
+        var sliderElement = AuraToolsUi.SetFixedHeight(sliderObject, 24f);
+        sliderElement.minWidth = 116f;
+        sliderElement.preferredWidth = 180f;
+        sliderElement.flexibleWidth = 1f;
+        ToolboxSurfaceV2.ApplyControl(sliderObject).raycastTarget = true;
 
         var trackObject = AuraToolsUi.CreateRect(
             "Track",
@@ -516,7 +609,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
             new Vector2(16f, 18f));
         var handleImage = AuraToolsUi.AddButtonImage(handleObject, new Color(0.24f, 0.20f, 0.31f, 1f));
 
-        var valueText = AddCompactText(row.transform, "", 72f, 36f, TextAnchor.MiddleCenter, AuraToolsUi.Accent);
+        var valueText = AddCompactText(row.transform, "", 48f, 32f, TextAnchor.MiddleCenter, AuraToolsUi.Accent);
         var slider = sliderObject.AddComponent<Slider>();
         slider.minValue = minimum;
         slider.maxValue = maximum;
@@ -546,6 +639,37 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         var container = AuraToolsUi.CreateLayout("CompactText", parent);
         AuraToolsUi.SetFixedSize(container, width, height);
         return AuraToolsUi.AddFillText(container.transform, value, AuraToolsUi.BodyFontSize, anchor, color);
+    }
+
+    private static Button AddCompactButton(
+        Transform parent,
+        string label,
+        Action action,
+        float width,
+        float height = AuraToolsUi.ButtonHeight)
+    {
+        var button = AuraToolsUi.AddButton(parent, label, action, width, height);
+        AuraToolsUi.SetFixedSize(button.gameObject, width, height);
+        ToolboxSurfaceV2.ApplyControl(button.gameObject);
+        return button;
+    }
+
+    private void SetReferenceControlsExpanded(bool expanded)
+    {
+        referenceControlsExpanded = expanded;
+        if (referenceDetails != null)
+        {
+            referenceDetails.SetActive(expanded);
+        }
+        if (referencePanelElement != null)
+        {
+            referencePanelElement.minHeight = expanded ? 154f : 46f;
+            referencePanelElement.preferredHeight = expanded ? 154f : 46f;
+        }
+        if (referencePanelElement?.transform.parent is RectTransform layoutRoot)
+        {
+            LayoutRebuilder.MarkLayoutForRebuild(layoutRoot);
+        }
     }
 
     private void ImportReference()
@@ -654,6 +778,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         referenceOpacityPercent = PixelEmojiReferencePolicy.DefaultOpacityPercent;
         if (referenceScaleSlider != null) referenceScaleSlider.value = referenceScalePercent;
         if (referenceOpacitySlider != null) referenceOpacitySlider.value = referenceOpacityPercent;
+        SetReferenceControlsExpanded(true);
         UseReferenceLogicalSize();
         CenterReference(false);
         SetTool(PixelEmojiTool.ReferenceMove, "参考图已导入；100%=1源像素/1画布格，可拖动定位");

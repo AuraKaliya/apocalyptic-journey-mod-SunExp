@@ -28,6 +28,8 @@
              Link="SafeBox\AuraToolsSafeBoxDataCompatibility.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiCore.cs"
              Link="PixelEmoji\PixelEmojiCore.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiWorkshopLayoutPolicy.cs"
+             Link="PixelEmoji\PixelEmojiWorkshopLayoutPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CardRefresh\CardRefreshPoolPolicy.cs"
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\ModSync\AuraToolsModSyncRequestTracker.cs"
@@ -120,6 +122,8 @@
              Link="Settings\AuraToolsPanelBuildState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\NativeContentVisibilityLease.cs"
              Link="Settings\NativeContentVisibilityLease.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Settings\ToolboxTooltipPlacementPolicy.cs"
+             Link="Settings\ToolboxTooltipPlacementPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Modules\Contracts\AuraToolModuleContracts.cs"
              Link="Modules\AuraToolModuleContracts.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolModuleCatalog.cs"

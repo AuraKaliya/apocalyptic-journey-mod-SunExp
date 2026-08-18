@@ -58,6 +58,27 @@ internal static partial class AuraToolsTestSuite
             "native settings content lease isolates one failed restore and completes cleanup");
     }
 
+    public static void TestToolboxTooltipPlacementPolicy()
+    {
+        var container = new ToolboxTooltipBounds(-400f, -300f, 400f, 300f);
+        var middleAnchor = new ToolboxTooltipBounds(-20f, -20f, 20f, 20f);
+        var middle = ToolboxTooltipPlacementPolicy.Resolve(container, middleAnchor, 120f, 36f);
+        Assert(!middle.AboveAnchor
+               && Math.Abs(middle.CenterX) < 0.01f
+               && middle.CenterY < middleAnchor.MinimumY,
+            "toolbox tooltip prefers the compact below-anchor placement");
+
+        var bottomAnchor = new ToolboxTooltipBounds(-20f, -296f, 20f, -260f);
+        var flipped = ToolboxTooltipPlacementPolicy.Resolve(container, bottomAnchor, 120f, 36f);
+        Assert(flipped.AboveAnchor && flipped.CenterY > bottomAnchor.MaximumY,
+            "toolbox tooltip flips above anchors near the lower boundary");
+
+        var rightAnchor = new ToolboxTooltipBounds(380f, 10f, 410f, 46f);
+        var clamped = ToolboxTooltipPlacementPolicy.Resolve(container, rightAnchor, 120f, 36f);
+        Assert(clamped.CenterX <= 332.01f,
+            "toolbox tooltip remains inside the horizontal safe margin");
+    }
+
     private sealed class VisibilityTarget
     {
         public VisibilityTarget(bool visible)

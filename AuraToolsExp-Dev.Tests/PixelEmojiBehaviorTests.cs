@@ -6,6 +6,7 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestPixelEmojiCore()
     {
+        TestPixelEmojiWorkshopLayoutPolicy();
         var settings = new AuraToolsPixelEmojiSettings
         {
             SchemaVersion = 0,
@@ -323,6 +324,42 @@ internal static partial class AuraToolsTestSuite
                && !PixelEmojiReferencePolicy.IsSupportedSource(PixelEmojiReferencePolicy.MaximumSourceBytes + 1, 100, 100)
                && !PixelEmojiReferencePolicy.IsSupportedSource(1024, 8193, 100),
             "pixel emoji reference import rejects empty, oversized, and excessive-dimension sources");
+    }
+
+    private static void TestPixelEmojiWorkshopLayoutPolicy()
+    {
+        var wide = PixelEmojiWorkshopLayoutPolicy.Resolve(850f);
+        Assert(wide.Tier == PixelEmojiWorkshopLayoutTier.Wide
+               && !wide.StackVertically
+               && wide.CanvasSize == 408f
+               && wide.CanvasColumnWidth == 424f
+               && wide.PaletteCellWidth == 38f,
+            "pixel emoji wide workshop gives equal visual weight to canvas and palette tools");
+        Assert(wide.CanvasSize % PixelEmojiCodec.SourceSize == 0f
+               && wide.CanvasColumnWidth
+                  + PixelEmojiWorkshopLayoutPolicy.ColumnGap
+                  + wide.ToolsMinimumWidth
+                  <= PixelEmojiWorkshopLayoutPolicy.WideMinimumWidth,
+            "pixel emoji wide workshop uses integer-sized pixels and fits its declared breakpoint");
+
+        var compact = PixelEmojiWorkshopLayoutPolicy.Resolve(780f);
+        Assert(compact.Tier == PixelEmojiWorkshopLayoutTier.Compact
+               && !compact.StackVertically
+               && compact.CanvasSize == 360f
+               && compact.CanvasSize % PixelEmojiCodec.SourceSize == 0f,
+            "pixel emoji compact workshop preserves a usable integer-pixel canvas");
+        Assert(compact.CanvasColumnWidth
+               + PixelEmojiWorkshopLayoutPolicy.ColumnGap
+               + compact.ToolsMinimumWidth
+               <= PixelEmojiWorkshopLayoutPolicy.CompactMinimumWidth,
+            "pixel emoji compact workshop fits its declared breakpoint");
+
+        var stacked = PixelEmojiWorkshopLayoutPolicy.Resolve(700f);
+        Assert(stacked.Tier == PixelEmojiWorkshopLayoutTier.Stacked
+               && stacked.StackVertically
+               && stacked.WorkspaceHeight
+                  == stacked.ContentHeight * 2f + PixelEmojiWorkshopLayoutPolicy.ColumnGap,
+            "pixel emoji workshop stacks only below the compact horizontal breakpoint");
     }
 
     private static uint ReadRgba(byte[] rgba, int x, int y)

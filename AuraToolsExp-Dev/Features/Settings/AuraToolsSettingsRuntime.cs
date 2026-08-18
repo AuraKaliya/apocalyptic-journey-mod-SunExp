@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using AuraShared.Core;
 using AuraUi.Shared;
@@ -24,12 +25,11 @@ public static class AuraToolsSettingsRuntime
     private const float AuraTabHeight = 60f;
     private const float AuraTabTextSize = 20f;
     private const float AuraTabMinimumTextSize = 18f;
+    private const int PanelSortingMargin = 20;
     private static GameObject? activePanel;
     private static Transform? activePanelHost;
     private static Transform? activeTabParent;
-    private static SettingUI? activeSetting;
     private static readonly AuraToolsPanelBuildState PanelBuildState = new();
-    private static readonly NativeSettingsContentLease NativeContentLease = new();
     private static bool loggedHookRegistration;
     private static bool loggedInjectionSuccess;
     private static bool loggedNoTabParent;
@@ -71,8 +71,8 @@ public static class AuraToolsSettingsRuntime
         if (activePanel != null)
         {
             SetPanelVisible(activePanel, false);
+            AuraToolsLog.Debug("[Settings] AuraTools panel hidden; native page state left untouched.");
         }
-        NativeContentLease.Release("AuraTools panel hidden");
     }
 
     internal static void ReleaseForReplayTransition()
@@ -81,7 +81,6 @@ public static class AuraToolsSettingsRuntime
         activePanel = null;
         activePanelHost = null;
         activeTabParent = null;
-        activeSetting = null;
         PanelBuildState.Reset();
     }
 
@@ -107,7 +106,6 @@ public static class AuraToolsSettingsRuntime
         try
         {
             var parent = ResolveTabParent(setting);
-            activeSetting = setting;
             activeTabParent = parent;
             var panelHost = ResolvePanelHost(setting, parent);
             EnsureTabButton(setting, parent);
@@ -138,7 +136,6 @@ public static class AuraToolsSettingsRuntime
         activePanel = null;
         activePanelHost = null;
         activeTabParent = null;
-        activeSetting = null;
         PanelBuildState.Reset();
     }
 
@@ -318,6 +315,8 @@ public static class AuraToolsSettingsRuntime
                 continue;
             }
 
+            // Native page visibility belongs to the game's tab state machine. The relay only
+            // removes our opaque overlay and must never deactivate or restore native objects.
             child.gameObject.AddComponent<AuraToolsNativeTabRelay>();
         }
     }
@@ -656,10 +655,7 @@ public static class AuraToolsSettingsRuntime
                            + ", built=" + PanelBuildState.IsBuilt + ".");
         if (activePanelHost != null)
         {
-            NativeContentLease.Acquire(
-                activePanelHost,
-                activePanel,
-                ProtectedNativeChrome(activeSetting, activeTabParent));
+            EnsurePanelPresentation(activePanel, activePanelHost);
         }
         SetPanelVisible(activePanel, true);
         activePanel.transform.SetAsLastSibling();
@@ -668,15 +664,13 @@ public static class AuraToolsSettingsRuntime
         {
             BeginInitialPanelBuild(activePanel);
         }
-    }
-
-    private static IEnumerable<Transform?> ProtectedNativeChrome(
-        SettingUI? setting,
-        Transform? tabParent)
-    {
-        yield return tabParent;
-        yield return setting?.ExitButton?.transform;
-        yield return setting?.ReturnButton?.transform;
+        LogPanelRenderState(activePanel, "immediate");
+        if (!AuraSharedFrameScheduler.StartCoroutine(
+                "AuraTools.Settings.VisibilityProbe",
+                LogPanelRenderStateAfterLayout(activePanel)))
+        {
+            AuraToolsLog.Warn("[Settings] panel visibility probe scheduler rejected the request.");
+        }
     }
 
     private static void EnsurePanelPresentation(GameObject panel, Transform panelHost)
@@ -693,12 +687,49 @@ public static class AuraToolsSettingsRuntime
         var canvas = panel.GetComponent<Canvas>() ?? panel.AddComponent<Canvas>();
         var parentCanvas = panelHost.GetComponentInParent<Canvas>();
         canvas.overrideSorting = true;
-        canvas.sortingLayerID = parentCanvas == null ? 0 : parentCanvas.sortingLayerID;
-        canvas.sortingOrder = (parentCanvas == null ? 0 : parentCanvas.sortingOrder) + 20;
+        PlacePanelAboveNativeCanvases(panel, panelHost, canvas, parentCanvas);
         if (panel.GetComponent<GraphicRaycaster>() == null)
         {
             panel.AddComponent<GraphicRaycaster>();
         }
+    }
+
+    private static void PlacePanelAboveNativeCanvases(
+        GameObject panel,
+        Transform panelHost,
+        Canvas panelCanvas,
+        Canvas? parentCanvas)
+    {
+        var highestLayerId = parentCanvas == null ? 0 : parentCanvas.sortingLayerID;
+        var highestLayerValue = SortingLayer.GetLayerValueFromID(highestLayerId);
+        var highestOrder = parentCanvas == null ? 0 : parentCanvas.sortingOrder;
+        foreach (var candidate in panelHost.GetComponentsInChildren<Canvas>(true))
+        {
+            if (candidate == null
+                || candidate == panelCanvas
+                || IsAncestorOrSelf(panel.transform, candidate.transform))
+            {
+                continue;
+            }
+
+            var candidateLayerValue = SortingLayer.GetLayerValueFromID(candidate.sortingLayerID);
+            if (candidateLayerValue < highestLayerValue
+                || candidateLayerValue == highestLayerValue
+                && candidate.sortingOrder <= highestOrder)
+            {
+                continue;
+            }
+
+            highestLayerId = candidate.sortingLayerID;
+            highestLayerValue = candidateLayerValue;
+            highestOrder = candidate.sortingOrder;
+        }
+
+        panelCanvas.sortingLayerID = highestLayerId;
+        panelCanvas.sortingOrder = Mathf.Clamp(
+            highestOrder + PanelSortingMargin,
+            short.MinValue,
+            short.MaxValue);
     }
 
     private static void SetPanelVisible(GameObject panel, bool visible)
@@ -712,6 +743,59 @@ public static class AuraToolsSettingsRuntime
         }
 
         panel.SetActive(visible);
+    }
+
+    private static IEnumerator LogPanelRenderStateAfterLayout(GameObject panel)
+    {
+        yield return null;
+        if (panel == null)
+        {
+            yield break;
+        }
+
+        Canvas.ForceUpdateCanvases();
+        if (panel.transform is RectTransform panelRect)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(panelRect);
+        }
+        LogPanelRenderState(panel, "frame+1");
+    }
+
+    private static void LogPanelRenderState(GameObject panel, string phase)
+    {
+        if (panel == null)
+        {
+            return;
+        }
+
+        var group = panel.GetComponent<CanvasGroup>();
+        var canvas = panel.GetComponent<Canvas>();
+        var rootCanvas = canvas == null ? null : canvas.rootCanvas;
+        var renderCamera = rootCanvas == null ? null : rootCanvas.worldCamera;
+        var workspace = panel.transform.Find("ToolboxWorkspace");
+        var activeGraphics = panel.GetComponentsInChildren<Graphic>(true)
+            .Count(graphic => graphic != null
+                              && graphic.enabled
+                              && graphic.gameObject.activeInHierarchy);
+        AuraToolsLog.Debug(
+            "[Settings] panel render state: phase=" + phase
+            + ", panel=" + panel.GetInstanceID()
+            + ", activeSelf=" + panel.activeSelf
+            + ", activeInHierarchy=" + panel.activeInHierarchy
+            + ", rect=" + DescribeRect(panel.transform)
+            + ", alpha=" + (group == null ? "none" : group.alpha.ToString("0.##"))
+            + ", interactable=" + (group != null && group.interactable)
+            + ", blocksRaycasts=" + (group != null && group.blocksRaycasts)
+            + ", canvasEnabled=" + (canvas != null && canvas.enabled)
+            + ", layer=" + panel.layer + "/host=" + (panel.transform.parent == null ? "none" : panel.transform.parent.gameObject.layer.ToString())
+            + ", renderMode=" + (rootCanvas == null ? "none" : rootCanvas.renderMode.ToString())
+            + ", cameraMask=" + (renderCamera == null ? "none" : renderCamera.cullingMask.ToString())
+            + ", sortingLayer=" + (canvas == null ? "none" : canvas.sortingLayerName)
+            + ", sortingOrder=" + (canvas == null ? "none" : canvas.sortingOrder.ToString())
+            + ", workspace=" + (workspace == null ? "none" : DescribeRect(workspace))
+            + ", workspaceActive=" + (workspace != null && workspace.gameObject.activeInHierarchy)
+            + ", activeGraphics=" + activeGraphics
+            + ".");
     }
 
     private static void BeginInitialPanelBuild(GameObject panel)
@@ -758,6 +842,11 @@ public static class AuraToolsSettingsRuntime
             layout.childForceExpandHeight = false;
 
             ToolboxSettingsShell.Build(panel);
+            Canvas.ForceUpdateCanvases();
+            if (panel is RectTransform panelRect)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(panelRect);
+            }
             yield return null;
             if (!CanContinuePanelBuild(panel, ticket)) yield break;
             marker.Completed = true;

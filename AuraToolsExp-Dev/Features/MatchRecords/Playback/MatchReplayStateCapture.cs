@@ -4,11 +4,13 @@ using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.GameApi;
 using Newtonsoft.Json;
 using TMPro;
 using UnityEngine;
 using Witch;
+using Witch.UI.Window;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
@@ -78,6 +80,111 @@ internal static class MatchReplayStateCapture
     internal static MatchReplayStateSnapshot CaptureProjectionSnapshot(int turnIndex)
     {
         return CaptureSnapshot(turnIndex, includeRoleTable: false);
+    }
+
+    internal static MatchReplayRevisionProbe CaptureRevisionProbe(int turnIndex, long version)
+    {
+        var hash = new RevisionHash64();
+        var pendingWriters = 0;
+        var manager = FightManager.Instance;
+        hash.Add(turnIndex);
+        hash.Add(manager?.level ?? "");
+        hash.Add(manager?.SumOfEnemyPositive ?? 0f);
+        hash.Add(manager?.EnemyHp ?? 0f);
+        hash.Add(FightPlayer.Instance?.CurPowerCount ?? 0);
+        hash.Add(FightPlayer.Instance?.MaxPowerCount ?? 0);
+        if (manager != null)
+        {
+            foreach (var pair in manager.statuses)
+            {
+                var status = pair.Value;
+                if (status == null)
+                {
+                    continue;
+                }
+
+                hash.Add(pair.Key ?? "");
+                hash.Add(status.maxHp);
+                hash.Add(status.curHp);
+                hash.Add(status.defend);
+                hash.Add(status.state.ToString());
+                foreach (var variable in status.dynamicVariables)
+                {
+                    hash.Add(variable.Key ?? "");
+                    hash.Add(variable.Value);
+                }
+
+                foreach (var buff in status.GetBuffs() ?? Array.Empty<IBuffItem>())
+                {
+                    if (buff?.buffConfig == null)
+                    {
+                        continue;
+                    }
+
+                    hash.Add(buff.buffConfig.BuffId ?? "");
+                    hash.Add(buff.buffConfig.Level);
+                }
+            }
+
+            AddCardZoneFingerprint(ref hash, "draw", FightCardManager.Instance?.cardList);
+            AddCardZoneFingerprint(ref hash, "discard", FightCardManager.Instance?.usedCardList);
+            AddCardZoneFingerprint(ref hash, "nascent", FightCardManager.Instance?.nascentList);
+            hash.Add("hand");
+            foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
+            {
+                AddCardFingerprint(ref hash, card?.dataConfig);
+            }
+
+            var fightUi = Witch.UI.UIManager.Instance?.GetUI<FightUI>("FightUI");
+            foreach (var config in fightUi?.createCardQueue ?? Enumerable.Empty<DataConfig>())
+            {
+                AddCardFingerprint(ref hash, config);
+            }
+
+            pendingWriters = fightUi?.createCardQueue?.Count ?? 0;
+            hash.Add(fightUi?.CardTopCount ?? 0);
+            hash.Add(MatchReplayEnemyIntentApi.CaptureRevisionFingerprint());
+        }
+
+        return new MatchReplayRevisionProbe(version, hash.Value, pendingWriters);
+    }
+
+    private static void AddCardZoneFingerprint(
+        ref RevisionHash64 hash,
+        string zone,
+        IEnumerable<DataConfig>? cards)
+    {
+        hash.Add(zone);
+        if (cards == null)
+        {
+            return;
+        }
+
+        foreach (var card in cards)
+        {
+            AddCardFingerprint(ref hash, card);
+        }
+    }
+
+    private static void AddCardFingerprint(ref RevisionHash64 hash, IDataConfig? card)
+    {
+        if (card == null)
+        {
+            return;
+        }
+
+        hash.Add(card.InstanceID ?? "");
+        foreach (var value in card.data)
+        {
+            hash.Add(value.Key ?? "");
+            hash.Add(value.Value ?? "");
+        }
+
+        foreach (var value in card.Vars)
+        {
+            hash.Add(value.Key ?? "");
+            hash.Add(value.Value ?? "");
+        }
     }
 
     internal static bool Project(
@@ -380,5 +487,57 @@ internal static class MatchReplayStateCapture
     private static string HashLogical(MatchReplayStateSnapshot snapshot)
     {
         return MatchReplayProjectionState.Hash(snapshot);
+    }
+
+    private struct RevisionHash64
+    {
+        private const ulong Offset = 14695981039346656037UL;
+        private const ulong Prime = 1099511628211UL;
+        private ulong value;
+        private bool initialized;
+
+        internal ulong Value => initialized ? value : Offset;
+
+        internal void Add(string value)
+        {
+            EnsureInitialized();
+            foreach (var character in value ?? "")
+            {
+                this.value ^= character;
+                this.value *= Prime;
+            }
+
+            this.value ^= 0xff;
+            this.value *= Prime;
+        }
+
+        internal void Add(int value)
+        {
+            Add(unchecked((uint)value));
+        }
+
+        internal void Add(float value)
+        {
+            Add(unchecked((uint)value.GetHashCode()));
+        }
+
+        private void Add(uint number)
+        {
+            EnsureInitialized();
+            for (var shift = 0; shift < 32; shift += 8)
+            {
+                value ^= (byte)(number >> shift);
+                value *= Prime;
+            }
+        }
+
+        private void EnsureInitialized()
+        {
+            if (!initialized)
+            {
+                value = Offset;
+                initialized = true;
+            }
+        }
     }
 }

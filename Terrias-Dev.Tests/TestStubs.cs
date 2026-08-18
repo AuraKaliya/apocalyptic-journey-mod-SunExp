@@ -209,6 +209,21 @@ public sealed class GameConfigManager
 
 public sealed class ScriptExecutor
 {
+    public static class PlayerInfo
+    {
+        private static readonly Dictionary<string, string> GameVars = new(StringComparer.Ordinal);
+
+        public static string GetGameVar(string key)
+        {
+            return GameVars.TryGetValue(key ?? "", out var value) ? value : "";
+        }
+
+        public static void SetGameVar(string key, string value)
+        {
+            GameVars[key ?? ""] = value ?? "";
+        }
+    }
+
     public IStatusManager? Self { get; set; } = FightPlayer.Instance.Status;
 
     public bool ThrowOnDelivery { get; set; }
@@ -509,6 +524,17 @@ namespace Terrias.Dll.Infrastructure
 
         public static void RecordDuration(string name, long startTimestamp)
         {
+        }
+    }
+}
+
+namespace Terrias.Dll.Mechanics
+{
+    public static class TerriasCardDescriptionProjector
+    {
+        public static bool TryRefresh(CardItem? card)
+        {
+            return false;
         }
     }
 }

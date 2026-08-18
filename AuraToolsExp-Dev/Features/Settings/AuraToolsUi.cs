@@ -67,12 +67,14 @@ internal static class AuraToolsUi
 
     public static GameObject CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        return AuraUiComponents.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
+        var created = AuraUiComponents.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
+        created.layer = parent.gameObject.layer;
+        return created;
     }
 
     public static GameObject CreateLayout(string name, Transform parent)
     {
-        return AuraUiComponents.CreateLayout(name, parent);
+        return CreateRect(name, parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
     }
 
     public static Image AddImage(GameObject go, Color color)
@@ -546,8 +548,8 @@ internal static class AuraToolsUi
         }
         ToolboxSurfaceV2.Apply(window);
         var layout = window.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(18, 18, 14, 14);
-        layout.spacing = 10f;
+        layout.padding = new RectOffset(16, 16, 12, 12);
+        layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
@@ -865,6 +867,7 @@ internal static class AuraToolsUi
     {
         var tint = new GameObject("PanelTint", typeof(RectTransform));
         tint.transform.SetParent(target.transform, false);
+        tint.layer = target.layer;
         tint.transform.SetAsFirstSibling();
         var rect = tint.GetComponent<RectTransform>();
         rect.anchorMin = Vector2.zero;

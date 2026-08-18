@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraUi.Shared;
 using Terrias.Dll.Hooks;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -10,7 +11,7 @@ namespace Terrias.Dll.Hooks.Ui;
 
 internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
 {
-    private Image? background;
+    private Image? backgroundSurface;
     private Image? portrait;
     private Text? nameText;
     private Text? starText;
@@ -24,7 +25,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
     private string spiritUid = "";
 
     public void Initialize(
-        Image nextBackground,
+        Image nextBackgroundSurface,
         Image nextPortrait,
         Text nextNameText,
         Text nextStarText,
@@ -36,7 +37,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         Button nextButton,
         Action<string> nextOnClick)
     {
-        background = nextBackground;
+        backgroundSurface = nextBackgroundSurface;
         portrait = nextPortrait;
         nameText = nextNameText;
         starText = nextStarText;
@@ -47,6 +48,13 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         activeStamp = nextActiveStamp;
         button = nextButton;
         onClick = nextOnClick;
+        PrepareForReuse();
+    }
+
+    public void PrepareForReuse()
+    {
+        ResetForPool();
+        if (button == null) return;
         button.onClick.RemoveListener(HandleClick);
         button.onClick.AddListener(HandleClick);
     }
@@ -69,7 +77,6 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         bool interactable)
     {
         spiritUid = item?.SpiritUid ?? "";
-        if (background != null) background.color = backgroundColor;
         if (portrait != null)
         {
             portrait.sprite = portraitSprite;
@@ -82,7 +89,24 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         if (markerText != null) { markerText.text = marker ?? ""; markerText.color = markerColor; }
         if (outline != null) { outline.enabled = outlined; outline.effectColor = outlineColor; }
         if (activeStamp != null) activeStamp.SetActive(active);
-        if (button != null) button.interactable = interactable;
+        if (button != null)
+        {
+            button.interactable = interactable;
+            if (backgroundSurface != null)
+            {
+                var highlighted = Color.Lerp(backgroundColor, Color.white, 0.08f);
+                var pressed = Color.Lerp(backgroundColor, Color.black, 0.10f);
+                highlighted.a = backgroundColor.a;
+                pressed.a = backgroundColor.a;
+                AuraUiButtonFeedback.Apply(
+                    button,
+                    backgroundSurface,
+                    backgroundColor,
+                    highlighted,
+                    pressed,
+                    backgroundColor);
+            }
+        }
         gameObject.SetActive(true);
     }
 
@@ -229,7 +253,7 @@ internal sealed class SpiritVirtualizedGridView : MonoBehaviour
                 content,
                 "SpiritCell-" + index,
                 createCell,
-                cell => cell.ResetForPool());
+                cell => cell.PrepareForReuse());
             cells.Add(view);
             TerriasPerformanceCounters.Record("SpiritUi.VirtualGrid.CellCreated");
         }

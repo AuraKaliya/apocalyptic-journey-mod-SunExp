@@ -12,7 +12,8 @@ public static class TerriasPerformanceSettings
     private const int RefreshMilliseconds = 1000;
 
     private static MethodInfo? getGameVarMethod;
-    private static bool gameVarMethodResolved;
+    private static MethodInfo? setGameVarMethod;
+    private static bool gameVarMethodsResolved;
     private static int lastRefreshTick = int.MinValue;
     private static bool cachedCountersEnabled;
     private static bool cachedWunaOrbitFireEnabled;
@@ -75,6 +76,28 @@ public static class TerriasPerformanceSettings
 
     public static int WunaAlphaSampleGrid => 96;
 
+    public static bool TrySetCountersEnabled(bool enabled)
+    {
+        try
+        {
+            ResolveGameVarMethods();
+            if (setGameVarMethod == null)
+            {
+                return false;
+            }
+
+            setGameVarMethod.Invoke(null, new object[] { CountersKey, enabled ? "1" : "0" });
+            lastRefreshTick = int.MinValue;
+            RefreshIfNeeded();
+            return cachedCountersEnabled == enabled
+                && string.Equals(ReadGameVar(CountersKey).Trim(), enabled ? "1" : "0", StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static float WunaGeometryInterval(bool activePulse)
     {
         return activePulse ? 1f / 30f : 1f / 18f;
@@ -135,9 +158,14 @@ public static class TerriasPerformanceSettings
     private static bool ReadFlag(string key, bool fallback)
     {
         var text = ReadGameVar(key).Trim();
-        if (text.Length == 0 || text == "0")
+        if (text.Length == 0)
         {
             return fallback;
+        }
+
+        if (text == "0")
+        {
+            return false;
         }
 
         if (text == "1"
@@ -194,14 +222,22 @@ public static class TerriasPerformanceSettings
             return "";
         }
 
-        if (!gameVarMethodResolved)
-        {
-            var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
-            getGameVarMethod = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static);
-            gameVarMethodResolved = true;
-        }
+        ResolveGameVarMethods();
 
         var value = getGameVarMethod?.Invoke(null, new object[] { key });
         return Convert.ToString(value) ?? "";
+    }
+
+    private static void ResolveGameVarMethods()
+    {
+        if (gameVarMethodsResolved)
+        {
+            return;
+        }
+
+        var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
+        getGameVarMethod = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static);
+        setGameVarMethod = playerInfo?.GetMethod("SetGameVar", BindingFlags.Public | BindingFlags.Static);
+        gameVarMethodsResolved = true;
     }
 }

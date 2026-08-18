@@ -21,7 +21,11 @@ public static class TerriasCombatCardViewPool
     private static readonly AuraSharedObjectPool<string, CardItem> Pool =
         new(TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity, IsAlive);
     private static readonly HashSet<CardItem> ActiveViews = new();
+    private static readonly Queue<PendingMaterialization> Pending = new();
+    private static readonly HashSet<string> PendingIds = new(StringComparer.Ordinal);
+    private const int MaxNativeQueueWaitFrames = 60;
     private static int generation;
+    private static int nativeQueueWaitFrames;
     private static Transform? poolRoot;
     private static bool initialized;
 
@@ -56,14 +60,15 @@ public static class TerriasCombatCardViewPool
         EndFight("BeginFight.Reset");
         generation++;
         EnsurePoolRoot();
-        ScheduleWarmup(CombatCardViewPoolCatalog.CommonBucket, TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity);
-        ScheduleWarmup(CombatCardViewPoolCatalog.AttackBucket, TerriasPerformanceSettings.CombatCardViewPoolAttackCapacity);
         TerriasPerformanceCounters.Record("CombatCardViewPool.FightStarted");
     }
 
     private static void EndFight(string source)
     {
         generation++;
+        Pending.Clear();
+        PendingIds.Clear();
+        nativeQueueWaitFrames = 0;
         foreach (var active in new List<CardItem>(ActiveViews))
         {
             DestroyCardView(active);
@@ -81,143 +86,245 @@ public static class TerriasCombatCardViewPool
         TerriasLog.Debug("[CombatCardViewPool] cleared from " + source + ".");
     }
 
-    private static void ScheduleWarmup(string bucket, int capacity)
-    {
-        var expectedGeneration = generation;
-        for (var index = 0; index < Math.Max(0, capacity); index++)
-        {
-            var capturedIndex = index;
-            TerriasFrameScheduler.RunOnceAfterFrames(
-                "CombatCardViewPool.Warm." + expectedGeneration + "." + bucket + "." + capturedIndex,
-                1 + capturedIndex,
-                () => WarmOne(expectedGeneration, bucket),
-                AuraSharedFramePhase.Background,
-                priority: 20,
-                estimatedCost: 2);
-        }
-    }
-
-    private static void WarmOne(int expectedGeneration, string bucket)
-    {
-        if (expectedGeneration != generation
-            || !TerriasPerformanceSettings.CombatCardViewPoolEnabled
-            || Pool.Count(bucket) >= Capacity(bucket))
-        {
-            return;
-        }
-
-        var start = TerriasPerformanceCounters.Timestamp();
-        var card = CreateCardView(bucket);
-        if (card == null)
-        {
-            TerriasPerformanceCounters.Record("CombatCardViewPool.WarmFailed");
-            return;
-        }
-
-        PrepareIdle(card, bucket, expectedGeneration);
-        if (!Pool.Release(bucket, card))
-        {
-            DestroyCardView(card);
-            TerriasPerformanceCounters.Record("CombatCardViewPool.WarmRejected");
-            return;
-        }
-
-        TerriasPerformanceCounters.Record("CombatCardViewPool.WarmCreated");
-        TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.Warm", start);
-    }
-
     private static bool TryMaterialize(ScriptExecutor self, DataConfig config, string source)
     {
-        if (!CombatCardViewPoolCatalog.TryResolveBucket(config, out var bucket))
-        {
-            return false;
-        }
-
         var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
         if (fightUi?.cardContainer == null
-            || FightUI.cardItemList.Count + fightUi.createCardQueue.Count >= fightUi.CardTopCount)
+            || FightUI.cardItemList.Count + fightUi.createCardQueue.Count + Pending.Count >= fightUi.CardTopCount)
         {
             TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback.Precondition");
             return false;
         }
 
-        if (!Pool.TryAcquire(bucket, out var pooled) || pooled == null)
+        var instanceId = string.IsNullOrWhiteSpace(config.InstanceID)
+            ? config.GetHashCode().ToString()
+            : config.InstanceID;
+        if (!PendingIds.Add(instanceId))
         {
-            TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireMiss");
-            return false;
+            TerriasPerformanceCounters.Record("CombatCardViewPool.MaterializeDeduplicated");
+            return true;
         }
 
-        TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireHit");
-        var sideEffectsStarted = false;
+        Pending.Enqueue(new PendingMaterialization(generation, self, config, source, instanceId));
+        ScheduleDrain();
+        TerriasPerformanceCounters.Record("CombatCardViewPool.MaterializeQueued");
+        return true;
+    }
+
+    private static void ScheduleDrain()
+    {
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = TerriasIds.ModId,
+            Key = "CombatCardViewPool.Drain",
+            Source = "Terrias.CombatCardViewPool.Drain",
+            Phase = AuraSharedFramePhase.Presentation,
+            Priority = 160,
+            EstimatedCost = 6,
+            Action = DrainPending
+        });
+    }
+
+    private static void DrainPending()
+    {
+        if (Pending.Count == 0)
+        {
+            nativeQueueWaitFrames = 0;
+            return;
+        }
+
+        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
+        if (fightUi == null)
+        {
+            FallbackAllPending("FightUI unavailable");
+            return;
+        }
+
+        if (fightUi.createCardQueue.Count > 0 && nativeQueueWaitFrames < MaxNativeQueueWaitFrames)
+        {
+            nativeQueueWaitFrames++;
+            TerriasPerformanceCounters.Record("CombatCardViewPool.WaitedForNativeQueue");
+            ScheduleDrain();
+            return;
+        }
+
+        nativeQueueWaitFrames = 0;
+        var materialized = 0;
+        while (Pending.Count > 0)
+        {
+            var request = Pending.Dequeue();
+            PendingIds.Remove(request.InstanceId);
+            if (request.Generation != generation)
+            {
+                continue;
+            }
+
+            if (MaterializeNow(request, fightUi))
+            {
+                materialized++;
+            }
+        }
+
+        if (materialized > 0)
+        {
+            AuditPooledHandViews();
+            fightUi.transform.SetAsFirstSibling();
+            FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.BatchMaterialize");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.BatchLayoutRequested");
+        }
+    }
+
+    private static bool MaterializeNow(PendingMaterialization request, FightUI fightUi)
+    {
+        var self = request.Executor;
+        var config = request.Config;
+        CardItem? card = null;
+        var commitStarted = false;
         try
         {
-            var marker = pooled.GetComponent<PooledCombatCardViewMarker>();
-            if (marker == null || marker.Generation != generation)
+            if (FightUI.cardItemList.Count + fightUi.createCardQueue.Count >= fightUi.CardTopCount)
             {
-                DestroyCardView(pooled);
-                TerriasPerformanceCounters.Record("CombatCardViewPool.RejectStale");
+                NativeFallback(request, "hand capacity reached");
                 return false;
             }
 
             config.scriptExecutor.Self = FightPlayer.Instance.Status;
             config.scriptExecutor.RunScript("InitScript");
-            if (!CombatCardViewPoolCatalog.MatchesInitializedBucket(config, bucket, out var actualBaseScript))
+            if (!CombatCardViewPoolCatalog.TryResolveInitializedBucket(config, out var bucket))
             {
-                ReturnUnused(pooled, bucket);
-                TerriasPerformanceCounters.Record("CombatCardViewPool.TypeMismatch");
-                TerriasLog.Warn("[CombatCardViewPool] native fallback for component mismatch: card="
-                    + CardConfigApi.Id(config)
-                    + ", expected="
-                    + bucket
-                    + ", actual="
-                    + actualBaseScript);
+                NativeFallback(request, "unsupported BaseScript=" + DictionaryUtil.Get(config.Vars, "BaseScript"));
+                return false;
+            }
+
+            if (!Pool.TryAcquire(bucket, out card) || card == null)
+            {
+                TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireMiss");
+                card = CreateCardView(bucket);
+            }
+            else
+            {
+                TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireHit");
+            }
+
+            if (card == null)
+            {
+                NativeFallback(request, "view construction failed");
+                return false;
+            }
+
+            var marker = card.GetComponent<PooledCombatCardViewMarker>();
+            if (marker == null || marker.Generation != generation)
+            {
+                DestroyCardView(card);
+                NativeFallback(request, "stale lease");
+                TerriasPerformanceCounters.Record("CombatCardViewPool.RejectStale");
                 return false;
             }
 
             FightCardManager.Instance.cardList.Remove(config);
             FightCardManager.Instance.usedCardList.Remove(config);
             AudioManager.Instance?.PlayEffect("NewSounds/卡牌与事件/抽牌");
-            sideEffectsStarted = true;
+            commitStarted = true;
             Singleton<EventCenter>.Instance.EventTrigger(
                 "CreateInt" + FightPlayer.Instance.InstanceId,
                 new CreateData(config, FightPlayer.Instance.InstanceId));
 
-            ActivateForUse(pooled, marker, bucket, config, fightUi);
+            ActivateForUse(card, marker, bucket, config, fightUi);
             var presentationSignature = CombatCardViewPoolCatalog.PresentationSignature(config, bucket);
-            if (!TryLightweightRebind(pooled, marker, config, presentationSignature))
+            if (!TryLightweightRebind(card, marker, config, presentationSignature))
             {
                 var initStart = TerriasPerformanceCounters.Timestamp();
-                pooled.Init(config);
+                card.Init(config);
                 TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.FullInit", initStart);
                 marker.HasInitializedPresentation = true;
                 marker.PresentationSignature = presentationSignature;
+                AuraCardPresentationDelta.Rebind(card.transform);
             }
 
-            ReapplyPresentationAfterBind(pooled, config);
+            ReapplyPresentationAfterBind(card, config);
 
-            var exitAnimator = pooled.GetComponent<PooledCardExitAnimator>()
-                ?? pooled.gameObject.AddComponent<PooledCardExitAnimator>();
-            exitAnimator.RefreshTextBindings(pooled.transform);
-            FightUI.cardItemList.Add(pooled);
-            fightUi.transform.SetAsFirstSibling();
-            FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.Materialize");
+            var exitAnimator = card.GetComponent<PooledCardExitAnimator>()
+                ?? card.gameObject.AddComponent<PooledCardExitAnimator>();
+            exitAnimator.RefreshTextBindings(card.transform);
+            if (!FightUI.cardItemList.Contains(card))
+            {
+                FightUI.cardItemList.Add(card);
+            }
             Singleton<EventCenter>.Instance.EventTrigger("EndCreateCardItem" + FightPlayer.Instance.Status.InstanceId);
             TerriasPerformanceCounters.Record("CombatCardViewPool.Materialized");
             return true;
         }
         catch (Exception ex)
         {
-            DestroyCardView(pooled);
-            TerriasPerformanceCounters.Record(sideEffectsStarted
+            if (card != null)
+            {
+                DestroyCardView(card);
+            }
+
+            TerriasPerformanceCounters.Record(commitStarted
                 ? "CombatCardViewPool.MaterializeFailedAfterStart"
                 : "CombatCardViewPool.MaterializeFailedSafe");
-            TerriasLog.Warn("[CombatCardViewPool] materialize fallback for "
+            TerriasLog.Warn("[CombatCardViewPool] materialize failed for "
                 + CardConfigApi.Id(config)
                 + " from "
-                + source
+                + request.Source
                 + ": "
                 + ex.Message);
+            if (!commitStarted)
+            {
+                NativeFallback(request, ex.Message);
+            }
+            else
+            {
+                RepairCommittedFailure(config);
+            }
+
             return false;
+        }
+    }
+
+    private static void NativeFallback(PendingMaterialization request, string reason)
+    {
+        try
+        {
+            request.Executor.GetCardFromDeck(request.Config);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback.Deferred");
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[CombatCardViewPool] deferred native fallback failed: card="
+                + CardConfigApi.Id(request.Config)
+                + ", reason="
+                + reason
+                + ", error="
+                + ex.Message);
+        }
+    }
+
+    private static void FallbackAllPending(string reason)
+    {
+        while (Pending.Count > 0)
+        {
+            var request = Pending.Dequeue();
+            PendingIds.Remove(request.InstanceId);
+            NativeFallback(request, reason);
+        }
+    }
+
+    private static void RepairCommittedFailure(DataConfig config)
+    {
+        try
+        {
+            if (!FightCardManager.Instance.cardList.Contains(config))
+            {
+                FightCardManager.Instance.cardList.Add(config);
+            }
+
+            TerriasPerformanceCounters.Record("CombatCardViewPool.CommitFailureRepaired");
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[CombatCardViewPool] committed failure repair failed: " + ex.Message);
         }
     }
 
@@ -285,6 +392,9 @@ public static class TerriasCombatCardViewPool
         card.ignore = true;
         card.hasDone = true;
         card.enabled = false;
+        FightUI.cardItemList.Remove(card);
+        FightUI.WaitCard.Remove(card);
+        FightUI.SelectedCard.Remove(card);
         SetInteraction(card, false);
         if (marker.PendingExitKind == PooledCardExitKind.MoveToDiscard
             || marker.PendingExitKind == PooledCardExitKind.MoveToDrawPile)
@@ -362,7 +472,15 @@ public static class TerriasCombatCardViewPool
             return;
         }
 
-        var bucket = card is AttackCardItem
+        var cardType = card.GetType();
+        if (cardType != typeof(AttackCardItem) && cardType != typeof(CommonCardItem))
+        {
+            DestroyCardView(card);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedSubclass");
+            return;
+        }
+
+        var bucket = cardType == typeof(AttackCardItem)
             ? CombatCardViewPoolCatalog.AttackBucket
             : CombatCardViewPoolCatalog.CommonBucket;
         if (Pool.Count(bucket) >= Capacity(bucket))
@@ -557,8 +675,18 @@ public static class TerriasCombatCardViewPool
         try
         {
             card.dataConfig = config;
-            ICard.SetCardMsg(card.transform, config, null);
-            card.DataUpdate();
+            var costUpdated = AuraCardPresentationDelta.TrySetCost(
+                card.transform,
+                CardConfigApi.NativeDisplayCost(config, FightPlayer.Instance?.Status).ToString());
+            var descriptionUpdated = AuraCardPresentationDelta.TrySetDescription(
+                card.transform,
+                config.Description());
+            if (!costUpdated || !descriptionUpdated)
+            {
+                TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.DeltaMiss");
+                return false;
+            }
+
             marker.PresentationSignature = presentationSignature;
             TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.Applied");
             return true;
@@ -586,6 +714,37 @@ public static class TerriasCombatCardViewPool
             Surface = TerriasCardPresentationSurface.CombatCardInternal
         });
         TerriasPerformanceCounters.Record("CombatCardViewPool.PresentationReapply");
+    }
+
+    private static void AuditPooledHandViews()
+    {
+        for (var index = FightUI.cardItemList.Count - 1; index >= 0; index--)
+        {
+            var card = FightUI.cardItemList[index];
+            if (card == null)
+            {
+                FightUI.cardItemList.RemoveAt(index);
+                continue;
+            }
+
+            var marker = card.GetComponent<PooledCombatCardViewMarker>();
+            if (marker == null)
+            {
+                continue;
+            }
+
+            if (marker.Generation == generation && marker.State == PooledCardViewState.Bound)
+            {
+                continue;
+            }
+
+            FightUI.cardItemList.RemoveAt(index);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.HandAuditRemovedInvalidLease");
+            if (marker.Generation != generation)
+            {
+                DestroyCardView(card);
+            }
+        }
     }
 
     private static PooledCardExitKind ThrowExitKind(ModHookContext context)
@@ -671,5 +830,28 @@ public static class TerriasCombatCardViewPool
             ActiveViews.Remove(card);
             UnityEngine.Object.Destroy(card.gameObject);
         }
+    }
+
+    private readonly struct PendingMaterialization
+    {
+        public PendingMaterialization(
+            int generation,
+            ScriptExecutor executor,
+            DataConfig config,
+            string source,
+            string instanceId)
+        {
+            Generation = generation;
+            Executor = executor;
+            Config = config;
+            Source = source ?? "";
+            InstanceId = instanceId ?? "";
+        }
+
+        public int Generation { get; }
+        public ScriptExecutor Executor { get; }
+        public DataConfig Config { get; }
+        public string Source { get; }
+        public string InstanceId { get; }
     }
 }

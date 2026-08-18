@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using AuraUi.Shared;
 using TMPro;
 using UnityEngine;
 
@@ -24,6 +25,11 @@ public static class AuraCardPresentationDelta
         var normalized = string.IsNullOrWhiteSpace(costText) ? "0" : costText.Trim();
         try
         {
+            if (AuraCombatCardPresentationBinding.GetOrCreate(cardTransform).TrySetCost(normalized))
+            {
+                return true;
+            }
+
             var costNode = cardTransform.Find("Front/cost/cost");
             var text = costNode == null ? null : costNode.GetComponent<TMP_Text>();
             if (text != null)
@@ -47,6 +53,41 @@ public static class AuraCardPresentationDelta
         catch
         {
             return false;
+        }
+    }
+
+    public static bool TrySetDescription(Transform? cardTransform, string descriptionText)
+    {
+        if (cardTransform == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            return AuraCombatCardPresentationBinding
+                .GetOrCreate(cardTransform)
+                .TrySetDescription(descriptionText ?? "");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public static void Rebind(Transform? cardTransform)
+    {
+        if (cardTransform == null)
+        {
+            return;
+        }
+
+        try
+        {
+            AuraCombatCardPresentationBinding.GetOrCreate(cardTransform).Rebind(cardTransform);
+        }
+        catch
+        {
         }
     }
 }

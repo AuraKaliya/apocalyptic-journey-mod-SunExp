@@ -65,6 +65,63 @@ internal static class MatchReplayEnemyIntentApi
         return result;
     }
 
+    internal static string CaptureRevisionFingerprint()
+    {
+        var hash = new IntentRevisionHash();
+        var enemies = EnemyManager.Instance?.enemyList;
+        if (enemies == null)
+        {
+            return hash.Value.ToString("x16");
+        }
+
+        try
+        {
+            foreach (var enemy in enemies)
+            {
+                if (enemy == null)
+                {
+                    continue;
+                }
+
+                hash.Add(enemy.InstanceId ?? "");
+                hash.Add(enemy.Status?.InstanceId ?? "");
+                foreach (var card in SelectedCardsEnumerable(enemy))
+                {
+                    var config = card?.dataConfig;
+                    if (config == null)
+                    {
+                        continue;
+                    }
+
+                    hash.Add(config.InstanceID ?? "");
+                    foreach (var value in config.data)
+                    {
+                        hash.Add(value.Key ?? "");
+                        hash.Add(value.Value ?? "");
+                    }
+
+                    foreach (var value in config.Vars)
+                    {
+                        hash.Add(value.Key ?? "");
+                        hash.Add(value.Value ?? "");
+                    }
+
+                    foreach (var target in config.scriptExecutor?.Object ?? new List<IStatusManager>())
+                    {
+                        hash.Add(target?.InstanceId ?? "");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            hash.Add("degraded:" + ex.GetType().Name);
+            LogFallbackOnce("enemy intent revision fingerprint degraded: " + ex.Message);
+        }
+
+        return hash.Value.ToString("x16");
+    }
+
     private static int ResolveDisplaySlot(
         IReadOnlyList<ObjectCard>? displayed,
         ObjectCard selected,
@@ -110,6 +167,43 @@ internal static class MatchReplayEnemyIntentApi
         return (enemy.ActionCards ?? new List<ObjectCard>())
             .Where(item => item != null)
             .ToList();
+    }
+
+    private static IEnumerable<ObjectCard> SelectedCardsEnumerable(Enemy enemy)
+    {
+        IEnumerable? selected = null;
+        try
+        {
+            if (enemy.FightAction != null
+                && SelectedCardsField?.GetValue(enemy.FightAction) is IEnumerable current)
+            {
+                selected = current;
+            }
+        }
+        catch
+        {
+        }
+
+        if (selected != null)
+        {
+            foreach (var item in selected)
+            {
+                if (item is ObjectCard card)
+                {
+                    yield return card;
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (var card in enemy.ActionCards ?? new List<ObjectCard>())
+        {
+            if (card != null)
+            {
+                yield return card;
+            }
+        }
     }
 
     private static MatchReplayEnemyIntentState? Capture(Enemy enemy, ObjectCard? card, int slot)
@@ -163,5 +257,33 @@ internal static class MatchReplayEnemyIntentApi
 
         fallbackLogged = true;
         AuraToolsLog.Warn("[MatchRecords] enemy intent capture degraded: " + detail + ".");
+    }
+
+    private struct IntentRevisionHash
+    {
+        private const ulong Offset = 14695981039346656037UL;
+        private const ulong Prime = 1099511628211UL;
+        private ulong value;
+        private bool initialized;
+
+        internal ulong Value => initialized ? value : Offset;
+
+        internal void Add(string text)
+        {
+            if (!initialized)
+            {
+                value = Offset;
+                initialized = true;
+            }
+
+            foreach (var character in text ?? "")
+            {
+                value ^= character;
+                value *= Prime;
+            }
+
+            value ^= 0xff;
+            value *= Prime;
+        }
     }
 }

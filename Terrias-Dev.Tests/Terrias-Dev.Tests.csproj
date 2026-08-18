@@ -61,6 +61,7 @@
     <Compile Include="..\Terrias-Dev\Mechanics\MapNodeTextureFitService.cs" Link="Source\MapNodeTextureFitService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ModeChoiceDragRange.cs" Link="Source\ModeChoiceDragRange.cs" />
     <Compile Include="..\Terrias-Dev\Hooks\Ui\SpiritManagementSelectionState.cs" Link="Source\SpiritManagementSelectionState.cs" />
+    <Compile Include="..\Terrias-Dev\Hooks\Ui\SpiritWarehouseSelectionPolicy.cs" Link="Source\SpiritWarehouseSelectionPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritAdventurePartyRules.cs" Link="Source\SpiritAdventurePartyRules.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs" Link="Source\SpiritProfileIdentityResolver.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritStatusBarText.cs" Link="Source\SpiritStatusBarText.cs" />

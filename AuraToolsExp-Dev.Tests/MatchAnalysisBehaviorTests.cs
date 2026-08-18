@@ -245,6 +245,7 @@ internal static partial class AuraToolsTestSuite
                     MatchReplayCapabilities.IndexedSeekV1,
                     MatchReplayCapabilities.CardPresentationReadyV1,
                     MatchReplayCapabilities.IncrementalHandV1,
+                    MatchReplayCapabilities.EntityDeltaV2,
                     MatchReplayCapabilities.OutcomeCuesV1,
                     MatchReplayCapabilities.PassiveHudV1,
                     MatchReplayCapabilities.EnemyIntentFramesV1,

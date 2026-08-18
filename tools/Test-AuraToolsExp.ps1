@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Configuration = "Release"
 )
 
@@ -241,10 +241,13 @@ $toolboxVisualSpecSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxVisualSpec.cs")
 $toolboxV2ComponentsSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxV2Components.cs")
-if ($settingsSource -notmatch "NativeContentLease\.Acquire" `
-        -or $settingsSource -notmatch "NativeContentLease\.Release" `
+$toolboxTooltipSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxTooltipV2.cs")
+if ($settingsSource -match "NativeContentLease" `
         -or $settingsSource -notmatch "CanvasGroup" `
         -or $settingsSource -notmatch "overrideSorting\s*=\s*true" `
+        -or $settingsSource -notmatch "background\.raycastTarget\s*=\s*true" `
+        -or $toolboxVisualSpecSource -notmatch "Workspace\s*=\s*new\(0\.031f,\s*0\.016f,\s*0\.227f,\s*1f\)" `
         -or $nativeContentLeaseSource -notmatch "NativeContentVisibilityLease<GameObject>" `
         -or $shellSource -notmatch "ToolboxCategoryRail\.Create" `
         -or $shellSource -notmatch "ToolboxSearchFieldV2\.Create" `
@@ -262,8 +265,36 @@ if ($settingsSource -notmatch "NativeContentLease\.Acquire" `
         -or $toolboxVisualSpecSource -notmatch "ModuleRowHeight\s*=\s*96f" `
         -or $toolboxV2ComponentsSource -notmatch "ToolboxIconButtonV2" `
         -or $toolboxV2ComponentsSource -notmatch "ToolboxCheckboxV2" `
+        -or $toolboxV2ComponentsSource -notmatch "ToolboxTooltipTrigger\.Attach" `
+        -or $toolboxV2ComponentsSource -match "AuraUiNativeHoverHint\.Attach" `
+        -or $toolboxTooltipSource -notmatch "overrideSorting\s*=\s*true" `
+        -or $toolboxTooltipSource -notmatch "blocksRaycasts\s*=\s*false" `
+        -or $toolboxTooltipSource -notmatch "ToolboxTooltipPlacementPolicy\.Resolve" `
         -or $moduleSource -notmatch "IconKey\s*=\s*id") {
-    throw "AuraToolsExp toolbox visual shell or native-content isolation contract is invalid."
+    throw "AuraToolsExp toolbox visual shell or non-mutating native-page overlay contract is invalid."
+}
+if ($settingsSource -notmatch "PlacePanelAboveNativeCanvases" -or $settingsSource -notmatch "panel render state") {
+    throw "AuraToolsExp toolbox panel sorting or render diagnostics are missing."
+}
+
+$matchRecordLibrarySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\MatchRecordLibraryPresenter.cs")
+$pixelWorkshopSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiWorkshop.cs")
+$pixelWorkshopLayoutSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiWorkshopLayoutPolicy.cs")
+if ($matchRecordLibrarySource -notmatch "ToolboxCheckboxV2\.Create" `
+        -or $matchRecordLibrarySource -notmatch '"record\.more"' `
+        -or $matchRecordLibrarySource -notmatch '"MetadataEditor-"' `
+        -or $pixelWorkshopSource -notmatch "PixelEmojiWorkshopLayoutPolicy\.Resolve" `
+        -or $pixelWorkshopSource -notmatch '"PrimaryActionSpacer"' `
+        -or $pixelWorkshopLayoutSource -notmatch "WideMinimumWidth\s*=\s*820f" `
+        -or $pixelWorkshopLayoutSource -notmatch "CompactMinimumWidth\s*=\s*740f" `
+        -or $pixelWorkshopLayoutSource -notmatch "408f" `
+        -or $pixelWorkshopLayoutSource -notmatch "360f" `
+        -or $pixelWorkshopSource -notmatch "SetReferenceControlsExpanded" `
+        -or $pixelWorkshopSource -notmatch "referenceDetails") {
+    throw "AuraToolsExp compact records or horizontal pixel-workshop layout contract is invalid."
 }
 
 $toolboxIconDirectory = Join-Path $repoRoot "AuraToolsExp\ModResource\Images\UI\ToolboxIcons"
@@ -423,10 +454,12 @@ $uiSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $viewStateSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraUiShared\AuraUiViewState.cs")
 if ($uiSource -notmatch "SetIsOnWithoutNotify" `
+        -or $uiSource -notmatch "created\.layer\s*=\s*parent\.gameObject\.layer" `
+        -or $uiSource -notmatch "tint\.layer\s*=\s*target\.layer" `
         -or $viewStateSource -notmatch "AnchorId" `
         -or $viewStateSource -notmatch "FocusedId" `
         -or $viewStateSource -notmatch "AuraUiKeyedListReconciler") {
-    throw "AuraToolsExp stable toggle, scroll-anchor, focus, or keyed-list contract is invalid."
+    throw "AuraToolsExp UI layer inheritance, stable toggle, scroll-anchor, focus, or keyed-list contract is invalid."
 }
 
 $toolingProtocolSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

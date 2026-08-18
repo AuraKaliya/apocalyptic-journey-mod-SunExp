@@ -29,8 +29,6 @@ public static class GoldDreamEconomyService
         activeStatusId = status.InstanceId ?? "";
         EnsureRoundListener(executor, status);
         var snapshot = Snapshot(status);
-        SyncPotential(status, snapshot.Tier);
-        snapshot = Snapshot(status);
         Changed?.Invoke(snapshot);
         return snapshot;
     }
@@ -104,6 +102,24 @@ public static class GoldDreamEconomyService
             snapshot.DebtDueOne,
             snapshot.DebtDueTwo,
             GoldDreamRules.SaturatingAdd(snapshot.DebtDueThree, 2_000));
+    }
+
+    public static GoldDreamSnapshot VerifyAssets(ScriptExecutor self)
+    {
+        var status = self?.Self ?? FightPlayer.Instance?.Status;
+        if (status == null)
+        {
+            return GoldDreamSnapshot.Empty;
+        }
+
+        Activate(self);
+        var falseGold = BuffApi.Level(status, TerriasIds.FalseGold);
+        var tier = GoldDreamRules.PotentialTier(falseGold, PlayerApi.GetMoney());
+        SyncPotential(status, tier);
+
+        var snapshot = Snapshot(status);
+        Changed?.Invoke(snapshot);
+        return snapshot;
     }
 
     public static GoldDreamSnapshot ApplyGoldDream(ScriptExecutor? executor)
@@ -216,7 +232,6 @@ public static class GoldDreamEconomyService
         BuffApi.SetExactLevel(status, TerriasIds.DebtDueOne, debt.DueOne);
         BuffApi.SetExactLevel(status, TerriasIds.DebtDueTwo, debt.DueTwo);
         BuffApi.SetExactLevel(status, TerriasIds.DebtDueThree, debt.DueThree);
-        SyncPotential(status, GoldDreamRules.PotentialTier(falseGold));
 
         var snapshot = Snapshot(status);
         Changed?.Invoke(snapshot);
@@ -254,7 +269,24 @@ public static class GoldDreamEconomyService
             BuffApi.Level(status, TerriasIds.DebtDueOne),
             BuffApi.Level(status, TerriasIds.DebtDueTwo),
             BuffApi.Level(status, TerriasIds.DebtDueThree),
-            GoldDreamRules.PotentialTier(falseGold));
+            CurrentPotentialTier(status));
+    }
+
+    private static GoldenPotentialTier CurrentPotentialTier(IStatusManager status)
+    {
+        if (status.GetBuff(TerriasIds.GoldenPotentialB) != null)
+        {
+            return GoldenPotentialTier.B;
+        }
+
+        if (status.GetBuff(TerriasIds.GoldenPotentialM) != null)
+        {
+            return GoldenPotentialTier.M;
+        }
+
+        return status.GetBuff(TerriasIds.GoldenPotentialK) != null
+            ? GoldenPotentialTier.K
+            : GoldenPotentialTier.Zero;
     }
 
     private static bool IsActive(IStatusManager status)

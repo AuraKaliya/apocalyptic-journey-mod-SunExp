@@ -600,11 +600,21 @@ internal sealed class MatchReplayStateDelta
 
     public int CardTopCount { get; set; }
 
+    public bool CardTopCountChanged { get; set; }
+
     public List<MatchReplayCardState> Cards { get; set; } = new();
+
+    public List<MatchReplayCardState> CardUpserts { get; set; } = new();
+
+    public List<string> RemovedCardIds { get; set; } = new();
 
     public bool ReplaceEnemyIntents { get; set; }
 
     public List<MatchReplayEnemyIntentState> EnemyIntents { get; set; } = new();
+
+    public List<MatchReplayEnemyIntentState> EnemyIntentUpserts { get; set; } = new();
+
+    public List<string> RemovedEnemyIntentIds { get; set; } = new();
 }
 
 /// <summary>
@@ -655,10 +665,20 @@ internal static class MatchReplayProjectionState
                 })
                 .Where(id => !string.IsNullOrWhiteSpace(id)),
             StringComparer.Ordinal);
-        var replaceCards = stateDiff.Paths.Any(path =>
-            path.StartsWith("card", StringComparison.Ordinal));
-        var replaceEnemyIntents = stateDiff.Paths.Any(path =>
-            path.StartsWith("intent[", StringComparison.Ordinal));
+        var previousCards = (before.Cards ?? new List<MatchReplayCardState>())
+            .Where(card => !string.IsNullOrWhiteSpace(card.ReplayCardId))
+            .GroupBy(card => card.ReplayCardId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+        var nextCards = (after.Cards ?? new List<MatchReplayCardState>())
+            .Where(card => !string.IsNullOrWhiteSpace(card.ReplayCardId))
+            .GroupBy(card => card.ReplayCardId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+        var previousIntents = (before.EnemyIntents ?? new List<MatchReplayEnemyIntentState>())
+            .GroupBy(IntentKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+        var nextIntents = (after.EnemyIntents ?? new List<MatchReplayEnemyIntentState>())
+            .GroupBy(IntentKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
         return new MatchReplayStateDelta
         {
             LevelId = after.LevelId ?? "",
@@ -674,13 +694,34 @@ internal static class MatchReplayProjectionState
             RemovedStatusIds = previousIds.Where(id => !nextIds.Contains(id))
                 .OrderBy(id => id, StringComparer.Ordinal)
                 .ToList(),
-            ReplaceCards = replaceCards,
+            ReplaceCards = false,
             CardTopCount = after.CardTopCount,
-            Cards = replaceCards ? after.Cards.Select(Clone).ToList() : new List<MatchReplayCardState>(),
-            ReplaceEnemyIntents = replaceEnemyIntents,
-            EnemyIntents = replaceEnemyIntents
-                ? (after.EnemyIntents ?? new List<MatchReplayEnemyIntentState>()).Select(Clone).ToList()
-                : new List<MatchReplayEnemyIntentState>()
+            CardTopCountChanged = before.CardTopCount != after.CardTopCount,
+            Cards = new List<MatchReplayCardState>(),
+            CardUpserts = nextCards.Values
+                .Where(card => !previousCards.TryGetValue(card.ReplayCardId, out var previous)
+                               || !EquivalentCard(previous, card))
+                .OrderBy(card => card.Zone, StringComparer.Ordinal)
+                .ThenBy(card => card.Order)
+                .ThenBy(card => card.ReplayCardId, StringComparer.Ordinal)
+                .Select(Clone)
+                .ToList(),
+            RemovedCardIds = previousCards.Keys
+                .Where(id => !nextCards.ContainsKey(id))
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToList(),
+            ReplaceEnemyIntents = false,
+            EnemyIntents = new List<MatchReplayEnemyIntentState>(),
+            EnemyIntentUpserts = nextIntents
+                .Where(pair => !previousIntents.TryGetValue(pair.Key, out var previous)
+                               || !EquivalentIntent(previous, pair.Value))
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => Clone(pair.Value))
+                .ToList(),
+            RemovedEnemyIntentIds = previousIntents.Keys
+                .Where(id => !nextIntents.ContainsKey(id))
+                .OrderBy(id => id, StringComparer.Ordinal)
+                .ToList()
         };
     }
 
@@ -715,10 +756,34 @@ internal static class MatchReplayProjectionState
         }
 
         result.Statuses = statuses.Values.OrderBy(item => item.InstanceId, StringComparer.Ordinal).ToList();
+        result.CardTopCount = delta.CardTopCount;
         if (delta.ReplaceCards)
         {
-            result.CardTopCount = delta.CardTopCount;
             result.Cards = (delta.Cards ?? new List<MatchReplayCardState>()).Select(Clone).ToList();
+        }
+        else
+        {
+            var cards = result.Cards
+                .Where(card => !string.IsNullOrWhiteSpace(card.ReplayCardId))
+                .ToDictionary(card => card.ReplayCardId, Clone, StringComparer.Ordinal);
+            foreach (var removed in delta.RemovedCardIds ?? new List<string>())
+            {
+                cards.Remove(removed ?? "");
+            }
+
+            foreach (var card in delta.CardUpserts ?? new List<MatchReplayCardState>())
+            {
+                if (!string.IsNullOrWhiteSpace(card.ReplayCardId))
+                {
+                    cards[card.ReplayCardId] = Clone(card);
+                }
+            }
+
+            result.Cards = cards.Values
+                .OrderBy(card => card.Zone, StringComparer.Ordinal)
+                .ThenBy(card => card.Order)
+                .ThenBy(card => card.ReplayCardId, StringComparer.Ordinal)
+                .ToList();
         }
 
 
@@ -726,6 +791,25 @@ internal static class MatchReplayProjectionState
         {
             result.EnemyIntents = (delta.EnemyIntents ?? new List<MatchReplayEnemyIntentState>())
                 .Select(Clone)
+                .ToList();
+        }
+        else
+        {
+            var intents = result.EnemyIntents.ToDictionary(IntentKey, Clone, StringComparer.Ordinal);
+            foreach (var removed in delta.RemovedEnemyIntentIds ?? new List<string>())
+            {
+                intents.Remove(removed ?? "");
+            }
+
+            foreach (var intent in delta.EnemyIntentUpserts ?? new List<MatchReplayEnemyIntentState>())
+            {
+                intents[IntentKey(intent)] = Clone(intent);
+            }
+
+            result.EnemyIntents = intents.Values
+                .OrderBy(intent => intent.ActorId, StringComparer.Ordinal)
+                .ThenBy(intent => intent.SlotIndex)
+                .ThenBy(intent => intent.SourceInstanceId, StringComparer.Ordinal)
                 .ToList();
         }
 
@@ -907,6 +991,71 @@ internal static class MatchReplayProjectionState
             EffectName = source.EffectName ?? "",
             TargetIds = (source.TargetIds ?? new List<string>()).Where(id => !string.IsNullOrWhiteSpace(id)).ToList()
         };
+    }
+
+    internal static bool HasCardChanges(MatchReplayStateDelta? delta)
+    {
+        return delta != null
+               && (delta.ReplaceCards
+                   || delta.CardTopCountChanged
+                   || (delta.CardUpserts?.Count ?? 0) > 0
+                   || (delta.RemovedCardIds?.Count ?? 0) > 0);
+    }
+
+    internal static bool HasCardIdentityChanges(MatchReplayStateDelta? delta)
+    {
+        return delta != null
+               && (delta.ReplaceCards
+                   || (delta.CardUpserts?.Count ?? 0) > 0
+                   || (delta.RemovedCardIds?.Count ?? 0) > 0);
+    }
+
+    private static bool EquivalentCard(MatchReplayCardState left, MatchReplayCardState right)
+    {
+        return string.Equals(left.Zone, right.Zone, StringComparison.Ordinal)
+               && left.Order == right.Order
+               && string.Equals(left.CardId, right.CardId, StringComparison.Ordinal)
+               && left.DataType == right.DataType
+               && EquivalentValues(left.Data, right.Data)
+               && EquivalentValues(left.Vars, right.Vars);
+    }
+
+    private static bool EquivalentIntent(MatchReplayEnemyIntentState left, MatchReplayEnemyIntentState right)
+    {
+        return string.Equals(left.IntentId, right.IntentId, StringComparison.Ordinal)
+               && string.Equals(left.Label, right.Label, StringComparison.Ordinal)
+               && string.Equals(left.Description, right.Description, StringComparison.Ordinal)
+               && string.Equals(left.Icon, right.Icon, StringComparison.Ordinal)
+               && string.Equals(left.BackIcon, right.BackIcon, StringComparison.Ordinal)
+               && string.Equals(left.DisplayValue, right.DisplayValue, StringComparison.Ordinal)
+               && string.Equals(left.ActionState, right.ActionState, StringComparison.Ordinal)
+               && string.Equals(left.EffectName, right.EffectName, StringComparison.Ordinal)
+               && (left.TargetIds ?? new List<string>()).SequenceEqual(
+                   right.TargetIds ?? new List<string>(),
+                   StringComparer.Ordinal);
+    }
+
+    private static bool EquivalentValues(
+        IEnumerable<MatchReplayStringValue>? left,
+        IEnumerable<MatchReplayStringValue>? right)
+    {
+        return (left ?? Enumerable.Empty<MatchReplayStringValue>())
+            .OrderBy(value => value.Key, StringComparer.Ordinal)
+            .ThenBy(value => value.Value, StringComparer.Ordinal)
+            .Select(value => (value.Key ?? "") + "\u001f" + (value.Value ?? ""))
+            .SequenceEqual(
+                (right ?? Enumerable.Empty<MatchReplayStringValue>())
+                .OrderBy(value => value.Key, StringComparer.Ordinal)
+                .ThenBy(value => value.Value, StringComparer.Ordinal)
+                .Select(value => (value.Key ?? "") + "\u001f" + (value.Value ?? "")),
+                StringComparer.Ordinal);
+    }
+
+    private static string IntentKey(MatchReplayEnemyIntentState intent)
+    {
+        return (intent.ActorId ?? "") + "\u001f"
+               + intent.SlotIndex.ToString(CultureInfo.InvariantCulture) + "\u001f"
+               + (intent.SourceInstanceId ?? "");
     }
 
     private static MatchReplayStringValue Clone(MatchReplayStringValue source)

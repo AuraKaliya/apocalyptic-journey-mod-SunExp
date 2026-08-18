@@ -35,6 +35,12 @@ internal static class MatchReplayRecorder
     private static bool firstPlayerRoundSeen;
     private static readonly Dictionary<string, int> EventKindCounts = new(StringComparer.Ordinal);
     private static readonly List<string> CaptureDiagnostics = new();
+    private static readonly Queue<ActionBuildEnvelope> DeferredActionBuilds = new();
+    private static int pendingActionBuilds;
+    private static int recordingGeneration;
+    private static long projectionRevision;
+    private static bool completionRequested;
+    private static string pendingCompletionResult = "";
 
     internal static bool IsRecording
     {
@@ -74,6 +80,7 @@ internal static class MatchReplayRecorder
             MatchReplayCapabilities.AsyncFinalizationV1,
             MatchReplayCapabilities.CardPresentationReadyV1,
             MatchReplayCapabilities.IncrementalHandV1,
+            MatchReplayCapabilities.EntityDeltaV2,
             MatchReplayCapabilities.OutcomeCuesV1,
             MatchReplayCapabilities.PassiveHudV1,
             MatchReplayCapabilities.EnemyIntentFramesV1,
@@ -86,6 +93,7 @@ internal static class MatchReplayRecorder
 
         lock (Gate)
         {
+            recordingGeneration++;
             var recordId = Guid.NewGuid().ToString("N");
             activeRecord = new MatchRecord
             {
@@ -137,6 +145,11 @@ internal static class MatchReplayRecorder
             lastAuthoritativeState = null;
             EventKindCounts.Clear();
             CaptureDiagnostics.Clear();
+            DeferredActionBuilds.Clear();
+            pendingActionBuilds = 0;
+            projectionRevision = 0;
+            completionRequested = false;
+            pendingCompletionResult = "";
         }
     }
 
@@ -310,6 +323,7 @@ internal static class MatchReplayRecorder
             }
 
             activeAction.Convergence.Reset();
+            projectionRevision++;
             if (activeAction.FinalizationScheduled)
             {
                 return;
@@ -362,7 +376,7 @@ internal static class MatchReplayRecorder
                 SourcePresentation = MatchReplayCardStateCapture.CaptureOne(config),
                 Before = lastAuthoritativeState == null
                     ? MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex)
-                    : MatchReplayProjectionState.Clone(lastAuthoritativeState),
+                    : lastAuthoritativeState,
                 IsRemote = true,
                 RemoteCommandSequence = context.CommandSequence
             };
@@ -458,7 +472,7 @@ internal static class MatchReplayRecorder
                     SourcePresentation = MatchReplayCardStateCapture.CaptureOne(config),
                     Before = lastAuthoritativeState == null
                         ? MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex)
-                        : MatchReplayProjectionState.Clone(lastAuthoritativeState),
+                        : lastAuthoritativeState,
                     Depth = 1
                 };
             }
@@ -505,7 +519,7 @@ internal static class MatchReplayRecorder
                 IntentPresentation = MatchReplayProjectionState.Clone(intent),
                 Before = lastAuthoritativeState == null
                     ? MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex)
-                    : MatchReplayProjectionState.Clone(lastAuthoritativeState),
+                    : lastAuthoritativeState,
                 Depth = 1
             };
         }
@@ -533,6 +547,7 @@ internal static class MatchReplayRecorder
             }
 
             activeAction.FinalizationScheduled = true;
+            projectionRevision++;
             actionId = activeAction.ActionId;
         }
 
@@ -571,9 +586,10 @@ internal static class MatchReplayRecorder
                     return;
                 }
 
-                var snapshot = MatchReplayStateCapture.CaptureProjectionSnapshot(activeAction.TurnIndex);
-                var stateHash = MatchReplayProjectionState.Hash(snapshot);
-                var decision = activeAction.Convergence.Observe(stateHash);
+                var probe = MatchReplayStateCapture.CaptureRevisionProbe(
+                    activeAction.TurnIndex,
+                    projectionRevision);
+                var decision = activeAction.Convergence.Observe(probe);
                 if (decision == MatchReplayActionFinalizationDecision.Observe)
                 {
                     ScheduleFinalization(actionId);
@@ -587,7 +603,8 @@ internal static class MatchReplayRecorder
                                       + "the match will be stored as analysis-only: " + actionId + ".");
                 }
 
-                FlushPendingActionNoLock(snapshot);
+                // Only the stable/deadline observation pays for a complete immutable capture.
+                FlushPendingActionNoLock(MatchReplayStateCapture.CaptureProjectionSnapshot(activeAction.TurnIndex));
             }
         }
         catch (Exception ex)
@@ -624,7 +641,7 @@ internal static class MatchReplayRecorder
                 }
 
                 var snapshot = MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex);
-                lastAuthoritativeState = MatchReplayProjectionState.Clone(snapshot);
+                lastAuthoritativeState = snapshot;
                 if (activeRecord.InitialState.BaselineState == null)
                 {
                     var baseline = MatchReplayProjectionState.Clone(snapshot);
@@ -662,6 +679,18 @@ internal static class MatchReplayRecorder
             {
                 AddCaptureDiagnosticNoLock("final action: " + ex.Message);
             }
+            if (pendingActionBuilds > 0 || DeferredActionBuilds.Count > 0)
+            {
+                completionRequested = true;
+                if (string.IsNullOrWhiteSpace(pendingCompletionResult))
+                {
+                    pendingCompletionResult = result ?? "";
+                }
+
+                ScheduleCompletionWhenReadyNoLock();
+                return;
+            }
+
             record = activeRecord;
             buffer = workingBuffer;
             completedTurns = Math.Max(1, turnIndex);
@@ -698,6 +727,7 @@ internal static class MatchReplayRecorder
     {
         lock (Gate)
         {
+            recordingGeneration++;
             activeRecord = null;
             workingBuffer?.Dispose();
             workingBuffer = null;
@@ -709,6 +739,11 @@ internal static class MatchReplayRecorder
             firstPlayerRoundSeen = false;
             EventKindCounts.Clear();
             CaptureDiagnostics.Clear();
+            DeferredActionBuilds.Clear();
+            pendingActionBuilds = 0;
+            projectionRevision = 0;
+            completionRequested = false;
+            pendingCompletionResult = "";
         }
     }
 
@@ -737,23 +772,75 @@ internal static class MatchReplayRecorder
         var action = activeAction;
         var after = settledState == null
             ? MatchReplayStateCapture.CaptureProjectionSnapshot(action.TurnIndex)
-            : MatchReplayProjectionState.Clone(settledState);
-        lastAuthoritativeState = MatchReplayProjectionState.Clone(after);
-        var finalStateHash = MatchReplayProjectionState.Hash(after);
-        if (string.Equals(action.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
-            && action.NativePresentation == null
-            && string.Equals(
-                MatchReplayProjectionState.Hash(action.Before),
-                finalStateHash,
-                StringComparison.Ordinal))
+            : settledState;
+        lastAuthoritativeState = after;
+        var actionSequence = ++nextSequence;
+        completedActionCount++;
+        actionsSinceCheckpoint++;
+        var interval = AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.CheckpointEventInterval;
+        var checkpointDue = actionsSinceCheckpoint >= Math.Max(1, interval);
+        var checkpointSequence = checkpointDue ? ++nextSequence : 0L;
+        if (checkpointDue)
         {
-            // OtherObj.DoOneAction can return before executing when the actor is unable to act.
-            // The routed hook has no return-value channel, so reject an attempt that produced
-            // neither native presentation nor an authoritative state change.
-            activeAction = null;
+            actionsSinceCheckpoint = 0;
+        }
+
+        var envelope = new ActionBuildEnvelope
+        {
+            RecordingGeneration = recordingGeneration,
+            RecordId = activeRecord.RecordId,
+            Sequence = actionSequence,
+            CheckpointSequence = checkpointSequence,
+            CompletedActionCount = completedActionCount,
+            EndedMilliseconds = ElapsedMilliseconds(),
+            Action = action,
+            After = after
+        };
+        activeAction = null;
+        EnqueueActionBuildNoLock(envelope);
+    }
+
+    private static void EnqueueActionBuildNoLock(ActionBuildEnvelope envelope)
+    {
+        if (TrySubmitActionBuildNoLock(envelope))
+        {
             return;
         }
 
+        DeferredActionBuilds.Enqueue(envelope);
+        ScheduleDeferredActionBuildRetryNoLock();
+        AuraToolsLog.Debug("[MatchRecords] action projection build deferred by the shared CPU queue: "
+                           + envelope.Action.ActionId + ".");
+    }
+
+    private static bool TrySubmitActionBuildNoLock(ActionBuildEnvelope envelope)
+    {
+        pendingActionBuilds++;
+        var accepted = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<ActionBuildResult>
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "MatchReplay.Action.Build." + envelope.RecordId + "." + envelope.Sequence,
+                Source = "MatchRecords.Replay.ActionBuild",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                CompletionPriority = 40,
+                Work = _ => BuildActionResult(envelope),
+                ApplyOnMainThread = result => CommitActionBuild(envelope, result),
+                OnFailedOnMainThread = ex => RetryFailedActionBuild(envelope, ex)
+            });
+        if (!accepted)
+        {
+            pendingActionBuilds = Math.Max(0, pendingActionBuilds - 1);
+        }
+
+        return accepted;
+    }
+
+    private static ActionBuildResult BuildActionResult(ActionBuildEnvelope envelope)
+    {
+        var action = envelope.Action;
+        var after = envelope.After;
+        var finalStateHash = MatchReplayProjectionState.Hash(after);
         var delta = MatchReplayProjectionState.CreateDelta(action.Before, after);
         var derived = MatchReplayActionDerivation.Build(
             action.ActionId,
@@ -773,7 +860,7 @@ internal static class MatchReplayRecorder
             ActionIndex = action.ActionIndex,
             TurnIndex = action.TurnIndex,
             StartedMilliseconds = action.StartedMilliseconds,
-            EndedMilliseconds = ElapsedMilliseconds(),
+            EndedMilliseconds = envelope.EndedMilliseconds,
             DurationMilliseconds = derived.DurationMilliseconds,
             Kind = action.Kind,
             ActorId = action.ActorId,
@@ -789,42 +876,190 @@ internal static class MatchReplayRecorder
             Semantics = derived.Semantics,
             FinalStateHash = finalStateHash
         };
-        var semantic = new MatchSemanticEvent
+        var events = new List<MatchReplayEvent>
         {
-            EventId = "event-" + (nextSequence + 1),
-            ActionId = action.ActionId,
-            RootActionId = action.ActionId,
-            Category = string.Equals(action.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
-                ? MatchSemanticCategories.EnemyIntent
-                : MatchSemanticCategories.Card,
-            Action = action.Kind,
-            ActorId = action.ActorId,
-            SourceId = action.SourceId,
-            SourceInstanceId = action.SourceInstanceId,
-            Label = action.Label,
-            AttributionConfidence = MatchAttributionConfidence.Exact,
-            IsKeyEvent = true
+            new()
+            {
+                Sequence = envelope.Sequence,
+                TurnIndex = action.TurnIndex,
+                ElapsedMilliseconds = frame.EndedMilliseconds,
+                Kind = MatchReplayEventKinds.ActionFrame,
+                TypeName = typeof(MatchReplayActionFrame).FullName ?? nameof(MatchReplayActionFrame),
+                Semantic = new MatchSemanticEvent
+                {
+                    EventId = "event-" + envelope.Sequence,
+                    ActionId = action.ActionId,
+                    RootActionId = action.ActionId,
+                    Category = string.Equals(action.Kind, MatchReplayActionKinds.EnemyIntentUse, StringComparison.Ordinal)
+                        ? MatchSemanticCategories.EnemyIntent
+                        : MatchSemanticCategories.Card,
+                    Action = action.Kind,
+                    ActorId = action.ActorId,
+                    SourceId = action.SourceId,
+                    SourceInstanceId = action.SourceInstanceId,
+                    Label = action.Label,
+                    AttributionConfidence = MatchAttributionConfidence.Exact,
+                    IsKeyEvent = true
+                },
+                ActionFrame = frame
+            }
         };
-        workingBuffer.Add(new MatchReplayEvent
+        if (envelope.CheckpointSequence > 0)
         {
-            Sequence = ++nextSequence,
-            TurnIndex = action.TurnIndex,
-            ElapsedMilliseconds = frame.EndedMilliseconds,
-            Kind = MatchReplayEventKinds.ActionFrame,
-            TypeName = typeof(MatchReplayActionFrame).FullName ?? nameof(MatchReplayActionFrame),
-            Semantic = semantic,
-            ActionFrame = frame
-        });
-        IncrementKindNoLock(MatchReplayEventKinds.ActionFrame);
-        completedActionCount++;
-        actionsSinceCheckpoint++;
-        activeAction = null;
-
-        var interval = AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.CheckpointEventInterval;
-        if (actionsSinceCheckpoint >= Math.Max(1, interval))
-        {
-            AddSeekCheckpointNoLock(after);
+            var checkpoint = new MatchReplaySeekCheckpoint
+            {
+                TurnIndex = Math.Max(1, action.TurnIndex),
+                CompletedActionCount = envelope.CompletedActionCount,
+                State = MatchReplayProjectionState.Clone(after),
+                StateHash = finalStateHash
+            };
+            events.Add(new MatchReplayEvent
+            {
+                Sequence = envelope.CheckpointSequence,
+                TurnIndex = checkpoint.TurnIndex,
+                ElapsedMilliseconds = envelope.EndedMilliseconds,
+                Kind = MatchReplayEventKinds.SeekCheckpoint,
+                TypeName = typeof(MatchReplaySeekCheckpoint).FullName ?? nameof(MatchReplaySeekCheckpoint),
+                SeekCheckpoint = checkpoint
+            });
         }
+
+        return new ActionBuildResult(events);
+    }
+
+    private static void CommitActionBuild(ActionBuildEnvelope envelope, ActionBuildResult result)
+    {
+        lock (Gate)
+        {
+            if (envelope.RecordingGeneration == recordingGeneration)
+            {
+                pendingActionBuilds = Math.Max(0, pendingActionBuilds - 1);
+            }
+
+            if (envelope.RecordingGeneration == recordingGeneration
+                && activeRecord != null
+                && workingBuffer != null
+                && string.Equals(activeRecord.RecordId, envelope.RecordId, StringComparison.Ordinal))
+            {
+                foreach (var item in result.Events)
+                {
+                    workingBuffer.Add(item);
+                    IncrementKindNoLock(item.Kind);
+                }
+            }
+
+            TrySubmitDeferredActionBuildsNoLock();
+            ScheduleCompletionWhenReadyNoLock();
+        }
+    }
+
+    private static void RetryFailedActionBuild(ActionBuildEnvelope envelope, Exception ex)
+    {
+        lock (Gate)
+        {
+            if (envelope.RecordingGeneration == recordingGeneration)
+            {
+                pendingActionBuilds = Math.Max(0, pendingActionBuilds - 1);
+            }
+            envelope.Attempts++;
+            if (envelope.RecordingGeneration == recordingGeneration
+                && activeRecord != null
+                && envelope.Attempts < 3)
+            {
+                DeferredActionBuilds.Enqueue(envelope);
+                ScheduleDeferredActionBuildRetryNoLock();
+            }
+            else if (envelope.RecordingGeneration == recordingGeneration && activeRecord != null)
+            {
+                AddCaptureDiagnosticNoLock("action projection background build: " + ex.Message);
+            }
+
+            TrySubmitDeferredActionBuildsNoLock();
+            ScheduleCompletionWhenReadyNoLock();
+        }
+    }
+
+    private static void TrySubmitDeferredActionBuildsNoLock()
+    {
+        while (DeferredActionBuilds.Count > 0)
+        {
+            var envelope = DeferredActionBuilds.Peek();
+            if (envelope.RecordingGeneration != recordingGeneration || activeRecord == null)
+            {
+                DeferredActionBuilds.Dequeue();
+                continue;
+            }
+
+            if (!TrySubmitActionBuildNoLock(envelope))
+            {
+                ScheduleDeferredActionBuildRetryNoLock();
+                return;
+            }
+
+            DeferredActionBuilds.Dequeue();
+        }
+    }
+
+    private static void ScheduleDeferredActionBuildRetryNoLock()
+    {
+        AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Key = "MatchReplay.Action.Build.Retry",
+            Source = "MatchRecords.Replay.ActionBuildRetry",
+            DelayFrames = 1,
+            Phase = AuraSharedFramePhase.Reconcile,
+            Priority = 35,
+            EstimatedCost = 1,
+            Action = RetryDeferredActionBuilds
+        });
+    }
+
+    private static void RetryDeferredActionBuilds()
+    {
+        lock (Gate)
+        {
+            TrySubmitDeferredActionBuildsNoLock();
+            ScheduleCompletionWhenReadyNoLock();
+        }
+    }
+
+    private static void ScheduleCompletionWhenReadyNoLock()
+    {
+        if (!completionRequested || pendingActionBuilds > 0 || DeferredActionBuilds.Count > 0)
+        {
+            return;
+        }
+
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Key = "MatchReplay.Complete.AfterActionBuilds",
+            Source = "MatchRecords.Replay.CompleteAfterActionBuilds",
+            Phase = AuraSharedFramePhase.Reconcile,
+            Priority = 45,
+            EstimatedCost = 1,
+            Action = CompletePendingRecording
+        });
+    }
+
+    private static void CompletePendingRecording()
+    {
+        string result;
+        lock (Gate)
+        {
+            if (!completionRequested || pendingActionBuilds > 0 || DeferredActionBuilds.Count > 0)
+            {
+                ScheduleCompletionWhenReadyNoLock();
+                return;
+            }
+
+            result = pendingCompletionResult;
+            completionRequested = false;
+            pendingCompletionResult = "";
+        }
+
+        Complete(result);
     }
 
     private static void AddTurnFrameNoLock(MatchReplayStateSnapshot snapshot)
@@ -1075,7 +1310,7 @@ internal static class MatchReplayRecorder
             return;
         }
 
-        AuraToolsLog.Info("[MatchRecords] v8 replay stored: events=" + result.EventCount
+        AuraToolsLog.Info("[MatchRecords] v" + MatchReplayProtocol.Version + " replay stored: events=" + result.EventCount
                           + ", chunks=" + result.ChunkCount
                           + ", semantics=" + result.SemanticCount
                           + ", card-transitions=" + result.CardTransitionCount
@@ -1205,6 +1440,29 @@ internal static class MatchReplayRecorder
         internal bool IsRemote { get; set; }
         internal long RemoteCommandSequence { get; set; }
         internal MatchReplayActionConvergenceTracker Convergence { get; } = new();
+    }
+
+    private sealed class ActionBuildEnvelope
+    {
+        internal int RecordingGeneration { get; set; }
+        internal string RecordId { get; set; } = "";
+        internal long Sequence { get; set; }
+        internal long CheckpointSequence { get; set; }
+        internal int CompletedActionCount { get; set; }
+        internal long EndedMilliseconds { get; set; }
+        internal int Attempts { get; set; }
+        internal ActiveAction Action { get; set; } = new();
+        internal MatchReplayStateSnapshot After { get; set; } = new();
+    }
+
+    private sealed class ActionBuildResult
+    {
+        internal ActionBuildResult(IReadOnlyList<MatchReplayEvent> events)
+        {
+            Events = events ?? Array.Empty<MatchReplayEvent>();
+        }
+
+        internal IReadOnlyList<MatchReplayEvent> Events { get; }
     }
 
     private sealed class FinalizationResult

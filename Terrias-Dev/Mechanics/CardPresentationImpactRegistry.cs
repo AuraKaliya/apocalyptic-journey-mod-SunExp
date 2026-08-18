@@ -8,14 +8,44 @@ namespace Terrias.Dll.Mechanics;
 public sealed class CardPresentationImpactSpec
 {
     public CardPresentationImpactSpec(CardPresentationImpact impact, params string[] cardIds)
+        : this(FieldsFor(impact), impact == CardPresentationImpact.Full, cardIds)
     {
-        Impact = impact;
+    }
+
+    public CardPresentationImpactSpec(
+        CardPresentationFields fields,
+        bool requiresFullRefresh,
+        params string[] cardIds)
+    {
+        Fields = fields;
+        RequiresFullRefresh = requiresFullRefresh;
         CardIds = cardIds ?? Array.Empty<string>();
     }
 
-    public CardPresentationImpact Impact { get; }
+    public CardPresentationFields Fields { get; }
+
+    public bool RequiresFullRefresh { get; }
+
+    public CardPresentationImpact Impact => RequiresFullRefresh
+        ? CardPresentationImpact.Full
+        : Fields == CardPresentationFields.None
+            ? CardPresentationImpact.None
+            : Fields == CardPresentationFields.Cost
+                ? CardPresentationImpact.CostOnly
+                : CardPresentationImpact.DescriptionSubset;
 
     public IReadOnlyList<string> CardIds { get; }
+
+    private static CardPresentationFields FieldsFor(CardPresentationImpact impact)
+    {
+        return impact switch
+        {
+            CardPresentationImpact.None => CardPresentationFields.None,
+            CardPresentationImpact.CostOnly => CardPresentationFields.Cost,
+            CardPresentationImpact.DescriptionSubset => CardPresentationFields.Description,
+            _ => CardPresentationFields.Full
+        };
+    }
 }
 
 public static class CardPresentationImpactRegistry
@@ -32,7 +62,8 @@ public static class CardPresentationImpactRegistry
     };
     private static readonly CardPresentationImpactSpec None = new(CardPresentationImpact.None);
     private static readonly CardPresentationImpactSpec BuffKindChanged = new(
-        CardPresentationImpact.DescriptionSubset,
+        CardPresentationFields.Description,
+        requiresFullRefresh: false,
         TerriasIds.StellarOvertureCloseCardId,
         TerriasIds.StellarOvertureCloseShortCardId,
         "*" + TerriasIds.StellarOvertureCloseShortCardId);

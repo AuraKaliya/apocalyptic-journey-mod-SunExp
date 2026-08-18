@@ -5,7 +5,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 8;
+    internal const int Version = 9;
     internal const int MinimumSupportedVersion = 8;
 }
 
@@ -20,6 +20,7 @@ internal static class MatchReplayCapabilities
     internal const string RuntimeContextV1 = "runtime-context.v1";
     internal const string CardPresentationReadyV1 = "card-presentation-ready.v1";
     internal const string IncrementalHandV1 = "incremental-hand.v1";
+    internal const string EntityDeltaV2 = "entity-delta.v2";
     internal const string OutcomeCuesV1 = "outcome-cues.v1";
     internal const string PassiveHudV1 = "passive-hud.v1";
     internal const string NativeActionPresentationV1 = "native-action-presentation.v1";
@@ -38,6 +39,7 @@ internal static class MatchReplayCapabilities
         RuntimeContextV1,
         CardPresentationReadyV1,
         IncrementalHandV1,
+        EntityDeltaV2,
         OutcomeCuesV1,
         PassiveHudV1,
         NativeActionPresentationV1,
@@ -73,7 +75,7 @@ internal static class MatchReplayEventKinds
     internal const string SeekCheckpoint = "SeekCheckpoint";
 
     // Retained as data labels so analysis/import code can identify obsolete captures.
-    // Protocol v8 never records or executes these command-replay events.
+    // Authoritative-frame protocols (v8+) never record or execute these command-replay events.
     internal const string ActionBegin = "ActionBegin";
     internal const string ActionEnd = "ActionEnd";
     internal const string ActionCommand = "ActionCommand";

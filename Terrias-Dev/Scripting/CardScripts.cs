@@ -400,9 +400,9 @@ public static class CardScripts
 
     private static void UseBlankCheck(ScriptExecutor self)
     {
-        var postGainSnapshot = GoldDreamEconomyService.AddBlankCheckResources(self);
+        var verifiedSnapshot = GoldDreamEconomyService.VerifyAssets(self);
         self.SetStatus("Self");
-        switch (postGainSnapshot.Tier)
+        switch (verifiedSnapshot.Tier)
         {
             case GoldenPotentialTier.K:
                 self.DrawCount("3");
@@ -420,6 +420,8 @@ public static class CardScripts
                 self.AddBuff(TerriasIds.Evergreen, "9999");
                 break;
         }
+
+        GoldDreamEconomyService.AddBlankCheckResources(self);
     }
 
     private static void UseGoldenDreamland(ScriptExecutor self)

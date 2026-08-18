@@ -62,6 +62,8 @@ public static class SpiritManagementPanel
     private static string gridGuiyuanTargetSpeciesId = "";
     private static PanelMode mode;
     private static string selectedUid = "";
+    private static string lastWarehouseSelectedUid = "";
+    private static bool warehouseSelectionNeedsInitialization;
     private static int warehouseFilter;
     private static int warehouseSort;
     private static int detailTab;
@@ -99,6 +101,7 @@ public static class SpiritManagementPanel
         gridForbiddenDonors.Clear();
         gridActiveUid = "";
         gridGuiyuanTargetSpeciesId = "";
+        warehouseSelectionNeedsInitialization = false;
         ResetGuiyuanSelection();
     }
 
@@ -125,13 +128,11 @@ public static class SpiritManagementPanel
                                 + (!string.IsNullOrWhiteSpace(party.ActiveSpiritUid))
                                 + ".");
             }
-            selectedUid = party.ActiveSpiritUid;
-            if (string.IsNullOrWhiteSpace(selectedUid))
+            warehouseSelectionNeedsInitialization = mode == PanelMode.Warehouse;
+            selectedUid = mode == PanelMode.Warehouse ? lastWarehouseSelectedUid : party.ActiveSpiritUid;
+            if (mode == PanelMode.Adventure && string.IsNullOrWhiteSpace(selectedUid))
             {
                 selectedUid = party.PartySlots.FirstOrDefault(uid => !string.IsNullOrWhiteSpace(uid))
-                              ?? (mode == PanelMode.Warehouse
-                                  ? SpiritCollectionApi.Collection().Instances.FirstOrDefault()?.SpiritUid
-                                  : null)
                               ?? "";
             }
             Build();
@@ -284,8 +285,19 @@ public static class SpiritManagementPanel
             _ => items.OrderByDescending(item => item.Level).ThenByDescending(item => item.Aptitude)
         };
         var result = ordered.ThenBy(item => SpiritPresentationResolver.Name(item), StringComparer.Ordinal).ToArray();
+        if (mode == PanelMode.Warehouse) EnsureWarehouseSelection(result, party.ActiveSpiritUid);
         if (gridEmptyText != null) gridEmptyText.gameObject.SetActive(result.Length == 0);
         virtualGrid.SetItems(result, resetScroll);
+    }
+
+    private static void EnsureWarehouseSelection(IReadOnlyList<SpiritInstance> visibleItems, string? activeUid)
+    {
+        var visibleUids = visibleItems.Select(item => item.SpiritUid).ToArray();
+        var resolved = warehouseSelectionNeedsInitialization
+            ? SpiritWarehouseSelectionPolicy.ResolveInitial(lastWarehouseSelectedUid, activeUid, visibleUids)
+            : SpiritWarehouseSelectionPolicy.ResolveVisible(selectedUid, visibleUids);
+        warehouseSelectionNeedsInitialization = false;
+        SelectSpirit(resolved, rememberWarehouseSelection: false);
     }
 
     private static SpiritManagementCellView CreateSpiritCellView(Transform parent, string name)
@@ -298,6 +310,9 @@ public static class SpiritManagementPanel
             new Vector2(0f, 1f),
             new Vector2(100f, 166f));
         ApplyPanel(cell, ItemTint, true);
+        var backgroundSurface = cell.transform.Find("PanelTint")?.GetComponent<Image>()
+                                ?? TerriasUiBuilder.AddPanelTint(cell, ItemTint);
+        backgroundSurface.raycastTarget = false;
         TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(6, 6, 6, 6), 2f, alignment: TextAnchor.MiddleCenter);
         var outline = cell.AddComponent<Outline>();
         outline.effectDistance = new Vector2(2f, -2f);
@@ -322,9 +337,8 @@ public static class SpiritManagementPanel
         var activeStamp = AddActiveStamp(cell.transform);
         activeStamp.SetActive(false);
         var button = cell.AddComponent<Button>();
-        AuraUiButtonFeedback.Apply(button, cell.GetComponent<Image>(), Gold);
         var view = cell.AddComponent<SpiritManagementCellView>();
-        view.Initialize(cell.GetComponent<Image>(), portrait, nameText, stars, levelText, aptitudeText,
+        view.Initialize(backgroundSurface, portrait, nameText, stars, levelText, aptitudeText,
             markerText, outline, activeStamp, button, OnSpiritCellClicked);
         return view;
     }
@@ -355,7 +369,7 @@ public static class SpiritManagementPanel
             StarText(item),
             L("ui.spirit.aptitude_value", "value", item.Aptitude.ToString()),
             marker,
-            disabled ? DisabledCardTint : QualityTint(item.Aptitude),
+            disabled ? DisabledCardTint : RosterQualityTint(item.Aptitude),
             disabled ? Muted : QualityAccent(item.Aptitude),
             disabled ? Muted : StarGold,
             disabled ? Muted : Pale,
@@ -592,7 +606,7 @@ public static class SpiritManagementPanel
         return mode == PanelMode.Adventure ? SpiritCollectionApi.CurrentParty() : SpiritCollectionApi.DefaultParty();
     }
 
-    private static void SelectSpirit(string? uid)
+    private static void SelectSpirit(string? uid, bool rememberWarehouseSelection = true)
     {
         var normalized = (uid ?? "").Trim();
         if (!Same(selectedUid, normalized))
@@ -601,6 +615,10 @@ public static class SpiritManagementPanel
             ResetGuiyuanSelection();
         }
         selectedUid = normalized;
+        if (rememberWarehouseSelection && mode == PanelMode.Warehouse && normalized.Length > 0)
+        {
+            lastWarehouseSelectedUid = normalized;
+        }
     }
 
     private static void CreateDetailTabs(Transform parent)
@@ -1349,6 +1367,13 @@ public static class SpiritManagementPanel
         if (aptitude >= 60) return QualityGreen;
         if (aptitude >= 40) return QualityWhite;
         return QualityGray;
+    }
+
+    private static Color RosterQualityTint(int aptitude)
+    {
+        var color = Color.Lerp(QualityTint(aptitude), Color.white, 0.24f);
+        color.a = 0.72f;
+        return color;
     }
 
     private static Color QualityAccent(int aptitude)

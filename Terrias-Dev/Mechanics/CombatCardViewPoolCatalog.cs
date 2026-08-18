@@ -53,6 +53,25 @@ public static class CombatCardViewPoolCatalog
         return actualBaseScript.EndsWith(expectedBucket ?? "", StringComparison.Ordinal);
     }
 
+    public static bool TryResolveInitializedBucket(IDataConfig? config, out string bucket)
+    {
+        bucket = "";
+        var baseScript = DictionaryUtil.Get(config?.Vars, "BaseScript");
+        if (baseScript.EndsWith(AttackBucket, StringComparison.Ordinal))
+        {
+            bucket = AttackBucket;
+            return true;
+        }
+
+        if (baseScript.EndsWith(CommonBucket, StringComparison.Ordinal))
+        {
+            bucket = CommonBucket;
+            return true;
+        }
+
+        return false;
+    }
+
     public static bool IsEligible(IDataConfig? config)
     {
         if (config == null)
@@ -68,7 +87,9 @@ public static class CombatCardViewPoolCatalog
         var markers = DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey);
         return DictionaryUtil.ContainsToken(markers, TerriasIds.PolymorphRoleCardMarker)
             || DictionaryUtil.ContainsToken(markers, TerriasIds.ProjectionRoleCardMarker)
-            || DictionaryUtil.ContainsToken(markers, TerriasIds.SpiritCardMarker);
+            || DictionaryUtil.ContainsToken(markers, TerriasIds.SpiritCardMarker)
+            || DictionaryUtil.ContainsToken(markers, TerriasIds.LoneerDerivedMarker)
+            || DictionaryUtil.ContainsToken(markers, TerriasIds.LoneerGuidanceMarker);
     }
 
     public static string PresentationSignature(IDataConfig? config, string bucket)
@@ -83,31 +104,16 @@ public static class CombatCardViewPoolCatalog
             var hash = 14695981039346656037UL;
             Mix(ref hash, bucket);
             Mix(ref hash, config.GetType().FullName ?? config.GetType().Name);
-            MixMap(ref hash, config.data);
-            MixMap(ref hash, config.Vars);
+            Mix(ref hash, CardConfigApi.Id(config));
+            Mix(ref hash, DictionaryUtil.Get(config.Vars, "BaseScript"));
+            Mix(ref hash, DictionaryUtil.Get(config.data, "Name"));
+            Mix(ref hash, DictionaryUtil.Get(config.data, "Description"));
+            Mix(ref hash, DictionaryUtil.Get(config.data, "Icon"));
+            Mix(ref hash, DictionaryUtil.Get(config.data, "Rarity"));
+            Mix(ref hash, DictionaryUtil.Get(config.data, "Tag"));
+            Mix(ref hash, DictionaryUtil.Get(config.Vars, "Tag"));
+            Mix(ref hash, DictionaryUtil.Get(config.Vars, "SpecialTag"));
             return hash.ToString("X16");
-        }
-    }
-
-    private static void MixMap(ref ulong hash, IDictionary<string, string>? values)
-    {
-        if (values == null)
-        {
-            Mix(ref hash, "<null>");
-            return;
-        }
-
-        var keys = new List<string>(values.Keys);
-        keys.Sort(StringComparer.Ordinal);
-        foreach (var key in keys)
-        {
-            if (string.Equals(key, "InstanceID", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            Mix(ref hash, key);
-            Mix(ref hash, values.TryGetValue(key, out var value) ? value : "");
         }
     }
 

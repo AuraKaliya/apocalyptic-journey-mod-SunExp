@@ -15,6 +15,8 @@ public sealed class GoldDreamHudView : MonoBehaviour
 {
     private const string FalseGoldRowName = "Terrias_FalseGold";
     private const string DebtRowName = "Terrias_Debt";
+    private const string FalseGoldIconPath = "Mods/Terrias/ModResource/Images/Card/Gold/豪掷千金.png";
+    private const string DebtIconPath = "Mods/Terrias/ModResource/Images/Card/Gold/空头支票.png";
     private static readonly Color CrimsonCoinTint = new(0.78f, 0.08f, 0.2f, 1f);
     private static readonly Color DebtTint = new(0.82f, 0.58f, 0.24f, 1f);
     private readonly List<RowSet> rowSets = new();
@@ -41,8 +43,8 @@ public sealed class GoldDreamHudView : MonoBehaviour
 
             rows.FalseGoldValue.text = snapshot.FalseGold.ToString(CultureInfo.InvariantCulture);
             rows.DebtValue.text = "1:" + Compact(snapshot.DebtDueOne)
-                + "  2:" + Compact(snapshot.DebtDueTwo)
-                + "  3:" + Compact(snapshot.DebtDueThree);
+                + " 2:" + Compact(snapshot.DebtDueTwo)
+                + " 3:" + Compact(snapshot.DebtDueThree);
         }
     }
 
@@ -78,18 +80,15 @@ public sealed class GoldDreamHudView : MonoBehaviour
             return;
         }
 
-        var falseValue = ConfigureValue(falseGold, 0.95f);
-        var debtValue = ConfigureValue(debt, 0.72f);
+        var falseValue = ConfigureValue(falseGold, 1f, 13f);
+        var debtValue = ConfigureValue(debt, 0.94f, 12f);
         if (falseValue == null || debtValue == null)
         {
             return;
         }
 
-        ConfigureIcon(falseGold, CrimsonCoinTint, null);
-        ConfigureIcon(
-            debt,
-            DebtTint,
-            TerriasResourceCache.Load<Sprite>("Icon/Buff/莉莉丝契约", true, "gold-dream.hud"));
+        ConfigureIcon(falseGold, CrimsonCoinTint, LoadIcon("gold_dream.hud.false_gold", FalseGoldIconPath));
+        ConfigureIcon(debt, DebtTint, LoadIcon("gold_dream.hud.debt", DebtIconPath));
         DisableRaycasts(falseGold);
         DisableRaycasts(debt);
         rowSets.Add(new RowSet(wealth, falseGold.gameObject, debt.gameObject, falseValue, debtValue));
@@ -140,7 +139,7 @@ public sealed class GoldDreamHudView : MonoBehaviour
         return rect;
     }
 
-    private static TMP_Text? ConfigureValue(RectTransform row, float scale)
+    private static TMP_Text? ConfigureValue(RectTransform row, float scale, float minimumSize)
     {
         var text = row.Find("val")?.GetComponent<TMP_Text>()
                    ?? row.GetComponentInChildren<TMP_Text>(true);
@@ -150,8 +149,9 @@ public sealed class GoldDreamHudView : MonoBehaviour
         }
 
         text.enableAutoSizing = true;
-        text.fontSizeMax = Math.Max(12f, text.fontSize * scale);
-        text.fontSizeMin = 8f;
+        text.fontSizeMax = Math.Max(minimumSize, text.fontSize * scale);
+        text.fontSizeMin = minimumSize;
+        text.fontStyle = FontStyles.Bold;
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.overflowMode = TextOverflowModes.Overflow;
         text.raycastTarget = false;
@@ -160,14 +160,18 @@ public sealed class GoldDreamHudView : MonoBehaviour
 
     private static void ConfigureIcon(RectTransform row, Color tint, Sprite? replacement)
     {
-        var images = row.GetComponentsInChildren<Image>(true);
-        var icon = images.FirstOrDefault(image =>
-                       image.sprite != null
-                       && image.gameObject.name.IndexOf("icon", StringComparison.OrdinalIgnoreCase) >= 0)
-                   ?? images.FirstOrDefault(image => image.sprite != null);
+        var icon = row.Find("Terrias_HudIcon")?.GetComponent<Image>();
         if (icon == null)
         {
-            return;
+            var iconObject = new GameObject("Terrias_HudIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            iconObject.transform.SetParent(row, false);
+            var rect = (RectTransform)iconObject.transform;
+            rect.anchorMin = new Vector2(0f, 0.5f);
+            rect.anchorMax = new Vector2(0f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(22f, 22f);
+            rect.anchoredPosition = new Vector2(12f, 0f);
+            icon = iconObject.GetComponent<Image>();
         }
 
         if (replacement != null)
@@ -175,8 +179,17 @@ public sealed class GoldDreamHudView : MonoBehaviour
             icon.sprite = replacement;
         }
 
-        icon.color = tint;
+        icon.gameObject.SetActive(true);
+        icon.enabled = true;
+        icon.color = replacement == null ? tint : Color.white;
         icon.preserveAspect = true;
+        icon.raycastTarget = false;
+    }
+
+    private static Sprite? LoadIcon(string id, string fallback)
+    {
+        var path = VisualRegistry.TexturePath(id, fallback) ?? fallback;
+        return TerriasResourceCache.Load<Sprite>(path, true, "gold-dream.hud");
     }
 
     private static void DisableRaycasts(RectTransform row)

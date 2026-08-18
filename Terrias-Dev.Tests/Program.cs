@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Ui;
@@ -29,6 +30,7 @@ internal static class Program
         TestSunCardPackSelectionMigration();
         TestCardGrantRequest();
         TestCombatCardViewPoolCatalog();
+        TestPerformanceSettings();
         TestCardMutationService();
         TestRuntimeCardAttachmentService();
         TestSolarTriggerCostOverride();
@@ -44,6 +46,7 @@ internal static class Program
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestSpiritManagementSelectionState();
+        TestSpiritWarehouseSelectionPolicy();
         TestSpiritAdventurePartyRemoval();
         TestSpiritStatusBarText();
         TestPolymorphCooldownSnapshots();
@@ -136,11 +139,16 @@ internal static class Program
 
     private static void TestGoldDreamRules()
     {
-        Equal(GoldenPotentialTier.Zero, GoldDreamRules.PotentialTier(0), "Zero False Gold uses Golden Potential zero");
-        Equal(GoldenPotentialTier.Zero, GoldDreamRules.PotentialTier(999), "Golden Potential K requires one thousand False Gold");
-        Equal(GoldenPotentialTier.K, GoldDreamRules.PotentialTier(1_000), "Golden Potential K starts at one thousand");
-        Equal(GoldenPotentialTier.M, GoldDreamRules.PotentialTier(1_000_000), "Golden Potential M starts at one million");
-        Equal(GoldenPotentialTier.B, GoldDreamRules.PotentialTier(1_000_000_000), "Golden Potential B starts at one billion");
+        Equal(0L, GoldDreamRules.TotalAssets(-10, -20), "Negative currency values do not reduce verified Assets below zero");
+        Equal(1_500L, GoldDreamRules.TotalAssets(500, 1_000), "Verified Assets combine False Gold and real Gold");
+        Equal(4_294_967_294L, GoldDreamRules.TotalAssets(int.MaxValue, int.MaxValue), "Verified Assets do not overflow the runtime integer range");
+        Equal(GoldenPotentialTier.Zero, GoldDreamRules.PotentialTier(0, 999), "Golden Potential K requires one thousand pre-gain Assets");
+        Equal(GoldenPotentialTier.K, GoldDreamRules.PotentialTier(1, 999), "False Gold and real Gold jointly reach Golden Potential K");
+        Equal(GoldenPotentialTier.K, GoldDreamRules.PotentialTier(999_999, 0), "Golden Potential K remains active below one million Assets");
+        Equal(GoldenPotentialTier.M, GoldDreamRules.PotentialTier(400_000, 600_000), "Combined Assets reach Golden Potential M");
+        Equal(GoldenPotentialTier.M, GoldDreamRules.PotentialTier(999_999_999, 0), "Golden Potential M remains active below one billion Assets");
+        Equal(GoldenPotentialTier.B, GoldDreamRules.PotentialTier(500_000_000, 500_000_000), "Combined Assets reach Golden Potential B");
+        Equal(GoldenPotentialTier.B, GoldDreamRules.PotentialTier(int.MaxValue, int.MaxValue), "Golden Potential verification handles combined Assets above Int32.MaxValue");
 
         Equal(50, GoldDreamRules.WagerCost(0), "Wager always includes its fifty Gold base payment");
         Equal(150, GoldDreamRules.WagerCost(1_000), "Wager adds ten percent of current real Gold");
@@ -305,6 +313,26 @@ internal static class Program
             "Clicking an occupied party slot selects its occupant");
         Equal("spirit-a", occupantUid,
             "Party-slot selection normalizes the occupant id without changing party data");
+    }
+
+    private static void TestSpiritWarehouseSelectionPolicy()
+    {
+        var visible = new[] { "first", "active", "remembered" };
+        Equal("remembered", SpiritWarehouseSelectionPolicy.ResolveInitial("remembered", "active", visible),
+            "Warehouse reopening restores the last manually selected visible spirit");
+        Equal("active", SpiritWarehouseSelectionPolicy.ResolveInitial("missing", "active", visible),
+            "Warehouse reopening falls back to the active visible spirit");
+        Equal("first", SpiritWarehouseSelectionPolicy.ResolveInitial("missing", "also-missing", visible),
+            "Warehouse reopening finally falls back to the first sorted visible spirit");
+        Equal("", SpiritWarehouseSelectionPolicy.ResolveInitial("remembered", "active", Array.Empty<string>()),
+            "An empty warehouse has no selected spirit");
+
+        Equal("active", SpiritWarehouseSelectionPolicy.ResolveVisible("active", visible),
+            "Changing sort order preserves a selection that remains visible");
+        Equal("first", SpiritWarehouseSelectionPolicy.ResolveVisible("filtered-out", visible),
+            "Filtering out the selection chooses the first sorted visible spirit");
+        Equal("first", SpiritWarehouseSelectionPolicy.ResolveVisible(" ", new[] { " ", "first", "first" }),
+            "Warehouse selection ignores blank and duplicate visible identifiers");
     }
 
     private static void TestSpiritStatusBarText()
@@ -873,6 +901,37 @@ internal static class Program
         True(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Initialized attack cards match their selected pool bucket");
         close.Vars["BaseScript"] = "CommonCardItem";
         False(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Pool validation rejects an initialized component mismatch");
+
+        var guidance = new DataConfig(
+            new Dictionary<string, string> { ["Id"] = "foreign_guidance_card", ["Description"] = "dynamic" },
+            new Dictionary<string, string>
+            {
+                [TerriasIds.RuntimeMarkersKey] = TerriasIds.LoneerDerivedMarker + "," + TerriasIds.LoneerGuidanceMarker,
+                ["BaseScript"] = "AttackCardItem",
+                ["OnceExCost"] = "1"
+            });
+        True(CombatCardViewPoolCatalog.IsEligible(guidance), "Loneer guidance copies participate in the shared dynamic-card materialization path");
+        True(CombatCardViewPoolCatalog.TryResolveInitializedBucket(guidance, out var initializedBucket), "Pool archetypes are resolved only after InitScript has selected a native component");
+        Equal(CombatCardViewPoolCatalog.AttackBucket, initializedBucket, "Initialized guidance copies keep their exact attack-card archetype");
+        var structuralSignature = CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket);
+        guidance.Vars["OnceExCost"] = "3";
+        Equal(structuralSignature, CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Dynamic cost deltas do not invalidate an otherwise reusable card presentation lease");
+        guidance.Vars["SpecialTag"] = "new-structural-tag";
+        False(structuralSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Structural tag changes invalidate a reusable card presentation lease");
+
+        var readFlag = typeof(TerriasPerformanceSettings).GetMethod("ReadFlag", BindingFlags.NonPublic | BindingFlags.Static);
+        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "0");
+        Equal(false, (bool)readFlag!.Invoke(null, new object[] { "PoolFlagTest", true })!, "An explicit zero disables default-on performance features");
+        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "");
+        Equal(true, (bool)readFlag.Invoke(null, new object[] { "PoolFlagTest", true })!, "A missing performance flag still uses its declared fallback");
+    }
+
+    private static void TestPerformanceSettings()
+    {
+        ScriptExecutor.PlayerInfo.SetGameVar("TerriasPerfCounters", "0");
+        True(TerriasPerformanceSettings.TrySetCountersEnabled(true), "Terrias performance counters can be enabled through the runtime GameVar bridge");
+        Equal("1", ScriptExecutor.PlayerInfo.GetGameVar("TerriasPerfCounters"), "Enabling performance counters persists the literal TerriasPerfCounters=1 value");
+        True(TerriasPerformanceSettings.CountersEnabled, "The performance counter cache immediately reflects the enabled GameVar");
     }
 
     private static void TestCardVisualSkinRegistry()

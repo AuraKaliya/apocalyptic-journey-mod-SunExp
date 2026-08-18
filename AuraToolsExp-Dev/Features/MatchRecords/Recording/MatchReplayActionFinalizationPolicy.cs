@@ -57,4 +57,35 @@ internal sealed class MatchReplayActionConvergenceTracker
             ? MatchReplayActionFinalizationDecision.FinalizeDeadline
             : MatchReplayActionFinalizationDecision.Observe;
     }
+
+    internal MatchReplayActionFinalizationDecision Observe(MatchReplayRevisionProbe probe)
+    {
+        var decision = Observe(probe.ConvergenceKey);
+        if (probe.PendingWriters <= 0)
+        {
+            return decision;
+        }
+
+        return ObservationCount >= MaximumObservations
+            ? MatchReplayActionFinalizationDecision.FinalizeDeadline
+            : MatchReplayActionFinalizationDecision.Observe;
+    }
+}
+
+internal readonly struct MatchReplayRevisionProbe
+{
+    internal MatchReplayRevisionProbe(long version, ulong fingerprint, int pendingWriters)
+    {
+        Version = version;
+        Fingerprint = fingerprint;
+        PendingWriters = Math.Max(0, pendingWriters);
+    }
+
+    internal long Version { get; }
+    internal ulong Fingerprint { get; }
+    internal int PendingWriters { get; }
+
+    internal string ConvergenceKey => Version.ToString("x16")
+                                      + ":" + Fingerprint.ToString("x16")
+                                      + ":" + PendingWriters.ToString("x8");
 }

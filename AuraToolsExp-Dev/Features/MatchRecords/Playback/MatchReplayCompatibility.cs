@@ -72,12 +72,16 @@ internal static class MatchReplayCompatibility
             .Where(value => !required.Contains(value))
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToList();
+        if (record.ReplayProtocol >= 9 && !required.Contains(MatchReplayCapabilities.EntityDeltaV2))
+        {
+            omittedContract.Add(MatchReplayCapabilities.EntityDeltaV2);
+        }
         if (omittedContract.Count > 0)
         {
             return new MatchReplayCompatibilityResult
             {
                 Level = MatchReplayCompatibilityLevels.AnalysisOnly,
-                Message = "记录未声明完整的 v8 只读投影能力：" + string.Join("、", omittedContract)
+                Message = "记录未声明完整的只读投影能力：" + string.Join("、", omittedContract)
             };
         }
 
@@ -126,7 +130,7 @@ internal static class MatchReplayCompatibility
                               || frame.Presentation == null
                               || !frame.Presentation.Any(cue =>
                                   cue.Kind == MatchReplayPresentationCueKinds.ActorAction)
-                              || (frame.Delta.ReplaceCards
+                              || (MatchReplayProjectionState.HasCardIdentityChanges(frame.Delta)
                                   && (frame.CardTransitions == null
                                       || frame.CardTransitions.Count == 0)));
             if (invalidFrame)
@@ -134,7 +138,7 @@ internal static class MatchReplayCompatibility
                 return new MatchReplayCompatibilityResult
                 {
                     Level = MatchReplayCompatibilityLevels.AnalysisOnly,
-                    Message = "动作帧缺少 v8 状态、卡牌迁移或表现编排数据，仅可查看统计。"
+                    Message = "动作帧缺少状态、卡牌迁移或表现编排数据，仅可查看统计。"
                 };
             }
         }

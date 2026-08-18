@@ -67,7 +67,7 @@ internal static class MatchRecordLibraryPresenter
             parent,
             "对局记录",
             () => ResetState(),
-            maxWidth: 1320f);
+            maxWidth: 1120f);
         body = AuraToolsUi.CreateLayout("MatchRecordBody", window.transform).transform;
         var layout = body.gameObject.AddComponent<VerticalLayoutGroup>();
         layout.spacing = 8f;
@@ -128,26 +128,45 @@ internal static class MatchRecordLibraryPresenter
         tabsLayout.childControlHeight = true;
         tabsLayout.childForceExpandWidth = false;
         tabsLayout.childForceExpandHeight = false;
-        AuraToolsUi.AddButton(tabs.transform, "自动记录 " + AuraToolsMatchRecordsRuntime.AutoRecordCount, () => SwitchCollection(MatchRecordCollections.Auto), 132f);
-        AuraToolsUi.AddButton(tabs.transform, "收藏对局 " + AuraToolsMatchRecordsRuntime.FavoriteRecordCount, () => SwitchCollection(MatchRecordCollections.Favorite), 132f);
-        AuraToolsUi.AddButton(tabs.transform, "冒险统计 " + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount, () => SwitchCollection(AdventureCollection), 132f);
+        AddCompactButton(tabs.transform, "自动记录 " + AuraToolsMatchRecordsRuntime.AutoRecordCount, () => SwitchCollection(MatchRecordCollections.Auto), 112f);
+        AddCompactButton(tabs.transform, "收藏对局 " + AuraToolsMatchRecordsRuntime.FavoriteRecordCount, () => SwitchCollection(MatchRecordCollections.Favorite), 112f);
+        AddCompactButton(tabs.transform, "冒险统计 " + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount, () => SwitchCollection(AdventureCollection), 112f);
         AuraToolsUi.AddText(
             tabs.transform,
             collection == MatchRecordCollections.Auto
-                ? "自动回放上限 " + AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit + " 场"
-                : "收藏不受自动清理影响",
+                ? "上限 " + AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit + " 场 · " + DatabaseSizeLabel()
+                : "永久收藏 · " + DatabaseSizeLabel(),
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
-        AuraToolsUi.AddText(tabs.transform, DatabaseSizeLabel(), AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 150f);
-        AuraToolsUi.AddButton(tabs.transform, "导入目录", () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ImportsDirectory), 92f);
-        AuraToolsUi.AddButton(tabs.transform, "导入回放包", PickPackage, 104f);
-        if (pendingImportPreview != null) AuraToolsUi.AddButton(tabs.transform, "确认导入", ConfirmImport, 92f);
-        AuraToolsUi.AddButton(tabs.transform, "扫描目录", ImportPackages, 92f);
-        if (SelectedIds.Count > 0) AuraToolsUi.AddButton(tabs.transform, "批量导出 " + SelectedIds.Count, ExportSelected, 104f);
-        AuraToolsUi.AddButton(tabs.transform, clearArmed ? "确认清空" : "清空当前", ClearCurrent, 104f);
+        AddCompactButton(
+            tabs.transform,
+            pendingImportPreview == null ? "导入回放" : "确认导入",
+            pendingImportPreview == null ? PickPackage : ConfirmImport,
+            104f);
+        ToolboxIconButtonV2.Create(
+            tabs.transform,
+            "action.folder",
+            "打开导入目录",
+            () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ImportsDirectory),
+            42f,
+            "夹");
+        ToolboxIconButtonV2.Create(
+            tabs.transform,
+            "action.search",
+            "扫描导入目录",
+            ImportPackages,
+            42f,
+            "扫");
+        ToolboxIconButtonV2.Create(
+            tabs.transform,
+            "action.clear",
+            clearArmed ? "再次点击，确认清空当前分类" : "清空当前分类",
+            ClearCurrent,
+            42f,
+            clearArmed ? "!" : "清");
 
         var filters = AuraToolsUi.CreateLayout("LibraryFilters", body);
         AuraToolsUi.SetFixedHeight(filters, AuraToolsUi.ToolbarHeight);
@@ -157,22 +176,31 @@ internal static class MatchRecordLibraryPresenter
         filterLayout.childControlHeight = true;
         filterLayout.childForceExpandWidth = false;
         filterLayout.childForceExpandHeight = false;
-        AuraToolsUi.AddText(filters.transform, "搜索", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 42f);
-        AuraToolsUi.AddInput(filters.transform, searchText, value => SetSearch(value), 250f);
-        AuraToolsUi.AddButton(filters.transform, ResultFilterLabel(), CycleResultFilter, 94f);
-        AuraToolsUi.AddButton(filters.transform, DateFilterLabel(), CycleDateFilter, 94f);
-        AuraToolsUi.AddButton(filters.transform, compatibleOnly ? "仅可回放" : "全部兼容性", () =>
+        AddFlexibleInput(filters.transform, searchText, "搜索关卡、标签或备注…", value => SetSearch(value));
+        AddCompactButton(filters.transform, ResultFilterLabel(), CycleResultFilter, 88f);
+        AddCompactButton(filters.transform, DateFilterLabel(), CycleDateFilter, 88f);
+        AddCompactButton(filters.transform, compatibleOnly ? "仅可回放" : "全部兼容", () =>
         {
             compatibleOnly = !compatibleOnly;
             ResetPaging();
             Build();
-        }, 104f);
-        AuraToolsUi.AddButton(filters.transform, "选择本页", () =>
+        }, 96f);
+        ToolboxIconButtonV2.Create(filters.transform, "selection.all", "选择本页", () =>
         {
             foreach (var item in page.Items) SelectedIds.Add(item.RecordId);
             Build();
-        }, 92f);
-        if (SelectedIds.Count > 0) AuraToolsUi.AddButton(filters.transform, "取消选择", () => { SelectedIds.Clear(); Build(); }, 92f);
+        }, 42f, "全");
+        if (SelectedIds.Count > 0)
+        {
+            AddCompactButton(filters.transform, "导出已选 " + SelectedIds.Count, ExportSelected, 112f);
+            ToolboxIconButtonV2.Create(
+                filters.transform,
+                "action.clear",
+                "取消全部选择",
+                () => { SelectedIds.Clear(); Build(); },
+                42f,
+                "消");
+        }
 
         if (!string.IsNullOrWhiteSpace(message))
         {
@@ -231,10 +259,10 @@ internal static class MatchRecordLibraryPresenter
     {
         var compatibility = MatchReplayCompatibility.Evaluate(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
-        AuraToolsUi.SetFixedHeight(row, 76f);
+        AuraToolsUi.SetFixedHeight(row, 72f);
         AuraToolsUi.AddImage(row, AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(10, 10, 8, 8);
+        layout.padding = new RectOffset(12, 12, 8, 8);
         layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
@@ -250,40 +278,117 @@ internal static class MatchRecordLibraryPresenter
                      + "   " + FormatBytes(item.CompressedBytes)
                      + "   " + CompatibilityLabel(compatibility.Level)
                      + (string.IsNullOrWhiteSpace(item.Tags) ? "" : "   标签 " + item.Tags);
-        AuraToolsUi.AddText(row.transform, title + "\n" + detail, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 60f, 1f);
-        AuraToolsUi.AddButton(row.transform, SelectedIds.Contains(item.RecordId) ? "已选" : "选择", () => ToggleSelection(item.RecordId), 64f);
-        AuraToolsUi.AddButton(row.transform, "分析", () => MatchAnalysisPresenter.Show(host!, item), 76f);
-        var replayButton = AuraToolsUi.AddButton(
+        ToolboxCheckboxV2.Create(
+            row.transform,
+            SelectedIds.Contains(item.RecordId),
+            _ => ToggleSelection(item.RecordId),
+            30f);
+        AuraToolsUi.AddText(row.transform, title + "\n" + detail, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 56f, 1f);
+        ToolboxIconButtonV2.Create(
+            row.transform,
+            "record.favorite",
+            item.Collection == MatchRecordCollections.Favorite ? "移回自动记录" : "收藏此对局",
+            () => Move(item),
+            42f,
+            item.Collection == MatchRecordCollections.Favorite ? "★" : "☆");
+        AddCompactButton(row.transform, "分析", () => MatchAnalysisPresenter.Show(host!, item), 68f);
+        var replayButton = AddCompactButton(
             row.transform,
             compatibility.CanPlay ? "回放" : "仅分析",
             () => Replay(item.RecordId),
-            76f);
+            68f);
         replayButton.interactable = compatibility.CanPlay;
-        AuraToolsUi.AddButton(row.transform, editingId == item.RecordId ? "收起" : "标签备注", () => EditMetadata(item), 82f);
-        AuraToolsUi.AddButton(
+        ToolboxIconButtonV2.Create(
             row.transform,
-            item.Collection == MatchRecordCollections.Favorite ? "移回自动" : "收藏",
-            () => Move(item),
-            92f);
-        AuraToolsUi.AddButton(row.transform, armedDeleteId == item.RecordId ? "确认删除" : "删除", () => Delete(item.RecordId), 86f);
+            "record.more",
+            editingId == item.RecordId ? "收起更多操作" : "标签、备注与删除",
+            () => EditMetadata(item),
+            42f,
+            editingId == item.RecordId ? "⌃" : "⋯");
 
         if (editingId == item.RecordId)
         {
             var editor = AuraToolsUi.CreateLayout("MetadataEditor-" + item.RecordId, parent);
-            AuraToolsUi.SetFixedHeight(editor, AuraToolsUi.ToolbarHeight);
-            AuraToolsUi.AddImage(editor, AuraToolsUi.Row);
-            var editorLayout = editor.AddComponent<HorizontalLayoutGroup>();
-            editorLayout.padding = new RectOffset(10, 10, 6, 6);
-            editorLayout.spacing = 8f;
+            AuraToolsUi.SetFixedHeight(editor, 104f);
+            ToolboxSurfaceV2.ApplyControl(editor).raycastTarget = false;
+            var editorLayout = editor.AddComponent<VerticalLayoutGroup>();
+            editorLayout.padding = new RectOffset(12, 12, 6, 6);
+            editorLayout.spacing = 4f;
             editorLayout.childControlWidth = true;
             editorLayout.childControlHeight = true;
-            editorLayout.childForceExpandWidth = false;
-            AuraToolsUi.AddText(editor.transform, "标签", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 42f);
-            AuraToolsUi.AddInput(editor.transform, editingTags, value => editingTags = value, 220f);
-            AuraToolsUi.AddText(editor.transform, "备注", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 42f);
-            AuraToolsUi.AddInput(editor.transform, editingNotes, value => editingNotes = value, 420f);
-            AuraToolsUi.AddButton(editor.transform, "保存", SaveMetadata, 76f);
+            editorLayout.childForceExpandWidth = true;
+            editorLayout.childForceExpandHeight = false;
+
+            var fields = AuraToolsUi.CreateLayout("MetadataFields", editor.transform);
+            AuraToolsUi.SetFixedHeight(fields, 44f);
+            var fieldLayout = fields.AddComponent<HorizontalLayoutGroup>();
+            fieldLayout.spacing = 8f;
+            fieldLayout.childControlWidth = true;
+            fieldLayout.childControlHeight = true;
+            fieldLayout.childForceExpandWidth = false;
+            fieldLayout.childForceExpandHeight = false;
+            AddFlexibleInput(fields.transform, editingTags, "标签（用逗号分隔）", value => editingTags = value, 180f);
+            AddFlexibleInput(fields.transform, editingNotes, "备注", value => editingNotes = value, 260f);
+            AddCompactButton(fields.transform, "保存", SaveMetadata, 68f);
+
+            var actions = AuraToolsUi.CreateLayout("SecondaryActions", editor.transform);
+            AuraToolsUi.SetFixedHeight(actions, 42f);
+            var actionLayout = actions.AddComponent<HorizontalLayoutGroup>();
+            actionLayout.spacing = 8f;
+            actionLayout.childControlWidth = true;
+            actionLayout.childControlHeight = true;
+            actionLayout.childForceExpandWidth = false;
+            actionLayout.childForceExpandHeight = false;
+            AuraToolsUi.AddText(actions.transform, "次要操作", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 40f, 1f);
+            AddCompactButton(
+                actions.transform,
+                item.Collection == MatchRecordCollections.Favorite ? "移回自动记录" : "移入收藏",
+                () => Move(item),
+                112f,
+                42f);
+            AddCompactButton(
+                actions.transform,
+                armedDeleteId == item.RecordId ? "确认删除" : "删除记录",
+                () => Delete(item.RecordId),
+                92f,
+                42f);
         }
+    }
+
+    private static Button AddCompactButton(
+        Transform parent,
+        string label,
+        Action action,
+        float width,
+        float height = AuraToolsUi.ButtonHeight)
+    {
+        var button = AuraToolsUi.AddButton(parent, label, action, width, height);
+        AuraToolsUi.SetFixedSize(button.gameObject, width, height);
+        ToolboxSurfaceV2.ApplyControl(button.gameObject);
+        return button;
+    }
+
+    private static InputField AddFlexibleInput(
+        Transform parent,
+        string value,
+        string placeholder,
+        Action<string> changed,
+        float minimumWidth = 220f)
+    {
+        var input = AuraToolsUi.AddInput(parent, value, changed, minimumWidth, 42f);
+        var element = AuraToolsUi.EnsureLayoutElement(input.gameObject);
+        element.minWidth = minimumWidth;
+        element.preferredWidth = minimumWidth;
+        element.minHeight = 42f;
+        element.preferredHeight = 42f;
+        element.flexibleWidth = 1f;
+        ToolboxSurfaceV2.ApplyControl(input.gameObject);
+        var placeholderText = input.placeholder as Text;
+        if (placeholderText != null)
+        {
+            placeholderText.text = placeholder;
+        }
+        return input;
     }
 
     private static void Replay(string recordId)

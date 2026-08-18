@@ -14,6 +14,21 @@ public enum CardPresentationImpact
     Full
 }
 
+[Flags]
+public enum CardPresentationFields
+{
+    None = 0,
+    Cost = 1 << 0,
+    Description = 1 << 1,
+    Name = 1 << 2,
+    Keywords = 1 << 3,
+    Usability = 1 << 4,
+    VisualStyle = 1 << 5,
+    Layout = 1 << 6,
+    Structural = 1 << 7,
+    Full = Cost | Description | Name | Keywords | Usability | VisualStyle | Layout | Structural
+}
+
 public readonly struct CardPresentationInvalidationSnapshot
 {
     internal CardPresentationInvalidationSnapshot(FightUI? fightUi, bool wasPending)

@@ -6,6 +6,16 @@
       "id": "solar_memory.event_map_card",
       "path": "Mods/Terrias/ModResource/Images/MapNode/日耀回忆-事件.png",
       "enabled": true
+    },
+    {
+      "id": "gold_dream.hud.false_gold",
+      "path": "Mods/Terrias/ModResource/Images/Card/Gold/豪掷千金.png",
+      "enabled": true
+    },
+    {
+      "id": "gold_dream.hud.debt",
+      "path": "Mods/Terrias/ModResource/Images/Card/Gold/空头支票.png",
+      "enabled": true
     }
   ],
   "modeEntries": [

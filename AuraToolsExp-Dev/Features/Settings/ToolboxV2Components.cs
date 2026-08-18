@@ -87,7 +87,7 @@ internal sealed class ToolboxIconButtonV2 : MonoBehaviour,
         }
         if (!string.IsNullOrWhiteSpace(tooltip))
         {
-            AuraUiNativeHoverHint.Attach(root, tooltip);
+            ToolboxTooltipTrigger.Attach(root, tooltip);
         }
 
         var view = root.AddComponent<ToolboxIconButtonV2>();

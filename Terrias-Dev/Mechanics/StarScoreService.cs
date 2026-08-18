@@ -421,6 +421,16 @@ public static class StarScoreService
         return 10 + BuffApi.BuffKindCount(self.Self) + BuffApi.BuffKindCount(ExecutorApi.PrimaryTarget(self));
     }
 
+    public static void RefreshCloseDescription(ScriptExecutor self)
+    {
+        if (self == null)
+        {
+            return;
+        }
+
+        ExecutorApi.AddDamageDescription(self, "1", CalcCloseDamage(self));
+    }
+
     private static int CalcPartyCloseDamage(ScriptExecutor self)
     {
         var allies = ExecutorApi.FriendlyTargets(self, includeSelf: true);

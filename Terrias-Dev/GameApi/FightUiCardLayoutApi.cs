@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
+using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
@@ -8,6 +10,10 @@ namespace Terrias.Dll.GameApi;
 public static class FightUiCardLayoutApi
 {
     private static readonly MethodInfo? UpdateCardItemPosMethod = ResolveUpdateCardItemPos();
+    private const int MaxNativeQueueWaitFrames = 60;
+    private static FightUI? pendingFightUi;
+    private static string pendingSource = "";
+    private static int waitFrames;
 
     public static bool RequestHandLayout(FightUI? fightUi, string source)
     {
@@ -25,11 +31,76 @@ public static class FightUiCardLayoutApi
             return false;
         }
 
+        pendingFightUi = fightUi;
+        pendingSource = source ?? "";
+        return AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = TerriasIds.ModId,
+            Key = "FightUiCardLayout.Apply",
+            Source = "Terrias.FightUiCardLayout",
+            Phase = AuraSharedFramePhase.Presentation,
+            Priority = 80,
+            EstimatedCost = 3,
+            Action = ApplyScheduled
+        });
+    }
+
+    private static void ApplyScheduled()
+    {
+        var fightUi = pendingFightUi;
+        if (fightUi == null)
+        {
+            return;
+        }
+
+        if (fightUi.createCardQueue?.Count > 0 && waitFrames < MaxNativeQueueWaitFrames)
+        {
+            waitFrames++;
+            TerriasPerformanceCounters.Record("FightUiCardLayout.WaitedForNativeQueue");
+            RequestHandLayout(fightUi, pendingSource + ":native-queue");
+            return;
+        }
+
+        waitFrames = 0;
+        AuditHandList();
+        ApplyNow(fightUi, pendingSource);
+    }
+
+    private static void AuditHandList()
+    {
+        var seen = new HashSet<int>();
+        for (var index = FightUI.cardItemList.Count - 1; index >= 0; index--)
+        {
+            var card = FightUI.cardItemList[index];
+            if (card == null)
+            {
+                FightUI.cardItemList.RemoveAt(index);
+                TerriasPerformanceCounters.Record("FightUiCardLayout.RemovedDestroyedEntry");
+                continue;
+            }
+
+            var instanceId = card.GetInstanceID();
+            if (!seen.Add(instanceId))
+            {
+                FightUI.cardItemList.RemoveAt(index);
+                TerriasPerformanceCounters.Record("FightUiCardLayout.RemovedDuplicateEntry");
+            }
+        }
+    }
+
+    private static bool ApplyNow(FightUI fightUi, string source)
+    {
+        var method = UpdateCardItemPosMethod;
+        if (method == null)
+        {
+            return false;
+        }
+
         var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            var parameterCount = UpdateCardItemPosMethod.GetParameters().Length;
-            UpdateCardItemPosMethod.Invoke(
+            var parameterCount = method.GetParameters().Length;
+            method.Invoke(
                 fightUi,
                 parameterCount == 0 ? null : new object?[parameterCount]);
             TerriasPerformanceCounters.Record("FightUiCardLayout.Applied");

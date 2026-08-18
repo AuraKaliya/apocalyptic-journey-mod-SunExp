@@ -81,9 +81,9 @@ public static class TerriasCardPresentationInvalidationRuntime
 
         var source = kind + ":" + current.BuffId + ":" + current.BeforeLevel + "->" + afterLevel;
         var suppressed = CardPresentationInvalidationApi.SuppressNewFullRefresh(current.Snapshot, spec.Impact, source);
-        if (suppressed && spec.Impact == CardPresentationImpact.DescriptionSubset)
+        if (suppressed && (spec.Fields & CardPresentationFields.Description) != 0)
         {
-            TerriasCardRefreshQueue.RequestDataUpdateForHandCards(
+            TerriasCardRefreshQueue.RequestDescriptionUpdateForHandCards(
                 CardPresentationInvalidationApi.CurrentHandCards(),
                 spec.CardIds,
                 "BuffDescriptionSubset:" + source);

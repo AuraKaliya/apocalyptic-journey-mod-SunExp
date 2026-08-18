@@ -20,22 +20,27 @@ public static class TerriasCardRefreshQueue
 
     public static void RequestDataUpdate(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: false, dataUpdate: true, costUpdate: false);
+        Request(card, source, refreshTags: false, dataUpdate: true, costUpdate: false, descriptionUpdate: false);
     }
 
     public static void RequestCostUpdate(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: false, dataUpdate: false, costUpdate: true);
+        Request(card, source, refreshTags: false, dataUpdate: false, costUpdate: true, descriptionUpdate: false);
+    }
+
+    public static void RequestDescriptionUpdate(CardItem? card, string source)
+    {
+        Request(card, source, refreshTags: false, dataUpdate: false, costUpdate: false, descriptionUpdate: true);
     }
 
     public static void RequestTagRefresh(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: true, dataUpdate: false, costUpdate: false);
+        Request(card, source, refreshTags: true, dataUpdate: false, costUpdate: false, descriptionUpdate: false);
     }
 
     public static void RequestFullRefresh(CardItem? card, string source)
     {
-        Request(card, source, refreshTags: true, dataUpdate: true, costUpdate: false);
+        Request(card, source, refreshTags: true, dataUpdate: true, costUpdate: false, descriptionUpdate: false);
     }
 
     public static void RequestConfigTagRefresh(IDataConfig? config, string source)
@@ -60,7 +65,13 @@ public static class TerriasCardRefreshQueue
         ScheduleFlush();
     }
 
-    private static void Request(CardItem? card, string source, bool refreshTags, bool dataUpdate, bool costUpdate)
+    private static void Request(
+        CardItem? card,
+        string source,
+        bool refreshTags,
+        bool dataUpdate,
+        bool costUpdate,
+        bool descriptionUpdate)
     {
         if (card == null)
         {
@@ -70,15 +81,21 @@ public static class TerriasCardRefreshQueue
         var key = CardKey(card);
         if (key.Length == 0)
         {
-            RefreshNow(card, source, refreshTags, dataUpdate, costUpdate);
+            RefreshNow(card, source, refreshTags, dataUpdate, costUpdate, descriptionUpdate);
             return;
         }
 
         lock (SyncRoot)
         {
             PendingCards[key] = PendingCards.TryGetValue(key, out var existing)
-                ? new PendingCardRefresh(card, existing.RefreshTags || refreshTags, existing.DataUpdate || dataUpdate, existing.CostUpdate || costUpdate, source)
-                : new PendingCardRefresh(card, refreshTags, dataUpdate, costUpdate, source);
+                ? new PendingCardRefresh(
+                    card,
+                    existing.RefreshTags || refreshTags,
+                    existing.DataUpdate || dataUpdate,
+                    existing.CostUpdate || costUpdate,
+                    existing.DescriptionUpdate || descriptionUpdate,
+                    source)
+                : new PendingCardRefresh(card, refreshTags, dataUpdate, costUpdate, descriptionUpdate, source);
         }
 
         ScheduleFlush();
@@ -151,6 +168,36 @@ public static class TerriasCardRefreshQueue
         return requested;
     }
 
+    public static int RequestDescriptionUpdateForHandCards(
+        IEnumerable<CardItem>? handCards,
+        IEnumerable<string>? cardIds,
+        string source)
+    {
+        if (handCards == null || cardIds == null)
+        {
+            return 0;
+        }
+
+        var ids = new HashSet<string>(cardIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(TerriasContentIdCompatibility.Canonicalize), StringComparer.Ordinal);
+        var requested = 0;
+        foreach (var card in handCards)
+        {
+            if (card == null
+                || !ids.Contains(TerriasContentIdCompatibility.Canonicalize(CardConfigApi.Id(card.dataConfig))))
+            {
+                continue;
+            }
+
+            RequestDescriptionUpdate(card, source);
+            requested++;
+            TerriasPerformanceCounters.Record("CardRefreshQueue.DescriptionDeltaRequested");
+        }
+
+        return requested;
+    }
+
     private static bool FlushSlice(AuraSharedFrameSliceContext context)
     {
         PendingConfigRefresh? config = null;
@@ -183,7 +230,13 @@ public static class TerriasCardRefreshQueue
         }
         else if (card.HasValue)
         {
-            RefreshNow(card.Value.Card, card.Value.Source, card.Value.RefreshTags, card.Value.DataUpdate, card.Value.CostUpdate);
+            RefreshNow(
+                card.Value.Card,
+                card.Value.Source,
+                card.Value.RefreshTags,
+                card.Value.DataUpdate,
+                card.Value.CostUpdate,
+                card.Value.DescriptionUpdate);
         }
 
         TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
@@ -261,7 +314,13 @@ public static class TerriasCardRefreshQueue
         }
     }
 
-    private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate, bool costUpdate)
+    private static void RefreshNow(
+        CardItem card,
+        string source,
+        bool refreshTags,
+        bool dataUpdate,
+        bool costUpdate,
+        bool descriptionUpdate)
     {
         var start = TerriasPerformanceCounters.Timestamp();
         try
@@ -279,18 +338,40 @@ public static class TerriasCardRefreshQueue
                 card.DataUpdate();
                 TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
             }
-            else if (costUpdate)
+            else
             {
-                var costStart = TerriasPerformanceCounters.Timestamp();
-                if (!AuraCardPresentationDelta.TrySetCost(
-                        card.transform,
-                        CardConfigApi.NativeDisplayCost(card.dataConfig, FightPlayer.Instance?.Status).ToString()))
+                if (costUpdate)
                 {
-                    card.DataUpdate();
-                    TerriasPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
+                    var costStart = TerriasPerformanceCounters.Timestamp();
+                    if (!AuraCardPresentationDelta.TrySetCost(
+                            card.transform,
+                            CardConfigApi.NativeDisplayCost(card.dataConfig, FightPlayer.Instance?.Status).ToString()))
+                    {
+                        card.DataUpdate();
+                        TerriasPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
+                        return;
+                    }
+
+                    TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.CostUpdate", costStart);
                 }
 
-                TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.CostUpdate", costStart);
+                if (descriptionUpdate)
+                {
+                    var descriptionStart = TerriasPerformanceCounters.Timestamp();
+                    if (!TerriasCardDescriptionProjector.TryRefresh(card))
+                    {
+                        card.DataUpdate();
+                        TerriasPerformanceCounters.Record("CardRefreshQueue.Card.DescriptionFallback");
+                    }
+                    else
+                    {
+                        TerriasPerformanceCounters.Record("CardRefreshQueue.Card.DescriptionDelta");
+                    }
+
+                    TerriasPerformanceCounters.RecordDuration(
+                        "CardRefreshQueue.Card.DescriptionUpdate",
+                        descriptionStart);
+                }
             }
         }
         catch (Exception ex)
@@ -400,12 +481,19 @@ public static class TerriasCardRefreshQueue
 
     private readonly struct PendingCardRefresh
     {
-        public PendingCardRefresh(CardItem card, bool refreshTags, bool dataUpdate, bool costUpdate, string source)
+        public PendingCardRefresh(
+            CardItem card,
+            bool refreshTags,
+            bool dataUpdate,
+            bool costUpdate,
+            bool descriptionUpdate,
+            string source)
         {
             Card = card;
             RefreshTags = refreshTags;
             DataUpdate = dataUpdate;
             CostUpdate = costUpdate;
+            DescriptionUpdate = descriptionUpdate;
             Source = source;
         }
 
@@ -416,6 +504,8 @@ public static class TerriasCardRefreshQueue
         public bool DataUpdate { get; }
 
         public bool CostUpdate { get; }
+
+        public bool DescriptionUpdate { get; }
 
         public string Source { get; }
     }
