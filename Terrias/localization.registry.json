@@ -153,6 +153,7 @@
     "ui.spirit.ability.type.common_advanced": { "zh-Hans": "通用·高级", "zh-Hant": "通用·高級", "en": "Common · Advanced", "ja": "共通・上級" },
     "ui.spirit.ability.type.common_basic": { "zh-Hans": "通用·基础", "zh-Hant": "通用·基礎", "en": "Common · Basic", "ja": "共通・基礎" },
     "ui.spirit.ability.type.common_tactical": { "zh-Hans": "通用·战术", "zh-Hant": "通用·戰術", "en": "Common · Tactical", "ja": "共通・戦術" },
+    "ui.spirit.ability.type.compatibility": { "zh-Hans": "外部兼容", "zh-Hant": "外部相容", "en": "Compatibility", "ja": "互換" },
     "ui.spirit.ability.type.default": { "zh-Hans": "能力", "zh-Hant": "能力", "en": "Ability", "ja": "能力" },
     "ui.spirit.guiyuan.target": { "zh-Hans": "归元目标", "zh-Hant": "歸元目標", "en": "Origin Target", "ja": "帰元対象" },
     "ui.spirit.guiyuan.selected": { "zh-Hans": "已选 · +{value}", "zh-Hant": "已選 · +{value}", "en": "Selected · +{value}", "ja": "選択済み・+{value}" },

@@ -181,7 +181,6 @@ JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自�
 | --- | --- |
 | `visual.registry.json` | `VisualRegistry`、卡牌视觉和地图视觉运行时 |
 | `audio.registry.json` | `AudioApi`、AuraAudio/AudioArbiter |
-| `starterdeck.registry.json` | StarterDeckArbiter |
 | `SharedResources/aura.registration.json` | AuraSharedPackageEngine |
 | `SharedResources/cg.registry.json` | AuraCgRegistryRuntime、Skill CG |
 | `familiar.blessing.registry.json` | 使魔祝福注册表 |
@@ -191,6 +190,8 @@ JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自�
 | `polymorph.role-crops.json` | 百变角色裁切注册表 |
 
 资源路径分为 MOD 私有路径和共享资源路径。需要被其他 Aura 消费者按协议发现的内容应通过 SharedResources 包和注册表声明，不能要求工具 MOD 扫描 Terrias 私有目录。
+
+开局卡牌与遗物的玩家配置由 AuraToolsExp 本地“自定义开局”管理并通过导入导出文件交换；内容 MOD 不再注册 AuraTools 开局 Profile。
 
 ## 8. 构建与交付链
 

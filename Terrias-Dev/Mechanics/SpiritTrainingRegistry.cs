@@ -38,9 +38,10 @@ public static class SpiritTrainingRegistry
             {
                 var loaded = AuraSharedJson.Deserialize<SpiritTrainingRegistryDocument>(File.ReadAllText(path))
                              ?? new SpiritTrainingRegistryDocument();
-                if (loaded.SchemaVersion != 1)
+                if (loaded.SchemaVersion != SpiritSystemContract.TrainingRegistrySchemaVersion)
                 {
-                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 1");
+                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion
+                                                   + "; expected " + SpiritSystemContract.TrainingRegistrySchemaVersion);
                 }
 
                 SetDocument(Normalize(loaded));
@@ -88,6 +89,17 @@ public static class SpiritTrainingRegistry
     public static SpiritPassiveDefinition? FindPassive(string id)
     {
         lock (SyncRoot) return passives.TryGetValue(id ?? "", out var value) ? value : null;
+    }
+
+    public static IReadOnlyList<SpiritPassiveDefinition> Passives(string pool)
+    {
+        lock (SyncRoot)
+        {
+            return passives.Values
+                .Where(value => string.Equals(value.Pool, pool ?? "", StringComparison.Ordinal))
+                .OrderBy(value => value.Id, StringComparer.Ordinal)
+                .ToArray();
+        }
     }
 
     public static SpiritSpeciesTrainingProfile ProfileFor(string speciesId, string profileId)
@@ -165,7 +177,22 @@ public static class SpiritTrainingRegistry
         {
             passive.Id = passive.Id.Trim();
             passive.Pool = (passive.Pool ?? "Species").Trim();
+            passive.EffectKind = (passive.EffectKind ?? "").Trim();
+            passive.HandlerId = string.IsNullOrWhiteSpace(passive.HandlerId)
+                ? passive.EffectKind
+                : passive.HandlerId.Trim();
+            passive.IntentType = (passive.IntentType ?? "").Trim();
             passive.NumericBonusPercent = Math.Max(0, Math.Min(75, passive.NumericBonusPercent));
+            passive.Threshold = Math.Max(0, Math.Min(100, passive.Threshold));
+            passive.Value = Math.Max(0, Math.Min(1000, passive.Value));
+            passive.SecondaryValue = Math.Max(0, Math.Min(1000, passive.SecondaryValue));
+            passive.MaximumStacks = Math.Max(0, Math.Min(100, passive.MaximumStacks));
+            passive.StateLabel = (passive.StateLabel ?? "").Trim();
+            if (string.Equals(passive.Pool, "Species", StringComparison.Ordinal)
+                && !SpiritPassiveMechanicRegistry.Validate(passive, out var reason))
+            {
+                throw new InvalidDataException("invalid species passive " + passive.Id + ": " + reason);
+            }
         }
 
         source.SpeciesProfiles = source.SpeciesProfiles

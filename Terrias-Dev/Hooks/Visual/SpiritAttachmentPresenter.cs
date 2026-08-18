@@ -223,7 +223,10 @@ internal sealed class SpiritStatusHoverRelay : MonoBehaviour,
         {
             proxyDisplay.SetText(
                 sourceDisplay.title,
-                sourceDisplay.text,
+                SpiritHoverStatusComposer.Compose(
+                    status?.InstanceId ?? "",
+                    sourceDisplay.text,
+                    CompanionAuthorityService.IsAuthoritative()),
                 sourceDisplay.keyWords,
                 sourceDisplay.msg,
                 sourceDisplay.icon,

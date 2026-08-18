@@ -106,7 +106,6 @@ sequenceDiagram
     E->>P: Install SharedResources/aura.registration.json
     E->>P: Register shared manifest
     E->>D: Register CG manifest and Skill CG runtime
-    E->>D: Register starter deck profiles
     E->>D: Initialize skin and register skin package
     E->>D: Initialize Journey
     E->>D: Initialize audio

@@ -42,85 +42,9 @@ internal static class StarterDeckCardCatalog
         }
     }
 
-    public static List<string> BuildAllCandidateCardIds()
-    {
-        return GetCardCatalogSnapshot("all-candidates").SelectableCardIds.ToList();
-    }
-
-    public static List<string> BuildCandidateCardIds(IEnumerable<string> packIds)
-    {
-        var requestedPacks = new HashSet<string>(
-            (packIds ?? Array.Empty<string>())
-            .Where(id => string.Equals(id, StarterDeckCardPackGroup.OtherGroupId, StringComparison.OrdinalIgnoreCase)
-                         || IsValidPackForCurrentLobby(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(id => id.Trim()),
-            StringComparer.OrdinalIgnoreCase);
-        if (requestedPacks.Count == 0)
-        {
-            return new List<string>();
-        }
-
-        return GetCardCatalogSnapshot("pack-candidates")
-            .SelectableGroups
-            .Where(group => requestedPacks.Contains(group.PackId))
-            .SelectMany(group => group.CardIds)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(StarterDeckCardPresentation.CardSortKey)
-            .ToList();
-    }
-
     public static List<StarterDeckCardPackGroup> BuildCandidateCardPackGroups()
     {
         return GetCardCatalogSnapshot("pack-groups").CloneSelectableGroups();
-    }
-
-    public static List<string> BuildRegisteredCardIds(bool includeSystemSkillCards = false)
-    {
-        return GetCardCatalogSnapshot("registered-cards")
-            .AllCards
-            .Where(card => !card.IsExcludedDerivedCard)
-            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
-            .Select(card => card.Id)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(StarterDeckCardPresentation.CardSortKey)
-            .ToList();
-    }
-
-    public static List<string> BuildRegisteredExplicitCardIds(bool includeSystemSkillCards = false)
-    {
-        return GetCardCatalogSnapshot("explicit-cards")
-            .AllCards
-            .Where(card => !card.IsHidden)
-            .Where(card => !card.IsExcludedDerivedCard)
-            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
-            .Select(card => card.Id)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(StarterDeckCardPresentation.CardSortKey)
-            .ToList();
-    }
-
-    public static List<string> BuildRegisteredHiddenCardIds(bool includeSystemSkillCards = false)
-    {
-        return GetCardCatalogSnapshot("hidden-cards")
-            .AllCards
-            .Where(card => card.IsHidden)
-            .Where(card => !card.IsExcludedDerivedCard)
-            .Where(card => includeSystemSkillCards || !card.IsSystemSkillCard)
-            .Select(card => card.Id)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(StarterDeckCardPresentation.CardSortKey)
-            .ToList();
-    }
-
-    public static List<string> BuildRegisteredSkillCardIds()
-    {
-        return GetCardCatalogSnapshot("skill-cards").SkillCardIds.ToList();
-    }
-
-    public static List<string> BuildRegisteredSystemSkillCardIds()
-    {
-        return GetCardCatalogSnapshot("system-skill-cards").SystemSkillCardIds.ToList();
     }
 
     public static string ResolveCardId(string cardId, string ownerModId = "")
@@ -138,7 +62,7 @@ internal static class StarterDeckCardCatalog
 
         if (resolution.Kind == AuraSharedContentIdResolutionKind.Ambiguous)
         {
-            AuraToolsLog.Warn("[StarterDeck] card id is ambiguous: declared="
+            AuraToolsLog.Warn("[CustomStart] card id is ambiguous: declared="
                               + declared + ", matches=" + string.Join("|", resolution.Matches));
         }
 
@@ -159,7 +83,7 @@ internal static class StarterDeckCardCatalog
             StarterDeckCardPresentation.ClearCache();
         }
 
-        AuraToolsLog.Info("[StarterDeck] invalidated card catalog from " + source);
+        AuraToolsLog.Info("[CustomStart] invalidated card catalog from " + source);
     }
     private static StarterDeckCardCatalogSnapshot GetCardCatalogSnapshot(string source)
     {
@@ -196,7 +120,7 @@ internal static class StarterDeckCardCatalog
             StarterDeckCardPresentation.ClearCache();
         }
 
-        AuraToolsLog.Debug("[StarterDeck] invalidated card catalog for game-data epoch " + version.Epoch + ".");
+        AuraToolsLog.Debug("[CustomStart] invalidated card catalog for game-data epoch " + version.Epoch + ".");
     }
 
     private static StarterDeckCardCatalogSnapshot BuildCardCatalogSnapshot(string source)
@@ -210,7 +134,7 @@ internal static class StarterDeckCardCatalog
 
             foreach (var row in AuraGameDataHostApi.CopyTableForHostInterop(DataType.CardPack))
             {
-                if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
+                if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId))
                 {
                     continue;
                 }
@@ -218,10 +142,7 @@ internal static class StarterDeckCardCatalog
                 packId = packId.Trim();
                 existingPacks.Add(packId);
                 packDisplayNames[packId] = RowDisplayName(row, packId);
-                if (!IsRuntimeLocked(packId))
-                {
-                    selectablePacks.Add(packId);
-                }
+                selectablePacks.Add(packId);
             }
 
             var groupCards = selectablePacks
@@ -260,7 +181,6 @@ internal static class StarterDeckCardCatalog
                 var isSkillCard = StarterDeckCardClassification.IsCareerSkillCard(id, careerSkillCardIds);
                 var isSystemSkillCard = isSkillCard;
                 var isExcludedDerivedCard = StarterDeckCardClassification.IsExcludedDerivedCard(row);
-                var isLocked = IsRuntimeLocked(id);
                 var displayName = RowDisplayName(row, id);
 
                 var entry = new StarterDeckCardCatalogEntry(
@@ -274,8 +194,7 @@ internal static class StarterDeckCardCatalog
                     isHidden,
                     isSkillCard,
                     isSystemSkillCard,
-                    isExcludedDerivedCard,
-                    isLocked);
+                    isExcludedDerivedCard);
                 allCards.Add(entry);
 
                 if (isHidden)
@@ -297,11 +216,6 @@ internal static class StarterDeckCardCatalog
                 if (isExcludedDerivedCard)
                 {
                     excludedDerivedCards.Add(id);
-                    continue;
-                }
-
-                if (isLocked)
-                {
                     continue;
                 }
 
@@ -345,7 +259,7 @@ internal static class StarterDeckCardCatalog
                 SortedDistinctCards(systemSkillCards),
                 SortedDistinctCards(excludedDerivedCards));
             AuraToolsLog.Info(
-                "[StarterDeck] built card catalog from " + source
+                "[CustomStart] built card catalog from " + source
                 + ": cards=" + snapshot.AllCards.Count
                 + ", selectable=" + snapshot.SelectableCardIds.Count
                 + ", groups=" + snapshot.SelectableGroups.Count
@@ -356,7 +270,7 @@ internal static class StarterDeckCardCatalog
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("[StarterDeck] failed to build card catalog from " + source + ": " + ex.Message);
+            AuraToolsLog.Warn("[CustomStart] failed to build card catalog from " + source + ": " + ex.Message);
             return StarterDeckCardCatalogSnapshot.Empty;
         }
     }
@@ -391,38 +305,6 @@ internal static class StarterDeckCardCatalog
         return GetCardCatalogSnapshot("starter-deck-exclusion-check").IsStarterDeckExcluded(cardId);
     }
 
-    private static bool IsRuntimeLocked(string id)
-    {
-        try
-        {
-            return Singleton<GameRuntimeData>.Instance.IsLocked(id);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static List<string> BuildSelectablePacks()
-    {
-        try
-        {
-            return AuraGameDataHostApi.CopyTableForHostInterop(DataType.CardPack)
-                .Where(row => row.TryGetValue("Id", out var id)
-                              && IsValidPackForCurrentLobby(id)
-                              && !Singleton<GameRuntimeData>.Instance.IsLocked(id))
-                .Select(row => row["Id"])
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(id => id)
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[StarterDeck] failed to list card packs: " + ex.Message);
-            return new List<string>();
-        }
-    }
-
     private static string CardPackDisplayName(string packId)
     {
         try
@@ -446,23 +328,6 @@ internal static class StarterDeckCardCatalog
         }
     }
 
-    private static bool IsExistingCardPack(string packId)
-    {
-        if (string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
-        {
-            return false;
-        }
-
-        try
-        {
-            return AuraGameDataHostApi.Resolve(DataType.CardPack, packId) != null;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
     private static List<string> SortedDistinctCards(IEnumerable<string> cardIds)
     {
         return (cardIds ?? Array.Empty<string>())
@@ -470,32 +335,6 @@ internal static class StarterDeckCardCatalog
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(StarterDeckCardPresentation.CardSortKey)
             .ToList();
-    }
-
-    private static IEnumerable<string> CardIdsFromPack(string packId)
-    {
-        foreach (var pair in Singleton<GameConfigManager>.Instance.GetPackItems(packId))
-        {
-            if (pair.Key != DataType.Card)
-            {
-                continue;
-            }
-
-            foreach (var card in pair.Value)
-            {
-                if (card.TryGetValue("Id", out var id))
-                {
-                    yield return id;
-                }
-            }
-        }
-    }
-
-    private static bool IsValidPackForCurrentLobby(string id)
-    {
-        return !string.IsNullOrWhiteSpace(id)
-               && (!string.Equals(id, "cardpack_13", StringComparison.OrdinalIgnoreCase)
-                   || GameConfigManager.ShouldEnableOnlineCardPack());
     }
 
     internal static bool IsValidCard(string cardId)

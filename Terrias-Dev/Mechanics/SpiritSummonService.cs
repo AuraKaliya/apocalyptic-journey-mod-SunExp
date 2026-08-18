@@ -404,10 +404,12 @@ public static class SpiritSummonService
                 var state = CompanionBattleStateStore.Find(spirit.InstanceId);
                 state?.ApplyReadyOnTurn(initialBattleState?.ReadyOnTurn);
                 state?.ApplyPassiveState(initialBattleState?.PassiveState);
+                state?.ApplyVisibleStatuses(initialBattleState?.VisibleStatuses);
                 if (initialBattleState != null)
                 {
+                    var initialStatus = spirit.Status as StatusManager;
                     state?.Stats.SetCurrentMagic(initialBattleState.CurrentMagic);
-                    if (initialBattleState.MaxHp > 0 && spirit.Status is StatusManager initialStatus)
+                    if (initialBattleState.MaxHp > 0 && initialStatus != null)
                     {
                         initialStatus.MaxHp = initialBattleState.MaxHp;
                         initialStatus.CurHp = Math.Max(1, Math.Min(initialStatus.MaxHp, initialBattleState.CurrentHp));
@@ -415,6 +417,14 @@ public static class SpiritSummonService
                         spirit.MaxHp = initialStatus.MaxHp;
                         spirit.CurHp = initialStatus.CurHp;
                         spirit.Defend = initialStatus.Defend;
+                    }
+                    foreach (var visible in initialBattleState.VisibleStatuses
+                                 .Where(item => string.Equals(item.Kind, "Buff", StringComparison.Ordinal)
+                                                && !string.IsNullOrWhiteSpace(item.Id)
+                                                && item.Stacks > 0)
+                                 .Take(SpiritSystemContract.MaximumVisibleStatuses))
+                    {
+                        initialStatus?.AddBuff(visible.Id, visible.Stacks);
                     }
                 }
                 state?.ApplyRemoteProgress(initialBattleState?.TurnIndex ?? 0, 0);
@@ -618,6 +628,7 @@ public static class SpiritSummonService
             PassiveState = state == null
                 ? new Dictionary<string, int>()
                 : state.PassiveStateSnapshot().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
+            VisibleStatuses = SpiritVisibleStatusService.Capture(spirit).Select(status => status.Clone()).ToList(),
             TurnIndex = state?.TurnIndex ?? 0,
             ReadyOnTurn = state == null
                 ? new Dictionary<string, int>()
@@ -642,6 +653,7 @@ public static class SpiritSummonService
             snapshot.LoadoutRevision,
             snapshot.LoadoutHash);
         state.ApplyPassiveState(snapshot.PassiveState);
+        state.ApplyVisibleStatuses(snapshot.VisibleStatuses);
         state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
         state.ApplyRemoteProgress(snapshot.TurnIndex, snapshot.Revision);
         if (spirit.Status is StatusManager status)
@@ -982,6 +994,8 @@ public static class SpiritSummonService
             || battleState.ReadyOnTurn.Count > MaxIntentStateEntries
             || battleState.PassiveState == null
             || battleState.PassiveState.Count > MaxIntentStateEntries
+            || battleState.VisibleStatuses == null
+            || battleState.VisibleStatuses.Count > SpiritSystemContract.MaximumVisibleStatuses
             || battleState.MaxHp < 0
             || battleState.MaxHp > MaxTransferredCombatValue
             || battleState.CurrentHp < 0
@@ -1003,7 +1017,17 @@ public static class SpiritSummonService
                    !string.IsNullOrWhiteSpace(entry.Key)
                    && entry.Key.Length <= 160
                    && entry.Value >= -MaxTransferredCombatValue
-                   && entry.Value <= MaxTransferredCombatValue);
+                   && entry.Value <= MaxTransferredCombatValue)
+               && battleState.VisibleStatuses.All(status =>
+                   status != null
+                   && !string.IsNullOrWhiteSpace(status.Id)
+                   && status.Id.Length <= 160
+                   && status.Stacks >= 0
+                   && status.Stacks <= MaxTransferredCombatValue
+                   && status.Value >= 0
+                   && status.Value <= MaxTransferredCombatValue
+                   && status.Maximum >= 0
+                   && status.Maximum <= MaxTransferredCombatValue);
     }
 
     private static int NextGeneration(string ownerPlayerId, string ownerStatusId)

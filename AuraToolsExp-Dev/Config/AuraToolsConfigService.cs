@@ -204,10 +204,28 @@ public static class AuraToolsConfigService
 
     public static void SaveStarterDeck()
     {
+        _ = TrySaveStarterDeck();
+    }
+
+    public static bool TrySaveStarterDeck()
+    {
         MatchExperience.StarterDeck.Normalize();
-        SaveMatchExperienceModule(
-            AuraToolModuleIds.StarterDeck,
-            MatchExperience.StarterDeck);
+        long revision;
+        lock (Gate)
+        {
+            if (!SaveModuleSettingNoNotify(
+                    AuraToolModuleIds.StarterDeck,
+                    MatchExperience.StarterDeck,
+                    out revision))
+            {
+                return false;
+            }
+
+            SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
+        }
+
+        AuraToolConfigChangeBus.Publish(AuraToolModuleIds.StarterDeck, revision);
+        return true;
     }
 
     public static void SaveCardRefresh()

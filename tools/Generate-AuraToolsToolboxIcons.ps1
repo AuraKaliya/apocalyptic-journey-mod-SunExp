@@ -136,7 +136,7 @@ function Draw-Icon($graphics, [string]$name) {
                 $graphics.DrawLine($thin, 26, 35, 38, 35)
             }
             "intelligence" {
-                $points = @([Drawing.PointF]::new(32, 8), [Drawing.PointF]::new(51, 19), [Drawing.PointF]::new(51, 43), [Drawing.PointF]::new(32, 55), [Drawing.PointF]::new(13, 43), [Drawing.PointF]::new(13, 19))
+                $points = [Drawing.PointF[]]@([Drawing.PointF]::new(32, 8), [Drawing.PointF]::new(51, 19), [Drawing.PointF]::new(51, 43), [Drawing.PointF]::new(32, 55), [Drawing.PointF]::new(13, 43), [Drawing.PointF]::new(13, 19))
                 $graphics.DrawPolygon($pen, $points); $graphics.DrawEllipse($thin, 26, 26, 12, 12)
                 $graphics.DrawLine($thin, 32, 14, 32, 26); $graphics.DrawLine($thin, 20, 22, 27, 28); $graphics.DrawLine($thin, 44, 22, 37, 28)
             }
@@ -156,12 +156,13 @@ function Draw-Icon($graphics, [string]$name) {
                 $graphics.FillEllipse($brush, 17, 39, 13, 10); $graphics.FillEllipse($brush, 37, 34, 13, 10)
             }
             "card-use-audio" {
-                $graphics.DrawPolygon($pen, @([Drawing.PointF]::new(12, 27), [Drawing.PointF]::new(22, 27), [Drawing.PointF]::new(34, 17), [Drawing.PointF]::new(34, 47), [Drawing.PointF]::new(22, 37), [Drawing.PointF]::new(12, 37)))
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(12, 27), [Drawing.PointF]::new(22, 27), [Drawing.PointF]::new(34, 17), [Drawing.PointF]::new(34, 47), [Drawing.PointF]::new(22, 37), [Drawing.PointF]::new(12, 37)))
                 $graphics.DrawArc($pen, 32, 21, 18, 22, -55, 110); $graphics.DrawArc($thin, 35, 15, 23, 34, -55, 110)
             }
             "starter-deck" {
-                Draw-RoundedRect $graphics $thin 11 18 27 35 3; Draw-RoundedRect $graphics $thin 18 13 27 35 3; Draw-RoundedRect $graphics $pen 25 9 27 35 3
-                $graphics.DrawLine($thin, 32, 20, 45, 20)
+                Draw-RoundedRect $graphics $thin 8 19 24 33 3; Draw-RoundedRect $graphics $thin 14 14 24 33 3; Draw-RoundedRect $graphics $pen 20 9 24 33 3
+                $graphics.DrawLine($thin, 27, 19, 37, 19)
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(37, 34), [Drawing.PointF]::new(44, 25), [Drawing.PointF]::new(52, 34), [Drawing.PointF]::new(44, 43)))
             }
             "card-refresh" {
                 Draw-Card $graphics $thin 0 0
@@ -188,11 +189,11 @@ function Draw-Icon($graphics, [string]$name) {
             }
             "battle-replay" {
                 $graphics.DrawEllipse($pen, 10, 10, 44, 44)
-                $graphics.DrawPolygon($pen, @([Drawing.PointF]::new(27, 21), [Drawing.PointF]::new(27, 43), [Drawing.PointF]::new(44, 32)))
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(27, 21), [Drawing.PointF]::new(27, 43), [Drawing.PointF]::new(44, 32)))
             }
             "auto-battle" {
                 Draw-Gear $graphics $thin
-                $graphics.DrawPolygon($pen, @([Drawing.PointF]::new(29, 23), [Drawing.PointF]::new(29, 41), [Drawing.PointF]::new(43, 32)))
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(29, 23), [Drawing.PointF]::new(29, 41), [Drawing.PointF]::new(43, 32)))
             }
             "skill-cg" {
                 Draw-RoundedRect $graphics $pen 10 14 44 36 5
@@ -200,7 +201,7 @@ function Draw-Icon($graphics, [string]$name) {
             }
             "card-use-cg" {
                 Draw-Card $graphics $pen -4 0
-                $graphics.DrawPolygon($thin, @([Drawing.PointF]::new(34, 28), [Drawing.PointF]::new(34, 42), [Drawing.PointF]::new(46, 35)))
+                $graphics.DrawPolygon($thin, [Drawing.PointF[]]@([Drawing.PointF]::new(34, 28), [Drawing.PointF]::new(34, 42), [Drawing.PointF]::new(46, 35)))
             }
             "search" {
                 $graphics.DrawEllipse($pen, 11, 11, 30, 30); $graphics.DrawLine($pen, 39, 39, 53, 53)
@@ -214,7 +215,7 @@ function Draw-Icon($graphics, [string]$name) {
             }
             "settings" { Draw-Gear $graphics $pen }
             "warning" {
-                $graphics.DrawPolygon($pen, @([Drawing.PointF]::new(32, 9), [Drawing.PointF]::new(56, 52), [Drawing.PointF]::new(8, 52)))
+                $graphics.DrawPolygon($pen, [Drawing.PointF[]]@([Drawing.PointF]::new(32, 9), [Drawing.PointF]::new(56, 52), [Drawing.PointF]::new(8, 52)))
                 $graphics.DrawLine($pen, 32, 24, 32, 38); $graphics.FillEllipse($brush, 29.5, 43, 5, 5)
             }
         }

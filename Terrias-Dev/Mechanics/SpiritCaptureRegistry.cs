@@ -29,9 +29,10 @@ public static class SpiritCaptureRegistry
             {
                 var loaded = AuraSharedJson.Deserialize<SpiritCaptureRegistryDocument>(File.ReadAllText(path))
                     ?? new SpiritCaptureRegistryDocument();
-                if (loaded.SchemaVersion != 1)
+                if (loaded.SchemaVersion != SpiritSystemContract.CaptureRegistrySchemaVersion)
                 {
-                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 1");
+                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion
+                                                   + "; expected " + SpiritSystemContract.CaptureRegistrySchemaVersion);
                 }
 
                 document = Normalize(loaded);
@@ -91,7 +92,7 @@ public static class SpiritCaptureRegistry
             profiles.Add(DefaultProfile());
         }
 
-        return new SpiritCaptureRegistryDocument { SchemaVersion = 1, Profiles = profiles };
+        return new SpiritCaptureRegistryDocument { SchemaVersion = SpiritSystemContract.CaptureRegistrySchemaVersion, Profiles = profiles };
     }
 
     private static string NormalizeMode(string value)
@@ -106,7 +107,11 @@ public static class SpiritCaptureRegistry
 
     private static SpiritCaptureRegistryDocument BuiltInDocument()
     {
-        return new SpiritCaptureRegistryDocument { SchemaVersion = 1, Profiles = new List<SpiritCaptureProfile> { DefaultProfile() } };
+        return new SpiritCaptureRegistryDocument
+        {
+            SchemaVersion = SpiritSystemContract.CaptureRegistrySchemaVersion,
+            Profiles = new List<SpiritCaptureProfile> { DefaultProfile() }
+        };
     }
 
     private static SpiritCaptureProfile DefaultProfile()

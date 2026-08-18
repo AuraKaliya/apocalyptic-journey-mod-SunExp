@@ -52,6 +52,14 @@ public static class SpiritManagementPanel
     private static Transform? detailContent;
     private static Transform? partyContent;
     private static Transform? actionContent;
+    private static SpiritVirtualizedGridView? virtualGrid;
+    private static Text? gridEmptyText;
+    private static Text? filterButtonText;
+    private static Text? sortButtonText;
+    private static HashSet<string> gridCarried = new(StringComparer.Ordinal);
+    private static HashSet<string> gridForbiddenDonors = new(StringComparer.Ordinal);
+    private static string gridActiveUid = "";
+    private static string gridGuiyuanTargetSpeciesId = "";
     private static PanelMode mode;
     private static string selectedUid = "";
     private static int warehouseFilter;
@@ -71,6 +79,8 @@ public static class SpiritManagementPanel
 
     public static void Close()
     {
+        virtualGrid?.Release();
+        virtualGrid = null;
         ClearChildren(gridContent);
         ClearChildren(previewContent);
         ClearChildren(detailContent);
@@ -82,6 +92,13 @@ public static class SpiritManagementPanel
         detailContent = null;
         partyContent = null;
         actionContent = null;
+        gridEmptyText = null;
+        filterButtonText = null;
+        sortButtonText = null;
+        gridCarried.Clear();
+        gridForbiddenDonors.Clear();
+        gridActiveUid = "";
+        gridGuiyuanTargetSpeciesId = "";
         ResetGuiyuanSelection();
     }
 
@@ -167,18 +184,30 @@ public static class SpiritManagementPanel
             CreateFilterBar(left.transform);
             const int gridColumns = 3;
             var gridCellWidth = Mathf.Clamp((rosterWidth - 52f) / gridColumns, 76f, 132f);
-            var grid = TerriasUiComponents.CreateUniformGridScrollArea(
+            var grid = TerriasUiComponents.CreateVirtualizedGridScrollArea(
                 left.transform,
                 "Spirits",
                 260f,
                 1f,
+                28f,
+                new Color(0f, 0f, 0f, 0.12f));
+            gridContent = grid.Content;
+            gridEmptyText = TerriasUiComponents.AddTextFill(
+                grid.Viewport,
+                "暂无精灵",
+                15,
+                TextAnchor.MiddleCenter,
+                Pale);
+            gridEmptyText.raycastTarget = false;
+            virtualGrid = grid.Root.AddComponent<SpiritVirtualizedGridView>();
+            virtualGrid.Configure(
+                grid,
                 gridColumns,
                 new Vector2(gridCellWidth, 166f),
                 new Vector2(8f, 8f),
                 new RectOffset(4, 4, 4, 4),
-                28f,
-                new Color(0f, 0f, 0f, 0.12f));
-            gridContent = grid.Content;
+                CreateSpiritCellView,
+                BindSpiritCell);
         }
 
         var contentColumnWidth = mode == PanelMode.Warehouse
@@ -221,26 +250,31 @@ public static class SpiritManagementPanel
 
     private static void Refresh()
     {
+        if (filterButtonText != null) filterButtonText.text = FilterName();
+        if (sortButtonText != null) sortButtonText.text = SortName();
         RefreshGrid();
         RefreshPreviewAndDetail();
         RefreshParty();
         RefreshActions();
     }
 
-    private static void RefreshGrid()
+    private static void RefreshGrid(bool resetScroll = false)
     {
-        if (gridContent == null) return;
-        ClearChildren(gridContent);
+        if (virtualGrid == null) return;
         var collection = SpiritCollectionApi.Collection();
         var party = Party();
-        var carried = new HashSet<string>(party.PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid)), StringComparer.Ordinal);
-        var forbiddenDonors = guiyuanSelectingDonors ? GuiyuanForbiddenUids() : new HashSet<string>(StringComparer.Ordinal);
+        gridCarried = new HashSet<string>(party.PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid)), StringComparer.Ordinal);
+        gridForbiddenDonors = guiyuanSelectingDonors ? GuiyuanForbiddenUids() : new HashSet<string>(StringComparer.Ordinal);
+        gridActiveUid = party.ActiveSpiritUid ?? "";
+        gridGuiyuanTargetSpeciesId = guiyuanSelectingDonors
+            ? collection.Instances.FirstOrDefault(item => Same(item.SpiritUid, guiyuanTargetUid))?.SpeciesId ?? ""
+            : "";
         IEnumerable<SpiritInstance> items = collection.Instances;
         if (!guiyuanSelectingDonors)
         {
-            if (mode == PanelMode.Adventure) items = items.Where(item => carried.Contains(item.SpiritUid));
-            else if (warehouseFilter == 1) items = items.Where(item => carried.Contains(item.SpiritUid));
-            else if (warehouseFilter == 2) items = items.Where(item => !carried.Contains(item.SpiritUid));
+            if (mode == PanelMode.Adventure) items = items.Where(item => gridCarried.Contains(item.SpiritUid));
+            else if (warehouseFilter == 1) items = items.Where(item => gridCarried.Contains(item.SpiritUid));
+            else if (warehouseFilter == 2) items = items.Where(item => !gridCarried.Contains(item.SpiritUid));
         }
         IOrderedEnumerable<SpiritInstance> ordered = warehouseSort switch
         {
@@ -249,79 +283,102 @@ public static class SpiritManagementPanel
             3 => items.OrderByDescending(item => item.CapturedAt, StringComparer.Ordinal),
             _ => items.OrderByDescending(item => item.Level).ThenByDescending(item => item.Aptitude)
         };
-        foreach (var item in ordered.ThenBy(item => SpiritPresentationResolver.Name(item), StringComparer.Ordinal))
-        {
-            CreateSpiritCell(gridContent, item, carried.Contains(item.SpiritUid), Same(item.SpiritUid, party.ActiveSpiritUid), forbiddenDonors);
-        }
-        if (gridContent.childCount == 0)
-        {
-            TerriasUiComponents.AddTextBlock(gridContent, "暂无精灵", 15, TextAnchor.MiddleCenter, Pale, 90f);
-        }
+        var result = ordered.ThenBy(item => SpiritPresentationResolver.Name(item), StringComparer.Ordinal).ToArray();
+        if (gridEmptyText != null) gridEmptyText.gameObject.SetActive(result.Length == 0);
+        virtualGrid.SetItems(result, resetScroll);
     }
 
-    private static void CreateSpiritCell(
-        Transform parent,
-        SpiritInstance item,
-        bool carried,
-        bool active,
-        IReadOnlyCollection<string> forbiddenDonors)
+    private static SpiritManagementCellView CreateSpiritCellView(Transform parent, string name)
     {
-        var target = guiyuanSelectingDonors && Same(item.SpiritUid, guiyuanTargetUid);
-        var sameSpecies = !guiyuanSelectingDonors || SameSpeciesAsGuiyuanTarget(item);
-        var donorEligible = guiyuanSelectingDonors
-                            && !target
-                            && sameSpecies
-                            && !item.Locked
-                            && !forbiddenDonors.Contains(item.SpiritUid);
-        var donorSelected = donorEligible && GuiyuanDonorUids.Contains(item.SpiritUid);
-        var disabledForGuiyuan = guiyuanSelectingDonors && !donorEligible && !target;
-        var cell = LayoutObject("Spirit-" + item.SpiritUid, parent, 166f);
-        ApplyPanel(cell, disabledForGuiyuan ? DisabledCardTint : QualityTint(item.Aptitude), true);
+        var cell = TerriasUiComponents.CreateRect(
+            name,
+            parent,
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(100f, 166f));
+        ApplyPanel(cell, ItemTint, true);
         TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(6, 6, 6, 6), 2f, alignment: TextAnchor.MiddleCenter);
-        if (donorSelected || target) AddTargetOutline(cell);
-        else if (Same(item.SpiritUid, selectedUid)) AddSelectionOutline(cell);
-        CreateCenteredPortrait(
+        var outline = cell.AddComponent<Outline>();
+        outline.effectDistance = new Vector2(2f, -2f);
+        outline.useGraphicAlpha = false;
+        outline.enabled = false;
+        var portrait = CreateCenteredPortrait(
             cell.transform,
             "Portrait",
             72f,
             68f,
-            Portrait(item.Snapshot),
+            null,
             new Color(0.18f, 0.20f, 0.24f, 1f));
-        var markers = target ? L("ui.spirit.guiyuan.target")
+        var nameText = TerriasUiComponents.AddTextBlock(cell.transform, "", 13,
+            TextAnchor.MiddleCenter, Pale, 20f, 1f);
+        var stars = TerriasUiComponents.AddTextBlock(cell.transform, "", 12,
+            TextAnchor.MiddleCenter, StarGold, 18f, 1f);
+        var meta = LayoutObject("Meta", cell.transform, 18f);
+        TerriasUiComponents.ConfigureHorizontalLayout(meta, new RectOffset(2, 2, 0, 0), 4f);
+        var levelText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
+        var aptitudeText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
+        var markerText = TerriasUiComponents.AddTextBlock(cell.transform, "", 11, TextAnchor.MiddleCenter, Muted, 16f, 1f);
+        var activeStamp = AddActiveStamp(cell.transform);
+        activeStamp.SetActive(false);
+        var button = cell.AddComponent<Button>();
+        AuraUiButtonFeedback.Apply(button, cell.GetComponent<Image>(), Gold);
+        var view = cell.AddComponent<SpiritManagementCellView>();
+        view.Initialize(cell.GetComponent<Image>(), portrait, nameText, stars, levelText, aptitudeText,
+            markerText, outline, activeStamp, button, OnSpiritCellClicked);
+        return view;
+    }
+
+    private static void BindSpiritCell(SpiritManagementCellView view, SpiritInstance item)
+    {
+        var carried = gridCarried.Contains(item.SpiritUid);
+        var active = Same(item.SpiritUid, gridActiveUid);
+        var target = guiyuanSelectingDonors && Same(item.SpiritUid, guiyuanTargetUid);
+        var sameSpecies = !guiyuanSelectingDonors || Same(item.SpeciesId, gridGuiyuanTargetSpeciesId);
+        var donorEligible = guiyuanSelectingDonors && !target && sameSpecies && !item.Locked
+                            && !gridForbiddenDonors.Contains(item.SpiritUid);
+        var donorSelected = donorEligible && GuiyuanDonorUids.Contains(item.SpiritUid);
+        var disabled = guiyuanSelectingDonors && !donorEligible && !target;
+        var marker = target ? L("ui.spirit.guiyuan.target")
             : donorSelected ? L("ui.spirit.guiyuan.selected", "value", SpiritAscensionService.ContributionOf(item).ToString())
             : guiyuanSelectingDonors && !sameSpecies ? L("ui.spirit.guiyuan.different_species")
             : guiyuanSelectingDonors && item.Locked ? L("ui.spirit.locked")
-            : guiyuanSelectingDonors && forbiddenDonors.Contains(item.SpiritUid) ? L("ui.spirit.in_party")
+            : guiyuanSelectingDonors && gridForbiddenDonors.Contains(item.SpiritUid) ? L("ui.spirit.in_party")
             : guiyuanSelectingDonors ? L("ui.spirit.guiyuan.available", "value", SpiritAscensionService.ContributionOf(item).ToString())
             : active ? L("ui.spirit.active") : carried ? L("ui.spirit.carried") : L("ui.spirit.warehouse");
-        TerriasUiComponents.AddTextBlock(cell.transform, SpiritPresentationResolver.Name(item), 13,
-            TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 20f, 1f);
-        TerriasUiComponents.AddTextBlock(cell.transform, StarText(item), 12,
-            TextAnchor.MiddleCenter, disabledForGuiyuan ? Muted : StarGold, 18f, 1f);
-        var meta = LayoutObject("Meta", cell.transform, 18f);
-        TerriasUiComponents.ConfigureHorizontalLayout(meta, new RectOffset(2, 2, 0, 0), 4f);
-        AddFixedTextBlock(meta.transform, "Lv." + item.Level, 11, TextAnchor.MiddleCenter,
-            disabledForGuiyuan ? Muted : Pale, 18f, 1f);
-        AddFixedTextBlock(meta.transform, L("ui.spirit.aptitude_value", "value", item.Aptitude.ToString()), 11, TextAnchor.MiddleCenter,
-            disabledForGuiyuan ? Muted : QualityAccent(item.Aptitude), 18f, 1f);
-        TerriasUiComponents.AddTextBlock(cell.transform, markers,
-            11, TextAnchor.MiddleCenter, donorSelected || target ? Gold : active ? Green : Muted, 16f, 1f);
-        if (active) AddActiveStamp(cell.transform);
-        var button = cell.AddComponent<Button>();
-        AuraUiButtonFeedback.Apply(button, cell.GetComponent<Image>(), Gold);
-        button.interactable = !guiyuanSelectingDonors || donorEligible;
-        button.onClick.AddListener(() =>
+        var outlined = donorSelected || target || Same(item.SpiritUid, selectedUid);
+        var outlineColor = donorSelected || target ? TargetStroke : SelectionStroke;
+        view.Bind(
+            item,
+            Portrait(item.Snapshot),
+            SpiritPresentationResolver.Name(item),
+            StarText(item),
+            L("ui.spirit.aptitude_value", "value", item.Aptitude.ToString()),
+            marker,
+            disabled ? DisabledCardTint : QualityTint(item.Aptitude),
+            disabled ? Muted : QualityAccent(item.Aptitude),
+            disabled ? Muted : StarGold,
+            disabled ? Muted : Pale,
+            donorSelected || target ? Gold : active ? Green : Muted,
+            outlineColor,
+            outlined,
+            active,
+            !guiyuanSelectingDonors || donorEligible);
+    }
+
+    private static void OnSpiritCellClicked(string uid)
+    {
+        if (guiyuanSelectingDonors)
         {
-            if (guiyuanSelectingDonors)
-            {
-                ToggleGuiyuanDonor(item.SpiritUid);
-            }
-            else
-            {
-                SelectSpirit(item.SpiritUid);
-            }
-            Refresh();
-        });
+            ToggleGuiyuanDonor(uid);
+            virtualGrid?.RefreshVisible(force: true);
+            RefreshActions();
+            return;
+        }
+        SelectSpirit(uid);
+        virtualGrid?.RefreshVisible(force: true);
+        RefreshPreviewAndDetail();
+        RefreshActions();
     }
 
     private static void CreatePreviewShell(Transform parent)
@@ -464,16 +521,20 @@ public static class SpiritManagementPanel
     {
         var bar = LayoutObject("Filters", parent, 34f);
         TerriasUiComponents.ConfigureHorizontalLayout(bar, new RectOffset(0, 0, 0, 0), 6f);
-        TerriasUiComponents.CreateTextButton(bar.transform, FilterName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
+        var filterButton = TerriasUiComponents.CreateTextButton(bar.transform, FilterName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
         {
             warehouseFilter = (warehouseFilter + 1) % 3;
-            Rebuild();
+            if (filterButtonText != null) filterButtonText.text = FilterName();
+            RefreshGrid(resetScroll: true);
         });
-        TerriasUiComponents.CreateTextButton(bar.transform, SortName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
+        filterButtonText = filterButton.GetComponentInChildren<Text>();
+        var sortButton = TerriasUiComponents.CreateTextButton(bar.transform, SortName(), new Vector2(98f, 32f), TerriasUiSprites.Button("[SpiritManagement]"), BandTint, Pale, 12, () =>
         {
             warehouseSort = (warehouseSort + 1) % 4;
-            Rebuild();
+            if (sortButtonText != null) sortButtonText.text = SortName();
+            RefreshGrid(resetScroll: true);
         });
+        sortButtonText = sortButton.GetComponentInChildren<Text>();
     }
 
     private static void OnPartySlot(string currentUid)
@@ -526,30 +587,6 @@ public static class SpiritManagementPanel
         Refresh();
     }
 
-    private static void Rebuild()
-    {
-        var rememberedMode = mode;
-        var rememberedSelection = selectedUid;
-        var rememberedFilter = warehouseFilter;
-        var rememberedSort = warehouseSort;
-        var rememberedTab = detailTab;
-        var rememberedGuiyuanSelecting = guiyuanSelectingDonors;
-        var rememberedGuiyuanTarget = guiyuanTargetUid;
-        var rememberedGuiyuanDonors = GuiyuanDonorUids.ToArray();
-        var rememberedGuiyuanConfirm = guiyuanConfirmArmed;
-        Close();
-        mode = rememberedMode;
-        selectedUid = rememberedSelection;
-        warehouseFilter = rememberedFilter;
-        warehouseSort = rememberedSort;
-        detailTab = rememberedTab;
-        guiyuanSelectingDonors = rememberedGuiyuanSelecting;
-        guiyuanTargetUid = rememberedGuiyuanTarget;
-        foreach (var uid in rememberedGuiyuanDonors) GuiyuanDonorUids.Add(uid);
-        guiyuanConfirmArmed = rememberedGuiyuanConfirm;
-        Build();
-    }
-
     private static SpiritAdventureParty Party()
     {
         return mode == PanelMode.Adventure ? SpiritCollectionApi.CurrentParty() : SpiritCollectionApi.DefaultParty();
@@ -588,9 +625,15 @@ public static class SpiritManagementPanel
             14,
             () =>
             {
+                var resetSelection = index != 2 && guiyuanSelectingDonors;
                 if (index != 2) ResetGuiyuanSelection();
                 detailTab = index;
-                Refresh();
+                RefreshPreviewAndDetail();
+                if (resetSelection)
+                {
+                    RefreshGrid();
+                    RefreshActions();
+                }
             });
         if (!selected) return;
         var underline = TerriasUiComponents.CreateRect(
@@ -887,12 +930,6 @@ public static class SpiritManagementPanel
         return result;
     }
 
-    private static bool SameSpeciesAsGuiyuanTarget(SpiritInstance item)
-    {
-        var target = SpiritCollectionApi.Find(guiyuanTargetUid);
-        return target != null && Same(target.SpeciesId, item.SpeciesId);
-    }
-
     private static void ResetGuiyuanSelection()
     {
         guiyuanSelectingDonors = false;
@@ -1144,6 +1181,7 @@ public static class SpiritManagementPanel
             "Common.Advanced" => L("ui.spirit.ability.type.common_advanced"),
             "Common.Basic" => L("ui.spirit.ability.type.common_basic"),
             "Common.Tactical" => L("ui.spirit.ability.type.common_tactical"),
+            "Compatibility" => L("ui.spirit.ability.type.compatibility"),
             _ => normalized.Length == 0 ? L("ui.spirit.ability.type.default") : normalized
         };
     }
@@ -1231,7 +1269,7 @@ public static class SpiritManagementPanel
         return go;
     }
 
-    private static void CreateCenteredPortrait(
+    private static Image CreateCenteredPortrait(
         Transform parent,
         string name,
         float slotHeight,
@@ -1252,6 +1290,7 @@ public static class SpiritManagementPanel
         image.color = sprite == null ? fallback : Color.white;
         image.preserveAspect = true;
         image.raycastTarget = false;
+        return image;
     }
 
     private static void ApplyPanel(GameObject go, Color color, bool raycast = false)
@@ -1275,7 +1314,7 @@ public static class SpiritManagementPanel
         outline.useGraphicAlpha = false;
     }
 
-    private static void AddActiveStamp(Transform parent)
+    private static GameObject AddActiveStamp(Transform parent)
     {
         var stamp = TerriasUiComponents.CreateRect(
             "ActiveStamp",
@@ -1298,6 +1337,7 @@ public static class SpiritManagementPanel
         text.fontSize = 13;
         text.fontStyle = FontStyle.Bold;
         text.raycastTarget = false;
+        return stamp;
     }
 
     private static Color QualityTint(int aptitude)

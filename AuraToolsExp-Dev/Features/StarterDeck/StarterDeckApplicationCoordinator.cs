@@ -1,51 +1,42 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using AuraMode.Shared;
-using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
-using AuraUi.Shared;
 using Data.Save;
 using StarterDeckArbiter.Shared;
 using UnityEngine;
-using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
-using Witch.UI.Window;
-using Settings = AuraToolsExp.Dll.Features.Settings;
 
 namespace AuraToolsExp.Dll.Features.StarterDeck;
 
 internal static class StarterDeckApplicationCoordinator
 {
-    private const string AppliedKey = "AuraTools.StarterDeckApplied";
-    private const string AppliedRoleKey = AppliedKey + ".Role";
-    private const string AppliedProfileKey = AppliedKey + ".Profile";
-    private const string AppliedRoleSourceKey = AppliedKey + ".RoleSource";
-    private const string AppliedRoleTableRoleKey = AppliedKey + ".RoleTableRole";
-    private const string AppliedSelectedRoleKey = AppliedKey + ".SelectedRole";
+    private const string CardsAppliedKey = "AuraTools.StarterDeckApplied";
+    private const string CardsAppliedRoleKey = CardsAppliedKey + ".Role";
+    private const string RelicsAppliedKey = "AuraTools.CustomStart.RelicsApplied";
+    private const string RelicsAppliedRoleKey = RelicsAppliedKey + ".Role";
+    private const string RelicsAppliedIdsKey = RelicsAppliedKey + ".Ids";
     private const string Owner = "AuraTools.StarterDeck";
     private const string Scope = "AuraTools.WorldSimulation";
     private const string Mode = "AuraTools.WorldSimulation";
     private const string LegacyMode = "aura-world-simulation";
     private static int lastForeignRoleTableSkipLogFrame = -100000;
 
-    internal static void Apply(
-        RoleTable? roleTable,
-        ModHookContext context,
-        string source)
+    internal static void Apply(RoleTable? roleTable, ModHookContext context, string source)
     {
-        if (!AuraToolsConfigService.MatchExperience.StarterDeck.Enabled
-            || roleTable == null)
+        if (!AuraToolsConfigService.MatchExperience.StarterDeck.Enabled || roleTable == null)
         {
             return;
         }
 
         if (!IsWorldSimulationRun())
         {
-            AuraToolsLog.Info("[StarterDeck] skipped: not a confirmed world-simulation run. source=" + source + ".");
+            AuraToolsLog.Info("[CustomStart] skipped: not a confirmed world-simulation run. source=" + source + ".");
             return;
         }
 
@@ -54,63 +45,187 @@ internal static class StarterDeckApplicationCoordinator
             return;
         }
 
-        if (ShouldSkipForExternalOwner(roleTable))
+        var roleId = RoleCatalog.NormalizeRoleId(ReadDataId(roleTable.Career));
+        if (string.IsNullOrWhiteSpace(roleId))
+        {
+            AuraToolsLog.Warn("[CustomStart] skipped: local role table has no career. source=" + source + ".");
+            return;
+        }
+
+        var loadout = StarterDeckProfileResolver.ResolveEffectiveLoadout(roleId);
+        try
+        {
+            ApplyCards(roleTable, roleId, loadout.CardIds, source);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Error("[CustomStart] card replacement failed", ex);
+        }
+
+        try
+        {
+            ApplyRelics(roleTable, roleId, loadout.RelicIds, source);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Error("[CustomStart] relic replacement failed", ex);
+        }
+    }
+
+    private static void ApplyCards(RoleTable roleTable, string roleId, IReadOnlyCollection<string> configured, string source)
+    {
+        if (IsAppliedForRole(roleTable, CardsAppliedKey, CardsAppliedRoleKey, roleId))
         {
             return;
         }
 
-        var role = ResolveRuntimeRole(roleTable);
-        if (string.IsNullOrWhiteSpace(role.RoleId))
-        {
-            AuraToolsLog.Warn("[StarterDeck] skipped: local role table has no career. source="
-                              + source
-                              + ", roleTable="
-                              + ReadRoleTableId(roleTable)
-                              + ".");
-            return;
-        }
-
-        if (IsApplied(roleTable, role))
+        if (ShouldSkipCardsForExternalOwner(roleTable))
         {
             return;
         }
 
-        var selection = StarterDeckProfileResolver.ResolveEffectiveProfile(role.RoleId);
-        if (selection == null)
+        if (configured == null || configured.Count == 0)
         {
-            AuraToolsLog.Warn("[StarterDeck] skipped: no complete profile for role=" + role.RoleId + ".");
+            AuraToolsLog.Info("[CustomStart] cards use the game default; role=" + roleId + ", source=" + source + ".");
             return;
         }
 
-        var deck = StarterDeckProfileResolver.BuildDeckFromProfile(selection.Profile);
-        if (deck.Count != selection.Profile.DeckSize)
+        var deck = StarterDeckDeckBuilder.Build(
+            configured,
+            StarterDeckSettings.MaximumCardCount,
+            StarterDeckCardCatalog.IsValidCard,
+            StarterDeckCardCatalog.IsStarterDeckExcludedCard,
+            Array.Empty<string>(),
+            cardId => StarterDeckCardCatalog.ResolveCardId(cardId));
+        if (deck.Count == 0)
         {
-            AuraToolsLog.Warn("[StarterDeck] skipped: profile is incomplete. profile="
-                              + selection.Profile.QualifiedProfileId
-                              + ", role=" + role.RoleId
-                              + ", deck=" + deck.Count + "/" + selection.Profile.DeckSize);
+            AuraToolsLog.Warn("[CustomStart] no configured cards are currently registered; keeping the game default. role=" + roleId + ".");
             return;
         }
 
         var originalDeckCount = roleTable.cardList.Count;
-        if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, CreateClaim(selection.Profile), sync: false))
+        var claim = new StarterDeckClaim
+        {
+            Owner = Owner,
+            Scope = Scope,
+            ModeId = Mode,
+            Source = "local:custom-start",
+            State = StarterDeckArbiterRuntime.StateApplied,
+            AppliedKey = CardsAppliedKey,
+            AppliedModeKey = CardsAppliedKey + ".Mode",
+            AppliedMode = LegacyMode,
+            LegacyMode = LegacyMode,
+            DeckSize = deck.Count,
+            SourceName = "AuraTools.WorldSimulation.CustomStart.Cards"
+        };
+        if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, claim, sync: false))
         {
             return;
         }
 
-        WriteAppliedRoleMetadata(roleTable, role, selection.Profile);
+        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
+        roleTable.SpecialVarMap[CardsAppliedRoleKey] = roleId;
+        AuraToolsLog.Info("[CustomStart] applied cards; role=" + roleId
+                          + ", original=" + originalDeckCount
+                          + ", applied=" + deck.Count
+                          + ", cards=" + string.Join("|", deck) + ".");
+    }
 
-        AuraToolsLog.Info("[StarterDeck] applied local role-table profile; role="
-                          + role.RoleId
-                          + ", roleSource=" + role.Source
-                          + ", roleTableRole=" + role.RoleTableRoleId
-                          + ", selectedRole=" + role.SelectedRoleId
-                          + ", profile=" + selection.Profile.QualifiedProfileId
-                          + ", reason=" + selection.Reason
-                          + ", originalDeck="
-                          + originalDeckCount
-                          + ", deck=" + roleTable.cardList.Count
-                          + ", cards=" + string.Join("|", deck));
+    private static void ApplyRelics(RoleTable roleTable, string roleId, IReadOnlyCollection<string> configured, string source)
+    {
+        if (IsAppliedForRole(roleTable, RelicsAppliedKey, RelicsAppliedRoleKey, roleId))
+        {
+            return;
+        }
+
+        var resolvedIds = new List<string>();
+        var instances = new List<DataConfig>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var declared in configured ?? Array.Empty<string>())
+        {
+            if (resolvedIds.Count >= StarterDeckSettings.MaximumRelicCount)
+            {
+                break;
+            }
+
+            var relicId = StarterRelicCatalog.ResolveRelicId(declared);
+            if (string.IsNullOrWhiteSpace(relicId) || !seen.Add(relicId))
+            {
+                continue;
+            }
+
+            var materialized = AuraGameDataHostApi.Materialize(DataType.Relic, relicId);
+            if (!materialized.Success || materialized.Instance is not DataConfig relic)
+            {
+                AuraToolsLog.Warn("[CustomStart] ignored unavailable relic: " + declared + ".");
+                continue;
+            }
+
+            resolvedIds.Add(relicId);
+            instances.Add(relic);
+        }
+
+        var original = roleTable.relicList.ToList();
+        try
+        {
+            roleTable.relicList.Clear();
+            foreach (var relic in instances)
+            {
+                roleTable.relicList.Add(relic);
+            }
+        }
+        catch
+        {
+            roleTable.relicList.Clear();
+            foreach (var relic in original)
+            {
+                roleTable.relicList.Add(relic);
+            }
+
+            throw;
+        }
+
+        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
+        roleTable.SpecialVarMap[RelicsAppliedKey] = "1";
+        roleTable.SpecialVarMap[RelicsAppliedRoleKey] = roleId;
+        roleTable.SpecialVarMap[RelicsAppliedIdsKey] = string.Join("|", resolvedIds);
+        AuraToolsLog.Info("[CustomStart] replaced equipped starter relics; role=" + roleId
+                          + ", original=" + original.Count
+                          + ", applied=" + resolvedIds.Count
+                          + ", source=" + source
+                          + ", relics=" + string.Join("|", resolvedIds) + ".");
+    }
+
+    private static bool IsAppliedForRole(RoleTable roleTable, string appliedKey, string roleKey, string roleId)
+    {
+        if (roleTable.SpecialVarMap == null
+            || !roleTable.SpecialVarMap.TryGetValue(appliedKey, out var applied)
+            || applied != "1")
+        {
+            return false;
+        }
+
+        return !roleTable.SpecialVarMap.TryGetValue(roleKey, out var appliedRole)
+               || string.Equals(RoleCatalog.NormalizeRoleId(appliedRole), roleId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSkipCardsForExternalOwner(RoleTable roleTable)
+    {
+        var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId);
+        var decision = AuraModeRuntime.EvaluateStarterDeckMutation(activeMode, AuraToolsIds.ModId);
+        if (!decision.Allowed)
+        {
+            AuraToolsLog.Info("[CustomStart] card replacement skipped by mode policy; mode=" + activeMode?.ModeId + ".");
+            return true;
+        }
+
+        if (StarterDeckArbiterRuntime.IsOwnedByOther(roleTable, Owner, out var owner))
+        {
+            AuraToolsLog.Info("[CustomStart] card replacement skipped: starter deck owner=" + owner + ".");
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsWorldSimulationRun()
@@ -123,246 +238,66 @@ internal static class StarterDeckApplicationCoordinator
 
         try
         {
-            if (IsNormalMapManager(MapManager.Instance?.ModeMapManager))
-            {
-                return true;
-            }
+            return string.Equals(MapManager.Instance?.ModeMapManager?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
+            return false;
         }
-
-        return false;
     }
 
     private static bool IsLocalPlayerRoleTable(RoleTable roleTable, string source)
     {
         try
         {
-            var playerManager = PlayerManager.Instance;
-            if (playerManager == null)
+            var localPlayerId = (PlayerManager.Instance?.PlayerId ?? "").Trim();
+            var roleTableId = (ReflectionUtil.ReadString(roleTable, "Id", "id") ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(localPlayerId)
+                || string.IsNullOrWhiteSpace(roleTableId)
+                || string.Equals(localPlayerId, roleTableId, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
 
-            var localPlayerId = (playerManager.PlayerId ?? "").Trim();
-            var roleTableId = ReadRoleTableId(roleTable);
-            if (string.IsNullOrWhiteSpace(localPlayerId) || string.IsNullOrWhiteSpace(roleTableId))
+            var frame = SafeFrameCount();
+            if (frame - lastForeignRoleTableSkipLogFrame >= 300)
             {
-                return true;
+                lastForeignRoleTableSkipLogFrame = frame;
+                AuraToolsLog.Info("[CustomStart] skipped foreign role table; local=" + localPlayerId
+                                  + ", roleTable=" + roleTableId + ", source=" + source + ".");
             }
 
-            if (string.Equals(localPlayerId, roleTableId, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            LogForeignRoleTableSkipped(source, localPlayerId, roleTableId);
             return false;
         }
         catch
         {
             return true;
         }
-    }
-
-    private static void LogForeignRoleTableSkipped(string source, string localPlayerId, string roleTableId)
-    {
-        var frame = SafeFrameCount();
-        if (frame - lastForeignRoleTableSkipLogFrame < 300)
-        {
-            return;
-        }
-
-        lastForeignRoleTableSkipLogFrame = frame;
-        AuraToolsLog.Info("[StarterDeck] skipped: role table belongs to another player; local="
-                          + localPlayerId
-                          + ", roleTable="
-                          + roleTableId
-                          + ", source="
-                          + source + ".");
     }
 
     private static int SafeFrameCount()
     {
-        try
-        {
-            return Time.frameCount;
-        }
-        catch
-        {
-            return int.MaxValue;
-        }
-    }
-
-    private static bool IsNormalMapManager(object? value)
-    {
-        return string.Equals(value?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string ReadRoleTableId(RoleTable roleTable)
-    {
-        return (ReflectionUtil.ReadString(roleTable, "Id", "id") ?? "").Trim();
-    }
-
-    private static bool ShouldSkipForExternalOwner(RoleTable roleTable)
-    {
-        var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId);
-        var policyDecision = AuraModeRuntime.EvaluateStarterDeckMutation(activeMode, AuraToolsIds.ModId);
-        if (!policyDecision.Allowed)
-        {
-            AuraToolsLog.Info("[StarterDeck] skipped: active mode policy owns starter-deck mutation; mode="
-                              + activeMode?.ModeId
-                              + ", provider="
-                              + policyDecision.AuthorityProviderId
-                              + ", policy="
-                              + policyDecision.PolicyId
-                              + ".");
-            return true;
-        }
-
-        if (roleTable.SpecialVarMap == null)
-        {
-            return false;
-        }
-
-        if (StarterDeckArbiterRuntime.IsOwnedByOther(roleTable, Owner, out var owner))
-        {
-            if (IsAuraToolsApplied(roleTable))
-            {
-                return false;
-            }
-
-            AuraToolsLog.Info("[StarterDeck] skipped: starter deck owner=" + owner + ".");
-            return true;
-        }
-
-        return false;
-    }
-
-    private static StarterDeckRuntimeRole ResolveRuntimeRole(RoleTable roleTable)
-    {
-        var roleTableRole = RoleCatalog.NormalizeRoleId(ReadDataId(roleTable.Career));
-        return new StarterDeckRuntimeRole(
-            roleTableRole,
-            roleTableRole,
-            "",
-            string.IsNullOrWhiteSpace(roleTableRole) ? "missing-role-table-career" : "RoleTable.Career");
+        try { return Time.frameCount; }
+        catch { return int.MaxValue; }
     }
 
     private static string ReadLobbyModeType()
     {
-        try
-        {
-            return LobbyManager.Instance?.CurrentLobbyModeType ?? "";
-        }
-        catch
-        {
-            return "";
-        }
+        try { return LobbyManager.Instance?.CurrentLobbyModeType ?? ""; }
+        catch { return ""; }
     }
 
     private static string ReadDataId(IDataConfig? dataConfig)
     {
         try
         {
-            if (dataConfig?.data != null && dataConfig.data.TryGetValue("Id", out var id))
-            {
-                return id ?? "";
-            }
-
-            return dataConfig?.InstanceID ?? "";
+            return dataConfig?.data != null && dataConfig.data.TryGetValue("Id", out var id)
+                ? id ?? ""
+                : dataConfig?.InstanceID ?? "";
         }
         catch
         {
             return "";
         }
     }
-
-    private static bool IsApplied(RoleTable roleTable, StarterDeckRuntimeRole role)
-    {
-        if (!IsAuraToolsApplied(roleTable))
-        {
-            return false;
-        }
-
-        var appliedRole = ReadSpecialVar(roleTable, AppliedRoleKey);
-        if (string.IsNullOrWhiteSpace(appliedRole))
-        {
-            if (role.HasSelectedRoleConflict)
-            {
-                AuraToolsLog.Info("[StarterDeck] correcting legacy starter deck without role marker; roleTableRole="
-                                  + role.RoleTableRoleId
-                                  + ", selectedRole=" + role.SelectedRoleId
-                                  + ".");
-                return false;
-            }
-
-            return true;
-        }
-
-        if (string.Equals(RoleCatalog.NormalizeRoleId(appliedRole), role.RoleId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        AuraToolsLog.Info("[StarterDeck] correcting stale starter deck; appliedRole="
-                          + appliedRole
-                          + ", resolvedRole=" + role.RoleId
-                          + ", roleSource=" + role.Source + ".");
-        return false;
-    }
-
-    private static bool IsAuraToolsApplied(RoleTable roleTable)
-    {
-        if (StarterDeckArbiterRuntime.HasApplied(roleTable, AppliedKey, Owner))
-        {
-            return true;
-        }
-
-        return roleTable.SpecialVarMap != null
-               && roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey, out var oldValue)
-               && oldValue == "1"
-               && roleTable.SpecialVarMap.TryGetValue(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey + ".Mode", out var legacyMode)
-               && legacyMode.StartsWith("aura-", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string ReadSpecialVar(RoleTable roleTable, string key)
-    {
-        return roleTable.SpecialVarMap != null && roleTable.SpecialVarMap.TryGetValue(key, out var value)
-            ? value ?? ""
-            : "";
-    }
-
-    private static void WriteAppliedRoleMetadata(RoleTable roleTable, StarterDeckRuntimeRole role, StarterDeckProfile profile)
-    {
-        roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[AppliedRoleKey] = role.RoleId;
-        roleTable.SpecialVarMap[AppliedProfileKey] = profile.QualifiedProfileId;
-        roleTable.SpecialVarMap[AppliedRoleSourceKey] = role.Source;
-        roleTable.SpecialVarMap[AppliedRoleTableRoleKey] = role.RoleTableRoleId;
-        roleTable.SpecialVarMap[AppliedSelectedRoleKey] = role.SelectedRoleId;
-    }
-
-    private static StarterDeckClaim CreateClaim(StarterDeckProfile profile)
-    {
-        var registered = profile.SourceKind == StarterDeckProfileSourceKind.Registered;
-        return new StarterDeckClaim
-        {
-            // The profile remains owned by its registering content mod.  This
-            // claim records the AuraTools effective overlay that applies it.
-            Owner = Owner,
-            Scope = Scope,
-            ModeId = Mode,
-            Source = (registered ? "registered:" : "local:") + profile.QualifiedProfileId,
-            State = StarterDeckArbiterRuntime.StateApplied,
-            AppliedKey = AppliedKey,
-            AppliedModeKey = AppliedKey + ".Mode",
-            AppliedMode = LegacyMode,
-            LegacyMode = LegacyMode,
-            DeckSize = profile.DeckSize,
-            SourceName = "AuraTools.WorldSimulation.StarterDeck"
-        };
-    }
-
 }

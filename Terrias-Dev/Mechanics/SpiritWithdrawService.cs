@@ -94,6 +94,9 @@ public static class SpiritWithdrawService
             ? new Dictionary<string, int>(StringComparer.Ordinal)
             : battle.PassiveStateSnapshot()
                 .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
+        returnedState.VisibleStatuses = SpiritVisibleStatusService.Capture(spirit)
+            .Select(item => item.Clone())
+            .ToList();
 
         var snapshot = new SpiritCompanionSnapshot
         {

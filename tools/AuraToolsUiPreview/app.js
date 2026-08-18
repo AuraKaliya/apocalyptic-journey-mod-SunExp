@@ -78,9 +78,9 @@
 
     if (state.scenario === "long-text") {
       Object.assign(findModule("gameplay.starter-deck"), {
-        name: "开局卡组与按角色世界推演预设管理",
-        summary: "全局预设 11/11 张 · 已登记 12 个角色专属覆盖 · 当前使用兼容模式",
-        description: "为世界推演配置全局或按角色开局卡组，并在资源发生变化时保留当前可用预设。"
+        name: "自定义开局",
+        summary: "全局 · 卡牌 0/15 · 遗物 0/6",
+        description: "为世界推演配置全局或按角色的开局卡牌与遗物，并支持配置导入导出。"
       });
       Object.assign(findModule("intelligence.auto-battle"), {
         summary: "完整应用 · foundation-package-20260810-155337232-c81434ca",

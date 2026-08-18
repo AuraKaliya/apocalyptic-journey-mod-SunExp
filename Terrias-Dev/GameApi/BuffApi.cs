@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -52,6 +54,33 @@ public static class BuffApi
     public static bool Has(IStatusManager? status, string buffId)
     {
         return status?.GetBuff(buffId) != null;
+    }
+
+    public static IReadOnlyDictionary<string, int> SnapshotLevels(IStatusManager? status)
+    {
+        var result = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (status == null) return result;
+        try
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            var bar = status.GetType().GetField("buffBarUI", flags)?.GetValue(status)
+                      ?? status.GetType().GetProperty("buffBarUI", flags)?.GetValue(status);
+            if (bar == null) return result;
+            var dictionary = bar.GetType().GetField("BuffDic", flags)?.GetValue(bar)
+                             ?? bar.GetType().GetProperty("BuffDic", flags)?.GetValue(bar);
+            if (dictionary is not IDictionary entries) return result;
+            foreach (DictionaryEntry entry in entries)
+            {
+                var id = Convert.ToString(entry.Key)?.Trim() ?? "";
+                var level = (entry.Value as IBuffItem)?.buffConfig?.Level ?? 0;
+                if (id.Length > 0 && level > 0) result[id] = level;
+            }
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Debug("[BuffApi] status snapshot unavailable: " + ex.Message);
+        }
+        return result;
     }
 
     public static bool PrepareRuntimePresentation(

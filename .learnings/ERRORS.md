@@ -6412,6 +6412,31 @@ existing prevention note for future inventory commands.
 **See Also**: ERR-20260818-001, ERR-20260818-007
 
 ---
+# ERR-20260818-019: Managed decompile gate used a stale snapshot layout
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`Test-GameManagedDecompile.ps1` was invoked with
+`开发参考资料/Managed快照/v1.0.24605918`, but this workspace retains only the
+older partial snapshot under `Managed快照`; the current complete snapshot is
+represented by the checked-in `artifacts/game-reference/1.0.24605918`
+manifests and the matching decompile directory.
+
+## Resolution
+
+Do not infer a versioned local Managed snapshot directory from the artifact
+manifest. Check the actual `开发参考资料/Managed快照` layout first, and use the
+current decompile sources plus repository `Managed/` assemblies for targeted
+signature verification when the frozen input snapshot is not present.
+
+---
+
+---
 # ERR-20260818-014: Ripgrep treated a leading double-dash pattern as an option
 
 **Logged**: 2026-08-18
@@ -6530,3 +6555,137 @@ and 100% foreground RGB fidelity. Intermediate files remain under ignored
 `tmp/imagegen/` because cleanup was policy-blocked.
 
 **See Also**: ERR-20260818-001, ERR-20260818-007
+
+---
+# ERR-20260818-020: PowerShell parsed an embedded regex pipe
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+A double-quoted ripgrep pattern embedded in a PowerShell command terminated at
+an escaped quote, so the remaining regex alternation was parsed as a pipeline
+with an empty element.
+
+## Resolution
+
+Store shell-sensitive regular expressions in a single-quoted PowerShell
+variable and pass that variable to `rg --`.
+
+**See Also**: ERR-20260818-015
+
+---
+# ERR-20260818-021: PowerShell statement leaked into JavaScript tool orchestration
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+An `Resolve-Path` PowerShell statement was placed directly in a
+`functions.exec` JavaScript module before the nested `exec_command` calls,
+causing the orchestrator to fail with `SyntaxError: Unexpected string`.
+
+## Resolution
+
+Keep all shell statements inside each `exec_command.cmd` string; the outer
+`functions.exec` source must remain valid JavaScript.
+
+---
+# ERR-20260818-022: apply_patch rejected delete and add for the same file
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+A single patch attempted to delete and add the same absolute path while
+replacing a complete C# configuration file. The patch verifier rejected the
+duplicate target operations.
+
+## Resolution
+
+Split whole-file replacement into one delete patch followed by one add patch.
+
+---
+# ERR-20260818-023: Test local name collided with a later declaration
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+A new `out var migratedRole` assertion used a name already declared later in
+the same C# method, so the test project bound subsequent assertions to the
+wrong type and failed compilation.
+
+## Resolution
+
+Renamed the custom-start assertion variable to `migratedStarterRole`; the
+AuraToolsExp suite then passed all assertions.
+
+---
+# ERR-20260818-024: Skill validator lacked PyYAML and defaulted to GBK
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+`quick_validate.py` first failed because both available Python runtimes lacked
+PyYAML. After installing PyYAML into an ignored temporary target, the validator
+then decoded the UTF-8 skill as GBK and raised `UnicodeDecodeError`.
+
+## Resolution
+
+Loaded PyYAML through a temporary `PYTHONPATH` and set `PYTHONUTF8=1`; the
+shared-runtime skill validation then passed.
+
+---
+# ERR-20260818-025: AuraTools gate retained the previous aggregate schema
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The comprehensive AuraTools gate still required match-experience schema 30
+after custom start advanced the contract to schema 31, so the gate rejected an
+otherwise successful build and behavior suite.
+
+## Resolution
+
+Updated the gate to schema 31 and added assertions for custom-start schema 2,
+empty card/relic defaults, and removal of legacy registered-profile fields.
+
+---
+# ERR-20260818-026: Toolbox icon generator passed untyped polygon arrays
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+The toolbox icon generator supplied PowerShell `Object[]` values to
+`System.Drawing.Graphics.DrawPolygon`, so overload binding tried and failed to
+convert them to `Point[]` before reaching the updated custom-start icon.
+
+## Resolution
+
+Cast every polygon point collection to `System.Drawing.PointF[]`; the generator
+then rebuilt all 30 toolbox icons successfully.

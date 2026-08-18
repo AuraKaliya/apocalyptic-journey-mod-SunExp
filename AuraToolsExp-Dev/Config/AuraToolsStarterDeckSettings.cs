@@ -8,14 +8,33 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class StarterDeckSettings
 {
+    public const int CurrentSchemaVersion = 2;
+    public const int MaximumCardCount = 15;
+    public const int MaximumRelicCount = 6;
+
+    private int legacyDeckSize = 11;
+    private List<string> legacyCardIds = new();
+    private bool hasLegacyCardIds;
+    private int schemaVersion = CurrentSchemaVersion;
+    private bool schemaVersionRead;
+    private bool legacyShapeRead;
+
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion
+    {
+        get => schemaVersion;
+        set
+        {
+            schemaVersion = value;
+            schemaVersionRead = true;
+        }
+    }
+
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
 
     [JsonProperty("mode")]
     public string Mode { get; set; } = StarterDeckModes.Global;
-
-    [JsonProperty("preferRoleModProfile")]
-    public bool PreferRoleModProfile { get; set; } = true;
 
     [JsonProperty("globalProfile")]
     public StarterDeckLocalProfileSettings GlobalProfile { get; set; } = StarterDeckLocalProfileSettings.CreateGlobal();
@@ -23,36 +42,69 @@ public sealed class StarterDeckSettings
     [JsonProperty("roles")]
     public Dictionary<string, StarterDeckLocalProfileSettings> Roles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    [JsonProperty("selectedProfileByRole")]
-    public Dictionary<string, string> SelectedProfileByRole { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
+    // Legacy aggregate fields are read for migration but are no longer written.
     [JsonProperty("deckSize")]
-    public int DeckSize { get; set; } = 11;
+    private int LegacyDeckSize
+    {
+        set
+        {
+            legacyDeckSize = value;
+            legacyShapeRead = true;
+        }
+    }
 
     [JsonProperty("cardIds")]
-    public List<string> CardIds { get; set; } = new();
+    private List<string>? LegacyCardIds
+    {
+        set
+        {
+            legacyCardIds = value ?? new List<string>();
+            hasLegacyCardIds = true;
+            legacyShapeRead = true;
+        }
+    }
+
+    [JsonProperty("preferRoleModProfile")]
+    private bool LegacyPreferRoleModProfile
+    {
+        set => legacyShapeRead = true;
+    }
+
+    [JsonProperty("selectedProfileByRole")]
+    private Dictionary<string, string>? LegacySelectedProfileByRole
+    {
+        set => legacyShapeRead = true;
+    }
 
     public void Normalize()
     {
-        Mode = StarterDeckModes.Normalize(Mode);
-        PreferRoleModProfile = true;
-        DeckSize = Math.Max(1, DeckSize);
-        CardIds ??= new List<string>();
-        CardIds.RemoveAll(string.IsNullOrWhiteSpace);
-
         GlobalProfile ??= StarterDeckLocalProfileSettings.CreateGlobal();
-        if (GlobalProfile.CardIds.Count == 0 && CardIds.Count > 0)
+        Roles ??= new Dictionary<string, StarterDeckLocalProfileSettings>(StringComparer.OrdinalIgnoreCase);
+        var loadedSchemaVersion = schemaVersionRead
+            ? SchemaVersion
+            : legacyShapeRead || GlobalProfile.LegacyShapeRead || Roles.Values.Any(role => role?.LegacyShapeRead == true)
+                ? 1
+                : CurrentSchemaVersion;
+        Mode = StarterDeckModes.Normalize(Mode);
+        if (GlobalProfile.CardIds.Count == 0 && hasLegacyCardIds && legacyCardIds.Count > 0)
         {
-            GlobalProfile.DeckSize = DeckSize;
-            GlobalProfile.CardIds = CardIds.ToList();
+            GlobalProfile.CardIds = legacyCardIds.ToList();
         }
 
-        GlobalProfile.Normalize("", "全局自定义卡组");
-        Roles ??= new Dictionary<string, StarterDeckLocalProfileSettings>(StringComparer.OrdinalIgnoreCase);
+        GlobalProfile.InheritCards = false;
+        GlobalProfile.InheritRelics = false;
+        GlobalProfile.Normalize("", "全局自定义开局");
+
         var normalizedRoles = new Dictionary<string, StarterDeckLocalProfileSettings>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in Roles)
         {
-            var role = pair.Value ?? new StarterDeckLocalProfileSettings();
+            var role = pair.Value ?? StarterDeckLocalProfileSettings.CreateRole(pair.Key, pair.Key);
+            if (loadedSchemaVersion < CurrentSchemaVersion)
+            {
+                role.InheritCards = role.CardIds.Count == 0;
+                role.InheritRelics = true;
+            }
+
             role.Normalize(pair.Key, pair.Key);
             var normalizedKey = RoleCatalog.NormalizeRoleId(role.RoleId);
             if (string.IsNullOrWhiteSpace(normalizedKey))
@@ -70,24 +122,50 @@ public sealed class StarterDeckSettings
         }
 
         Roles = normalizedRoles;
-        var normalizedSelections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in SelectedProfileByRole ?? new Dictionary<string, string>())
-        {
-            var roleId = RoleCatalog.NormalizeRoleId(pair.Key);
-            var profileId = pair.Value?.Trim() ?? "";
-            if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrWhiteSpace(profileId))
-            {
-                continue;
-            }
+        SchemaVersion = CurrentSchemaVersion;
+        _ = legacyDeckSize;
+    }
 
-            normalizedSelections[roleId] = profileId;
+    public CustomStartEffectiveSettings ResolveEffective(string roleId)
+    {
+        Normalize();
+        var result = new CustomStartEffectiveSettings
+        {
+            CardIds = GlobalProfile.CardIds.ToList(),
+            RelicIds = GlobalProfile.RelicIds.ToList()
+        };
+        if (Mode != StarterDeckModes.RoleSpecific
+            || string.IsNullOrWhiteSpace(roleId)
+            || !Roles.TryGetValue(roleId, out var role))
+        {
+            return result;
         }
 
-        SelectedProfileByRole = normalizedSelections;
+        if (!role.InheritCards)
+        {
+            result.CardIds = role.CardIds.ToList();
+            result.CardSource = "role";
+        }
 
-        DeckSize = GlobalProfile.DeckSize;
-        CardIds = GlobalProfile.CardIds.ToList();
+        if (!role.InheritRelics)
+        {
+            result.RelicIds = role.RelicIds.ToList();
+            result.RelicSource = "role";
+        }
+
+        return result;
     }
+}
+
+public sealed class CustomStartEffectiveSettings
+{
+    public List<string> CardIds { get; set; } = new();
+
+    public List<string> RelicIds { get; set; } = new();
+
+    public string CardSource { get; set; } = "global";
+
+    public string RelicSource { get; set; } = "global";
 }
 
 public static class StarterDeckModes
@@ -103,8 +181,8 @@ public static class StarterDeckModes
 
 public sealed class StarterDeckLocalProfileSettings
 {
-    [JsonProperty("enabled")]
-    public bool Enabled { get; set; } = true;
+    [JsonIgnore]
+    internal bool LegacyShapeRead { get; private set; }
 
     [JsonProperty("roleId")]
     public string RoleId { get; set; } = "";
@@ -112,22 +190,68 @@ public sealed class StarterDeckLocalProfileSettings
     [JsonProperty("displayName")]
     public string DisplayName { get; set; } = "";
 
-    [JsonProperty("deckSize")]
-    public int DeckSize { get; set; } = 11;
+    [JsonProperty("inheritCards")]
+    public bool InheritCards { get; set; }
+
+    [JsonProperty("inheritRelics")]
+    public bool InheritRelics { get; set; }
 
     [JsonProperty("cardIds")]
     public List<string> CardIds { get; set; } = new();
 
+    [JsonProperty("relicIds")]
+    public List<string> RelicIds { get; set; } = new();
+
+    [JsonProperty("enabled")]
+    private bool LegacyEnabled
+    {
+        set => LegacyShapeRead = true;
+    }
+
+    [JsonProperty("deckSize")]
+    private int LegacyDeckSize
+    {
+        set => LegacyShapeRead = true;
+    }
+
     [JsonProperty("derivedFromProfileId")]
-    public string DerivedFromProfileId { get; set; } = "";
+    private string? LegacyDerivedFromProfileId
+    {
+        set => LegacyShapeRead = true;
+    }
 
     public static StarterDeckLocalProfileSettings CreateGlobal()
     {
         return new StarterDeckLocalProfileSettings
         {
             RoleId = "",
-            DisplayName = "全局自定义卡组",
-            DeckSize = 11
+            DisplayName = "全局自定义开局",
+            InheritCards = false,
+            InheritRelics = false
+        };
+    }
+
+    public static StarterDeckLocalProfileSettings CreateRole(string roleId, string displayName)
+    {
+        return new StarterDeckLocalProfileSettings
+        {
+            RoleId = RoleCatalog.NormalizeRoleId(roleId),
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? roleId : displayName.Trim(),
+            InheritCards = true,
+            InheritRelics = true
+        };
+    }
+
+    public StarterDeckLocalProfileSettings Clone()
+    {
+        return new StarterDeckLocalProfileSettings
+        {
+            RoleId = RoleId,
+            DisplayName = DisplayName,
+            InheritCards = InheritCards,
+            InheritRelics = InheritRelics,
+            CardIds = CardIds.ToList(),
+            RelicIds = RelicIds.ToList()
         };
     }
 
@@ -135,13 +259,29 @@ public sealed class StarterDeckLocalProfileSettings
     {
         RoleId = RoleCatalog.NormalizeRoleId(string.IsNullOrWhiteSpace(RoleId) ? fallbackRoleId : RoleId);
         DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? fallbackDisplayName : DisplayName.Trim();
-        DerivedFromProfileId = DerivedFromProfileId?.Trim() ?? "";
-        DeckSize = Math.Max(1, DeckSize);
-        CardIds ??= new List<string>();
-        CardIds.RemoveAll(string.IsNullOrWhiteSpace);
-        for (var i = 0; i < CardIds.Count; i++)
+        CardIds = NormalizeIds(CardIds, StarterDeckSettings.MaximumCardCount, preserveDuplicates: true);
+        RelicIds = NormalizeIds(RelicIds, StarterDeckSettings.MaximumRelicCount, preserveDuplicates: false);
+    }
+
+    private static List<string> NormalizeIds(IEnumerable<string>? values, int maximum, bool preserveDuplicates)
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in values ?? Array.Empty<string>())
         {
-            CardIds[i] = CardIds[i].Trim();
+            var value = (raw ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(value) || (!preserveDuplicates && !seen.Add(value)))
+            {
+                continue;
+            }
+
+            result.Add(value);
+            if (result.Count >= maximum)
+            {
+                break;
+            }
         }
+
+        return result;
     }
 }

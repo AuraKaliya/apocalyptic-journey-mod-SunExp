@@ -40,11 +40,23 @@ public sealed class SpiritPassiveDefinition
 
     public string Pool { get; set; } = "Species";
 
-    public string EffectKind { get; set; } = "type-resonance";
+    public string EffectKind { get; set; } = "";
+
+    public string HandlerId { get; set; } = "";
 
     public string IntentType { get; set; } = "Attack";
 
     public int NumericBonusPercent { get; set; }
+
+    public int Threshold { get; set; }
+
+    public int Value { get; set; }
+
+    public int SecondaryValue { get; set; }
+
+    public int MaximumStacks { get; set; }
+
+    public string StateLabel { get; set; } = "";
 }
 
 [Serializable]
@@ -62,7 +74,7 @@ public sealed class SpiritSpeciesTrainingProfile
 [Serializable]
 public sealed class SpiritTrainingRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = SpiritSystemContract.TrainingRegistrySchemaVersion;
 
     public List<CompanionIntentDefinition> CommonIntents { get; set; } = new();
 

@@ -18,19 +18,6 @@ using Settings = AuraToolsExp.Dll.Features.Settings;
 
 namespace AuraToolsExp.Dll.Features.StarterDeck;
 
-internal sealed class StarterDeckResolvedProfile
-{
-    public StarterDeckResolvedProfile(StarterDeckProfile profile, string reason)
-    {
-        Profile = profile;
-        Reason = reason;
-    }
-
-    public StarterDeckProfile Profile { get; }
-
-    public string Reason { get; }
-}
-
 public sealed class StarterDeckCardPackGroup
 {
     public const string OtherGroupId = "__other__";
@@ -144,8 +131,7 @@ internal sealed class StarterDeckCardCatalogEntry
         bool isHidden,
         bool isSkillCard,
         bool isSystemSkillCard,
-        bool isExcludedDerivedCard,
-        bool isLocked)
+        bool isExcludedDerivedCard)
     {
         Id = id ?? "";
         PackId = packId ?? "";
@@ -158,7 +144,6 @@ internal sealed class StarterDeckCardCatalogEntry
         IsSkillCard = isSkillCard;
         IsSystemSkillCard = isSystemSkillCard;
         IsExcludedDerivedCard = isExcludedDerivedCard;
-        IsLocked = isLocked;
     }
 
     public string Id { get; }
@@ -183,33 +168,4 @@ internal sealed class StarterDeckCardCatalogEntry
 
     public bool IsExcludedDerivedCard { get; }
 
-    public bool IsLocked { get; }
-}
-
-internal sealed class StarterDeckRuntimeRole
-{
-    public StarterDeckRuntimeRole(
-        string roleId,
-        string roleTableRoleId,
-        string selectedRoleId,
-        string source)
-    {
-        RoleId = RoleCatalog.NormalizeRoleId(roleId);
-        RoleTableRoleId = RoleCatalog.NormalizeRoleId(roleTableRoleId);
-        SelectedRoleId = RoleCatalog.NormalizeRoleId(selectedRoleId);
-        Source = source;
-    }
-
-    public string RoleId { get; }
-
-    public string RoleTableRoleId { get; }
-
-    public string SelectedRoleId { get; }
-
-    public string Source { get; }
-
-    public bool HasSelectedRoleConflict =>
-        !string.IsNullOrWhiteSpace(SelectedRoleId)
-        && !string.IsNullOrWhiteSpace(RoleTableRoleId)
-        && !string.Equals(SelectedRoleId, RoleTableRoleId, StringComparison.OrdinalIgnoreCase);
 }

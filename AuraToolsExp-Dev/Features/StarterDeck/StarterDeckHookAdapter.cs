@@ -30,7 +30,7 @@ internal static class StarterDeckHookAdapter
         }
         catch (Exception ex)
         {
-            Infrastructure.AuraToolsLog.Error("[StarterDeck] failed to reconcile preset before start", ex);
+            Infrastructure.AuraToolsLog.Error("[CustomStart] failed to reconcile loadout before start", ex);
         }
     }
 
@@ -43,7 +43,7 @@ internal static class StarterDeckHookAdapter
         }
         catch (Exception ex)
         {
-            Infrastructure.AuraToolsLog.Error("[StarterDeck] failed to reconcile preset before local role submission", ex);
+            Infrastructure.AuraToolsLog.Error("[CustomStart] failed to reconcile loadout before local role submission", ex);
         }
     }
 

@@ -15,6 +15,16 @@ function Target([string]$scope, [string]$mode, [string]$policy) {
     return [ordered]@{ scope = $scope; mode = $mode; policy = $policy }
 }
 
+function Write-Utf8Lf([string]$Path, [string]$Content) {
+    if ($null -eq $Content) { $Content = "" }
+    $normalized = $Content.Replace("`r`n", "`n").TrimEnd([char[]]"`r`n") + "`n"
+    [IO.File]::WriteAllText($Path, $normalized, [Text.UTF8Encoding]::new($false))
+}
+
+function Export-CsvUtf8Lf([object[]]$Rows, [string]$Path) {
+    Write-Utf8Lf $Path (($Rows | ConvertTo-Csv -NoTypeInformation) -join "`n")
+}
+
 function Effect(
     [string]$handler,
     [hashtable]$target,
@@ -210,8 +220,125 @@ $passives = @(
     [ordered]@{ id="spirit.passive.common.advanced.mana-tide"; displayName="盈缺律"; description="魔能为0时行动前恢复1；魔能全满时本回合直接数值提高20%。"; pool="Common.Advanced"; effectKind="mana-tide"; intentType="Support"; numericBonusPercent=20 },
     [ordered]@{ id="spirit.passive.common.advanced.desperate-echo"; displayName="绝境回响"; description="生命不高于30%时，直接数值提高30%。"; pool="Common.Advanced"; effectKind="desperate-echo"; intentType=""; numericBonusPercent=30 },
     [ordered]@{ id="spirit.passive.common.advanced.swift-calculation"; displayName="迅捷演算"; description="速度倍率贡献提高50%，但不改变速度与行动顺序。"; pool="Common.Advanced"; effectKind="swift-calculation"; intentType="Attack"; numericBonusPercent=0 },
-    [ordered]@{ id="spirit.passive.common.advanced.combo-resonance"; displayName="连携余韵"; description="使用辅助或恢复意图后，下一次攻击或防御直接数值提高30%。"; pool="Common.Advanced"; effectKind="combo-resonance"; intentType=""; numericBonusPercent=30 }
+    [ordered]@{ id="spirit.passive.common.advanced.combo-resonance"; displayName="连携余韵"; description="使用辅助或恢复意图后，下一次攻击或防御直接数值提高30%。"; pool="Common.Advanced"; effectKind="combo-resonance"; intentType=""; numericBonusPercent=30 },
+    [ordered]@{ id="spirit.passive.compatibility.adaptive-core"; displayName="兼容核心"; description="每场战斗第一次产生直接数值的意图提高15%。"; pool="Compatibility"; effectKind="opening-calibration"; handlerId="opening-calibration"; intentType=""; numericBonusPercent=15 }
 )
+
+function Stable-SpeciesSeed([string]$value) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($value)
+        return [BitConverter]::ToUInt32($sha.ComputeHash($bytes), 0)
+    }
+    finally { $sha.Dispose() }
+}
+
+$speciesMechanicHandlers = @(
+    "species.rhythm",
+    "species.guard-cycle",
+    "species.low-health-drive",
+    "species.alternating-drive",
+    "species.waiting-drive",
+    "species.shielded-drive",
+    "species.debuff-hunter",
+    "species.owner-guard",
+    "species.first-hit-ward",
+    "species.mana-balance",
+    "species.momentum"
+)
+$usedSpeciesSignatures = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+
+function Species-Passive([string]$speciesId, [string]$passiveId, [string]$name, [string]$dominantType) {
+    [uint32]$seed = Stable-SpeciesSeed $speciesId
+    $handler = if ($dominantType -eq "Interference") {
+        "species.interference-feedback"
+    }
+    else {
+        $speciesMechanicHandlers[[int]($seed % [uint32]$speciesMechanicHandlers.Count)]
+    }
+    $threshold = 2 + [int](($seed -shr 3) % 3)
+    $bonus = 10 + 5 * [int](($seed -shr 7) % 5)
+    $value = 1 + [int](($seed -shr 11) % 4)
+    $secondary = 35 + 10 * [int](($seed -shr 15) % 5)
+    $maximum = 2 + [int](($seed -shr 19) % 4)
+    $intentType = $dominantType
+    $label = "本能"
+    $description = ""
+    switch ($handler) {
+        "species.rhythm" {
+            $label = "回响节拍"
+            $description = "每完成${threshold}次非等待意图，下一次直接数值意图提高${bonus}%。"
+        }
+        "species.interference-feedback" {
+            $label = "蚀咒回流"
+            $description = "每完成${threshold}次干扰意图，恢复${value}点魔能，并使下一次直接数值意图提高${bonus}%。"
+        }
+        "species.guard-cycle" {
+            $label = "护势循环"
+            $description = "行动规划前若没有护盾且循环就绪，获得${value}+护甲×$secondary%点护盾；冷却${threshold}个自身回合。"
+        }
+        "species.low-health-drive" {
+            $threshold = 30 + 5 * [int](($seed -shr 3) % 5)
+            $label = "逆境驱动"
+            $description = "生命不高于${threshold}%时，直接数值意图提高${bonus}%。"
+        }
+        "species.alternating-drive" {
+            $label = "异式连携"
+            $description = "连续${threshold}次使用不同类型意图后，下一次直接数值意图提高${bonus}%。"
+        }
+        "species.waiting-drive" {
+            $value = 1
+            $label = "蓄势待发"
+            $description = "被迫等待时额外恢复${value}点魔能；累计等待${threshold}次后，下一次直接数值意图提高${bonus}%。"
+        }
+        "species.shielded-drive" {
+            $label = "持盾共鸣"
+            $description = "自身拥有护盾时，直接数值意图提高${bonus}%。"
+        }
+        "species.debuff-hunter" {
+            $label = "咒痕追猎"
+            $description = "直接数值意图命中带有负面状态的目标时提高${bonus}%。"
+        }
+        "species.owner-guard" {
+            $intentType = if ($dominantType -in @("Defense", "Recovery", "Support")) { $dominantType } else { "Defense" }
+            $intentTypeText = switch ($intentType) {
+                "Recovery" { "恢复" }
+                "Support" { "辅助" }
+                default { "防御" }
+            }
+            $label = "护主契约"
+            $description = "主人受到伤害后，下一次${intentTypeText}类型的直接数值意图提高${bonus}%。"
+        }
+        "species.first-hit-ward" {
+            $label = "受击构型"
+            $description = "每受到${threshold}次伤害，获得${value}+护甲×$secondary%点护盾。"
+        }
+        "species.mana-balance" {
+            $value = 1
+            $label = "魔能均衡"
+            $description = "魔能为0时行动前恢复${value}点；魔能全满时直接数值意图提高${bonus}%。"
+        }
+        "species.momentum" {
+            $value = 4 + [int](($seed -shr 11) % 5)
+            $label = "战意累进"
+            $description = "每完成一次非等待意图获得1层战意，最多${maximum}层；每层使直接数值意图提高${value}%。"
+        }
+    }
+    $describedBonus = $bonus
+    $signature = "$handler|$intentType|$bonus|$threshold|$value|$secondary|$maximum"
+    while (-not $usedSpeciesSignatures.Add($signature)) {
+        $bonus = [Math]::Min(75, $bonus + 1)
+        if ($bonus -eq 75) { $value++ }
+        $signature = "$handler|$intentType|$bonus|$threshold|$value|$secondary|$maximum"
+    }
+    if ($bonus -ne $describedBonus) { $description = $description.Replace("提高${describedBonus}%", "提高${bonus}%") }
+    return [ordered]@{
+        id=$passiveId; displayName="$name·$label"; description=$description
+        pool="Species"; effectKind=$handler; handlerId=$handler; intentType=$intentType
+        numericBonusPercent=$bonus; threshold=$threshold; value=$value
+        secondaryValue=$secondary; maximumStacks=$maximum; stateLabel=$label
+    }
+}
 
 $growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
 $intentRegistry = Get-Content -LiteralPath $intentPath -Raw | ConvertFrom-Json
@@ -283,11 +410,7 @@ foreach ($profile in $growth.profiles) {
     if (-not $speciesPassives.ContainsKey($speciesId)) {
         $dominantType = if ($defaults.Count -gt 0 -and $intentById.ContainsKey($defaults[0])) { [string]$intentById[$defaults[0]].type } else { "Attack" }
         $name = if ($displayNames.ContainsKey($profileId)) { [string]$displayNames[$profileId] } else { $speciesId }
-        $speciesPassives[$speciesId] = [ordered]@{
-            id=$passiveId; displayName="$name·本能"
-            description="使用$dominantType 类型的直接数值意图时，数值提高10%。"
-            pool="Species"; effectKind="type-resonance"; intentType=$dominantType; numericBonusPercent=10
-        }
+        $speciesPassives[$speciesId] = Species-Passive $speciesId $passiveId $name $dominantType
     }
     $speciesProfiles.Add([ordered]@{
         speciesId=$speciesId; profileId=$profileId; initialPassiveId=$passiveId; defaultIntentIds=@($defaults)
@@ -296,12 +419,12 @@ foreach ($profile in $growth.profiles) {
 $passives += @($speciesPassives.Values | Sort-Object id)
 
 $document = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     commonIntents = $commonIntents
     passives = $passives
     speciesProfiles = @($speciesProfiles | Sort-Object profileId)
 }
-$document | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $outputPath -Encoding utf8NoBOM
+Write-Utf8Lf $outputPath ($document | ConvertTo-Json -Depth 100)
 
 if ($UpdateNativeIntentCosts) {
     foreach ($intent in $intentRegistry.intents) {
@@ -320,7 +443,7 @@ if ($UpdateNativeIntentCosts) {
         $intent.cooldown = if ($cost -ge 3) { 2 } elseif ($cost -eq 2) { 1 } else { 0 }
     }
 }
-$intentRegistry | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $intentPath -Encoding utf8NoBOM
+Write-Utf8Lf $intentPath ($intentRegistry | ConvertTo-Json -Depth 100)
 
 $designDirectory = Join-Path $repoRoot "docs/Terrias/design"
 $abilityTablePath = Join-Path $designDirectory "09-精灵养成能力运行时表.csv"
@@ -337,10 +460,10 @@ foreach ($passive in $passives) {
     $abilityRows.Add([pscustomobject]@{
         kind="Passive"; pool=$passive.pool; id=$passive.id; displayName=$passive.displayName
         type=$passive.intentType; cost=""; cooldown=""
-        effectKind=$passive.effectKind; description=$passive.description
+        effectKind=$passive.handlerId; description=$passive.description
     })
 }
-$abilityRows | Export-Csv -LiteralPath $abilityTablePath -NoTypeInformation -Encoding utf8NoBOM
+Export-CsvUtf8Lf -Rows $abilityRows.ToArray() -Path $abilityTablePath
 
 $nativeRows = New-Object System.Collections.Generic.List[object]
 foreach ($profile in $intentRegistry.profiles | Where-Object profileId -ne "") {
@@ -358,7 +481,7 @@ foreach ($profile in $intentRegistry.profiles | Where-Object profileId -ne "") {
         })
     }
 }
-$nativeRows | Sort-Object profileId,intentId | Export-Csv -LiteralPath $nativeTablePath -NoTypeInformation -Encoding utf8NoBOM
+Export-CsvUtf8Lf -Rows @($nativeRows.ToArray() | Sort-Object profileId,intentId) -Path $nativeTablePath
 
 Write-Host "Generated $outputPath"
 Write-Host "commonIntents=$($commonIntents.Count) passives=$($passives.Count) speciesProfiles=$($speciesProfiles.Count)"

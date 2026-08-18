@@ -38,6 +38,11 @@ public static class SpiritTrainingBattleRuntime
         if (!IsSpirit(state)) return;
         var passive = SpiritTrainingRegistry.FindPassive(state.EquippedPassiveId);
         if (passive == null) return;
+        if (SpiritPassiveMechanicRegistry.IsSpeciesMechanic(passive))
+        {
+            SpiritPassiveMechanicRegistry.BeforePlan(actor, state, passive);
+            return;
+        }
         var executor = actor?.dataConfig?.scriptExecutor as ScriptExecutor;
         var self = Status(state.StatusId);
         switch (passive.EffectKind)
@@ -94,11 +99,18 @@ public static class SpiritTrainingBattleRuntime
 
         if (passive != null)
         {
-            switch (passive.EffectKind)
+            if (SpiritPassiveMechanicRegistry.IsSpeciesMechanic(passive))
             {
-                case "type-resonance" when string.Equals(passive.IntentType, intent.Type, StringComparison.Ordinal):
-                    AddModifier("species-resonance", passive.NumericBonusPercent, ref bonusPercent, modifierKeys);
-                    break;
+                SpiritPassiveMechanicRegistry.ApplyPlanModifiers(
+                    state,
+                    intent,
+                    effects.ToArray(),
+                    passive,
+                    ref bonusPercent,
+                    modifierKeys);
+            }
+            else switch (passive.EffectKind)
+            {
                 case "opening-calibration" when state.PassiveValue("opening.used") == 0:
                     AddModifier("opening-calibration", passive.NumericBonusPercent, ref bonusPercent, modifierKeys);
                     break;
@@ -171,6 +183,11 @@ public static class SpiritTrainingBattleRuntime
         }
         state.SetPassiveValue("last.intent.type", TypeCode(intent.Type));
         var passive = SpiritTrainingRegistry.FindPassive(state.EquippedPassiveId);
+        if (passive != null && SpiritPassiveMechanicRegistry.IsSpeciesMechanic(passive))
+        {
+            SpiritPassiveMechanicRegistry.OnIntentExecuted(state, intent, plan, passive);
+            return;
+        }
         if (passive?.EffectKind == "combo-resonance" && (intent.Type == "Support" || intent.Type == "Recovery"))
         {
             state.SetPassiveValue("combo.armed", 1);
@@ -179,7 +196,10 @@ public static class SpiritTrainingBattleRuntime
 
     public static int WaitRecoveryBonus(CompanionBattleState state)
     {
-        return SpiritTrainingRegistry.FindPassive(state.EquippedPassiveId)?.EffectKind == "recovery-loop" ? 1 : 0;
+        var passive = SpiritTrainingRegistry.FindPassive(state.EquippedPassiveId);
+        if (passive != null && SpiritPassiveMechanicRegistry.IsSpeciesMechanic(passive))
+            return SpiritPassiveMechanicRegistry.OnWait(state, passive);
+        return passive?.EffectKind == "recovery-loop" ? 1 : 0;
     }
 
     public static void PrepareNumeric(CompanionBattleState state, int percent, int charges)
@@ -230,10 +250,21 @@ public static class SpiritTrainingBattleRuntime
         foreach (var state in CompanionBattleStateStore.Snapshot().Where(IsSpirit))
         {
             var passive = SpiritTrainingRegistry.FindPassive(state.EquippedPassiveId);
+            if (passive != null && SpiritPassiveMechanicRegistry.IsSpeciesMechanic(passive))
+            {
+                SpiritPassiveMechanicRegistry.OnStatusHit(target, state, passive);
+                var speciesSpirit = SpiritStateStore.Find(state.StatusId)?.Spirit;
+                if (speciesSpirit != null)
+                    SpiritSummonService.BroadcastRuntimeState(speciesSpirit, "SpeciesPassive.StatusHit");
+                continue;
+            }
             if (passive?.EffectKind == "guardian-contract"
                 && string.Equals(state.OwnerStatusId, target.InstanceId, StringComparison.Ordinal))
             {
                 state.SetPassiveValue("guardian.armed", 1);
+                var guardianSpirit = SpiritStateStore.Find(state.StatusId)?.Spirit;
+                if (guardianSpirit != null)
+                    SpiritSummonService.BroadcastRuntimeState(guardianSpirit, "CommonPassive.GuardianArmed");
             }
             if (passive?.EffectKind == "emergency-barrier"
                 && string.Equals(state.StatusId, target.InstanceId, StringComparison.Ordinal)

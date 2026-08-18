@@ -1,21 +1,18 @@
 {
-  "schemaVersion": 30,
+  "schemaVersion": 31,
   "starterDeck": {
+    "schemaVersion": 2,
     "enabled": false,
     "mode": "Global",
-    "preferRoleModProfile": true,
     "globalProfile": {
-      "enabled": true,
       "roleId": "",
-      "displayName": "全局自定义卡组",
-      "deckSize": 11,
+      "displayName": "全局自定义开局",
+      "inheritCards": false,
+      "inheritRelics": false,
       "cardIds": [],
-      "derivedFromProfileId": ""
+      "relicIds": []
     },
-    "roles": {},
-    "selectedProfileByRole": {},
-    "deckSize": 11,
-    "cardIds": []
+    "roles": {}
   },
   "safeBox": {
     "enabled": false

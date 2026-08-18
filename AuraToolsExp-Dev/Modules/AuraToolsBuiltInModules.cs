@@ -163,8 +163,8 @@ internal static class AuraToolsBuiltInModules
             "gameplay",
             110,
             40,
-            "开局卡组",
-            "为世界推演配置全局或按角色开局卡组。",
+            "自定义开局",
+            "为世界推演配置全局或按角色的开局卡牌与遗物。",
             context => AuraToolsStarterDeckRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.MatchExperience.StarterDeck.Enabled,
             enabled =>
@@ -176,9 +176,9 @@ internal static class AuraToolsBuiltInModules
             {
                 var settings = AuraToolsConfigService.MatchExperience.StarterDeck;
                 var summary = settings.Mode == StarterDeckModes.RoleSpecific
-                    ? "按角色配置 " + settings.Roles.Count + " 个"
-                    : "全局卡组 " + settings.GlobalProfile.CardIds.Count
-                      + "/" + settings.GlobalProfile.DeckSize + " 张";
+                    ? "按角色覆盖 " + settings.Roles.Count + " 个"
+                    : "全局 · 卡牌 " + settings.GlobalProfile.CardIds.Count
+                      + "/15 · 遗物 " + settings.GlobalProfile.RelicIds.Count + "/6";
                 return State(
                     AuraToolModuleIds.StarterDeck,
                     settings.Enabled,
@@ -186,7 +186,7 @@ internal static class AuraToolsBuiltInModules
                     settings.Roles.Count);
             },
             AuraToolsStarterDeckSettingsPage.Show,
-            new[] { "卡组", "开局", "世界推演" });
+            new[] { "自定义开局", "开局卡组", "遗物", "卡组", "世界推演" });
     }
 
     private static IAuraToolModule CardRefreshModule()

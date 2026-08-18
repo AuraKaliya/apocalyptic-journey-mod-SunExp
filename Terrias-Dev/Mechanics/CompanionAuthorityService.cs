@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
-    public const int ProjectionProtocolVersion = 15;
+    public const int ProjectionProtocolVersion = 16;
 
     private static int battleEpoch;
 

@@ -141,8 +141,9 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 ```
 
 适配器可以理解 Skin、Audio、CG、Log 或 Journey 语义，Core 不可以。领域共享仲裁器
-在 Core 上建立自己的协议；例如 StarterDeck 的 profile priority、editability 和角色
-归属属于 `StarterDeckArbiterShared`，不属于 Core。
+在 Core 上建立自己的协议；例如 StarterDeck 的应用所有权和模式互斥属于
+`StarterDeckArbiterShared`，不属于 Core。AuraTools 自定义开局配置由工具本地持有，
+不接受内容 MOD Profile 注册。
 
 ## Core Capability Surface（核心能力面）
 

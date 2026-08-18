@@ -68,9 +68,10 @@ public static class SpiritGrowthRegistry
                     loaded = MigrateSchema1(loaded);
                     TerriasLog.Warn("[SpiritGrowthRegistry] loaded schema 1 through the in-memory compatibility migration.");
                 }
-                else if (loaded.SchemaVersion != 2)
+                else if (loaded.SchemaVersion != SpiritSystemContract.GrowthRegistrySchemaVersion)
                 {
-                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 1 or 2");
+                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion
+                                                   + "; expected 1 or " + SpiritSystemContract.GrowthRegistrySchemaVersion);
                 }
 
                 SetDocument(NormalizeAndValidate(loaded));
@@ -541,7 +542,7 @@ public static class SpiritGrowthRegistry
     {
         return new SpiritGrowthRegistryDocument
         {
-            SchemaVersion = 2,
+            SchemaVersion = SpiritSystemContract.GrowthRegistrySchemaVersion,
             Defaults = new SpiritGrowthRegistryDefaults(),
             FormLabels = new Dictionary<string, string>(StringComparer.Ordinal)
             {

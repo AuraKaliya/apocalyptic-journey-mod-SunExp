@@ -49,7 +49,7 @@ namespace AuraTools.UnityUiPreview
 
         private static readonly PreviewModule[] DefaultModules =
         {
-            Module("gameplay.starter-deck", "gameplay", "开局卡组", "为世界推演配置全局或按角色开局卡组。", "全局卡组 11/11 张", "starter-deck", false, true),
+            Module("gameplay.starter-deck", "gameplay", "自定义开局", "为世界推演配置全局或按角色的开局卡牌与遗物。", "全局 · 卡牌 0/15 · 遗物 0/6", "starter-deck", false, true),
             Module("gameplay.card-refresh", "gameplay", "卡牌刷新", "在战斗奖励选牌时提供一次重新抽取。", "战斗奖励选牌可刷新", "card-refresh", false, false),
             Module("gameplay.feast", "gameplay", "一键美餐", "进食一次后自动处理剩余食物，并播放角色表现。", "已配置 16 个角色", "feast", true, true),
             Module("gameplay.safe-box", "gameplay", "随身保险箱", "在冒险顶部栏直接打开保险箱。", "冒险顶部栏显示入口", "safe-box", false, false),
@@ -73,9 +73,9 @@ namespace AuraTools.UnityUiPreview
             {
                 case "long-text":
                     var starter = modules.First(module => module.Id == "gameplay.starter-deck");
-                    starter.Name = "开局卡组与按角色世界推演预设管理";
-                    starter.Summary = "全局预设 11/11 张 · 已登记 12 个角色专属覆盖 · 当前使用兼容模式";
-                    starter.Description = "为世界推演配置全局或按角色开局卡组，并在资源发生变化时保留当前可用预设。";
+                    starter.Name = "自定义开局与按角色卡牌遗物配置管理";
+                    starter.Summary = "全局 · 卡牌 15/15 · 遗物 6/6 · 已配置 12 个角色覆盖";
+                    starter.Description = "为世界推演配置全局或按角色的开局卡牌与遗物，并支持版本兼容的配置导入导出。";
                     var auto = modules.First(module => module.Id == "intelligence.auto-battle");
                     auto.Summary = "完整应用 · foundation-package-20260810-155337232-c81434ca";
                     auto.Attention = "候选模型尚未通过高级难度 Wilson 置信下界认证";

@@ -125,6 +125,11 @@ public static class SpiritCardFactory
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
             .Take(128)
             .ToDictionary(entry => entry.Key.Trim(), entry => entry.Value, StringComparer.Ordinal);
+        result.VisibleStatuses = (result.VisibleStatuses ?? new List<SpiritVisibleStatusSnapshot>())
+            .Where(status => status != null && !string.IsNullOrWhiteSpace(status.Id))
+            .Take(SpiritSystemContract.MaximumVisibleStatuses)
+            .Select(status => status.Clone())
+            .ToList();
         return result;
     }
 

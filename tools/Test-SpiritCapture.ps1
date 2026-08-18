@@ -50,7 +50,7 @@ $training = Get-Content -LiteralPath $trainingPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
 Assert-True ($growth.schemaVersion -eq 2) "spirit growth registry schema must be 2."
-Assert-True ($training.schemaVersion -eq 1) "spirit training registry schema must be 1."
+Assert-True ($training.schemaVersion -eq 2) "spirit training registry schema must be 2."
 Assert-True ($growth.defaults.maxLevel -eq 50) "spirit level cap must remain 50."
 
 $intentProfileListFields = @(
@@ -190,6 +190,7 @@ foreach ($group in $multiFormSpecies) {
 $commonIntents = @($training.commonIntents)
 $commonPassives = @($training.passives | Where-Object pool -like "Common.*")
 $speciesPassives = @($training.passives | Where-Object pool -eq "Species")
+$compatibilityPassives = @($training.passives | Where-Object pool -eq "Compatibility")
 Assert-True ($commonIntents.Count -eq 15) "training registry must contain exactly 15 common intents."
 Assert-True ((@($commonIntents | Group-Object pool | Where-Object { $_.Count -ne 5 })).Count -eq 0) "basic, tactical, and advanced common intent pools must each contain five intents."
 Assert-True ((@($commonIntents.pool | Sort-Object -Unique) -join ",") -eq "Common.Advanced,Common.Basic,Common.Tactical") "common intent pool names drifted."
@@ -197,6 +198,25 @@ Assert-True ($commonPassives.Count -eq 12) "training registry must contain exact
 Assert-True ((@($commonPassives | Where-Object pool -eq "Common.Core").Count) -eq 8) "common core passive pool must contain eight passives."
 Assert-True ((@($commonPassives | Where-Object pool -eq "Common.Advanced").Count) -eq 4) "common advanced passive pool must contain four passives."
 Assert-True ($speciesPassives.Count -eq (@($growth.profiles.speciesId | Sort-Object -Unique)).Count) "every species must own exactly one inherent passive."
+Assert-True ($compatibilityPassives.Count -eq 1 -and $compatibilityPassives[0].id -eq "spirit.passive.compatibility.adaptive-core") "external Spirits require one registered compatibility passive."
+Assert-True ((@($speciesPassives | Where-Object effectKind -eq "type-resonance")).Count -eq 0) "species passives must not use the retired type-resonance placeholder."
+Assert-True ((@($speciesPassives | Where-Object {
+    [string]::IsNullOrWhiteSpace([string]$_.displayName) -or
+    [string]::IsNullOrWhiteSpace([string]$_.description) -or
+    [string]::IsNullOrWhiteSpace([string]$_.stateLabel)
+})).Count -eq 0) "every species passive requires player-facing name, description, and hover state label."
+$expectedSpeciesHandlers = @(
+    "species.alternating-drive", "species.debuff-hunter", "species.first-hit-ward",
+    "species.guard-cycle", "species.interference-feedback", "species.low-health-drive",
+    "species.mana-balance", "species.momentum", "species.owner-guard",
+    "species.rhythm", "species.shielded-drive", "species.waiting-drive"
+) | Sort-Object
+Assert-True ((@($speciesPassives.handlerId | Sort-Object -Unique) -join "|") -eq ($expectedSpeciesHandlers -join "|")) "species passive handler coverage drifted."
+$speciesSignatures = @($speciesPassives | ForEach-Object {
+    "$($_.handlerId)|$($_.intentType)|$($_.numericBonusPercent)|$($_.threshold)|$($_.value)|$($_.secondaryValue)|$($_.maximumStacks)"
+})
+Assert-True ((@($speciesSignatures | Sort-Object -Unique)).Count -eq $speciesPassives.Count) "every species passive must expose an independent mechanic signature."
+Assert-True ((@($speciesPassives | Where-Object { $_.intentType -eq "Interference" -and $_.handlerId -ne "species.interference-feedback" })).Count -eq 0) "interference species must use the effective feedback handler."
 Assert-True ((@($training.speciesProfiles).Count) -eq @($growth.profiles).Count) "every growth profile must own one training profile."
 Assert-True ((Compare-Object @($training.speciesProfiles.profileId | Sort-Object) @($growth.profiles.profileId | Sort-Object)).Count -eq 0) "training profile identities must match growth profile identities."
 Assert-True ((@($training.speciesProfiles | Where-Object { $_.profileId -ne "base-game.99999" -and (@($_.defaultIntentIds).Count -lt 1 -or @($_.defaultIntentIds).Count -gt 3) })).Count -eq 0) "every capturable training profile must equip one to three default native intents."

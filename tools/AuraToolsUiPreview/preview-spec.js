@@ -32,7 +32,7 @@ window.AURA_TOOLBOX_PREVIEW_SPEC = Object.freeze({
     { id: "system", label: "系统数据", icon: "system" }
   ],
   modules: [
-    { id: "gameplay.starter-deck", category: "gameplay", name: "开局卡组", description: "为世界推演配置全局或按角色开局卡组。", summary: "全局卡组 11/11 张", icon: "starter-deck", enabled: false, settings: true },
+    { id: "gameplay.starter-deck", category: "gameplay", name: "自定义开局", description: "为世界推演配置全局或按角色的开局卡牌与遗物。", summary: "全局 · 卡牌 0/15 · 遗物 0/6", icon: "starter-deck", enabled: false, settings: true },
     { id: "gameplay.card-refresh", category: "gameplay", name: "卡牌刷新", description: "在战斗奖励选牌时提供一次重新抽取。", summary: "战斗奖励选牌可刷新", icon: "card-refresh", enabled: false, settings: false },
     { id: "gameplay.feast", category: "gameplay", name: "一键美餐", description: "进食一次后自动处理剩余食物，并播放角色表现。", summary: "已配置 16 个角色", icon: "feast", enabled: true, settings: true },
     { id: "gameplay.safe-box", category: "gameplay", name: "随身保险箱", description: "在冒险顶部栏直接打开保险箱。", summary: "冒险顶部栏显示入口", icon: "safe-box", enabled: false, settings: false },

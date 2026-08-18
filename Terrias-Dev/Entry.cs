@@ -6,7 +6,6 @@ using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
 using AuraShared.Core;
 using AuraSkin.Shared;
-using StarterDeckArbiter.Shared;
 using Witch.Mod;
 using Terrias.Dll.Features.SkillCg;
 using Terrias.Dll.Features.Director;
@@ -43,7 +42,6 @@ public static class Entry
         RunStep("card use effect runtime", () => TerriasCardUseFxRuntime.Initialize(modConfig));
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("skill CG runtime", () => TerriasSkillCgRuntime.Initialize(modConfig));
-        RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "Terrias"));
         RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "Terrias"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));

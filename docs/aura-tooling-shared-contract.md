@@ -10,7 +10,7 @@ The protocol does not make AuraToolsExp a dependency of the provider. Both the
 provider and AuraToolsExp depend on `Aura.Shared.dll`; AuraToolsExp projects the
 shared registration into its local module UI.
 
-Content resources such as skins, CGs, audio and starter decks must continue to
+Content resources such as skins, CGs, and audio must continue to
 use their existing domain registries. They are entries inside an existing tool
 page, not new top-level tools.
 

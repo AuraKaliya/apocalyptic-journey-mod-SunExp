@@ -91,6 +91,10 @@ visual resources.
   AuraToolsExp local persistence wins for tool-managed effective behavior when
   a tool and content mod both configure the same shared feature, but must not
   rewrite or re-own a foreign mod's registration source.
+- AuraToolsExp custom-start card/relic loadouts are local or imported tool
+  configuration. Content mods must not register AuraTools custom-start
+  profiles; keep `StarterDeckArbiterShared` only for generic application and
+  ownership contracts used by content-owned modes and compatibility.
 - When both Terrias and AuraToolsExp need the same hook lifecycle, UI primitive,
   resource preload, logging, pooling, or multiplayer presentation behavior,
   promote the semantic-free part to a shared component instead of making

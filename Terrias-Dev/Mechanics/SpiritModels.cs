@@ -12,7 +12,7 @@ public sealed class CapturedEnemySnapshot
     public string EnemyId { get; set; } = "";
     public string VariantId { get; set; } = "";
     public string InstanceId { get; set; } = "";
-    // Protocol v15 treats these as compatibility fallbacks only. Identity and local
+    // Protocol v16 treats these as compatibility fallbacks only. Identity and local
     // presentation resolution must use EnemyId/VariantId instead of trusting wire text.
     public string DisplayName { get; set; } = "";
     public string Description { get; set; } = "";
@@ -73,6 +73,8 @@ public sealed class SpiritCardBattleState
 
     public Dictionary<string, int> PassiveState { get; set; } = new(StringComparer.Ordinal);
 
+    public List<SpiritVisibleStatusSnapshot> VisibleStatuses { get; set; } = new();
+
     public static SpiritCardBattleState From(CompanionBattleState? state)
     {
         return new SpiritCardBattleState
@@ -86,7 +88,10 @@ public sealed class SpiritCardBattleState
             PassiveState = state == null
                 ? new Dictionary<string, int>(StringComparer.Ordinal)
                 : state.PassiveStateSnapshot()
-                    .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal)
+                    .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
+            VisibleStatuses = state == null
+                ? new List<SpiritVisibleStatusSnapshot>()
+                : state.VisibleStatusSnapshot().Select(status => status.Clone()).ToList()
         };
     }
 }
@@ -148,7 +153,7 @@ public sealed class SpiritIntentProfile
 [Serializable]
 public sealed class SpiritIntentRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = SpiritSystemContract.IntentRegistrySchemaVersion;
     public List<CompanionIntentDefinition> Intents { get; set; } = new();
     public List<SpiritIntentProfile> Profiles { get; set; } = new();
 }
@@ -167,6 +172,6 @@ public sealed class SpiritCaptureProfile
 [Serializable]
 public sealed class SpiritCaptureRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = SpiritSystemContract.CaptureRegistrySchemaVersion;
     public List<SpiritCaptureProfile> Profiles { get; set; } = new();
 }

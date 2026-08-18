@@ -166,7 +166,7 @@ internal static class StarterDeckCardPresentation
         }
         catch (Exception ex)
         {
-            AuraToolsLog.Warn("[StarterDeck] failed to load card icon for " + cardId + ": " + ex.Message);
+            AuraToolsLog.Warn("[CustomStart] failed to load card icon for " + cardId + ": " + ex.Message);
         }
 
         cardIconCache[cardId] = sprite;

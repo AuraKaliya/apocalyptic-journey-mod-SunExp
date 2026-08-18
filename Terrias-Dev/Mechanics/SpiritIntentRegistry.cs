@@ -67,9 +67,10 @@ public static class SpiritIntentRegistry
                     TerriasLog.Warn(diagnostic);
                 }
 
-                if (loaded.SchemaVersion != 3)
+                if (loaded.SchemaVersion != SpiritSystemContract.IntentRegistrySchemaVersion)
                 {
-                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 3");
+                    throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion
+                                                   + "; expected " + SpiritSystemContract.IntentRegistrySchemaVersion);
                 }
 
                 SetDocument(Normalize(loaded));
@@ -432,7 +433,7 @@ public static class SpiritIntentRegistry
 
         return new SpiritIntentRegistryDocument
         {
-            SchemaVersion = 3,
+            SchemaVersion = SpiritSystemContract.IntentRegistrySchemaVersion,
             Intents = intents.Values.OrderBy(intent => intent.Id, StringComparer.Ordinal).ToList(),
             Profiles = profiles.OrderBy(profile => profile.EnemyId, StringComparer.Ordinal).ThenBy(profile => profile.VariantId, StringComparer.Ordinal).ToList()
         };
@@ -546,7 +547,7 @@ public static class SpiritIntentRegistry
     {
         return new SpiritIntentRegistryDocument
         {
-            SchemaVersion = 3,
+            SchemaVersion = SpiritSystemContract.IntentRegistrySchemaVersion,
             Intents = SpiritTrainingRegistry.CommonIntents().ToList(),
             Profiles = new List<SpiritIntentProfile> { DefaultProfile() }
         };
@@ -612,7 +613,25 @@ public static class CompanionIntentResolver
     public static IReadOnlyList<CompanionIntentDefinition> IntentsFor(CompanionBattleState state, CompanionIntentTendency tendency)
     {
         if (!IsSpirit(state)) return CompanionIntentRegistry.IntentsForRole(state.RoleId, tendency);
-        return state.EquippedIntentIds
+        var equipped = state.EquippedIntentIds
+            .Select(SpiritIntentRegistry.Find)
+            .Where(intent => intent != null && MatchesTendency(intent, tendency))
+            .Cast<CompanionIntentDefinition>()
+            .ToArray();
+        if (equipped.Length > 0) return equipped;
+
+        try
+        {
+            TerriasLog.WarnOnce(
+                "spirit-emergency-loadout:" + state.StatusId + ":" + tendency,
+                "[SpiritTraining] effective loadout was empty; using the bounded compatibility fallback for status="
+                + state.StatusId + ", tendency=" + tendency + ".");
+        }
+        catch
+        {
+            // Pure behavior hosts do not provide Unity's native logging ECall.
+        }
+        return SpiritTrainingService.EmergencyFallbackIntentIds
             .Select(SpiritIntentRegistry.Find)
             .Where(intent => intent != null && MatchesTendency(intent, tendency))
             .Cast<CompanionIntentDefinition>()

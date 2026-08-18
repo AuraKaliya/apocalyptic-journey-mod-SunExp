@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCollectionService
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = SpiritSystemContract.CollectionVersion;
     public const int PartyCapacity = 6;
     public const int LegacyCardMigrationVersion = 1;
     private const int OperationHistoryLimit = 512;

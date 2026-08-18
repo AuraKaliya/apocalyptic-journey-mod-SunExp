@@ -113,7 +113,7 @@ internal static partial class AuraToolsTestSuite
         var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
             "{\"schemaVersion\":29,\"damageMeter\":{\"enabled\":true,\"displayMode\":\"Bars\",\"teamFilter\":\"Enemy\"}}")!;
         legacy.Normalize();
-        Assert(legacy.SchemaVersion == 30
+        Assert(legacy.SchemaVersion == 31
                && legacy.MatchRecords.Enabled
                && legacy.MatchRecords.Statistics.Enabled
                && legacy.MatchRecords.Statistics.DisplayMode == DamageMeterDisplayModes.Bars
@@ -187,10 +187,17 @@ internal static partial class AuraToolsTestSuite
             "config schema policy migrates older values but keeps newer envelopes and values read-only");
     
         var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-            "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
+            "{\"schemaVersion\":1,\"starterDeck\":{\"globalProfile\":{\"cardIds\":[\"card_1\"],\"deckSize\":11},\"roles\":{\"role_a\":{\"roleId\":\"role_a\",\"cardIds\":[\"card_2\"]}}},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
         matchExperience.Normalize();
-        Assert(matchExperience.SchemaVersion == 30
-               && matchExperience.StarterDeck.PreferRoleModProfile
+        Assert(matchExperience.SchemaVersion == 31
+               && matchExperience.StarterDeck.SchemaVersion == StarterDeckSettings.CurrentSchemaVersion
+               && matchExperience.StarterDeck.GlobalProfile.CardIds.SequenceEqual(new[] { "card_1" })
+               && matchExperience.StarterDeck.GlobalProfile.RelicIds.Count == 0
+               && matchExperience.StarterDeck.Roles.TryGetValue("role_a", out var migratedStarterRole)
+               && migratedStarterRole != null
+               && !migratedStarterRole.InheritCards
+               && migratedStarterRole.InheritRelics
+               && migratedStarterRole.CardIds.SequenceEqual(new[] { "card_2" })
                && matchExperience.SafeBox != null
                && matchExperience.ModSync != null
                && matchExperience.Feast.Enabled
@@ -230,6 +237,49 @@ internal static partial class AuraToolsTestSuite
                && matchExperience.AutoBattle.Simulation.SimulationCount == 8
                && matchExperience.AutoBattle.Simulation.Parallelism == 2,
             "match-experience config reconstructs the sole current auto-battle defaults");
+
+        var customStart = new StarterDeckSettings
+        {
+            GlobalProfile = new StarterDeckLocalProfileSettings
+            {
+                CardIds = Enumerable.Range(0, 20).Select(index => "card_" + index).ToList(),
+                RelicIds = new List<string> { "relic_1", "relic_1", "relic_2", "relic_3", "relic_4", "relic_5", "relic_6", "relic_7" }
+            },
+            Roles = new Dictionary<string, StarterDeckLocalProfileSettings>
+            {
+                ["role_a"] = new()
+                {
+                    RoleId = "role_a",
+                    InheritCards = false,
+                    InheritRelics = false,
+                    CardIds = new List<string>(),
+                    RelicIds = new List<string>()
+                }
+            }
+        };
+        customStart.Normalize();
+        Assert(customStart.GlobalProfile.CardIds.Count == StarterDeckSettings.MaximumCardCount
+               && customStart.GlobalProfile.RelicIds.SequenceEqual(new[] { "relic_1", "relic_2", "relic_3", "relic_4", "relic_5", "relic_6" })
+               && customStart.Roles["role_a"].CardIds.Count == 0
+               && !customStart.Roles["role_a"].InheritCards
+               && customStart.Roles["role_a"].RelicIds.Count == 0
+               && !customStart.Roles["role_a"].InheritRelics,
+            "custom-start settings clamp only upper bounds while preserving explicit empty role overrides");
+        customStart.Mode = StarterDeckModes.RoleSpecific;
+        var effectiveCustomStart = customStart.ResolveEffective("role_a");
+        Assert(effectiveCustomStart.CardIds.Count == 0
+               && effectiveCustomStart.RelicIds.Count == 0
+               && effectiveCustomStart.CardSource == "role"
+               && effectiveCustomStart.RelicSource == "role",
+            "explicit empty role lists mean game-default cards and an exact empty relic replacement");
+        customStart.Roles["role_a"].InheritCards = true;
+        customStart.Roles["role_a"].InheritRelics = true;
+        effectiveCustomStart = customStart.ResolveEffective("role_a");
+        Assert(effectiveCustomStart.CardIds.Count == StarterDeckSettings.MaximumCardCount
+               && effectiveCustomStart.RelicIds.Count == StarterDeckSettings.MaximumRelicCount
+               && effectiveCustomStart.CardSource == "global"
+               && effectiveCustomStart.RelicSource == "global",
+            "role inheritance resolves the two custom-start domains independently from global settings");
     
         var steadyTraining = AutoBattleTrainingSettings.CreateSteady();
         Assert(steadyTraining.Preset == AutoBattleTrainingSettings.SteadyPreset
@@ -366,14 +416,14 @@ internal static partial class AuraToolsTestSuite
             CardRefresh = null!
         };
         settings.Normalize();
-        Assert(settings.SchemaVersion == 30, "match-experience settings migrate to the current match-record schema");
+        Assert(settings.SchemaVersion == 31, "match-experience settings migrate to the current custom-start schema");
         Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
             "card refresh is restored with a disabled default during normalization");
         var removedFoundationConfig =
             JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
                 "{\"schemaVersion\":25,\"autoBattle\":{\"foundationTraining\":{\"parallelismProfile\":\"auto\",\"iterations\":8}}}")!;
         removedFoundationConfig.Normalize();
-        Assert(removedFoundationConfig.SchemaVersion == 30
+        Assert(removedFoundationConfig.SchemaVersion == 31
                && removedFoundationConfig.AutoBattle.Training.Preset
                   == AutoBattleTrainingSettings.SteadyPreset,
             "removed in-game foundation-training settings are ignored by the current config schema");

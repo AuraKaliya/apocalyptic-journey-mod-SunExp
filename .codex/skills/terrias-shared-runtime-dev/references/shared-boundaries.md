@@ -77,7 +77,7 @@ Keep display semantics separated:
 
 - Role display names describe roles only.
 - Registry entry display names describe registered artifacts such as a skill CG,
-  audio pack, skin, or starter deck profile.
+  audio pack, or skin. AuraTools custom-start files remain tool-local imports.
 - Tool-local rule display names may come from registry entry display names.
 - Stable ids (`roleId`, `cgId`, `resourceId`, `profileId`) must not depend on
   localized display text.

@@ -86,7 +86,12 @@ if ($officialSummerSkins.Count -ne 1) {
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
 $standardPreset = @($matchSettings.autoBattle.gameParameters.presets | Where-Object id -eq "standard")
-if ($matchSettings.schemaVersion -ne 30 `
+if ($matchSettings.schemaVersion -ne 31 `
+        -or $matchSettings.starterDeck.schemaVersion -ne 2 `
+        -or $matchSettings.starterDeck.globalProfile.cardIds.Count -ne 0 `
+        -or $matchSettings.starterDeck.globalProfile.relicIds.Count -ne 0 `
+        -or $matchSettings.starterDeck.PSObject.Properties.Name -contains "selectedProfileByRole" `
+        -or $matchSettings.starterDeck.PSObject.Properties.Name -contains "preferRoleModProfile" `
         -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `

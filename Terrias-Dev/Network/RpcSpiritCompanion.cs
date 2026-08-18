@@ -36,6 +36,7 @@ public sealed class SpiritCompanionSnapshot
     public int LoadoutRevision { get; set; }
     public string LoadoutHash { get; set; } = "";
     public Dictionary<string, int> PassiveState { get; set; } = new();
+    public List<SpiritVisibleStatusSnapshot> VisibleStatuses { get; set; } = new();
     public int TurnIndex { get; set; }
     public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
     public CompanionThreatSnapshot? Threat { get; set; }

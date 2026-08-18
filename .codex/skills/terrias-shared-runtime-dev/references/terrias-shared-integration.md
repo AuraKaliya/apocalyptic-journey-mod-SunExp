@@ -34,7 +34,7 @@ calls. Preserve step isolation for:
 - shared core and shared resource package;
 - shared registry;
 - visual registry and CG registry;
-- starter deck profiles;
+- shared starter-deck ownership/application for Terrias-owned modes;
 - shared skin runtime and package;
 - journey runtime;
 - audio runtime;

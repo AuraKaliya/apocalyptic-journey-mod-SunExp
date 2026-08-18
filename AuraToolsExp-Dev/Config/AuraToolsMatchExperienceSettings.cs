@@ -14,7 +14,7 @@ public sealed class AuraToolsMatchExperienceSettings
     private bool hasLegacyDamageMeter;
 
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 30;
+    public int SchemaVersion { get; set; } = 31;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -66,7 +66,7 @@ public sealed class AuraToolsMatchExperienceSettings
             matchRecords = MatchRecordSettings.FromLegacy(legacyDamageMeter);
         }
 
-        SchemaVersion = Math.Max(30, SchemaVersion);
+        SchemaVersion = Math.Max(31, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         ModSync ??= new ModSyncSettings();

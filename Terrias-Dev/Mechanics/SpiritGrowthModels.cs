@@ -250,7 +250,7 @@ public sealed class SpiritSpeciesGrowthProfile
 [Serializable]
 public sealed class SpiritGrowthRegistryDocument
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = SpiritSystemContract.GrowthRegistrySchemaVersion;
 
     public SpiritGrowthRegistryDefaults Defaults { get; set; } = new();
 
@@ -309,6 +309,12 @@ public sealed class SpiritInstance
 
     public int TrainingPlanVersion { get; set; }
 
+    public int InherentAbilityPlanVersion { get; set; }
+
+    public List<string> ResolvedInherentIntentIds { get; set; } = new();
+
+    public string ResolvedInherentPassiveId { get; set; } = "";
+
     public List<string> LearnedIntentIds { get; set; } = new();
 
     public List<string> EquippedIntentIds { get; set; } = new();
@@ -347,6 +353,9 @@ public sealed class SpiritInstance
             GuiyuanValue = GuiyuanValue,
             GuiyuanAllocations = GuiyuanAllocations?.Clone() ?? new SpiritOriginVector(),
             TrainingPlanVersion = TrainingPlanVersion,
+            InherentAbilityPlanVersion = InherentAbilityPlanVersion,
+            ResolvedInherentIntentIds = new List<string>(ResolvedInherentIntentIds ?? new List<string>()),
+            ResolvedInherentPassiveId = ResolvedInherentPassiveId,
             LearnedIntentIds = new List<string>(LearnedIntentIds ?? new List<string>()),
             EquippedIntentIds = new List<string>(EquippedIntentIds ?? new List<string>()),
             LearnedPassiveIds = new List<string>(LearnedPassiveIds ?? new List<string>()),

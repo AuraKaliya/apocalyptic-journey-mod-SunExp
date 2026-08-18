@@ -10,7 +10,7 @@ of duplicating them in top-level skills.
 
 | Scenario | Examples | Authority | Sync shape |
 | --- | --- | --- | --- |
-| Initialization registration | Terrias registers mod-owned roles, CG, audio, skins, starter decks, and unique content extensions. AuraToolsExp registers official-content or tool-owned extensions. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
+| Initialization registration | Terrias registers mod-owned roles, CG, audio, skins, and unique content extensions. AuraToolsExp registers official-content or tool-owned extensions. Custom-start loadouts are AuraTools-local/imported configuration, not content-mod registration. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
 | Tool configuration | AuraToolsExp reads local persistent settings and forces or overrides effective tool behavior. | Tool-local config store. | Local effective-state overlay. Do not mutate or re-own foreign registrations. |
 | Shared progression | Map state, route state, run counters, shared reward state, final role commit. | Host/server. | Client request -> server validate -> authoritative snapshot/result broadcast. |
 | Player-scoped state | Player choices, Wuna ember, damage submit, role-owned presentation request. | Bound sender/player owner. | Sender-bound command. Server binds sender from receive context before validation. |
@@ -142,12 +142,12 @@ and then log rather than selecting a fallback node.
 
 ### StarterDeck client submission
 
-Content mods register starter-deck profiles; AuraToolsExp resolves the local
-effective profile without changing its registration owner. In multiplayer each
-client must apply that result to its own `RoleTable` immediately before the
+AuraToolsExp resolves its local/imported custom-start card and relic settings.
+Content mods do not register AuraTools custom-start profiles. In multiplayer
+each client applies its result to its own `RoleTable` immediately before the
 native `CmdSyncRoleTable` serialization/submission path. Do not rely only on a
 server RPC wrapper such as `RpcSyncRoleTables`, and do not introduce a parallel
-deck gameplay RPC when the native role-table submission already carries it.
+loadout gameplay RPC when the native role-table submission already carries it.
 
 ## Duplicate Suppression Model
 

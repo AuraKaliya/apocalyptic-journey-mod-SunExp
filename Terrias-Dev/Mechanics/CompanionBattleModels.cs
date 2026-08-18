@@ -190,6 +190,7 @@ public sealed class CompanionBattleState
 {
     private readonly Dictionary<string, int> readyOnTurn = new(StringComparer.Ordinal);
     private readonly Dictionary<string, int> passiveState = new(StringComparer.Ordinal);
+    private List<SpiritVisibleStatusSnapshot> visibleStatuses = new();
 
     public CompanionBattleState(
         string statusId,
@@ -336,6 +337,20 @@ public sealed class CompanionBattleState
         {
             if (!string.IsNullOrWhiteSpace(entry.Key)) passiveState[entry.Key] = entry.Value;
         }
+    }
+
+    public IReadOnlyList<SpiritVisibleStatusSnapshot> VisibleStatusSnapshot()
+    {
+        return visibleStatuses.Select(status => status.Clone()).ToArray();
+    }
+
+    public void ApplyVisibleStatuses(IEnumerable<SpiritVisibleStatusSnapshot>? values)
+    {
+        visibleStatuses = (values ?? Array.Empty<SpiritVisibleStatusSnapshot>())
+            .Where(status => status != null && !string.IsNullOrWhiteSpace(status.Id))
+            .Take(SpiritSystemContract.MaximumVisibleStatuses)
+            .Select(status => status.Clone())
+            .ToList();
     }
 
     public void AdvanceTurn()

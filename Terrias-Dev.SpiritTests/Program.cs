@@ -40,7 +40,11 @@ var returnedBattleState = new SpiritCardBattleState
     CurrentHp = 19,
     CurrentDefend = 6,
     CurrentMagic = 2,
-    PassiveState = new Dictionary<string, int> { ["passive-a"] = 3 }
+    PassiveState = new Dictionary<string, int> { ["passive-a"] = 3 },
+    VisibleStatuses = new List<SpiritVisibleStatusSnapshot>
+    {
+        new() { Kind = "Buff", Id = "buff-a", Stacks = 2 }
+    }
 };
 var spiritSummonRequest = new Terrias.Dll.Network.RpcSpiritSummonRequest(
     Captured("request-enemy", "request-spirit"),
@@ -54,7 +58,8 @@ Assert(spiritSummonRequest.BattleState.TurnIndex == 4
        && spiritSummonRequest.BattleState.CurrentHp == 19
        && spiritSummonRequest.BattleState.CurrentDefend == 6
        && spiritSummonRequest.BattleState.CurrentMagic == 2
-       && spiritSummonRequest.BattleState.PassiveState["passive-a"] == 3,
+       && spiritSummonRequest.BattleState.PassiveState["passive-a"] == 3
+       && spiritSummonRequest.BattleState.VisibleStatuses.Single().Stacks == 2,
     "remote Spirit summon requests preserve the complete withdrawn battle state");
 
 var state = new CompanionBattleState("spirit-1", "role-1", "owner-1", 2, stats, "player-1");
@@ -116,6 +121,11 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 16
+       && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
+       && SpiritSystemContract.CollectionVersion == 7
+       && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,
+    "the current Spirit save, registry, and Partner protocol contract stays synchronized");
 
 var normalizedRemotePayload = RemoteTargetEventApi.ComposePayload(
     "Terrias_Card_Spark",
@@ -171,6 +181,74 @@ Assert(commonIntentIds.Length == 15
        && commonIntentIds.All(id => SpiritIntentRegistry.Find(id) != null)
        && SpiritTrainingRegistry.RegistryHash != "00000000",
     "training registries load fifteen common intents, twelve common passives, and merge executable intent definitions");
+var speciesPassives = SpiritTrainingRegistry.Passives("Species");
+Assert(speciesPassives.Count == 51
+       && speciesPassives.All(passive => SpiritPassiveMechanicRegistry.Validate(passive, out _))
+       && speciesPassives.All(passive => passive.EffectKind != "type-resonance")
+       && speciesPassives.Select(SpiritPassiveMechanicRegistry.Signature).Distinct(StringComparer.Ordinal).Count() == 51,
+    "all fifty-one species passives use supported non-placeholder mechanics with independent signatures");
+var external = new SpiritInstance
+{
+    SpiritUid = "external-spirit",
+    SpeciesId = "external.species",
+    ProfileId = "external.profile",
+    Snapshot = Captured("external-enemy", "external-spirit"),
+    Level = 1,
+    Aptitude = 60
+};
+SpiritTrainingService.InitializeCaptured(external);
+Assert(external.InherentAbilityPlanVersion == SpiritSystemContract.InherentAbilityPlanVersion
+       && external.ResolvedInherentIntentIds.Count == 3
+       && external.EquippedIntentIds.Count == 3
+       && external.EquippedPassiveId == SpiritSystemContract.CompatibilityPassiveId
+       && external.EquippedIntentIds.All(id => SpiritIntentRegistry.Find(id) != null),
+    "external Spirits freeze an executable attack, defense, origin branch, and registered compatibility passive at level one");
+var generatedPlans = Enumerable.Range(0, 128).Select(index =>
+{
+    var candidate = new SpiritInstance
+    {
+        SpiritUid = "plan-" + index,
+        SpeciesId = "external.species",
+        ProfileId = "external.profile",
+        Snapshot = Captured("external-enemy", "plan-" + index),
+        Level = 50,
+        Aptitude = 60
+    };
+    SpiritTrainingService.InitializeCaptured(candidate);
+    return candidate;
+}).ToArray();
+Assert(generatedPlans.All(candidate => candidate.UnlockPlan
+           .Where(node => node.AbilityKind == "Intent" && node.Stage is 1 or 2 or 4)
+           .Select(node => SpiritIntentRegistry.Find(node.AbilityId)?.Type ?? "")
+           .Distinct(StringComparer.Ordinal)
+           .Count() >= 2)
+       && generatedPlans.Where(candidate => candidate.LearnedPassiveIds.Contains(
+               "spirit.passive.common.advanced.swift-calculation", StringComparer.Ordinal))
+           .All(candidate => candidate.LearnedIntentIds.Any(id => SpiritIntentRegistry.Find(id)?.SpeedScale > 0f)),
+    "generated growth plans enforce common-intent type diversity and passive trigger reachability");
+var externalState = new CompanionBattleState(
+    "external-status", external.ProfileId, "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", "SpiritAttachment");
+externalState.ConfigureLoadout(external.EquippedIntentIds, external.EquippedPassiveId, external.LoadoutRevision, external.LoadoutHash);
+Assert(CompanionIntentResolver.IntentsFor(externalState, CompanionIntentTendency.Attack).Count > 0
+       && CompanionIntentResolver.IntentsFor(externalState, CompanionIntentTendency.Defense).Count > 0,
+    "external compatibility loadouts close both attack and defense planning tendencies");
+var emptyFallbackState = new CompanionBattleState(
+    "empty-fallback", "external.profile", "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", "SpiritAttachment");
+Assert(CompanionIntentResolver.IntentsFor(emptyFallbackState, CompanionIntentTendency.Attack).Count > 0
+       && CompanionIntentResolver.IntentsFor(emptyFallbackState, CompanionIntentTendency.Defense).Count > 0,
+    "an invalid empty loadout still receives the bounded emergency fallback instead of waiting forever");
+Assert(SpiritVirtualGridPolicy.RequiredCellCount(260f, 166f, 8f, 3) == 12
+       && SpiritVirtualGridPolicy.ContentHeight(1000, 3, 166f, 8f, 4f, 4f) == 58116f
+       && SpiritVirtualGridPolicy.FirstVisibleRow(0f, 4f, 166f, 8f) == 0,
+    "the warehouse virtual grid keeps a constant visible pool independent of collection size");
+externalState.ApplyVisibleStatuses(new[]
+{
+    new SpiritVisibleStatusSnapshot { Kind = "Buff", Id = "buff_weak", Stacks = 2 },
+    new SpiritVisibleStatusSnapshot { Kind = "Mechanic", Id = external.EquippedPassiveId, Value = 1, Maximum = 3 }
+});
+var visibleCopy = externalState.VisibleStatusSnapshot();
+Assert(visibleCopy.Count == 2 && visibleCopy[0].Stacks == 2 && visibleCopy[1].Maximum == 3,
+    "Spirit visible status snapshots retain bounded Buff and mechanic presentation state");
 var equippedOnlyState = new CompanionBattleState(
     "spirit-equipped", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
 equippedOnlyState.ConfigureLoadout(commonIntentIds.Take(3), commonPassiveIds[0], 1, "test");
@@ -181,11 +259,16 @@ var executableLoadout = CompanionIntentResolver.IntentsFor(equippedOnlyState, Co
     .ToArray();
 var emptyLoadoutState = new CompanionBattleState(
     "spirit-empty", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
+var boundedEmptyFallback = CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Attack)
+    .Concat(CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Defense))
+    .Select(intent => intent.Id)
+    .Distinct(StringComparer.Ordinal)
+    .ToArray();
 Assert(executableLoadout.Length == 3
        && executableLoadout.All(id => equippedOnlyState.EquippedIntentIds.Contains(id, StringComparer.Ordinal))
-       && CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Attack).Count == 0
-       && CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Defense).Count == 0,
-    "spirit battle selection is restricted to the frozen three-slot loadout and never falls back to the full native pool");
+       && boundedEmptyFallback.Length == SpiritTrainingService.EmergencyFallbackIntentIds.Count
+       && boundedEmptyFallback.All(id => SpiritTrainingService.EmergencyFallbackIntentIds.Contains(id, StringComparer.Ordinal)),
+    "spirit battle selection uses the frozen loadout and only the bounded compatibility pair when that loadout is invalid");
 var compactLoadout = new SpiritInstance
 {
     SpiritUid = "compact-loadout",

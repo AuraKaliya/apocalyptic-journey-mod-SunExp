@@ -6,10 +6,16 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritTrainingService
 {
-    public const int TrainingPlanVersion = 1;
+    public const int TrainingPlanVersion = SpiritSystemContract.TrainingPlanVersion;
     public const int MinimumSpeed = 80;
     public const int MaximumSpeed = 120;
     public const int EquippedIntentCapacity = 3;
+
+    public static IReadOnlyList<string> EmergencyFallbackIntentIds { get; } = new[]
+    {
+        "staff_tap",
+        "shield_blessing"
+    };
 
     public static void InitializeCaptured(SpiritInstance instance)
     {
@@ -24,29 +30,42 @@ public static class SpiritTrainingService
         instance.LearnedPassiveIds ??= new List<string>();
         instance.UnlockPlan ??= new List<SpiritUnlockNode>();
         instance.NewAbilityIds ??= new List<string>();
+        instance.ResolvedInherentIntentIds ??= new List<string>();
 
         if (instance.Speed < MinimumSpeed || instance.Speed > MaximumSpeed)
         {
             instance.Speed = ExpectedSpeed(instance.SpiritUid, instance.ProfileId);
         }
 
-        var native = NativeIntentIds(instance).ToList();
-        instance.LearnedIntentIds = Clean(instance.LearnedIntentIds.Concat(native));
         var profile = SpiritTrainingRegistry.ProfileFor(instance.SpeciesId, instance.ProfileId);
-        var speciesPassive = string.IsNullOrWhiteSpace(profile.InitialPassiveId)
-            ? SpiritTrainingRegistry.SpeciesPassiveId(instance.SpeciesId)
-            : profile.InitialPassiveId.Trim();
+        ResolveInherentAbilityPlan(instance, profile);
+        var native = new List<string>(instance.ResolvedInherentIntentIds);
+        instance.LearnedIntentIds = Clean(instance.LearnedIntentIds.Concat(native));
+        instance.LearnedPassiveIds = Clean(instance.LearnedPassiveIds)
+            .Where(id => SpiritTrainingRegistry.FindPassive(id) != null)
+            .ToList();
+        var speciesPassive = instance.ResolvedInherentPassiveId;
         if (!string.IsNullOrWhiteSpace(speciesPassive) && !instance.LearnedPassiveIds.Contains(speciesPassive, StringComparer.Ordinal))
         {
             instance.LearnedPassiveIds.Add(speciesPassive);
         }
 
-        if (instance.TrainingPlanVersion < TrainingPlanVersion || instance.UnlockPlan.Count == 0)
+        var migratedTrainingPlan = instance.TrainingPlanVersion < TrainingPlanVersion;
+        if (migratedTrainingPlan || instance.UnlockPlan.Count == 0)
         {
+            if (migratedTrainingPlan)
+            {
+                var retiredGrowthAbilities = new HashSet<string>(
+                    instance.UnlockPlan.Select(node => node.AbilityId).Where(id => !string.IsNullOrWhiteSpace(id)),
+                    StringComparer.Ordinal);
+                instance.LearnedIntentIds.RemoveAll(retiredGrowthAbilities.Contains);
+                instance.LearnedPassiveIds.RemoveAll(retiredGrowthAbilities.Contains);
+                instance.NewAbilityIds.RemoveAll(retiredGrowthAbilities.Contains);
+            }
             instance.UnlockPlan = GeneratePlan(instance);
             instance.TrainingPlanVersion = TrainingPlanVersion;
         }
-        ApplyUnlockedNodes(instance, addNewMarker: legacy);
+        ApplyUnlockedNodes(instance, addNewMarker: legacy || migratedTrainingPlan);
 
         var defaultIntents = Clean(profile.DefaultIntentIds).Where(instance.LearnedIntentIds.Contains).ToList();
         if (defaultIntents.Count == 0) defaultIntents = NativeDefaults(native);
@@ -63,7 +82,9 @@ public static class SpiritTrainingService
         instance.EquippedPassiveId = instance.LearnedPassiveIds.Contains(instance.EquippedPassiveId ?? "", StringComparer.Ordinal)
             ? instance.EquippedPassiveId ?? ""
             : speciesPassive;
-        instance.LearnedPassiveIds = Clean(instance.LearnedPassiveIds);
+        instance.LearnedPassiveIds = Clean(instance.LearnedPassiveIds)
+            .Where(id => SpiritTrainingRegistry.FindPassive(id) != null)
+            .ToList();
         instance.NewAbilityIds = Clean(instance.NewAbilityIds)
             .Where(id => instance.LearnedIntentIds.Contains(id, StringComparer.Ordinal)
                          || instance.LearnedPassiveIds.Contains(id, StringComparer.Ordinal))
@@ -265,9 +286,27 @@ public static class SpiritTrainingService
         AddNode(result, learned, 2, DeterministicRange(seed + ":level:2", 14, 18), "Intent",
             Pick(seed + ":ability:2", SpiritTrainingRegistry.CommonIntentIds("Common.Tactical"), learned));
         AddNode(result, learned, 3, DeterministicRange(seed + ":level:3", 23, 28), "Passive",
-            Pick(seed + ":ability:3", SpiritTrainingRegistry.CommonPassiveIds("Common.Core"), learned));
-        AddNode(result, learned, 4, DeterministicRange(seed + ":level:4", 32, 38), "Intent",
-            Pick(seed + ":ability:4", SpiritTrainingRegistry.CommonIntentIds("Common.Advanced"), learned));
+            PickEligiblePassive(seed + ":ability:3", SpiritTrainingRegistry.CommonPassiveIds("Common.Core"), learned));
+        var advancedCandidates = SpiritTrainingRegistry.CommonIntentIds("Common.Advanced");
+        var plannedCommonTypes = result
+            .Where(node => string.Equals(node.AbilityKind, "Intent", StringComparison.Ordinal))
+            .Select(node => IntentType(node.AbilityId))
+            .Where(type => type.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (plannedCommonTypes.Count == 1)
+        {
+            var differentType = advancedCandidates
+                .Where(id => !string.Equals(IntentType(id), plannedCommonTypes[0], StringComparison.Ordinal));
+            var diverse = Pick(seed + ":ability:4:diverse", differentType, learned);
+            AddNode(result, learned, 4, DeterministicRange(seed + ":level:4", 32, 38), "Intent",
+                diverse.Length > 0 ? diverse : Pick(seed + ":ability:4", advancedCandidates, learned));
+        }
+        else
+        {
+            AddNode(result, learned, 4, DeterministicRange(seed + ":level:4", 32, 38), "Intent",
+                Pick(seed + ":ability:4", advancedCandidates, learned));
+        }
 
         var passiveLast = DeterministicRange(seed + ":kind:5", 0, 1) == 1;
         var lastKind = passiveLast ? "Passive" : "Intent";
@@ -277,14 +316,16 @@ public static class SpiritTrainingService
                 .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Tactical"))
                 .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Basic"))
                 .ToArray();
-        var last = Pick(seed + ":ability:5", lastPool, learned);
+        var last = passiveLast
+            ? PickEligiblePassive(seed + ":ability:5", lastPool, learned)
+            : Pick(seed + ":ability:5", lastPool, learned);
         if (last.Length == 0)
         {
             lastKind = passiveLast ? "Intent" : "Passive";
-            last = Pick(seed + ":ability:5:fallback",
-                passiveLast
-                    ? SpiritTrainingRegistry.CommonIntentIds("Common.Advanced")
-                    : SpiritTrainingRegistry.CommonPassiveIds("Common.Advanced"), learned);
+            last = passiveLast
+                ? Pick(seed + ":ability:5:fallback", SpiritTrainingRegistry.CommonIntentIds("Common.Advanced"), learned)
+                : PickEligiblePassive(seed + ":ability:5:fallback",
+                    SpiritTrainingRegistry.CommonPassiveIds("Common.Advanced"), learned);
         }
         AddNode(result, learned, 5, DeterministicRange(seed + ":level:5", 42, 47), lastKind, last);
         return result;
@@ -305,10 +346,105 @@ public static class SpiritTrainingService
             .FirstOrDefault() ?? "";
     }
 
+    private static string PickEligiblePassive(string seed, IEnumerable<string> values, ISet<string> learned)
+    {
+        var eligible = (values ?? Array.Empty<string>())
+            .Where(id => PassiveEligible(id, learned))
+            .ToArray();
+        return Pick(seed, eligible.Length > 0 ? eligible : values ?? Array.Empty<string>(), learned);
+    }
+
+    private static bool PassiveEligible(string passiveId, IEnumerable<string> learned)
+    {
+        var passive = SpiritTrainingRegistry.FindPassive(passiveId);
+        if (passive == null) return false;
+        var intents = learned.Select(SpiritIntentRegistry.Find).Where(intent => intent != null).Cast<CompanionIntentDefinition>().ToArray();
+        return passive.EffectKind switch
+        {
+            "swift-calculation" => intents.Any(intent => intent.SpeedScale > 0f),
+            "guardian-contract" => intents.Any(intent => intent.Type is "Defense" or "Recovery"),
+            "combo-resonance" => intents.Any(intent => intent.Type is "Support" or "Recovery")
+                                 && intents.Any(intent => intent.Type is "Attack" or "Defense"),
+            "exploit-opening" => intents.Any(intent => intent.Type == "Attack"),
+            "alternating-tactics" => intents.Select(intent => intent.Type).Distinct(StringComparer.Ordinal).Count() >= 2,
+            "efficient-casting" => intents.Any(intent => intent.Cost >= 2),
+            _ => true
+        };
+    }
+
+    private static string IntentType(string intentId)
+    {
+        return SpiritIntentRegistry.Find(intentId)?.Type ?? "";
+    }
+
     private static IEnumerable<string> NativeIntentIds(SpiritInstance instance)
     {
         var profile = SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot?.ProfileKey ?? "");
         return profile.PveAttackTendency.Concat(profile.PveDefenseTendency).Distinct(StringComparer.Ordinal);
+    }
+
+    private static void ResolveInherentAbilityPlan(
+        SpiritInstance instance,
+        SpiritSpeciesTrainingProfile profile)
+    {
+        if (instance.InherentAbilityPlanVersion >= SpiritSystemContract.InherentAbilityPlanVersion
+            && instance.ResolvedInherentIntentIds.Count > 0
+            && SpiritTrainingRegistry.FindPassive(instance.ResolvedInherentPassiveId) != null)
+        {
+            return;
+        }
+
+        var previousIntents = new HashSet<string>(instance.ResolvedInherentIntentIds, StringComparer.Ordinal);
+        var previousPassive = instance.ResolvedInherentPassiveId ?? "";
+        var native = NativeIntentIds(instance).Where(id => SpiritIntentRegistry.Find(id) != null).ToList();
+        var passive = string.IsNullOrWhiteSpace(profile.InitialPassiveId)
+            ? SpiritTrainingRegistry.SpeciesPassiveId(instance.SpeciesId)
+            : profile.InitialPassiveId.Trim();
+        if (native.Count == 0)
+        {
+            native = CompatibilityIntentIds(instance);
+            passive = SpiritSystemContract.CompatibilityPassiveId;
+        }
+        if (SpiritTrainingRegistry.FindPassive(passive) == null)
+        {
+            passive = SpiritSystemContract.CompatibilityPassiveId;
+        }
+
+        if (instance.InherentAbilityPlanVersion > 0)
+        {
+            instance.LearnedIntentIds.RemoveAll(previousIntents.Contains);
+            if (previousPassive.Length > 0) instance.LearnedPassiveIds.RemoveAll(id => string.Equals(id, previousPassive, StringComparison.Ordinal));
+        }
+        instance.ResolvedInherentIntentIds = Clean(native);
+        instance.ResolvedInherentPassiveId = passive;
+        instance.InherentAbilityPlanVersion = SpiritSystemContract.InherentAbilityPlanVersion;
+    }
+
+    private static List<string> CompatibilityIntentIds(SpiritInstance instance)
+    {
+        var result = new List<string>
+        {
+            SpiritSystemContract.CompatibilityAttackIntentId,
+            SpiritSystemContract.CompatibilityDefenseIntentId
+        };
+        var growth = SpiritGrowthRegistry.Resolve(instance);
+        var totals = new[]
+        {
+            (Key: "magic", Value: growth.BaseOrigins.Magic + growth.GrowthOrigins.Magic),
+            (Key: "perception", Value: growth.BaseOrigins.Perception + growth.GrowthOrigins.Perception),
+            (Key: "spirit", Value: growth.BaseOrigins.Spirit + growth.GrowthOrigins.Spirit),
+            (Key: "luck", Value: growth.BaseOrigins.Luck + growth.GrowthOrigins.Luck)
+        };
+        var dominant = totals.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal).First().Key;
+        var branch = dominant switch
+        {
+            "magic" => "spirit.common.basic.focused-chant.intent",
+            "perception" => "spirit.common.tactical.guardian-ward.intent",
+            "spirit" => "spirit.common.basic.emergency-heal.intent",
+            _ => "spirit.common.basic.weakening-mark.intent"
+        };
+        if (SpiritIntentRegistry.Find(branch) != null) result.Add(branch);
+        return Clean(result).Take(EquippedIntentCapacity).ToList();
     }
 
     private static List<string> NativeDefaults(IReadOnlyList<string> native)

@@ -284,6 +284,45 @@ public static class TerriasUiComponents
         return new GridScrollArea(root, viewport, content, scroll, grid);
     }
 
+    public static ScrollArea CreateVirtualizedGridScrollArea(
+        Transform parent,
+        string name,
+        float minHeight,
+        float flexibleHeight,
+        float scrollSensitivity,
+        Color viewportColor)
+    {
+        var root = CreateLayoutObject("VirtualGridScroll-" + name, parent);
+        var element = AuraUiComponents.EnsureLayoutElement(root);
+        element.minHeight = minHeight;
+        element.flexibleHeight = flexibleHeight;
+        element.flexibleWidth = 1f;
+
+        var viewport = TerriasUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        viewport.offsetMin = Vector2.zero;
+        viewport.offsetMax = Vector2.zero;
+        var viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = viewportColor;
+        viewportImage.raycastTarget = true;
+        viewport.gameObject.AddComponent<RectMask2D>();
+
+        var content = TerriasUiBuilder.CreateRect(
+            "Cards",
+            viewport,
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(0.5f, 1f),
+            Vector2.zero);
+        var scroll = root.AddComponent<ScrollRect>();
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = scrollSensitivity;
+        return new ScrollArea(root, viewport, content, scroll);
+    }
+
     public static GameObject CreateBadgeContentCard(
         Transform parent,
         string name,
