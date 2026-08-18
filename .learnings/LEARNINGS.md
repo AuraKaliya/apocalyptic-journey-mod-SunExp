@@ -141,3 +141,77 @@ artifacts, and add focused lifecycle tests.
   campaign observations before replay cleanup.
 
 ---
+
+## [LRN-20260818-001] correction
+
+**Logged**: 2026-08-18T11:10:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+An independent UI preview must reproduce the game's actual visual grammar, not only its information architecture.
+
+### Details
+The first Unity settings preview used a modern flat charcoal workspace, small
+type, pill switches, and thin borders. The real game settings UI uses saturated
+indigo surfaces, warm large text, ornate gold nine-slice frames, paired
+enable/disable checkboxes, and long selectors with gold end caps. A structurally
+correct preview was therefore visually misleading.
+
+### Suggested Action
+Calibrate against supplied game screenshots and extracted native nine-slice
+assets before accepting preview fidelity. Keep visual-structure assertions in
+the Player suite so later theme simplification cannot silently drift back to a
+generic tool UI.
+
+### Metadata
+- Source: user_feedback
+- Related Files: AuraToolsUnityUiPreview, AuraToolsExp/ui-img, Terrias/ModResource/Images/UI
+- Tags: unity-preview, ui-fidelity, native-style, nine-slice, settings
+
+### Resolution
+- **Resolved**: 2026-08-18T11:45:00+08:00
+- **Notes**: Recalibrated the Player from the supplied screenshot, copied and
+  sliced the native button/panel/selector assets, restored indigo surfaces,
+  large warm text, paired checkboxes and gold-capped selectors, and added
+  runtime assertions for the native visual components.
+
+---
+
+## [LRN-20260818-002] correction
+
+**Logged**: 2026-08-18T12:20:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+Native visual fidelity requires selective adaptation; repeating ornate native assets across every toolbox control still produces an ugly interface.
+
+### Details
+The second Unity preview used the correct indigo palette and original nine-slice
+assets, but reused the same small native button and panel textures for tabs,
+category selection, header, search, icon buttons, selectors and checkboxes.
+The result matched the game's material vocabulary while losing visual hierarchy
+through repeated gold frames, non-integer scaling and very dense text.
+
+### Suggested Action
+Keep native chrome only at the settings-window boundary and native setting
+controls. Create a restrained Aura Toolbox component family for internal
+navigation, search, module rows, icon actions and checkboxes, with per-resource
+filtering and a shared visual specification used by production and previews.
+
+### Metadata
+- Source: user_feedback
+- Related Files: docs/AuraToolsExp/toolbox-ui-component-redesign-plan.md, AuraToolsUnityUiPreview
+- Tags: ui-hierarchy, resource-semantics, gold-frame-noise, native-adaptation
+
+### Resolution
+- **Resolved**: 2026-08-18T14:10:00+08:00
+- **Notes**: Added a dedicated Toolbox V2 asset family and visual spec, removed
+  ornate native controls from the toolbox interior, increased density metrics,
+  labeled module enable actions, and synchronized production, HTML and Unity
+  previews with source and screenshot gates.
+
+---

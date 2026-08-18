@@ -6,6 +6,7 @@ using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using AuraToolsExp.Dll.Modules.Contracts;
 using AuraUi.Shared;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,34 +24,31 @@ internal sealed class ToolboxSettingsShellState
 
 internal sealed class ToolboxSettingsShell : MonoBehaviour
 {
-    private sealed class Category
+    private static readonly ToolboxCategoryDefinition[] Categories =
     {
-        public string Id { get; set; } = "";
-        public string Label { get; set; } = "";
-    }
-
-    private static readonly Category[] Categories =
-    {
-        new() { Id = "all", Label = "全部" },
-        new() { Id = "gameplay", Label = "游戏体验" },
-        new() { Id = "presentation", Label = "表现与资源" },
-        new() { Id = "records", Label = "对局记录" },
-        new() { Id = "multiplayer", Label = "联机工具" },
-        new() { Id = "intelligence", Label = "智能战斗" },
-        new() { Id = "extensions", Label = "扩展工具" },
-        new() { Id = "system", Label = "系统与数据" }
+        new() { Id = "all", Label = "全部", IconKey = "category.all" },
+        new() { Id = "gameplay", Label = "游戏体验", IconKey = "category.gameplay" },
+        new() { Id = "presentation", Label = "表现资源", IconKey = "category.presentation" },
+        new() { Id = "records", Label = "对局记录", IconKey = "category.records" },
+        new() { Id = "multiplayer", Label = "联机工具", IconKey = "category.multiplayer" },
+        new() { Id = "intelligence", Label = "智能战斗", IconKey = "category.intelligence" },
+        new() { Id = "extensions", Label = "扩展工具", IconKey = "category.extensions" },
+        new() { Id = "system", Label = "系统数据", IconKey = "category.system" }
     };
 
     private static readonly ToolboxSettingsShellState SessionState = new();
-    private readonly Dictionary<string, Button> categoryButtons =
-        new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ToolboxModuleRow> visibleRows =
+    private readonly Dictionary<string, ToolboxModuleListItem> visibleRows =
         new(StringComparer.Ordinal);
     private AuraUiKeyedListReconciler<string, IAuraToolModule>? reconciler;
+    private ToolboxCategoryRail? categoryRail;
     private Transform? listContent;
     private ScrollRect? listScroll;
-    private Text? resultText;
+    private TextMeshProUGUI? resultText;
+    private TMP_InputField? searchInput;
+    private ToolboxIconButtonV2? clearSearchButton;
     private GameObject? emptyState;
+    private TextMeshProUGUI? emptyStateText;
+    private GameObject? workspace;
     private float nextRefreshAt;
     private bool built;
 
@@ -69,91 +67,114 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
 
     private void BuildOnce(Transform panel)
     {
-        if (built)
+        if (built && workspace != null)
         {
             return;
         }
 
-        built = true;
-        AuraToolModuleHost.States.Changed += OnModuleStateChanged;
-        AuraToolModuleHost.Catalog.Changed += OnCatalogChanged;
-
-        var toolbar = AuraToolsUi.CreateLayout("ToolboxToolbar", panel);
-        AuraToolsUi.SetFixedHeight(toolbar, AuraToolsUi.ToolbarHeight);
-        AuraUiStableId.Assign(toolbar, "toolbox.toolbar");
-        var toolbarLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
-        toolbarLayout.spacing = 6f;
-        toolbarLayout.childControlWidth = true;
-        toolbarLayout.childControlHeight = true;
-        toolbarLayout.childForceExpandWidth = false;
-        toolbarLayout.childForceExpandHeight = false;
-
-        foreach (var category in Categories)
+        if (!built)
         {
-            var width = category.Id == "all" ? 64f : 96f;
-            var button = AuraToolsUi.AddButton(
-                toolbar.transform,
-                category.Label,
-                () => SelectCategory(category.Id),
-                width);
-            AuraUiStableId.Assign(
-                button.gameObject,
-                "toolbox.category." + category.Id);
-            categoryButtons[category.Id] = button;
+            built = true;
+            AuraToolModuleHost.States.Changed += OnModuleStateChanged;
+            AuraToolModuleHost.Catalog.Changed += OnCatalogChanged;
+        }
+        else
+        {
+            visibleRows.Clear();
+            reconciler = null;
+            listContent = null;
+            listScroll = null;
         }
 
-        var actionBar = AuraToolsUi.CreateLayout("ToolboxActions", panel);
-        AuraToolsUi.SetFixedHeight(actionBar, AuraToolsUi.ToolbarHeight);
-        AuraUiStableId.Assign(actionBar, "toolbox.actions");
-        var actionLayout = actionBar.AddComponent<HorizontalLayoutGroup>();
-        actionLayout.spacing = 6f;
-        actionLayout.childControlWidth = true;
-        actionLayout.childControlHeight = true;
-        actionLayout.childForceExpandWidth = false;
-        actionLayout.childForceExpandHeight = false;
-        AuraToolsUi.AddText(
-            actionBar.transform,
-            "搜索",
-            AuraToolsUi.HintFontSize,
-            TextAnchor.MiddleRight,
-            AuraToolsUi.MutedText,
-            AuraToolsUi.TextMinHeight,
-            0f,
-            44f);
-        var search = AuraToolsUi.AddInput(
-            actionBar.transform,
+        workspace = AuraToolsUi.CreateLayout("ToolboxWorkspace", panel);
+        AuraUiStableId.Assign(workspace, "toolbox.workspace");
+        ToolboxSurfaceV2.Apply(workspace).raycastTarget = false;
+        var workspaceElement = AuraToolsUi.EnsureLayoutElement(workspace);
+        workspaceElement.flexibleWidth = 1f;
+        workspaceElement.flexibleHeight = 1f;
+        var workspaceLayout = workspace.AddComponent<HorizontalLayoutGroup>();
+        workspaceLayout.spacing = 10f;
+        workspaceLayout.childControlWidth = true;
+        workspaceLayout.childControlHeight = true;
+        workspaceLayout.childForceExpandWidth = false;
+        workspaceLayout.childForceExpandHeight = true;
+
+        categoryRail = ToolboxCategoryRail.Create(
+            workspace.transform,
+            Categories,
+            SelectCategory);
+
+        var content = AuraToolsUi.CreateLayout("ToolboxContent", workspace.transform);
+        var contentElement = AuraToolsUi.EnsureLayoutElement(content);
+        contentElement.flexibleWidth = 1f;
+        contentElement.flexibleHeight = 1f;
+        var contentLayout = content.AddComponent<VerticalLayoutGroup>();
+        contentLayout.spacing = ToolboxVisualSpec.Spacing;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = true;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+
+        var header = AuraToolsUi.CreateLayout("ToolboxHeader", content.transform);
+        AuraToolsUi.SetFixedHeight(header, AuraToolsUi.ToolboxHeaderHeight);
+        AuraUiStableId.Assign(header, "toolbox.header");
+        ToolboxSurfaceV2.ApplyControl(header);
+        var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
+        headerLayout.padding = new RectOffset(14, 10, 8, 8);
+        headerLayout.spacing = 8f;
+        headerLayout.childControlWidth = true;
+        headerLayout.childControlHeight = true;
+        headerLayout.childForceExpandWidth = false;
+        headerLayout.childForceExpandHeight = false;
+
+        resultText = AuraToolsUi.AddTmpText(
+            header.transform,
+            "",
+            ToolboxVisualSpec.TitleSize,
+            TextAnchor.MiddleLeft,
+            ToolboxVisualSpec.Text,
+            44f,
+            1f,
+            autoSize: true);
+        resultText.textWrappingMode = TextWrappingModes.NoWrap;
+
+        searchInput = ToolboxSearchFieldV2.Create(
+            header.transform,
             SessionState.SearchText,
             value =>
             {
-                SessionState.SearchText = (value ?? "").Trim();
+                SessionState.SearchText = value ?? "";
                 RebuildRows(preserveCurrentView: true);
             },
-            196f);
-        AuraUiStableId.Assign(search.gameObject, "toolbox.search");
-        AuraToolsUi.AddButton(
-            actionBar.transform,
-            "数据目录",
+            ToolboxVisualSpec.SearchWidth);
+        AuraUiStableId.Assign(searchInput.gameObject, "toolbox.search");
+
+        clearSearchButton = ToolboxIconButtonV2.Create(
+            header.transform,
+            "action.clear",
+            "清空搜索",
+            ClearSearch,
+            ToolboxVisualSpec.IconButtonSize,
+            "×");
+        AuraUiStableId.Assign(clearSearchButton.Root, "toolbox.search.clear");
+
+        var directoryButton = ToolboxIconButtonV2.Create(
+            header.transform,
+            "action.folder",
+            "打开数据目录",
             () => FileResourceUtil.OpenDirectory(
                 AuraToolsExp.Dll.Config.AuraToolsConfigService.DataRootDirectory),
-            92f);
+            ToolboxVisualSpec.IconButtonSize,
+            "夹");
+        AuraUiStableId.Assign(directoryButton.Root, "toolbox.data-directory");
 
-        var summary = AuraToolsUi.CreateLayout("ToolboxSummary", panel);
-        AuraToolsUi.SetFixedHeight(summary, 42f);
-        var summaryLayout = summary.AddComponent<HorizontalLayoutGroup>();
-        summaryLayout.spacing = 8f;
-        summaryLayout.childControlWidth = true;
-        summaryLayout.childControlHeight = true;
-        summaryLayout.childForceExpandWidth = false;
-        resultText = AuraToolsUi.AddText(
-            summary.transform,
-            "",
-            AuraToolsUi.BodyFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            AuraToolsUi.TextMinHeight,
-            1f);
+        var listArea = AuraToolsUi.CreateLayout("ToolboxListArea", content.transform);
+        var listAreaElement = AuraToolsUi.EnsureLayoutElement(listArea);
+        listAreaElement.flexibleWidth = 1f;
+        listAreaElement.flexibleHeight = 1f;
+        AuraToolsUi.AddImage(listArea, ToolboxVisualSpec.Workspace).raycastTarget = false;
 
-        listContent = AuraToolsUi.CreateScroll(panel, "ToolboxModules");
+        listContent = AuraToolsUi.CreateScroll(listArea.transform, "ToolboxModules");
         listScroll = AuraUiViewState.ResolveScroll(listContent);
         reconciler = new AuraUiKeyedListReconciler<string, IAuraToolModule>(
             listContent,
@@ -162,16 +183,19 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
             CreateModuleRow,
             UpdateModuleRow);
 
-        emptyState = AuraToolsUi.CreateLayout("ToolboxEmpty", panel);
-        AuraToolsUi.SetFixedHeight(emptyState, 80f);
-        AuraToolsUi.AddText(
+        emptyState = AuraToolsUi.CreateRect(
+            "ToolboxEmpty",
+            listArea.transform,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        emptyStateText = AuraToolsUi.AddTmpFillText(
             emptyState.transform,
             "没有符合当前分类和搜索条件的工具。",
-            AuraToolsUi.BodyFontSize,
+            ToolboxVisualSpec.StatusSize,
             TextAnchor.MiddleCenter,
-            AuraToolsUi.MutedText,
-            72f,
-            1f);
+            ToolboxVisualSpec.MutedText);
         emptyState.SetActive(false);
 
         if (!Categories.Any(category => category.Id == SessionState.CategoryId))
@@ -211,6 +235,18 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
         RebuildRows(preserveCurrentView: false);
     }
 
+    private void ClearSearch()
+    {
+        if (string.IsNullOrWhiteSpace(SessionState.SearchText))
+        {
+            return;
+        }
+
+        SessionState.SearchText = "";
+        searchInput?.SetTextWithoutNotify("");
+        RebuildRows(preserveCurrentView: true);
+    }
+
     private void CaptureCurrentCategoryView()
     {
         if (listScroll == null)
@@ -232,16 +268,22 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
         var modules = FilteredModules();
         reconciler.Reconcile(modules, preserveCurrentView);
         emptyState?.SetActive(modules.Count == 0);
+        if (emptyStateText != null)
+        {
+            emptyStateText.text = string.IsNullOrWhiteSpace(SessionState.SearchText)
+                ? "当前分类暂无工具。"
+                : "没有符合搜索条件的工具。";
+        }
         if (resultText != null)
         {
-            resultText.text = CategoryLabel(SessionState.CategoryId)
-                              + " · " + modules.Count + " 个工具"
-                              + (string.IsNullOrWhiteSpace(SessionState.SearchText)
-                                  ? ""
-                                  : " · 搜索：" + SessionState.SearchText);
+            resultText.text = string.IsNullOrWhiteSpace(SessionState.SearchText)
+                ? CategoryLabel(SessionState.CategoryId) + "  ·  " + modules.Count
+                : "搜索结果  ·  " + modules.Count;
         }
+        clearSearchButton?.SetVisible(
+            !string.IsNullOrWhiteSpace(SessionState.SearchText));
 
-        RefreshCategoryButtons();
+        RefreshCategoryRail();
         if (!preserveCurrentView
             && listContent != null
             && SessionState.ScrollByCategory.TryGetValue(
@@ -264,9 +306,10 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
     private List<IAuraToolModule> FilteredModules()
     {
         var categoryId = SessionState.CategoryId;
-        var search = SessionState.SearchText;
+        var search = (SessionState.SearchText ?? "").Trim();
         return AuraToolModuleHost.Catalog.VisibleModules
-            .Where(module => categoryId == "all"
+            .Where(module => !string.IsNullOrWhiteSpace(search)
+                             || categoryId == "all"
                              || string.Equals(
                                  module.Descriptor.CategoryId,
                                  categoryId,
@@ -283,7 +326,7 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
             "ToolModule-" + module.Descriptor.ModuleId,
             listContent!);
         AuraUiStableId.Assign(row, "toolbox.module." + module.Descriptor.ModuleId);
-        var view = row.AddComponent<ToolboxModuleRow>();
+        var view = row.AddComponent<ToolboxModuleListItem>();
         view.Build(module);
         visibleRows[module.Descriptor.ModuleId] = view;
         return row;
@@ -291,10 +334,10 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
 
     private void UpdateModuleRow(GameObject row, IAuraToolModule module)
     {
-        var view = row.GetComponent<ToolboxModuleRow>();
+        var view = row.GetComponent<ToolboxModuleListItem>();
         if (view == null)
         {
-            view = row.AddComponent<ToolboxModuleRow>();
+            view = row.AddComponent<ToolboxModuleListItem>();
             view.Build(module);
         }
         visibleRows[module.Descriptor.ModuleId] = view;
@@ -338,24 +381,31 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
         RebuildRows(preserveCurrentView: true);
     }
 
-    private void RefreshCategoryButtons()
+    private void RefreshCategoryRail()
     {
-        var hasExtensions = HasExtensionModules();
-        foreach (var pair in categoryButtons)
+        if (categoryRail == null)
         {
-            pair.Value.gameObject.SetActive(
-                pair.Key != "extensions" || hasExtensions);
-            var label = pair.Value.GetComponentInChildren<Text>(true);
-            if (label != null)
+            return;
+        }
+
+        var counts = Categories.ToDictionary(
+            category => category.Id,
+            _ => 0,
+            StringComparer.Ordinal);
+        foreach (var module in AuraToolModuleHost.Catalog.VisibleModules)
+        {
+            counts["all"]++;
+            if (counts.ContainsKey(module.Descriptor.CategoryId))
             {
-                label.color = string.Equals(
-                    pair.Key,
-                    SessionState.CategoryId,
-                    StringComparison.Ordinal)
-                    ? AuraToolsUi.Accent
-                    : AuraToolsUi.Text;
+                counts[module.Descriptor.CategoryId]++;
             }
         }
+        categoryRail.Refresh(
+            string.IsNullOrWhiteSpace(SessionState.SearchText)
+                ? SessionState.CategoryId
+                : "all",
+            counts,
+            HasExtensionModules());
     }
 
     private static bool HasExtensionModules()
@@ -392,171 +442,6 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
     {
         return Categories.FirstOrDefault(category => category.Id == categoryId)?.Label
                ?? "全部";
-    }
-}
-
-internal sealed class ToolboxModuleRow : MonoBehaviour
-{
-    private IAuraToolModule? module;
-    private Image? background;
-    private Text? titleText;
-    private Text? descriptionText;
-    private Text? statusText;
-    private Toggle? toggle;
-    private Button? settingsButton;
-    private bool suppressToggle;
-
-    public void Build(IAuraToolModule value)
-    {
-        module = value;
-        AuraToolsUi.SetFixedHeight(gameObject, 102f);
-        background = AuraToolsUi.AddImage(gameObject, AuraToolsUi.Row);
-        var layout = gameObject.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(12, 12, 8, 8);
-        layout.spacing = 10f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-
-        var marker = AuraToolsUi.CreateLayout("CategoryMarker", transform);
-        AuraToolsUi.SetFixedSize(marker, 6f, 76f);
-        AuraToolsUi.AddImage(marker, AuraToolsUi.Accent);
-
-        var copy = AuraToolsUi.CreateLayout("Copy", transform);
-        var copyElement = AuraToolsUi.EnsureLayoutElement(copy);
-        copyElement.flexibleWidth = 1f;
-        var copyLayout = copy.AddComponent<VerticalLayoutGroup>();
-        copyLayout.spacing = 0f;
-        copyLayout.childControlWidth = true;
-        copyLayout.childControlHeight = true;
-        copyLayout.childForceExpandWidth = true;
-        copyLayout.childForceExpandHeight = false;
-        titleText = AuraToolsUi.AddText(
-            copy.transform,
-            "",
-            AuraToolsUi.ModuleTitleFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            40f,
-            1f);
-        descriptionText = AuraToolsUi.AddText(
-            copy.transform,
-            "",
-            AuraToolsUi.HintFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.MutedText,
-            40f,
-            1f);
-
-        statusText = AuraToolsUi.AddText(
-            transform,
-            "",
-            AuraToolsUi.HintFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.MutedText,
-            72f,
-            0f,
-            230f);
-
-        settingsButton = AuraToolsUi.AddButton(
-            transform,
-            "设置",
-            OpenSettings,
-            82f);
-        AuraUiStableId.Assign(
-            settingsButton.gameObject,
-            "toolbox.module." + value.Descriptor.ModuleId + ".settings");
-        toggle = AuraToolsUi.AddToggle(transform, false, ToggleChanged);
-        AuraUiStableId.Assign(
-            toggle.gameObject,
-            "toolbox.module." + value.Descriptor.ModuleId + ".toggle");
-    }
-
-    public void Bind(IAuraToolModule value, AuraToolModuleState state)
-    {
-        module = value;
-        if (titleText != null)
-        {
-            titleText.text = value.Descriptor.DisplayName
-                             + (value.Descriptor.Experimental ? "（实验）" : "");
-        }
-        if (descriptionText != null)
-        {
-            descriptionText.text = value.Descriptor.Description;
-        }
-        if (settingsButton != null)
-        {
-            settingsButton.gameObject.SetActive(value.Descriptor.HasSettingsPage);
-        }
-        Refresh(state);
-    }
-
-    public void Refresh(AuraToolModuleState state)
-    {
-        if (state == null)
-        {
-            return;
-        }
-
-        suppressToggle = true;
-        toggle?.SetIsOnWithoutNotify(state.ConfiguredEnabled);
-        suppressToggle = false;
-        if (toggle != null)
-        {
-            toggle.interactable = state.Availability
-                                  != AuraToolModuleAvailability.Unavailable
-                                  && state.Availability
-                                  != AuraToolModuleAvailability.Busy;
-        }
-        if (settingsButton != null)
-        {
-            settingsButton.interactable = state.Availability
-                                          != AuraToolModuleAvailability.Unavailable;
-        }
-        if (statusText != null)
-        {
-            statusText.text = string.IsNullOrWhiteSpace(state.Attention)
-                ? state.Summary
-                : state.Summary + "\n" + state.Attention;
-            statusText.color = !string.IsNullOrWhiteSpace(state.Attention)
-                ? AuraToolsUi.WarningText
-                : state.EffectiveEnabled
-                    ? AuraToolsUi.SuccessText
-                    : AuraToolsUi.MutedText;
-        }
-        if (background != null)
-        {
-            background.color = state.EffectiveEnabled
-                ? AuraToolsUi.ActiveRow
-                : AuraToolsUi.Row;
-        }
-    }
-
-    private void ToggleChanged(bool enabled)
-    {
-        if (suppressToggle || module == null)
-        {
-            return;
-        }
-
-        var result = AuraToolModuleHost.SetEnabled(
-            module.Descriptor.ModuleId,
-            enabled);
-        var state = AuraToolModuleHost.RefreshState(module.Descriptor.ModuleId);
-        if (!result.Success)
-        {
-            state.Attention = result.Message;
-        }
-        Refresh(state);
-    }
-
-    private void OpenSettings()
-    {
-        if (module != null)
-        {
-            ToolboxSettingsPageRouter.Open(module, transform);
-        }
     }
 }
 

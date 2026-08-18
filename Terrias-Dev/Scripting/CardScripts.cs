@@ -400,9 +400,9 @@ public static class CardScripts
 
     private static void UseBlankCheck(ScriptExecutor self)
     {
-        var snapshot = GoldDreamEconomyService.AddBlankCheckResources(self);
+        var postGainSnapshot = GoldDreamEconomyService.AddBlankCheckResources(self);
         self.SetStatus("Self");
-        switch (snapshot.Tier)
+        switch (postGainSnapshot.Tier)
         {
             case GoldenPotentialTier.K:
                 self.DrawCount("3");

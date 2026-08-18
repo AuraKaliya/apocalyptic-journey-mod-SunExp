@@ -1,43 +1,138 @@
-开发参考资料
-开发参考资料/
-bin/
-obj/
+# Local game references and machine-specific source dumps.
+/开发参考资料/
 
-# Rebuildable binary outputs. Existing tracked game reference assemblies
-# remain tracked; this prevents new DLL/EXE artifacts from being added.
+# Operating-system and editor metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userprefs
+*.sln.docstates
+*.DotSettings.user
+*.swp
+*.swo
+*~
 
+# .NET build, test, coverage, benchmark, and local tool caches.
+[Bb]in/
+[Oo]bj/
+[Tt]est[Rr]esults/
+[Bb]enchmark[Dd]ot[Nn]et.[Aa]rtifacts/
+.dotnet/
+.nuget/
 *.pdb
+*.ilk
+*.iobj
+*.ipdb
+*.tlog
+*.lastbuildstate
+*.trx
+*.coverage
+*.coveragexml
+/coverage/
+/htmlcov/
 
-# External trainer runtime state is local to each machine.
-/ModsData/Config/Owners/AuraToolsExp/FoundationTrainer/
-/AuraToolsExp/TrainingWorker/*.exe
+# Unity transient state. Source Assets, Packages, ProjectSettings, and source
+# .meta files remain addable; generated mirrors are scoped in project ignores.
+[Ll]ibrary/
+[Tt]emp/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+sysinfo.txt
+crash.dmp
+*.pidb
+*.booproj
+*.svd
+*.mdb
+*.opendb
+*.VC.db
+*.unitypackage
+*.apk
+*.aab
 
-Terrias-Dev/VisualAssets/UnityProject/
-Terrias-Dev/VisualAssets/*.unity-build.log
-Terrias-Dev/VisualAssets/unity-*.log
-TerriasCardFrameDebug/Library/
-TerriasCardFrameDebug/Temp/
-TerriasCardFrameDebug/Obj/
-TerriasCardFrameDebug/Logs/
-TerriasCardFrameDebug/UserSettings/
-TerriasCardFrameDebug/Build/
-TerriasCardFrameDebug/Builds/
-TerriasCardFrameDebug/*.csproj
-TerriasCardFrameDebug/*.sln
-TerriasCardFrameDebug/*.user
-TerriasCardFrameDebug.create.log
+# Unity-generated IDE files for the repository's standalone preview projects.
+/TerriasCardFrameDebug/*.csproj
+/TerriasCardFrameDebug/*.sln
+/TerriasCardFrameDebug/*.user
+/AuraCardFrameFxLab/*.csproj
+/AuraCardFrameFxLab/*.sln
+/AuraCardFrameFxLab/*.user
+/AuraToolsUnityUiPreview/*.csproj
+/AuraToolsUnityUiPreview/*.sln
+/AuraToolsUnityUiPreview/*.user
 
-ModsData/Logs/*
-ModsData/AuraShared/Logs/*
-ModsData/*
+# Node, browser automation, and package-manager state.
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+.playwright/
+.playwright-cli/
+playwright-report/
+test-results/
+blob-report/
 
-/Terrias/Scripts/*
-/AuraToolsExp/Scripts/*
-/SanGuoShaExp/Scripts/*
+# Python bytecode, environments, and analysis caches.
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.venv/
+venv/
+env/
+.coverage
+
+# Logs, temporary files, crash state, and patch leftovers.
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.pid
+*.dmp
+
+# Secrets and per-developer environment configuration.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Runtime saves, diagnostics, training state, and reproducible work output.
+/ModsData/
+/tmp/
+/.codex/tmp/
+/output/
+/outputs/
+/AuraToolsExp/TrainingWorker/.publish-staging/
+/artifacts/AuraToolsExp/toolbox-*-contact-sheet.png
+
+# Rebuildable Unity visual-bundle workspace.
+/Terrias-Dev/VisualAssets/UnityProject/
+
+# Rebuildable shipped binary destinations. Existing tracked release binaries
+# remain tracked; these rules prevent accidental addition of new binaries.
+/Terrias/Scripts/
+/AuraToolsExp/Scripts/
+/SanGuoShaExp/Scripts/
 /TestMods/*.dll
 
+# Trainer executables are normally rebuilt. The Simulation Viewer is an
+# intentional shipped surface and remains addable.
 /AuraToolsExp/TrainingWorker/*.exe
 !/AuraToolsExp/TrainingWorker/AuraFoundationTrainer.SimulationViewer.exe
-
-/tmp/*
-/.codex/tmp/*

@@ -214,6 +214,72 @@ if ($settingsSource -notmatch "ToolboxSettingsShell\.Build\(panel\)" `
     throw "AuraToolsExp toolbox shell boundary or render-purity contract is invalid."
 }
 
+$nativeContentLeaseSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\NativeSettingsContentLease.cs")
+$categoryRailSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxCategoryRail.cs")
+$moduleListItemSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxModuleListItem.cs")
+$iconRegistrySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsIconRegistry.cs")
+$toolboxVisualSpecSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxVisualSpec.cs")
+$toolboxV2ComponentsSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\ToolboxV2Components.cs")
+if ($settingsSource -notmatch "NativeContentLease\.Acquire" `
+        -or $settingsSource -notmatch "NativeContentLease\.Release" `
+        -or $settingsSource -notmatch "CanvasGroup" `
+        -or $settingsSource -notmatch "overrideSorting\s*=\s*true" `
+        -or $nativeContentLeaseSource -notmatch "NativeContentVisibilityLease<GameObject>" `
+        -or $shellSource -notmatch "ToolboxCategoryRail\.Create" `
+        -or $shellSource -notmatch "ToolboxSearchFieldV2\.Create" `
+        -or $shellSource -match "ToolboxToolbar|categoryButtons" `
+        -or $categoryRailSource -notmatch "ToolboxCategoryRailItem" `
+        -or $shellSource -notmatch "category\.extensions" `
+        -or $moduleListItemSource -notmatch "ToolboxCheckboxV2\.Create" `
+        -or $moduleListItemSource -notmatch "ToolboxIconButtonV2\.Create" `
+        -or $moduleListItemSource -match "AuraToolsSwitch\.Create|NativeButton" `
+        -or $shellSource -match "NativeButton" `
+        -or $categoryRailSource -match "NativeButton" `
+        -or $moduleListItemSource -notmatch "Descriptor\.IconKey" `
+        -or $iconRegistrySource -notmatch "ToolboxIcons" `
+        -or $toolboxVisualSpecSource -notmatch "CategoryWidth\s*=\s*168f" `
+        -or $toolboxVisualSpecSource -notmatch "ModuleRowHeight\s*=\s*96f" `
+        -or $toolboxV2ComponentsSource -notmatch "ToolboxIconButtonV2" `
+        -or $toolboxV2ComponentsSource -notmatch "ToolboxCheckboxV2" `
+        -or $moduleSource -notmatch "IconKey\s*=\s*id") {
+    throw "AuraToolsExp toolbox visual shell or native-content isolation contract is invalid."
+}
+
+$toolboxIconDirectory = Join-Path $repoRoot "AuraToolsExp\ModResource\Images\UI\ToolboxIcons"
+$expectedToolboxIcons = @(
+    "all.png", "gameplay.png", "presentation.png", "records.png",
+    "multiplayer.png", "intelligence.png", "system.png", "extensions.png",
+    "file-logging.png", "skin.png", "battle-bgm.png", "card-use-audio.png",
+    "starter-deck.png", "card-refresh.png", "feast.png", "safe-box.png",
+    "pixel-emoji.png", "mod-sync.png", "damage-statistics.png", "battle-replay.png",
+    "auto-battle.png", "skill-cg.png", "card-use-cg.png", "search.png",
+    "clear.png", "folder.png", "settings.png", "warning.png",
+    "switch-track.png", "switch-thumb.png"
+)
+foreach ($iconName in $expectedToolboxIcons) {
+    if (-not (Test-Path -LiteralPath (Join-Path $toolboxIconDirectory $iconName) -PathType Leaf)) {
+        throw "AuraToolsExp toolbox icon is missing: $iconName"
+    }
+}
+
+$toolboxV2Directory = Join-Path $repoRoot "AuraToolsExp\ModResource\Images\UI\ToolboxV2"
+foreach ($assetName in @(
+        "toolbox-surface-9slice.png",
+        "toolbox-control-9slice.png",
+        "toolbox-category-selected-9slice.png",
+        "toolbox-checkbox-atlas.png",
+        "toolbox-icon-button-atlas.png")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $toolboxV2Directory $assetName) -PathType Leaf)) {
+        throw "AuraToolsExp Toolbox V2 asset is missing: $assetName"
+    }
+}
+
 $moduleSettingsPages = @(
     "AuraToolsExp-Dev\Features\Audio\AuraToolsAudioSettingsPage.cs",
     "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckSettingsPage.cs",

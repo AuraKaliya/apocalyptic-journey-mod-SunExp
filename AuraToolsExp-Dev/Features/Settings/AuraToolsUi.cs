@@ -5,6 +5,7 @@ using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraUi.Shared;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -20,16 +21,20 @@ internal static class AuraToolsUi
 
     private const string ButtonSpritePath = "Mods/AuraToolsExp/ui-img/button-\u4e5d\u5bab\u683c.png";
     private const string PanelSpritePath = "Mods/AuraToolsExp/ui-img/background-\u4e5d\u5bab\u683c.png";
-    public static readonly Color Background = new(0.03f, 0.025f, 0.05f, 0.96f);
-    public static readonly Color Panel = new(0.07f, 0.06f, 0.11f, 0.96f);
-    public static readonly Color Header = new(0.12f, 0.10f, 0.18f, 0.98f);
-    public static readonly Color Row = new(0.09f, 0.085f, 0.14f, 0.98f);
-    public static readonly Color Accent = new(0.85f, 0.70f, 0.42f, 1f);
-    public static readonly Color Text = new(0.93f, 0.90f, 0.78f, 1f);
-    public static readonly Color MutedText = new(0.66f, 0.62f, 0.50f, 1f);
-    public static readonly Color SuccessText = new(0.58f, 0.94f, 0.62f, 1f);
-    public static readonly Color WarningText = new(0.98f, 0.78f, 0.36f, 1f);
-    public static readonly Color ActiveRow = new(0.12f, 0.18f, 0.13f, 0.98f);
+    public static Color Background => Theme.Background;
+    public static Color Panel => Theme.Panel;
+    public static Color Header => Theme.Control;
+    public static Color Row => new(0.090f, 0.086f, 0.118f, 1f);
+    public static Color RowHighlighted => Theme.ControlHighlighted;
+    public static Color CategorySelected => new(0.145f, 0.130f, 0.155f, 1f);
+    public static Color Accent => Theme.Accent;
+    public static Color AuraAccent => new(0.667f, 0.573f, 0.863f, 1f);
+    public static Color Text => Theme.Text;
+    public static Color MutedText => Theme.MutedText;
+    public static Color SuccessText => new(0.412f, 0.784f, 0.635f, 1f);
+    public static Color WarningText => new(0.867f, 0.667f, 0.345f, 1f);
+    public static Color ErrorText => new(0.847f, 0.451f, 0.451f, 1f);
+    public static Color ActiveRow => new(0.102f, 0.129f, 0.118f, 1f);
     public const int TabFontSize = 19;
     public const int SectionFontSize = 21;
     public const int ModuleTitleFontSize = 18;
@@ -50,6 +55,9 @@ internal static class AuraToolsUi
     public const float RoleRowHeight = 48f;
     public const float RuleBlockHeight = 112f;
     public const float ToggleSize = 28f;
+    public const float ToolboxCategoryWidth = ToolboxVisualSpec.CategoryWidth;
+    public const float ToolboxHeaderHeight = ToolboxVisualSpec.HeaderHeight;
+    public const float ToolboxModuleRowHeight = ToolboxVisualSpec.ModuleRowHeight;
     private static Sprite? buttonSprite;
     private static Sprite? panelSprite;
     private static bool buttonSpriteLoadAttempted;
@@ -175,6 +183,138 @@ internal static class AuraToolsUi
     {
         var go = CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         return ConfigureText(go, value, fontSize, anchor, color);
+    }
+
+    public static TextMeshProUGUI AddTmpText(
+        Transform parent,
+        string value,
+        float fontSize,
+        TextAnchor anchor,
+        Color color,
+        float preferredHeight = TextMinHeight,
+        float flexibleWidth = 0f,
+        float preferredWidth = 0f,
+        bool autoSize = false)
+    {
+        var go = CreateLayout("Text", parent);
+        var element = EnsureLayoutElement(go);
+        var height = Mathf.Max(preferredHeight, 1f);
+        element.minHeight = height;
+        element.preferredHeight = height;
+        element.flexibleHeight = 0f;
+        if (flexibleWidth > 0f)
+        {
+            element.flexibleWidth = flexibleWidth;
+        }
+        if (preferredWidth > 0f)
+        {
+            element.minWidth = preferredWidth;
+            element.preferredWidth = preferredWidth;
+            element.flexibleWidth = 0f;
+        }
+
+        return AuraUiComponents.ConfigureTmpText(
+            go,
+            value,
+            fontSize,
+            Theme.Typography.MinimumSize,
+            anchor,
+            color,
+            autoSize,
+            Theme);
+    }
+
+    public static TextMeshProUGUI AddTmpFillText(
+        Transform parent,
+        string value,
+        float fontSize,
+        TextAnchor anchor,
+        Color color,
+        bool autoSize = false)
+    {
+        var go = CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        return AuraUiComponents.ConfigureTmpText(
+            go,
+            value,
+            fontSize,
+            Theme.Typography.MinimumSize,
+            anchor,
+            color,
+            autoSize,
+            Theme);
+    }
+
+    public static TMP_InputField AddTmpInput(
+        Transform parent,
+        string value,
+        string placeholderValue,
+        Action<string> changed,
+        float width = 190f,
+        float height = 42f)
+    {
+        var root = CreateLayout("Input", parent);
+        SetFixedSize(root, Mathf.Max(width, 96f), Mathf.Max(height, 36f));
+        var background = AddImage(root, Theme.Control);
+        background.raycastTarget = true;
+
+        var viewport = CreateRect(
+            "Viewport",
+            root.transform,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        var viewportRect = viewport.GetComponent<RectTransform>();
+        viewportRect.offsetMin = new Vector2(12f, 3f);
+        viewportRect.offsetMax = new Vector2(-12f, -3f);
+        viewport.AddComponent<RectMask2D>();
+
+        var textObject = CreateRect(
+            "Text",
+            viewport.transform,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        var text = AuraUiComponents.ConfigureTmpText(
+            textObject,
+            value ?? "",
+            Theme.Typography.BodySize,
+            Theme.Typography.MinimumSize,
+            TextAnchor.MiddleLeft,
+            Text,
+            false,
+            Theme);
+        text.raycastTarget = true;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.overflowMode = TextOverflowModes.Masking;
+
+        var placeholderObject = CreateRect(
+            "Placeholder",
+            viewport.transform,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        var placeholder = AuraUiComponents.ConfigureTmpText(
+            placeholderObject,
+            placeholderValue,
+            Theme.Typography.HintSize,
+            Theme.Typography.MinimumSize,
+            TextAnchor.MiddleLeft,
+            MutedText,
+            false,
+            Theme);
+
+        var input = root.AddComponent<TMP_InputField>();
+        input.targetGraphic = background;
+        input.textViewport = viewportRect;
+        input.textComponent = text;
+        input.placeholder = placeholder;
+        input.lineType = TMP_InputField.LineType.SingleLine;
+        input.text = value ?? "";
+        input.onValueChanged.AddListener(v => changed(v));
+        return input;
     }
 
     public static Button AddButton(Transform parent, string label, Action action, float width = 108f, float height = ButtonHeight)
@@ -404,7 +544,7 @@ internal static class AuraToolsUi
             windowRect.offsetMin = new Vector2(10f, 8f);
             windowRect.offsetMax = new Vector2(-10f, -8f);
         }
-        AddPanelImage(window, Background);
+        ToolboxSurfaceV2.Apply(window);
         var layout = window.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(18, 18, 14, 14);
         layout.spacing = 10f;
@@ -415,7 +555,7 @@ internal static class AuraToolsUi
 
         var header = CreateLayout("Header", window.transform);
         SetFixedHeight(header, OverlayTitleHeight);
-        AddPanelImage(header, Header);
+        ToolboxSurfaceV2.ApplyControl(header);
         var headerLayout = header.AddComponent<HorizontalLayoutGroup>();
         headerLayout.padding = new RectOffset(12, 8, 4, 4);
         headerLayout.spacing = 8f;
@@ -423,8 +563,17 @@ internal static class AuraToolsUi
         headerLayout.childControlWidth = true;
         headerLayout.childForceExpandWidth = false;
         headerLayout.childForceExpandHeight = false;
-        AddText(header.transform, title, SectionFontSize, TextAnchor.MiddleLeft, Accent, TextMinHeight, 1f);
-        AddButton(header.transform, "关闭", () =>
+        var titleText = AddTmpText(
+            header.transform,
+            title,
+            Theme.Typography.SectionSize,
+            TextAnchor.MiddleLeft,
+            Accent,
+            TextMinHeight,
+            1f,
+            autoSize: true);
+        titleText.textWrappingMode = TextWrappingModes.NoWrap;
+        ToolboxIconButtonV2.Create(header.transform, "action.clear", "关闭", () =>
         {
             CloseSelectPopup();
             onClose?.Invoke();
@@ -433,7 +582,7 @@ internal static class AuraToolsUi
             AuraSharedFrameScheduler.StartCoroutine(
                 "AuraTools.Overlay.RestoreFocus",
                 RestoreFocusNextFrame(returnFocus));
-        }, ButtonMinWidth, ButtonHeight);
+        }, 42f, "×");
 
         return window;
     }

@@ -6132,3 +6132,401 @@ The first compatibility rewrite also exposed that Windows PowerShell cannot
 continue a fluent method chain on a new line after a backtick. The final helper
 uses two ordinary assignments, which is valid in both Windows PowerShell and
 PowerShell 7.
+
+---
+# ERR-20260818-001: PowerShell pipeline cannot continue from a foreach statement
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+A one-off Terrias CSV inventory command piped directly from a `foreach`
+statement into `ConvertTo-Json`, which PowerShell parsed as an empty pipe
+element.
+
+## Resolution
+
+Materialize the `foreach` results into a variable first, then pipe that variable
+to `ConvertTo-Json`. No repository content was changed by the failed command.
+
+---
+# ERR-20260818-002: Relic CSV patch assumed quoted rows
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+The first relic localization patch used fully quoted CSV rows reconstructed from
+`Import-Csv`, while the source file stores most fields unquoted and quotes only
+fields containing ASCII commas. Patch verification correctly rejected the
+nonexistent source lines.
+
+## Resolution
+
+Read the raw CSV rows, preserved their actual field order and quoting style, and
+reapplied the five row replacements. The failed patch made no file changes.
+
+---
+# ERR-20260818-002: PowerShell passed a wildcard literally to rg
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+A repository search passed `README*` as a positional path to `rg` from
+PowerShell. PowerShell did not expand the wildcard, so ripgrep reported Windows
+error 123 for an invalid path while continuing to scan the remaining paths.
+
+## Resolution
+
+Use ripgrep's `-g 'README*'` glob filter or enumerate matching files with
+`Get-ChildItem` before invoking ripgrep. The search itself completed and no
+repository content was affected.
+
+---
+# ERR-20260818-003: UI design-doc cross-link patch used stale wording
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+An `apply_patch` hunk expected an older, more detailed wording for the first
+implementation-status bullet in the toolbox architecture document, so context
+verification rejected the patch.
+
+## Resolution
+
+Read the current heading block and applied the cross-link using only the stable
+heading and blank-line context. No source or documentation content was lost.
+
+---
+# ERR-20260818-004: Toolbox gate checked an icon key in the renderer file
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first AuraToolsExp gate after the toolbox redesign looked for the literal
+`category.extensions` icon key in `ToolboxCategoryRail.cs`. Category metadata is
+owned by `ToolboxSettingsShell.cs`, while the rail only consumes definitions,
+so the otherwise valid implementation failed the new source contract.
+
+## Resolution
+
+Pointed the assertion at the category metadata owner and reran the focused
+AuraToolsExp gate.
+
+---
+# ERR-20260818-005: Architecture gate was started with Windows PowerShell
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`Test-TerriasArchitecture.ps1` was invoked through Windows PowerShell, whose
+.NET Framework runtime does not provide `System.IO.Path.GetRelativePath` used
+by the shared architecture validation module.
+
+## Resolution
+
+Reran the unchanged gate with `pwsh`. Future architecture and network gates
+using `ArchitectureBoundaryValidation.psm1` should be launched with PowerShell
+7.
+
+**See Also**: ERR-20260817-010
+
+---
+# ERR-20260818-006: Bundled Playwright package had no downloaded Chromium
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first HTML preview capture resolved the bundled Playwright Node package but
+its matching headless Chromium executable had not been downloaded, so
+`chromium.launch()` failed before the first screenshot.
+
+## Resolution
+
+The preview runner now prefers Playwright's managed browser and falls back to a
+locally installed Edge, Chrome, or Chromium executable. An explicit browser can
+also be supplied through `AURA_PREVIEW_BROWSER_EXECUTABLE`.
+
+---
+# ERR-20260818-007: Assembly-version inventory piped directly from foreach
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first Unity preview environment probe piped directly from a PowerShell
+`foreach` statement into `Format-Table`, which PowerShell parsed as an empty
+pipe element.
+
+## Resolution
+
+Materialized the assembly metadata rows in a collection before formatting.
+The corrected probe confirmed Unity 2022.3.62f3c1 and Windows standalone build
+support are installed.
+
+**See Also**: ERR-20260818-001
+
+---
+# ERR-20260818-008: LiteralPath prevented Unity icon wildcard expansion
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The initial mechanical copy into the standalone Unity preview passed `*.png`
+to `Copy-Item -LiteralPath`. Literal paths intentionally do not expand
+wildcards, so no icon resources were copied.
+
+## Resolution
+
+Enumerated the source icon files with `Get-ChildItem` and piped the resulting
+file objects to `Copy-Item`.
+
+---
+# ERR-20260818-009: Unity preview reused surface local name across scopes
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+The first Unity compilation rejected `surface` inside the tab-building loop
+because the same method declared another `surface` in the enclosing window
+scope.
+
+## Resolution
+
+Renamed the tab-local object to `tabSurface` and reran the standalone Player
+build.
+
+---
+# ERR-20260818-010: Windows PowerShell decoded native UI asset names incorrectly
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The Unity preview build script embedded Chinese native-asset filenames. Windows
+PowerShell decoded one path with the active ANSI code page and could not find
+the source selector image.
+
+## Resolution
+
+The sync step now locates the five known native assets by ASCII directory,
+extension and stable byte length, then copies them to ASCII preview filenames.
+
+---
+# ERR-20260818-011: Preview Image factory shadowed the UGUI Image type
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+After adding automatic sliced-image selection, references to `Image.Type` inside
+the `PreviewUi.Image` method resolved to the method group rather than the UGUI
+type.
+
+## Resolution
+
+Qualified the enum as `UnityEngine.UI.Image.Type` and rebuilt the Player.
+
+---
+# ERR-20260818-012: Unity resized NPOT native UI atlases before runtime cropping
+
+**Logged**: 2026-08-18
+**Severity**: medium
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+Unity's default NPOT import converted the 169x81 native button atlas to 128x64.
+The runtime crop copied from AuraToolsExp then exceeded the imported texture,
+aborting settings construction and leaving the capture Player alive until the
+timeout.
+
+## Resolution
+
+The Editor builder now imports all native preview textures with NPOT scaling
+disabled, uncompressed pixels, no mipmaps, clamp wrapping and point filtering
+before building the Player.
+
+---
+# ERR-20260818-013: Native asset audit repeated the foreach pipeline error
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+The component-resource audit piped directly from a PowerShell `foreach`
+statement into `Format-Table`, reproducing the empty-pipe parse failure.
+
+## Resolution
+
+Materialized the image-dimension rows before formatting and retained the
+existing prevention note for future inventory commands.
+
+**See Also**: ERR-20260818-001, ERR-20260818-007
+
+---
+# ERR-20260818-014: Ripgrep treated a leading double-dash pattern as an option
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+A CSS inventory pattern began with `--background`, so ripgrep parsed the joined
+pattern as a command-line flag.
+
+## Resolution
+
+Inserted ripgrep's `--` end-of-options marker before the pattern.
+
+---
+# ERR-20260818-015: Shell quoting broke a regex containing role attributes
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+A PowerShell search combined escaped quotes and a regex alternation for HTML
+role attributes, leaving ripgrep with an unclosed group.
+
+## Resolution
+
+Used multiple fixed-string `-e` patterns instead of one shell-sensitive regex.
+
+---
+# ERR-20260818-016: Toolbox input repeated Image type shadowing
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: frontend
+
+## What failed
+
+The new Unity toolbox input referenced `Image.Type` from inside the
+`PreviewUi` class, where the `Image` factory method shadows the UGUI type.
+
+## Resolution
+
+Qualified the enum as `UnityEngine.UI.Image.Type`, matching the earlier factory
+fix.
+
+---
+# ERR-20260818-017: Ignore audit piped directly from foreach
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The first `.gitignore` audit piped directly from two PowerShell `foreach`
+statements into formatters, reproducing the empty-pipe parse failure.
+
+## Resolution
+
+Materialized both audit result sets before formatting.
+
+**See Also**: ERR-20260818-001, ERR-20260818-007, ERR-20260818-013
+
+---
+# ERR-20260818-018: Mirror ignore audit repeated the foreach pipeline error
+
+**Logged**: 2026-08-18
+**Severity**: medium
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The follow-up Unity mirror audit again piped directly from `foreach` into a
+formatter despite multiple same-session corrections.
+
+## Resolution
+
+Materialized the audit rows before formatting. Treat collection-first output
+as mandatory for all PowerShell inventory loops in this repository.
+
+**See Also**: ERR-20260818-001, ERR-20260818-007, ERR-20260818-013, ERR-20260818-017
+
+---
+# ERR-20260818-009: Background-removal post-processing hit local runtime mismatches
+
+**Logged**: 2026-08-18
+**Severity**: low
+**Status**: resolved
+**Area**: config
+
+## What failed
+
+The False Gold Dream cover extraction encountered several non-destructive
+tooling mismatches: the first image-generation wrapper used an invalid
+JavaScript multiline string; system Python lacked Pillow; a temporary C#
+`Add-Type` compile did not inherit the loaded `System.Drawing` reference; and
+two PowerShell inspection commands repeated the invalid direct `foreach` pipe
+pattern. A final attempt to delete verified intermediate files was rejected by
+the Windows command policy.
+
+## Resolution
+
+Resubmitted the image edit with a template literal, used the bundled Codex
+Python runtime for the installed chroma-key helper, and transferred only the
+generated alpha matte to the original RGB pixels with loaded .NET bitmap
+objects. The installed cover passed the resource audit with transparent corners
+and 100% foreground RGB fidelity. Intermediate files remain under ignored
+`tmp/imagegen/` because cleanup was policy-blocked.
+
+**See Also**: ERR-20260818-001, ERR-20260818-007

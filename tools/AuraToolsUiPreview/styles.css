@@ -1,0 +1,691 @@
+:root {
+  color-scheme: dark;
+  --background: #08043a;
+  --panel: #10143a;
+  --control: #1b1f46;
+  --control-highlighted: #272b58;
+  --category-selected: #20244b;
+  --accent: #c2a462;
+  --aura-accent: #aa92dc;
+  --text: #eee6bd;
+  --muted-text: #b5ae90;
+  --success: #69c8a2;
+  --warning: #ddaa58;
+  --error: #d87373;
+  --category-width: 168px;
+  --header-height: 60px;
+  --module-row-height: 96px;
+  --spacing: 8px;
+  font-family: "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: #07051d;
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.preview-controls {
+  position: fixed;
+  z-index: 20;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #62583f;
+  background: #12111a;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.42);
+}
+
+.scenario-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-text);
+  font-size: 13px;
+}
+
+.scenario-field select {
+  height: 28px;
+  border: 1px solid #554c38;
+  border-radius: 2px;
+  padding: 0 24px 0 8px;
+  background: var(--control);
+  color: var(--text);
+}
+
+#viewport-output {
+  min-width: 82px;
+  color: var(--accent);
+  font-size: 12px;
+  text-align: right;
+}
+
+.preview-stage {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 54px 20px 18px;
+}
+
+.capture-mode .preview-controls {
+  display: none;
+}
+
+.capture-mode .preview-stage {
+  padding: 16px;
+}
+
+.settings-window {
+  position: relative;
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr);
+  width: min(1040px, calc(100vw - 40px));
+  height: min(760px, calc(100vh - 72px));
+  min-width: 760px;
+  min-height: 540px;
+}
+
+.capture-mode .settings-window {
+  width: min(1040px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 32px));
+}
+
+.native-tabs {
+  z-index: 2;
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  padding-left: 4px;
+}
+
+.native-tabs button {
+  position: relative;
+  width: 104px;
+  height: 45px;
+  border: 2px solid #a9935f;
+  border-bottom-color: #786844;
+  border-radius: 3px 3px 0 0;
+  background: #121020;
+  color: #e8d9aa;
+  font-size: 20px;
+  font-weight: 650;
+  cursor: default;
+  box-shadow: inset 0 0 0 2px #2a2531;
+}
+
+.native-tabs button.selected {
+  height: 50px;
+  border-color: var(--accent);
+  border-bottom-color: var(--background);
+  background: var(--background);
+  color: var(--text);
+}
+
+.native-window-surface {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border: 2px solid #b8a06c;
+  border-radius: 3px;
+  padding: 8px;
+  background: #080710;
+  box-shadow: inset 0 0 0 2px #332b25, 0 10px 36px rgba(0, 0, 0, 0.48);
+}
+
+.native-underlay {
+  position: absolute;
+  z-index: 0;
+  top: 96px;
+  left: 180px;
+  color: #f143c4;
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.toolbox-workspace {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--category-width) minmax(0, 1fr);
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 8px solid transparent;
+  padding: 2px;
+  border-image: url("../../AuraToolsExp/ModResource/Images/UI/ToolboxV2/toolbox-surface-9slice.png") 16 fill stretch;
+  background: var(--background);
+}
+
+.category-rail {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 6px;
+  background: var(--background);
+  scrollbar-width: thin;
+  scrollbar-color: #4a4233 transparent;
+}
+
+.category-button {
+  position: relative;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  height: 48px;
+  margin: 0 0 4px;
+  border: 0;
+  border-radius: 2px;
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.category-button:hover,
+.category-button:focus-visible {
+  outline: none;
+  background: var(--control-highlighted);
+  color: var(--text);
+}
+
+.category-button[aria-pressed="true"] {
+  border: 8px solid transparent;
+  padding: 0;
+  border-image: url("../../AuraToolsExp/ModResource/Images/UI/ToolboxV2/toolbox-category-selected-9slice.png") 8 fill stretch;
+  background: var(--category-selected);
+  color: var(--text);
+}
+
+.category-marker {
+  display: none;
+}
+
+.category-button[aria-pressed="true"] .category-marker {
+  background: var(--accent);
+}
+
+.category-button img {
+  width: 22px;
+  height: 22px;
+  opacity: 0.74;
+  object-fit: contain;
+}
+
+.category-button[aria-pressed="true"] img {
+  opacity: 1;
+}
+
+.category-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-count {
+  color: var(--muted-text);
+  font-size: 14px;
+  text-align: right;
+}
+
+.category-button[aria-pressed="true"] .category-count {
+  color: var(--accent);
+}
+
+.toolbox-content {
+  display: grid;
+  grid-template-rows: var(--header-height) minmax(0, 1fr);
+  gap: var(--spacing);
+  min-width: 0;
+  min-height: 0;
+}
+
+.toolbox-header {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(200px, 252px) 42px 42px;
+  align-items: center;
+  gap: 6px;
+  height: var(--header-height);
+  border: 8px solid transparent;
+  padding: 0 2px 0 6px;
+  border-image: url("../../AuraToolsExp/ModResource/Images/UI/ToolboxV2/toolbox-control-9slice.png") 8 fill stretch;
+  background: var(--panel);
+}
+
+.toolbox-header.search-empty {
+  grid-template-columns: minmax(140px, 1fr) minmax(200px, 252px) 42px;
+}
+
+.toolbox-header h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-field {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  border: 8px solid transparent;
+  padding: 0 4px;
+  border-image: url("../../AuraToolsExp/ModResource/Images/UI/ToolboxV2/toolbox-control-9slice.png") 8 fill stretch;
+  border-radius: 3px;
+  background: var(--control);
+}
+
+.search-field:focus-within {
+  border-color: var(--accent);
+  background: var(--control-highlighted);
+}
+
+.search-field img {
+  width: 19px;
+  height: 19px;
+  opacity: 0.72;
+}
+
+.search-field input {
+  min-width: 0;
+  height: 36px;
+  border: 1px solid #333651;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.search-field input::placeholder {
+  color: var(--muted-text);
+}
+
+.search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.icon-button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 3px;
+  background: var(--control);
+  cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  outline: 1px solid var(--accent);
+  background: var(--control-highlighted);
+}
+
+.icon-button:active {
+  background: #0f0e14;
+}
+
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.icon-button img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.module-list-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background);
+}
+
+.module-list {
+  display: grid;
+  grid-auto-rows: var(--module-row-height);
+  gap: var(--spacing);
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: #4a4233 transparent;
+}
+
+.module-row {
+  display: grid;
+  grid-template-columns: 4px 46px minmax(0, 1fr) 42px 88px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: var(--module-row-height);
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: var(--panel);
+}
+
+.module-row:hover,
+.module-row:focus-within {
+  background: var(--control-highlighted);
+}
+
+.status-marker {
+  width: 4px;
+  height: 72px;
+  background: var(--muted-text);
+}
+
+.module-icon {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 8px solid transparent;
+  border-image: url("../../AuraToolsExp/ModResource/Images/UI/ToolboxV2/toolbox-control-9slice.png") 8 fill stretch;
+  background: var(--control);
+}
+
+.module-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.module-copy {
+  display: grid;
+  grid-template-rows: 27px 26px 23px;
+  min-width: 0;
+}
+
+.module-copy > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.module-title {
+  align-self: center;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.experimental-label {
+  margin-left: 7px;
+  color: var(--aura-accent);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.module-status {
+  align-self: center;
+  color: var(--muted-text);
+  font-size: 16px;
+}
+
+.module-description {
+  align-self: center;
+  color: var(--muted-text);
+  font-size: 14px;
+  opacity: 0.86;
+}
+
+.settings-slot {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+}
+
+.settings-slot .icon-button {
+  width: 42px;
+  height: 42px;
+}
+
+.settings-slot.empty {
+  visibility: hidden;
+}
+
+.enable-control {
+  display: grid;
+  grid-template-columns: 44px 32px;
+  align-items: center;
+  gap: 6px;
+  width: 88px;
+  height: 42px;
+  color: var(--muted-text);
+  font-size: 14px;
+  text-align: right;
+}
+
+.toolbox-checkbox {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border: 2px solid #4c4a68;
+  padding: 0;
+  background: var(--control);
+  cursor: pointer;
+}
+
+.toolbox-checkbox::after {
+  position: absolute;
+  top: 5px;
+  left: 8px;
+  width: 11px;
+  height: 17px;
+  border-right: 4px solid #777bff;
+  border-bottom: 4px solid #777bff;
+  content: "";
+  opacity: 0;
+  transform: rotate(42deg);
+}
+
+.toolbox-checkbox[aria-checked="true"] {
+  border-color: var(--accent);
+}
+
+.toolbox-checkbox[aria-checked="true"]::after {
+  opacity: 1;
+}
+
+.toolbox-checkbox:hover,
+.toolbox-checkbox:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  background: var(--control-highlighted);
+}
+
+.toolbox-checkbox:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.module-row[data-state="enabled"] .status-marker {
+  background-color: var(--success);
+}
+
+.module-row[data-state="enabled"] .module-status {
+  color: var(--success);
+}
+
+.module-row[data-state="warning"] .status-marker {
+  background-color: var(--warning);
+}
+
+.module-row[data-state="warning"] .module-status {
+  color: var(--warning);
+}
+
+.module-row[data-state="error"] .status-marker {
+  background-color: var(--error);
+}
+
+.module-row[data-state="error"] .module-status {
+  color: var(--error);
+}
+
+.module-row[data-state="disabled"] .status-marker {
+  background-color: #77736c;
+}
+
+.module-row[data-state="disabled"] .module-icon img {
+  opacity: 0.68;
+}
+
+.empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted-text);
+  font-size: 15px;
+}
+
+.overlay {
+  position: absolute;
+  z-index: 10;
+  inset: 52px 0 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.overlay-window {
+  width: min(680px, calc(100% - 32px));
+  height: min(430px, calc(100% - 32px));
+  border: 2px solid #8e7c56;
+  border-radius: 3px;
+  background: var(--background);
+  box-shadow: inset 0 0 0 2px #2d2722, 0 12px 40px rgba(0, 0, 0, 0.56);
+}
+
+.overlay-window > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  height: 58px;
+  padding: 8px 10px 8px 16px;
+  background: var(--panel);
+}
+
+.overlay-window h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--accent);
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay-body {
+  padding: 20px;
+  color: var(--muted-text);
+}
+
+.overlay-section-line {
+  width: 74px;
+  height: 3px;
+  margin-bottom: 18px;
+  background: var(--accent);
+}
+
+.overlay-placeholder-row {
+  height: 52px;
+  margin-top: 12px;
+  background: var(--control);
+}
+
+.overlay-placeholder-row.short {
+  width: 64%;
+}
+
+.toast {
+  position: absolute;
+  z-index: 12;
+  right: 28px;
+  bottom: 28px;
+  max-width: 360px;
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 900px) {
+  .settings-window,
+  .capture-mode .settings-window {
+    min-width: 0;
+  }
+
+  .toolbox-workspace {
+    grid-template-columns: 152px minmax(0, 1fr);
+  }
+
+  .toolbox-header {
+    grid-template-columns: minmax(110px, 1fr) minmax(180px, 220px) 42px 42px;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}

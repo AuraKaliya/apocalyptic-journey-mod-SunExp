@@ -115,7 +115,7 @@ public static class MorningStarCurseService
         var missing = MorningStarCurseCatalog.MissingAllBeingsBlessings(owned);
         if (missing.Count == 0)
         {
-            AddSelfBuff(self, TerriasIds.VowPower, 3);
+            AddSelfBuff(self, TerriasIds.VowPower, MorningStarCurseFormula.AllBeingsAspectFallbackVowPower);
             return;
         }
 

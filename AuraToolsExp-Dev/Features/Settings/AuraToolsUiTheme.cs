@@ -12,10 +12,24 @@ internal static class AuraToolsUiTheme
         AuraUiStyleIds.WitchNative,
         theme =>
         {
-            theme.Accent = new Color(0.85f, 0.70f, 0.42f, 1f);
-            theme.Text = new Color(0.93f, 0.90f, 0.78f, 1f);
-            theme.MutedText = new Color(0.66f, 0.62f, 0.50f, 1f);
-            theme.Panel = new Color(0.07f, 0.06f, 0.11f, 0.96f);
-            theme.Control = new Color(0.12f, 0.10f, 0.18f, 0.98f);
+            theme.Background = new Color(0.043f, 0.039f, 0.063f, 1f);
+            theme.Panel = new Color(0.067f, 0.063f, 0.094f, 1f);
+            theme.Control = new Color(0.090f, 0.086f, 0.118f, 1f);
+            theme.ControlHighlighted = new Color(0.145f, 0.137f, 0.180f, 1f);
+            theme.Accent = new Color(0.835f, 0.702f, 0.420f, 1f);
+            theme.Text = new Color(0.941f, 0.922f, 0.867f, 1f);
+            theme.MutedText = new Color(0.710f, 0.682f, 0.620f, 1f);
+            theme.Typography.TitleSize = 22f;
+            theme.Typography.SectionSize = 18f;
+            theme.Typography.BodySize = 16f;
+            theme.Typography.HintSize = 14f;
+            theme.Typography.ButtonSize = 15f;
+            theme.Typography.MinimumSize = 11f;
+            theme.Metrics.SmallSpacing = 6f;
+            theme.Metrics.Spacing = 10f;
+            theme.Metrics.LargeSpacing = 14f;
+            theme.Metrics.ButtonHeight = 42f;
+            theme.Metrics.InputHeight = 42f;
+            theme.Metrics.CornerPadding = 12f;
         });
 }

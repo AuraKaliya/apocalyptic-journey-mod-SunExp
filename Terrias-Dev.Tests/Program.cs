@@ -367,6 +367,7 @@ internal static class Program
 
     private static void TestMorningStarCurseFormula()
     {
+        Equal(5, MorningStarCurseFormula.AllBeingsAspectFallbackVowPower, "All-Beings Aspect grants five Vow Power after all blessings are owned");
         Equal(50, MorningStarCurseFormula.ElegyHealthLoss(100), "Morning Star Elegy loses half of current HP");
         Equal(0, MorningStarCurseFormula.ElegyHealthLoss(1), "Morning Star Elegy cannot directly kill a one-HP owner");
         Equal(7, MorningStarCurseFormula.ElegyTriggerCount(50, 100), "Morning Star Elegy reaches seven triggers at the full-health example");

@@ -5,6 +5,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class MorningStarCurseFormula
 {
+    public const int AllBeingsAspectFallbackVowPower = 5;
     public const int ImpregnableUpperBound = 8;
 
     public static int NormalizeTier(int rarity)

@@ -114,6 +114,8 @@
              Link="MatchRecords\MatchReplayFailureNotificationState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\AuraToolsPanelBuildState.cs"
              Link="Settings\AuraToolsPanelBuildState.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Settings\NativeContentVisibilityLease.cs"
+             Link="Settings\NativeContentVisibilityLease.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Modules\Contracts\AuraToolModuleContracts.cs"
              Link="Modules\AuraToolModuleContracts.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Modules\AuraToolModuleCatalog.cs"

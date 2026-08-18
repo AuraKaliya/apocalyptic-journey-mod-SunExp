@@ -64,6 +64,7 @@ TestBundledFoundationRegistrationPlanner();
 TestBundledFoundationModelLayout();
 TestAutoBattleTechnicalFallbackState();
 TestAuraToolModuleCatalogAndStateStore();
+TestNativeContentVisibilityLease();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
 return;

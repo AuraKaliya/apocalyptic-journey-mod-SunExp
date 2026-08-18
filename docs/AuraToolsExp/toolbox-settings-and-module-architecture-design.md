@@ -15,11 +15,17 @@
 
 ## 当前实施状态
 
+> 一级页面的视觉改版、原生内容隔离和新控件方案见
+> [toolbox-ui-redesign-proposal.md](toolbox-ui-redesign-proposal.md)。
+
 - 阶段 0 已完成：稳定 ID、滚动锚点、焦点恢复、差量列表和高风险刷新保护已进入生产代码。
 - 阶段 1 已完成：模块契约、Catalog、Host、StateStore 和分类式一级工具箱已经接管初始化与一级展示。
 - 阶段 2 已完成：音频、开局卡组、战斗回放、文件日志和战斗策略实验室均由所属 Feature 提供设置页；`AuraToolsSettingsRuntime` 已收缩为原生 `SettingUI` 注入适配器。
 - 阶段 3 已完成：15 个可持久化模块使用独立配置文档和模块级变更总线；旧聚合配置作为首次迁移回退并继续双写兼容，Root 隐藏开关不再参与运行时有效状态。
 - 阶段 4 已完成：`AuraTooling.Shared` v1 提供 owner-qualified 第三方工具注册协议、revision 快照、注销句柄和兼容校验；AuraToolsExp 可动态投影、更新和移除扩展工具，不要求第三方引用 `AuraToolsExp.Dll`。
+- 一级 UI 改版已完成：妙妙工具页会租借并隐藏原生设置内容，使用不透明工作区、左侧分类栏、紧凑 TMP 模块行、图标按钮与 Switch；二级 Overlay 的标题和关闭入口也已统一。
+- HTML + Playwright 快速预览已接入：多分辨率、长文本、异常、空结果、扩展模块与交互路径可在不启动游戏的情况下生成截图和断言报告。
+- 独立 Unity UI Preview Player 已接入：完整设置窗口、五张页面、UGUI 响应式布局、射线归属、底层探针和十二张 Player 离屏截图均可脱离游戏验证。
 
 ## 2. 设计结论
 

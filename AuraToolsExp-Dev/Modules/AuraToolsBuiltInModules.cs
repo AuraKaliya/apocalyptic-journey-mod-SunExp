@@ -532,6 +532,7 @@ internal static class AuraToolsBuiltInModules
                 InitializationOrder = initializationOrder,
                 DisplayName = title,
                 Description = description,
+                IconKey = id,
                 SearchTerms = searchTerms,
                 HasSettingsPage = showSettings != null,
                 Experimental = experimental,

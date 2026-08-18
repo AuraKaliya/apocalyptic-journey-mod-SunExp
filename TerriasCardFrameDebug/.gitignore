@@ -3,6 +3,8 @@
 [Oo]bj/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
 [Bb]uild/
 [Bb]uilds/
 *.csproj
@@ -16,3 +18,7 @@
 *.opendb
 *.VC.db
 sysinfo.txt
+crash.dmp
+*.unitypackage
+*.apk
+*.aab

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuraToolsExp 妙妙工具预览</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="preview-controls" data-preview-chrome>
+    <label class="scenario-field">
+      <span>场景</span>
+      <select id="scenario-select" aria-label="预览场景">
+        <option value="default">默认</option>
+        <option value="long-text">长文本</option>
+        <option value="warning">异常状态</option>
+        <option value="empty">空结果</option>
+        <option value="extensions">扩展工具</option>
+      </select>
+    </label>
+    <output id="viewport-output" aria-label="当前视口"></output>
+  </div>
+
+  <main class="preview-stage">
+    <section class="settings-window" aria-label="游戏设置窗口">
+      <nav class="native-tabs" aria-label="设置分类">
+        <button type="button">音画</button>
+        <button type="button">游戏</button>
+        <button type="button">反馈</button>
+        <button type="button">键位</button>
+        <button type="button" class="selected" aria-current="page">妙妙工具</button>
+      </nav>
+
+      <div class="native-window-surface">
+        <div class="native-underlay" aria-hidden="true">模式　无边框　窗口</div>
+        <div class="toolbox-workspace">
+          <nav class="category-rail" id="category-rail" aria-label="工具分类"></nav>
+
+          <section class="toolbox-content" aria-label="工具列表">
+            <header class="toolbox-header">
+              <h1 id="result-title">全部 · 15</h1>
+              <label class="search-field">
+                <img src="../../AuraToolsExp/ModResource/Images/UI/ToolboxIcons/search.png" alt="">
+                <input id="search-input" type="search" autocomplete="off" placeholder="搜索工具…" aria-label="搜索工具">
+              </label>
+              <button type="button" class="icon-button" id="clear-search" title="清空搜索" aria-label="清空搜索">
+                <img src="../../AuraToolsExp/ModResource/Images/UI/ToolboxIcons/clear.png" alt="">
+              </button>
+              <button type="button" class="icon-button" id="open-directory" title="打开数据目录" aria-label="打开数据目录">
+                <img src="../../AuraToolsExp/ModResource/Images/UI/ToolboxIcons/folder.png" alt="">
+              </button>
+            </header>
+
+            <div class="module-list-shell">
+              <div class="module-list" id="module-list" role="list"></div>
+              <div class="empty-state" id="empty-state" hidden>没有符合当前分类和搜索条件的工具。</div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div class="overlay" id="settings-overlay" hidden>
+        <section class="overlay-window" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+          <header>
+            <h2 id="overlay-title"></h2>
+            <button type="button" class="icon-button" id="close-overlay" title="关闭" aria-label="关闭">
+              <img src="../../AuraToolsExp/ModResource/Images/UI/ToolboxIcons/clear.png" alt="">
+            </button>
+          </header>
+          <div class="overlay-body">
+            <div class="overlay-section-line"></div>
+            <p id="overlay-summary"></p>
+            <div class="overlay-placeholder-row"></div>
+            <div class="overlay-placeholder-row short"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    </section>
+  </main>
+
+  <script src="preview-spec.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
