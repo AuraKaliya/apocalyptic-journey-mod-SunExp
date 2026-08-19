@@ -11,11 +11,6 @@ public static class TerriasFrameScheduler
 
     public static void Initialize(ModConfig modConfig)
     {
-        if (!TerriasPerformanceSettings.TrySetCountersEnabled(true))
-        {
-            TerriasLog.Warn("Unable to enable TerriasPerfCounters=1; performance diagnostics remain controlled by the current GameVar value.");
-        }
-
         AuraSharedFrameScheduler.MaxActionsPerFrame = Math.Max(
             AuraSharedFrameScheduler.MaxActionsPerFrame,
             TerriasPerformanceSettings.FrameSchedulerBudget);

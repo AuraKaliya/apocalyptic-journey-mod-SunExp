@@ -20,6 +20,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
     private Text? markerText;
     private Outline? outline;
     private GameObject? activeStamp;
+    private GameObject? selectionBadge;
     private Button? button;
     private Action<string>? onClick;
     private string spiritUid = "";
@@ -34,6 +35,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         Text nextMarkerText,
         Outline nextOutline,
         GameObject nextActiveStamp,
+        GameObject nextSelectionBadge,
         Button nextButton,
         Action<string> nextOnClick)
     {
@@ -46,6 +48,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         markerText = nextMarkerText;
         outline = nextOutline;
         activeStamp = nextActiveStamp;
+        selectionBadge = nextSelectionBadge;
         button = nextButton;
         onClick = nextOnClick;
         PrepareForReuse();
@@ -73,6 +76,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         Color markerColor,
         Color outlineColor,
         bool outlined,
+        bool selected,
         bool active,
         bool interactable)
     {
@@ -88,6 +92,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         if (aptitudeText != null) { aptitudeText.text = aptitude ?? ""; aptitudeText.color = nameColor; }
         if (markerText != null) { markerText.text = marker ?? ""; markerText.color = markerColor; }
         if (outline != null) { outline.enabled = outlined; outline.effectColor = outlineColor; }
+        if (selectionBadge != null) selectionBadge.SetActive(selected);
         if (activeStamp != null) activeStamp.SetActive(active);
         if (button != null)
         {
@@ -115,6 +120,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         spiritUid = "";
         if (portrait != null) portrait.sprite = null;
         if (outline != null) outline.enabled = false;
+        if (selectionBadge != null) selectionBadge.SetActive(false);
         if (activeStamp != null) activeStamp.SetActive(false);
         if (button != null) button.interactable = false;
     }

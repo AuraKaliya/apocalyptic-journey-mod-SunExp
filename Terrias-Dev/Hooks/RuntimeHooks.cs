@@ -29,10 +29,7 @@ public static class RuntimeHooks
         RunHookStep("card presentation bridge", TerriasCardPresentationLifecycleBridge.Initialize);
         RunHookStep("card presentation invalidation", () => TerriasCardPresentationInvalidationRuntime.Initialize(modConfig));
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
-        if (TerriasPerformanceSettings.CountersEnabled)
-        {
-            RunHookStep("combat card UI workload", () => TerriasCombatCardUiWorkloadRuntime.Initialize(modConfig));
-        }
+        RunHookStep("combat card UI workload", () => TerriasCombatCardUiWorkloadRuntime.Initialize(modConfig));
         RunHookStep("combat card view pool", () => Ui.TerriasCombatCardViewPool.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {

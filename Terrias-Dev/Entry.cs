@@ -69,6 +69,7 @@ public static class Entry
 
     private static void RegisterSharedFeatureDefaults()
     {
+        TerriasPerformanceSettings.RegisterFeatureDefaults();
         AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "Terrias default");
         AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "Battle.OpeningDirector", defaultEnabled: true, "Terrias default");
         AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "SolarMemory", defaultEnabled: true, "Terrias default");

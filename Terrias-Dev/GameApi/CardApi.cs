@@ -423,6 +423,8 @@ public static class CardApi
                 if (CombatCardViewPoolCatalog.IsEligible(added))
                 {
                     TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback");
+                    FightUiCardLayoutApi.RequestCurrentHandLayout(
+                        "CombatCardViewPool.NativeFallback" + SourceSuffix(request));
                 }
             }
             CardGrantPostCommitQueue.Request(new CardGrantPostCommitRequest

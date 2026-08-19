@@ -31,6 +31,7 @@ public static class SpiritManagementPanel
     private static readonly Color Cyan = new(0.35f, 0.84f, 0.90f);
     private static readonly Color Green = new(0.45f, 0.88f, 0.65f);
     private static readonly Color SelectionStroke = new(0.514f, 0.843f, 0.871f, 1f);
+    private static readonly Color SelectionBadgeFill = new(0.055f, 0.28f, 0.32f, 0.94f);
     private static readonly Color TargetStroke = new(0.95f, 0.76f, 0.34f, 0.94f);
     private static readonly Color QualityGray = new(0.204f, 0.216f, 0.239f, 0.98f);
     private static readonly Color QualityWhite = new(0.278f, 0.302f, 0.322f, 0.98f);
@@ -315,7 +316,7 @@ public static class SpiritManagementPanel
         backgroundSurface.raycastTarget = false;
         TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(6, 6, 6, 6), 2f, alignment: TextAnchor.MiddleCenter);
         var outline = cell.AddComponent<Outline>();
-        outline.effectDistance = new Vector2(2f, -2f);
+        outline.effectDistance = new Vector2(3f, -3f);
         outline.useGraphicAlpha = false;
         outline.enabled = false;
         var portrait = CreateCenteredPortrait(
@@ -336,10 +337,12 @@ public static class SpiritManagementPanel
         var markerText = TerriasUiComponents.AddTextBlock(cell.transform, "", 11, TextAnchor.MiddleCenter, Muted, 16f, 1f);
         var activeStamp = AddActiveStamp(cell.transform);
         activeStamp.SetActive(false);
+        var selectionBadge = AddSelectionBadge(cell.transform);
+        selectionBadge.SetActive(false);
         var button = cell.AddComponent<Button>();
         var view = cell.AddComponent<SpiritManagementCellView>();
         view.Initialize(backgroundSurface, portrait, nameText, stars, levelText, aptitudeText,
-            markerText, outline, activeStamp, button, OnSpiritCellClicked);
+            markerText, outline, activeStamp, selectionBadge, button, OnSpiritCellClicked);
         return view;
     }
 
@@ -353,6 +356,7 @@ public static class SpiritManagementPanel
                             && !gridForbiddenDonors.Contains(item.SpiritUid);
         var donorSelected = donorEligible && GuiyuanDonorUids.Contains(item.SpiritUid);
         var disabled = guiyuanSelectingDonors && !donorEligible && !target;
+        var selected = !guiyuanSelectingDonors && Same(item.SpiritUid, selectedUid);
         var marker = target ? L("ui.spirit.guiyuan.target")
             : donorSelected ? L("ui.spirit.guiyuan.selected", "value", SpiritAscensionService.ContributionOf(item).ToString())
             : guiyuanSelectingDonors && !sameSpecies ? L("ui.spirit.guiyuan.different_species")
@@ -360,8 +364,12 @@ public static class SpiritManagementPanel
             : guiyuanSelectingDonors && gridForbiddenDonors.Contains(item.SpiritUid) ? L("ui.spirit.in_party")
             : guiyuanSelectingDonors ? L("ui.spirit.guiyuan.available", "value", SpiritAscensionService.ContributionOf(item).ToString())
             : active ? L("ui.spirit.active") : carried ? L("ui.spirit.carried") : L("ui.spirit.warehouse");
-        var outlined = donorSelected || target || Same(item.SpiritUid, selectedUid);
+        var outlined = donorSelected || target || selected;
         var outlineColor = donorSelected || target ? TargetStroke : SelectionStroke;
+        var qualityTint = RosterQualityTint(item.Aptitude);
+        var backgroundTint = selected
+            ? SelectedRosterTint(qualityTint)
+            : qualityTint;
         view.Bind(
             item,
             Portrait(item.Snapshot),
@@ -369,13 +377,14 @@ public static class SpiritManagementPanel
             StarText(item),
             L("ui.spirit.aptitude_value", "value", item.Aptitude.ToString()),
             marker,
-            disabled ? DisabledCardTint : RosterQualityTint(item.Aptitude),
+            disabled ? DisabledCardTint : backgroundTint,
             disabled ? Muted : QualityAccent(item.Aptitude),
             disabled ? Muted : StarGold,
             disabled ? Muted : Pale,
             donorSelected || target ? Gold : active ? Green : Muted,
             outlineColor,
             outlined,
+            selected,
             active,
             !guiyuanSelectingDonors || donorEligible);
     }
@@ -1358,6 +1367,26 @@ public static class SpiritManagementPanel
         return stamp;
     }
 
+    private static GameObject AddSelectionBadge(Transform parent)
+    {
+        var badge = TerriasUiComponents.CreateRect(
+            "SelectionBadge",
+            parent,
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 1f),
+            new Vector2(28f, 28f));
+        var rect = badge.GetComponent<RectTransform>();
+        rect.anchoredPosition = new Vector2(5f, -5f);
+        var layout = badge.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
+        badge.AddComponent<SpiritSelectionBadgeGraphic>().Configure(
+            SelectionBadgeFill,
+            SelectionStroke,
+            Color.white);
+        return badge;
+    }
+
     private static Color QualityTint(int aptitude)
     {
         if (aptitude >= 100) return QualityRed;
@@ -1373,6 +1402,13 @@ public static class SpiritManagementPanel
     {
         var color = Color.Lerp(QualityTint(aptitude), Color.white, 0.24f);
         color.a = 0.72f;
+        return color;
+    }
+
+    private static Color SelectedRosterTint(Color qualityTint)
+    {
+        var color = Color.Lerp(qualityTint, SelectedTint, 0.62f);
+        color.a = 0.94f;
         return color;
     }
 

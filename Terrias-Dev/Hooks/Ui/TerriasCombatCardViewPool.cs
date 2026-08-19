@@ -23,9 +23,10 @@ public static class TerriasCombatCardViewPool
     private static readonly HashSet<CardItem> ActiveViews = new();
     private static readonly Queue<PendingMaterialization> Pending = new();
     private static readonly HashSet<string> PendingIds = new(StringComparer.Ordinal);
-    private const int MaxNativeQueueWaitFrames = 60;
+    private const int MaxNativeQueueWaitFrames = 360;
     private static int generation;
     private static int nativeQueueWaitFrames;
+    private static int materializedSinceLayout;
     private static Transform? poolRoot;
     private static bool initialized;
 
@@ -69,6 +70,7 @@ public static class TerriasCombatCardViewPool
         Pending.Clear();
         PendingIds.Clear();
         nativeQueueWaitFrames = 0;
+        materializedSinceLayout = 0;
         foreach (var active in new List<CardItem>(ActiveViews))
         {
             DestroyCardView(active);
@@ -130,6 +132,7 @@ public static class TerriasCombatCardViewPool
         if (Pending.Count == 0)
         {
             nativeQueueWaitFrames = 0;
+            FinishMaterializationBatch(UIManager.Instance?.GetUI<FightUI>("FightUI"));
             return;
         }
 
@@ -148,30 +151,45 @@ public static class TerriasCombatCardViewPool
             return;
         }
 
+        if (fightUi.createCardQueue.Count > 0)
+        {
+            TerriasPerformanceCounters.Record("CombatCardViewPool.NativeQueueTimeout");
+            FallbackAllPending("native queue did not settle before pool deadline");
+            FinishMaterializationBatch(fightUi);
+            return;
+        }
+
         nativeQueueWaitFrames = 0;
-        var materialized = 0;
-        while (Pending.Count > 0)
+        var request = Pending.Dequeue();
+        PendingIds.Remove(request.InstanceId);
+        if (request.Generation == generation && MaterializeNow(request, fightUi))
         {
-            var request = Pending.Dequeue();
-            PendingIds.Remove(request.InstanceId);
-            if (request.Generation != generation)
-            {
-                continue;
-            }
-
-            if (MaterializeNow(request, fightUi))
-            {
-                materialized++;
-            }
+            materializedSinceLayout++;
         }
 
-        if (materialized > 0)
+        if (Pending.Count > 0)
         {
-            AuditPooledHandViews();
-            fightUi.transform.SetAsFirstSibling();
-            FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.BatchMaterialize");
-            TerriasPerformanceCounters.Record("CombatCardViewPool.BatchLayoutRequested");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.MaterializeSliceContinued");
+            ScheduleDrain();
+            return;
         }
+
+        FinishMaterializationBatch(fightUi);
+    }
+
+    private static void FinishMaterializationBatch(FightUI? fightUi)
+    {
+        if (fightUi == null || materializedSinceLayout <= 0)
+        {
+            materializedSinceLayout = 0;
+            return;
+        }
+
+        AuditPooledHandViews();
+        fightUi.transform.SetAsFirstSibling();
+        FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.BatchMaterialize");
+        TerriasPerformanceCounters.Record("CombatCardViewPool.BatchLayoutRequested");
+        materializedSinceLayout = 0;
     }
 
     private static bool MaterializeNow(PendingMaterialization request, FightUI fightUi)
@@ -289,6 +307,8 @@ public static class TerriasCombatCardViewPool
         {
             request.Executor.GetCardFromDeck(request.Config);
             TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback.Deferred");
+            FightUiCardLayoutApi.RequestCurrentHandLayout(
+                "CombatCardViewPool.DeferredNativeFallback:" + request.Source);
         }
         catch (Exception ex)
         {

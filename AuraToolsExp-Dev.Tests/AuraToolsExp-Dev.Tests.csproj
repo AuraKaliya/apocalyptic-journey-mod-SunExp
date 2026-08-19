@@ -18,6 +18,10 @@
              Link="Infrastructure\AuraToolsProtocolCompatibility.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs"
              Link="Shared\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs"
+             Link="Shared\AuraFeatureSwitchRuntime.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsPerformanceSettings.cs"
+             Link="Infrastructure\AuraToolsPerformanceSettings.cs" />
     <Compile Include="..\AuraSharedCore\AuraRpcSender.cs"
              Link="Shared\AuraRpcSender.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsConfigModels.cs"

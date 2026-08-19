@@ -15,6 +15,7 @@
     <Compile Include="TestStubs.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedDictionary.cs" Link="Source\AuraSharedDictionary.cs" />
     <Compile Include="..\AuraSharedCore\AuraCombatCardZoneSnapshot.cs" Link="Source\AuraCombatCardZoneSnapshot.cs" />
+    <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Source\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\DictionaryUtil.cs" Link="Source\DictionaryUtil.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs" Link="Source\TerriasContentIdCompatibility.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasIds.cs" Link="Source\TerriasIds.cs" />

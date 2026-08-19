@@ -491,6 +491,10 @@ internal static partial class AuraToolsTestSuite
         defaults.Normalize();
         Assert(defaults.SchemaVersion == 4, "logging settings use the opt-in performance-diagnostics schema");
         Assert(!defaults.PerformanceDiagnostics, "performance diagnostics default to disabled");
+        AuraToolsConfigService.Logging = defaults;
+        AuraToolsPerformanceSettings.PublishSharedOverride();
+        Assert(!AuraShared.Core.AuraFeatureSwitchRuntime.IsEnabled("AuraShared", "Diagnostics.Performance"),
+            "disabled logging diagnostics publish a disabled shared performance override");
         Assert(defaults.MinimumLevel == LoggingLevelNames.Info, "logging defaults keep AuraTools lifecycle logs visible");
         Assert(!defaults.MirrorUnityLog && !defaults.MirrorCommandsLog, "logging defaults do not mirror high-volume logs");
         Assert(defaults.EnabledSources.SequenceEqual(new[] { "AuraTools" }), "logging defaults to the AuraTools source only");
@@ -588,6 +592,10 @@ internal static partial class AuraToolsTestSuite
             MaxQueueLength = 2048
         };
         custom.Normalize();
+        AuraToolsConfigService.Logging = custom;
+        AuraToolsPerformanceSettings.PublishSharedOverride();
+        Assert(AuraShared.Core.AuraFeatureSwitchRuntime.IsEnabled("AuraShared", "Diagnostics.Performance"),
+            "the logging performance toggle publishes its effective shared diagnostics state");
         Assert(custom.PerformanceDiagnostics
                && custom.MinimumLevel == LoggingLevelNames.Debug
                && custom.MirrorUnityLog

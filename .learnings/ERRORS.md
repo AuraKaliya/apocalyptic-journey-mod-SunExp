@@ -6790,3 +6790,23 @@ the records interaction still expected two rows.
 
 Updated the preview contract to 20 production IDs and added category-count
 checks for the three-record, two-multiplayer, and three-system module groups.
+
+---
+# ERR-20260819-001: Terrias architecture gate started with Windows PowerShell
+
+**Logged**: 2026-08-19
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`Test-TerriasArchitecture.ps1` was invoked through Windows PowerShell 5.1,
+whose .NET Framework runtime does not provide `System.IO.Path.GetRelativePath`.
+
+## Resolution
+
+Reran the unchanged gate with PowerShell 7 via `pwsh`; all 537 architecture
+boundary files and the Terrias architecture assertions passed.
+
+**See Also**: ERR-20260818-005

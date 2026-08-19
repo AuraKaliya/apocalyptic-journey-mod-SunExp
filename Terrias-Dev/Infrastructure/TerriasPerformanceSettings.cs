@@ -1,23 +1,31 @@
 using System;
 using System.Reflection;
+using AuraShared.Core;
 
 namespace Terrias.Dll.Infrastructure;
 
 public static class TerriasPerformanceSettings
 {
-    private const string CountersKey = "TerriasPerfCounters";
+    public const string SharedDiagnosticsOwnerId = "AuraShared";
+    public const string SharedDiagnosticsFeatureId = "Diagnostics.Performance";
+    public const string UiPoolingFeatureId = "UI.ObjectPooling";
+    public const string CombatCardViewPoolingFeatureId = "Combat.CardViewPooling";
+
+    private const string LegacyCountersKey = "TerriasPerfCounters";
     private const string WunaOrbitFireEnabledKey = "TerriasWunaOrbitFireEnabled";
     private const string WunaOrbitFireDisabledKey = "TerriasWunaOrbitFireDisabled";
-    private const string UiPoolKey = "TerriasUiPool";
+    private const string LegacyUiPoolKey = "TerriasUiPool";
+    private const string CombatCardViewPoolKey = "TerriasCombatCardViewPool";
     private const int RefreshMilliseconds = 1000;
 
     private static MethodInfo? getGameVarMethod;
-    private static MethodInfo? setGameVarMethod;
-    private static bool gameVarMethodsResolved;
+    private static bool gameVarMethodResolved;
+    private static bool featureDefaultsRegistered;
     private static int lastRefreshTick = int.MinValue;
     private static bool cachedCountersEnabled;
     private static bool cachedWunaOrbitFireEnabled;
     private static bool cachedUiPoolEnabled = true;
+    private static bool cachedCombatCardViewPoolEnabled = true;
 
     public static bool CountersEnabled
     {
@@ -48,7 +56,14 @@ public static class TerriasPerformanceSettings
 
     public static int UiPoolCapacityPerKey => 64;
 
-    public static bool CombatCardViewPoolEnabled => UiPoolEnabled;
+    public static bool CombatCardViewPoolEnabled
+    {
+        get
+        {
+            RefreshIfNeeded();
+            return cachedCombatCardViewPoolEnabled;
+        }
+    }
 
     public static int CombatCardViewPoolCommonCapacity => 8;
 
@@ -76,26 +91,36 @@ public static class TerriasPerformanceSettings
 
     public static int WunaAlphaSampleGrid => 96;
 
-    public static bool TrySetCountersEnabled(bool enabled)
+    public static void RegisterFeatureDefaults()
     {
-        try
+        if (featureDefaultsRegistered)
         {
-            ResolveGameVarMethods();
-            if (setGameVarMethod == null)
-            {
-                return false;
-            }
+            return;
+        }
 
-            setGameVarMethod.Invoke(null, new object[] { CountersKey, enabled ? "1" : "0" });
-            lastRefreshTick = int.MinValue;
-            RefreshIfNeeded();
-            return cachedCountersEnabled == enabled
-                && string.Equals(ReadGameVar(CountersKey).Trim(), enabled ? "1" : "0", StringComparison.Ordinal);
-        }
-        catch
-        {
-            return false;
-        }
+        featureDefaultsRegistered = true;
+        AuraFeatureSwitchRuntime.RegisterFeature(
+            SharedDiagnosticsOwnerId,
+            SharedDiagnosticsFeatureId,
+            defaultEnabled: false,
+            "AuraShared diagnostics default");
+        AuraFeatureSwitchRuntime.RegisterFeature(
+            TerriasIds.ModId,
+            UiPoolingFeatureId,
+            defaultEnabled: true,
+            "Terrias UI pooling default");
+        AuraFeatureSwitchRuntime.RegisterFeature(
+            TerriasIds.ModId,
+            CombatCardViewPoolingFeatureId,
+            defaultEnabled: true,
+            "Terrias combat card pooling default");
+        lastRefreshTick = int.MinValue;
+    }
+
+    public static void Refresh()
+    {
+        lastRefreshTick = int.MinValue;
+        RefreshIfNeeded();
     }
 
     public static float WunaGeometryInterval(bool activePulse)
@@ -106,10 +131,12 @@ public static class TerriasPerformanceSettings
     public static string DiagnosticsSummary()
     {
         RefreshIfNeeded();
-        return "Terrias diagnostics: "
-            + CountersKey
+        return "Terrias diagnostics: sharedPerformance="
+            + AuraFeatureSwitchRuntime.IsEnabled(SharedDiagnosticsOwnerId, SharedDiagnosticsFeatureId)
+            + "; "
+            + LegacyCountersKey
             + " raw="
-            + FormatRawValue(ReadGameVarSafe(CountersKey))
+            + FormatRawValue(ReadGameVarSafe(LegacyCountersKey))
             + " effective="
             + cachedCountersEnabled
             + "; TerriasDebug raw="
@@ -117,11 +144,17 @@ public static class TerriasPerformanceSettings
             + " effective="
             + ReadFlagSafe("TerriasDebug", false)
             + "; "
-            + UiPoolKey
+            + LegacyUiPoolKey
             + " raw="
-            + FormatRawValue(ReadGameVarSafe(UiPoolKey))
+            + FormatRawValue(ReadGameVarSafe(LegacyUiPoolKey))
             + " effective="
             + cachedUiPoolEnabled
+            + "; "
+            + CombatCardViewPoolKey
+            + " raw="
+            + FormatRawValue(ReadGameVarSafe(CombatCardViewPoolKey))
+            + " effective="
+            + cachedCombatCardViewPoolEnabled
             + "; "
             + WunaOrbitFireEnabledKey
             + " raw="
@@ -138,32 +171,67 @@ public static class TerriasPerformanceSettings
             return;
         }
 
+        RegisterFeatureDefaults();
         try
         {
-            cachedCountersEnabled = ReadFlag(CountersKey, false);
+            cachedCountersEnabled = AuraFeatureSwitchRuntime.IsEnabled(
+                                        SharedDiagnosticsOwnerId,
+                                        SharedDiagnosticsFeatureId)
+                                    || ReadEnabledOnlyFlag(LegacyCountersKey);
             cachedWunaOrbitFireEnabled = ReadFlag(WunaOrbitFireEnabledKey, false)
                 && !ReadFlag(WunaOrbitFireDisabledKey, false);
-            cachedUiPoolEnabled = ReadFlag(UiPoolKey, true);
+            cachedUiPoolEnabled = AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, UiPoolingFeatureId)
+                                  && ReadDefaultOnFlag(LegacyUiPoolKey);
+            cachedCombatCardViewPoolEnabled = AuraFeatureSwitchRuntime.IsEnabled(
+                                                  TerriasIds.ModId,
+                                                  CombatCardViewPoolingFeatureId)
+                                              && ReadDefaultOnFlag(CombatCardViewPoolKey);
         }
         catch
         {
             cachedCountersEnabled = false;
             cachedWunaOrbitFireEnabled = false;
             cachedUiPoolEnabled = true;
+            cachedCombatCardViewPoolEnabled = true;
         }
 
         lastRefreshTick = now;
     }
 
-    private static bool ReadFlag(string key, bool fallback)
+    private static bool ReadDefaultOnFlag(string key)
     {
         var text = ReadGameVar(key).Trim();
+        // Missing GameVars and stored zero both read as "0" in the game API.
+        // Default-on local presentation features use explicit false/off text
+        // for opt-out and treat the ambiguous zero as missing.
+        return text.Length == 0 || text == "0" || ReadFlagText(text, true);
+    }
+
+    private static bool ReadEnabledOnlyFlag(string key)
+    {
+        var text = ReadGameVar(key).Trim();
+        return text == "1"
+               || string.Equals(text, "true", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(text, "yes", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ReadFlag(string key, bool fallback)
+    {
+        return ReadFlagText(ReadGameVar(key).Trim(), fallback);
+    }
+
+    private static bool ReadFlagText(string text, bool fallback)
+    {
         if (text.Length == 0)
         {
             return fallback;
         }
 
-        if (text == "0")
+        if (text == "0"
+            || string.Equals(text, "false", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "no", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(text, "off", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
@@ -174,13 +242,6 @@ public static class TerriasPerformanceSettings
             || string.Equals(text, "on", StringComparison.OrdinalIgnoreCase))
         {
             return true;
-        }
-
-        if (string.Equals(text, "false", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(text, "no", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(text, "off", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
         }
 
         return fallback;
@@ -222,22 +283,14 @@ public static class TerriasPerformanceSettings
             return "";
         }
 
-        ResolveGameVarMethods();
+        if (!gameVarMethodResolved)
+        {
+            var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
+            getGameVarMethod = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static);
+            gameVarMethodResolved = true;
+        }
 
         var value = getGameVarMethod?.Invoke(null, new object[] { key });
         return Convert.ToString(value) ?? "";
-    }
-
-    private static void ResolveGameVarMethods()
-    {
-        if (gameVarMethodsResolved)
-        {
-            return;
-        }
-
-        var playerInfo = typeof(ScriptExecutor).GetNestedType("PlayerInfo", BindingFlags.Public | BindingFlags.NonPublic);
-        getGameVarMethod = playerInfo?.GetMethod("GetGameVar", BindingFlags.Public | BindingFlags.Static);
-        setGameVarMethod = playerInfo?.GetMethod("SetGameVar", BindingFlags.Public | BindingFlags.Static);
-        gameVarMethodsResolved = true;
     }
 }

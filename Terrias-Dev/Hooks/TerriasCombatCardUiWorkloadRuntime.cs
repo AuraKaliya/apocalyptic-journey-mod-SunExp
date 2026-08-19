@@ -15,12 +15,6 @@ public static class TerriasCombatCardUiWorkloadRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        if (!TerriasPerformanceSettings.CountersEnabled)
-        {
-            TerriasLog.Info("Combat card UI workload diagnostics disabled");
-            return;
-        }
-
         RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItem);
         RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItemInternal);
         RegisterMeasured(modConfig, TerriasHookTargets.FightUiUpdateCardMsg);
@@ -39,7 +33,8 @@ public static class TerriasCombatCardUiWorkloadRuntime
         RegisterMeasured(modConfig, TerriasHookTargets.AttackCardItemDrawEffect);
         RegisterMeasured(modConfig, TerriasHookTargets.FightCardManagerCardTagCheck);
         RegisterRefreshCauses(modConfig);
-        TerriasLog.InfoAlways("Combat card UI workload diagnostics initialized");
+        TerriasLog.InfoAlways("Combat card UI workload diagnostics registered; enabled="
+                              + TerriasPerformanceSettings.CountersEnabled);
     }
 
     private static void RegisterMeasured(ModConfig config, string target)
@@ -50,6 +45,11 @@ public static class TerriasCombatCardUiWorkloadRuntime
 
     private static void Begin(string target, ModHookContext context)
     {
+        if (!TerriasPerformanceSettings.CountersEnabled)
+        {
+            return;
+        }
+
         var key = CounterKey(target);
         if (string.Equals(target, TerriasHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
         {
@@ -74,6 +74,11 @@ public static class TerriasCombatCardUiWorkloadRuntime
     {
         var key = CounterKey(target);
         var start = PopStart(key);
+        if (start <= 0L)
+        {
+            return;
+        }
+
         TerriasCombatUiWorkload.End(target);
         TerriasPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
         var elapsed = start <= 0L ? 0d : TerriasPerformanceCounters.ElapsedMilliseconds(start);
@@ -91,7 +96,7 @@ public static class TerriasCombatCardUiWorkloadRuntime
         {
             segmentSummary += TerriasCombatCardUiDiagnostics.EndRefreshBatch(elapsed);
         }
-        if (start <= 0L || !TerriasPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }

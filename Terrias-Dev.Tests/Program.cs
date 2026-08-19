@@ -919,19 +919,45 @@ internal static class Program
         guidance.Vars["SpecialTag"] = "new-structural-tag";
         False(structuralSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Structural tag changes invalidate a reusable card presentation lease");
 
-        var readFlag = typeof(TerriasPerformanceSettings).GetMethod("ReadFlag", BindingFlags.NonPublic | BindingFlags.Static);
+        var readDefaultOnFlag = typeof(TerriasPerformanceSettings).GetMethod(
+            "ReadDefaultOnFlag",
+            BindingFlags.NonPublic | BindingFlags.Static);
         ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "0");
-        Equal(false, (bool)readFlag!.Invoke(null, new object[] { "PoolFlagTest", true })!, "An explicit zero disables default-on performance features");
-        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "");
-        Equal(true, (bool)readFlag.Invoke(null, new object[] { "PoolFlagTest", true })!, "A missing performance flag still uses its declared fallback");
+        Equal(true, (bool)readDefaultOnFlag!.Invoke(null, new object[] { "PoolFlagTest" })!,
+            "The game's ambiguous missing-value zero keeps default-on presentation pooling enabled");
+        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "false");
+        Equal(false, (bool)readDefaultOnFlag.Invoke(null, new object[] { "PoolFlagTest" })!,
+            "An explicit textual false disables a default-on local presentation feature");
     }
 
     private static void TestPerformanceSettings()
     {
+        TerriasPerformanceSettings.RegisterFeatureDefaults();
+        AuraFeatureSwitchRuntime.SetLocalOverride(
+            "TestTool",
+            TerriasPerformanceSettings.SharedDiagnosticsOwnerId,
+            TerriasPerformanceSettings.SharedDiagnosticsFeatureId,
+            true);
+        TerriasPerformanceSettings.Refresh();
+        True(TerriasPerformanceSettings.CountersEnabled,
+            "A tool-local shared diagnostics override enables Terrias performance counters");
+
+        AuraFeatureSwitchRuntime.SetLocalOverride(
+            "TestTool",
+            TerriasPerformanceSettings.SharedDiagnosticsOwnerId,
+            TerriasPerformanceSettings.SharedDiagnosticsFeatureId,
+            false);
         ScriptExecutor.PlayerInfo.SetGameVar("TerriasPerfCounters", "0");
-        True(TerriasPerformanceSettings.TrySetCountersEnabled(true), "Terrias performance counters can be enabled through the runtime GameVar bridge");
-        Equal("1", ScriptExecutor.PlayerInfo.GetGameVar("TerriasPerfCounters"), "Enabling performance counters persists the literal TerriasPerfCounters=1 value");
-        True(TerriasPerformanceSettings.CountersEnabled, "The performance counter cache immediately reflects the enabled GameVar");
+        TerriasPerformanceSettings.Refresh();
+        False(TerriasPerformanceSettings.CountersEnabled,
+            "The default zero no longer races an asynchronous GameVar write during counter initialization");
+
+        AuraFeatureSwitchRuntime.SetLocalOverride(
+            "TestTool",
+            TerriasPerformanceSettings.SharedDiagnosticsOwnerId,
+            TerriasPerformanceSettings.SharedDiagnosticsFeatureId,
+            null);
+        TerriasPerformanceSettings.Refresh();
     }
 
     private static void TestCardVisualSkinRegistry()

@@ -432,6 +432,14 @@ namespace Terrias.Dll.Hooks
 
 namespace Terrias.Dll.GameApi
 {
+    public static class FightUiCardLayoutApi
+    {
+        public static bool RequestCurrentHandLayout(string source)
+        {
+            return true;
+        }
+    }
+
     public static class ExecutorApi
     {
         private static readonly Dictionary<string, int> CombatVars = new();

@@ -103,6 +103,7 @@ public static class AuraToolsConfigService
         {
             AuraToolsPaths.Initialize(config);
             ReloadNoLock();
+            AuraToolsPerformanceSettings.PublishSharedOverride();
             SaveAllNoLock();
             AuraToolsLog.Info("[Config] package=" + ModDirectory + ", data=" + DataRootDirectory);
         }
@@ -113,6 +114,7 @@ public static class AuraToolsConfigService
         lock (Gate)
         {
             ReloadNoLock();
+            AuraToolsPerformanceSettings.PublishSharedOverride();
         }
         NotifyAllModules();
     }
@@ -122,6 +124,7 @@ public static class AuraToolsConfigService
         lock (Gate)
         {
             SaveAllNoLock();
+            AuraToolsPerformanceSettings.PublishSharedOverride();
         }
         NotifyAllModules();
     }
@@ -190,6 +193,7 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.FileLogging,
             Logging,
             () => SaveModule(Logging, Root.Logging.ConfigFile));
+        AuraToolsPerformanceSettings.PublishSharedOverride();
         LoggingChanged?.Invoke();
     }
 

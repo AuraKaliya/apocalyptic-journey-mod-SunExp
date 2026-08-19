@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
+using Witch.UI;
 using Witch.UI.Window;
 
 namespace Terrias.Dll.GameApi;
@@ -10,7 +11,7 @@ namespace Terrias.Dll.GameApi;
 public static class FightUiCardLayoutApi
 {
     private static readonly MethodInfo? UpdateCardItemPosMethod = ResolveUpdateCardItemPos();
-    private const int MaxNativeQueueWaitFrames = 60;
+    private const int MaxNativeQueueWaitFrames = 360;
     private static FightUI? pendingFightUi;
     private static string pendingSource = "";
     private static int waitFrames;
@@ -31,6 +32,11 @@ public static class FightUiCardLayoutApi
             return false;
         }
 
+        if (!ReferenceEquals(pendingFightUi, fightUi))
+        {
+            waitFrames = 0;
+        }
+
         pendingFightUi = fightUi;
         pendingSource = source ?? "";
         return AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
@@ -43,6 +49,11 @@ public static class FightUiCardLayoutApi
             EstimatedCost = 3,
             Action = ApplyScheduled
         });
+    }
+
+    public static bool RequestCurrentHandLayout(string source)
+    {
+        return RequestHandLayout(UIManager.Instance?.GetUI<FightUI>("FightUI"), source);
     }
 
     private static void ApplyScheduled()
@@ -61,9 +72,20 @@ public static class FightUiCardLayoutApi
             return;
         }
 
+        if (fightUi.createCardQueue?.Count > 0)
+        {
+            TerriasPerformanceCounters.Record("FightUiCardLayout.NativeQueueTimeout");
+            TerriasLog.WarnOnce(
+                "FightUiCardLayout.NativeQueueTimeout",
+                "[FightUiCardLayout] native card creation queue did not settle before the layout deadline; applying a recovery layout.");
+        }
+
         waitFrames = 0;
         AuditHandList();
-        ApplyNow(fightUi, pendingSource);
+        var source = pendingSource;
+        pendingFightUi = null;
+        pendingSource = "";
+        ApplyNow(fightUi, source);
     }
 
     private static void AuditHandList()
