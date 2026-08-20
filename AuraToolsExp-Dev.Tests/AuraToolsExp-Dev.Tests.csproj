@@ -134,6 +134,8 @@
              Link="MatchRecords\MatchAnalysisBuilder.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\MatchReplayVideoEncodingPolicy.cs"
              Link="MatchRecords\MatchReplayVideoEncodingPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\ReplayMediaSourcePolicy.cs"
+             Link="MatchRecords\ReplayMediaSourcePolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\ReplayOfflineAudioMixer.cs"
              Link="MatchRecords\ReplayOfflineAudioMixer.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Media\ReplayExportRecoveryPolicy.cs"

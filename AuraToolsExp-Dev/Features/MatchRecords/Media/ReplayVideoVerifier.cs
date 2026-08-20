@@ -123,11 +123,24 @@ internal static class ReplayVideoVerifier
         };
     }
 
-    internal static ReplayVideoVerification VerifyImported(ReplayEncoderDependency dependency, string path)
+    internal static ReplayVideoVerification VerifySource(ReplayEncoderDependency dependency, string path)
     {
-        if (!File.Exists(path) || !string.Equals(Path.GetExtension(path), ".mp4", StringComparison.OrdinalIgnoreCase))
+        return VerifyExternal(dependency, path, requireNormalizedProfile: false);
+    }
+
+    internal static ReplayVideoVerification VerifyNormalized(ReplayEncoderDependency dependency, string path)
+    {
+        return VerifyExternal(dependency, path, requireNormalizedProfile: true);
+    }
+
+    private static ReplayVideoVerification VerifyExternal(
+        ReplayEncoderDependency dependency,
+        string path,
+        bool requireNormalizedProfile)
+    {
+        if (!File.Exists(path))
         {
-            throw new InvalidDataException("只允许导入 MP4 文件。");
+            throw new FileNotFoundException("视频文件不存在。", path);
         }
 
         var probe = Run(dependency.FfprobeExecutable, MatchReplayVideoEncodingPolicy.BuildFfprobeArguments(path));
@@ -138,18 +151,58 @@ internal static class ReplayVideoVerifier
         var audios = streams.OfType<JObject>().Where(item => (string?)item["codec_type"] == "audio").ToList();
         if (videos.Count != 1 || audios.Count > 1 || streams.Count != videos.Count + audios.Count)
         {
-            throw new InvalidDataException("MP4 必须包含一个视频流、至多一个音频流且不得包含额外流。");
+            throw new InvalidDataException("源媒体必须包含一个视频流、至多一个音频流且不得包含额外流。");
         }
         var video = videos[0];
+        var videoCodec = (string?)video["codec_name"] ?? "";
+        var audioCodec = audios.Count == 1 ? (string?)audios[0]["codec_name"] : null;
+        ReplayMediaSourcePolicy.ValidateProbe(
+            path,
+            (string?)json["format"]?["format_name"] ?? "",
+            videoCodec,
+            audioCodec);
         var width = (int?)video["width"] ?? 0;
         var height = (int?)video["height"] ?? 0;
         var fps = ParseRate((string?)video["r_frame_rate"]);
         var frames = long.TryParse((string?)video["nb_read_frames"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var count)
             ? count
             : 0;
-        if (width <= 0 || height <= 0 || fps <= 0d || frames <= 0)
+        if (width < 16 || height < 16 || fps <= 0d || frames <= 0)
         {
-            throw new InvalidDataException("MP4 视频元数据不完整。");
+            throw new InvalidDataException("源媒体视频元数据不完整或分辨率低于 16x16。");
+        }
+        if (requireNormalizedProfile)
+        {
+            if (Math.Abs(fps - 30d) > 0.01d)
+            {
+                throw new InvalidDataException("导入媒体没有归一化为固定 30 FPS profile。");
+            }
+            if (!string.Equals(videoCodec, "mpeg4", StringComparison.OrdinalIgnoreCase)
+                || audios.Count == 1 && !string.Equals(audioCodec, "aac", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("导入媒体没有归一化为固定 MPEG4/AAC profile。");
+            }
+            if (!string.Equals((string?)video["pix_fmt"], "yuv420p", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals((string?)video["color_range"], "tv", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals((string?)video["color_space"], "bt709", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals((string?)video["color_transfer"], "bt709", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals((string?)video["color_primaries"], "bt709", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("导入媒体没有归一化为固定 YUV420P BT.709 limited-range profile。");
+            }
+            if (audios.Count == 1
+                && ((int?)audios[0]["channels"] ?? 0) != ReplayOfflineAudioMixer.Channels)
+            {
+                throw new InvalidDataException("导入媒体没有归一化为固定双声道音频 profile。");
+            }
+            var sampleRate = audios.Count == 1
+                && int.TryParse((string?)audios[0]["sample_rate"], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRate)
+                    ? parsedRate
+                    : 0;
+            if (audios.Count == 1 && sampleRate != ReplayOfflineAudioMixer.SampleRate)
+            {
+                throw new InvalidDataException("导入媒体没有归一化为固定 48 kHz 音频 profile。");
+            }
         }
 
         var decode = Run(dependency.FfmpegExecutable, MatchReplayVideoEncodingPolicy.BuildDecodeArguments(path));

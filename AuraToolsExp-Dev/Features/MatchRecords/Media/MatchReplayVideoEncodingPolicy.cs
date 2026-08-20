@@ -6,6 +6,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 internal static class MatchReplayVideoEncodingPolicy
 {
     internal const string CodecProfileId = "mp4-mpeg4-aac-bt709.v1";
+    internal const string ImportedCodecProfileId = "mp4-mpeg4-aac-bt709.import.v1";
 
     internal static string BuildFfmpegArguments(
         int width,
@@ -34,7 +35,7 @@ internal static class MatchReplayVideoEncodingPolicy
     internal static string BuildFfprobeArguments(string path)
     {
         return "-v error -count_frames -show_entries "
-               + "format=duration:stream=index,codec_type,codec_name,width,height,r_frame_rate,nb_read_frames,sample_rate,channels,duration,pix_fmt,color_range,color_space,color_transfer,color_primaries "
+               + "format=format_name,duration:stream=index,codec_type,codec_name,width,height,r_frame_rate,nb_read_frames,sample_rate,channels,duration,pix_fmt,color_range,color_space,color_transfer,color_primaries "
                + "-of json " + Quote(path);
     }
 
@@ -43,13 +44,13 @@ internal static class MatchReplayVideoEncodingPolicy
         return "-hide_banner -v error -i " + Quote(path) + " -f null NUL";
     }
 
-    internal static string BuildLegacyTranscodeArguments(string inputPath, string outputPath)
+    internal static string BuildNormalizeArguments(string inputPath, string outputPath)
     {
         return "-hide_banner -loglevel error -nostdin -y -i " + Quote(inputPath)
-               + " -map 0:v:0 -map 0:a:0? "
-               + "-vf scale=in_range=auto:out_range=tv:out_color_matrix=bt709,format=yuv420p,"
+               + " -map 0:v:0 -map 0:a:0? -sn -dn -fps_mode cfr "
+               + "-vf fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2:in_range=auto:out_range=tv:out_color_matrix=bt709,format=yuv420p,"
                + "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709 "
-               + "-c:v mpeg4 -q:v 3 -pix_fmt yuv420p -c:a aac -b:a 160k "
+               + "-c:v mpeg4 -q:v 3 -pix_fmt yuv420p -c:a aac -b:a 160k -ar 48000 -ac 2 "
                + "-color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 "
                + "-movflags +faststart+write_colr -f mp4 " + Quote(outputPath);
     }

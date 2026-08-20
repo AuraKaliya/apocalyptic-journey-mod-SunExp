@@ -170,7 +170,7 @@ internal static class ReplayLegacyMigrationService
         {
             try
             {
-                ReplayMedia.ReplayLegacyMediaTranscoder.TranscodeOrValidateAndImport(media.RecordId, media.Path);
+                ReplayMedia.ReplayLegacyMediaTranscoder.NormalizeAndImport(media.RecordId, media.Path);
                 ReplayMedia.MatchReplayMediaStore.Delete(media.MediaId);
             }
             catch

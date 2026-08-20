@@ -272,12 +272,21 @@ EventSystem 和对象根。核心组件为：
 
 ### 6.3 编码器
 
-- 只使用 AuraToolsExp 随工具发布的 FFmpeg/ffprobe；不读取 PATH 和用户路径。
-- 依赖清单保存平台、版本、构建参数、许可证文件和 SHA-256。
-- 启动任务前校验二进制哈希，不匹配则拒绝导出。
+- 只使用 AuraToolsExp 随工具发布的最小共享 LGPL FFmpeg/ffprobe；不读取 PATH、
+  用户路径或网络下载运行时。
+- 构建固定源码提交、源码包 SHA-256 和容器镜像摘要，以 `--disable-everything`、
+  `--disable-autodetect`、`--disable-network` 为基线，只启用声明的组件。
+- 依赖清单保存平台、版本、构建 profile、许可证，以及每个 EXE/DLL 的路径、大小
+  和 SHA-256；启动任务前逐文件校验，不匹配则拒绝执行。
 - 产品格式固定为 MP4，视频/音频 codec 和参数由发布 profile 固定。
 - FFmpeg 分发必须通过 LGPL 兼容性和所选编码器的许可证发布门禁。
 - 编码只写同一目标目录中的 `.partial` 文件，不覆盖现有 Ready 媒体。
+
+导入和旧媒体迁移使用受控输入矩阵：容器仅 AVI、MKV、MOV、MP4、WebM；视频
+codec 仅 AV1、H.264、HEVC、MJPEG、MPEG4、VP8、VP9；音频 codec 仅 AAC、
+ALAC、FLAC、MP3、Opus、PCM F32/S16/S24/S32 LE、Vorbis。手动文件选择仍只
+开放 MP4。通过输入验证的媒体必须统一归一化为固定 30 FPS MP4 profile 后再登记，不能
+把输入 codec 直接带入持久媒体库。
 
 ### 6.4 视频验证
 
@@ -438,8 +447,9 @@ analysis/summary.json.gz
 | v8/v9，另有录制时完整内容归档并能逐资源校验 | 使用该归档转换；不得使用当前安装内容猜测 |
 | v7 及更早命令回放 | 不执行命令，只生成可提取的统计/摘要 |
 | chunks 缺失、顺序断裂或哈希错误 | 标记损坏并报告，不尝试猜测修复 |
-| 已关联且可完整验证的 MP4 | 保留并登记到新媒体表 |
-| AVI/MOV/WebM 等旧媒体 | 关联明确时转码和验证为 MP4；否则进入隔离报告 |
+| 已关联且符合输入白名单的 MP4 | 归一化并验证为固定 MP4 profile 后登记 |
+| 白名单内 AVI/MKV/MOV/WebM 旧媒体 | 关联明确时归一化和验证为固定 MP4；否则进入隔离报告 |
+| 容器、codec 或流拓扑不在输入白名单 | 拒绝执行并进入隔离报告，不扩张运行时解码面 |
 | 数据库行存在但媒体缺失 | 标记旧媒体损坏，不影响统计 |
 | 文件存在但无数据库/任务证据 | 隔离，等待清理授权，不自动补登记 |
 
@@ -630,7 +640,8 @@ fallback 保留。
 ### 发布
 
 - 源码、测试、配置、协议清单、文档和发布 DLL 全部只声明 v10。
-- 发布包包含唯一受控编码器、哈希清单和许可证材料。
+- 发布包包含唯一受控的最小共享 LGPL 编码器运行时、逐文件哈希清单、可复现构建
+  入口和许可证材料，FFmpeg 运行时原始体积不得超过 40 MiB。
 - 搜索和架构门禁证明没有旧 LocalHost/FightUI/ChatUI/AVI/PATH FFmpeg 路径。
 - 重建并验证 `AuraToolsExp/Scripts/Entry.dll`，再执行真实 Unity 集成验收。
 

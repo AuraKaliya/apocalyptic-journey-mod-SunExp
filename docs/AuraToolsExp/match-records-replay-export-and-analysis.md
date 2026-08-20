@@ -62,8 +62,10 @@ chunk/附件哈希错误和无法重建最终状态的文档。包在 staging �
 原始帧进入容量固定的内存管道，管道满时暂停离线推进，不丢帧，也不生成 JPEG
 spool。音频根据 v10 的样本时间事件离线混合，不读取实时 `AudioListener`。
 
-AuraToolsExp 只调用工具自带且通过版本/许可证/文件哈希校验的 FFmpeg 和 ffprobe，
-不读取 PATH 或用户配置路径。输出固定为 MP4，不存在 AVI fallback。
+AuraToolsExp 只调用工具自带的最小共享 LGPL FFmpeg/ffprobe 运行时，不读取 PATH、
+用户配置路径或网络下载。构建固定源码提交和容器镜像，关闭自动探测、网络、硬件
+加速和未声明组件；清单逐一校验每个 EXE/DLL 的路径、大小和 SHA-256。输出固定
+为 MP4，不存在 AVI fallback。
 
 编码完成后依次执行 ffprobe 元数据检查、全部帧和音频完整解码、帧数/时长/profile
 核对及 SHA-256。只有验证成功的文件才能原子移动并登记媒体。
@@ -78,8 +80,11 @@ Planned -> Rendering -> Encoding -> Validating -> Committing -> Ready
 和 Committing，回收 Rendering/Encoding 中断留下的 partial，并标记缺失或哈希错误
 的 Ready 媒体。进入 Committing 后不再接受取消。
 
-媒体库只接收经过完整解码验证的 MP4。旧 AVI/MOV/WebM 由迁移报告隔离，不能作为
-第二种持久格式继续登记。
+手动导入只接收 MP4；旧媒体迁移只接收 AVI、MKV、MOV、MP4 或 WebM。视频 codec
+白名单为 AV1、H.264、HEVC、MJPEG、MPEG4、VP8、VP9，音频白名单为 AAC、ALAC、
+FLAC、MP3、Opus、PCM F32/S16/S24/S32 LE、Vorbis。所有允许输入都先完整解码，
+再归一化为同一 30 FPS、MPEG4/AAC、YUV420P、BT.709 limited-range、48 kHz 双声道 MP4，
+完成第二次完整解码验证后才能登记；原容器或 codec 不作为第二种持久格式保留。
 
 ## v8/v9 迁移
 

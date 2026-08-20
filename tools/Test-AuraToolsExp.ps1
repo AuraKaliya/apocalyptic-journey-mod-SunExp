@@ -62,11 +62,48 @@ foreach ($required in @($ffmpegManifestPath, $ffmpegPath, $ffprobePath, $ffmpegL
     }
 }
 $ffmpegManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $ffmpegManifestPath | ConvertFrom-Json
-if ($ffmpegManifest.license -ne "LGPL-3.0-or-later" `
+if ([int]$ffmpegManifest.schemaVersion -ne 2 `
+        -or $ffmpegManifest.version -ne "9.0.1-aura-minimal.1" `
+        -or $ffmpegManifest.platform -ne "win-x64" `
+        -or $ffmpegManifest.license -ne "LGPL-3.0-or-later" `
+        -or $ffmpegManifest.buildProfile -ne "aura-replay-win-x64-minimal-shared.v1" `
         -or $ffmpegManifest.codecProfile -ne "mp4-mpeg4-aac-bt709.v1" `
-        -or (Get-FileHash -Algorithm SHA256 -LiteralPath $ffmpegPath).Hash -ne $ffmpegManifest.ffmpegSha256 `
-        -or (Get-FileHash -Algorithm SHA256 -LiteralPath $ffprobePath).Hash -ne $ffmpegManifest.ffprobeSha256) {
-    throw "AuraToolsExp controlled FFmpeg manifest or binary hashes are invalid."
+        -or $ffmpegManifest.sourceRevision -ne "9d4ca21220" `
+        -or $ffmpegManifest.sourceArchiveSha256 -ne "6d9f8e49d1b6c561b6abb007fa872e844be181fb2516fd6e77741d0dd838bfa4" `
+        -or [long]$ffmpegManifest.sourceDateEpoch -ne 1786990956) {
+    throw "AuraToolsExp controlled FFmpeg manifest metadata is invalid."
+}
+$declaredPayload = @($ffmpegManifest.files)
+$actualPayload = @(Get-ChildItem -LiteralPath $ffmpegRoot -File |
+    Where-Object { $_.Extension -in @(".exe", ".dll") } |
+    Sort-Object Name)
+if ($declaredPayload.Count -ne $actualPayload.Count `
+        -or $actualPayload.Count -ne 8 `
+        -or @($actualPayload | Where-Object Name -eq "ffplay.exe").Count -ne 0) {
+    throw "AuraToolsExp FFmpeg shared payload is incomplete or contains an unshipped program."
+}
+foreach ($file in $actualPayload) {
+    $entry = @($declaredPayload | Where-Object path -eq $file.Name)
+    if ($entry.Count -ne 1 `
+            -or [long]$entry[0].bytes -ne $file.Length `
+            -or (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash -ne $entry[0].sha256) {
+        throw "AuraToolsExp FFmpeg payload hash or size is invalid: $($file.Name)"
+    }
+}
+$runtimeBytes = (Get-ChildItem -LiteralPath $ffmpegRoot -File | Measure-Object Length -Sum).Sum
+if ($runtimeBytes -gt 40MB) {
+    throw "AuraToolsExp FFmpeg runtime exceeds its 40 MiB release budget: $runtimeBytes bytes."
+}
+$buildConfiguration = & $ffmpegPath -hide_banner -buildconf 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0 `
+        -or $buildConfiguration -notmatch '--disable-everything' `
+        -or $buildConfiguration -notmatch '--disable-autodetect' `
+        -or $buildConfiguration -notmatch '--disable-network' `
+        -or $buildConfiguration -notmatch '--disable-static' `
+        -or $buildConfiguration -notmatch '--enable-shared' `
+        -or $buildConfiguration -notmatch '--enable-version3' `
+        -or $buildConfiguration -match '--enable-(?:gpl|nonfree)') {
+    throw "AuraToolsExp FFmpeg build is not the feature-bounded shared LGPL profile."
 }
 $encoderInventory = & $ffmpegPath -hide_banner -encoders 2>$null | Out-String
 if ($LASTEXITCODE -ne 0 `
@@ -74,12 +111,59 @@ if ($LASTEXITCODE -ne 0 `
         -or $encoderInventory -notmatch '(?m)^ A..... aac\s') {
     throw "AuraToolsExp controlled FFmpeg build lacks the fixed MP4 profile encoders."
 }
-$ffmpegSmoke = Join-Path ([System.IO.Path]::GetTempPath()) ("AuraTools-ReplayFfmpeg-" + [guid]::NewGuid().ToString("N") + ".mp4")
+$decoderInventory = & $ffmpegPath -hide_banner -decoders 2>$null | Out-String
+foreach ($decoder in @("aac", "alac", "av1", "flac", "h264", "hevc", "mjpeg", "mpeg4", "mp3", "opus", "pcm_f32le", "pcm_s16le", "pcm_s24le", "pcm_s32le", "rawvideo", "vorbis", "vp8", "vp9")) {
+    if ($decoderInventory -notmatch "(?m)^ [VAS].{5} $([regex]::Escape($decoder))\s") {
+        throw "AuraToolsExp FFmpeg build lacks a declared source decoder: $decoder"
+    }
+}
+$formatInventory = & $ffmpegPath -hide_banner -formats 2>$null | Out-String
+foreach ($format in @("avi", "matroska", "mov", "rawvideo", "wav")) {
+    if ($formatInventory -notmatch "(?m)^ D.\s+[^\r\n]*\b$([regex]::Escape($format))(?:,|\s)") {
+        throw "AuraToolsExp FFmpeg build lacks a declared source demuxer: $format"
+    }
+}
+$protocolInventory = & $ffmpegPath -hide_banner -protocols 2>$null | Out-String
+if ($protocolInventory -notmatch '(?m)^\s*file\s*$' -or $protocolInventory -notmatch '(?m)^\s*pipe\s*$') {
+    throw "AuraToolsExp FFmpeg build lacks the controlled file or pipe protocols."
+}
+
+$ffmpegSmokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+    "AuraTools-ReplayFfmpeg-" + [guid]::NewGuid().ToString("N"))
+[IO.Directory]::CreateDirectory($ffmpegSmokeRoot) | Out-Null
+$rawVideo = Join-Path $ffmpegSmokeRoot "frames.rgb24"
+$waveAudio = Join-Path $ffmpegSmokeRoot "audio.wav"
+$ffmpegSmoke = Join-Path $ffmpegSmokeRoot "smoke.mp4"
+$normalizedSmoke = Join-Path $ffmpegSmokeRoot "normalized.mp4"
 try {
+    [IO.File]::WriteAllBytes($rawVideo, [byte[]]::new(64 * 64 * 3 * 6))
+    $waveStream = [IO.File]::Create($waveAudio)
+    try {
+        $waveWriter = [IO.BinaryWriter]::new($waveStream)
+        $sampleFrames = 9600
+        $dataBytes = $sampleFrames * 2 * 2
+        $waveWriter.Write([Text.Encoding]::ASCII.GetBytes("RIFF"))
+        $waveWriter.Write(36 + $dataBytes)
+        $waveWriter.Write([Text.Encoding]::ASCII.GetBytes("WAVEfmt "))
+        $waveWriter.Write(16)
+        $waveWriter.Write([int16]1)
+        $waveWriter.Write([int16]2)
+        $waveWriter.Write(48000)
+        $waveWriter.Write(48000 * 2 * 2)
+        $waveWriter.Write([int16]4)
+        $waveWriter.Write([int16]16)
+        $waveWriter.Write([Text.Encoding]::ASCII.GetBytes("data"))
+        $waveWriter.Write($dataBytes)
+        $waveWriter.Write([byte[]]::new($dataBytes))
+        $waveWriter.Flush()
+    }
+    finally {
+        $waveStream.Dispose()
+    }
     & $ffmpegPath -hide_banner -loglevel error -nostdin -y `
-        -f lavfi -i "color=c=0x4090c0:s=64x64:r=30:d=0.2" `
-        -f lavfi -i "anullsrc=r=48000:cl=stereo:d=0.2" `
-        -shortest -vf "format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709" `
+        -f rawvideo -pixel_format rgb24 -video_size 64x64 -framerate 30 -i $rawVideo `
+        -i $waveAudio `
+        -shortest -vf "vflip,scale=in_range=pc:out_range=tv:out_color_matrix=bt709,format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709" `
         -c:v mpeg4 -q:v 3 -pix_fmt yuv420p -c:a aac -b:a 160k `
         -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 `
         -movflags +faststart+write_colr -f mp4 $ffmpegSmoke
@@ -107,10 +191,42 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "AuraToolsExp controlled FFmpeg smoke output failed complete decode."
     }
+    & $ffmpegPath -hide_banner -loglevel error -nostdin -y -i $ffmpegSmoke `
+        -map "0:v:0" -map "0:a:0?" -sn -dn -fps_mode cfr `
+        -vf "fps=30,scale=trunc(iw/2)*2:trunc(ih/2)*2:in_range=auto:out_range=tv:out_color_matrix=bt709,format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709" `
+        -c:v mpeg4 -q:v 3 -pix_fmt yuv420p -c:a aac -b:a 160k -ar 48000 -ac 2 `
+        -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 `
+        -movflags +faststart+write_colr -f mp4 $normalizedSmoke
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $normalizedSmoke -PathType Leaf)) {
+        throw "AuraToolsExp controlled FFmpeg normalization smoke failed."
+    }
+    $normalizedProbe = & $ffprobePath -v error `
+        -show_entries "stream=codec_type,codec_name,r_frame_rate,pix_fmt,color_range,color_space,color_transfer,color_primaries,sample_rate,channels" `
+        -of json $normalizedSmoke | Out-String | ConvertFrom-Json
+    $normalizedVideo = @($normalizedProbe.streams | Where-Object codec_type -eq "video")
+    $normalizedAudio = @($normalizedProbe.streams | Where-Object codec_type -eq "audio")
+    if ($LASTEXITCODE -ne 0 `
+            -or $normalizedVideo.Count -ne 1 -or $normalizedAudio.Count -ne 1 `
+            -or $normalizedVideo[0].codec_name -ne "mpeg4" `
+            -or $normalizedVideo[0].r_frame_rate -ne "30/1" `
+            -or $normalizedVideo[0].pix_fmt -ne "yuv420p" `
+            -or $normalizedVideo[0].color_range -ne "tv" `
+            -or $normalizedVideo[0].color_space -ne "bt709" `
+            -or $normalizedVideo[0].color_transfer -ne "bt709" `
+            -or $normalizedVideo[0].color_primaries -ne "bt709" `
+            -or $normalizedAudio[0].codec_name -ne "aac" `
+            -or [int]$normalizedAudio[0].sample_rate -ne 48000 `
+            -or [int]$normalizedAudio[0].channels -ne 2) {
+        throw "AuraToolsExp normalized import smoke does not match the fixed MP4 profile."
+    }
+    & $ffmpegPath -hide_banner -v error -i $normalizedSmoke -f null NUL
+    if ($LASTEXITCODE -ne 0) {
+        throw "AuraToolsExp normalized import smoke failed complete decode."
+    }
 }
 finally {
-    if (Test-Path -LiteralPath $ffmpegSmoke) {
-        Remove-Item -LiteralPath $ffmpegSmoke -Force
+    if ([IO.Directory]::Exists($ffmpegSmokeRoot)) {
+        [IO.Directory]::Delete($ffmpegSmokeRoot, $true)
     }
 }
 

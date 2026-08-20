@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 2,
+  "version": "9.0.1-aura-minimal.1",
+  "platform": "win-x64",
+  "license": "LGPL-3.0-or-later",
+  "sourceRevision": "9d4ca21220",
+  "sourceArchiveSha256": "6d9f8e49d1b6c561b6abb007fa872e844be181fb2516fd6e77741d0dd838bfa4",
+  "sourceDateEpoch": 1786990956,
+  "buildProfile": "aura-replay-win-x64-minimal-shared.v1",
+  "codecProfile": "mp4-mpeg4-aac-bt709.v1",
+  "files": [
+    {
+      "path": "avcodec-63.dll",
+      "bytes": 4112896,
+      "sha256": "07fff4c7644cb1eddb4b5a3aaad888d68f9651ebbd50ed13cd69adaf1330bb2a"
+    },
+    {
+      "path": "avfilter-12.dll",
+      "bytes": 200704,
+      "sha256": "91cda04dc01327b1221fe1c047efdfa74e045dcaddc4ad86b25ba7293bb1a43f"
+    },
+    {
+      "path": "avformat-63.dll",
+      "bytes": 678400,
+      "sha256": "c0fba5110f10529ff07fb107960acc3b43ca315ebb93eb49972b02d1f737d152"
+    },
+    {
+      "path": "avutil-61.dll",
+      "bytes": 689152,
+      "sha256": "8ae8f4c8c5975a3d9b3423ca0492268ea4df3be2be5649e2abeb49e7c401aadc"
+    },
+    {
+      "path": "ffmpeg.exe",
+      "bytes": 385536,
+      "sha256": "ce91fcd107e3bf234dd7c895bbe1ae4b275a077299d6cb4b5219f434bb4051a5"
+    },
+    {
+      "path": "ffprobe.exe",
+      "bytes": 184832,
+      "sha256": "0c9a3fa0b5b893d3a6de087b7bd3e738523462e1c3af3571f4e79e6aa2aa6358"
+    },
+    {
+      "path": "swresample-7.dll",
+      "bytes": 109056,
+      "sha256": "1730e8a5b54b33ce0205bbb9c8588ec81e89b6dce44bc305178e957dcdafdef2"
+    },
+    {
+      "path": "swscale-10.dll",
+      "bytes": 921600,
+      "sha256": "2c6cac81912ed847eb52c73a3d329292b7ab3f3a50eb30e6f41d34bf2b29255b"
+    }
+  ]
+}

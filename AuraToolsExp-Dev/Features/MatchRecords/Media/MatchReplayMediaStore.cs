@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
@@ -32,23 +33,25 @@ internal static class MatchReplayMediaStore
             }
         }
 
-        message = imported > 0 ? "已验证并导入 " + imported + " 个 MP4。" : "导入目录中没有 MP4。";
+        message = imported > 0 ? "已归一化并导入 " + imported + " 个 MP4。" : "导入目录中没有 MP4。";
         if (failures.Count > 0) message += " 失败 " + failures.Count + " 个。";
         return imported;
     }
 
     internal static MatchMediaAsset ImportFile(string recordId, string source)
     {
-        if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
-        {
-            throw new FileNotFoundException("视频文件不存在。", source);
-        }
+        ReplayMediaSourcePolicy.ValidateManualPath(source);
+        return ImportNormalized(recordId, source);
+    }
 
-        if (!string.Equals(Path.GetExtension(source), ".mp4", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("媒体库只接受 MP4；旧格式由 v8/v9 迁移器统一转码。");
-        }
+    internal static MatchMediaAsset ImportLegacyFile(string recordId, string source)
+    {
+        ReplayMediaSourcePolicy.ValidateLegacyPath(source);
+        return ImportNormalized(recordId, source);
+    }
 
+    private static MatchMediaAsset ImportNormalized(string recordId, string source)
+    {
         var dependency = ReplayEncoderDependency.LoadVerified();
         var directory = Path.Combine(MatchRecordStorage.MediaDirectory, recordId);
         Directory.CreateDirectory(directory);
@@ -63,16 +66,30 @@ internal static class MatchReplayMediaStore
             State = MatchReplayExportStates.Planned,
             CreatedUtc = now,
             UpdatedUtc = now,
-            ProfileId = "imported-mp4.v1",
+            ProfileId = MatchReplayVideoEncodingPolicy.ImportedCodecProfileId,
             StagingPath = staging,
             TargetPath = target,
-            Message = "正在验证导入 MP4"
+            Message = "正在验证并归一化导入视频"
         };
         MatchRecordStorage.Database.CreateExportJob(job);
         try
         {
-            File.Copy(source, staging, overwrite: false);
-            var verification = ReplayVideoVerifier.VerifyImported(dependency, staging);
+            var sourceVerification = ReplayVideoVerifier.VerifySource(dependency, source);
+            job.Width = sourceVerification.Width - sourceVerification.Width % 2;
+            job.Height = sourceVerification.Height - sourceVerification.Height % 2;
+            job.FramesPerSecond = Math.Max(1, (int)Math.Round(sourceVerification.FramesPerSecond));
+            job.FrameCount = sourceVerification.FrameCount;
+            job.AudioSampleFrames = sourceVerification.HasAudio ? 1 : 0;
+            job.State = MatchReplayExportStates.Encoding;
+            job.Progress = 0.35f;
+            job.Message = "正在归一化为固定 MP4 profile";
+            if (!MatchRecordStorage.Database.UpdateExportJob(job))
+            {
+                throw new IOException("导入任务状态发生并发冲突。");
+            }
+
+            RunNormalize(dependency, source, staging);
+            var verification = ReplayVideoVerifier.VerifyNormalized(dependency, staging);
             job.Width = verification.Width;
             job.Height = verification.Height;
             job.FramesPerSecond = (int)Math.Round(verification.FramesPerSecond);
@@ -82,14 +99,14 @@ internal static class MatchReplayMediaStore
             job.AudioSampleFrames = verification.HasAudio ? 1 : 0;
             job.State = MatchReplayExportStates.Validating;
             job.Progress = 0.9f;
-            job.Message = "MP4 已完整解码验证";
+            job.Message = "归一化 MP4 已完整解码验证";
             if (!MatchRecordStorage.Database.UpdateExportJob(job))
             {
                 throw new IOException("导入验证状态发生并发冲突。");
             }
             job.State = MatchReplayExportStates.Committing;
             job.Progress = 0.96f;
-            job.Message = "正在提交已验证导入 MP4";
+            job.Message = "正在提交归一化 MP4";
             if (!MatchRecordStorage.Database.UpdateExportJob(job))
             {
                 throw new IOException("导入任务状态发生并发冲突。");
@@ -112,7 +129,7 @@ internal static class MatchReplayMediaStore
                 Sha256 = verification.Sha256,
                 TimelineJson = "[]"
             };
-            job.Message = "MP4 已验证并导入";
+            job.Message = "视频已归一化、验证并导入";
             if (!MatchRecordStorage.Database.CommitExportMedia(job, asset))
             {
                 throw new IOException("导入 MP4 的数据库提交失败；启动恢复将继续登记。");
@@ -130,6 +147,28 @@ internal static class MatchReplayMediaStore
                 MatchRecordStorage.Database.UpdateExportJob(job);
             }
             throw;
+        }
+    }
+
+    private static void RunNormalize(ReplayEncoderDependency dependency, string source, string output)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(
+                dependency.FfmpegExecutable,
+                MatchReplayVideoEncodingPolicy.BuildNormalizeArguments(source, output))
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            }
+        };
+        if (!process.Start()) throw new IOException("无法启动受控 FFmpeg 媒体归一化任务。");
+        var error = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        if (process.ExitCode != 0 || !File.Exists(output))
+        {
+            throw new IOException("FFmpeg 媒体归一化失败：" + error.GetAwaiter().GetResult());
         }
     }
 

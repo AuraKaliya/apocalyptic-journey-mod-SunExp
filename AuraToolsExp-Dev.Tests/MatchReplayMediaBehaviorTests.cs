@@ -24,6 +24,31 @@ internal static partial class AuraToolsTestSuite
                && !arguments.Contains("mjpeg", StringComparison.OrdinalIgnoreCase)
                && !arguments.Contains("avi", StringComparison.OrdinalIgnoreCase),
             "the only encoder path consumes raw bounded frames and emits the fixed MP4 profile");
+        var normalizeArguments = MatchReplayVideoEncodingPolicy.BuildNormalizeArguments(
+            "source.webm",
+            "normalized.partial.mp4");
+        Assert(normalizeArguments.Contains("-map 0:v:0", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-map 0:a:0?", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-fps_mode cfr", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-vf fps=30", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-c:v mpeg4", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-c:a aac", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-ar 48000 -ac 2", StringComparison.Ordinal)
+               && normalizeArguments.Contains("-f mp4", StringComparison.Ordinal),
+            "every imported or legacy video is normalized into the single persisted MP4 profile");
+        ReplayMediaSourcePolicy.ValidateProbe("source.mp4", "mov,mp4,m4a,3gp,3g2,mj2", "h264", "aac");
+        ReplayMediaSourcePolicy.ValidateProbe("source.webm", "matroska,webm", "vp9", "opus");
+        var rejectedCodec = false;
+        try { ReplayMediaSourcePolicy.ValidateProbe("source.mp4", "mov,mp4", "prores", "aac"); }
+        catch (InvalidDataException) { rejectedCodec = true; }
+        var rejectedContainerMismatch = false;
+        try { ReplayMediaSourcePolicy.ValidateProbe("renamed.mp4", "avi", "mjpeg", "pcm_s16le"); }
+        catch (InvalidDataException) { rejectedContainerMismatch = true; }
+        Assert(rejectedCodec
+               && rejectedContainerMismatch
+               && ReplayMediaSourcePolicy.SupportedVideoCodecs.Count == 7
+               && ReplayMediaSourcePolicy.SupportedAudioCodecs.Count == 10,
+            "the bounded source codec matrix rejects codecs absent from the shipped decoder runtime");
         Assert(ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Planned, false, false)
                == ReplayExportRecoveryActions.ResumeRendering
                && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Rendering, true, false)

@@ -41,7 +41,10 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportControlsPresenter.Show();
         workerRunning = true;
         var routine = job.State == MatchReplayExportStates.Planned
-                      && !string.Equals(job.ProfileId, "imported-mp4.v1", StringComparison.Ordinal)
+                      && !string.Equals(
+                          job.ProfileId,
+                          MatchReplayVideoEncodingPolicy.ImportedCodecProfileId,
+                          StringComparison.Ordinal)
             ? Export(job, SettingsFromJob(job))
             : Recover(job);
         if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(routine) == null)
@@ -374,41 +377,15 @@ internal static class MatchReplayVideoExporter
         }
 
         var dependency = ReplayEncoderDependency.LoadVerified();
-        ReplayVideoVerification? prevalidated = null;
-        if (string.Equals(job.ProfileId, "imported-mp4.v1", StringComparison.Ordinal)
-            && job.State != MatchReplayExportStates.Committing)
-        {
-            if (!File.Exists(job.StagingPath))
-            {
-                throw new FileNotFoundException("中断的 MP4 导入没有 staging 文件。", job.StagingPath);
-            }
-            var importVerificationTask = Task.Run(() => ReplayVideoVerifier.VerifyImported(dependency, job.StagingPath));
-            while (!importVerificationTask.IsCompleted) yield return null;
-            if (importVerificationTask.IsFaulted)
-            {
-                throw importVerificationTask.Exception?.GetBaseException() ?? new InvalidDataException("导入恢复验证失败。");
-            }
-            var imported = importVerificationTask.Result;
-            prevalidated = imported;
-            job.Width = imported.Width;
-            job.Height = imported.Height;
-            job.FramesPerSecond = (int)Math.Round(imported.FramesPerSecond);
-            job.FrameCount = imported.FrameCount;
-            job.FileBytes = imported.FileBytes;
-            job.OutputSha256 = imported.Sha256;
-            job.AudioSampleFrames = imported.HasAudio ? 1 : 0;
-            Transition(job, MatchReplayExportStates.Validating, 0.9f, "恢复中断的 MP4 导入验证");
-        }
         var candidate = File.Exists(job.TargetPath) ? job.TargetPath : job.StagingPath;
         if (!File.Exists(candidate)) throw new FileNotFoundException("恢复任务找不到部分输出。", candidate);
-        ReplayVideoVerification verification;
-        if (prevalidated != null)
-        {
-            verification = prevalidated;
-        }
-        else
-        {
-            var verificationTask = Task.Run(() => ReplayVideoVerifier.Verify(
+        var importedProfile = string.Equals(
+            job.ProfileId,
+            MatchReplayVideoEncodingPolicy.ImportedCodecProfileId,
+            StringComparison.Ordinal);
+        var verificationTask = Task.Run(() => importedProfile
+            ? ReplayVideoVerifier.VerifyNormalized(dependency, candidate)
+            : ReplayVideoVerifier.Verify(
                 dependency,
                 candidate,
                 job.Width,
@@ -416,12 +393,19 @@ internal static class MatchReplayVideoExporter
                 job.FramesPerSecond,
                 job.FrameCount,
                 job.AudioSampleFrames > 0));
-            while (!verificationTask.IsCompleted) yield return null;
-            if (verificationTask.IsFaulted)
-            {
-                throw verificationTask.Exception?.GetBaseException() ?? new InvalidDataException("恢复验证失败。");
-            }
-            verification = verificationTask.Result;
+        while (!verificationTask.IsCompleted) yield return null;
+        if (verificationTask.IsFaulted)
+        {
+            throw verificationTask.Exception?.GetBaseException() ?? new InvalidDataException("恢复验证失败。");
+        }
+        var verification = verificationTask.Result;
+        if (importedProfile)
+        {
+            job.Width = verification.Width;
+            job.Height = verification.Height;
+            job.FramesPerSecond = (int)Math.Round(verification.FramesPerSecond);
+            job.FrameCount = verification.FrameCount;
+            job.AudioSampleFrames = verification.HasAudio ? 1 : 0;
         }
         job.OutputSha256 = verification.Sha256;
         job.FileBytes = verification.FileBytes;

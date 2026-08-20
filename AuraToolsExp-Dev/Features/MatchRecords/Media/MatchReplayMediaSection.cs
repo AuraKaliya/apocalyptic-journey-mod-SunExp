@@ -102,7 +102,7 @@ internal static class MatchReplayMediaSection
                     try
                     {
                         MatchReplayMediaStore.ImportFile(recordId, result.Path);
-                        notify("MP4 已完成完整解码验证并导入；普通视频没有结构化回合跳转信息。");
+                        notify("视频已归一化为固定 MP4 profile、完整解码验证并导入；普通视频没有结构化回合跳转信息。");
                     }
                     catch (Exception ex)
                     {
