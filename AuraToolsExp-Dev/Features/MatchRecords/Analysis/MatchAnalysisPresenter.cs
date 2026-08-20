@@ -3,8 +3,9 @@ using System.IO;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -35,8 +36,14 @@ internal static class MatchAnalysisPresenter
             report = MatchRecordStorage.Database.GetAnalysis(selected.RecordId);
             if (report == null || report.Protocol != MatchAnalysisProtocol.Version)
             {
-                var events = MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId));
-                report = MatchAnalysisBuilder.Build(selected, events);
+                var document = selected.ReplayProtocol == ReplayProtocolV10.DocumentVersion
+                    ? MatchRecordStorage.Database.LoadV10(selected.RecordId)
+                    : null;
+                report = document != null
+                    ? MatchAnalysisBuilder.BuildV10(selected, document)
+                    : MatchAnalysisBuilder.Build(
+                        selected,
+                        MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId)));
                 MatchRecordStorage.Database.SaveAnalysis(report);
             }
         }
@@ -76,9 +83,11 @@ internal static class MatchAnalysisPresenter
             TextAnchor.MiddleRight, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
 
         var actions = Row("AnalysisActions", body, AuraToolsUi.ToolbarHeight);
-        AuraToolsUi.AddButton(actions, "完整回放", () => StartReplay(0), 96f);
-        AuraToolsUi.AddButton(actions, "导出回放包", ExportPackage, 108f);
-        AuraToolsUi.AddButton(actions, "导出视频", () => StartVideoExport(record.RecordId), 96f);
+        AddReplayButton(actions, "完整回放", 0, 96f);
+        var packageButton = AuraToolsUi.AddButton(actions, "导出回放包", ExportPackage, 108f);
+        packageButton.interactable = CanReplay;
+        var videoButton = AuraToolsUi.AddButton(actions, "导出视频", () => StartVideoExport(record.RecordId), 96f);
+        videoButton.interactable = CanReplay;
         AuraToolsUi.AddButton(actions, "打开导出目录", () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ExportsDirectory), 120f);
         if (!string.IsNullOrWhiteSpace(message))
         {
@@ -155,7 +164,7 @@ internal static class MatchAnalysisPresenter
             if (item.FirstEventSequence > 0)
             {
                 var sequence = item.FirstEventSequence;
-                AuraToolsUi.AddButton(row, "跳转", () => StartReplay(sequence), 76f);
+                AddReplayButton(row, "跳转", sequence, 76f);
             }
         }
     }
@@ -173,7 +182,7 @@ internal static class MatchAnalysisPresenter
                                       + (item.ObservedFollowUpDamage > 0 ? "   推断 " + item.ObservedFollowUpDamage : ""),
                 AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 42f, 0f, 280f);
             var sequence = item.FirstEventSequence;
-            AuraToolsUi.AddButton(row, "首次", () => StartReplay(sequence), 72f);
+            AddReplayButton(row, "首次", sequence, 72f);
         }
     }
 
@@ -187,7 +196,7 @@ internal static class MatchAnalysisPresenter
             if (item.EventSequence > 0)
             {
                 var sequence = item.EventSequence;
-                AuraToolsUi.AddButton(row, "回看", () => StartReplay(sequence), 76f);
+                AddReplayButton(row, "回看", sequence, 76f);
             }
         }
     }
@@ -221,11 +230,25 @@ internal static class MatchAnalysisPresenter
 
     private static void StartReplay(long sequence)
     {
-        MatchReplayLaunchCoordinator.Start(
-            record!.RecordId,
-            sequence,
-            () => CloseForPlayback("Analysis replay launch"),
-            result => MatchReplayFailurePresenter.Schedule("无法开始对局回放", result));
+        if (!ReplaySceneRuntime.TryStart(record!.RecordId, sequence, out var result))
+        {
+            message = result;
+            Build();
+            return;
+        }
+
+        CloseForPlayback("Replay Document v10 launch");
+    }
+
+    private static bool CanReplay => record != null
+                                     && record.ReplayProtocol == ReplayProtocolV10.DocumentVersion
+                                     && string.Equals(record.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
+
+    private static Button AddReplayButton(Transform parent, string label, long sequence, float width)
+    {
+        var button = AuraToolsUi.AddButton(parent, label, () => StartReplay(sequence), width);
+        button.interactable = CanReplay;
+        return button;
     }
 
     private static void CloseForPlayback(string reason)

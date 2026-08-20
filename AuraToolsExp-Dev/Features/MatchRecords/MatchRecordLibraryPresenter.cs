@@ -9,8 +9,9 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -105,7 +106,7 @@ internal static class MatchRecordLibraryPresenter
             {
                 var since = dateRangeDays <= 0 ? (DateTime?)null : DateTime.UtcNow.AddDays(-dateRangeDays);
                 var filtered = MatchRecordStorage.Database.SearchRecords(collection, searchText, resultFilter, since)
-                    .Where(item => !compatibleOnly || MatchReplayCompatibility.Evaluate(item).CanPlay)
+                    .Where(item => !compatibleOnly || CanPlayV10(item))
                     .ToList();
                 var offset = pageIndex * MatchRecordDatabase.DefaultPageSize;
                 var items = filtered.Skip(offset).Take(MatchRecordDatabase.DefaultPageSize).ToList();
@@ -257,7 +258,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
-        var compatibility = MatchReplayCompatibility.Evaluate(item);
+        var canPlay = CanPlayV10(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
         AuraToolsUi.SetFixedHeight(row, 72f);
         AuraToolsUi.AddImage(row, AuraToolsUi.Row);
@@ -276,7 +277,7 @@ internal static class MatchRecordLibraryPresenter
                      + "   事件 " + item.EventCount
                      + "   DPT伤害 " + TotalDamage(item.StatisticsJson)
                      + "   " + FormatBytes(item.CompressedBytes)
-                     + "   " + CompatibilityLabel(compatibility.Level)
+                     + "   " + (canPlay ? "v10 可回放" : "仅分析")
                      + (string.IsNullOrWhiteSpace(item.Tags) ? "" : "   标签 " + item.Tags);
         ToolboxCheckboxV2.Create(
             row.transform,
@@ -294,10 +295,10 @@ internal static class MatchRecordLibraryPresenter
         AddCompactButton(row.transform, "分析", () => MatchAnalysisPresenter.Show(host!, item), 68f);
         var replayButton = AddCompactButton(
             row.transform,
-            compatibility.CanPlay ? "回放" : "仅分析",
+            canPlay ? "回放" : "仅分析",
             () => Replay(item.RecordId),
             68f);
-        replayButton.interactable = compatibility.CanPlay;
+        replayButton.interactable = canPlay;
         ToolboxIconButtonV2.Create(
             row.transform,
             "record.more",
@@ -393,20 +394,16 @@ internal static class MatchRecordLibraryPresenter
 
     private static void Replay(string recordId)
     {
-        MatchReplayLaunchCoordinator.Start(
-            recordId,
-            0,
-            () =>
-            {
-                AuraToolsUi.CloseOwnedOverlays("Match record replay launch");
-                WitchUiManager.Instance?.CloseUI("SettingUI");
-                ResetState();
-            },
-            result =>
-            {
-                message = result;
-                MatchReplayFailurePresenter.Schedule("无法开始对局回放", result);
-            });
+        if (!ReplaySceneRuntime.TryStart(recordId, 0, out var result))
+        {
+            message = result;
+            ShowReplayFailure(result);
+            return;
+        }
+
+        AuraToolsUi.CloseOwnedOverlays("Replay Document v10 launch");
+        WitchUiManager.Instance?.CloseUI("SettingUI");
+        ResetState();
     }
 
     private static void ShowReplayFailure(string detail)
@@ -431,13 +428,10 @@ internal static class MatchRecordLibraryPresenter
             1f);
     }
 
-    private static string CompatibilityLabel(string level)
+    private static bool CanPlayV10(MatchRecord item)
     {
-        return level == MatchReplayCompatibilityLevels.Compatible
-            ? "可回放"
-            : level == MatchReplayCompatibilityLevels.Degraded
-                ? "兼容回放"
-                : "仅分析";
+        return item.ReplayProtocol == ReplayProtocolV10.DocumentVersion
+               && string.Equals(item.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
     }
 
     private static void SetSearch(string value)

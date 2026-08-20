@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
@@ -16,11 +17,21 @@ internal static class MatchReplayMediaSection
         var actions = Row("MediaActions", parent, AuraToolsUi.ToolbarHeight);
         AuraToolsUi.AddButton(actions, "导入目录", () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ImportsDirectory), 92f);
         AuraToolsUi.AddButton(actions, "导入视频", () => PickVideo(record.RecordId, notify), 92f);
-        AuraToolsUi.AddText(actions, "将 mp4、avi、mov、m4v 或 webm 放入导入目录后扫描",
+        AuraToolsUi.AddText(actions, "媒体库只接收经过完整解码验证的 MP4",
             AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight, 1f);
 
-        var assets = MatchRecordStorage.Database.LoadMedia(record.RecordId);
+        var allAssets = MatchRecordStorage.Database.LoadMedia(record.RecordId);
+        var assets = allAssets.Where(item =>
+                string.Equals(item.Format, "MP4", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(item.State, MatchMediaStates.Ready, StringComparison.Ordinal))
+            .ToList();
+        var legacyCount = allAssets.Count - assets.Count;
+        if (legacyCount > 0)
+        {
+            AuraToolsUi.AddText(parent, legacyCount + " 个旧格式或损坏媒体等待迁移扫描处理。",
+                AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.WarningText, 44f, 1f);
+        }
         if (assets.Count == 0)
         {
             AuraToolsUi.AddText(parent, "本对局尚无视频媒体。结构化回放仍可正常使用。",
@@ -79,7 +90,7 @@ internal static class MatchReplayMediaSection
             "导入对局视频",
             new[]
             {
-                new OptionalFileDialogFilter("视频文件", "*.mp4;*.avi;*.mov;*.m4v;*.webm"),
+                new OptionalFileDialogFilter("MP4 视频", "*.mp4"),
                 new OptionalFileDialogFilter("所有文件", "*.*")
             },
             "mp4",
@@ -91,7 +102,7 @@ internal static class MatchReplayMediaSection
                     try
                     {
                         MatchReplayMediaStore.ImportFile(recordId, result.Path);
-                        notify("视频已导入本对局。普通视频可播放，但没有结构化回合跳转信息。");
+                        notify("MP4 已完成完整解码验证并导入；普通视频没有结构化回合跳转信息。");
                     }
                     catch (Exception ex)
                     {

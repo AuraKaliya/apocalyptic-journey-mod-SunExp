@@ -28,7 +28,7 @@ $requiredProtocolFeatures = @{
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
     "presentation.damage-settlement-cg" = @(1, 1)
-    "records.match-replay" = @(8, 8)
+    "records.match-replay" = @(10, 10)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
         -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
@@ -48,6 +48,85 @@ foreach ($entry in $requiredProtocolFeatures.GetEnumerator()) {
 $damageProtocol = @($protocolManifest.features | Where-Object id -eq "records.damage-meter")[0]
 if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
     throw "AuraToolsExp damage-meter protocol inventory must distinguish v4 live networking from v3 persisted-data migration."
+}
+
+$ffmpegRoot = Join-Path $repoRoot "AuraToolsExp\Runtime\ffmpeg\win-x64"
+$ffmpegManifestPath = Join-Path $ffmpegRoot "manifest.json"
+$ffmpegPath = Join-Path $ffmpegRoot "ffmpeg.exe"
+$ffprobePath = Join-Path $ffmpegRoot "ffprobe.exe"
+$ffmpegLicensePath = Join-Path $ffmpegRoot "LICENSE.txt"
+$ffmpegNoticePath = Join-Path $ffmpegRoot "NOTICE.md"
+foreach ($required in @($ffmpegManifestPath, $ffmpegPath, $ffprobePath, $ffmpegLicensePath, $ffmpegNoticePath)) {
+    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+        throw "AuraToolsExp controlled FFmpeg runtime is incomplete: $required"
+    }
+}
+$ffmpegManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $ffmpegManifestPath | ConvertFrom-Json
+if ($ffmpegManifest.license -ne "LGPL-3.0-or-later" `
+        -or $ffmpegManifest.codecProfile -ne "mp4-mpeg4-aac-bt709.v1" `
+        -or (Get-FileHash -Algorithm SHA256 -LiteralPath $ffmpegPath).Hash -ne $ffmpegManifest.ffmpegSha256 `
+        -or (Get-FileHash -Algorithm SHA256 -LiteralPath $ffprobePath).Hash -ne $ffmpegManifest.ffprobeSha256) {
+    throw "AuraToolsExp controlled FFmpeg manifest or binary hashes are invalid."
+}
+$encoderInventory = & $ffmpegPath -hide_banner -encoders 2>$null | Out-String
+if ($LASTEXITCODE -ne 0 `
+        -or $encoderInventory -notmatch '(?m)^ V..... mpeg4\s' `
+        -or $encoderInventory -notmatch '(?m)^ A..... aac\s') {
+    throw "AuraToolsExp controlled FFmpeg build lacks the fixed MP4 profile encoders."
+}
+$ffmpegSmoke = Join-Path ([System.IO.Path]::GetTempPath()) ("AuraTools-ReplayFfmpeg-" + [guid]::NewGuid().ToString("N") + ".mp4")
+try {
+    & $ffmpegPath -hide_banner -loglevel error -nostdin -y `
+        -f lavfi -i "color=c=0x4090c0:s=64x64:r=30:d=0.2" `
+        -f lavfi -i "anullsrc=r=48000:cl=stereo:d=0.2" `
+        -shortest -vf "format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709" `
+        -c:v mpeg4 -q:v 3 -pix_fmt yuv420p -c:a aac -b:a 160k `
+        -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 `
+        -movflags +faststart+write_colr -f mp4 $ffmpegSmoke
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ffmpegSmoke -PathType Leaf)) {
+        throw "AuraToolsExp controlled FFmpeg smoke encode failed."
+    }
+    $smokeProbe = & $ffprobePath -v error -count_frames `
+        -show_entries "stream=codec_type,codec_name,pix_fmt,color_range,color_space,color_transfer,color_primaries,sample_rate,channels,nb_read_frames" `
+        -of json $ffmpegSmoke | Out-String | ConvertFrom-Json
+    $smokeVideo = @($smokeProbe.streams | Where-Object codec_type -eq "video")
+    $smokeAudio = @($smokeProbe.streams | Where-Object codec_type -eq "audio")
+    if ($smokeVideo.Count -ne 1 -or $smokeAudio.Count -ne 1 `
+            -or $smokeVideo[0].codec_name -ne "mpeg4" `
+            -or $smokeVideo[0].pix_fmt -ne "yuv420p" `
+            -or $smokeVideo[0].color_range -ne "tv" `
+            -or $smokeVideo[0].color_space -ne "bt709" `
+            -or $smokeVideo[0].color_transfer -ne "bt709" `
+            -or $smokeVideo[0].color_primaries -ne "bt709" `
+            -or $smokeAudio[0].codec_name -ne "aac" `
+            -or [int]$smokeAudio[0].sample_rate -ne 48000 `
+            -or [int]$smokeAudio[0].channels -ne 2) {
+        throw "AuraToolsExp controlled FFmpeg smoke output does not match the fixed MP4 profile."
+    }
+    & $ffmpegPath -hide_banner -v error -i $ffmpegSmoke -f null NUL
+    if ($LASTEXITCODE -ne 0) {
+        throw "AuraToolsExp controlled FFmpeg smoke output failed complete decode."
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $ffmpegSmoke) {
+        Remove-Item -LiteralPath $ffmpegSmoke -Force
+    }
+}
+
+$retiredPlaybackRoot = Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Playback"
+if (Test-Path -LiteralPath $retiredPlaybackRoot) {
+    $retiredFiles = @(Get-ChildItem -LiteralPath $retiredPlaybackRoot -Recurse -File)
+    if ($retiredFiles.Count -gt 0) {
+        throw "AuraToolsExp retired native replay Playback sources remain: $($retiredFiles.FullName -join ', ')"
+    }
+}
+$replaySources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords") -Recurse -File -Filter "*.cs")
+$replayText = ($replaySources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
+if ($replayText -match 'ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+        -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsMatchRecordSettings.cs")) -match 'PreferMp4|FfmpegPath' `
+        -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")) -match 'UnityEngine\.ScreenCaptureModule') {
+    throw "AuraToolsExp v10 release still contains a retired replay, AVI, screenshot, PATH FFmpeg, or legacy setting path."
 }
 
 & dotnet run --project $project -c $Configuration

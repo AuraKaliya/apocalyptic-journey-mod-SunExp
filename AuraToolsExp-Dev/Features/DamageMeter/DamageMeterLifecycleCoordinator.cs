@@ -1,6 +1,5 @@
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using UnityEngine;
 
 namespace AuraToolsExp.Dll.Features.DamageMeter;
@@ -29,11 +28,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnFightInitStarting(bool supportedContext)
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("fight init", () =>
         {
             if (supportedContext)
@@ -56,11 +50,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnFightStartFallback()
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("fight start fallback", () =>
         {
             if (!AuraToolsDamageMeterRuntime.Ledger.InFight)
@@ -83,11 +72,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnPlayerRoundStart(object? roundUnit)
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("round start", () =>
         {
             if (roundUnit != null && ReferenceEquals(lastRoundUnit, roundUnit))
@@ -109,11 +93,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnFightEnding(string fightResult)
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("fight ending", () =>
         {
             if (!endingSent)
@@ -129,11 +108,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnFightRestarting()
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("fight restarting", () =>
         {
             ResetCaptureServices();
@@ -145,11 +119,6 @@ internal static class DamageMeterLifecycleCoordinator
 
     internal static void OnFightEnded()
     {
-        if (MatchReplaySessionState.IsPlayback)
-        {
-            return;
-        }
-
         DamageMeterHookAdapter.RunHook("fight ended", () =>
         {
             ResetCaptureServices();

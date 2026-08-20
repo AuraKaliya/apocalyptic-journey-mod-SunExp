@@ -4,11 +4,133 @@ using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 
 internal static class MatchAnalysisBuilder
 {
+    internal static MatchAnalysisReport BuildV10(MatchRecord record, ReplayDocumentV10 document)
+    {
+        var snapshot = ReadSnapshot(record.StatisticsJson);
+        var turns = new Dictionary<int, MatchAnalysisTurn>();
+        var cards = new Dictionary<string, MatchAnalysisCard>(StringComparer.Ordinal);
+        var flows = new Dictionary<string, MatchAnalysisDamageFlow>(StringComparer.Ordinal);
+        var moments = new List<MatchAnalysisMoment>();
+        var teams = (document.InitialState.Actors ?? new List<ReplayActorStateV10>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.InstanceId))
+            .ToDictionary(item => item.InstanceId, item => item.Team ?? "Unknown", StringComparer.Ordinal);
+        var definitions = (document.Content.Definitions ?? new List<ReplayContentDefinitionV10>())
+            .ToDictionary(item => item.Content.Key, item => item.Display, StringComparer.Ordinal);
+        var allCards = document.InitialState.Cards
+            .Concat(document.Events.Where(item => item.Delta != null).SelectMany(item => item.Delta!.CardUpserts))
+            .Where(item => !string.IsNullOrWhiteSpace(item.InstanceId))
+            .GroupBy(item => item.InstanceId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+        foreach (var value in document.Events.OrderBy(item => item.Sequence))
+        {
+            var turnIndex = Math.Max(1, value.TurnIndex);
+            if (!turns.TryGetValue(turnIndex, out var turn))
+            {
+                turn = new MatchAnalysisTurn { TurnIndex = turnIndex, FirstEventSequence = value.Sequence };
+                turns[turnIndex] = turn;
+            }
+
+            turn.LastEventSequence = value.Sequence;
+            if (string.Equals(value.EventType, ReplayEventTypesV10.ActionCompleted, StringComparison.Ordinal))
+            {
+                turn.ActionCount++;
+                allCards.TryGetValue(value.SourceInstanceId ?? "", out var source);
+                if (source != null)
+                {
+                    var cardId = source.Content.StableContentId;
+                    if (!cards.TryGetValue(cardId, out var card))
+                    {
+                        definitions.TryGetValue(source.Content.Key, out var display);
+                        card = new MatchAnalysisCard
+                        {
+                            CardId = cardId,
+                            DisplayName = string.IsNullOrWhiteSpace(display?.Name) ? cardId : display?.Name ?? cardId,
+                            FirstEventSequence = value.Sequence,
+                            AttributionConfidence = MatchAttributionConfidence.Exact
+                        };
+                        cards[cardId] = card;
+                    }
+
+                    card.Uses++;
+                    turn.CardUses++;
+                }
+            }
+
+            foreach (var semantic in value.Semantics ?? new List<ReplaySemanticEventV10>())
+            {
+                if (!string.Equals(semantic.Kind, ReplaySemanticKindsV10.Damage, StringComparison.Ordinal)
+                    || semantic.Value <= 0)
+                {
+                    continue;
+                }
+
+                turn.Damage += semantic.Value;
+                var sourceTeam = Team(teams, semantic.ActorId, value.ActorId);
+                var targetTeam = Team(teams, semantic.TargetId, semantic.TargetId);
+                var key = sourceTeam + "|" + targetTeam;
+                if (!flows.TryGetValue(key, out var flow))
+                {
+                    flow = new MatchAnalysisDamageFlow { SourceTeam = sourceTeam, TargetTeam = targetTeam };
+                    flows[key] = flow;
+                }
+
+                if (string.Equals(semantic.Action, "ShieldDamage", StringComparison.Ordinal)) flow.ShieldDamage += semantic.Value;
+                else flow.HpDamage += semantic.Value;
+                var sourceCard = cards.Values.LastOrDefault(item => item.FirstEventSequence <= value.Sequence);
+                if (sourceCard != null) sourceCard.AttributedDamage += semantic.Value;
+                if (moments.Count < 24)
+                {
+                    moments.Add(new MatchAnalysisMoment
+                    {
+                        Kind = semantic.Kind,
+                        Label = semantic.Label,
+                        TurnIndex = turnIndex,
+                        EventSequence = value.Sequence,
+                        ElapsedMilliseconds = value.TimeTicks * 1000L / ReplayProtocolV10.TimebaseTicksPerSecond,
+                        Value = semantic.Value
+                    });
+                }
+            }
+        }
+
+        var turnCount = Math.Max(1, Math.Max(record.TurnCount, turns.Count == 0 ? 0 : turns.Keys.Max()));
+        var orderedTurns = Enumerable.Range(1, turnCount)
+            .Select(index => turns.TryGetValue(index, out var value) ? value : new MatchAnalysisTurn { TurnIndex = index })
+            .ToList();
+        ApplyAuthoritativeTurnDamage(orderedTurns, snapshot);
+        var combatants = BuildCombatants(snapshot);
+        var report = new MatchAnalysisReport
+        {
+            Protocol = MatchAnalysisProtocol.Version,
+            RecordId = record.RecordId,
+            GeneratedUtc = DateTime.UtcNow.ToString("O"),
+            TurnCount = turnCount,
+            Turns = orderedTurns,
+            Combatants = combatants,
+            Cards = cards.Values.OrderByDescending(item => item.Uses).ThenBy(item => item.CardId, StringComparer.Ordinal).ToList(),
+            DamageFlows = flows.Values.OrderBy(item => item.SourceTeam, StringComparer.Ordinal).ThenBy(item => item.TargetTeam, StringComparer.Ordinal).ToList(),
+            KeyMoments = moments.OrderBy(item => item.EventSequence).Take(24).ToList()
+        };
+        report.TotalDamage = combatants.Sum(item => item.Damage);
+        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV10.Friendly).Sum(item => item.Damage);
+        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV10.Enemy).Sum(item => item.Damage);
+        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV10.Friendly).Sum(FlowDamage);
+        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV10.Enemy).Sum(FlowDamage);
+        report.HpDamage = report.DamageFlows.Sum(item => item.HpDamage);
+        report.ShieldDamage = report.DamageFlows.Sum(item => item.ShieldDamage);
+        var best = orderedTurns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
+        report.BestTurnDamage = best?.Damage ?? 0;
+        report.BestTurnIndex = best?.TurnIndex ?? 0;
+        report.CardUseCount = report.Cards.Sum(item => item.Uses);
+        return report;
+    }
+
     internal static MatchAnalysisReport Build(MatchRecord record, IEnumerable<MatchReplayEvent> events)
     {
         var stream = (events ?? Array.Empty<MatchReplayEvent>()).Where(item => item != null).ToList();

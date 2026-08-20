@@ -7,8 +7,8 @@ using System.Text;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
-using AuraToolsExp.Dll.Features.MatchRecords.Recording;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Portability;
@@ -17,364 +17,348 @@ internal static class MatchReplayPackageService
 {
     private const long MaximumEntryBytes = 512L * 1024L * 1024L;
     private const long MaximumPackageBytes = 2L * 1024L * 1024L * 1024L;
-    private const int MaximumChunks = 10000;
+    private const int MaximumEntries = 12_000;
 
     internal static string Export(string recordId)
     {
-        var snapshot = MatchRecordStorage.Database.LoadPackageSnapshot(recordId)
-                       ?? throw new InvalidOperationException("找不到要导出的对局记录。");
-        var record = snapshot.Record;
-        var chunks = snapshot.Chunks.OrderBy(item => item.ChunkIndex).ToList();
-        if (chunks.Count > MaximumChunks)
-        {
-            throw new InvalidDataException("回放分块数量异常，无法导出。");
-        }
-
-        var analysis = snapshot.Analysis ?? MatchAnalysisBuilder.Build(record, MatchReplayChunker.Decode(chunks));
-        var recordPayload = MatchReplayPayload.Encode(record);
-        var analysisPayload = MatchReplayPayload.Encode(analysis);
-        var manifest = new MatchReplayPackageManifest
+        var document = MatchRecordStorage.Database.LoadV10(recordId, loadAttachmentPayloads: true)
+                       ?? throw new InvalidOperationException("找不到经过验证的 Replay Document v10。");
+        var record = MatchRecordStorage.Database.Get(recordId)
+                     ?? throw new InvalidOperationException("找不到回放对应的对局摘要。");
+        var analysis = MatchRecordStorage.Database.GetAnalysis(recordId)
+                       ?? MatchAnalysisBuilder.BuildV10(record, document);
+        var chunks = ReplayTimelineChunkerV10.Build(document.Events);
+        var skeleton = Clone(document);
+        skeleton.Events.Clear();
+        skeleton.Checkpoints.Clear();
+        foreach (var attachment in skeleton.Attachments) attachment.Payload = Array.Empty<byte>();
+        var manifest = new ReplayPackageManifestV10
         {
             ExportedUtc = DateTime.UtcNow.ToString("O"),
-            RecordId = record.RecordId,
-            RecordSha256 = MatchReplayPayload.Sha256(recordPayload),
-            AnalysisSha256 = MatchReplayPayload.Sha256(analysisPayload),
-            ContentSha256 = string.IsNullOrWhiteSpace(record.ContentSha256)
-                ? MatchRecordDatabase.ContentHash(record, chunks)
-                : record.ContentSha256
+            RecordId = recordId,
+            DocumentSha256 = document.Header.DocumentSha256
         };
-        var packageChunks = new List<MatchReplayPackageChunk>();
+        var payloads = new Dictionary<string, (string Kind, byte[] Payload)>(StringComparer.Ordinal)
+        {
+            ["document.json.gz"] = ("Document", ReplayPayloadV10.Encode(skeleton)),
+            ["analysis/summary.json.gz"] = ("Analysis", ReplayPayloadV10.Encode(analysis))
+        };
         foreach (var chunk in chunks)
         {
-            var entryName = "chunks/" + chunk.ChunkIndex.ToString("D6") + ".bin";
-            manifest.ChunkSha256[entryName] = MatchReplayPayload.Sha256(chunk.Payload);
-            packageChunks.Add(new MatchReplayPackageChunk
+            payloads["timeline/" + chunk.ChunkIndex.ToString("D6") + ".json.gz"] = ("Timeline", chunk.Payload);
+        }
+        for (var index = 0; index < document.Checkpoints.Count; index++)
+        {
+            payloads["checkpoints/" + index.ToString("D6") + ".json.gz"] =
+                ("Checkpoint", ReplayPayloadV10.Encode(document.Checkpoints[index]));
+        }
+        foreach (var attachment in document.Attachments)
+        {
+            if (attachment.Payload.Length == 0)
             {
-                ChunkIndex = chunk.ChunkIndex,
-                FirstSequence = chunk.FirstSequence,
-                LastSequence = chunk.LastSequence,
-                FirstTurnIndex = chunk.FirstTurnIndex,
-                LastTurnIndex = chunk.LastTurnIndex,
-                EntryName = entryName
+                throw new InvalidDataException("回放附件无法读取：" + attachment.Sha256);
+            }
+            payloads["attachments/" + attachment.Sha256.ToLowerInvariant() + NormalizeExtension(attachment.Extension)] =
+                ("Attachment", attachment.Payload);
+        }
+
+        foreach (var pair in payloads.OrderBy(item => item.Key, StringComparer.Ordinal))
+        {
+            manifest.Entries.Add(new ReplayPackageEntryV10
+            {
+                Path = pair.Key,
+                Kind = pair.Value.Kind,
+                ByteLength = pair.Value.Payload.LongLength,
+                LogicalByteLength = pair.Value.Payload.LongLength,
+                Sha256 = ReplayCanonicalJsonV10.Sha256(pair.Value.Payload)
             });
         }
 
         var name = SafeName(record.LevelId) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".aurareplay";
         var output = UniquePath(Path.Combine(MatchRecordStorage.ExportsDirectory, name));
-        var temporary = output + ".tmp-" + Guid.NewGuid().ToString("N");
+        var temporary = output + ".partial";
         try
         {
             using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: false, Encoding.UTF8))
             {
-                WriteJson(archive, "manifest.json", manifest);
-                WriteBytes(archive, "record.bin", recordPayload);
-                WriteBytes(archive, "analysis.bin", analysisPayload);
-                WriteJson(archive, "chunks.json", packageChunks);
-                foreach (var chunk in chunks)
+                WriteEntry(archive, "manifest.json", ReplayCanonicalJsonV10.SerializeUtf8(manifest));
+                foreach (var pair in payloads.OrderBy(item => item.Key, StringComparer.Ordinal))
                 {
-                    var entryName = packageChunks.First(item => item.ChunkIndex == chunk.ChunkIndex).EntryName;
-                    WriteBytes(archive, entryName, chunk.Payload);
+                    WriteEntry(archive, pair.Key, pair.Value.Payload);
                 }
             }
 
+            using (var verifyFile = File.OpenRead(temporary))
+            using (var verifyArchive = new ZipArchive(verifyFile, ZipArchiveMode.Read, leaveOpen: false, Encoding.UTF8))
+            {
+                ReadAndValidate(verifyArchive);
+            }
             File.Move(temporary, output);
             return output;
         }
         finally
         {
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
+            TryDelete(temporary);
         }
     }
 
     internal static MatchRecord Import(string packagePath)
     {
-        if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath))
-        {
-            throw new FileNotFoundException("回放包不存在。", packagePath);
-        }
-
-        using var file = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = OpenPackage(packagePath);
         using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: false, Encoding.UTF8);
-        if (archive.Entries.Count > MaximumChunks + 8
-            || archive.Entries.Sum(entry => Math.Max(0L, entry.Length)) > MaximumPackageBytes)
+        var parsed = ReadAndValidate(archive);
+        var document = parsed.Document;
+        if (MatchRecordStorage.Database.ContainsContentHash(document.Header.DocumentSha256))
         {
-            throw new InvalidDataException("回放包包含过多数据。");
+            throw new InvalidDataException("相同内容的 v10 回放已经存在。");
         }
-        var manifest = ReadJson<MatchReplayPackageManifest>(archive, "manifest.json")
-                       ?? throw new InvalidDataException("回放包缺少清单。");
-        if (!string.Equals(manifest.Format, "AuraTools.MatchReplay", StringComparison.Ordinal)
-            || manifest.PackageVersion != 1)
+        if (MatchRecordStorage.Database.Get(document.Header.RecordId) != null)
         {
-            throw new InvalidDataException("不支持的回放包格式或版本。");
+            document.Header.RecordId = Guid.NewGuid().ToString("N");
+            document.Header.SessionId = document.Header.RecordId;
+            ReplayDocumentFinalizerV10.FinalizeAndValidate(document);
         }
-
-        var recordPayload = ReadBytes(archive, "record.bin");
-        Verify(recordPayload, manifest.RecordSha256, "record.bin");
-        var record = MatchReplayPayload.Decode<MatchRecord>(recordPayload)
-                     ?? throw new InvalidDataException("回放元数据无法读取。");
-        var metadata = ReadJson<List<MatchReplayPackageChunk>>(archive, "chunks.json")
-                       ?? throw new InvalidDataException("回放包缺少分块索引。");
-        if (metadata.Count > MaximumChunks)
+        var record = new MatchRecord
         {
-            throw new InvalidDataException("回放分块数量异常。");
-        }
-
-        if (metadata.Select(item => item.ChunkIndex).Distinct().Count() != metadata.Count
-            || metadata.Select(item => item.EntryName).Distinct(StringComparer.Ordinal).Count() != metadata.Count)
-        {
-            throw new InvalidDataException("回放分块索引包含重复项。");
-        }
-
-        var chunks = new List<MatchReplayChunk>(metadata.Count);
-        foreach (var item in metadata.OrderBy(value => value.ChunkIndex))
-        {
-            if (string.IsNullOrWhiteSpace(item.EntryName)
-                || !item.EntryName.StartsWith("chunks/", StringComparison.Ordinal)
-                || item.EntryName.Contains("..")
-                || item.EntryName.Contains('\\')
-                || !manifest.ChunkSha256.TryGetValue(item.EntryName, out var expected))
-            {
-                throw new InvalidDataException("回放分块索引不完整。");
-            }
-
-            var payload = ReadBytes(archive, item.EntryName);
-            Verify(payload, expected, item.EntryName);
-            chunks.Add(new MatchReplayChunk
-            {
-                ChunkIndex = item.ChunkIndex,
-                FirstSequence = item.FirstSequence,
-                LastSequence = item.LastSequence,
-                FirstTurnIndex = item.FirstTurnIndex,
-                LastTurnIndex = item.LastTurnIndex,
-                Payload = payload,
-                Sha256 = MatchReplayPayload.Sha256(payload)
-            });
-        }
-
-        var decoded = MatchReplayChunker.Decode(chunks);
-        if (decoded.Count != record.EventCount)
-        {
-            throw new InvalidDataException("回放事件数量与元数据不一致。");
-        }
-        var computedContentHash = MatchRecordDatabase.ContentHash(record, chunks);
-        if (!string.IsNullOrWhiteSpace(manifest.ContentSha256)
-            && !string.Equals(manifest.ContentSha256, computedContentHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("回放内容指纹校验失败。");
-        }
-
-        MatchAnalysisReport? importedAnalysis = null;
-        var analysisEntry = archive.GetEntry("analysis.bin");
-        if (analysisEntry != null)
-        {
-            var analysisPayload = ReadBytes(archive, "analysis.bin");
-            Verify(analysisPayload, manifest.AnalysisSha256, "analysis.bin");
-            importedAnalysis = MatchReplayPayload.Decode<MatchAnalysisReport>(analysisPayload)
-                               ?? throw new InvalidDataException("分析数据无法读取。");
-        }
-
-        if (MatchRecordStorage.Database.Get(record.RecordId) != null)
-        {
-            record.RecordId = Guid.NewGuid().ToString("N");
-        }
-
-        record.Sequence = 0;
-        record.Collection = MatchRecordCollections.Favorite;
-        record.IsFavorite = true;
-        record.Origin = MatchRecordOrigins.Imported;
-        record.ContentSha256 = computedContentHash;
-        record.ReplayState = MatchReplayCaptureQuality.EvaluateRecording(
-                decoded,
-                record.InitialState?.BaselineState != null,
-                record.CaptureDiagnostics)
-            .CanPlay
-            ? MatchReplayStates.Ready
-            : MatchReplayStates.Incomplete;
-        var analysis = importedAnalysis ?? MatchAnalysisBuilder.Build(record, decoded);
+            RecordId = document.Header.RecordId,
+            AdventureId = document.Header.AdventureId,
+            SessionId = document.Header.SessionId,
+            LevelId = document.Header.LevelId,
+            Result = document.Header.Result,
+            StartedUtc = document.Header.StartedUtc,
+            EndedUtc = document.Header.EndedUtc,
+            Collection = MatchRecordCollections.Favorite,
+            IsFavorite = true,
+            Origin = MatchRecordOrigins.Imported,
+            ReplayState = MatchReplayStates.Ready,
+            ReplayProtocol = ReplayProtocolV10.DocumentVersion,
+            GameBuild = document.Header.GameBuild,
+            ToolBuild = document.Header.ToolBuild,
+            ModFingerprint = ReplayCanonicalJsonV10.Sha256(document.Content.Dependencies),
+            ContentDependencies = document.Content.Dependencies.Select(item => item.OwnerModId).ToList(),
+            ContentSha256 = document.Header.DocumentSha256,
+            EventCount = document.Events.Count,
+            TurnCount = Math.Max(1, document.Events.Count == 0 ? document.InitialState.TurnIndex : document.Events.Max(item => item.TurnIndex))
+        };
+        var analysis = parsed.Analysis ?? MatchAnalysisBuilder.BuildV10(record, document);
         analysis.RecordId = record.RecordId;
-        if (!MatchRecordStorage.Database.Save(record, chunks, analysis))
+        if (!MatchRecordStorage.Database.SaveV10(record, document, analysis))
         {
-            throw new IOException("回放记录写入数据库失败。");
+            throw new IOException("v10 回放写入数据库失败。");
         }
-
         return record;
     }
 
     internal static MatchReplayImportPreview Inspect(string packagePath)
     {
-        if (string.IsNullOrWhiteSpace(packagePath) || !File.Exists(packagePath))
-        {
-            throw new FileNotFoundException("回放包不存在。", packagePath);
-        }
-
-        using var file = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using var file = OpenPackage(packagePath);
         using var archive = new ZipArchive(file, ZipArchiveMode.Read, leaveOpen: false, Encoding.UTF8);
-        ValidateArchiveSize(file, archive);
-        var manifest = ReadJson<MatchReplayPackageManifest>(archive, "manifest.json")
-                       ?? throw new InvalidDataException("回放包缺少清单。");
-        if (!string.Equals(manifest.Format, "AuraTools.MatchReplay", StringComparison.Ordinal)
-            || manifest.PackageVersion != 1)
-        {
-            throw new InvalidDataException("不支持的回放包格式或版本。");
-        }
-        var payload = ReadBytes(archive, "record.bin");
-        Verify(payload, manifest.RecordSha256, "record.bin");
-        var record = MatchReplayPayload.Decode<MatchRecord>(payload)
-                     ?? throw new InvalidDataException("回放元数据无法读取。");
-        var metadata = ReadJson<List<MatchReplayPackageChunk>>(archive, "chunks.json")
-                       ?? throw new InvalidDataException("回放包缺少分块索引。");
-        if (metadata.Count > MaximumChunks
-            || metadata.Select(item => item.ChunkIndex).Distinct().Count() != metadata.Count
-            || metadata.Select(item => item.EntryName).Distinct(StringComparer.Ordinal).Count() != metadata.Count)
-        {
-            throw new InvalidDataException("回放分块索引异常。");
-        }
-
-        var chunks = new List<MatchReplayChunk>(metadata.Count);
-        foreach (var item in metadata.OrderBy(item => item.ChunkIndex))
-        {
-            if (string.IsNullOrWhiteSpace(item.EntryName)
-                || !item.EntryName.StartsWith("chunks/", StringComparison.Ordinal)
-                || item.EntryName.Contains("..")
-                || item.EntryName.Contains('\\')
-                || !manifest.ChunkSha256.TryGetValue(item.EntryName, out var expected))
-            {
-                throw new InvalidDataException("回放分块索引不完整。");
-            }
-
-            var chunkPayload = ReadBytes(archive, item.EntryName);
-            Verify(chunkPayload, expected, item.EntryName);
-            chunks.Add(new MatchReplayChunk
-            {
-                ChunkIndex = item.ChunkIndex,
-                FirstSequence = item.FirstSequence,
-                LastSequence = item.LastSequence,
-                FirstTurnIndex = item.FirstTurnIndex,
-                LastTurnIndex = item.LastTurnIndex,
-                Payload = chunkPayload,
-                Sha256 = MatchReplayPayload.Sha256(chunkPayload)
-            });
-        }
-
-        var decoded = MatchReplayChunker.Decode(chunks);
-        if (decoded.Count != record.EventCount) throw new InvalidDataException("回放事件数量与元数据不一致。");
-        var compatibility = MatchReplayCompatibility.Evaluate(record, decoded);
-        var contentHash = MatchRecordDatabase.ContentHash(record, chunks);
-        if (!string.IsNullOrWhiteSpace(manifest.ContentSha256)
-            && !string.Equals(manifest.ContentSha256, contentHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("回放内容指纹校验失败。");
-        }
+        var parsed = ReadAndValidate(archive);
+        var document = parsed.Document;
         return new MatchReplayImportPreview
         {
-            Path = Path.GetFullPath(packagePath),
-            RecordId = record.RecordId,
-            LevelId = record.LevelId,
+            Path = packagePath,
+            RecordId = document.Header.RecordId,
+            LevelId = document.Header.LevelId,
             PackageBytes = file.Length,
-            ReplayProtocol = record.ReplayProtocol,
-            Compatibility = compatibility.Level,
-            CompatibilityMessage = compatibility.Message,
-            Duplicate = MatchRecordStorage.Database.ContainsContentHash(contentHash),
-            ContentSha256 = contentHash,
-            ContentDependencies = record.ContentDependencies ?? new List<string>(),
-            PrivacySummary = "包含权威状态帧、表现编排、角色/玩家标识、DPT 统计与初始战斗状态",
-            Tags = record.Tags,
-            Notes = record.Notes
+            ReplayProtocol = ReplayProtocolV10.DocumentVersion,
+            Compatibility = "Compatible",
+            CompatibilityMessage = "Replay Document v10 已通过完整包验证。",
+            Duplicate = MatchRecordStorage.Database.ContainsContentHash(document.Header.DocumentSha256),
+            ContentSha256 = document.Header.DocumentSha256,
+            ContentDependencies = document.Content.Dependencies.Select(item => item.OwnerModId).ToList(),
+            PrivacySummary = "包内包含对局展示文本、图像/音频附件和动作时间线。"
         };
     }
 
-    private static void WriteJson<T>(ZipArchive archive, string name, T value)
+    private static ParsedPackage ReadAndValidate(ZipArchive archive)
     {
-        WriteBytes(archive, name, Encoding.UTF8.GetBytes(AuraSharedJson.SerializeCompact(value)));
+        ValidateArchive(archive);
+        var manifestPayload = ReadEntry(archive, "manifest.json", MaximumEntryBytes);
+        var manifest = AuraSharedJson.Deserialize<ReplayPackageManifestV10>(Encoding.UTF8.GetString(manifestPayload))
+                       ?? throw new InvalidDataException("回放包清单无法读取。");
+        if (!string.Equals(manifest.Format, "AuraTools.MatchReplay", StringComparison.Ordinal)
+            || manifest.PackageVersion != ReplayProtocolV10.PackageVersion
+            || manifest.DocumentVersion != ReplayProtocolV10.DocumentVersion)
+        {
+            throw new InvalidDataException("运行时只接受 Replay Package v10；旧包必须进入迁移器。");
+        }
+        var manifestPaths = new HashSet<string>(manifest.Entries.Select(item => item.Path), StringComparer.Ordinal);
+        if (manifestPaths.Count != manifest.Entries.Count
+            || manifestPaths.Any(path => !SafeEntryPath(path)))
+        {
+            throw new InvalidDataException("v10 回放包清单包含重复或不安全路径。");
+        }
+        var actualPaths = new HashSet<string>(
+            archive.Entries.Where(item => item.FullName != "manifest.json").Select(item => item.FullName),
+            StringComparer.Ordinal);
+        if (!actualPaths.SetEquals(manifestPaths))
+        {
+            throw new InvalidDataException("v10 回放包包含未声明或缺失的 entry。");
+        }
+
+        var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var entry in manifest.Entries)
+        {
+            if (entry.ByteLength < 0 || entry.ByteLength > MaximumEntryBytes)
+            {
+                throw new InvalidDataException("v10 回放包 entry 大小超限：" + entry.Path);
+            }
+            var payload = ReadEntry(archive, entry.Path, MaximumEntryBytes);
+            if (payload.LongLength != entry.ByteLength
+                || !string.Equals(ReplayCanonicalJsonV10.Sha256(payload), entry.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("v10 回放包 entry 校验失败：" + entry.Path);
+            }
+            payloads[entry.Path] = payload;
+        }
+
+        if (!payloads.TryGetValue("document.json.gz", out var documentPayload))
+        {
+            throw new InvalidDataException("v10 回放包缺少 document.json.gz。");
+        }
+        var document = ReplayPayloadV10.Decode<ReplayDocumentV10>(documentPayload);
+        document.Events = manifest.Entries.Where(item => item.Kind == "Timeline")
+            .OrderBy(item => item.Path, StringComparer.Ordinal)
+            .SelectMany(item => ReplayPayloadV10.Decode<List<ReplayTimelineEventV10>>(payloads[item.Path]))
+            .ToList();
+        document.Checkpoints = manifest.Entries.Where(item => item.Kind == "Checkpoint")
+            .OrderBy(item => item.Path, StringComparer.Ordinal)
+            .Select(item => ReplayPayloadV10.Decode<ReplayCheckpointV10>(payloads[item.Path]))
+            .ToList();
+        var attachmentPayloads = manifest.Entries.Where(item => item.Kind == "Attachment")
+            .ToDictionary(
+                item => Path.GetFileNameWithoutExtension(item.Path),
+                item => payloads[item.Path],
+                StringComparer.OrdinalIgnoreCase);
+        foreach (var attachment in document.Attachments)
+        {
+            if (!attachmentPayloads.TryGetValue(attachment.Sha256, out var payload))
+            {
+                throw new InvalidDataException("v10 回放包缺少附件：" + attachment.Sha256);
+            }
+            attachment.Payload = payload;
+        }
+        if (!string.Equals(document.Header.DocumentSha256, manifest.DocumentSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("v10 回放包文档哈希与清单不一致。");
+        }
+        var validation = ReplayDocumentValidatorV10.Validate(document);
+        if (!validation.IsValid) throw new InvalidDataException("v10 回放包验证失败：" + validation.Message);
+        MatchAnalysisReport? analysis = null;
+        if (payloads.TryGetValue("analysis/summary.json.gz", out var analysisPayload))
+        {
+            analysis = ReplayPayloadV10.Decode<MatchAnalysisReport>(analysisPayload);
+        }
+        return new ParsedPackage(document, analysis);
     }
 
-    private static void WriteBytes(ZipArchive archive, string name, byte[] bytes)
+    private static FileStream OpenPackage(string path)
     {
-        var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
-        using var stream = entry.Open();
-        stream.Write(bytes, 0, bytes.Length);
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            throw new FileNotFoundException("回放包不存在。", path);
+        }
+        var info = new FileInfo(path);
+        if (info.Length <= 0 || info.Length > MaximumPackageBytes)
+        {
+            throw new InvalidDataException("回放包大小超限。");
+        }
+        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
 
-    private static T? ReadJson<T>(ZipArchive archive, string name)
+    private static void ValidateArchive(ZipArchive archive)
     {
-        return AuraSharedJson.Deserialize<T>(Encoding.UTF8.GetString(ReadBytes(archive, name)));
+        if (archive.Entries.Count <= 0 || archive.Entries.Count > MaximumEntries)
+        {
+            throw new InvalidDataException("回放包 entry 数量异常。");
+        }
+        long total = 0;
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in archive.Entries)
+        {
+            if (!paths.Add(entry.FullName) || !SafeEntryPath(entry.FullName) || entry.Length > MaximumEntryBytes)
+            {
+                throw new InvalidDataException("回放包包含不安全或重复 entry。");
+            }
+            total = checked(total + Math.Max(0, entry.Length));
+            if (total > MaximumPackageBytes) throw new InvalidDataException("回放包解压后大小超限。");
+        }
     }
 
-    private static byte[] ReadBytes(ZipArchive archive, string name)
+    private static bool SafeEntryPath(string path)
+    {
+        return !string.IsNullOrWhiteSpace(path)
+               && !path.StartsWith("/", StringComparison.Ordinal)
+               && !path.Contains("..")
+               && !path.Contains('\\')
+               && !path.Contains(':');
+    }
+
+    private static byte[] ReadEntry(ZipArchive archive, string name, long maximum)
     {
         var entry = archive.GetEntry(name) ?? throw new InvalidDataException("回放包缺少 " + name + "。");
-        if (entry.Length < 0 || entry.Length > MaximumEntryBytes)
-        {
-            throw new InvalidDataException(name + " 超出允许大小。");
-        }
-
-        using var input = entry.Open();
-        using var output = new MemoryStream((int)Math.Min(int.MaxValue, entry.Length));
+        if (entry.Length < 0 || entry.Length > maximum) throw new InvalidDataException("回放包 entry 大小超限：" + name);
+        using var stream = entry.Open();
+        using var output = new MemoryStream();
         var buffer = new byte[81920];
-        long total = 0;
         int read;
-        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
         {
-            total += read;
-            if (total > MaximumEntryBytes)
-            {
-                throw new InvalidDataException(name + " 解压后超出允许大小。");
-            }
-
             output.Write(buffer, 0, read);
+            if (output.Length > maximum) throw new InvalidDataException("回放包 entry 解压后大小超限：" + name);
         }
-
         return output.ToArray();
     }
 
-    private static void Verify(byte[] payload, string expected, string name)
+    private static void WriteEntry(ZipArchive archive, string name, byte[] payload)
     {
-        if (string.IsNullOrWhiteSpace(expected)
-            || !string.Equals(MatchReplayPayload.Sha256(payload), expected, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(name + " 校验失败。");
-        }
+        var entry = archive.CreateEntry(name, CompressionLevel.Optimal);
+        using var stream = entry.Open();
+        stream.Write(payload, 0, payload.Length);
     }
 
-    private static void ValidateArchiveSize(FileStream file, ZipArchive archive)
+    private static ReplayDocumentV10 Clone(ReplayDocumentV10 document)
     {
-        if (file.Length > MaximumPackageBytes
-            || archive.Entries.Count > MaximumChunks + 8
-            || archive.Entries.Sum(entry => Math.Max(0L, entry.Length)) > MaximumPackageBytes)
-        {
-            throw new InvalidDataException("回放包包含过多数据。");
-        }
+        return Newtonsoft.Json.JsonConvert.DeserializeObject<ReplayDocumentV10>(
+                   Encoding.UTF8.GetString(ReplayCanonicalJsonV10.SerializeUtf8(document)))
+               ?? throw new InvalidDataException("v10 回放文档无法复制。");
+    }
+
+    private static string NormalizeExtension(string extension)
+    {
+        var value = (extension ?? "").Trim().ToLowerInvariant();
+        return value is ".png" or ".jpg" or ".jpeg" or ".wav" or ".flac" ? value : ".bin";
     }
 
     private static string SafeName(string value)
     {
         var invalid = Path.GetInvalidFileNameChars();
-        var normalized = new string((string.IsNullOrWhiteSpace(value) ? "match" : value)
-            .Select(character => invalid.Contains(character) ? '_' : character)
-            .ToArray());
-        return normalized.Length > 64 ? normalized.Substring(0, 64) : normalized;
+        var result = new string((value ?? "Replay").Select(character => invalid.Contains(character) ? '_' : character).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(result) ? "Replay" : result;
     }
 
     private static string UniquePath(string path)
     {
-        if (!File.Exists(path))
-        {
-            return path;
-        }
+        if (!File.Exists(path)) return path;
+        return Path.Combine(Path.GetDirectoryName(path) ?? ".",
+            Path.GetFileNameWithoutExtension(path) + "-" + Guid.NewGuid().ToString("N").Substring(0, 8) + Path.GetExtension(path));
+    }
 
-        var directory = Path.GetDirectoryName(path) ?? ".";
-        var name = Path.GetFileNameWithoutExtension(path);
-        var extension = Path.GetExtension(path);
-        for (var index = 2; index < 10000; index++)
-        {
-            var candidate = Path.Combine(directory, name + "-" + index + extension);
-            if (!File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { }
+    }
 
-        return Path.Combine(directory, name + "-" + Guid.NewGuid().ToString("N") + extension);
+    private sealed class ParsedPackage
+    {
+        internal ParsedPackage(ReplayDocumentV10 document, MatchAnalysisReport? analysis)
+        {
+            Document = document;
+            Analysis = analysis;
+        }
+        internal ReplayDocumentV10 Document { get; }
+        internal MatchAnalysisReport? Analysis { get; }
     }
 }

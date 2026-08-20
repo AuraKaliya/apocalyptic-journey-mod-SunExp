@@ -207,6 +207,56 @@
           "filePattern": "*.cs",
           "excludePathRegex": ["/TerriasHookRegistry\\.cs$"],
           "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
+        },
+        {
+          "id": "replay-v10-core-purity",
+          "description": "Replay v10 models, canonical hashing, validation, and projection must remain pure .NET.",
+          "roots": ["AuraToolsExp-Dev/Features/MatchRecords/Replay/Core"],
+          "filePattern": "*.cs",
+          "deny": [
+            "using\\s+UnityEngine",
+            "using\\s+Witch",
+            "using\\s+Mirror",
+            "using\\s+System\\.IO",
+            "using\\s+System\\.Diagnostics"
+          ]
+        },
+        {
+          "id": "replay-v10-runtime-independence",
+          "description": "Dedicated replay presentation and export runtimes must not re-enter native combat, network, lobby, or chat lifecycles.",
+          "roots": [
+            "AuraToolsExp-Dev/Features/MatchRecords/Replay/Presentation",
+            "AuraToolsExp-Dev/Features/MatchRecords/Replay/Runtime",
+            "AuraToolsExp-Dev/Features/MatchRecords/Media"
+          ],
+          "filePattern": "*.cs",
+          "deny": [
+            "\\bFightManager\\b",
+            "\\bFightInit\\b",
+            "\\bFightUI\\b",
+            "\\bEnemyManager\\b",
+            "\\bRoleTable\\b",
+            "\\bLobbyManager\\b",
+            "\\bChatUI\\b",
+            "\\bNetworkServer\\b",
+            "\\bNetworkClient\\b",
+            "StartLocalHost",
+            "RpcLoadRoles"
+          ]
+        },
+        {
+          "id": "replay-v10-retired-paths",
+          "description": "The v10 replay product must not restore full-screen capture, real-time listener recording, AVI fallback, or PATH encoder discovery.",
+          "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
+          "filePattern": "*.cs",
+          "deny": [
+            "ScreenCapture\\.CaptureScreenshotAsTexture",
+            "FindAnyObjectByType<AudioListener>",
+            "\\bMjpegAviWriter\\b",
+            "\\bReplayFrameSpool\\b",
+            "Environment\\.GetEnvironmentVariable\\(\\\"PATH\\\"\\)",
+            "falling back to built-in AVI"
+          ]
         }
       ]
     },

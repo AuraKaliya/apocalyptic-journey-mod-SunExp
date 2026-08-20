@@ -1,53 +1,90 @@
 using AuraToolsExp.Dll.Features.MatchRecords.Media;
+using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 
 internal static partial class AuraToolsTestSuite
 {
     public static void TestMatchReplayExportPolicy()
     {
-        var blocked = new MatchReplayExportReadinessState(
-            replayReady: true,
-            fightUiReady: true,
-            settingUiCount: 1,
-            originOverlayCount: 0);
-        var ready = new MatchReplayExportReadinessState(
-            replayReady: true,
-            fightUiReady: true,
-            settingUiCount: 0,
-            originOverlayCount: 0);
-        Assert(!blocked.CanCapture && ready.CanCapture,
-            "video capture waits until origin settings and overlays are actually gone");
-
-        var clock = new MatchReplayExportFrameClock(30);
-        clock.Start(10d);
-        Assert(clock.DueFrames(10d) == 1,
-            "DSP export clock emits a clean first frame at the audio epoch");
-        Assert(clock.DueFrames(10d + 4d / 30d) == 4,
-            "DSP export clock requests duplicate frames after a renderer stall to preserve duration");
-        Assert(MatchReplayExportFrameClock.ExpectedPcmSampleFrames(900, 30, 48000) == 1_440_000,
-            "PCM normalization derives its exact sample count from the final video clock");
-
-        var displayReferred = MatchReplayCaptureColorPolicy.PreserveDisplayPixels(sourceIsDataSrgb: false);
-        Assert(!displayReferred.UseSrgbRenderTarget && !displayReferred.EnableSrgbWrite,
-            "display-referred screenshot bytes are copied through a linear target without a second gamma encode");
-        var srgbTexture = MatchReplayCaptureColorPolicy.PreserveDisplayPixels(sourceIsDataSrgb: true);
-        Assert(srgbTexture.UseSrgbRenderTarget && srgbTexture.EnableSrgbWrite,
-            "sRGB screenshots keep matching source, target, and write conversion semantics");
-
-        var encodingArguments = MatchReplayVideoEncodingPolicy.BuildFfmpegArguments(
+        var arguments = MatchReplayVideoEncodingPolicy.BuildFfmpegArguments(
+            1280,
+            720,
             30,
             wavePath: null,
-            outputPath: "replay.mp4");
-        Assert(encodingArguments.Contains("scale=in_range=pc:out_range=tv:out_color_matrix=bt709", StringComparison.Ordinal)
-               && encodingArguments.Contains("format=yuv420p", StringComparison.Ordinal)
-               && encodingArguments.Contains("-color_range tv", StringComparison.Ordinal)
-               && encodingArguments.Contains("-colorspace bt709", StringComparison.Ordinal)
-               && encodingArguments.Contains("-color_primaries bt709", StringComparison.Ordinal)
-               && encodingArguments.Contains("-color_trc bt709", StringComparison.Ordinal)
-               && encodingArguments.Contains("colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=off", StringComparison.Ordinal),
-            "MP4 encoding normalizes JPEG frames to limited-range BT.709 instead of leaving ambiguous full-range metadata");
+            outputPath: "replay.partial.mp4");
+        Assert(arguments.Contains("-f rawvideo", StringComparison.Ordinal)
+               && arguments.Contains("-pixel_format rgb24", StringComparison.Ordinal)
+               && arguments.Contains("-video_size 1280x720", StringComparison.Ordinal)
+               && arguments.Contains("-c:v mpeg4", StringComparison.Ordinal)
+               && arguments.Contains("format=yuv420p", StringComparison.Ordinal)
+               && arguments.Contains("-color_range tv", StringComparison.Ordinal)
+               && arguments.Contains("-colorspace bt709", StringComparison.Ordinal)
+               && arguments.Contains("-f mp4", StringComparison.Ordinal)
+               && !arguments.Contains("image2pipe", StringComparison.Ordinal)
+               && !arguments.Contains("mjpeg", StringComparison.OrdinalIgnoreCase)
+               && !arguments.Contains("avi", StringComparison.OrdinalIgnoreCase),
+            "the only encoder path consumes raw bounded frames and emits the fixed MP4 profile");
+        Assert(ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Planned, false, false)
+               == ReplayExportRecoveryActions.ResumeRendering
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Rendering, true, false)
+               == ReplayExportRecoveryActions.FailAndDeletePartial
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Encoding, true, false)
+               == ReplayExportRecoveryActions.FailAndDeletePartial
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Validating, true, false)
+               == ReplayExportRecoveryActions.ValidatePartial
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Committing, false, true)
+               == ReplayExportRecoveryActions.ResumeCommit
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Ready, false, true)
+               == ReplayExportRecoveryActions.VerifyReady
+               && ReplayExportRecoveryPolicy.Resolve(MatchReplayExportStates.Cancelled, true, false)
+               == ReplayExportRecoveryActions.CleanupTerminal,
+            "every persistent export state has one deterministic startup recovery action");
+
+        var root = Path.Combine(Path.GetTempPath(), "AuraTools-ReplayAudio-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var wave = Path.Combine(root, "audio.partial.wav");
+            var samples = ReplayOfflineAudioMixer.MixToWave(
+                ReplayV10Document("audio-test"),
+                videoFrameCount: 60,
+                framesPerSecond: 30,
+                _ => "",
+                wave);
+            Assert(samples == 96_000
+                   && File.Exists(wave)
+                   && new FileInfo(wave).Length == 44 + samples * 2 * 2,
+                "offline audio length is derived exactly from the fixed video frame clock");
+
+            var source = Path.Combine(root, "source-44100-mono.wav");
+            WritePcmWave(source, 44_100, 1, 4410, 4096);
+            var mixed = Path.Combine(root, "mixed.wav");
+            var document = ReplayV10Document("audio-cue-test");
+            document.Events[0].Audio.Add(new ReplayAudioCueV10
+            {
+                AssetSha256 = "audio-test",
+                StartSample = 4800,
+                DurationSamples = 4800,
+                GainQ16 = 65_536,
+                PlaybackRateQ16 = 65_536,
+                Bus = "Effect"
+            });
+            ReplayOfflineAudioMixer.MixToWave(document, 30, 30, _ => source, mixed);
+            Assert(File.ReadAllBytes(mixed).Skip(44).Any(value => value != 0),
+                "offline mixer resamples recorded PCM cues into the fixed 48 kHz stereo timeline");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
-    private static void WriteTestPcmWave(string path, int sampleRate, int channels, int sampleFrames)
+    private static void WritePcmWave(
+        string path,
+        int sampleRate,
+        int channels,
+        int sampleFrames,
+        short sample)
     {
         var dataBytes = sampleFrames * channels * 2;
         using var stream = File.Create(path);
@@ -64,6 +101,6 @@ internal static partial class AuraToolsTestSuite
         writer.Write((short)16);
         writer.Write(System.Text.Encoding.ASCII.GetBytes("data"));
         writer.Write(dataBytes);
-        writer.Write(new byte[dataBytes]);
+        for (var index = 0; index < sampleFrames * channels; index++) writer.Write(sample);
     }
 }

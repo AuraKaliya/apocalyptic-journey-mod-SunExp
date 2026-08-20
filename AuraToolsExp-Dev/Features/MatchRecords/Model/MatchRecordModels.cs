@@ -5,48 +5,8 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 9;
-    internal const int MinimumSupportedVersion = 8;
-}
-
-internal static class MatchReplayCapabilities
-{
-    internal const string AuthoritativeFramesV1 = "authoritative-frames.v1";
-    internal const string StateProjectionV1 = "state-projection.v1";
-    internal const string PresentationTimelineV1 = "presentation-timeline.v1";
-    internal const string IndexedSeekV1 = "indexed-seek.v1";
-    internal const string AsyncFinalizationV1 = "async-finalization.v1";
-    internal const string CausalityV1 = "causality.v1";
-    internal const string RuntimeContextV1 = "runtime-context.v1";
-    internal const string CardPresentationReadyV1 = "card-presentation-ready.v1";
-    internal const string IncrementalHandV1 = "incremental-hand.v1";
-    internal const string EntityDeltaV2 = "entity-delta.v2";
-    internal const string OutcomeCuesV1 = "outcome-cues.v1";
-    internal const string PassiveHudV1 = "passive-hud.v1";
-    internal const string NativeActionPresentationV1 = "native-action-presentation.v1";
-    internal const string NativeActionPresentationV2 = "native-action-presentation.v2";
-    internal const string EnemyIntentFramesV1 = "enemy-intent-frames.v1";
-    internal const string RemotePlayerActionsV1 = "remote-player-actions.v1";
-
-    internal static readonly string[] Supported =
-    {
-        AuthoritativeFramesV1,
-        StateProjectionV1,
-        PresentationTimelineV1,
-        IndexedSeekV1,
-        AsyncFinalizationV1,
-        CausalityV1,
-        RuntimeContextV1,
-        CardPresentationReadyV1,
-        IncrementalHandV1,
-        EntityDeltaV2,
-        OutcomeCuesV1,
-        PassiveHudV1,
-        NativeActionPresentationV1,
-        NativeActionPresentationV2,
-        EnemyIntentFramesV1,
-        RemotePlayerActionsV1
-    };
+    internal const int Version = 10;
+    internal const int MinimumSupportedVersion = 10;
 }
 
 internal static class MatchRecordCollections
@@ -74,8 +34,7 @@ internal static class MatchReplayEventKinds
     internal const string ActionFrame = "ActionFrame";
     internal const string SeekCheckpoint = "SeekCheckpoint";
 
-    // Retained as data labels so analysis/import code can identify obsolete captures.
-    // Authoritative-frame protocols (v8+) never record or execute these command-replay events.
+    // Legacy migration labels only. Replay Document v10 never records or executes commands.
     internal const string ActionBegin = "ActionBegin";
     internal const string ActionEnd = "ActionEnd";
     internal const string ActionCommand = "ActionCommand";
@@ -192,12 +151,6 @@ internal sealed class MatchReplayEvent
     public MatchReplayActionFrame? ActionFrame { get; set; }
 
     public MatchReplaySeekCheckpoint? SeekCheckpoint { get; set; }
-}
-
-internal static class MatchReplayActionPhases
-{
-    internal const string Begin = "Begin";
-    internal const string End = "End";
 }
 
 internal static class MatchReplayActionKinds
@@ -578,6 +531,7 @@ internal sealed class MatchAnalysisMoment
 internal static class MatchMediaStates
 {
     internal const string Ready = "Ready";
+    internal const string Corrupt = "Corrupt";
     internal const string Failed = "Failed";
 }
 
@@ -625,13 +579,15 @@ internal sealed class MatchMediaTimelineEntry
 
 internal static class MatchReplayExportStates
 {
-    internal const string Preparing = "Preparing";
+    internal const string Planned = "Planned";
     internal const string Rendering = "Rendering";
     internal const string Encoding = "Encoding";
-    internal const string Completed = "Completed";
+    internal const string Validating = "Validating";
+    internal const string Committing = "Committing";
+    internal const string Ready = "Ready";
+    internal const string Corrupt = "Corrupt";
     internal const string Failed = "Failed";
     internal const string Cancelled = "Cancelled";
-    internal const string Interrupted = "Interrupted";
 }
 
 internal sealed class MatchReplayExportJob
@@ -640,49 +596,47 @@ internal sealed class MatchReplayExportJob
 
     public string RecordId { get; set; } = "";
 
-    public string State { get; set; } = MatchReplayExportStates.Preparing;
+    public string State { get; set; } = MatchReplayExportStates.Planned;
+
+    public long Revision { get; set; }
 
     public float Progress { get; set; }
 
     public string OutputPath { get; set; } = "";
 
+    public string StagingPath { get; set; } = "";
+
+    public string TargetPath { get; set; } = "";
+
+    public string OutputSha256 { get; set; } = "";
+
+    public string ProfileId { get; set; } = "";
+
+    public string CreatedUtc { get; set; } = "";
+
+    public string UpdatedUtc { get; set; } = "";
+
+    public string ErrorCode { get; set; } = "";
+
+    public bool CancelRequested { get; set; }
+
+    public int AttemptCount { get; set; }
+
+    public int Width { get; set; }
+
+    public int Height { get; set; }
+
+    public int FramesPerSecond { get; set; }
+
+    public long FrameCount { get; set; }
+
+    public long AudioSampleFrames { get; set; }
+
+    public long FileBytes { get; set; }
+
     public string Message { get; set; } = "";
 
     public long EstimatedBytes { get; set; }
-}
-
-internal sealed class MatchReplayPackageManifest
-{
-    public string Format { get; set; } = "AuraTools.MatchReplay";
-
-    public int PackageVersion { get; set; } = 1;
-
-    public string ExportedUtc { get; set; } = "";
-
-    public string RecordId { get; set; } = "";
-
-    public string RecordSha256 { get; set; } = "";
-
-    public string AnalysisSha256 { get; set; } = "";
-
-    public Dictionary<string, string> ChunkSha256 { get; set; } = new(StringComparer.Ordinal);
-
-    public string ContentSha256 { get; set; } = "";
-}
-
-internal sealed class MatchReplayPackageChunk
-{
-    public int ChunkIndex { get; set; }
-
-    public long FirstSequence { get; set; }
-
-    public long LastSequence { get; set; }
-
-    public int FirstTurnIndex { get; set; }
-
-    public int LastTurnIndex { get; set; }
-
-    public string EntryName { get; set; } = "";
 }
 
 internal sealed class MatchReplayImportPreview

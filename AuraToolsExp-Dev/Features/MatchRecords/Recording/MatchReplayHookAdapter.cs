@@ -54,11 +54,6 @@ internal static class MatchReplayHookAdapter
             "SkillItem.TrueUse",
             context => MatchReplayRecorder.EndCardAction(context.Target),
             "MatchRecords.Replay.SkillAction"));
-        Register("before:FightUI.CallActionAnimation", AuraToolsHookRegistry.BeforeRouted(
-            modConfig!,
-            "FightUI.CallActionAnimation",
-            context => MatchReplayRecorder.CaptureActionPresentation(context.Arguments),
-            "MatchRecords.Replay.ActionPresentation"));
         Register("remote-combat-actions", AuraRemoteCombatActionRouter.Register(
             modConfig!,
             AuraToolsIds.ModId + ".MatchRecords.Replay",
@@ -79,6 +74,21 @@ internal static class MatchReplayHookAdapter
             "OtherObj.DoOneAction",
             context => MatchReplayRecorder.EndEnemyIntentAction(context.Target),
             "MatchRecords.Replay.EnemyIntent"));
+        Register("before:AudioManager.PlayEffect", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "AudioManager.PlayEffect",
+            context => MatchReplayRecorder.CaptureNativeAudio(context.Arguments, "Effect"),
+            "MatchRecords.Replay.Audio.Effect"));
+        Register("before:AudioManager.PlayVocal", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "AudioManager.PlayVocal",
+            context => MatchReplayRecorder.CaptureNativeAudio(context.Arguments, "Vocal"),
+            "MatchRecords.Replay.Audio.Vocal"));
+        Register("after:AudioManager.PlayBGMList", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "AudioManager.PlayBGMList",
+            _ => MatchReplayRecorder.CaptureCurrentBgm(),
+            "MatchRecords.Replay.Audio.Bgm"));
         Register("card-lifecycle", AuraCardLifecycleRouter.Register(
             modConfig,
             AuraToolsIds.ModId,

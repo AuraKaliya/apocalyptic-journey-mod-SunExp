@@ -1826,7 +1826,7 @@ rg: AuraCombatAiShared/CombatAuthoritativeBranchTeacherPolicy.cs: The system can
 **Priority**: low
 **Status**: resolved
 **Area**: tooling
-**Recurrence-Count**: 2
+**Recurrence-Count**: 3
 
 ### Summary
 A phase-metrics inspection piped directly from a `foreach` statement and produced an empty-pipe parser error.
@@ -6810,3 +6810,83 @@ Reran the unchanged gate with PowerShell 7 via `pwsh`; all 537 architecture
 boundary files and the Terrias architecture assertions passed.
 
 **See Also**: ERR-20260818-005
+
+---
+# ERR-20260820-001: ripgrep received an unexpanded Windows wildcard path
+
+**Logged**: 2026-08-20
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+**Recurrence-Count**: 2
+
+## What failed
+
+A repository search passed `tools/*architecture*` as a positional path to
+`rg` under PowerShell. Ripgrep treated the literal asterisk as an invalid
+Windows path instead of expanding it.
+
+## Resolution
+
+Use `rg` glob filters such as `-g '*architecture*'` or enumerate matching
+paths with `rg --files` before searching their contents.
+
+The same mistake recurred with `Aura*Shared` and `*.csproj`; keep wildcard
+expressions in `-g` filters rather than positional Windows paths.
+
+---
+# ERR-20260820-002: PowerShell quoting produced an incomplete ripgrep regex
+
+**Logged**: 2026-08-20
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+A combined alternation containing the literal `GetEnvironmentVariable("PATH")`
+lost closing escapes while crossing JavaScript and PowerShell quoting, so `rg`
+reported an unclosed group.
+
+## Resolution
+
+Repeated the residual-path audit with `rg -F` and separate `-e` literals,
+which avoids multi-shell regex escaping for exact tokens.
+
+---
+# ERR-20260820-003: net472 does not expose String.Contains with comparison
+
+**Logged**: 2026-08-20
+**Severity**: low
+**Status**: resolved
+**Area**: build
+
+## What failed
+
+The replay job profile parser used `string.Contains(value,
+StringComparison.Ordinal)`, which is available to the net8 test target but not
+to the production net472 compile contract.
+
+## Resolution
+
+Replaced both calls with `IndexOf(value, StringComparison.Ordinal) >= 0` and
+kept the production build as the compatibility authority.
+
+---
+# ERR-20260820-004: PowerShell if statement was used as a parenthesized expression
+
+**Logged**: 2026-08-20
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+A final inventory command placed `if (...) { ... } else { ... }` directly
+inside string concatenation parentheses. PowerShell parsed `if` as a command
+name in that expression position.
+
+## Resolution
+
+Assigned the `if` statement result to `$count` first, then formatted the output;
+the retired Playback file count is zero.

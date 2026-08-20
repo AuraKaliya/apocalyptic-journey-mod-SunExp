@@ -13,9 +13,11 @@ namespace AudioArbiter.Shared;
 
 public static class AudioArbiterRuntime
 {
+    public static event Action<ResolvedSoundPlayback>? ResolvedPlayback;
+
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-08-17-v12";
+    public const string CurrentBuildId = "audio-arbiter-2026-08-20-v13";
     public const int CurrentProtocolVersion = 6;
     public const int MinimumSupportedProtocolVersion = 6;
     public const int SupportedManifestSchemaVersion = 2;
@@ -86,6 +88,30 @@ public static class AudioArbiterRuntime
         {
             Debug.LogWarning("[AudioArbiter] Sound request failed for " + request.OwnerModId + ": " + ex.Message);
             return false;
+        }
+    }
+
+    private static void PublishResolvedPlayback(SoundPlaybackRequest request, ResolvedSound resolved)
+    {
+        var value = new ResolvedSoundPlayback
+        {
+            Request = request,
+            Clip = resolved.Clip,
+            OwnerModId = resolved.Provider.OwnerModId,
+            ProviderId = resolved.Provider.ProviderId,
+            Bus = resolved.Provider.Bus,
+            VolumeMultiplier = resolved.Provider.VolumeMultiplier
+        };
+        foreach (var subscriber in ResolvedPlayback?.GetInvocationList() ?? Array.Empty<Delegate>())
+        {
+            try
+            {
+                ((Action<ResolvedSoundPlayback>)subscriber)(value);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[AudioArbiter] Resolved playback observer failed: " + ex.Message);
+            }
         }
     }
 
@@ -783,6 +809,7 @@ public static class AudioArbiterRuntime
                     resolved.Provider.OwnerModId,
                     resolved.Provider.ProviderId);
                 AudioUnityPlaybackService.PlayVocal(roleId, resolved.Clip, resolved.Provider.VolumeMultiplier);
+                PublishResolvedPlayback(request, resolved);
                 TraceRequest(request, "Playing vocal: roleId=" + roleId
                     + ", provider=" + resolved.Provider.ProviderId
                     + ", clip=" + resolved.Clip.name
@@ -792,6 +819,7 @@ public static class AudioArbiterRuntime
             }
 
             AudioUnityPlaybackService.PlayEffect(resolved.Clip, resolved.Provider.VolumeMultiplier);
+            PublishResolvedPlayback(request, resolved);
             TraceRequest(request, "Playing effect: provider=" + resolved.Provider.ProviderId
                 + ", clip=" + resolved.Clip.name
                 + ", gainDb=" + resolved.Provider.GainDb.ToString("0.##")

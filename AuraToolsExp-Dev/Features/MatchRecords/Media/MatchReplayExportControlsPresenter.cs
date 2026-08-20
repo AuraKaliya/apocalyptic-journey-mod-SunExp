@@ -11,7 +11,6 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 internal static class MatchReplayExportControlsPresenter
 {
     private static GameObject? root;
-    private static Canvas? canvas;
     private static Text? status;
     private static Text? actionLabel;
 
@@ -20,7 +19,7 @@ internal static class MatchReplayExportControlsPresenter
         Close();
         root = new GameObject("AuraToolsReplayExportControls", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         Object.DontDestroyOnLoad(root);
-        canvas = root.GetComponent<Canvas>();
+        var canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 32001;
         var scaler = root.GetComponent<CanvasScaler>();
@@ -56,7 +55,8 @@ internal static class MatchReplayExportControlsPresenter
 
         if (actionLabel != null)
         {
-            actionLabel.text = job.State == MatchReplayExportStates.Completed
+            actionLabel.text = job.State == MatchReplayExportStates.Ready
+                               || job.State == MatchReplayExportStates.Corrupt
                                || job.State == MatchReplayExportStates.Failed
                                || job.State == MatchReplayExportStates.Cancelled
                 ? "关闭"
@@ -64,16 +64,10 @@ internal static class MatchReplayExportControlsPresenter
         }
     }
 
-    internal static void SetCaptured(bool captured)
-    {
-        if (canvas != null) canvas.enabled = !captured;
-    }
-
     internal static void Close()
     {
         if (root != null) Object.Destroy(root);
         root = null;
-        canvas = null;
         status = null;
         actionLabel = null;
     }
@@ -82,7 +76,10 @@ internal static class MatchReplayExportControlsPresenter
     {
         return state == MatchReplayExportStates.Rendering ? "正在渲染"
             : state == MatchReplayExportStates.Encoding ? "正在编码"
-            : state == MatchReplayExportStates.Completed ? "导出完成"
+            : state == MatchReplayExportStates.Validating ? "正在验证"
+            : state == MatchReplayExportStates.Committing ? "正在提交"
+            : state == MatchReplayExportStates.Ready ? "导出完成"
+            : state == MatchReplayExportStates.Corrupt ? "媒体损坏"
             : state == MatchReplayExportStates.Failed ? "导出失败"
             : state == MatchReplayExportStates.Cancelled ? "已取消"
             : "正在准备";

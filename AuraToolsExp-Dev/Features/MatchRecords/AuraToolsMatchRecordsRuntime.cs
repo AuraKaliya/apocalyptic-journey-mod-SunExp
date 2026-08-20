@@ -1,7 +1,8 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
@@ -34,10 +35,8 @@ public static class AuraToolsMatchRecordsRuntime
 
         initialized = true;
         AuraToolsDamageMeterRuntime.Initialize(modConfig);
-        MatchReplayWorkingBuffer.CleanupAbandoned(MatchRecordStorage.TemporaryDirectory);
         Media.MatchReplayVideoExporter.Initialize();
         MatchReplayHookAdapter.Initialize(modConfig);
-        MatchReplayChatUiHookAdapter.Initialize(modConfig);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.DamageStatistics,
             OnConfigChanged);
@@ -46,12 +45,11 @@ public static class AuraToolsMatchRecordsRuntime
             OnConfigChanged);
         EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
-                          + Model.MatchReplayProtocol.Version + ".");
+                          + ReplayProtocolV10.DocumentVersion + ".");
     }
 
     internal static void Tick()
     {
-        MatchReplayPlayer.Tick();
         Media.MatchReplayVideoExporter.Tick();
     }
 
@@ -69,9 +67,9 @@ public static class AuraToolsMatchRecordsRuntime
     private static void OnConfigChanged()
     {
         MatchReplayHookAdapter.EnsureHooksMatchConfig();
-        if (!Enabled && MatchReplayPlayer.IsActive)
+        if (!Enabled && ReplaySceneRuntime.IsActive)
         {
-            MatchReplayPlayer.Stop();
+            ReplaySceneRuntime.Stop();
         }
     }
 

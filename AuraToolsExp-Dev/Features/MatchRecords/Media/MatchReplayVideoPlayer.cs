@@ -19,6 +19,12 @@ internal static class MatchReplayVideoPlayer
     internal static void Show(Transform parent, MatchMediaAsset asset)
     {
         Close();
+        if (asset == null
+            || !string.Equals(asset.Format, "MP4", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(asset.State, MatchMediaStates.Ready, StringComparison.Ordinal))
+        {
+            return;
+        }
         var resolvedPath = MatchReplayMediaStore.ResolvePath(asset.FilePath);
         if (!File.Exists(resolvedPath))
         {

@@ -7,7 +7,7 @@ using AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
-internal sealed class MatchRecordDatabase
+internal sealed partial class MatchRecordDatabase
 {
     internal const int DefaultPageSize = 30;
     private const int MaximumPageSize = 100;
@@ -537,6 +537,15 @@ internal sealed class MatchRecordDatabase
             using var delete = connection.Prepare("DELETE FROM replay_media WHERE media_id = ?;");
             delete.Bind(1, mediaId.Trim());
             delete.Execute();
+            if (TableExistsForMediaJob(connection, "replay_export_jobs"))
+            {
+                using var updateJob = connection.Prepare(
+                    "UPDATE replay_export_jobs SET state='Cancelled', revision=revision+1, updated_utc=?, "
+                    + "message='media deleted by user' WHERE job_id=? AND state='Ready';");
+                updateJob.Bind(1, DateTime.UtcNow.ToString("O"));
+                updateJob.Bind(2, mediaId.Trim());
+                updateJob.Execute();
+            }
             return asset;
         }
     }
@@ -580,6 +589,7 @@ internal sealed class MatchRecordDatabase
                 if (changed)
                 {
                     DeleteMediaDirectory(recordId.Trim());
+                    SweepUnreferencedReplayAssets();
                 }
                 return changed;
             }
@@ -611,6 +621,7 @@ internal sealed class MatchRecordDatabase
                 {
                     DeleteMediaDirectory(id);
                 }
+                SweepUnreferencedReplayAssets();
                 return ids.Count;
             }
             catch
@@ -655,6 +666,7 @@ internal sealed class MatchRecordDatabase
                 {
                     DeleteMediaDirectory(id);
                 }
+                SweepUnreferencedReplayAssets();
                 return stale.Count;
             }
             catch
@@ -726,8 +738,10 @@ internal sealed class MatchRecordDatabase
                            + "sha256 TEXT NOT NULL, timeline_payload BLOB NOT NULL, error_text TEXT NOT NULL);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_media_record ON replay_media(record_id, created_utc DESC);");
         MatchRecordsDatabaseMigrator.Apply(connection);
+        EnsureV10Tables(connection);
         MatchRecordsDatabaseMigrator.Validate(connection);
         NormalizeMediaPaths(connection);
+        ReconcileV10Files(connection);
         initialized = true;
     }
 
@@ -870,6 +884,7 @@ internal sealed class MatchRecordDatabase
 
     private static void DeleteRecord(WinSqliteConnection connection, string recordId)
     {
+        DeleteReplayV10(connection, recordId);
         using (var media = connection.Prepare("DELETE FROM replay_media WHERE record_id = ?;"))
         {
             media.Bind(1, recordId);
@@ -951,6 +966,13 @@ internal sealed class MatchRecordDatabase
         catch
         {
         }
+    }
+
+    private static bool TableExistsForMediaJob(WinSqliteConnection connection, string table)
+    {
+        using var query = connection.Prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1;");
+        query.Bind(1, table);
+        return query.Read();
     }
 
     private void DeleteMediaDirectory(string recordId)

@@ -1,342 +1,113 @@
-using AuraShared.Core;
-using AuraToolsExp.Dll.Features.DamageMeter.Model;
+using System.IO.Compression;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
-using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
+using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 internal static partial class AuraToolsTestSuite
 {
     public static void TestMatchAnalysis()
     {
-        var snapshot = new DamageMeterSnapshot
+        var document = ReplayV10Document("analysis-v10");
+        ReplayDocumentFinalizerV10.FinalizeAndValidate(document);
+        var record = new MatchRecord
         {
-            CompletedRoundCount = 2,
-            Combatants = new List<CombatantDamageStat>
-            {
-                new()
-                {
-                    InstanceId = "role-1",
-                    DisplayName = "角色一",
-                    Team = DamageTeam.Friendly,
-                    TotalHpDamage = 180,
-                    TotalShieldDamage = 20,
-                    Rounds = new List<DamageRoundStat>
-                    {
-                        new() { RoundIndex = 1, HpDamage = 60, ShieldDamage = 10 },
-                        new() { RoundIndex = 2, HpDamage = 120, ShieldDamage = 10 }
-                    }
-                }
-            }
+            RecordId = document.Header.RecordId,
+            ReplayProtocol = 10,
+            TurnCount = 1
         };
-        var events = new List<MatchReplayEvent>
-        {
-            Event(1, 1, MatchSemanticCategories.Card, "UseCard", "card-a", "卡牌A", 0),
-            Event(2, 1, MatchSemanticCategories.Damage, "Normal", "", "伤害", 70),
-            Event(3, 2, MatchSemanticCategories.Card, "UseCard", "card-a", "卡牌A", 0),
-            Event(4, 2, MatchSemanticCategories.Damage, "Normal", "", "伤害", 130)
-        };
-        var report = MatchAnalysisBuilder.Build(new MatchRecord
-        {
-            RecordId = "analysis-record",
-            TurnCount = 2,
-            StatisticsJson = AuraSharedJson.SerializeCompact(snapshot)
-        }, events);
-        Assert(report.TotalDamage == 200
-               && report.BestTurnIndex == 2
-               && report.BestTurnDamage == 130,
-            "analysis uses authoritative DPT round totals for overview and best-turn facts");
-        Assert(report.CardUseCount == 2
-               && report.Cards.Single().Uses == 2
-               && report.Cards.Single().ObservedFollowUpDamage == 200,
-            "analysis aggregates card usage and labels only observed follow-up damage");
-        Assert(report.KeyMoments.Any(item => item.EventSequence == 4),
-            "analysis exposes replay-addressable key moments");
-
-        var framedEvents = new List<MatchReplayEvent>
-        {
-            new()
-            {
-                Sequence = 1,
-                TurnIndex = 1,
-                Kind = MatchReplayEventKinds.ActionFrame,
-                Semantic = new MatchSemanticEvent
-                {
-                    EventId = "player-card",
-                    ActionId = "player-action",
-                    RootActionId = "player-action",
-                    Category = MatchSemanticCategories.Card,
-                    SourceId = "card-a",
-                    Label = "卡牌A"
-                },
-                ActionFrame = new MatchReplayActionFrame
-                {
-                    ActionId = "player-action",
-                    Kind = MatchReplayActionKinds.CardUse,
-                    Semantics = new List<MatchSemanticEvent>()
-                }
-            },
-            new()
-            {
-                Sequence = 2,
-                TurnIndex = 1,
-                Kind = MatchReplayEventKinds.ActionFrame,
-                Semantic = new MatchSemanticEvent
-                {
-                    EventId = "enemy-intent",
-                    ActionId = "enemy-action",
-                    RootActionId = "enemy-action",
-                    Category = MatchSemanticCategories.EnemyIntent,
-                    ActorId = "enemy-a",
-                    SourceId = "enemy-card-bite",
-                    Label = "撕咬"
-                },
-                ActionFrame = new MatchReplayActionFrame
-                {
-                    ActionId = "enemy-action",
-                    Kind = MatchReplayActionKinds.EnemyIntentUse,
-                    Semantics = new List<MatchSemanticEvent>
-                    {
-                        new()
-                        {
-                            EventId = "enemy-damage",
-                            ActionId = "enemy-action",
-                            RootActionId = "enemy-action",
-                            Category = MatchSemanticCategories.Damage,
-                            ActorId = "enemy-a",
-                            TargetId = "role-1",
-                            SourceInstanceId = "enemy-a",
-                            TargetInstanceId = "role-1",
-                            Value = 9
-                        }
-                    }
-                }
-            }
-        };
-        var framedReport = MatchAnalysisBuilder.Build(new MatchRecord
-        {
-            TurnCount = 1,
-            StatisticsJson = AuraSharedJson.SerializeCompact(snapshot)
-        }, framedEvents);
-        Assert(framedReport.CardUseCount == 1
-               && framedReport.Cards.Single().AttributedDamage == 0
-               && framedReport.Cards.Single().ObservedFollowUpDamage == 0
-               && framedReport.DamageFlows.Any(item => item.TargetTeam == "Friendly" && item.HpDamage == 9),
-            "enemy intent damage is never attributed to the player's previous card and remains an enemy-to-friendly flow");
-    }
-
-    public static void TestMjpegAviWriter()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "AuraTools-Avi-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        try
-        {
-            var jpeg = Convert.FromBase64String(
-                "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/AP/EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAQUCf//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8Bf//EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQIBAT8Bf//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEABj8Cf//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8hf//aAAwDAQACAAMAAAAQ/wD/xAAUEQEAAAAAAAAAAAAAAAAAAAAQ/9oACAEDAQE/EH//xAAUEQEAAAAAAAAAAAAAAAAAAAAQ/9oACAECAQE/EH//xAAUEAEAAAAAAAAAAAAAAAAAAAAQ/9oACAEBAAE/EH//2Q==");
-            var frames = new List<string>();
-            for (var index = 0; index < 3; index++)
-            {
-                var path = Path.Combine(root, "frame-" + index + ".jpg");
-                File.WriteAllBytes(path, jpeg);
-                frames.Add(path);
-            }
-
-            var output = Path.Combine(root, "replay.avi");
-            MjpegAviWriter.Write(output, frames, 1, 1, 30, null);
-            var bytes = File.ReadAllBytes(output);
-            var ascii = System.Text.Encoding.ASCII.GetString(bytes);
-            Assert(ascii.StartsWith("RIFF", StringComparison.Ordinal)
-                   && ascii.Contains("AVI ", StringComparison.Ordinal)
-                   && ascii.Contains("MJPG", StringComparison.Ordinal)
-                   && ascii.Contains("movi", StringComparison.Ordinal)
-                   && ascii.Contains("idx1", StringComparison.Ordinal),
-                "built-in exporter emits an indexed MJPEG AVI without requiring FFmpeg");
-
-            var spoolPath = Path.Combine(root, "frames.spool");
-            using (var spool = new ReplayFrameSpool(spoolPath))
-            {
-                spool.Enqueue(jpeg);
-                spool.Enqueue(jpeg);
-                spool.Enqueue(jpeg);
-                spool.Complete();
-                var streamedOutput = Path.Combine(root, "streamed-replay.avi");
-                MjpegAviWriter.WriteFromSpool(
-                    streamedOutput,
-                    spool.Path,
-                    spool.FrameCount,
-                    spool.MaximumFrameBytes,
-                    spool.PayloadBytes,
-                    1,
-                    1,
-                    30,
-                    null);
-                var streamed = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(streamedOutput));
-                Assert(streamed.Contains("MJPG", StringComparison.Ordinal) && streamed.Contains("idx1", StringComparison.Ordinal),
-                    "bounded frame spool feeds the background AVI encoder without thousands of frame files");
-
-                var wavePath = Path.Combine(root, "audio.wav");
-                WriteTestPcmWave(wavePath, sampleRate: 48000, channels: 2, sampleFrames: 4800);
-                var interleavedOutput = Path.Combine(root, "interleaved-replay.avi");
-                MjpegAviWriter.WriteFromSpool(
-                    interleavedOutput,
-                    spool.Path,
-                    spool.FrameCount,
-                    spool.MaximumFrameBytes,
-                    spool.PayloadBytes,
-                    1,
-                    1,
-                    30,
-                    wavePath);
-                var interleaved = System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(interleavedOutput));
-                var movi = interleaved.IndexOf("movi", StringComparison.Ordinal);
-                var video1 = interleaved.IndexOf("00dc", movi, StringComparison.Ordinal);
-                var audio1 = interleaved.IndexOf("01wb", video1 + 4, StringComparison.Ordinal);
-                var video2 = interleaved.IndexOf("00dc", audio1 + 4, StringComparison.Ordinal);
-                Assert(movi >= 0 && video1 > movi && audio1 > video1 && video2 > audio1,
-                    "built-in AVI interleaves PCM after each MJPEG frame instead of appending one audio tail");
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
+        var report = MatchAnalysisBuilder.BuildV10(record, document);
+        Assert(report.TurnCount == 1
+               && report.Turns.Single().ActionCount == 1
+               && report.Turns.Single().Damage == 7
+               && report.Cards.Single().CardId == "card-a"
+               && report.Cards.Single().AttributedDamage == 7,
+            "v10 analysis consumes recorded semantics without executing gameplay");
     }
 
     public static void TestMatchReplayPackage()
     {
-        var root = Path.Combine(Path.GetTempPath(), "AuraTools-Package-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "AuraTools-PackageV10-" + Guid.NewGuid().ToString("N"));
         var sourceRoot = Path.Combine(root, "source");
         var targetRoot = Path.Combine(root, "target");
         Directory.CreateDirectory(sourceRoot);
         Directory.CreateDirectory(targetRoot);
         try
         {
-            var source = new MatchRecordDatabase(Path.Combine(sourceRoot, "records.sqlite3"));
-            source.Initialize();
-            MatchRecordStorage.Configure(source, sourceRoot);
-            var baseline = State(1, hp: 20, power: 3, handCardIds: new[] { "card-a" });
-            var after = State(1, hp: 20, power: 2, handCardIds: Array.Empty<string>());
-            var events = new List<MatchReplayEvent>
+            var sourceDatabase = new MatchRecordDatabase(Path.Combine(sourceRoot, "records.sqlite3"));
+            sourceDatabase.Initialize();
+            MatchRecordStorage.Configure(sourceDatabase, sourceRoot);
+            var document = ReplayV10Document("package-v10");
+            var payload = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
+            var hash = ReplayCanonicalJsonV10.Sha256(payload);
+            document.Attachments.Add(new ReplayAttachmentV10
             {
-                TurnFrameEvent(1, baseline),
-                CheckpointEvent(2, baseline, 0),
-                ActionFrameEvent(3, 1, "action-1", 1, baseline, after, "card-a", 70)
-            };
-            var record = new MatchRecord
-            {
-                RecordId = "portable-record",
-                SessionId = "portable-session",
-                LevelId = "portable-level",
-                Result = "Win",
-                StartedUtc = "2026-08-12T00:00:00Z",
-                EndedUtc = "2026-08-12T00:01:00Z",
-                EventCount = events.Count,
-                TurnCount = 1,
-                GameBuild = "game",
-                ToolBuild = "tool",
-                ModFingerprint = "fingerprint",
-                RequiredCapabilities = new List<string>
-                {
-                    MatchReplayCapabilities.AuthoritativeFramesV1,
-                    MatchReplayCapabilities.StateProjectionV1,
-                    MatchReplayCapabilities.PresentationTimelineV1,
-                    MatchReplayCapabilities.IndexedSeekV1,
-                    MatchReplayCapabilities.CardPresentationReadyV1,
-                    MatchReplayCapabilities.IncrementalHandV1,
-                    MatchReplayCapabilities.EntityDeltaV2,
-                    MatchReplayCapabilities.OutcomeCuesV1,
-                    MatchReplayCapabilities.PassiveHudV1,
-                    MatchReplayCapabilities.EnemyIntentFramesV1,
-                    MatchReplayCapabilities.RemotePlayerActionsV1
-                },
-                InitialState = new MatchReplayInitialState
-                {
-                    LevelId = "portable-level",
-                    DiceJson = "{}",
-                    BaselineState = baseline
-                }
-            };
-            Assert(source.Save(record, MatchReplayChunker.Build(events, 32 * 1024)),
-                "portable replay fixture is stored before export");
-            source.SaveAnalysis(MatchAnalysisBuilder.Build(record, events));
+                Sha256 = hash,
+                MediaType = "image/png",
+                Extension = ".png",
+                Usage = "Card.Artwork",
+                ByteLength = payload.Length,
+                Width = 1,
+                Height = 1,
+                Required = true,
+                Payload = payload
+            });
+            document.Content.Definitions.Single(item => item.Content.ContentKind == "Card")
+                .Display.ArtworkAssetSha256 = hash;
+            Assert(ReplayDocumentFinalizerV10.FinalizeAndValidate(document).IsValid,
+                "self-contained attachment participates in the v10 document hash");
+            var record = Summary(document);
+            Assert(sourceDatabase.SaveV10(record, document, MatchAnalysisBuilder.BuildV10(record, document)),
+                "source database stores the self-contained v10 package input");
             var package = MatchReplayPackageService.Export(record.RecordId);
-            Assert(File.Exists(package) && Path.GetExtension(package) == ".aurareplay",
-                "portable export creates the canonical aurareplay bundle");
-
-            var target = new MatchRecordDatabase(Path.Combine(targetRoot, "records.sqlite3"));
-            target.Initialize();
-            MatchRecordStorage.Configure(target, targetRoot);
             var preview = MatchReplayPackageService.Inspect(package);
-            Assert(preview.LevelId == "portable-level"
-                   && preview.PackageBytes > 0
-                   && !preview.Duplicate
-                   && preview.Compatibility != MatchReplayCompatibilityLevels.AnalysisOnly,
-                "import preview verifies size, integrity, dependencies, compatibility, and duplicate status before writing");
+            Assert(preview.ReplayProtocol == 10
+                   && preview.Compatibility == "Compatible"
+                   && preview.ContentSha256 == document.Header.DocumentSha256,
+                "v10 package inspection validates the document, chunks, checkpoints, and attachment hashes");
+            using (var file = File.OpenRead(package))
+            using (var archive = new ZipArchive(file, ZipArchiveMode.Read))
+            {
+                Assert(archive.GetEntry("manifest.json") != null
+                       && archive.GetEntry("document.json.gz") != null
+                       && archive.Entries.Any(item => item.FullName.StartsWith("timeline/", StringComparison.Ordinal))
+                       && archive.Entries.Any(item => item.FullName.StartsWith("checkpoints/", StringComparison.Ordinal))
+                       && archive.GetEntry("attachments/" + hash + ".png") != null,
+                    "v10 package layout contains only declared self-contained entries");
+            }
+
+            var targetDatabase = new MatchRecordDatabase(Path.Combine(targetRoot, "records.sqlite3"));
+            targetDatabase.Initialize();
+            MatchRecordStorage.Configure(targetDatabase, targetRoot);
             var imported = MatchReplayPackageService.Import(package);
-            Assert(imported.Collection == MatchRecordCollections.Favorite
-                   && target.Count(MatchRecordCollections.Favorite) == 1
-                   && MatchReplayChunker.Decode(target.LoadChunks(imported.RecordId))
-                       .Single(item => item.Sequence == 3).ActionFrame?.Semantics.Single().Value == 70
-                   && target.GetAnalysis(imported.RecordId)?.RecordId == imported.RecordId,
-                "portable import verifies and restores metadata, semantic chunks, and analysis into favorites");
-            Assert(MatchReplayPackageService.Inspect(package).Duplicate,
-                "content hashes identify duplicate replay packages independently of record ids");
+            var loaded = targetDatabase.LoadV10(imported.RecordId, loadAttachmentPayloads: true);
+            var importedAssetPath = targetDatabase.ResolveReplayAsset(hash);
+            Assert(loaded != null
+                   && loaded.Header.DocumentVersion == 10
+                   && loaded.Attachments.Single().Payload.SequenceEqual(payload)
+                   && ReplayDocumentValidatorV10.Validate(loaded).IsValid
+                   && File.Exists(importedAssetPath),
+                "v10 import commits a verified document and its content-addressed attachment");
 
-            var corrupt = Path.Combine(root, "corrupt.aurareplay");
-            File.Copy(package, corrupt);
-            using (var archive = System.IO.Compression.ZipFile.Open(corrupt, System.IO.Compression.ZipArchiveMode.Update))
-            {
-                var entry = archive.GetEntry("record.bin")!;
-                using var stream = entry.Open();
-                stream.Position = 0;
-                stream.WriteByte(0xff);
-            }
+            var duplicateRejected = false;
+            try { MatchReplayPackageService.Import(package); }
+            catch (InvalidDataException) { duplicateRejected = true; }
+            Assert(duplicateRejected, "content hashes reject duplicate v10 package imports");
+            Assert(targetDatabase.Delete(imported.RecordId) && !File.Exists(importedAssetPath),
+                "content-addressed attachments are removed only after their final replay reference is deleted");
 
-            var rejected = false;
-            try
-            {
-                MatchReplayPackageService.Import(corrupt);
-            }
-            catch (InvalidDataException)
-            {
-                rejected = true;
-            }
-
-            Assert(rejected && target.Count(MatchRecordCollections.Favorite) == 1,
-                "portable import rejects a checksum-corrupted bundle before adding a record");
+            var damaged = Path.Combine(root, "damaged.aurareplay");
+            var bytes = File.ReadAllBytes(package);
+            File.WriteAllBytes(damaged, bytes.Take(bytes.Length / 2).ToArray());
+            var damagedRejected = false;
+            try { MatchReplayPackageService.Inspect(damaged); }
+            catch (InvalidDataException) { damagedRejected = true; }
+            Assert(damagedRejected, "truncated v10 packages are rejected before database writes");
         }
         finally
         {
             Directory.Delete(root, recursive: true);
         }
-    }
-
-    private static MatchReplayEvent Event(
-        long sequence,
-        int turn,
-        string category,
-        string action,
-        string source,
-        string label,
-        long value)
-    {
-        return new MatchReplayEvent
-        {
-            Sequence = sequence,
-            TurnIndex = turn,
-            ElapsedMilliseconds = sequence * 100,
-            Kind = MatchReplayEventKinds.ActionCommand,
-            Semantic = new MatchSemanticEvent
-            {
-                Category = category,
-                Action = action,
-                SourceId = source,
-                Label = label,
-                Value = value,
-                IsKeyEvent = value >= 100
-            }
-        };
     }
 }

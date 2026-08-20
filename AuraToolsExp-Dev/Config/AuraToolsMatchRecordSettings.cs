@@ -101,16 +101,9 @@ public sealed class MatchReplayVideoSettings
     [JsonProperty("includeAudio")]
     public bool IncludeAudio { get; set; } = true;
 
-    [JsonProperty("preferMp4")]
-    public bool PreferMp4 { get; set; } = true;
-
-    [JsonProperty("ffmpegPath")]
-    public string FfmpegPath { get; set; } = "";
-
     public void Normalize()
     {
         Quality = string.Equals(Quality, "1080p", StringComparison.OrdinalIgnoreCase) ? "1080p" : "720p";
-        FramesPerSecond = FramesPerSecond >= 60 ? 60 : 30;
-        FfmpegPath = (FfmpegPath ?? "").Trim();
+        FramesPerSecond = 30;
     }
 }

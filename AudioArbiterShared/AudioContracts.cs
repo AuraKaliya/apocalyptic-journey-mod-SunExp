@@ -193,3 +193,18 @@ public sealed class SoundPlaybackRequest
         };
     }
 }
+
+public sealed class ResolvedSoundPlayback
+{
+    public SoundPlaybackRequest Request { get; set; } = new();
+
+    public object Clip { get; set; } = null!;
+
+    public string OwnerModId { get; set; } = "";
+
+    public string ProviderId { get; set; } = "";
+
+    public string Bus { get; set; } = "";
+
+    public float VolumeMultiplier { get; set; } = 1f;
+}

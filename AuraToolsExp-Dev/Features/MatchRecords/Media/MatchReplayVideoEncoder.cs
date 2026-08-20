@@ -1,97 +1,95 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
-using AuraToolsExp.Dll.Config;
-using AuraToolsExp.Dll.Infrastructure;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
-internal static class MatchReplayVideoEncoder
+internal sealed class ReplayFramePipeline : IDisposable
 {
-    internal static string Encode(
-        ReplayFrameSpool spool,
-        string outputBase,
+    private readonly BlockingCollection<byte[]> frames;
+    private readonly CancellationTokenSource cancellation = new();
+    private readonly Task completion;
+    private Process? process;
+    private bool disposed;
+
+    internal ReplayFramePipeline(
+        ReplayEncoderDependency dependency,
+        string outputPath,
         int width,
         int height,
         int framesPerSecond,
         string? wavePath,
-        MatchReplayVideoSettings settings,
-        Func<bool> cancelled)
+        int capacity = 4)
     {
-        spool.Complete();
-        var ffmpeg = settings.PreferMp4 ? FindFfmpeg(settings.FfmpegPath) : null;
-        if (!string.IsNullOrWhiteSpace(ffmpeg))
-        {
-            var mp4 = outputBase + ".mp4";
-            try
-            {
-                EncodeMp4(ffmpeg!, spool.Path, mp4, framesPerSecond, wavePath, cancelled);
-                return mp4;
-            }
-            catch (Exception ex) when (!cancelled())
-            {
-                TryDelete(mp4);
-                AuraToolsLog.Warn("[MatchRecords] FFmpeg MP4 encoding failed; falling back to built-in AVI: "
-                                  + ex.Message);
-            }
-        }
-        else if (settings.PreferMp4)
-        {
-            AuraToolsLog.Info("[MatchRecords] FFmpeg was not found; using built-in interleaved AVI output.");
-        }
-
-        var avi = outputBase + ".avi";
-        MjpegAviWriter.WriteFromSpool(
-            avi,
-            spool.Path,
-            spool.FrameCount,
-            spool.MaximumFrameBytes,
-            spool.PayloadBytes,
+        frames = new BlockingCollection<byte[]>(Math.Max(2, Math.Min(8, capacity)));
+        completion = Task.Run(() => Encode(
+            dependency,
+            outputPath,
             width,
             height,
             framesPerSecond,
             wavePath,
-            cancelled);
-        return avi;
+            cancellation.Token));
     }
 
-    internal static string? FindFfmpeg(string configuredPath)
+    internal Task Completion => completion;
+
+    internal bool TryEnqueue(byte[] frame)
     {
-        if (!string.IsNullOrWhiteSpace(configuredPath) && File.Exists(configuredPath)) return Path.GetFullPath(configuredPath);
-        var local = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-        if (File.Exists(local)) return local;
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
-        {
-            try
-            {
-                var candidate = Path.Combine(directory.Trim(), "ffmpeg.exe");
-                if (File.Exists(candidate)) return candidate;
-            }
-            catch
-            {
-            }
-        }
-
-        return null;
+        if (disposed || frame == null || frames.IsAddingCompleted) return false;
+        return frames.TryAdd(frame);
     }
 
-    private static void EncodeMp4(
-        string ffmpeg,
-        string spoolPath,
-        string output,
+    internal void Complete()
+    {
+        if (!frames.IsAddingCompleted) frames.CompleteAdding();
+    }
+
+    internal void Cancel()
+    {
+        cancellation.Cancel();
+        try
+        {
+            if (process != null && !process.HasExited) process.Kill();
+        }
+        catch
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        if (disposed) return;
+        disposed = true;
+        Cancel();
+        Complete();
+        frames.Dispose();
+        cancellation.Dispose();
+        process?.Dispose();
+        process = null;
+    }
+
+    private void Encode(
+        ReplayEncoderDependency dependency,
+        string outputPath,
+        int width,
+        int height,
         int framesPerSecond,
         string? wavePath,
-        Func<bool> cancelled)
+        CancellationToken token)
     {
-        var temporary = output + ".tmp.mp4";
-        TryDelete(temporary);
         var arguments = MatchReplayVideoEncodingPolicy.BuildFfmpegArguments(
+            width,
+            height,
             framesPerSecond,
             wavePath,
-            temporary);
-        var process = new Process
+            outputPath);
+        process = new Process
         {
-            StartInfo = new ProcessStartInfo(ffmpeg, arguments)
+            StartInfo = new ProcessStartInfo(dependency.FfmpegExecutable, arguments)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -99,23 +97,22 @@ internal static class MatchReplayVideoEncoder
                 RedirectStandardError = true
             }
         };
-        process.Start();
+        if (!process.Start()) throw new IOException("无法启动受控 FFmpeg 编码器。");
         var errors = process.StandardError.ReadToEndAsync();
         try
         {
-            foreach (var frame in ReplayFrameSpool.Read(spoolPath))
+            foreach (var frame in frames.GetConsumingEnumerable(token))
             {
-                if (cancelled()) throw new OperationCanceledException();
+                token.ThrowIfCancellationRequested();
                 process.StandardInput.BaseStream.Write(frame, 0, frame.Length);
             }
             process.StandardInput.Close();
             process.WaitForExit();
             var error = errors.GetAwaiter().GetResult();
-            if (process.ExitCode != 0 || !File.Exists(temporary))
+            if (process.ExitCode != 0 || !File.Exists(outputPath))
             {
-                throw new IOException("FFmpeg 编码失败：" + error);
+                throw new IOException("FFmpeg MP4 编码失败：" + error);
             }
-            File.Move(temporary, output);
         }
         finally
         {
@@ -123,13 +120,6 @@ internal static class MatchReplayVideoEncoder
             {
                 try { process.Kill(); } catch { }
             }
-            process.Dispose();
-            TryDelete(temporary);
         }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 }

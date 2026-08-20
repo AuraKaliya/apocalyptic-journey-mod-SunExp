@@ -654,16 +654,8 @@ internal static class MatchReplayProjectionState
         var nextIds = new HashSet<string>(
             after.Statuses.Select(item => item.InstanceId),
             StringComparer.Ordinal);
-        var stateDiff = MatchReplayStateComparer.Compare(before, after);
         var changedStatusIds = new HashSet<string>(
-            stateDiff.Paths
-                .Where(path => path.StartsWith("status[", StringComparison.Ordinal))
-                .Select(path =>
-                {
-                    var end = path.IndexOf(']');
-                    return end > 7 ? path.Substring(7, end - 7) : "";
-                })
-                .Where(id => !string.IsNullOrWhiteSpace(id)),
+            after.Statuses.Select(item => item.InstanceId),
             StringComparer.Ordinal);
         var previousCards = (before.Cards ?? new List<MatchReplayCardState>())
             .Where(card => !string.IsNullOrWhiteSpace(card.ReplayCardId))

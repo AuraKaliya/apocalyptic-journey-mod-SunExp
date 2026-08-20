@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseBaseline": "0.6.0",
+  "releaseBaseline": "0.7.0",
   "globalExactModVersionRequired": false,
   "features": [
     {
@@ -46,15 +46,16 @@
     },
     {
       "id": "records.match-replay",
-      "currentVersion": 8,
-      "minimumSupportedVersion": 8,
+      "currentVersion": 10,
+      "minimumSupportedVersion": 10,
       "requiredCapabilities": [
-        "authoritative-frames.v1",
-        "state-projection.v1",
-        "presentation-timeline.v1",
-        "indexed-seek.v1"
+        "self-contained-document.v10",
+        "canonical-state-projection.v10",
+        "dedicated-presentation-runtime.v1",
+        "content-addressed-attachments.v1",
+        "verified-mp4-export.v1"
       ],
-      "fallback": "analysis-only"
+      "fallback": "legacy-migration-report-only"
     }
   ]
 }
