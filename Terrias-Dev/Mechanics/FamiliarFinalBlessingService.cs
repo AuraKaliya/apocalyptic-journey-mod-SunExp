@@ -20,7 +20,6 @@ public static class FamiliarFinalBlessingService
     private static readonly Dictionary<IStatusManager, Stack<HitSnapshot>> HitSnapshots = new();
     private static readonly Dictionary<IStatusManager, Stack<int>> DeathBurnSnapshots = new();
     private static readonly HashSet<string> RoundClaims = new(StringComparer.Ordinal);
-    private static IDataConfig? pendingAction;
     private static ScriptExecutor? owner;
     private static int crowSettlements;
     private static int generatedDamageDepth;
@@ -31,7 +30,6 @@ public static class FamiliarFinalBlessingService
         HitSnapshots.Clear();
         DeathBurnSnapshots.Clear();
         RoundClaims.Clear();
-        pendingAction = null;
         crowSettlements = 0;
         generatedDamageDepth = 0;
         if (owner == null)
@@ -63,7 +61,6 @@ public static class FamiliarFinalBlessingService
     public static void EndEpoch()
     {
         owner = null;
-        pendingAction = null;
         HitSnapshots.Clear();
         DeathBurnSnapshots.Clear();
         RoundClaims.Clear();
@@ -89,15 +86,8 @@ public static class FamiliarFinalBlessingService
         }
     }
 
-    public static void OnAction(TerriasActionEventContext context)
+    public static void OnActionCommitted(IDataConfig? config)
     {
-        pendingAction = context.Config;
-    }
-
-    public static void OnActionAfter()
-    {
-        var config = pendingAction;
-        pendingAction = null;
         if (config == null)
         {
             return;

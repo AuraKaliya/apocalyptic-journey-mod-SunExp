@@ -107,46 +107,47 @@ public static class BuffScripts
 
     private static void ClearSolarRadiance(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasSolarRadianceHook", "TerriasSolarRadianceToken");
+        TerriasActionPassiveRegistry.Unregister(self, "Buff.SolarRadiance");
     }
 
     private static void ClearGatheredFlame(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasGatheredFlameHook", "TerriasGatheredFlameToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.GatheredFlame");
     }
 
     private static void ClearBodyBurn(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasBodyBurnHook", "TerriasBodyBurnToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.BodyBurn");
     }
 
     private static void ClearEmber(ScriptExecutor self)
     {
         BuffApi.ClearEmberDamageBonus(self, self?.Self);
-        ExecutorApi.ClearHook(self, "TerriasEmberHook", "TerriasEmberToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.Ember");
     }
 
     private static void ClearEmberCloak(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasBurnWardHook", "TerriasBurnWardToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.EmberCloak");
         ExecutorApi.SetVar(self, "TerriasBurnWardPending", "0");
     }
 
     private static void ClearOriginCoreRadiance(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasMiniCoronaHook", "TerriasMiniCoronaToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.OriginCoreRadiance");
+        TerriasActionPassiveRegistry.Unregister(self, "Buff.OriginCoreRadiance");
         ExecutorApi.SetVar(self, "TerriasMiniCoronaDone", "0");
     }
 
     private static void ClearCycleGatheredFlame(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasMeltingWheelHook", "TerriasMeltingWheelToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.CycleGatheredFlame");
         ExecutorApi.SetVar(self, "TerriasMeltingWheelLastBurn", "0");
     }
 
     private static void ClearAfterglowOmen(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasAfterglowHook", "TerriasAfterglowToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.AfterglowOmen");
     }
 
     private static void ClearStarStonePouch(ScriptExecutor self)
@@ -191,13 +192,11 @@ public static class BuffScripts
 
     private static void ApplySolarRadiance(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasSolarRadianceHook", "TerriasSolarRadianceToken");
-        if (token == null)
-        {
-            return;
-        }
-
-        ExecutorApi.TryAddTokenedEvent(self, "Action", "TerriasSolarRadianceToken", token, new Action(() =>
+        TerriasActionPassiveRegistry.Register(
+            self,
+            "Buff.SolarRadiance",
+            AuraShared.Core.AuraCardActionPhase.NativeStarted,
+            _ =>
         {
             var level = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance);
             var gain = level * 5;
@@ -208,18 +207,18 @@ public static class BuffScripts
 
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", gain.ToString());
-        }), "solar_radiance");
+        });
     }
 
     private static void ApplyMoonlight(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasMoonlightHook", "TerriasMoonlightToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.Moonlight");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "EndRound", "TerriasMoonlightToken", token, new Action(() =>
+        scope.AddRequired("EndRound", new Action(() =>
         {
             var level = ExecutorApi.SelfBuffLevel(self, TerriasIds.Moonlight);
             if (level <= 0)
@@ -231,42 +230,44 @@ public static class BuffScripts
             self.AddBuff("buff_keenedge", level.ToString());
             self.AddBuff("buff_resilient", level.ToString());
         }), "moonlight");
+        scope.Commit();
     }
 
     private static void ClearMoonlight(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasMoonlightHook", "TerriasMoonlightToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.Moonlight");
     }
 
     private static void ApplyFrozen(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasFrozenHook", "TerriasFrozenToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.Frozen");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasFrozenToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             self.SetStatus("Self");
             self.ChangeRound();
         }), "elemental.frozen");
+        scope.Commit();
     }
 
     private static void ClearFrozen(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasFrozenHook", "TerriasFrozenToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.Frozen");
     }
 
     private static void ApplyDendroCore(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasDendroCoreHook", "TerriasDendroCoreToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.DendroCore");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasDendroCoreToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             var stacks = ExecutorApi.SelfBuffLevel(self, TerriasIds.DendroCore);
             if (stacks <= 0)
@@ -279,11 +280,12 @@ public static class BuffScripts
             self.SetStatus("Self");
             self.RemoveBuff(TerriasIds.DendroCore);
         }), "elemental.dendro-core");
+        scope.Commit();
     }
 
     private static void ClearDendroCore(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasDendroCoreHook", "TerriasDendroCoreToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.DendroCore");
     }
 
     private static void ApplyStarStonePouch(ScriptExecutor self)
@@ -308,13 +310,13 @@ public static class BuffScripts
 
     private static void ApplyGatheredFlame(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasGatheredFlameHook", "TerriasGatheredFlameToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.GatheredFlame");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasGatheredFlameToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             var count = ExecutorApi.SelfBuffLevel(self, TerriasIds.GatheredFlame);
             if (count <= 0)
@@ -326,6 +328,7 @@ public static class BuffScripts
             self.SetStatus("Self");
             self.AddBuff("buff_extraordinary", (count * 10).ToString());
         }), "gathered_flame");
+        scope.Commit();
     }
 
     private static void ApplyScorchingCanopy(ScriptExecutor self)
@@ -352,16 +355,17 @@ public static class BuffScripts
 
     private static void ApplyBodyBurn(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasBodyBurnHook", "TerriasBodyBurnToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.BodyBurn");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasBodyBurnToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             TriggerBodyBurn(self);
         }), "body_burn");
+        scope.Commit();
     }
 
     private static bool TriggerBodyBurn(ScriptExecutor self)
@@ -397,24 +401,24 @@ public static class BuffScripts
         }
 
         BuffApi.SyncEmberDamageBonus(executor, executor.Self);
-        var token = ExecutorApi.RegisterHook(executor, "TerriasEmberHook", "TerriasEmberToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(executor, "Buff.Ember");
+        if (scope == null)
         {
             return;
         }
 
         void Sync()
         {
-            if (ExecutorApi.IsHookTokenActive(executor, "TerriasEmberToken", token))
+            if (scope.IsActive)
             {
                 BuffApi.SyncEmberDamageBonus(executor, executor.Self);
             }
         }
 
-        ExecutorApi.TryAddTokenedEvent(executor, "Terrias_terrias_emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
-        ExecutorApi.TryAddTokenedEvent(executor, TerriasContentIdCompatibility.LegacyMainPrefix + "emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
-        ExecutorApi.TryAddTokenedEvent(executor, "emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
-        ExecutorApi.TryAddTokenedEvent(executor, "StartRound", "TerriasEmberToken", token, new Action(() =>
+        scope.AddRequired("Terrias_terrias_emberOnLevelChange", new Action(Sync), "ember");
+        scope.AddRequired(TerriasContentIdCompatibility.LegacyMainPrefix + "emberOnLevelChange", new Action(Sync), "ember");
+        scope.AddRequired("emberOnLevelChange", new Action(Sync), "ember");
+        scope.AddRequired("StartRound", new Action(() =>
         {
             var consumed = BuffApi.ConsumeEmberBeforeBurn(executor, executor.Self);
             WunaPassiveService.ResolveEmberConsumed(
@@ -423,6 +427,7 @@ public static class BuffScripts
                 consumed,
                 "BuffScripts.Ember.StartRound");
         }), "ember");
+        scope.Commit();
     }
 
     private static void ApplyEmberCloak(ScriptExecutor self)
@@ -432,13 +437,13 @@ public static class BuffScripts
         self.RemoveBuff(TerriasIds.BodyBurn);
         ExecutorApi.SetVar(self, "TerriasBurnWardPending", "1");
 
-        var token = ExecutorApi.RegisterHook(self, "TerriasBurnWardHook", "TerriasBurnWardToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.EmberCloak");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasBurnWardToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             var activeWard = ExecutorApi.SelfBuffLevel(self, TerriasIds.EmberCloak) > 0;
             var pending = ExecutorApi.GetVar(self, "TerriasBurnWardPending", "0") == "1";
@@ -454,6 +459,7 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "TerriasBurnWardPending", "1");
             ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() => ExecutorApi.SetVar(self, "TerriasBurnWardPending", "0")), "ember_cloak");
         }), "ember_cloak");
+        scope.Commit();
     }
 
     private static void ApplySolarCrown(ScriptExecutor self)
@@ -545,8 +551,8 @@ public static class BuffScripts
 
     private static void ApplyOriginCoreRadiance(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasMiniCoronaHook", "TerriasMiniCoronaToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.OriginCoreRadiance");
+        if (scope == null)
         {
             return;
         }
@@ -557,11 +563,15 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "TerriasMiniCoronaLast", ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance));
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasMiniCoronaToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             Reset();
         }), "origin_core_radiance");
-        ExecutorApi.TryAddTokenedEvent(self, "Action", "TerriasMiniCoronaToken", token, new Action(() =>
+        TerriasActionPassiveRegistry.Register(
+            self,
+            "Buff.OriginCoreRadiance",
+            AuraShared.Core.AuraCardActionPhase.NativeStarted,
+            _ =>
         {
             if (ExecutorApi.SelfBuffLevel(self, TerriasIds.OriginCoreRadiance) <= 0)
             {
@@ -579,14 +589,18 @@ public static class BuffScripts
             }
 
             ExecutorApi.SetVar(self, "TerriasMiniCoronaLast", current);
-        }), "origin_core_radiance");
+        });
         Reset();
+        if (!scope.Commit())
+        {
+            TerriasActionPassiveRegistry.Unregister(self, "Buff.OriginCoreRadiance");
+        }
     }
 
     private static void ApplyCycleGatheredFlame(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasMeltingWheelHook", "TerriasMeltingWheelToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.CycleGatheredFlame");
+        if (scope == null)
         {
             return;
         }
@@ -596,7 +610,7 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "TerriasMeltingWheelLastBurn", ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn));
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "buff_burnOnLevelChange", "TerriasMeltingWheelToken", token, new Action(() =>
+        scope.AddRequired("buff_burnOnLevelChange", new Action(() =>
         {
             if (ExecutorApi.SelfBuffLevel(self, TerriasIds.CycleGatheredFlame) <= 0)
             {
@@ -617,17 +631,18 @@ public static class BuffScripts
             ExecutorApi.SetVar(self, "TerriasMeltingWheelLastBurn", current);
         }), "cycle_gathered_flame");
         SyncLast();
+        scope.Commit();
     }
 
     private static void ApplyAfterglowOmen(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasAfterglowHook", "TerriasAfterglowToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.AfterglowOmen");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasAfterglowToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             if (ExecutorApi.SelfBuffLevel(self, TerriasIds.AfterglowOmen) <= 0)
             {
@@ -643,6 +658,7 @@ public static class BuffScripts
                 }
             }
         }), "afterglow_omen");
+        scope.Commit();
     }
 
 }

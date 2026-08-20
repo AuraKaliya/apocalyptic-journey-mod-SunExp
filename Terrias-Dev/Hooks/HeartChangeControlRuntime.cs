@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using Witch.Core;
@@ -8,8 +9,14 @@ namespace Terrias.Dll.Hooks;
 
 public static class HeartChangeControlRuntime
 {
+    private static readonly List<IDisposable> ActiveRegistrations = new();
+    private static ModConfig? activeConfig;
+
     public static void Initialize(ModConfig modConfig)
     {
+        activeConfig = modConfig;
+        HeartChangeControlService.ActiveStateChanged -= ReconcileActiveState;
+        HeartChangeControlService.ActiveStateChanged += ReconcileActiveState;
         TerriasBattleLifecycleRouter.Register("HeartChange", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => ClearBattle("Fight_Start.Init"),
@@ -19,21 +26,52 @@ public static class HeartChangeControlRuntime
         RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
         RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
         RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterAfter(modConfig, "ScriptExecutor.SetStatus", RetargetAfterSetStatus);
-        RegisterBefore(modConfig, "ScriptExecutor.RunScript", RetargetBeforeRunScript);
-        RegisterAfter(modConfig, TerriasHookTargets.OtherObjSetAction, RewritePreparedIntent);
-        TerriasCombatActionRouter.Register("HeartChange", new TerriasCombatActionSubscription
+        TerriasLog.Info("Heart change control runtime initialized");
+    }
+
+    private static void ReconcileActiveState(bool active)
+    {
+        ReleaseActiveRegistrations();
+        if (!active || activeConfig == null)
+        {
+            return;
+        }
+
+        ActiveRegistrations.Add(TerriasHookRegistry.AfterRouted(
+            activeConfig,
+            "ScriptExecutor.SetStatus",
+            RetargetAfterSetStatus,
+            "HeartChange"));
+        ActiveRegistrations.Add(TerriasHookRegistry.BeforeRouted(
+            activeConfig,
+            "ScriptExecutor.RunScript",
+            RetargetBeforeRunScript,
+            "HeartChange"));
+        ActiveRegistrations.Add(TerriasHookRegistry.AfterRouted(
+            activeConfig,
+            TerriasHookTargets.OtherObjSetAction,
+            RewritePreparedIntent,
+            "HeartChange"));
+        ActiveRegistrations.Add(TerriasCombatActionRouter.Register("HeartChange", new TerriasCombatActionSubscription
         {
             BeforeOtherObjAction = BeginEnemyAction,
             AfterOtherObjAction = EndEnemyAction
-        });
-        TerriasStatusLifecycleRouter.Register("HeartChange", new TerriasStatusLifecycleSubscription
+        }));
+        ActiveRegistrations.Add(TerriasStatusLifecycleRouter.Register("HeartChange", new TerriasStatusLifecycleSubscription
         {
             AfterHit = CleanupAfterStatusChanged,
             AfterCurHpChanged = CleanupAfterStatusChanged,
             AfterMaxHpChanged = CleanupAfterStatusChanged
-        });
-        TerriasLog.Info("Heart change control runtime initialized");
+        }));
+    }
+
+    private static void ReleaseActiveRegistrations()
+    {
+        for (var i = ActiveRegistrations.Count - 1; i >= 0; i--)
+        {
+            ActiveRegistrations[i].Dispose();
+        }
+        ActiveRegistrations.Clear();
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
@@ -51,6 +89,7 @@ public static class HeartChangeControlRuntime
         try
         {
             HeartChangeControlService.ClearBattle(source);
+            ReleaseActiveRegistrations();
         }
         catch (Exception ex)
         {

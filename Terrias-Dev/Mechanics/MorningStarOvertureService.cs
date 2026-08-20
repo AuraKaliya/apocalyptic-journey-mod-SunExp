@@ -12,14 +12,12 @@ public static class MorningStarOvertureService
 {
     private const string PendingMeasureKey = "TerriasMorningStarPendingMeasure";
     private static readonly Dictionary<int, int> PlayedCostCounts = new();
-    private static readonly Stack<PendingCard> PendingActions = new();
     private static List<string>? compositionPool;
     private static long compositionPoolEpoch = -1;
 
     public static void ResetForFight()
     {
         PlayedCostCounts.Clear();
-        PendingActions.Clear();
         compositionPool = null;
         compositionPoolEpoch = -1;
     }
@@ -29,32 +27,21 @@ public static class MorningStarOvertureService
         PlayedCostCounts.Clear();
     }
 
-    public static void OnAction(IDataConfig? config)
+    public static void OnActionCommitted(IDataConfig? config, ScriptExecutor? executor, int cost)
     {
         if (config == null)
         {
             return;
         }
 
-        PendingActions.Push(new PendingCard(config, CardConfigApi.CurrentCost(config)));
-    }
-
-    public static void OnActionAfter(ScriptExecutor? executor)
-    {
-        if (PendingActions.Count == 0)
-        {
-            return;
-        }
-
-        var pending = PendingActions.Pop();
-        if (pending.Config != null && StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(pending.Config)))
+        if (StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config)))
         {
             TriggerStarStage(executor);
         }
 
-        var cost = Math.Max(0, pending.Cost);
-        PlayedCostCounts.TryGetValue(cost, out var count);
-        PlayedCostCounts[cost] = count + 1;
+        var normalizedCost = Math.Max(0, cost);
+        PlayedCostCounts.TryGetValue(normalizedCost, out var count);
+        PlayedCostCounts[normalizedCost] = count + 1;
     }
 
     public static bool HasEncore(int currentCost)
@@ -105,7 +92,7 @@ public static class MorningStarOvertureService
 
     public static void ClearStarStage(ScriptExecutor? self)
     {
-        ExecutorApi.ClearHook(self, "TerriasStarStageHook", "TerriasStarStageToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.StarStage");
     }
 
     public static void Compose(ScriptExecutor self)
@@ -182,22 +169,26 @@ public static class MorningStarOvertureService
 
     private static void EnsureRoundHooks(ScriptExecutor? self)
     {
-        if (self == null || ExecutorApi.GetVar(self, "TerriasMorningStarRoundHook", "0") == "1")
+        if (self == null)
         {
             return;
         }
 
-        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasMorningStarRoundToken", "0")) + 1).ToString();
-        ExecutorApi.SetVar(self, "TerriasMorningStarRoundHook", "1");
-        ExecutorApi.SetVar(self, "TerriasMorningStarRoundToken", token);
-        ExecutorApi.TryAddTokenedEvent(self, "FightStart", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasMorningStarRoundToken", token, new Action(() =>
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.StarStage");
+        if (scope == null)
+        {
+            return;
+        }
+
+        scope.AddRequired("FightStart", new Action(ResetForFight), "morning_star");
+        scope.AddRequired("StartRound", new Action(() =>
         {
             ResolveScheduledPreludes(self);
             ResetForTurn();
         }), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "Win", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "Escape", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
+        scope.AddRequired("Win", new Action(ResetForFight), "morning_star");
+        scope.AddRequired("Escape", new Action(ResetForFight), "morning_star");
+        scope.Commit();
     }
 
     private static IReadOnlyList<string> CompositionPool()
@@ -332,16 +323,4 @@ public static class MorningStarOvertureService
         };
     }
 
-    private readonly struct PendingCard
-    {
-        public PendingCard(IDataConfig? config, int cost)
-        {
-            Config = config;
-            Cost = cost;
-        }
-
-        public IDataConfig? Config { get; }
-
-        public int Cost { get; }
-    }
 }

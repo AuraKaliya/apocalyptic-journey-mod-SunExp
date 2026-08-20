@@ -503,6 +503,41 @@ function Test-RuntimeIdCollisions {
     }
 }
 
+function Test-BuffPresentationDependencyCoverage {
+    param(
+        [object[]]$BuffRows,
+        [string]$RepoRoot
+    )
+
+    $catalogPath = Join-Path $RepoRoot "Terrias-Dev\Mechanics\TerriasBuffPresentationDependencyCatalog.cs"
+    if (-not (Test-Path -LiteralPath $catalogPath)) {
+        Add-Failure "Terrias Buff presentation dependency catalog is missing."
+        return
+    }
+
+    $catalogText = Get-Content -LiteralPath $catalogPath -Raw
+    $match = [regex]::Match($catalogText, 'TerriasOwnedBuffIds\s*=\s*\{(?<body>[\s\S]*?)\};')
+    if (-not $match.Success) {
+        Add-Failure "Terrias Buff presentation dependency catalog does not expose TerriasOwnedBuffIds."
+        return
+    }
+
+    $declared = @([regex]::Matches($match.Groups['body'].Value, '"([^"]+)"') |
+        ForEach-Object { (Normalize-Id $_.Groups[1].Value) } |
+        Sort-Object -Unique)
+    $shipped = @($BuffRows | ForEach-Object { Normalize-Id $_.Id } | Sort-Object -Unique)
+    foreach ($id in $shipped) {
+        if ($declared -notcontains $id) {
+            Add-Failure "Buff '$id' has no explicit presentation dependency rule. Declare NoImpact when it does not affect battle presentation."
+        }
+    }
+    foreach ($id in $declared) {
+        if ($shipped -notcontains $id) {
+            Add-Failure "Buff presentation dependency '$id' has no shipped Terrias/Data/Buff row."
+        }
+    }
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "Terrias"
@@ -534,6 +569,8 @@ $blessings = Add-RowsFromFiles $blessingFiles
 $enchTags = Add-RowsFromFiles $enchTagFiles
 $packs = Add-RowsFromFiles $packFiles
 $enemies = Add-RowsFromFiles $enemyFiles
+
+Test-BuffPresentationDependencyCoverage $buffs $repoRoot
 
 Test-KindDataTextPairs "Card" $cardFiles $modRootPath
 Test-KindDataTextPairs "Buff" $buffFiles $modRootPath

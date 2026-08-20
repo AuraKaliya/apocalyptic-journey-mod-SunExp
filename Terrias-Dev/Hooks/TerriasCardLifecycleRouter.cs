@@ -72,11 +72,11 @@ public static class TerriasCardLifecycleRouter
         }
     }
 
-    public static void Register(string id, TerriasCardLifecycleSubscription subscription)
+    public static IDisposable Register(string id, TerriasCardLifecycleSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
-            return;
+            return EmptyDisposable.Instance;
         }
 
         lock (SyncRoot)
@@ -90,6 +90,20 @@ public static class TerriasCardLifecycleRouter
         }
 
         TerriasPerformanceCounters.Record("CardLifecycle.HandlerRegistered");
+        return new RegistrationHandle(id.Trim());
+    }
+
+    private static void Unregister(string id)
+    {
+        lock (SyncRoot)
+        {
+            PendingSubscriptions.Remove(id);
+            if (SharedRegistrations.TryGetValue(id, out var registration))
+            {
+                SharedRegistrations.Remove(id);
+                registration.Dispose();
+            }
+        }
     }
 
     private static void RegisterWithSharedNoLock(string id, TerriasCardLifecycleSubscription subscription)
@@ -149,5 +163,33 @@ public static class TerriasCardLifecycleRouter
             AfterPlayerInfoAddCardById = subscription.AfterPlayerInfoAddCardById,
             AfterPlayerInfoRandomAddCard = subscription.AfterPlayerInfoRandomAddCard
         };
+    }
+
+    private sealed class RegistrationHandle : IDisposable
+    {
+        private string? id;
+
+        public RegistrationHandle(string id)
+        {
+            this.id = id;
+        }
+
+        public void Dispose()
+        {
+            var current = id;
+            if (current == null)
+            {
+                return;
+            }
+
+            id = null;
+            Unregister(current);
+        }
+    }
+
+    private sealed class EmptyDisposable : IDisposable
+    {
+        public static readonly EmptyDisposable Instance = new();
+        public void Dispose() { }
     }
 }

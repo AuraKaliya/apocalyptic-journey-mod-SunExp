@@ -31,30 +31,24 @@ public static class LoneerMiracleService
         StarStonePouchService.Drawn -= OnStarStonePouchDrawn;
         StarStonePouchService.Drawn += OnStarStonePouchDrawn;
 
-        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasLoneerCareerToken", "0")) + 1).ToString();
-        var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
+        using var scope = ScriptEventApi.BeginFightScope(self, "Career.Loneer");
+        if (scope == null)
         {
-            if (ExecutorApi.IsHookTokenActive(self, "TerriasLoneerCareerToken", token))
-            {
-                OnFightStart(self);
-            }
-        }), "loneer_career");
-        var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
-        {
-            if (ExecutorApi.IsHookTokenActive(self, "TerriasLoneerCareerToken", token))
-            {
-                TickMorningPrayerCooldown(self);
-            }
-        }), "loneer_career");
-
-        ExecutorApi.TryAddEvent(self, "Win", new Action(() => EndCombatCleanup(self)), "loneer_career");
-        ExecutorApi.TryAddEvent(self, "Escape", new Action(() => EndCombatCleanup(self)), "loneer_career");
-
-        if (fightStartRegistered && startRoundRegistered)
-        {
-            ExecutorApi.SetVar(self, "TerriasLoneerCareerHook", "1");
-            ExecutorApi.SetVar(self, "TerriasLoneerCareerToken", token);
+            return;
         }
+
+        scope.AddRequired("FightStart", new Action(() =>
+        {
+            OnFightStart(self);
+        }), "loneer_career");
+        scope.AddRequired("StartRound", new Action(() =>
+        {
+            TickMorningPrayerCooldown(self);
+        }), "loneer_career");
+
+        scope.AddRequired("Win", new Action(() => EndCombatCleanup(self)), "loneer_career");
+        scope.AddRequired("Escape", new Action(() => EndCombatCleanup(self)), "loneer_career");
+        scope.Commit();
     }
 
     public static bool IsActive()
@@ -158,7 +152,7 @@ public static class LoneerMiracleService
 
     public static void DetachCareerRuntime(ScriptExecutor? self)
     {
-        ExecutorApi.ClearHook(self, "TerriasLoneerCareerHook", "TerriasLoneerCareerToken");
+        ScriptEventApi.InvalidateFightScope(self, "Career.Loneer");
     }
 
     private static void OnStarStonePouchDrawn(ScriptExecutor self, StarStonePouchDrawResult result)

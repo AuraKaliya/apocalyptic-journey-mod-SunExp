@@ -58,6 +58,18 @@
             "\\bAuraDecision\\.Shared\\b",
             "\\bAuraDirector\\.Shared\\b"
           ]
+        },
+        {
+          "id": "shared-retired-combat-action-router",
+          "description": "Shared consumers must use the authoritative card action transaction router.",
+          "roots": [
+            "AuraSharedCore",
+            "AuraCardUseFxShared",
+            "AudioArbiterShared",
+            "AuraCgShared"
+          ],
+          "filePattern": "*.cs",
+          "deny": ["\\bAuraCombatActionRouter\\b", "\\bAuraCombatActionContext\\b"]
         }
       ]
     },
@@ -315,6 +327,30 @@
           "filePattern": "*.cs",
           "excludePathRegex": ["^Terrias-Dev/GameApi/", "/TerriasConfigIndex\\.cs$"],
           "deny": ["\\bGetTable\\s*\\("]
+        },
+        {
+          "id": "terrias-retired-battle-runtime-paths",
+          "description": "Terrias must not restore persistent Vars hook tokens, the old action router, or the permanent Projection poller.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "deny": [
+            "\\bTerriasActionEventRouter\\b",
+            "\\bTerriasActionEventContext\\b",
+            "\\bRegisterHook\\s*\\(",
+            "\\bClearHook\\s*\\(",
+            "\\bTryAddTokenedEvent",
+            "(?:TryAddEvent|AddRequired)(?:<[^>]+>)?\\s*\\(\\s*(?:self\\s*,\\s*)?\"Action(?:After)?\"",
+            "\\bProjectionNetworkRunner\\b",
+            "\\bTickNetworkSynchronization\\b"
+          ]
+        },
+        {
+          "id": "terrias-event-listener-entrypoint",
+          "description": "Terrias EventCenter listener ownership must route through ScriptEventApi and battle leases.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["^Terrias-Dev/GameApi/ScriptEventApi\\.cs$"],
+          "deny": ["EventCenter\\.Instance\\.AddEventListener"]
         }
       ]
     }

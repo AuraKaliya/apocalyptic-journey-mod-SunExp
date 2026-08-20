@@ -7,8 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class PolymorphBuffService
 {
-    private const string HookKey = "TerriasPolymorphTraitHook";
-    private const string TokenKey = "TerriasPolymorphTraitToken";
+    private const string RegistrationId = "Buff.PolymorphTrait";
 
     public static bool GrantForRole(ScriptExecutor self, PolymorphRoleSpec role)
     {
@@ -126,7 +125,7 @@ public static class PolymorphBuffService
         var owner = self?.Self;
         try
         {
-            ExecutorApi.ClearHook(self, HookKey, TokenKey);
+            ScriptEventApi.InvalidateFightScope(self, RegistrationId);
             var active = PolymorphStateStore.ActiveFor(owner);
             if (active != null)
             {
@@ -166,27 +165,22 @@ public static class PolymorphBuffService
 
     private static void RegisterLifecycle(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, HookKey, TokenKey);
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, RegistrationId);
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", TokenKey, token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, TokenKey, token))
-            {
-                PolymorphCooldownService.TickRound(self, "PolymorphBuffService.StartRound");
-            }
+            PolymorphCooldownService.TickRound(self, "PolymorphBuffService.StartRound");
         }), "polymorph_trait");
 
-        ExecutorApi.TryAddTokenedEvent(self, "EndRound", TokenKey, token, new Action(() =>
+        scope.AddRequired("EndRound", new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, TokenKey, token))
-            {
-                ObserveNativeDurationDecay(self);
-            }
+            ObserveNativeDurationDecay(self);
         }), "polymorph_trait");
+        scope.Commit();
     }
 
     private static void ObserveNativeDurationDecay(ScriptExecutor self)

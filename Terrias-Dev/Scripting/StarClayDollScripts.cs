@@ -17,14 +17,11 @@ public static class StarClayDollScripts
             }
 
             BuffApi.SetExactLevel(self.Self, TerriasIds.StarClayBody, 1);
-            var token = ExecutorApi.RegisterHook(self, "TerriasStarClayDollHook", "TerriasStarClayDollToken");
-            if (token == null)
-            {
-                return;
-            }
-
-            ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "TerriasStarClayDollToken", token,
-                new Action(() => StarScoreService.AddStarlight(self, 1)), "star_clay_doll");
+            TerriasActionPassiveRegistry.Register(
+                self,
+                "Buff.StarClayDollTrait",
+                AuraShared.Core.AuraCardActionPhase.Committed,
+                _ => StarScoreService.AddStarlight(self, 1));
         }
         catch (Exception ex)
         {
@@ -36,7 +33,7 @@ public static class StarClayDollScripts
     {
         try
         {
-            ExecutorApi.ClearHook(self, "TerriasStarClayDollHook", "TerriasStarClayDollToken");
+            TerriasActionPassiveRegistry.Unregister(self, "Buff.StarClayDollTrait");
         }
         catch (Exception ex)
         {

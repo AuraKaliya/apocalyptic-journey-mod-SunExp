@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -9,22 +10,41 @@ namespace Terrias.Dll.Hooks;
 
 public static class SpecialTagRuntime
 {
-    private static readonly Stack<PendingCard> Pending = new();
-    private static bool handlerRegistered;
+    private static readonly Dictionary<string, PendingCard> Pending = new(StringComparer.Ordinal);
 
-    public static void Initialize()
+    public static void Initialize(ModConfig modConfig)
     {
-        EnsureHandlerRegistered();
+        AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "SpecialTag.WhiteRadiance",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.NativeStarted
+                         | AuraCardActionPhase.Committed
+                         | AuraCardActionPhase.Aborted,
+                Handler = OnCardAction
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
+        AuraBattleLifecycleRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "SpecialTag",
+            new AuraBattleLifecycleSubscription
+            {
+                FightInitializing = _ => ResetForFight("FightInit.Init")
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasLog.Info("SpecialTag runtime initialized");
-        TerriasActionEventRouter.EnsureRegistered("SpecialTag.Initialize");
     }
 
-    [HookAfter(typeof(Fight_Start), nameof(Fight_Start.Init))]
-    public static void OnFightStart(Fight_Start __instance)
+    private static void ResetForFight(string source)
     {
         try
         {
-            RuntimeCardAttachmentService.ClearTemporaryAttachments("Fight_Start.Init");
+            RuntimeCardAttachmentService.ClearTemporaryAttachments(source);
         }
         catch (Exception ex)
         {
@@ -32,40 +52,26 @@ public static class SpecialTagRuntime
         }
 
         Pending.Clear();
-        EnsureHandlerRegistered();
-        TerriasActionEventRouter.ResetForFight("SpecialTag.Fight_Start.Init");
     }
 
-    [HookBefore(typeof(CommonCardItem), nameof(CommonCardItem.TrueUse))]
-    public static void BeforeCommonTrueUse(CommonCardItem __instance)
+    private static void OnCardAction(AuraCardActionContext context)
     {
-        TryRegisterForPlayer("CommonCardItem.TrueUse.ensure");
-    }
-
-    [HookBefore(typeof(AttackCardItem), nameof(AttackCardItem.TrueUse))]
-    public static void BeforeAttackTrueUse(AttackCardItem __instance)
-    {
-        TryRegisterForPlayer("AttackCardItem.TrueUse.ensure");
-    }
-
-    private static void TryRegisterForPlayer(string source)
-    {
-        EnsureHandlerRegistered();
-        TerriasActionEventRouter.EnsureRegistered("SpecialTag." + source);
-    }
-
-    private static void EnsureHandlerRegistered()
-    {
-        if (handlerRegistered)
+        if (context.Phase == AuraCardActionPhase.NativeStarted)
         {
+            Capture(context);
             return;
         }
 
-        TerriasActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance", OnAction, OnActionAfter);
-        handlerRegistered = true;
+        if (context.Phase == AuraCardActionPhase.Committed)
+        {
+            Resolve(context.TransactionId);
+            return;
+        }
+
+        Pending.Remove(context.TransactionId);
     }
 
-    private static void OnAction(TerriasActionEventContext context)
+    private static void Capture(AuraCardActionContext context)
     {
         try
         {
@@ -90,8 +96,8 @@ public static class SpecialTagRuntime
             }
 
             var kind = isTemporary ? "temporary" : isNative ? "native" : "special";
-            var cost = CardConfigApi.CurrentCost(config);
-            Pending.Push(new PendingCard(config, cost, kind));
+            var cost = context.StartCost;
+            Pending[context.TransactionId] = new PendingCard(config, cost, kind);
             TerriasLog.Debug("White radiance captured: kind=" + kind + ", id=" + CardConfigApi.Id(config) + ", cost=" + cost + ", instance=" + config.InstanceID);
         }
         catch (Exception ex)
@@ -100,16 +106,16 @@ public static class SpecialTagRuntime
         }
     }
 
-    private static void OnActionAfter()
+    private static void Resolve(string transactionId)
     {
         try
         {
-            if (Pending.Count == 0)
+            if (!Pending.TryGetValue(transactionId, out var pending))
             {
                 return;
             }
 
-            var pending = Pending.Pop();
+            Pending.Remove(transactionId);
             if (pending.Kind == "temporary" && !CardConfigApi.TryClaimTemporaryWhiteRadiance(pending.Config))
             {
                 TerriasLog.Debug("Temp white radiance skipped: already resolved, id=" + CardConfigApi.Id(pending.Config));

@@ -2,6 +2,7 @@ using System;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Scripting;
 using Witch.UI.Window;
 
 namespace Terrias.Dll.Mechanics;
@@ -16,14 +17,17 @@ public static class TerriasCardDescriptionProjector
             return false;
         }
 
-        if (!StarScoreNoteCodes.TryFromCardId(CardConfigApi.Id(config), out var note)
-            || note != StarScoreNote.Close)
+        executor.Self = FightPlayer.Instance?.Status;
+        var id = TerriasContentIdCompatibility.LocalId(CardConfigApi.Id(config)).TrimStart('*');
+        if (StarScoreNoteCodes.TryFromCardId(id, out var note) && note == StarScoreNote.Close)
         {
-            return false;
+            StarScoreService.RefreshCloseDescription(executor);
+        }
+        else
+        {
+            CardScripts.Init(executor, id);
         }
 
-        executor.Self = FightPlayer.Instance?.Status;
-        StarScoreService.RefreshCloseDescription(executor);
         return AuraCardPresentationDelta.TrySetDescription(card.transform, config.Description());
     }
 }

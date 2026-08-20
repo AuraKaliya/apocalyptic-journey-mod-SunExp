@@ -151,12 +151,12 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 | 类别 | 当前能力 | 约束 |
 | --- | --- | --- |
-| Hook/生命周期 | routed hook、Battle/Card/Combat router、session、step runner、operation ledger | 订阅必须可释放；单步失败不得中断无关步骤 |
+| Hook/生命周期 | routed hook、exactly-once Battle phase、Card router、类型化 CardAction transaction、battle lease、session/ledger | 订阅必须可释放；持久内容不能把 battle listener 标记写进 Vars；单步失败不得中断无关步骤 |
 | 主线程调度 | `AuraSharedFrameScheduler`、`AuraSharedFrameStepRunner` | Unity/Witch/Mirror/UI 工作只在主线程执行；遵守 phase、预算和分片 |
 | 后台工作 | `AuraSharedBackgroundWorkScheduler` | 仅纯 CPU、文件 I/O 和不可变快照；按 owner 限流，完成回主线程 |
 | 网络基础 | RPC sender/authority、authoritative sync、payload budget、secure envelope | 不携带 Terrias 内容语义；状态变化仍由领域权威验证 |
 | 性能基础 | resource cache、object pool、combat card-zone snapshot | 容量有界；不得缓存业务所有权策略 |
-| 通用工具 | identity、JSON、diagnostics、log store、feature switch | owner/domain identity 必须稳定且可诊断 |
+| 通用工具 | identity、JSON、diagnostics、log store、带有效状态变更通知的 feature switch | owner/domain identity 必须稳定且可诊断；变更回调在锁外执行 |
 
 后台调度不得修改进程级 CLR thread-pool 上限，也不得在 worker 线程访问 Unity 对象。
 `AuraAuthoritativeSyncRuntime` 只处理 session、token、快照请求节流和去重，不决定任何

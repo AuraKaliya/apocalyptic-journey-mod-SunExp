@@ -51,7 +51,7 @@ public static class Entry
         RunStep("performance runtime", () => TerriasFrameScheduler.Initialize(modConfig));
         TerriasLog.Info("Terrias C# entry loaded");
         RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
-        RunStep("special tags", SpecialTagRuntime.Initialize);
+        RunStep("special tags", () => SpecialTagRuntime.Initialize(modConfig));
     }
 
     private static void RunStep(string name, Action action)

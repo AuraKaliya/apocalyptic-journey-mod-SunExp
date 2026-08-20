@@ -20,21 +20,22 @@ public static class EndlessAbyssBlessingService
 
     public static void Apply(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "TerriasAbyssBlessingHook", "TerriasAbyssBlessingToken");
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "Buff.AbyssBlessing");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasAbyssBlessingToken", token, new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
             ResolveStartRound(self);
         }), "abyss_blessing");
+        scope.Commit();
     }
 
     public static void Clear(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "TerriasAbyssBlessingHook", "TerriasAbyssBlessingToken");
+        ScriptEventApi.InvalidateFightScope(self, "Buff.AbyssBlessing");
     }
 
     public static void ApplyOpeningStacks(Enemy enemy, string source)

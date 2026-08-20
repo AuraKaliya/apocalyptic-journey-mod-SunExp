@@ -21,6 +21,10 @@ internal static class Program
         TestTerriasLocalizationValues();
         TestCardCostHelpers();
         TestGoldDreamRules();
+        TestBuffPresentationDependencies();
+        TestLegacyBattleHookVarMigration();
+        TestActionPassiveRegistry();
+        TestScriptDelegateBinding();
         TestCardRefreshReentryGuard();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
@@ -68,6 +72,140 @@ internal static class Program
         TestWitchArchiveTextLoader();
 
         Console.WriteLine("Terrias C# tests passed: " + assertions + " assertions.");
+    }
+
+    private static void TestBuffPresentationDependencies()
+    {
+        Equal(55, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Count,
+            "Every shipped Terrias Buff has an explicit presentation dependency rule");
+        Equal(55, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Distinct(StringComparer.Ordinal).Count(),
+            "Terrias Buff presentation dependency ids are unique");
+        foreach (var buffId in TerriasBuffPresentationDependencyCatalog.OwnedBuffIds)
+        {
+            True(TerriasBuffPresentationDependencyCatalog.TryResolve(buffId, out _),
+                "Terrias Buff dependency is registered: " + buffId);
+        }
+
+        True(TerriasBuffPresentationDependencyCatalog.TryResolve("buff_burn", out var burn)
+             && (burn.Fields & TerriasPresentationDirtyFields.Description) != 0,
+            "Native Burn is explicitly managed for Terrias dynamic card descriptions");
+        True(TerriasBuffPresentationDependencyCatalog.TryResolve("solar_crown", out var crown)
+             && crown.ShouldInvalidate(0, 1)
+             && !crown.ShouldInvalidate(1, 2),
+            "Presence-only Buff dependencies avoid redundant refreshes within the same active threshold");
+        True(TerriasBuffPresentationDependencyCatalog.TryResolve("buff_extraordinary", out var extraordinary)
+             && extraordinary.Scope == TerriasBuffPresentationScope.LocalPlayer
+             && (extraordinary.Fields & TerriasPresentationDirtyFields.Description) != 0,
+            "frequently applied native damage Buffs use an explicit Terrias delta rule");
+        foreach (var externalId in new[]
+                 {
+                     "buff_burn", "buff_cripple", "buff_eclipsedmoon", "buff_elements", "buff_evergreen",
+                     "buff_extraordinary", "buff_impregnable", "buff_keenedge", "buff_poised", "buff_rebirth",
+                     "buff_resilient", "buff_rotten", "buff_Soul", "buff_toxin", "buff_vitality", "buff_VowPower",
+                     "buff_vulnerability", "buff_weak"
+                 })
+        {
+            True(TerriasBuffPresentationDependencyCatalog.TryResolve(externalId, out _),
+                "Every native Buff directly used by Terrias has an explicit compatibility impact: " + externalId);
+        }
+        False(TerriasBuffPresentationDependencyCatalog.TryResolve("unknown_external_buff", out _),
+            "Unknown external Buffs retain the conservative native full-refresh fallback");
+
+        Equal(
+            TerriasPresentationInvalidationDecision.SuppressNoChange,
+            TerriasPresentationInvalidationPolicy.Decide(false, true, true, 0, true, true),
+            "No-op CheckAllBuff refresh is suppressed for a fully managed Terrias hand");
+        Equal(
+            TerriasPresentationInvalidationDecision.ConvertToDelta,
+            TerriasPresentationInvalidationPolicy.Decide(false, true, true, 2, true, true),
+            "Known delta-safe Buff mutations convert the native full refresh to a delta plan");
+        Equal(
+            TerriasPresentationInvalidationDecision.PreserveNative,
+            TerriasPresentationInvalidationPolicy.Decide(false, true, false, 0, true, true),
+            "An unmanaged active card preserves the native full refresh");
+        Equal(
+            TerriasPresentationInvalidationDecision.PreserveNative,
+            TerriasPresentationInvalidationPolicy.Decide(false, true, true, 1, false, true),
+            "An unknown Buff preserves the native full refresh");
+        Equal(
+            TerriasPresentationInvalidationDecision.PreserveNative,
+            TerriasPresentationInvalidationPolicy.Decide(true, true, true, 0, true, true),
+            "A pre-existing native refresh request is never cleared");
+    }
+
+    private static void TestLegacyBattleHookVarMigration()
+    {
+        var vars = new Dictionary<string, string>
+        {
+            ["TerriasFlamewheelCostHook"] = "1",
+            ["TerriasMorningStarBlessingToken_dream_talker"] = "4",
+            ["TerriasWunaBurnListener_enemy_1_3"] = "1",
+            ["GameplayValue"] = "keep"
+        };
+        Equal(3, LegacyBattleHookVarMigration.RemoveFrom(vars),
+            "retired persistent hook Vars are removed deterministically");
+        Equal("keep", vars["GameplayValue"],
+            "battle-hook migration preserves unrelated runtime values");
+    }
+
+    private static void TestActionPassiveRegistry()
+    {
+        TerriasActionPassiveRegistry.Clear();
+        var executor = new ScriptExecutor { Self = new FakeStatus("passive-owner") };
+        var started = 0;
+        var committed = 0;
+        TerriasActionPassiveRegistry.Register(
+            executor,
+            "native",
+            AuraCardActionPhase.NativeStarted,
+            _ => started++);
+        TerriasActionPassiveRegistry.Register(
+            executor,
+            "committed",
+            AuraCardActionPhase.Committed,
+            _ => committed++);
+        TerriasActionPassiveRegistry.Dispatch(new AuraCardActionContext
+        {
+            OwnerStatusId = "passive-owner",
+            Phase = AuraCardActionPhase.NativeStarted
+        });
+        Equal(1, started, "native-started passives run on their declared shared transaction phase");
+        Equal(0, committed, "committed passives do not scan or execute during native-started dispatch");
+        TerriasActionPassiveRegistry.Dispatch(new AuraCardActionContext
+        {
+            OwnerStatusId = "passive-owner",
+            Phase = AuraCardActionPhase.Committed
+        });
+        Equal(1, committed, "committed passives run exactly once on commit");
+        TerriasActionPassiveRegistry.Unregister(executor, "committed");
+        TerriasActionPassiveRegistry.Dispatch(new AuraCardActionContext
+        {
+            OwnerStatusId = "passive-owner",
+            Phase = AuraCardActionPhase.Committed
+        });
+        Equal(1, committed, "disposed battle passives leave the hot phase snapshot");
+        TerriasActionPassiveRegistry.Clear();
+    }
+
+    private static void TestScriptDelegateBinding()
+    {
+        var executor = new ScriptExecutor();
+        var calls = 0;
+        string? observed = null;
+        void Handler(ScriptExecutor current, string id)
+        {
+            calls++;
+            observed = id;
+        }
+
+        ScriptDelegateApi.BindParameterized(executor, "InitScript", "dynamic-card", Handler);
+        executor.ScriptDict.TryGetValue("InitScript", out var value);
+        var direct = value as Action<ScriptExecutor>;
+        True(direct != null,
+            "card InitScript is rebound to a cached direct C# delegate after its first bridge call");
+        direct!(executor);
+        Equal(1, calls, "direct card InitScript delegate executes without re-entering the Lua bridge");
+        Equal("dynamic-card", observed, "direct card InitScript delegate preserves the normalized card id");
     }
 
     private static void TestWitchArchiveSelectionPolicy()
@@ -641,6 +779,15 @@ internal static class Program
             "the host can terminally close a RoleTable wait after bounded same-token retries");
         True(roleDeckTimedOut.RefundCard,
             "a host-confirmed RoleTable timeout returns the consumed role card");
+
+        var pending = new ProjectionSummonTransaction("token", "role", "owner", "hash", 10d);
+        False(pending.ShouldExpire(39.9d, 12, 30d),
+            "a Projection summon transaction remains active inside its bounded lifetime");
+        True(pending.ShouldExpire(40d, 12, 30d),
+            "a Projection summon transaction expires without a permanent frame poller");
+        pending.SetTerminal();
+        False(pending.ShouldExpire(100d, 12, 30d),
+            "a terminal Projection transaction ignores stale scheduled retry wakes");
 
         var incompatible = ProjectionSummonFailureCatalog.Describe(
             ProjectionSummonFailureCode.ProtocolMismatch);

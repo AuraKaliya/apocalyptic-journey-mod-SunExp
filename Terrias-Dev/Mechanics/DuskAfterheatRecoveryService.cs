@@ -8,11 +8,10 @@ namespace Terrias.Dll.Mechanics;
 
 public static class DuskAfterheatRecoveryService
 {
-    private const string TokenKey = "TerriasDuskAfterheatToken";
     private static readonly HashSet<IBuffItem> ObservedBurnBuffs = new(BuffReferenceComparer.Instance);
     private static ScriptExecutor? activeOwner;
     private static IBuffItem? activeTraitBuff;
-    private static string activeToken = "";
+    private static ScriptEventScope? activeScope;
     private static bool initialized;
     private static bool familiarAshAvailable;
 
@@ -30,14 +29,15 @@ public static class DuskAfterheatRecoveryService
 
     public static bool ActivateFamiliar(ScriptExecutor owner, string source)
     {
-        var token = ExecutorApi.RegisterHook(owner, "TerriasFamiliarDuskHook", TokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        var scope = ScriptEventApi.BeginFightScope(owner, "Familiar.DuskAfterheat");
+        if (scope == null)
         {
             return false;
         }
 
         activeTraitBuff = null;
-        Activate(owner, token!);
+        Activate(owner, scope);
+        scope.Commit();
         familiarAshAvailable = true;
         TerriasLog.Debug("Dusk familiar effects bound from " + source + ".");
         return true;
@@ -59,8 +59,7 @@ public static class DuskAfterheatRecoveryService
 
         if (ReferenceEquals(activeOwner, executor)
             && ReferenceEquals(activeTraitBuff, trait)
-            && !string.IsNullOrWhiteSpace(activeToken)
-            && ExecutorApi.IsHookTokenActive(executor, TokenKey, activeToken))
+            && activeScope?.IsActive == true)
         {
             foreach (var target in ExecutorApi.EnemyTargets(executor))
             {
@@ -74,32 +73,34 @@ public static class DuskAfterheatRecoveryService
 
     public static bool ActivateTrait(ScriptExecutor owner, IBuffItem? trait = null, string source = "TraitApply")
     {
-        var token = ExecutorApi.RegisterHook(owner, "TerriasDuskAfterheatHook", TokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        var scope = ScriptEventApi.BeginFightScope(owner, "Buff.DuskAfterheatTrait");
+        if (scope == null)
         {
             return false;
         }
 
         activeTraitBuff = trait ?? owner.Self?.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait);
-        Activate(owner, token!);
+        Activate(owner, scope);
+        scope.Commit();
         TerriasLog.Debug("Dusk afterheat recovery bound from " + source + ".");
         return true;
     }
 
-    public static void Activate(ScriptExecutor owner, string token)
+    public static void Activate(ScriptExecutor owner, ScriptEventScope scope)
     {
-        if (owner == null || string.IsNullOrWhiteSpace(token))
+        if (owner == null || scope == null)
         {
             return;
         }
 
-        if (!ReferenceEquals(activeOwner, owner) || !string.Equals(activeToken, token, StringComparison.Ordinal))
+        if (!ReferenceEquals(activeOwner, owner) || !ReferenceEquals(activeScope, scope))
         {
+            activeScope?.Invalidate();
             ObservedBurnBuffs.Clear();
         }
 
         activeOwner = owner;
-        activeToken = token;
+        activeScope = scope;
         foreach (var target in ExecutorApi.EnemyTargets(owner))
         {
             AttachBurnObserver(target, "TraitActivated");
@@ -113,9 +114,10 @@ public static class DuskAfterheatRecoveryService
             return;
         }
 
+        activeScope?.Invalidate();
         activeOwner = null;
         activeTraitBuff = null;
-        activeToken = "";
+        activeScope = null;
         ObservedBurnBuffs.Clear();
         familiarAshAvailable = false;
         TerriasLog.Debug("Dusk afterheat recovery deactivated from " + source + ".");
@@ -139,9 +141,9 @@ public static class DuskAfterheatRecoveryService
     private static bool AttachBurnObserver(IStatusManager? target, string source)
     {
         var owner = activeOwner;
-        var token = activeToken;
+        var scope = activeScope;
         if (owner == null
-            || string.IsNullOrWhiteSpace(token)
+            || scope?.IsActive != true
             || target == null
             || target.fatherObject is not Enemy
             || HeartChangeControlService.IsControlled(target))
@@ -164,7 +166,7 @@ public static class DuskAfterheatRecoveryService
 
         var attached = ScriptEventApi.TryAddOwnedEventListener(
             "StartRound" + targetId,
-            new Action(() => NotifyNativeBurnIfBindingActive(owner, target, token)),
+            new Action(() => NotifyNativeBurnIfBindingActive(owner, target, scope)),
             burnExecutor,
             EventDispose.OnFightEnd,
             "dusk_afterheat:" + source);
@@ -181,11 +183,11 @@ public static class DuskAfterheatRecoveryService
     private static void NotifyNativeBurnIfBindingActive(
         ScriptExecutor owner,
         IStatusManager target,
-        string token)
+        ScriptEventScope scope)
     {
         if (!ReferenceEquals(activeOwner, owner)
-            || !string.Equals(activeToken, token, StringComparison.Ordinal)
-            || !ExecutorApi.IsHookTokenActive(owner, TokenKey, token))
+            || !ReferenceEquals(activeScope, scope)
+            || !scope.IsActive)
         {
             return;
         }
@@ -199,7 +201,7 @@ public static class DuskAfterheatRecoveryService
     private static void OnBurnActuallyTriggered(BurnTriggerSnapshot snapshot)
     {
         var owner = activeOwner;
-        var token = activeToken;
+        var scope = activeScope;
         var target = snapshot.Target;
         if (owner == null)
         {
@@ -207,8 +209,7 @@ public static class DuskAfterheatRecoveryService
         }
 
         if (!ReferenceEquals(activeOwner, owner)
-            || !string.Equals(activeToken, token, StringComparison.Ordinal)
-            || !ExecutorApi.IsHookTokenActive(owner, TokenKey, token))
+            || scope?.IsActive != true)
         {
             return;
         }

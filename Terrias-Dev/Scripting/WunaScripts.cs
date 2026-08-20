@@ -24,64 +24,45 @@ public static class WunaScripts
             ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", "0");
             AttachOrbitFire(self, "InitCareer");
 
-            var token = ExecutorApi.RegisterHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
-            if (token == null)
+            using var scope = ScriptEventApi.BeginFightScope(self, "Career.Wuna");
+            if (scope == null)
             {
                 return;
             }
 
             self.SetStatus("Self");
-            var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
+            scope.AddRequired("FightStart", new Action(() =>
             {
-                if (!ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
-                {
-                    return;
-                }
-
                 ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "0");
                 ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", EnemyBurnTotal(self));
                 WunaRoundRadianceState.ResetFight(self.Self);
                 AttachOrbitFire(self, "FightStart");
-                RegisterEnemyBurnListeners(self, token);
+                RegisterEnemyBurnListeners(self, scope);
             }), "wuna_career");
-            var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+            scope.AddRequired("StartRound", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
-                {
-                    StartRound(self);
-                    RegisterEnemyBurnListeners(self, token);
-                }
+                StartRound(self);
+                RegisterEnemyBurnListeners(self, scope);
             }), "wuna_career");
-            var actionRegistered = ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
+            scope.AddRequired("Win", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
-                {
-                    RegisterEnemyBurnListeners(self, token);
-                }
+                SaveAndClearCareerHook(self);
+            }), "wuna_career");
+            scope.AddRequired("Escape", new Action(() =>
+            {
+                SaveAndClearCareerHook(self);
             }), "wuna_career");
 
-            ExecutorApi.TryAddEvent(self, "Win", new Action(() =>
+            if (scope.Commit())
             {
-                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
-                {
-                    SaveAndClearCareerHook(self);
-                }
-            }), "wuna_career");
-            ExecutorApi.TryAddEvent(self, "Escape", new Action(() =>
-            {
-                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
-                {
-                    SaveAndClearCareerHook(self);
-                }
-            }), "wuna_career");
-
-            if (fightStartRegistered && startRoundRegistered && actionRegistered)
-            {
-                RegisterEnemyBurnListeners(self, token);
+                TerriasActionPassiveRegistry.Register(
+                    self,
+                    "Career.Wuna.EnemyBurnObservers",
+                    AuraShared.Core.AuraCardActionPhase.NativeStarted,
+                    _ => RegisterEnemyBurnListeners(self, scope));
+                RegisterEnemyBurnListeners(self, scope);
                 return;
             }
-
-            ExecutorApi.ClearHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
         }
         catch (Exception ex)
         {
@@ -106,6 +87,10 @@ public static class WunaScripts
         catch (Exception ex)
         {
             TerriasLog.Error("Wuna Init failed: " + id, ex);
+        }
+        finally
+        {
+            ScriptDelegateApi.BindParameterized(self, "InitScript", id, Init);
         }
     }
 
@@ -245,7 +230,8 @@ public static class WunaScripts
     private static void SaveAndClearCareerHook(ScriptExecutor self)
     {
         SavePersistentEmber(self);
-        ExecutorApi.ClearHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
+        TerriasActionPassiveRegistry.Unregister(self, "Career.Wuna.EnemyBurnObservers");
+        ScriptEventApi.InvalidateFightScope(self, "Career.Wuna");
     }
 
     private static void TickSkillTimes()
@@ -281,9 +267,9 @@ public static class WunaScripts
         return EnemyBurnTotal(self) + ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
     }
 
-    private static int RegisterEnemyBurnListeners(ScriptExecutor self, string token)
+    private static int RegisterEnemyBurnListeners(ScriptExecutor self, ScriptEventScope scope)
     {
-        if (self == null || !ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
+        if (self == null || !scope.IsActive)
         {
             return 0;
         }
@@ -299,18 +285,20 @@ public static class WunaScripts
                     continue;
                 }
 
-                var listenerKey = "TerriasWunaBurnListener_" + targetId + "_" + token;
-                if (ExecutorApi.GetVar(self, listenerKey, "0") == "1")
+                var listenerKey = "EnemyBurn:" + targetId;
+                if (!scope.TryMark(listenerKey))
                 {
                     continue;
                 }
-
-                ExecutorApi.SetVar(self, listenerKey, "1");
-                EventCenter.Instance.AddEventListener(
+                if (!ScriptEventApi.TryAddOwnedEventListener(
                     TerriasIds.Burn + "OnLevelChange" + targetId,
-                    new Action(() => OnEnemyBurnChanged(self, token)),
+                    new Action(() => OnEnemyBurnChanged(self, scope)),
                     self,
-                    EventDispose.OnFightEnd);
+                    EventDispose.OnFightEnd,
+                    "wuna.enemy-burn:" + targetId))
+                {
+                    continue;
+                }
                 registered++;
             }
 
@@ -328,22 +316,22 @@ public static class WunaScripts
         }
     }
 
-    private static void OnEnemyBurnChanged(ScriptExecutor self, string token)
+    private static void OnEnemyBurnChanged(ScriptExecutor self, ScriptEventScope scope)
     {
-        if (self?.Self == null || !ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
+        if (self?.Self == null || !scope.IsActive)
         {
             return;
         }
 
         var ownerId = self.Self.InstanceId;
         var enqueued = TerriasFrameDispatcher.RunOnceNextFrame(
-            "WunaRadiance.BurnChanged." + ownerId + "." + token,
+            "WunaRadiance.BurnChanged." + ownerId + "." + scope.SessionId + "." + scope.Generation,
             () =>
             {
                 var start = TerriasPerformanceCounters.Timestamp();
                 try
                 {
-                    if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
+                    if (scope.IsActive)
                     {
                         TryGainRadianceFromEnemyBurn(self);
                     }

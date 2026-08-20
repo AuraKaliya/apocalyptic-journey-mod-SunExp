@@ -39,8 +39,11 @@ fail independently.
 ## Event Registration
 
 In script behavior, use `ScriptEventApi` or `ExecutorApi` wrappers for event
-registration. Prefer tokened registration when repeated apply/init paths can
-otherwise duplicate listeners.
+registration. A single `TryAddEvent` receives an automatic battle lease;
+multi-listener effects must use transactional `ScriptEventApi.BeginFightScope`.
+Both paths keep registration state out of persistent `Vars` and allow the same
+card, Buff, relic, blessing, or career executor to re-register in the next
+battle session.
 
 When a listener targets player, enemy, or field state, resolve the intended
 status explicitly. Do not borrow unrelated active `ScriptExecutor` state for a

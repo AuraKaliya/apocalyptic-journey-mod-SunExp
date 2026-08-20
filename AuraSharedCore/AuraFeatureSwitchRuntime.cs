@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace AuraShared.Core;
 
@@ -9,6 +10,9 @@ public static class AuraFeatureSwitchRuntime
     private static readonly Dictionary<string, RegisteredFeature> Registered = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, bool> LocalOverrides = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, bool> EffectiveOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private static long revision;
+
+    public static event Action<AuraFeatureSwitchChange>? EffectiveStateChanged;
 
     public static void RegisterFeature(string ownerModId, string featureId, bool defaultEnabled, string source = "")
     {
@@ -18,10 +22,19 @@ public static class AuraFeatureSwitchRuntime
             return;
         }
 
+        AuraFeatureSwitchChange? change = null;
         lock (Gate)
         {
+            var before = IsEnabledNoLock(ownerModId, featureId, "");
             Registered[key] = new RegisteredFeature(Normalize(ownerModId), Normalize(featureId), defaultEnabled, Normalize(source));
+            var after = IsEnabledNoLock(ownerModId, featureId, "");
+            if (before != after)
+            {
+                change = CreateChange(ownerModId, featureId, before, after, source);
+            }
         }
+
+        Publish(change);
     }
 
     public static void SetLocalOverride(string toolOwnerId, string ownerModId, string featureId, bool? enabled)
@@ -32,8 +45,10 @@ public static class AuraFeatureSwitchRuntime
             return;
         }
 
+        AuraFeatureSwitchChange? change = null;
         lock (Gate)
         {
+            var before = IsEnabledNoLock(ownerModId, featureId, "");
             if (enabled.HasValue)
             {
                 LocalOverrides[key] = enabled.Value;
@@ -44,7 +59,15 @@ public static class AuraFeatureSwitchRuntime
                 LocalOverrides.Remove(key);
                 EffectiveOverrides.Remove(FeatureKey(ownerModId, featureId));
             }
+
+            var after = IsEnabledNoLock(ownerModId, featureId, "");
+            if (before != after)
+            {
+                change = CreateChange(ownerModId, featureId, before, after, toolOwnerId);
+            }
         }
+
+        Publish(change);
     }
 
     public static bool IsEnabled(string ownerModId, string featureId, string toolOwnerId = "")
@@ -57,18 +80,71 @@ public static class AuraFeatureSwitchRuntime
 
         lock (Gate)
         {
-            if (!string.IsNullOrWhiteSpace(toolOwnerId)
-                && LocalOverrides.TryGetValue(OverrideKey(toolOwnerId, ownerModId, featureId), out var overrideValue))
-            {
-                return overrideValue;
-            }
+            return IsEnabledNoLock(ownerModId, featureId, toolOwnerId);
+        }
+    }
 
-            if (EffectiveOverrides.TryGetValue(featureKey, out var effectiveOverride))
-            {
-                return effectiveOverride;
-            }
+    private static bool IsEnabledNoLock(string ownerModId, string featureId, string toolOwnerId)
+    {
+        var featureKey = FeatureKey(ownerModId, featureId);
+        if (featureKey.Length == 0)
+        {
+            return false;
+        }
 
-            return !Registered.TryGetValue(featureKey, out var feature) || feature.DefaultEnabled;
+        if (!string.IsNullOrWhiteSpace(toolOwnerId)
+            && LocalOverrides.TryGetValue(OverrideKey(toolOwnerId, ownerModId, featureId), out var overrideValue))
+        {
+            return overrideValue;
+        }
+
+        if (EffectiveOverrides.TryGetValue(featureKey, out var effectiveOverride))
+        {
+            return effectiveOverride;
+        }
+
+        return !Registered.TryGetValue(featureKey, out var feature) || feature.DefaultEnabled;
+    }
+
+    private static AuraFeatureSwitchChange CreateChange(
+        string ownerModId,
+        string featureId,
+        bool previous,
+        bool current,
+        string source)
+    {
+        return new AuraFeatureSwitchChange(
+            Normalize(ownerModId),
+            Normalize(featureId),
+            previous,
+            current,
+            Normalize(source),
+            ++revision);
+    }
+
+    private static void Publish(AuraFeatureSwitchChange? change)
+    {
+        if (change == null)
+        {
+            return;
+        }
+
+        var handlers = EffectiveStateChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        foreach (Action<AuraFeatureSwitchChange> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(change);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("[AuraFeatureSwitch] subscriber failed: " + ex.Message);
+            }
         }
     }
 
@@ -127,6 +203,32 @@ public static class AuraFeatureSwitchRuntime
 
         public string Source { get; }
     }
+}
+
+public sealed class AuraFeatureSwitchChange
+{
+    public AuraFeatureSwitchChange(
+        string ownerModId,
+        string featureId,
+        bool previousEnabled,
+        bool enabled,
+        string source,
+        long revision)
+    {
+        OwnerModId = ownerModId;
+        FeatureId = featureId;
+        PreviousEnabled = previousEnabled;
+        Enabled = enabled;
+        Source = source;
+        Revision = revision;
+    }
+
+    public string OwnerModId { get; }
+    public string FeatureId { get; }
+    public bool PreviousEnabled { get; }
+    public bool Enabled { get; }
+    public string Source { get; }
+    public long Revision { get; }
 }
 
 public sealed class AuraFeatureSwitchSnapshot

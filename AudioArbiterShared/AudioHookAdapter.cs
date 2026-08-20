@@ -16,7 +16,7 @@ internal sealed class AudioHookCallbacks
 
     public Action<ModHookContext>? CareerDetailShown { get; set; }
 
-    public Action<AuraCombatActionContext>? CombatActionBefore { get; set; }
+    public Action<AuraCardActionContext>? CombatActionBefore { get; set; }
 
     public Action<ModHookContext>? NativeEffectBefore { get; set; }
 
@@ -157,10 +157,15 @@ internal sealed class AudioHookAdapter : IDisposable
                 return false;
             }
 
-            routedRegistrations.Add(AuraCombatActionRouter.RegisterBefore(
+            routedRegistrations.Add(AuraCardActionTransactionRouter.Register(
                 modConfig,
+                ownerModId,
                 ownerModId + ".Audio",
-                callbacks.CombatActionBefore,
+                new AuraCardActionSubscription
+                {
+                    Phases = AuraCardActionPhase.PresentationCommitted,
+                    Handler = callbacks.CombatActionBefore
+                },
                 info,
                 warn));
             return true;

@@ -13,6 +13,7 @@ public static class EndlessSeaCardAffixRuntime
 {
     private const string CombatNormalizeFrameKey = "EndlessSeaCardAffix.NormalizeCombatCards";
     private static bool cardLifecycleRegistered;
+    private static IDisposable? cardLifecycleRegistration;
 
     private static readonly FieldInfo? CardChoiceItemDataConfigField = typeof(CardChoiceItem).GetField(
         "dataConfig",
@@ -22,7 +23,9 @@ public static class EndlessSeaCardAffixRuntime
     {
         TerriasBattleLifecycleRouter.Register("EndlessSeaCardAffix.Activator", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => EnsureCardLifecycleRegisteredForEndlessSea()
+            FightStarted = _ => EnsureCardLifecycleRegisteredForEndlessSea(),
+            FightRestarting = _ => ReleaseCardLifecycle(),
+            FightEnding = _ => ReleaseCardLifecycle()
         });
         EnsureCardLifecycleRegisteredForEndlessSea();
         TerriasLog.Info("Endless Sea card affix runtime initialized");
@@ -44,7 +47,7 @@ public static class EndlessSeaCardAffixRuntime
         }
 
         cardLifecycleRegistered = true;
-        TerriasCardLifecycleRouter.Register("EndlessSeaCardAffix", new TerriasCardLifecycleSubscription
+        cardLifecycleRegistration = TerriasCardLifecycleRouter.Register("EndlessSeaCardAffix", new TerriasCardLifecycleSubscription
         {
             AfterCardChoiceItemInitialize = ApplyToChoiceItem,
             BeforeCardChoiceUiSelect = ApplyToSelectedCard,
@@ -65,6 +68,13 @@ public static class EndlessSeaCardAffixRuntime
         });
     }
 
+    private static void ReleaseCardLifecycle()
+    {
+        cardLifecycleRegistration?.Dispose();
+        cardLifecycleRegistration = null;
+        cardLifecycleRegistered = false;
+    }
+
     private static void ApplyToChoiceItem(ModHookContext context)
     {
         try
@@ -81,7 +91,7 @@ public static class EndlessSeaCardAffixRuntime
                 return;
             }
 
-            RefreshChoiceItem(item, config);
+            RefreshChoiceItem(item);
         }
         catch (Exception ex)
         {
@@ -249,9 +259,8 @@ public static class EndlessSeaCardAffixRuntime
         }
     }
 
-    private static void RefreshChoiceItem(CardChoiceItem item, DataConfig config)
+    private static void RefreshChoiceItem(CardChoiceItem item)
     {
-        ICard.SetCardMsg(item.transform, config, null);
         item.DataUpdate();
     }
 

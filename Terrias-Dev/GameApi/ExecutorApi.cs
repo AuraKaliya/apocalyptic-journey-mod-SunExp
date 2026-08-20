@@ -33,41 +33,9 @@ public static class ExecutorApi
         return CombatVarApi.AddInt(key, amount);
     }
 
-    public static string? RegisterHook(ScriptExecutor? executor, string hookKey, string tokenKey)
-    {
-        return ScriptEventApi.RegisterHook(executor, hookKey, tokenKey);
-    }
-
-    public static bool IsHookTokenActive(ScriptExecutor? executor, string tokenKey, string? token)
-    {
-        return ScriptEventApi.IsHookTokenActive(executor, tokenKey, token);
-    }
-
-    public static void ClearHook(ScriptExecutor? executor, string hookKey, string tokenKey)
-    {
-        ScriptEventApi.ClearHook(executor, hookKey, tokenKey);
-    }
-
     public static bool TryAddEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
     {
         return ScriptEventApi.TryAddEvent(executor, eventName, script, context);
-    }
-
-    public static bool TryAddTokenedEvent(ScriptExecutor? executor, string eventName, string tokenKey, string? token, Action script, string context = "")
-    {
-        return ScriptEventApi.TryAddTokenedEvent(executor, eventName, tokenKey, token, script, context);
-    }
-
-    public static bool TryAddTokenedEvent<T>(
-        ScriptExecutor? executor,
-        string eventName,
-        string tokenKey,
-        string? token,
-        Action<T> script,
-        string context = "")
-        where T : ISourceData
-    {
-        return ScriptEventApi.TryAddTokenedEvent(executor, eventName, tokenKey, token, script, context);
     }
 
     public static bool TryAddTempEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")

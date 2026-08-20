@@ -13,6 +13,10 @@ namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionSummonService
 {
+    private const double RetryNoticeSeconds = 8d;
+    private const double TransactionLifetimeSeconds = 30d;
+    private const int MaximumAttempts = 12;
+    private const int RetryWakeFrames = 30;
     private static readonly object NetworkSync = new();
     private static readonly Dictionary<string, ProjectionSummonResultSnapshot> TerminalResults =
         new(StringComparer.Ordinal);
@@ -72,6 +76,7 @@ public static class ProjectionSummonService
         if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
         {
             SendPendingTransaction(transaction, Time.unscaledTimeAsDouble, "Initial");
+            SchedulePendingTransaction(transaction.Token);
             PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.synchronizing"));
             return true;
         }
@@ -90,29 +95,58 @@ public static class ProjectionSummonService
         return true;
     }
 
-    public static void TickNetworkSynchronization(double now)
+    private static void SchedulePendingTransaction(string token)
     {
-        ProjectionSummonTransaction[] pending;
+        TerriasFrameDispatcher.RunOnceAfterFrames(
+            "Projection.SummonRetry." + token,
+            RetryWakeFrames,
+            () => AdvancePendingTransaction(token));
+    }
+
+    private static void AdvancePendingTransaction(string token)
+    {
+        ProjectionSummonTransaction? transaction;
         lock (NetworkSync)
         {
-            pending = PendingTransactions.Values
-                .Where(value => !value.Terminal)
-                .ToArray();
+            PendingTransactions.TryGetValue(token ?? "", out transaction);
         }
 
-        foreach (var transaction in pending)
+        if (transaction == null || transaction.Terminal)
         {
-            var retryInterval = transaction.Attempts < 3 ? 1.25d : 2.5d;
-            if (transaction.IsDue(now, retryInterval))
-            {
-                SendPendingTransaction(transaction, now, "Retry" + transaction.Attempts);
-            }
-            if (!transaction.TimeoutReported && now - transaction.CreatedAt >= 8d)
-            {
-                transaction.TimeoutReported = true;
-                PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.retrying_host"));
-            }
+            return;
         }
+
+        var now = Time.unscaledTimeAsDouble;
+        var age = now - transaction.CreatedAt;
+        if (transaction.ShouldExpire(now, MaximumAttempts, TransactionLifetimeSeconds))
+        {
+            transaction.SetTerminal();
+            var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(transaction.OwnerStatusId);
+            ApplySummonResult(
+                CreateResult(
+                    transaction.Token,
+                    transaction.RoleId,
+                    transaction.OwnerStatusId,
+                    ownerPlayerId,
+                    ProjectionSummonFailureCode.RoleDeckTimedOut,
+                    "projection summon response timed out"),
+                "ProjectionSummonService.Timeout");
+            return;
+        }
+
+        var retryInterval = transaction.Attempts < 3 ? 1.25d : 2.5d;
+        if (transaction.IsDue(now, retryInterval))
+        {
+            SendPendingTransaction(transaction, now, "Retry" + transaction.Attempts);
+        }
+
+        if (!transaction.TimeoutReported && age >= RetryNoticeSeconds)
+        {
+            transaction.TimeoutReported = true;
+            PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.retrying_host"));
+        }
+
+        SchedulePendingTransaction(transaction.Token);
     }
 
     private static void SendPendingTransaction(

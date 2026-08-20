@@ -76,7 +76,7 @@ public static class BossScripts
     {
         try
         {
-            ExecutorApi.ClearHook(self, TraitHookKey(traitId), TraitTokenKey(traitId));
+            ScriptEventApi.InvalidateFightScope(self, "BossTrait." + traitId);
         }
         catch (Exception ex)
         {
@@ -212,34 +212,22 @@ public static class BossScripts
         string fullBuffId,
         Action<ScriptExecutor> trigger)
     {
-        var hookKey = TraitHookKey(traitId);
-        var tokenKey = TraitTokenKey(traitId);
-        var token = ExecutorApi.RegisterHook(self, hookKey, tokenKey);
-        if (token == null)
+        using var scope = ScriptEventApi.BeginFightScope(self, "BossTrait." + traitId);
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
+        scope.AddRequired("StartRound", new Action(() =>
         {
-            if (!ExecutorApi.IsHookTokenActive(self, tokenKey, token)
-                || ExecutorApi.SelfBuffLevel(self, fullBuffId) <= 0)
+            if (ExecutorApi.SelfBuffLevel(self, fullBuffId) <= 0)
             {
                 return;
             }
 
             trigger(self);
         }), "Boss trait " + traitId);
-    }
-
-    private static string TraitHookKey(string traitId)
-    {
-        return "TerriasBossTrait_" + traitId + "Hook";
-    }
-
-    private static string TraitTokenKey(string traitId)
-    {
-        return "TerriasBossTrait_" + traitId + "Token";
+        scope.Commit();
     }
 
     private static void TriggerMirrorArray(ScriptExecutor self)

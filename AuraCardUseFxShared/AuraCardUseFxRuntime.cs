@@ -138,7 +138,7 @@ public static class AuraCardUseFxRuntime
     private const float DedupeSeconds = 2f;
     private const int MaxDedupeEntries = 256;
 
-    private static readonly Stack<LocalCardUseScope> LocalScopes = new();
+    private static readonly Dictionary<string, LocalCardUseScope> LocalScopes = new(StringComparer.Ordinal);
     private static readonly Stack<ObservedCardUseScope> ObservedScopes = new();
     private static readonly Dictionary<string, float> RecentObserverTriggers = new(StringComparer.OrdinalIgnoreCase);
     private static bool initialized;
@@ -154,23 +154,18 @@ public static class AuraCardUseFxRuntime
         }
 
         initialized = true;
-        AuraCardLifecycleRouter.Register(
+        AuraCardActionTransactionRouter.Register(
             modConfig,
             RuntimeOwnerId,
             "LocalCardUse",
-            new AuraCardLifecycleSubscription
+            new AuraCardActionSubscription
             {
-                BeforeCommonCardUse = BeforeLocalCardUse,
-                BeforeAttackCardUse = BeforeLocalCardUse,
-                AfterCommonCardUse = AfterLocalCardUse,
-                AfterAttackCardUse = AfterLocalCardUse
+                Phases = AuraCardActionPhase.Attempting
+                         | AuraCardActionPhase.PresentationCommitted
+                         | AuraCardActionPhase.Completed
+                         | AuraCardActionPhase.Aborted,
+                Handler = OnLocalCardAction
             },
-            message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
-            message => AuraSharedLog.Warn(RuntimeOwnerId, message));
-        AuraCombatActionRouter.RegisterBefore(
-            modConfig,
-            RuntimeOwnerId + ".LocalCommitted",
-            OnLocalCardUseCommitted,
             message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
             message => AuraSharedLog.Warn(RuntimeOwnerId, message));
 
@@ -213,59 +208,57 @@ public static class AuraCardUseFxRuntime
         RecentObserverTriggers.Clear();
     }
 
-    private static void BeforeLocalCardUse(ModHookContext context)
+    private static void OnLocalCardAction(AuraCardActionContext context)
+    {
+        switch (context.Phase)
+        {
+            case AuraCardActionPhase.Attempting:
+                BeginLocalCardUse(context);
+                break;
+            case AuraCardActionPhase.PresentationCommitted:
+                CommitLocalCardUse(context);
+                break;
+            case AuraCardActionPhase.Completed:
+            case AuraCardActionPhase.Aborted:
+                LocalScopes.Remove(context.TransactionId);
+                break;
+        }
+    }
+
+    private static void BeginLocalCardUse(AuraCardActionContext context)
     {
         try
         {
-            var card = context.Target as CardItem;
-            var config = card?.dataConfig;
-            var entries = ResolveEntries(config, AuraCardUseFxTriggerChannel.LocalCommitted);
-            LocalScopes.Push(new LocalCardUseScope(
-                ++nextUseSequence,
+            var card = context.Card;
+            var config = context.Config;
+            LocalScopes[context.TransactionId] = new LocalCardUseScope(
+                context.Sequence,
                 config,
-                entries,
+                ResolveEntries(config, AuraCardUseFxTriggerChannel.LocalCommitted),
                 card?.transform,
-                AuraCardUseFxSourceSnapshot.Capture(card?.transform)));
+                AuraCardUseFxSourceSnapshot.Capture(card?.transform));
         }
         catch (Exception ex)
         {
             AuraSharedLog.Error(RuntimeOwnerId, "Local card-use scope begin failed.", ex);
-            LocalScopes.Push(LocalCardUseScope.Empty(++nextUseSequence));
+            LocalScopes.Remove(context.TransactionId);
         }
     }
 
-    private static void OnLocalCardUseCommitted(AuraCombatActionContext context)
+    private static void CommitLocalCardUse(AuraCardActionContext context)
     {
-        if (LocalScopes.Count == 0 || context.DataConfig == null)
+        if (!LocalScopes.TryGetValue(context.TransactionId, out var scope))
         {
             return;
         }
 
         try
         {
-            foreach (var scope in LocalScopes)
-            {
-                if (scope.Committed || scope.Config == null || !SameCard(scope.Config, context.DataConfig))
-                {
-                    continue;
-                }
-
-                scope.Committed = true;
-                PublishScope(scope, AuraCardUseFxTriggerChannel.LocalCommitted, dedupeObservers: false);
-                return;
-            }
+            PublishScope(scope, AuraCardUseFxTriggerChannel.LocalCommitted, dedupeObservers: false);
         }
-        catch (Exception ex)
+        finally
         {
-            AuraSharedLog.Error(RuntimeOwnerId, "Local card-use commit failed.", ex);
-        }
-    }
-
-    private static void AfterLocalCardUse(ModHookContext context)
-    {
-        if (LocalScopes.Count > 0)
-        {
-            LocalScopes.Pop();
+            LocalScopes.Remove(context.TransactionId);
         }
     }
 
@@ -516,17 +509,6 @@ public static class AuraCardUseFxRuntime
         {
         }
 
-        public bool Committed { get; set; }
-
-        public static LocalCardUseScope Empty(long useSequence)
-        {
-            return new LocalCardUseScope(
-                useSequence,
-                null,
-                Array.Empty<AuraCardUseFxRegistryEntry>(),
-                null,
-                AuraCardUseFxSourceSnapshot.Capture(null));
-        }
     }
 
     private sealed class ObservedCardUseScope : CardUseScope

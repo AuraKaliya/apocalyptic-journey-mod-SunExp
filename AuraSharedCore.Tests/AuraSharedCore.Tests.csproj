@@ -35,6 +35,7 @@
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleSessionRuntime.cs" Link="Core\AuraLifecycleSessionRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleOperationLedger.cs" Link="Core\AuraLifecycleOperationLedger.cs" />
+    <Compile Include="..\AuraSharedCore\AuraBattleLeaseLedger.cs" Link="Core\AuraBattleLeaseLedger.cs" />
     <Compile Include="..\AuraSharedCore\AuraAuthoritativeSyncRuntime.cs" Link="Core\AuraAuthoritativeSyncRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPayloadBudget.cs" Link="Core\AuraSharedPayloadBudget.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedObjectPool.cs" Link="Core\AuraSharedObjectPool.cs" />

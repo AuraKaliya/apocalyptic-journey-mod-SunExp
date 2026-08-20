@@ -28,8 +28,23 @@ namespace AuraCombatAi.Shared
 
 namespace AuraShared.Core
 {
+    [Flags]
+    public enum AuraCardActionPhase
+    {
+        None = 0,
+        NativeStarted = 1,
+        Committed = 2
+    }
+    public sealed class AuraCardActionContext
+    {
+        public AuraCardActionPhase Phase { get; set; }
+        public string OwnerStatusId { get; set; } = "";
+    }
     public enum AuraSharedFramePhase { Presentation }
-    public sealed class AuraSharedFrameSliceContext { }
+    public sealed class AuraSharedFrameSliceContext
+    {
+        public bool IsBudgetExhausted => false;
+    }
     public sealed class AuraSharedFrameSliceReport
     {
         public double ElapsedMilliseconds { get; set; }
@@ -243,6 +258,7 @@ public sealed class ScriptExecutor
     }
 
     public IStatusManager? Self { get; set; } = FightPlayer.Instance.Status;
+    public Dictionary<string, Delegate> ScriptDict { get; } = new();
 
     public bool ThrowOnDelivery { get; set; }
 
@@ -314,6 +330,15 @@ public sealed class FightCardManager
     public void RefreshTag(IDataConfig config)
     {
     }
+}
+
+public sealed class RoleTable
+{
+    public static RoleTable Instance { get; } = new();
+    public DataConfig Career { get; set; } = new(new Dictionary<string, string> { ["Id"] = "career" });
+    public List<DataConfig> cardList { get; } = new();
+    public List<DataConfig> relicList { get; } = new();
+    public List<DataConfig> blessingConfigs { get; } = new();
 }
 
 public sealed class CardItem

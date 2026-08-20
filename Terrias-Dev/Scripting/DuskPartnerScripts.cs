@@ -23,7 +23,7 @@ public static class DuskPartnerScripts
     {
         try
         {
-            ExecutorApi.ClearHook(self, "TerriasDuskAfterheatHook", "TerriasDuskAfterheatToken");
+            ScriptEventApi.InvalidateFightScope(self, "Buff.DuskAfterheatTrait");
             DuskAfterheatRecoveryService.Deactivate(self, "TraitCleared");
         }
         catch (Exception ex)

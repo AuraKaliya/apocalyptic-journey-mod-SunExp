@@ -27,6 +27,9 @@ public static class HeartChangeControlService
     private static readonly Dictionary<string, HeartChangeState> Active = new(StringComparer.Ordinal);
     private static readonly HashSet<string> ResolvedNetworkTokens = new(StringComparer.Ordinal);
     private static readonly HashSet<string> RemovingBuffs = new(StringComparer.Ordinal);
+    private static bool publishedActive;
+
+    public static event Action<bool>? ActiveStateChanged;
 
     public static bool TryControlFromCard(ScriptExecutor self)
     {
@@ -90,6 +93,7 @@ public static class HeartChangeControlService
 
             Active[state.StatusId] = state;
         }
+        PublishActiveState();
 
         try
         {
@@ -465,6 +469,7 @@ public static class HeartChangeControlService
 
             Active[state.StatusId] = state;
         }
+        PublishActiveState();
 
         try
         {
@@ -749,6 +754,7 @@ public static class HeartChangeControlService
             return null;
         }
 
+        HeartChangeState? result;
         lock (SyncRoot)
         {
             if (!Active.TryGetValue(id, out var state))
@@ -757,7 +763,43 @@ public static class HeartChangeControlService
             }
 
             Active.Remove(id);
-            return state;
+            result = state;
+        }
+
+        PublishActiveState();
+        return result;
+    }
+
+    private static void PublishActiveState()
+    {
+        bool active;
+        lock (SyncRoot)
+        {
+            active = Active.Count > 0;
+            if (active == publishedActive)
+            {
+                return;
+            }
+
+            publishedActive = active;
+        }
+
+        var handlers = ActiveStateChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        foreach (Action<bool> handler in handlers.GetInvocationList())
+        {
+            try
+            {
+                handler(active);
+            }
+            catch (Exception ex)
+            {
+                TerriasLog.Warn("[HeartChange] active-state subscriber failed: " + ex.Message);
+            }
         }
     }
 

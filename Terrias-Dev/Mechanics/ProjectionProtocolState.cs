@@ -287,6 +287,13 @@ public sealed class ProjectionSummonTransaction
         Terminal = true;
     }
 
+    public bool ShouldExpire(double now, int maximumAttempts, double lifetimeSeconds)
+    {
+        return !Terminal
+               && (Attempts >= Math.Max(1, maximumAttempts)
+                   || now - CreatedAt >= Math.Max(0.1d, lifetimeSeconds));
+    }
+
     public bool TryClaimRefund()
     {
         if (Refunded) return false;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -15,15 +16,26 @@ public static class StarScoreRuntime
     private const string PendingBlessingCostVar = "TerriasStarBlessingHalfCostPending";
     private const string PendingSealBlessingVar = "TerriasMorningStarSealBlessingGain";
     private const string PendingSolarFlameVar = "TerriasSolarFlameSealGain";
-    private static readonly Stack<PendingCard> Pending = new();
+    private static readonly Dictionary<string, PendingCard> Pending = new(StringComparer.Ordinal);
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
     private static readonly ResonanceCostTransactionStore ResonanceCostTransactions = new();
     private static readonly Dictionary<string, string> LastRefreshSignatures = new(StringComparer.Ordinal);
-    private static bool handlerRegistered;
 
     public static void Initialize(ModConfig modConfig)
     {
-        EnsureHandlerRegistered();
+        AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "StarScore",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.NativeStarted
+                         | AuraCardActionPhase.Committed
+                         | AuraCardActionPhase.Aborted,
+                Handler = OnCardAction
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasBattleLifecycleRouter.Register("StarScore", new TerriasBattleLifecycleSubscription
         {
             FightStarted = OnFightStart
@@ -64,7 +76,6 @@ public static class StarScoreRuntime
         MorningStarOvertureService.ResetForFight();
         StarScoreCombatStateStore.ClearAll();
         ExecutorApi.CombatIntSet("TerriasStarScorePlayerActionPending", 0);
-        TerriasActionEventRouter.ResetForFight("StarScore.Fight_Start.Init");
     }
 
     private static void OnCommonCardBeginDragAfter(ModHookContext context)
@@ -106,7 +117,6 @@ public static class StarScoreRuntime
                 return;
             }
 
-            TryRegisterForPlayer("CardUseBefore");
             BeginCostPreviewsForSelection(card);
             EndlessAbyssGazePressureService.OnCardUseBefore(card, "StarScore.CardUseBefore");
 
@@ -263,24 +273,24 @@ public static class StarScoreRuntime
         }
     }
 
-    private static void TryRegisterForPlayer(string source)
+    private static void OnCardAction(AuraCardActionContext context)
     {
-        EnsureHandlerRegistered();
-        TerriasActionEventRouter.EnsureRegistered("StarScore." + source);
-    }
-
-    private static void EnsureHandlerRegistered()
-    {
-        if (handlerRegistered)
+        if (context.Phase == AuraCardActionPhase.NativeStarted)
         {
+            OnAction(context);
             return;
         }
 
-        TerriasActionEventRouter.RegisterHandler("StarScore", OnAction, OnActionAfter);
-        handlerRegistered = true;
+        if (context.Phase == AuraCardActionPhase.Committed)
+        {
+            OnActionAfter(context.TransactionId);
+            return;
+        }
+
+        AbortAction(context.TransactionId);
     }
 
-    private static void OnAction(TerriasActionEventContext context)
+    private static void OnAction(AuraCardActionContext context)
     {
         try
         {
@@ -292,7 +302,6 @@ public static class StarScoreRuntime
 
             CostOverrides.MarkActionObserved(config);
             ResonanceCostTransactions.MarkActionObserved(config);
-            MorningStarOvertureService.OnAction(config);
             var executor = config.scriptExecutor as ScriptExecutor;
             var pendingBlessingOverture = DictionaryUtil.Get(config.Vars, PendingBlessingOvertureVar, "0") == "1";
             var pendingSealBlessing = DictionaryUtil.Get(config.Vars, PendingSealBlessingVar);
@@ -303,12 +312,13 @@ public static class StarScoreRuntime
             var solarFlameGain = string.IsNullOrWhiteSpace(pendingSolarFlame)
                 ? 0
                 : Math.Max(0, DictionaryUtil.ParseInt(pendingSolarFlame));
-            Pending.Push(new PendingCard(
+            Pending[context.TransactionId] = new PendingCard(
                 config,
                 executor,
+                context.StartCost,
                 pendingBlessingOverture,
                 sealBlessingGain,
-                solarFlameGain));
+                solarFlameGain);
             ExecutorApi.CombatIntAdd("TerriasStarScorePlayerActionPending", 1);
         }
         catch (Exception ex)
@@ -317,16 +327,16 @@ public static class StarScoreRuntime
         }
     }
 
-    private static void OnActionAfter()
+    private static void OnActionAfter(string transactionId)
     {
         try
         {
-            if (Pending.Count == 0)
+            if (!Pending.TryGetValue(transactionId, out var pending))
             {
                 return;
             }
 
-            var pending = Pending.Pop();
+            Pending.Remove(transactionId);
             if (pending.Executor != null && pending.BlessingOverturePending)
             {
                 CardApi.AddCardToHand(pending.Executor, StarScoreService.RandomBlessingOvertureCardId());
@@ -347,7 +357,10 @@ public static class StarScoreRuntime
                 PlayerApi.ShowCaption("阳炣：聚焰+" + pending.SolarFlameGain);
             }
 
-            MorningStarOvertureService.OnActionAfter(pending.Executor);
+            MorningStarOvertureService.OnActionCommitted(
+                pending.Config,
+                pending.Executor,
+                pending.StartCost);
 
             DictionaryUtil.Set(pending.Config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");
@@ -362,6 +375,25 @@ public static class StarScoreRuntime
         {
             ExecutorApi.CombatIntSet("TerriasStarScorePlayerActionPending", Math.Max(0, ExecutorApi.CombatIntGet("TerriasStarScorePlayerActionPending") - 1));
         }
+    }
+
+    private static void AbortAction(string transactionId)
+    {
+        if (!Pending.TryGetValue(transactionId, out var pending))
+        {
+            return;
+        }
+
+        Pending.Remove(transactionId);
+        CostOverrides.Cancel(pending.Config);
+        ResonanceCostTransactions.Cancel(pending.Config);
+        DictionaryUtil.Set(pending.Config.Vars, PendingBlessingOvertureVar, "");
+        DictionaryUtil.Set(pending.Config.Vars, PendingSealBlessingVar, "");
+        DictionaryUtil.Set(pending.Config.Vars, PendingSolarFlameVar, "");
+        DictionaryUtil.Set(pending.Config.Vars, PendingBlessingCostVar, "0");
+        ExecutorApi.CombatIntSet(
+            "TerriasStarScorePlayerActionPending",
+            Math.Max(0, ExecutorApi.CombatIntGet("TerriasStarScorePlayerActionPending") - 1));
     }
 
     private static void TryBeginBlessingPreview(CardItem? card)
@@ -677,12 +709,14 @@ public static class StarScoreRuntime
         public PendingCard(
             IDataConfig config,
             ScriptExecutor? executor,
+            int startCost,
             bool blessingOverturePending,
             int sealBlessingGain,
             int solarFlameGain)
         {
             Config = config;
             Executor = executor;
+            StartCost = startCost;
             BlessingOverturePending = blessingOverturePending;
             SealBlessingGain = sealBlessingGain;
             SolarFlameGain = solarFlameGain;
@@ -691,6 +725,8 @@ public static class StarScoreRuntime
         public IDataConfig Config { get; }
 
         public ScriptExecutor? Executor { get; }
+
+        public int StartCost { get; }
 
         public bool BlessingOverturePending { get; }
 

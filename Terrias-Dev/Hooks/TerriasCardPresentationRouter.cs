@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -47,11 +48,11 @@ public static class TerriasCardPresentationRouter
     private static readonly Dictionary<int, PendingReapply> PendingReapplyByDelay = new();
     private static KeyValuePair<string, TerriasCardPresentationSubscription>[]? cachedSubscriptions;
 
-    public static void Register(string id, TerriasCardPresentationSubscription subscription)
+    public static IDisposable Register(string id, TerriasCardPresentationSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
-            return;
+            return EmptyDisposable.Instance;
         }
 
         lock (SyncRoot)
@@ -62,6 +63,7 @@ public static class TerriasCardPresentationRouter
 
         TerriasPerformanceCounters.Record("CardPresentation.HandlerRegistered");
         TerriasLog.InfoAlways("Card presentation handler registered: id=" + id.Trim() + ", count=" + SubscriptionCount());
+        return new RegistrationHandle(id.Trim(), subscription);
     }
 
     public static void RequestApply(TerriasCardPresentationContext context)
@@ -291,6 +293,12 @@ public static class TerriasCardPresentationRouter
 
     private static KeyValuePair<string, TerriasCardPresentationSubscription>[] SnapshotSubscriptions()
     {
+        var cached = Volatile.Read(ref cachedSubscriptions);
+        if (cached != null)
+        {
+            return cached;
+        }
+
         lock (SyncRoot)
         {
             if (cachedSubscriptions != null)
@@ -306,6 +314,18 @@ public static class TerriasCardPresentationRouter
             }
 
             return cachedSubscriptions;
+        }
+    }
+
+    private static void Unregister(string id, TerriasCardPresentationSubscription subscription)
+    {
+        lock (SyncRoot)
+        {
+            if (Subscriptions.TryGetValue(id, out var current) && ReferenceEquals(current, subscription))
+            {
+                Subscriptions.Remove(id);
+                cachedSubscriptions = null;
+            }
         }
     }
 
@@ -333,5 +353,31 @@ public static class TerriasCardPresentationRouter
         {
             return new PendingReapply(string.IsNullOrWhiteSpace(source) ? Source : source, Count + 1);
         }
+    }
+
+    private sealed class RegistrationHandle : IDisposable
+    {
+        private readonly TerriasCardPresentationSubscription subscription;
+        private string? id;
+
+        public RegistrationHandle(string id, TerriasCardPresentationSubscription subscription)
+        {
+            this.id = id;
+            this.subscription = subscription;
+        }
+
+        public void Dispose()
+        {
+            var current = id;
+            if (current == null) return;
+            id = null;
+            Unregister(current, subscription);
+        }
+    }
+
+    private sealed class EmptyDisposable : IDisposable
+    {
+        public static readonly EmptyDisposable Instance = new();
+        public void Dispose() { }
     }
 }

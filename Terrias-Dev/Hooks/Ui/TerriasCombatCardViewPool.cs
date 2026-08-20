@@ -730,6 +730,7 @@ public static class TerriasCombatCardViewPool
 
     private static void ReapplyPresentationAfterBind(CardItem card, DataConfig config)
     {
+        TerriasActiveCardPresentationIndex.Observe(card);
         TerriasCardPresentationRouter.RequestApply(new TerriasCardPresentationContext
         {
             Root = card.transform,

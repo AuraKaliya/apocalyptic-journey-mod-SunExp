@@ -30,6 +30,10 @@ public static class LoneerScripts
         {
             TerriasLog.Error("Loneer Init failed: " + id, ex);
         }
+        finally
+        {
+            ScriptDelegateApi.BindParameterized(self, "InitScript", id, Init);
+        }
     }
 
     public static void Use(ScriptExecutor self, string id)

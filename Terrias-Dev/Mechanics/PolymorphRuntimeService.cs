@@ -165,7 +165,7 @@ public static class PolymorphRuntimeService
             if (IsWuna(state.OriginalCareerId))
             {
                 BuffApi.SavePersistentEmber(executor, executor.Self);
-                ExecutorApi.ClearHook(executor, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
+                ScriptEventApi.InvalidateFightScope(executor, "Career.Wuna");
             }
             else if (IsLoneer(state.OriginalCareerId))
             {
@@ -191,7 +191,7 @@ public static class PolymorphRuntimeService
             if (IsWuna(attachment.RoleId))
             {
                 BuffApi.SavePersistentEmber(executor, executor?.Self);
-                ExecutorApi.ClearHook(executor, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
+                ScriptEventApi.InvalidateFightScope(executor, "Career.Wuna");
             }
             else if (IsLoneer(attachment.RoleId))
             {

@@ -180,38 +180,8 @@ public static class TerriasCardRefreshQueue
         {
             for (var i = 0; i < requested; i++)
             {
-                TerriasPerformanceCounters.Record("CardRefreshQueue.DescriptionSubsetRequested");
+                TerriasPerformanceCounters.Record("CardRefreshQueue.DataSubsetRequested");
             }
-        }
-
-        return requested;
-    }
-
-    public static int RequestDescriptionUpdateForHandCards(
-        IEnumerable<CardItem>? handCards,
-        IEnumerable<string>? cardIds,
-        string source)
-    {
-        if (handCards == null || cardIds == null)
-        {
-            return 0;
-        }
-
-        var ids = new HashSet<string>(cardIds
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(TerriasContentIdCompatibility.Canonicalize), StringComparer.Ordinal);
-        var requested = 0;
-        foreach (var card in handCards)
-        {
-            if (card == null
-                || !ids.Contains(TerriasContentIdCompatibility.Canonicalize(CardConfigApi.Id(card.dataConfig))))
-            {
-                continue;
-            }
-
-            RequestDescriptionUpdate(card, source);
-            requested++;
-            TerriasPerformanceCounters.Record("CardRefreshQueue.DescriptionDeltaRequested");
         }
 
         return requested;
@@ -219,46 +189,52 @@ public static class TerriasCardRefreshQueue
 
     private static bool FlushSlice(AuraSharedFrameSliceContext context)
     {
-        PendingConfigRefresh? config = null;
-        PendingCardRefresh? card = null;
-        lock (SyncRoot)
+        var processed = false;
+        while (!processed || !context.IsBudgetExhausted)
         {
-            if (PendingCards.Count == 0 && PendingConfigs.Count == 0)
+            processed = true;
+            PendingConfigRefresh? config = null;
+            PendingCardRefresh? card = null;
+            lock (SyncRoot)
             {
-                return true;
+                if (PendingCards.Count == 0 && PendingConfigs.Count == 0)
+                {
+                    return true;
+                }
+
+                if (PendingConfigs.Count > 0)
+                {
+                    var entry = First(PendingConfigs);
+                    config = entry.Value;
+                    PendingConfigs.Remove(entry.Key);
+                }
+                else
+                {
+                    var entry = First(PendingCards);
+                    card = entry.Value;
+                    PendingCards.Remove(entry.Key);
+                }
             }
 
-            if (PendingConfigs.Count > 0)
+            var start = TerriasPerformanceCounters.Timestamp();
+            if (config.HasValue)
             {
-                var entry = First(PendingConfigs);
-                config = entry.Value;
-                PendingConfigs.Remove(entry.Key);
+                RefreshConfigNow(config.Value.Config, config.Value.Source);
             }
-            else
+            else if (card.HasValue)
             {
-                var entry = First(PendingCards);
-                card = entry.Value;
-                PendingCards.Remove(entry.Key);
+                RefreshNow(
+                    card.Value.Card,
+                    card.Value.Source,
+                    card.Value.RefreshTags,
+                    card.Value.DataUpdate,
+                    card.Value.CostUpdate,
+                    card.Value.DescriptionUpdate);
             }
+
+            TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
         }
 
-        var start = TerriasPerformanceCounters.Timestamp();
-        if (config.HasValue)
-        {
-            RefreshConfigNow(config.Value.Config, config.Value.Source);
-        }
-        else if (card.HasValue)
-        {
-            RefreshNow(
-                card.Value.Card,
-                card.Value.Source,
-                card.Value.RefreshTags,
-                card.Value.DataUpdate,
-                card.Value.CostUpdate,
-                card.Value.DescriptionUpdate);
-        }
-
-        TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
         lock (SyncRoot)
         {
             var completed = PendingCards.Count == 0 && PendingConfigs.Count == 0;
@@ -279,58 +255,6 @@ public static class TerriasCardRefreshQueue
         }
 
         return default;
-    }
-
-    private static void CopyAndRemoveConfigs(PendingConfigRefresh[] target)
-    {
-        if (target.Length == 0)
-        {
-            return;
-        }
-
-        var keys = new string[target.Length];
-        var index = 0;
-        foreach (var item in PendingConfigs)
-        {
-            target[index] = item.Value;
-            keys[index] = item.Key;
-            index++;
-            if (index >= target.Length)
-            {
-                break;
-            }
-        }
-
-        for (var i = 0; i < index; i++)
-        {
-            PendingConfigs.Remove(keys[i]);
-        }
-    }
-
-    private static void CopyAndRemoveCards(PendingCardRefresh[] target)
-    {
-        if (target.Length == 0)
-        {
-            return;
-        }
-
-        var keys = new string[target.Length];
-        var index = 0;
-        foreach (var item in PendingCards)
-        {
-            target[index] = item.Value;
-            keys[index] = item.Key;
-            index++;
-            if (index >= target.Length)
-            {
-                break;
-            }
-        }
-
-        for (var i = 0; i < index; i++)
-        {
-            PendingCards.Remove(keys[i]);
-        }
     }
 
     private static void RefreshNow(

@@ -26,31 +26,76 @@ public static class TerriasHardTagRuntime
     private static string? registeredAbyssGazeEndRoundStatusId;
     private static int stagnantWaterRefreshSequence;
     private static bool cardLifecycleRegistered;
+    private static IDisposable? cardLifecycleRegistration;
+    private static IDisposable? actionRegistration;
+    private static IDisposable? statusRegistration;
+    private static IDisposable? combatRegistration;
+    private static ModConfig? activeConfig;
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasCombatActionRouter.RegisterActionEventHandler(
-            "EndlessAbyssGaze",
-            context => EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action"),
-            () => EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter"));
+        activeConfig = modConfig;
         TerriasBattleLifecycleRouter.Register("HardTag", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = OnFightInitializing,
             FightInitialized = OnFightInitialized,
+            FightRestarting = _ => ReleaseBattleSubscriptions(),
             FightEnding = OnFightEnding
-        });
-        TerriasStatusLifecycleRouter.Register("HardTag", new TerriasStatusLifecycleSubscription
-        {
-            AfterEnemyInit = OnEnemyInit
-        });
-        TerriasCombatActionRouter.Register("HardTag", new TerriasCombatActionSubscription
-        {
-            BeforeOtherObjAction = OnEnemyDoOneAction
         });
         RegisterAfter(modConfig, TerriasHookTargets.FightPlayerTurnInit, OnPlayerTurn);
         RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseBefore);
         RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseAfter);
         TerriasLog.Info("Terrias hard tag runtime initialized");
+    }
+
+    private static void ActivateBattleSubscriptions()
+    {
+        ReleaseBattleSubscriptions();
+        if (activeConfig == null || !HasAnyTerriasHardTag())
+        {
+            return;
+        }
+
+        actionRegistration = AuraCardActionTransactionRouter.Register(
+            activeConfig,
+            TerriasIds.ModId,
+            "EndlessAbyssGaze",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.NativeStarted | AuraCardActionPhase.Committed,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraCardActionPhase.NativeStarted)
+                    {
+                        EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action");
+                    }
+                    else
+                    {
+                        EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter");
+                    }
+                }
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
+        statusRegistration = TerriasStatusLifecycleRouter.Register("HardTag", new TerriasStatusLifecycleSubscription
+        {
+            AfterEnemyInit = OnEnemyInit
+        });
+        combatRegistration = TerriasCombatActionRouter.Register("HardTag", new TerriasCombatActionSubscription
+        {
+            BeforeOtherObjAction = OnEnemyDoOneAction
+        });
+    }
+
+    private static void ReleaseBattleSubscriptions()
+    {
+        ReleaseCardLifecycle();
+        actionRegistration?.Dispose();
+        statusRegistration?.Dispose();
+        combatRegistration?.Dispose();
+        actionRegistration = null;
+        statusRegistration = null;
+        combatRegistration = null;
     }
 
     private static void EnsureCardLifecycleRegistered()
@@ -61,7 +106,7 @@ public static class TerriasHardTagRuntime
         }
 
         cardLifecycleRegistered = true;
-        TerriasCardLifecycleRouter.Register("HardTag", new TerriasCardLifecycleSubscription
+        cardLifecycleRegistration = TerriasCardLifecycleRouter.Register("HardTag", new TerriasCardLifecycleSubscription
         {
             AfterCardItemInit = OnCardItemChanged,
             AfterAttackCardItemInit = OnCardItemChanged,
@@ -76,6 +121,13 @@ public static class TerriasHardTagRuntime
             AfterCommonCardUse = OnCardUseAfter,
             AfterAttackCardUse = OnCardUseAfter
         });
+    }
+
+    private static void ReleaseCardLifecycle()
+    {
+        cardLifecycleRegistration?.Dispose();
+        cardLifecycleRegistration = null;
+        cardLifecycleRegistered = false;
     }
 
     public static List<DataConfig> SelectedRuntimeHardTags()
@@ -135,6 +187,7 @@ public static class TerriasHardTagRuntime
         registeredAbyssGazeEndRoundStatusId = null;
         SkillCooldownBeforeUse.Clear();
         EventCenter.Instance.Clear(EventOwner);
+        ActivateBattleSubscriptions();
     }
 
     private static void OnFightInitialized(ModHookContext context)
@@ -155,7 +208,6 @@ public static class TerriasHardTagRuntime
                     new TerriasFrameStep("SunsetExpedition", ApplySunsetExpedition),
                     new TerriasFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "FightInit.Init")),
                     new TerriasFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "FightInit.Init")),
-                    new TerriasFrameStep("AbyssGazeActionRouter", () => TerriasActionEventRouter.ResetForFight("AbyssGaze.FightInit.Init")),
                     new TerriasFrameStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("FightInit.Init")),
                     new TerriasFrameStep("BlackSunListener", () => RegisterPlayerRoundListener("FightInit.Init"))
                 },
@@ -180,7 +232,6 @@ public static class TerriasHardTagRuntime
 
             MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
             EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
-            TerriasActionEventRouter.EnsureRegistered("AbyssGaze.Fight_PlayerTurn.Init");
             RegisterAbyssGazeEndRoundListener("Fight_PlayerTurn.Init");
             RegisterPlayerRoundListener("Fight_PlayerTurn.Init");
         }
@@ -194,6 +245,7 @@ public static class TerriasHardTagRuntime
     {
         try
         {
+            ReleaseBattleSubscriptions();
             EndlessAbyssCrackService.RestoreTemporaryCracks("FightEnding");
             EndlessAbyssCurseService.CleanupTemporaryCombatCurses("FightEnding");
         }
@@ -263,10 +315,6 @@ public static class TerriasHardTagRuntime
                 MorningStarDimmedService.ApplyToCard(context.Target as CardItem, "CardUseBefore");
             }
 
-            if (TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze))
-            {
-                TerriasActionEventRouter.EnsureRegistered("AbyssGaze.CardUseBefore");
-            }
         }
         catch (Exception ex)
         {
@@ -435,7 +483,15 @@ public static class TerriasHardTagRuntime
             return;
         }
 
-        EventCenter.Instance.AddEventListener("StartRound" + statusId, new Action(() => OnLocalPlayerStartRound(executor)), EventOwner, EventDispose.OnFightEnd);
+        if (!ScriptEventApi.TryAddOwnedEventListener(
+            "StartRound" + statusId,
+            new Action(() => OnLocalPlayerStartRound(executor)),
+            EventOwner,
+            EventDispose.OnFightEnd,
+            "hard-tag.black-sun"))
+        {
+            return;
+        }
         registeredPlayerStatusId = statusId;
         TerriasLog.Info("Registered black sun player StartRound listener from " + source + ": statusId=" + statusId);
     }
@@ -456,11 +512,15 @@ public static class TerriasHardTagRuntime
             return;
         }
 
-        EventCenter.Instance.AddEventListener(
+        if (!ScriptEventApi.TryAddOwnedEventListener(
             "EndRound" + statusId,
             new Action(() => EndlessAbyssGazePressureService.ResetPlayerTurn(executor, "EndRound")),
             EventOwner,
-            EventDispose.OnFightEnd);
+            EventDispose.OnFightEnd,
+            "hard-tag.abyss-gaze"))
+        {
+            return;
+        }
         registeredAbyssGazeEndRoundStatusId = statusId;
         TerriasLog.Info("Registered abyss gaze EndRound listener from " + source + ": statusId=" + statusId);
     }

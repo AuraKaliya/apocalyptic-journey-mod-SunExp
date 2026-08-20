@@ -45,6 +45,7 @@ public static class AuraBattleLifecycleRouter
 
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Handler> Handlers = new(StringComparer.OrdinalIgnoreCase);
+    private static Handler[] handlerSnapshot = Array.Empty<Handler>();
     private static bool initialized;
     private static long pendingRestartSessionId;
 
@@ -74,6 +75,7 @@ public static class AuraBattleLifecycleRouter
         {
             EnsureInitialized(modConfig, info, warn);
             Handlers[id] = new Handler(id, subscription, warn);
+            RebuildSnapshotNoLock();
         }
 
         AuraSharedLog.DebugLog(owner, "[BattleLifecycle] handler registered: " + id, false);
@@ -94,26 +96,28 @@ public static class AuraBattleLifecycleRouter
         registry.BeforeRouted(FightInitInit, context =>
         {
             BeginBattleSession();
-            Dispatch(context, FightInitInit, h => h.Subscription.FightInitializing);
-            Dispatch(context, FightInitInit, h => h.Subscription.FightStarting);
+            DispatchPhase(context, FightInitInit, "FightInitializing", h => h.Subscription.FightInitializing);
+            DispatchPhase(context, FightInitInit, "FightStarting", h => h.Subscription.FightStarting);
         }, "FightInitializing");
         registry.AfterRouted(FightStartInit, context =>
         {
             EnsureBattleSession();
-            Dispatch(context, FightStartInit, h => h.Subscription.FightOpening);
-            Dispatch(context, FightStartInit, h => h.Subscription.FightStarted);
+            DispatchPhase(context, FightStartInit, "FightOpening", h => h.Subscription.FightOpening);
+            var started = DispatchPhase(context, FightStartInit, "FightStarted", h => h.Subscription.FightStarted);
+            if (started)
+            {
+                DispatchRestarted(context);
+            }
         }, "FightOpening");
         registry.AfterRouted(FightInitInit, context =>
         {
             EnsureBattleSession();
-            Dispatch(context, FightInitInit, h => h.Subscription.FightInitialized);
-            Dispatch(context, FightInitInit, h => h.Subscription.FightStarted);
-            DispatchRestarted(context);
+            DispatchPhase(context, FightInitInit, "FightInitialized", h => h.Subscription.FightInitialized);
         }, "FightInitialized");
         registry.AfterRouted(FightPlayerTurnInit, context => Dispatch(context, FightPlayerTurnInit, h => h.Subscription.PlayerRoundStarted), "PlayerRoundStarted");
-        registry.BeforeRouted(FightWinResetStates, context => Dispatch(context, FightWinResetStates, h => h.Subscription.FightEnding), "FightEnding");
-        registry.BeforeRouted(FightEscapeResetStates, context => Dispatch(context, FightEscapeResetStates, h => h.Subscription.FightEnding), "FightEnding");
-        registry.BeforeRouted(FightLossInit, context => Dispatch(context, FightLossInit, h => h.Subscription.FightEnding), "FightEnding");
+        registry.BeforeRouted(FightWinResetStates, context => DispatchPhase(context, FightWinResetStates, "FightEnding", h => h.Subscription.FightEnding), "FightEnding");
+        registry.BeforeRouted(FightEscapeResetStates, context => DispatchPhase(context, FightEscapeResetStates, "FightEnding", h => h.Subscription.FightEnding), "FightEnding");
+        registry.BeforeRouted(FightLossInit, context => DispatchPhase(context, FightLossInit, "FightEnding", h => h.Subscription.FightEnding), "FightEnding");
         registry.AfterRouted(FightWinResetStates, context => DispatchEnded(context, FightWinResetStates), "FightEnded");
         registry.AfterRouted(FightEscapeResetStates, context => DispatchEnded(context, FightEscapeResetStates), "FightEnded");
         registry.AfterRouted(FightLossInit, context => DispatchEnded(context, FightLossInit), "FightEnded");
@@ -161,7 +165,7 @@ public static class AuraBattleLifecycleRouter
             pendingRestartSessionId = 0;
         }
 
-        Dispatch(context, FightInitInit, h => h.Subscription.FightRestarted);
+        DispatchPhase(context, FightStartInit, "FightRestarted", h => h.Subscription.FightRestarted);
         AuraSharedLog.Info(
             "AuraBattleLifecycle",
             "[BattleRestart] restarted interruptedSession="
@@ -173,9 +177,45 @@ public static class AuraBattleLifecycleRouter
 
     private static void DispatchEnded(ModHookContext context, string source)
     {
-        Dispatch(context, source, h => h.Subscription.FightEnded);
+        if (!DispatchPhase(context, source, "FightEnded", h => h.Subscription.FightEnded))
+        {
+            return;
+        }
+
         AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
         AuraLifecycleSessionRuntime.EndBattleSession();
+    }
+
+    private static bool DispatchPhase(
+        ModHookContext context,
+        string source,
+        string phase,
+        Func<Handler, Action<ModHookContext>?> selector)
+    {
+        if (!AuraLifecycleSessionRuntime.IsBattleSessionActive)
+        {
+            return false;
+        }
+
+        var sessionId = AuraLifecycleSessionRuntime.CurrentBattleSessionId;
+        if (sessionId <= 0)
+        {
+            return false;
+        }
+        if (!AuraLifecycleOperationLedger.TryClaim(
+                "battle:" + sessionId,
+                "AuraShared",
+                "BattleLifecycle",
+                phase,
+                "",
+                "phase",
+                phase))
+        {
+            return false;
+        }
+
+        Dispatch(context, source, selector);
+        return true;
     }
 
     private static void Dispatch(
@@ -183,17 +223,7 @@ public static class AuraBattleLifecycleRouter
         string source,
         Func<Handler, Action<ModHookContext>?> selector)
     {
-        Handler[] snapshot;
-        lock (Gate)
-        {
-            if (Handlers.Count == 0)
-            {
-                return;
-            }
-
-            snapshot = new Handler[Handlers.Count];
-            Handlers.Values.CopyTo(snapshot, 0);
-        }
+        var snapshot = handlerSnapshot;
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -205,6 +235,13 @@ public static class AuraBattleLifecycleRouter
 
             snapshot[i].Invoke(source, action, context);
         }
+    }
+
+    private static void RebuildSnapshotNoLock()
+    {
+        var next = new Handler[Handlers.Count];
+        Handlers.Values.CopyTo(next, 0);
+        handlerSnapshot = next;
     }
 
     private sealed class Handler
@@ -255,7 +292,10 @@ public static class AuraBattleLifecycleRouter
             disposed = true;
             lock (Gate)
             {
-                Handlers.Remove(id);
+                if (Handlers.Remove(id))
+                {
+                    RebuildSnapshotNoLock();
+                }
             }
         }
     }

@@ -9,8 +9,6 @@ namespace Terrias.Dll.Scripting;
 
 public static class CardScripts
 {
-    private static readonly object DirectInitGate = new();
-    private static readonly Dictionary<string, Action<ScriptExecutor>> DirectInitDelegates = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, Action<ScriptExecutor>> InitHandlers = new(StringComparer.Ordinal)
     {
         ["spark"] = InitSpark,
@@ -140,23 +138,7 @@ public static class CardScripts
 
     private static void BindDirectInit(ScriptExecutor self, string id)
     {
-        if (self?.ScriptDict == null)
-        {
-            return;
-        }
-
-        var normalized = NormalizeId(id);
-        Action<ScriptExecutor> direct;
-        lock (DirectInitGate)
-        {
-            if (!DirectInitDelegates.TryGetValue(normalized, out direct))
-            {
-                direct = executor => Init(executor, normalized);
-                DirectInitDelegates[normalized] = direct;
-            }
-        }
-
-        self.ScriptDict["InitScript"] = direct;
+        ScriptDelegateApi.BindParameterized(self, "InitScript", NormalizeId(id), Init);
     }
 
     public static void Use(ScriptExecutor self, string id)
@@ -294,7 +276,6 @@ public static class CardScripts
     private static void InitGoldDreamCommon(ScriptExecutor self)
     {
         InitCommonCard(self);
-        GoldDreamEconomyService.Activate(self);
     }
 
     private static void InitWager(ScriptExecutor self)
@@ -309,7 +290,6 @@ public static class CardScripts
     private static void InitFortuneThrow(ScriptExecutor self)
     {
         InitTargetedAttackCard(self);
-        GoldDreamEconomyService.Activate(self);
         ExecutorApi.AddValueDescription(
             self,
             "1",
@@ -918,28 +898,11 @@ public static class CardScripts
     private static void InitFlamewheel(ScriptExecutor self)
     {
         SetFlamewheelCost(self, FlamewheelUsed());
-        if (ExecutorApi.GetVar(self, "TerriasFlamewheelCostHook", "0") == "1")
-        {
-            return;
-        }
+    }
 
-        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasFlamewheelCostToken", "0")) + 1).ToString();
-        var fightStartRegistered = ExecutorApi.TryAddTokenedEvent(self, "FightStart", "TerriasFlamewheelCostToken", token, new Action(() =>
-        {
-            SetFlamewheelUsed(0);
-            SetFlamewheelCost(self, 0);
-            RefreshFlamewheelHand(self, 0);
-        }), "flamewheel_recurrence");
-        var actionRegistered = ExecutorApi.TryAddTokenedEvent(self, "Action", "TerriasFlamewheelCostToken", token, new Action(() =>
-        {
-            RefreshFlamewheelHand(self, FlamewheelUsed());
-        }), "flamewheel_recurrence");
-
-        if (fightStartRegistered && actionRegistered)
-        {
-            ExecutorApi.SetVar(self, "TerriasFlamewheelCostHook", "1");
-            ExecutorApi.SetVar(self, "TerriasFlamewheelCostToken", token);
-        }
+    public static void ResetFightState()
+    {
+        SetFlamewheelUsed(0);
     }
 
     private static void UseFlamewheel(ScriptExecutor self)

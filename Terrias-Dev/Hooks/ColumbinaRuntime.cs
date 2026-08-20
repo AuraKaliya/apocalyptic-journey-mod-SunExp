@@ -22,7 +22,17 @@ public static class ColumbinaRuntime
             "BuffItem.Init",
             OnBuffItemInitializing,
             "ConstellationPresentation");
-        TerriasActionEventRouter.RegisterHandler("Columbina", null, OnActionAfter);
+        AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "Columbina",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.Committed,
+                Handler = _ => OnActionAfter()
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasBattleLifecycleRouter.Register("Columbina", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => OnFightStarted(),
@@ -49,7 +59,6 @@ public static class ColumbinaRuntime
             return;
         }
 
-        TerriasActionEventRouter.EnsureRegistered("Columbina.FightStarted");
         ColumbinaBattleStateService.BeginBattle();
         ConstellationService.RestoreLocalForBattle("ColumbinaRuntime.FightStarted");
         ConstellationService.SynchronizeBattleState("ColumbinaRuntime.FightStarted");

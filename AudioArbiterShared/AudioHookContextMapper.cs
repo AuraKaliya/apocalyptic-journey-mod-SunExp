@@ -30,23 +30,23 @@ internal sealed class AudioHookContextMapper
             };
     }
 
-    public AudioCombatActionObservation? MapCombatAction(AuraCombatActionContext context)
+    public AudioCombatActionObservation? MapCombatAction(AuraCardActionContext context)
     {
         if (context == null
-            || !context.IsCardAction
-            || !gameStateReader.IsLocalOwnerStatus(context.OwnerStatus, context.OwnerInstanceId))
+            || string.IsNullOrWhiteSpace(context.CardDataId)
+            || !gameStateReader.IsLocalOwnerStatus(context.OwnerStatus, context.OwnerStatusId))
         {
             return null;
         }
 
         return new AudioCombatActionObservation
         {
-            CardId = context.CardId,
-            CareerId = context.CurrentRoleId,
+            CardId = context.CardDataId,
+            CareerId = gameStateReader.ReadCurrentCareerId(),
             RoleId = string.IsNullOrWhiteSpace(context.OwnerRoleId)
-                ? context.CurrentRoleId
+                ? gameStateReader.ReadCurrentCareerId()
                 : context.OwnerRoleId,
-            StatusInstanceId = context.OwnerInstanceId,
+            StatusInstanceId = context.OwnerStatusId,
             EffectName = context.Effects,
             ActionName = context.Action,
             SourceName = CombatActionSource

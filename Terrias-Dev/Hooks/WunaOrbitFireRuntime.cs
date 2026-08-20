@@ -26,10 +26,17 @@ public static class WunaOrbitFireRuntime
             AfterSetSprite = AttachFromStatusContext,
             AfterFightUiFadeIn = AttachFromFightUiContext
         });
-        TerriasCombatActionRouter.Register("WunaOrbitFire", new TerriasCombatActionSubscription
-        {
-            AfterFightUiActionAnimation = AttachFromActionContext
-        });
+        AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "WunaOrbitFire",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.PresentationCommitted,
+                Handler = AttachFromActionContext
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasLog.Info(LogPrefix + " runtime initialized");
     }
 
@@ -91,13 +98,11 @@ public static class WunaOrbitFireRuntime
         }
     }
 
-    private static void AttachFromActionContext(ModHookContext context)
+    private static void AttachFromActionContext(AuraCardActionContext context)
     {
         try
         {
-            var executor = context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as IScriptExecutor
-                : null;
+            var executor = context.Config?.scriptExecutor;
             var action = ReadData(executor?.dataConfig, "Action");
             AttachToStatus(executor?.Self as StatusManager, action, "Action");
         }

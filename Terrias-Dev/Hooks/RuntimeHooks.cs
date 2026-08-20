@@ -4,6 +4,7 @@ using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Visual;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
+using Terrias.Dll.Scripting;
 using Witch.Core;
 using Witch.Mod;
 
@@ -14,10 +15,43 @@ public static class RuntimeHooks
     public static void Initialize(ModConfig modConfig)
     {
         RunHookStep("battle lifecycle router", () => TerriasBattleLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card script fight state", () =>
+        {
+            TerriasBattleLifecycleRouter.Register("CardScripts", new TerriasBattleLifecycleSubscription
+            {
+                FightInitializing = _ =>
+                {
+                    LegacyBattleHookVarMigration.ReconcileCurrentRole();
+                    CardScripts.ResetFightState();
+                }
+            });
+        });
+        RunHookStep("Terrias action passive registry", () =>
+        {
+            AuraCardActionTransactionRouter.Register(
+                modConfig,
+                TerriasIds.ModId,
+                "ActionPassives",
+                new AuraCardActionSubscription
+                {
+                    Phases = AuraCardActionPhase.NativeStarted | AuraCardActionPhase.Committed,
+                    Priority = -100,
+                    Handler = TerriasActionPassiveRegistry.Dispatch
+                },
+                TerriasLog.Debug,
+                TerriasLog.Warn);
+            TerriasBattleLifecycleRouter.Register("ActionPassives", new TerriasBattleLifecycleSubscription
+            {
+                FightInitializing = _ => TerriasActionPassiveRegistry.Clear(),
+                FightRestarting = _ => TerriasActionPassiveRegistry.Clear(),
+                FightEnding = _ => TerriasActionPassiveRegistry.Clear()
+            });
+        });
         RunHookStep("companion scene lifecycle", () => CompanionSceneLifecycleRuntime.Initialize(modConfig));
         RunHookStep("card lifecycle router", () => TerriasCardLifecycleRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => TerriasCombatActionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => TerriasStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("buff mutation router", () => TerriasBuffMutationRouter.Initialize(modConfig));
         RunHookStep("remote target event compatibility", () => RemoteTargetEventRuntime.Initialize(modConfig));
         RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
         RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
@@ -27,16 +61,17 @@ public static class RuntimeHooks
         RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
         RunHookStep("card presentation bridge", TerriasCardPresentationLifecycleBridge.Initialize);
-        RunHookStep("card presentation invalidation", () => TerriasCardPresentationInvalidationRuntime.Initialize(modConfig));
+        RunHookStep("active card presentation index", () => TerriasActiveCardPresentationIndex.Initialize(modConfig));
+        RunHookStep("fight presentation invalidation", TerriasFightPresentationInvalidationService.Initialize);
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
         RunHookStep("combat card UI workload", () => TerriasCombatCardUiWorkloadRuntime.Initialize(modConfig));
         RunHookStep("combat card view pool", () => Ui.TerriasCombatCardViewPool.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {
-            TerriasStatusLifecycleRouter.Register("RuntimeStatusBuff", new TerriasStatusLifecycleSubscription
+            TerriasBuffMutationRouter.Register("RuntimeStatusBuff", new TerriasBuffMutationSubscription
             {
-                BeforeAddBuff = OnStatusManagerAddBuffBefore,
-                AfterAddBuff = OnStatusManagerAddBuffAfter
+                BeforeAdd = OnStatusManagerAddBuffBefore,
+                Changed = OnStatusManagerBuffChanged
             });
         });
         RunHookStep("dialogue flow", () => DialogueFlowRuntime.Initialize(modConfig));
@@ -97,19 +132,18 @@ public static class RuntimeHooks
         TerriasLog.InfoAlways("Runtime hook step " + (ok ? "ok: " : "failed: ") + name);
     }
 
-    private static void OnStatusManagerAddBuffBefore(ModHookContext context)
+    private static void OnStatusManagerAddBuffBefore(TerriasBuffMutationContext context)
     {
         try
         {
-            var target = context.Target as IStatusManager;
-            var args = context.Arguments;
-            var buffId = BuffIdFromArgs(args);
+            var target = context.Status;
+            var buffId = context.BuffId;
             if (target == null)
             {
                 return;
             }
 
-            var amount = BuffAmountFromArgs(args);
+            var amount = context.RequestedLevel;
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
             if (buffId != TerriasIds.Burn || amount <= 0)
             {
@@ -124,15 +158,17 @@ public static class RuntimeHooks
         }
     }
 
-    private static void OnStatusManagerAddBuffAfter(ModHookContext context)
+    private static void OnStatusManagerBuffChanged(TerriasBuffMutationContext context)
     {
         try
         {
-            var target = context.Target as IStatusManager;
-            var args = context.Arguments;
-            var buffId = BuffIdFromArgs(args);
-            var amount = BuffAmountFromArgs(args);
-            ExecutorApi.FinalizeSolarRadianceUpperBound(target, buffId, amount);
+            if (context.Kind == TerriasBuffMutationKind.Add)
+            {
+                ExecutorApi.FinalizeSolarRadianceUpperBound(
+                    context.Status,
+                    context.BuffId,
+                    context.RequestedLevel);
+            }
         }
         catch (Exception ex)
         {
@@ -140,27 +176,4 @@ public static class RuntimeHooks
         }
     }
 
-    private static string BuffIdFromArgs(object[]? args)
-    {
-        if (args == null || args.Length == 0)
-        {
-            return "";
-        }
-
-        return args[0] is IBuffItemConfig config
-            ? config.BuffId ?? ""
-            : Convert.ToString(args[0]) ?? "";
-    }
-
-    private static int BuffAmountFromArgs(object[]? args)
-    {
-        if (args == null || args.Length == 0)
-        {
-            return 0;
-        }
-
-        return args[0] is IBuffItemConfig config
-            ? config.Level
-            : DictionaryUtil.ParseInt(Convert.ToString(args.Length > 1 ? args[1] : null));
-    }
 }

@@ -11,13 +11,36 @@ public static class SolarMemoryCombatRuntime
 {
     private const int EnemyHpMultiplier = 3;
     private const string AppliedKey = "TerriasSolarMemoryHpScaled";
+    private static IDisposable? statusRegistration;
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasStatusLifecycleRouter.Register("SolarMemoryCombat", new TerriasStatusLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("SolarMemoryCombat.Activator", new TerriasBattleLifecycleSubscription
+        {
+            FightInitializing = _ => ActivateStatusHandler(),
+            FightRestarting = _ => ReleaseStatusHandler(),
+            FightEnding = _ => ReleaseStatusHandler()
+        });
+    }
+
+    private static void ActivateStatusHandler()
+    {
+        ReleaseStatusHandler();
+        if (!SolarMemoryModeRuntime.IsSolarMemoryRun())
+        {
+            return;
+        }
+
+        statusRegistration = TerriasStatusLifecycleRouter.Register("SolarMemoryCombat", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = ScaleEnemyHpAfterInit
         });
+    }
+
+    private static void ReleaseStatusHandler()
+    {
+        statusRegistration?.Dispose();
+        statusRegistration = null;
     }
 
     private static void ScaleEnemyHpAfterInit(ModHookContext context)

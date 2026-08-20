@@ -12,9 +12,17 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
 - `TerriasFrameDispatcher`: main-thread frame dispatch support.
 - `TerriasResourceCache`: canonical resource load and `LoadAll` cache.
 - `TerriasConfigIndex`: cached data-table row and filtered-row lookup.
-- `TerriasActionEventRouter`: shared native `Action` / `ActionAfter` event
-  listener routing.
+- `AuraCardActionTransactionRouter`: shared typed card-action transactions for
+  `Action`, `ActionAfter`, successful presentation commit, completion, and abort.
+- `TerriasActionPassiveRegistry`: phase-indexed Terrias Buff/relic/career
+  passives behind the single shared native action lane.
 - `TerriasCardRefreshQueue`: debounced card refresh and `DataUpdate` work.
+- `ScriptDelegateApi`: replaces the first CSV/XLua card initialization bridge
+  with a cached direct C# delegate for subsequent presentation refreshes.
+- `TerriasBuffMutationRouter`: typed Add/Remove/level/check transactions with
+  phase-specific lock-free subscriber snapshots.
+- `TerriasFightPresentationInvalidationService`: converts safe native full
+  refreshes into the complete Terrias Buff dependency plan.
 - `TerriasResourcePreloader`: deferred startup preload through the frame
   scheduler.
 
@@ -22,7 +30,8 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
 
 - Prefer extending these surfaces over adding ad hoc settings, frame loops,
   resource caches, or duplicate listener registrations.
-- Route repeated native action listeners through `TerriasActionEventRouter`.
+- Route card action semantics through `AuraCardActionTransactionRouter`; do not
+  restore Terrias-local Action/ActionAfter stacks.
 - Queue repeated card UI refresh through `TerriasCardRefreshQueue` instead of
   issuing immediate repeated `DataUpdate` calls.
 - Route repeated resource loads through `TerriasResourceCache`.
@@ -32,6 +41,10 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
   schedule it with `TerriasFrameScheduler.RunOnceNextFrame`.
 - Keep one forced initial sync when moving visual or UI code to cached/deferred
   paths.
+- Keep combat-card diagnostics unregistered while the effective shared
+  diagnostics feature is off. Runtime disable disposes routed subscribers; the
+  game exposes no supported native hook-removal API, so a dispatcher installed
+  earlier in the process is removed only by restart.
 
 ## Validation
 

@@ -113,7 +113,7 @@ public static class AuraCardLifecycleRouter
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Handler> Handlers = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<AuraCardLifecyclePhase> RegisteredPhases = new();
-    private static Handler[]? cachedHandlers;
+    private static PhaseSnapshot phaseSnapshot = PhaseSnapshot.Empty;
     private static AuraHookRegistry? registry;
 
     public static IDisposable Register(
@@ -137,7 +137,7 @@ public static class AuraCardLifecycleRouter
         {
             handler = new Handler(id, subscription, warn);
             Handlers[id] = handler;
-            cachedHandlers = null;
+            RebuildPhaseSnapshotNoLock();
             EnsurePhaseRegistrationsNoLock(modConfig, subscription, info, warn);
         }
 
@@ -261,7 +261,7 @@ public static class AuraCardLifecycleRouter
         string source,
         Func<Handler, Action<ModHookContext>?> selector)
     {
-        foreach (var handler in SnapshotHandlers())
+        foreach (var handler in phaseSnapshot.Get(phase))
         {
             var action = selector(handler);
             if (action == null)
@@ -273,21 +273,59 @@ public static class AuraCardLifecycleRouter
         }
     }
 
-    private static Handler[] SnapshotHandlers()
+    private static void RebuildPhaseSnapshotNoLock()
     {
-        lock (Gate)
+        var phases = new Dictionary<AuraCardLifecyclePhase, Handler[]>();
+        foreach (AuraCardLifecyclePhase phase in Enum.GetValues(typeof(AuraCardLifecyclePhase)))
         {
-            if (cachedHandlers != null)
-            {
-                return cachedHandlers;
-            }
-
-            cachedHandlers = Handlers.Values
+            phases[phase] = Handlers.Values
+                .Where(handler => ActionForPhase(handler.Subscription, phase) != null)
                 .OrderByDescending(handler => handler.Subscription.Priority)
                 .ThenBy(handler => handler.Id, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            return cachedHandlers;
         }
+
+        phaseSnapshot = new PhaseSnapshot(phases);
+    }
+
+    private static Action<ModHookContext>? ActionForPhase(
+        AuraCardLifecycleSubscription subscription,
+        AuraCardLifecyclePhase phase)
+    {
+        return phase switch
+        {
+            AuraCardLifecyclePhase.BeforeCommonCardUse => subscription.BeforeCommonCardUse,
+            AuraCardLifecyclePhase.BeforeAttackCardUse => subscription.BeforeAttackCardUse,
+            AuraCardLifecyclePhase.AfterCommonCardUse => subscription.AfterCommonCardUse,
+            AuraCardLifecyclePhase.AfterAttackCardUse => subscription.AfterAttackCardUse,
+            AuraCardLifecyclePhase.AfterSetCardStyle => subscription.AfterSetCardStyle,
+            AuraCardLifecyclePhase.AfterCardItemInit => subscription.AfterCardItemInit,
+            AuraCardLifecyclePhase.AfterAttackCardItemInit => subscription.AfterAttackCardItemInit,
+            AuraCardLifecyclePhase.AfterCardItemDataUpdate => subscription.AfterCardItemDataUpdate,
+            AuraCardLifecyclePhase.AfterAttackCardItemDataUpdate => subscription.AfterAttackCardItemDataUpdate,
+            AuraCardLifecyclePhase.AfterCardItemDrawEffect => subscription.AfterCardItemDrawEffect,
+            AuraCardLifecyclePhase.AfterCommonCardItemDrawEffect => subscription.AfterCommonCardItemDrawEffect,
+            AuraCardLifecyclePhase.AfterAttackCardItemDrawEffect => subscription.AfterAttackCardItemDrawEffect,
+            AuraCardLifecyclePhase.AfterFightUiCreateCardItem => subscription.AfterFightUiCreateCardItem,
+            AuraCardLifecyclePhase.AfterFightUiCreateCardItemInternal => subscription.AfterFightUiCreateCardItemInternal,
+            AuraCardLifecyclePhase.AfterScriptExecutorGetCardFromDeck => subscription.AfterScriptExecutorGetCardFromDeck,
+            AuraCardLifecyclePhase.AfterScriptExecutorRandomAddCard => subscription.AfterScriptExecutorRandomAddCard,
+            AuraCardLifecyclePhase.AfterCardChoiceItemInitialize => subscription.AfterCardChoiceItemInitialize,
+            AuraCardLifecyclePhase.BeforeCardChoiceUiSelect => subscription.BeforeCardChoiceUiSelect,
+            AuraCardLifecyclePhase.AfterDictItemInit => subscription.AfterDictItemInit,
+            AuraCardLifecyclePhase.AfterDictionaryShowItemInit => subscription.AfterDictionaryShowItemInit,
+            AuraCardLifecyclePhase.AfterDisplayCardInit => subscription.AfterDisplayCardInit,
+            AuraCardLifecyclePhase.AfterShowCardInit => subscription.AfterShowCardInit,
+            AuraCardLifecyclePhase.AfterSafeBoxItemInit => subscription.AfterSafeBoxItemInit,
+            AuraCardLifecyclePhase.AfterEnchCardItemInit => subscription.AfterEnchCardItemInit,
+            AuraCardLifecyclePhase.AfterPackShowItemInit => subscription.AfterPackShowItemInit,
+            AuraCardLifecyclePhase.AfterShopItemInit => subscription.AfterShopItemInit,
+            AuraCardLifecyclePhase.AfterWarehouseItemInit => subscription.AfterWarehouseItemInit,
+            AuraCardLifecyclePhase.AfterPlayerInfoAddCard => subscription.AfterPlayerInfoAddCard,
+            AuraCardLifecyclePhase.AfterPlayerInfoAddCardById => subscription.AfterPlayerInfoAddCardById,
+            AuraCardLifecyclePhase.AfterPlayerInfoRandomAddCard => subscription.AfterPlayerInfoRandomAddCard,
+            _ => null
+        };
     }
 
     private sealed class Handler
@@ -343,9 +381,25 @@ public static class AuraCardLifecycleRouter
                 if (Handlers.TryGetValue(id, out var current) && ReferenceEquals(current, handler))
                 {
                     Handlers.Remove(id);
-                    cachedHandlers = null;
+                    RebuildPhaseSnapshotNoLock();
                 }
             }
+        }
+    }
+
+    private sealed class PhaseSnapshot
+    {
+        public static readonly PhaseSnapshot Empty = new(new Dictionary<AuraCardLifecyclePhase, Handler[]>());
+        private readonly Dictionary<AuraCardLifecyclePhase, Handler[]> phases;
+
+        public PhaseSnapshot(Dictionary<AuraCardLifecyclePhase, Handler[]> phases)
+        {
+            this.phases = phases;
+        }
+
+        public Handler[] Get(AuraCardLifecyclePhase phase)
+        {
+            return phases.TryGetValue(phase, out var handlers) ? handlers : Array.Empty<Handler>();
         }
     }
 

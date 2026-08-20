@@ -32,14 +32,21 @@ public static class FamiliarGrowthRuntime
             BeforeEnemyDead = FamiliarFinalBlessingService.BeforeEnemyDead,
             AfterEnemyDead = FamiliarFinalBlessingService.AfterEnemyDead
         });
-        TerriasCombatActionRouter.RegisterActionEventHandler(
+        AuraShared.Core.AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
             "FamiliarGrowth",
-            FamiliarFinalBlessingService.OnAction,
-            () =>
+            new AuraShared.Core.AuraCardActionSubscription
             {
-                FamiliarBlessingEffectRuntime.AfterPlayerAction();
-                FamiliarFinalBlessingService.OnActionAfter();
-            });
+                Phases = AuraShared.Core.AuraCardActionPhase.Committed,
+                Handler = context =>
+                {
+                    FamiliarBlessingEffectRuntime.AfterPlayerAction();
+                    FamiliarFinalBlessingService.OnActionCommitted(context.Config);
+                }
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         BattleRewardAdjustmentService.Register(new BattleRewardAdjustmentRule(
             "FamiliarGrowth.ExtraChoices",
             context => BattleRewardApi.IsCurrentBattleReward()

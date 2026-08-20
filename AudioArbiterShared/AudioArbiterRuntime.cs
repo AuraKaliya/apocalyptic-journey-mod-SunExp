@@ -913,7 +913,7 @@ public static class AudioArbiterRuntime
             }
         }
 
-        private void OnCombatActionBefore(AuraCombatActionContext context)
+        private void OnCombatActionBefore(AuraCardActionContext context)
         {
             var observation = hookContextMapper.MapCombatAction(context);
             if (observation == null)

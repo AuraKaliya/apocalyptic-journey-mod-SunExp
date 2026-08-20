@@ -7,12 +7,22 @@
 分别测试“玩家断线触发重建”和“联机投票重开”。主机、客机各观察一次。
 
 - 原战斗只触发一次 `FightRestarting`，不产生胜利、失败或逃跑结算。
-- 新战斗进入完整的 `FightInitializing -> FightStarted -> FightRestarted`，战斗 session 只递增一次。
+- 新战斗进入完整的 `FightInitializing -> FightInitialized -> FightOpening -> FightStarted -> FightRestarted`；`FightStarted` 只由 `Fight_Start.Init` 提交一次，战斗 session 只递增一次。
 - 日志出现成对的 `[BattleRestart] restarting` 与 `[BattleRestart] restarted`，其中 rebuilt session 大于 interrupted session。
 - AuraToolsExp 自动战斗停止旧决策、清除待执行操作，并按设置在新战斗重新启用。
 - 伤害统计清空旧战斗捕获，但不把旧战斗归档成胜负结果。
 - Terrias 的投影、精灵、意图图标、选人窗口、场地、元素挑战与技能 CG 不残留旧对象。
 - 重建后重新获得的投影/精灵只行动一次，不继承旧回合去重 token。
+- 连续完成两场战斗并重开一次，确认【炎轮再临】、晨星祝福、【无刻时钟】等持久 DataConfig 的监听每场各触发一次，不因旧 Vars 标记而失效或重复。
+
+## 卡牌动作事务与增量刷新
+
+- 分别使用普通牌、攻击牌、回收牌和会嵌套使用其他牌的效果，确认每次动作只产生一组 `Attempting -> NativeStarted -> Committed -> PresentationCommitted -> Completed`。
+- 制造一次脚本异常或不可用出牌，确认事务进入 `Aborted`，下一张牌不会继承白曜、星谱、黄金梦或深渊凝视的 pending 状态。
+- 仅装备 Terrias Buff 且没有 `ReducePerUse` 变化时连续出牌，确认不再由 `CheckAllBuff` 触发 `FightUI.UpdateCardMsg` 全量刷新。
+- 改变燃烧、日耀、聚焰、星辉和伪金，确认只刷新依赖卡牌；手牌包含未知第三方卡牌或变化来自未知 Buff 时保留原生全量刷新。
+- 关闭性能诊断启动时不注册高频诊断 handler；运行中开启后能采样，关闭后订阅归零并提示重启才能移除已安装的宿主 dispatcher。
+- Projection 主机不响应时按有界重试提示，30 秒后终止并返还卡牌；无 pending transaction 时场景中不存在 Projection NetworkRunner。
 
 ## Partner 与 Terrias 行动队列
 

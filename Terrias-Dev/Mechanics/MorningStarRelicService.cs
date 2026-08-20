@@ -9,8 +9,6 @@ public static class MorningStarRelicService
 {
     public static void RegisterBlackSunCross(ScriptExecutor self)
     {
-        const string hookKey = "TerriasBlackSunCrossHook";
-        const string tokenKey = "TerriasBlackSunCrossToken";
         var ownerId = self?.Self?.InstanceId ?? "";
         var registrationKey = "TerriasBlackSunCrossRegistered_" + ownerId;
         if (self?.Self == null
@@ -21,8 +19,8 @@ public static class MorningStarRelicService
         }
 
         ExecutorApi.CombatIntSet(registrationKey, 1);
-        var token = ExecutorApi.RegisterHook(self, hookKey, tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Relic.BlackSunCross");
+        if (scope == null)
         {
             ExecutorApi.CombatIntSet(registrationKey, 0);
             return;
@@ -31,14 +29,11 @@ public static class MorningStarRelicService
         void Cleanup()
         {
             ExecutorApi.CombatIntSet(registrationKey, 0);
-            ExecutorApi.ClearHook(self, hookKey, tokenKey);
+            scope.Invalidate();
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "StartRoundEnd",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 var count = MorningStarCurseService.HandCurses(self).Count;
@@ -52,11 +47,8 @@ public static class MorningStarRelicService
                 self.UpdateRelicShow();
             }),
             TerriasIds.BlackSunCrossRelic);
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "EndRound",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 var owner = self.Self;
@@ -70,37 +62,36 @@ public static class MorningStarRelicService
                 }
             }),
             TerriasIds.BlackSunCrossRelic);
-        ExecutorApi.TryAddTokenedEvent(self, "Win", tokenKey, token, new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
-        ExecutorApi.TryAddTokenedEvent(self, "Escape", tokenKey, token, new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
+        scope.AddRequired("Win", new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
+        scope.AddRequired("Escape", new Action(Cleanup), TerriasIds.BlackSunCrossRelic);
+        if (!scope.Commit())
+        {
+            ExecutorApi.CombatIntSet(registrationKey, 0);
+        }
     }
 
     public static void RegisterTimelessClock(ScriptExecutor self)
     {
         const string countKey = "TerriasTimelessClockActionCount";
-        const string tokenKey = "TerriasTimelessClockToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasTimelessClockHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Relic.TimelessClock");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "FightStart",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 ExecutorApi.SetVar(self, countKey, 0);
                 self.UpdateRelicShow();
             }),
             TerriasIds.TimelessClockRelic);
-        ExecutorApi.TryAddTokenedEvent(
+        TerriasActionPassiveRegistry.Register(
             self,
-            "Action",
-            tokenKey,
-            token,
-            new Action(() =>
+            "Relic.TimelessClock",
+            AuraShared.Core.AuraCardActionPhase.NativeStarted,
+            _ =>
             {
                 var count = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, countKey, "0")) + 1;
                 ExecutorApi.SetVar(self, countKey, count);
@@ -110,62 +101,52 @@ public static class MorningStarRelicService
                 }
 
                 self.UpdateRelicShow();
-            }),
-            TerriasIds.TimelessClockRelic);
+            });
+        if (!scope.Commit())
+        {
+            TerriasActionPassiveRegistry.Unregister(self, "Relic.TimelessClock");
+        }
     }
 
     public static void RegisterLoneerStarStonePouch(ScriptExecutor self)
     {
-        const string tokenKey = "TerriasLoneerStarStonePouchRelicToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasLoneerStarStonePouchRelicHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Relic.LoneerStarStonePouch");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "FightStart",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 StarStonePouchService.GrantRelicInitial(self);
                 self.UpdateRelicShow();
             }),
             TerriasIds.LoneerStarStonePouchRelic);
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "Win",
-            tokenKey,
-            token,
             new Action(() => StarStonePouchService.RemoveRelicState(self?.Self)),
             TerriasIds.LoneerStarStonePouchRelic);
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "Escape",
-            tokenKey,
-            token,
             new Action(() => StarStonePouchService.RemoveRelicState(self?.Self)),
             TerriasIds.LoneerStarStonePouchRelic);
+        scope.Commit();
     }
 
     public static void RegisterFoxWomanHarp(ScriptExecutor self)
     {
         const string countKey = "TerriasFoxWomanHarpApplicationCount";
-        const string tokenKey = "TerriasFoxWomanHarpToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasFoxWomanHarpHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Relic.FoxWomanHarp");
+        if (scope == null)
         {
             return;
         }
 
         ExecutorApi.SetVar(self, countKey, 0);
-        ExecutorApi.TryAddTokenedEvent<AddBuffData>(
-            self,
+        scope.AddRequired<AddBuffData>(
             "AddBuff",
-            tokenKey,
-            token,
             data =>
             {
                 var ownerId = self?.Self?.InstanceId ?? "";
@@ -191,22 +172,19 @@ public static class MorningStarRelicService
                 self!.UpdateRelicShow();
             },
             TerriasIds.FoxWomanHarpRelic);
+        scope.Commit();
     }
 
     public static void RegisterDimStarStone(ScriptExecutor self)
     {
-        const string tokenKey = "TerriasDimStarStoneToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasDimStarStoneHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Relic.DimStarStone");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "StartRound",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 self.SetStatus("Self");
@@ -214,6 +192,7 @@ public static class MorningStarRelicService
                 self.UpdateRelicShow();
             }),
             TerriasIds.DimStarStoneRelic);
+        scope.Commit();
     }
 
     private static void MakeRandomHandCardFree(ScriptExecutor self)
@@ -232,13 +211,6 @@ public static class MorningStarRelicService
             return;
         }
 
-        try
-        {
-            card.DataUpdate();
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Debug("Timeless Clock card refresh skipped: " + ex.Message);
-        }
+        TerriasCardRefreshQueue.RequestFullRefresh(card, "Relic.TimelessClock");
     }
 }

@@ -11,19 +11,39 @@ namespace Terrias.Dll.Hooks;
 public static class EndlessSeaCombatRuntime
 {
     private const string AppliedFloorKey = "TerriasEndlessSeaHpScaledFloor";
+    private static IDisposable? statusRegistration;
 
     public static void Initialize(ModConfig modConfig)
     {
         TerriasBattleLifecycleRouter.Register("EndlessSeaCombat", new TerriasBattleLifecycleSubscription
         {
-            FightInitialized = MarkEndlessBattleStarted
-        });
-        TerriasStatusLifecycleRouter.Register("EndlessSeaCombat", new TerriasStatusLifecycleSubscription
-        {
-            AfterEnemyInit = ScaleEnemyAfterInit
+            FightInitializing = _ => ActivateStatusHandler(),
+            FightInitialized = MarkEndlessBattleStarted,
+            FightRestarting = _ => ReleaseStatusHandler(),
+            FightEnding = _ => ReleaseStatusHandler()
         });
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
         RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, MarkEndlessBattleWon);
+    }
+
+    private static void ActivateStatusHandler()
+    {
+        ReleaseStatusHandler();
+        if (!EndlessSeaModeRuntime.IsEndlessSeaRun())
+        {
+            return;
+        }
+
+        statusRegistration = TerriasStatusLifecycleRouter.Register("EndlessSeaCombat", new TerriasStatusLifecycleSubscription
+        {
+            AfterEnemyInit = ScaleEnemyAfterInit
+        });
+    }
+
+    private static void ReleaseStatusHandler()
+    {
+        statusRegistration?.Dispose();
+        statusRegistration = null;
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

@@ -25,10 +25,15 @@ public static class TerriasSkillCgRuntime
         {
             DuplicateWindowSeconds = 1.25f
         });
-        AuraCombatActionRouter.RegisterBefore(
+        AuraCardActionTransactionRouter.Register(
             modConfig,
+            TerriasIds.ModId,
             TerriasIds.ModId + ".SkillCG",
-            BeforeCombatAction,
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.PresentationCommitted,
+                Handler = BeforeCombatAction
+            },
             TerriasLog.Debug,
             TerriasLog.Warn);
         TerriasBattleLifecycleRouter.Register("SkillCG", new TerriasBattleLifecycleSubscription
@@ -41,7 +46,7 @@ public static class TerriasSkillCgRuntime
         });
     }
 
-    private static void BeforeCombatAction(AuraCombatActionContext context)
+    private static void BeforeCombatAction(AuraCardActionContext context)
     {
         try
         {
@@ -72,20 +77,20 @@ public static class TerriasSkillCgRuntime
         }
     }
 
-    private static SkillCgTriggerContext? BuildTriggerContext(AuraCombatActionContext context)
+    private static SkillCgTriggerContext? BuildTriggerContext(AuraCardActionContext context)
     {
-        if (!context.IsCardAction || string.IsNullOrWhiteSpace(context.CardId))
+        if (string.IsNullOrWhiteSpace(context.CardDataId))
         {
             return null;
         }
 
         return new SkillCgTriggerContext
         {
-            ActionSequence = context.ActionSequence,
-            EventToken = context.EventToken,
+            ActionSequence = context.Sequence,
+            EventToken = context.TransactionId,
             Action = context.Action,
-            CardId = context.CardId,
-            OwnerInstanceId = context.OwnerInstanceId,
+            CardId = context.CardDataId,
+            OwnerInstanceId = context.OwnerStatusId,
             OwnerRoleId = context.OwnerRoleId,
             CreatedAt = context.CreatedAt
         };

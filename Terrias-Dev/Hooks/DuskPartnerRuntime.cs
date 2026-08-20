@@ -25,9 +25,12 @@ public static class DuskPartnerRuntime
             FightRestarting = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightRestarting"),
             FightEnding = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightEnding")
         });
+        TerriasBuffMutationRouter.Register("DuskPartner.Buff", new TerriasBuffMutationSubscription
+        {
+            Changed = ObserveBurnAfterAdd
+        });
         TerriasStatusLifecycleRouter.Register("DuskPartner", new TerriasStatusLifecycleSubscription
         {
-            AfterAddBuff = ObserveBurnAfterAdd,
             AfterEnemyInit = ObserveEnemyAfterInit
         });
     }
@@ -75,13 +78,18 @@ public static class DuskPartnerRuntime
         }
     }
 
-    private static void ObserveBurnAfterAdd(ModHookContext context)
+    private static void ObserveBurnAfterAdd(TerriasBuffMutationContext context)
     {
         try
         {
+            if (context.Kind != TerriasBuffMutationKind.Add)
+            {
+                return;
+            }
+
             DuskAfterheatRecoveryService.ObserveBurnAdded(
-                context.Target as IStatusManager,
-                BuffIdFromArgs(context.Arguments),
+                context.Status,
+                context.BuffId,
                 "StatusManager.AddBuff");
         }
         catch (Exception ex)
@@ -104,15 +112,4 @@ public static class DuskPartnerRuntime
         }
     }
 
-    private static string BuffIdFromArgs(object[]? args)
-    {
-        if (args == null || args.Length == 0)
-        {
-            return "";
-        }
-
-        return args[0] is IBuffItemConfig config
-            ? config.BuffId ?? ""
-            : Convert.ToString(args[0]) ?? "";
-    }
 }

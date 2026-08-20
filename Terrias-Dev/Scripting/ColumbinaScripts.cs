@@ -23,6 +23,7 @@ public static class ColumbinaScripts
     public static void Init(ScriptExecutor self, string id)
     {
         ExecutorApi.SetBaseScript(self, "CommonCardItem");
+        ScriptDelegateApi.BindParameterized(self, "InitScript", id, Init);
     }
 
     public static void Use(ScriptExecutor self, string id)

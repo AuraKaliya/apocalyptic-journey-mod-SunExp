@@ -15,7 +15,6 @@ public static class TerriasHookTargets
     public const string FightUiCreateCardItem = "FightUI.CreateCardItem";
     public const string FightUiCreateCardItemInternal = "FightUI.CreateCardItemInternal";
     public const string FightUiUpdateCardMsg = "FightUI.UpdateCardMsg";
-    public const string FightUiCallActionAnimation = "FightUI.CallActionAnimation";
     public const string FightUiFadeIn = "FightUI.FadeIn";
 
     public const string ICardSetCardStyle = "ICard.SetCardStyle";

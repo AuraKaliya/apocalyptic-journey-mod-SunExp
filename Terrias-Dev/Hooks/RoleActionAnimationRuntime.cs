@@ -17,20 +17,37 @@ public static class RoleActionAnimationRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasCombatActionRouter.Register("RoleActionAnimation", new TerriasCombatActionSubscription
-        {
-            BeforeFightUiActionAnimation = BeforeCallActionAnimation,
-            AfterFightUiActionAnimation = AfterCallActionAnimation
-        });
+        AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "RoleActionAnimation",
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.PresentationCommitted
+                         | AuraCardActionPhase.Completed
+                         | AuraCardActionPhase.Aborted,
+                Handler = OnCardAction
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
     }
 
-    private static void BeforeCallActionAnimation(ModHookContext context)
+    private static void OnCardAction(AuraCardActionContext context)
+    {
+        if (context.Phase == AuraCardActionPhase.PresentationCommitted)
+        {
+            BeforeCallActionAnimation(context.Config?.scriptExecutor);
+        }
+        else
+        {
+            AfterCallActionAnimation(context.Config);
+        }
+    }
+
+    private static void BeforeCallActionAnimation(IScriptExecutor? executor)
     {
         try
         {
-            var executor = context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as IScriptExecutor
-                : null;
             if (!ShouldNormalize(executor))
             {
                 return;
@@ -50,7 +67,7 @@ public static class RoleActionAnimationRuntime
         }
     }
 
-    private static void AfterCallActionAnimation(ModHookContext context)
+    private static void AfterCallActionAnimation(IDataConfig? config)
     {
         try
         {
@@ -59,11 +76,8 @@ public static class RoleActionAnimationRuntime
                 return;
             }
 
-            var executor = context.Arguments != null && context.Arguments.Length > 0
-                ? context.Arguments[0] as IScriptExecutor
-                : null;
             var patch = EffectPatches.Peek();
-            if (!ReferenceEquals(patch.DataConfig, executor?.dataConfig))
+            if (!ReferenceEquals(patch.DataConfig, config))
             {
                 return;
             }

@@ -13,13 +13,12 @@ namespace Terrias.Dll.Hooks;
 
 public static class GoldDreamRuntime
 {
-    private static readonly Stack<IDataConfig> PendingGoldDreamCards = new();
     private static bool actionHandlerRegistered;
     private static INotifyPropertyChanged? observedRoleTable;
 
     public static void Initialize(ModConfig modConfig)
     {
-        EnsureActionHandler();
+        EnsureActionHandler(modConfig);
         TerriasBattleLifecycleRouter.Register("GoldDream", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = _ => Reset("FightInitializing"),
@@ -36,33 +35,35 @@ public static class GoldDreamRuntime
         GoldDreamEconomyService.PaymentStateChanged += OnPaymentStateChanged;
     }
 
-    private static void EnsureActionHandler()
+    private static void EnsureActionHandler(ModConfig modConfig)
     {
         if (actionHandlerRegistered)
         {
             return;
         }
 
-        TerriasActionEventRouter.RegisterHandler("GoldDream", OnAction, OnActionAfter);
+        AuraShared.Core.AuraCardActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "GoldDream",
+            new AuraShared.Core.AuraCardActionSubscription
+            {
+                Phases = AuraShared.Core.AuraCardActionPhase.Committed,
+                Handler = OnActionCommitted
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         actionHandlerRegistered = true;
     }
 
-    private static void OnAction(TerriasActionEventContext context)
+    private static void OnActionCommitted(AuraShared.Core.AuraCardActionContext context)
     {
-        if (CardConfigApi.HasGoldDream(context.Config))
-        {
-            PendingGoldDreamCards.Push(context.Config!);
-        }
-    }
-
-    private static void OnActionAfter()
-    {
-        if (PendingGoldDreamCards.Count == 0)
+        var config = context.Config;
+        if (config == null || !CardConfigApi.HasGoldDream(config))
         {
             return;
         }
 
-        var config = PendingGoldDreamCards.Pop();
         if (CardConfigApi.TryClaimGoldDreamSkipOnce(config))
         {
             return;
@@ -180,7 +181,6 @@ public static class GoldDreamRuntime
             observedRoleTable = null;
         }
 
-        PendingGoldDreamCards.Clear();
         RuntimeCardAttachmentService.ClearTemporaryAttachments("GoldDream." + source);
         GoldDreamEconomyService.ClearCombatState(source);
     }

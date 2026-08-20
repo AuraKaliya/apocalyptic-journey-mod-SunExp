@@ -128,18 +128,14 @@ public static class MorningStarBlessingService
         IReadOnlyList<string> combatStartCards,
         Action roundStartEffect)
     {
-        var tokenKey = "TerriasMorningStarBlessingToken_" + blessingId;
-        var token = ExecutorApi.RegisterHook(self, "TerriasMorningStarBlessingHook_" + blessingId, tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Blessing.MorningStar." + blessingId);
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "FightStart",
-            tokenKey,
-            token,
             new Action(() =>
             {
                 foreach (var cardId in combatStartCards)
@@ -148,13 +144,11 @@ public static class MorningStarBlessingService
                 }
             }),
             blessingId);
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "StartRound",
-            tokenKey,
-            token,
             roundStartEffect,
             blessingId);
+        scope.Commit();
     }
 
     private static void AddSelfBuff(ScriptExecutor self, string buffId, int amount)

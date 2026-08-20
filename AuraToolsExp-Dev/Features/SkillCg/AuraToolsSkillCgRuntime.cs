@@ -90,10 +90,15 @@ public static class AuraToolsSkillCgRuntime
             return;
         }
 
-        HookRegistrations.Add(AuraCombatActionRouter.RegisterBefore(
+        HookRegistrations.Add(AuraCardActionTransactionRouter.Register(
             modConfig,
+            AuraToolsIds.ModId,
             AuraToolsIds.ModId + ".SkillCG",
-            BeforeCombatAction,
+            new AuraCardActionSubscription
+            {
+                Phases = AuraCardActionPhase.PresentationCommitted,
+                Handler = BeforeCombatAction
+            },
             warn: AuraToolsLog.Warn));
         HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
             modConfig,
@@ -138,13 +143,13 @@ public static class AuraToolsSkillCgRuntime
         AuraToolsLog.Info("[SkillCG] routed hooks disabled.");
     }
 
-    private static void BeforeCombatAction(AuraCombatActionContext context)
+    private static void BeforeCombatAction(AuraCardActionContext context)
     {
         RunHook("card action", () =>
         {
             EnsureRegistryStateCurrent();
             if ((!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
-                || !context.IsCardAction)
+                || string.IsNullOrWhiteSpace(context.CardDataId))
             {
                 return;
             }
@@ -159,21 +164,21 @@ public static class AuraToolsSkillCgRuntime
         });
     }
 
-    private static SkillCgTriggerContext? BuildTriggerContext(AuraCombatActionContext context)
+    private static SkillCgTriggerContext? BuildTriggerContext(AuraCardActionContext context)
     {
-        if (!context.IsCardAction || string.IsNullOrWhiteSpace(context.CardId))
+        if (string.IsNullOrWhiteSpace(context.CardDataId))
         {
             return null;
         }
 
-        AuraToolsSkillCgProvider.RememberOwnerRole(context.OwnerInstanceId, context.OwnerRoleId);
+        AuraToolsSkillCgProvider.RememberOwnerRole(context.OwnerStatusId, context.OwnerRoleId);
         return new SkillCgTriggerContext
         {
-            ActionSequence = context.ActionSequence,
-            EventToken = context.EventToken,
+            ActionSequence = context.Sequence,
+            EventToken = context.TransactionId,
             Action = context.Action,
-            CardId = context.CardId,
-            OwnerInstanceId = context.OwnerInstanceId,
+            CardId = context.CardDataId,
+            OwnerInstanceId = context.OwnerStatusId,
             OwnerRoleId = context.OwnerRoleId,
             CreatedAt = context.CreatedAt
         };

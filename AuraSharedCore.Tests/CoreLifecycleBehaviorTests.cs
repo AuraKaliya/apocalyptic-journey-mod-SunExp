@@ -10,12 +10,21 @@ internal static partial class CoreTestSuite
 {
     public static void TestLifecycleContracts()
     {
+        var featureChanges = new List<AuraFeatureSwitchChange>();
+        Action<AuraFeatureSwitchChange> onFeatureChanged = change => featureChanges.Add(change);
+        AuraFeatureSwitchRuntime.EffectiveStateChanged += onFeatureChanged;
         AuraFeatureSwitchRuntime.RegisterFeature("OwnerA", "FeatureA", defaultEnabled: true, "test");
         Assert(AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature default enabled");
         AuraFeatureSwitchRuntime.SetLocalOverride("ToolA", "OwnerA", "FeatureA", false);
         Assert(!AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature effective override disabled");
         AuraFeatureSwitchRuntime.SetLocalOverride("ToolA", "OwnerA", "FeatureA", true);
         Assert(AuraFeatureSwitchRuntime.IsEnabled("OwnerA", "FeatureA"), "feature effective override enabled");
+        AuraFeatureSwitchRuntime.EffectiveStateChanged -= onFeatureChanged;
+        Assert(featureChanges.Count == 2
+               && !featureChanges[0].Enabled
+               && featureChanges[1].Enabled
+               && featureChanges[1].Revision > featureChanges[0].Revision,
+            "feature switch publishes ordered effective-state changes only when the value changes");
     
         AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
     
@@ -35,6 +44,24 @@ internal static partial class CoreTestSuite
         var rebuiltEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
         Assert(rebuiltEpoch == interruptedEpoch + 1 && AuraLifecycleSessionRuntime.IsBattleSessionActive,
             "rebuilt battle should receive exactly one new session epoch");
+        var leaseOwner = new object();
+        Assert(AuraBattleLeaseLedger.TryAcquire(leaseOwner, "OwnerA", "RegistrationA", out var firstLease)
+               && firstLease.SessionId == rebuiltEpoch
+               && AuraBattleLeaseLedger.IsCurrent(firstLease),
+            "battle lease acquires for the active session");
+        Assert(!AuraBattleLeaseLedger.TryAcquire(leaseOwner, "OwnerA", "RegistrationA", out _),
+            "battle lease rejects duplicate active registration in one session");
+        AuraBattleLeaseLedger.Invalidate(firstLease);
+        AuraBattleLeaseToken reappliedLease = default;
+        Assert(!AuraBattleLeaseLedger.IsCurrent(firstLease)
+               && AuraBattleLeaseLedger.TryAcquire(leaseOwner, "OwnerA", "RegistrationA", out reappliedLease)
+               && reappliedLease.Generation > firstLease.Generation,
+            "invalidated battle lease can be reacquired in the same session with a newer generation");
+        var nextLeaseSession = AuraLifecycleSessionRuntime.RestartBattleSession();
+        Assert(AuraBattleLeaseLedger.TryAcquire(leaseOwner, "OwnerA", "RegistrationA", out var nextSessionLease)
+               && nextSessionLease.SessionId == nextLeaseSession
+               && nextSessionLease.Generation > reappliedLease.Generation,
+            "persistent registration reacquires automatically in the next battle session");
         AuraLifecycleSessionRuntime.EndBattleSession();
         Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),
             "first lifecycle operation claim");

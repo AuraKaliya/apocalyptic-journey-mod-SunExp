@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using Witch.Core;
@@ -12,8 +13,27 @@ public static class TerriasCombatCardUiWorkloadRuntime
 {
     private const double SlowMethodWarningMilliseconds = 16.0;
     [ThreadStatic] private static Stack<StartEntry>? starts;
+    private static readonly List<IDisposable> Registrations = new();
+    private static ModConfig? activeConfig;
+    private static bool initialized;
+    private static bool hooksEnabled;
 
     public static void Initialize(ModConfig modConfig)
+    {
+        activeConfig = modConfig;
+        if (!initialized)
+        {
+            initialized = true;
+            AuraFeatureSwitchRuntime.EffectiveStateChanged += OnFeatureSwitchChanged;
+            ScheduleStateMonitor();
+        }
+
+        ReconcileHookState();
+        TerriasLog.InfoAlways("Combat card UI workload diagnostics controller initialized; enabled="
+                              + hooksEnabled);
+    }
+
+    private static void RegisterHooks(ModConfig modConfig)
     {
         RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItem);
         RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItemInternal);
@@ -33,14 +53,22 @@ public static class TerriasCombatCardUiWorkloadRuntime
         RegisterMeasured(modConfig, TerriasHookTargets.AttackCardItemDrawEffect);
         RegisterMeasured(modConfig, TerriasHookTargets.FightCardManagerCardTagCheck);
         RegisterRefreshCauses(modConfig);
-        TerriasLog.InfoAlways("Combat card UI workload diagnostics registered; enabled="
-                              + TerriasPerformanceSettings.CountersEnabled);
+        hooksEnabled = true;
+        TerriasLog.InfoAlways("Combat card UI workload diagnostics hooks enabled.");
     }
 
     private static void RegisterMeasured(ModConfig config, string target)
     {
-        TerriasHookRegistry.Before(config, target, context => Begin(target, context), "CombatCardUiWorkload");
-        TerriasHookRegistry.After(config, target, context => End(target, context), "CombatCardUiWorkload");
+        Registrations.Add(TerriasHookRegistry.BeforeRouted(
+            config,
+            target,
+            context => Begin(target, context),
+            "CombatCardUiWorkload"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
+            config,
+            target,
+            context => End(target, context),
+            "CombatCardUiWorkload"));
     }
 
     private static void Begin(string target, ModHookContext context)
@@ -72,6 +100,11 @@ public static class TerriasCombatCardUiWorkloadRuntime
 
     private static void End(string target, ModHookContext context)
     {
+        if (!TerriasPerformanceSettings.CountersEnabled)
+        {
+            return;
+        }
+
         var key = CounterKey(target);
         var start = PopStart(key);
         if (start <= 0L)
@@ -117,36 +150,93 @@ public static class TerriasCombatCardUiWorkloadRuntime
 
     private static void RegisterRefreshCauses(ModConfig config)
     {
-        TerriasHookRegistry.Before(
+        Registrations.Add(TerriasHookRegistry.BeforeRouted(
             config,
             TerriasHookTargets.BuffItemConfigSetLevel,
             TerriasCombatCardUiDiagnostics.BeginBuffLevelChange,
-            "CombatCardUiRefreshCause");
-        TerriasHookRegistry.After(
+            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.BuffItemConfigSetLevel,
             TerriasCombatCardUiDiagnostics.EndBuffLevelChange,
-            "CombatCardUiRefreshCause");
-        TerriasHookRegistry.After(
+            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.StatusManagerAddBuff,
             context => TerriasCombatCardUiDiagnostics.RecordBuffMutation("add", context),
-            "CombatCardUiRefreshCause");
-        TerriasHookRegistry.After(
+            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.StatusManagerRemoveBuff,
             context => TerriasCombatCardUiDiagnostics.RecordBuffMutation("remove", context),
-            "CombatCardUiRefreshCause");
-        TerriasHookRegistry.After(
+            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.FightPlayerTurnInit,
             context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("player-turn"),
-            "CombatCardUiRefreshCause");
-        TerriasHookRegistry.After(
+            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.BuffBarUiCheckAllBuff,
             context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("buff-bar-check"),
-            "CombatCardUiRefreshCause");
+            "CombatCardUiRefreshCause"));
+    }
+
+    private static void OnFeatureSwitchChanged(AuraFeatureSwitchChange change)
+    {
+        if (!string.Equals(change.OwnerModId, TerriasPerformanceSettings.SharedDiagnosticsOwnerId, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(change.FeatureId, TerriasPerformanceSettings.SharedDiagnosticsFeatureId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        TerriasPerformanceSettings.Refresh();
+        ReconcileHookState();
+    }
+
+    private static void ReconcileHookState()
+    {
+        var enabled = TerriasPerformanceSettings.CountersEnabled;
+        if (enabled == hooksEnabled)
+        {
+            return;
+        }
+
+        if (enabled)
+        {
+            if (activeConfig != null)
+            {
+                RegisterHooks(activeConfig);
+            }
+            return;
+        }
+
+        for (var i = Registrations.Count - 1; i >= 0; i--)
+        {
+            Registrations[i].Dispose();
+        }
+
+        Registrations.Clear();
+        hooksEnabled = false;
+        TerriasLog.InfoAlways("Combat card UI workload diagnostics hooks disabled.");
+    }
+
+    private static void ScheduleStateMonitor()
+    {
+        TerriasFrameScheduler.RunOnceAfterFrames(
+            "CombatCardUi.DiagnosticsStateMonitor",
+            60,
+            MonitorState,
+            AuraSharedFramePhase.Background,
+            priority: -100,
+            estimatedCost: 1);
+    }
+
+    private static void MonitorState()
+    {
+        TerriasPerformanceSettings.Refresh();
+        ReconcileHookState();
+        ScheduleStateMonitor();
     }
 
     private static void PushStart(string key, long start)

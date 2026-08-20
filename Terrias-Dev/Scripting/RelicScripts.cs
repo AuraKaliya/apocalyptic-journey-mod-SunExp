@@ -121,7 +121,7 @@ public static class RelicScripts
             ExecutorApi.SetVar(self, "ThisCount", "0");
             UpdateRelicShow(self);
         }), "sun_orbit_mirror");
-        ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
+        TerriasActionPassiveRegistry.Register(self, "Relic.SunOrbitMirror", AuraShared.Core.AuraCardActionPhase.NativeStarted, _ =>
         {
             var count = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "ThisCount", "0")) + 1;
             ExecutorApi.SetVar(self, "ThisCount", count);
@@ -135,7 +135,7 @@ public static class RelicScripts
             self.AddBuff(TerriasIds.GatheredFlame, "1");
             ExecutorApi.AddBurnToRandomEnemy(self, 3);
             UpdateRelicShow(self);
-        }), "sun_orbit_mirror");
+        });
     }
 
     private static void RegisterSolarPhaseDial(ScriptExecutor self)
@@ -202,7 +202,7 @@ public static class RelicScripts
             Reset();
         }), "solar_prism");
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Reset), "solar_prism");
-        ExecutorApi.TryAddEvent(self, "Action", new Action(Check), "solar_prism");
+        TerriasActionPassiveRegistry.Register(self, "Relic.SolarPrism", AuraShared.Core.AuraCardActionPhase.NativeStarted, _ => Check());
     }
 
     private static void RegisterCoronationThrone(ScriptExecutor self)
@@ -234,7 +234,7 @@ public static class RelicScripts
         ExecutorApi.TryAddEvent(self, "Terrias_terrias_solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, TerriasContentIdCompatibility.LegacyMainPrefix + "solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "solar_crownOnLevelChange", new Action(Check), "coronation_throne");
-        ExecutorApi.TryAddEvent(self, "Action", new Action(Check), "coronation_throne");
+        TerriasActionPassiveRegistry.Register(self, "Relic.CoronationThrone", AuraShared.Core.AuraCardActionPhase.NativeStarted, _ => Check());
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Check), "coronation_throne");
     }
 
@@ -263,7 +263,7 @@ public static class RelicScripts
 
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(Reset), "gathered_flame_charm");
         ExecutorApi.TryAddEvent(self, "buff_burnOnLevelChange", new Action(Check), "gathered_flame_charm");
-        ExecutorApi.TryAddEvent(self, "Action", new Action(Check), "gathered_flame_charm");
+        TerriasActionPassiveRegistry.Register(self, "Relic.GatheredFlameCharm", AuraShared.Core.AuraCardActionPhase.NativeStarted, _ => Check());
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Check), "gathered_flame_charm");
     }
 

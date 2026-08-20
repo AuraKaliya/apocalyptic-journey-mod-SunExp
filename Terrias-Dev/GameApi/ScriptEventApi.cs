@@ -1,50 +1,116 @@
 using System;
+using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.GameApi;
 
 public static class ScriptEventApi
 {
-    public static string? RegisterHook(ScriptExecutor? executor, string hookKey, string tokenKey)
+    public static ScriptEventScope? BeginFightScope(ScriptExecutor? executor, string registrationId)
     {
-        if (executor?.Vars == null)
-        {
-            return "0";
-        }
-
-        if (ScriptVarApi.GetVar(executor, hookKey, "0") == "1")
+        if (executor?.Self == null
+            || string.IsNullOrWhiteSpace(registrationId)
+            || !AuraBattleLeaseLedger.TryAcquire(
+                executor,
+                TerriasIds.ModId,
+                registrationId,
+                out var token))
         {
             return null;
         }
 
-        var token = DictionaryUtil.ParseInt(ScriptVarApi.GetVar(executor, tokenKey, "0")) + 1;
-        ScriptVarApi.SetVar(executor, hookKey, "1");
-        ScriptVarApi.SetVar(executor, tokenKey, token);
-        return token.ToString();
+        return new ScriptEventScope(executor, registrationId.Trim(), token);
     }
 
-    public static bool IsHookTokenActive(ScriptExecutor? executor, string tokenKey, string? token)
+    public static void InvalidateFightScope(ScriptExecutor? executor, string registrationId)
     {
-        if (executor?.Vars == null)
-        {
-            return true;
-        }
-
-        return ScriptVarApi.GetVar(executor, tokenKey) == Convert.ToString(token);
-    }
-
-    public static void ClearHook(ScriptExecutor? executor, string hookKey, string tokenKey)
-    {
-        if (executor?.Vars == null)
+        if (executor == null || string.IsNullOrWhiteSpace(registrationId))
         {
             return;
         }
 
-        ScriptVarApi.SetVar(executor, hookKey, "0");
-        ScriptVarApi.SetVar(executor, tokenKey, DictionaryUtil.ParseInt(ScriptVarApi.GetVar(executor, tokenKey, "0")) + 1);
+        AuraBattleLeaseLedger.Invalidate(executor, TerriasIds.ModId, registrationId);
     }
 
     public static bool TryAddEvent(ScriptExecutor? executor, string eventName, Action script, string context = "")
+    {
+        if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
+        {
+            return false;
+        }
+
+        var registrationId = SingleEventRegistrationId(eventName, context, script);
+        if (!AuraBattleLeaseLedger.TryAcquire(
+                executor,
+                TerriasIds.ModId,
+                registrationId,
+                out var token))
+        {
+            return true;
+        }
+
+        var registered = TryAddEventRaw(
+            executor,
+            eventName,
+            new Action(() =>
+            {
+                if (AuraBattleLeaseLedger.IsCurrent(token))
+                {
+                    script();
+                }
+            }),
+            context);
+        if (!registered)
+        {
+            AuraBattleLeaseLedger.Invalidate(token);
+        }
+
+        return registered;
+    }
+
+    public static bool TryAddEvent<T>(ScriptExecutor? executor, string eventName, Action<T> script, string context = "")
+        where T : ISourceData
+    {
+        if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
+        {
+            return false;
+        }
+
+        var registrationId = SingleEventRegistrationId(eventName, context, script);
+        if (!AuraBattleLeaseLedger.TryAcquire(
+                executor,
+                TerriasIds.ModId,
+                registrationId,
+                out var token))
+        {
+            return true;
+        }
+
+        var registered = TryAddEventRaw<T>(
+            executor,
+            eventName,
+            data =>
+            {
+                if (AuraBattleLeaseLedger.IsCurrent(token))
+                {
+                    script(data);
+                }
+            },
+            context);
+        if (!registered)
+        {
+            AuraBattleLeaseLedger.Invalidate(token);
+        }
+
+        return registered;
+    }
+
+    internal static bool TryAddEventRaw(
+        ScriptExecutor? executor,
+        string eventName,
+        Action script,
+        string context = "")
     {
         if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
         {
@@ -63,23 +129,11 @@ public static class ScriptEventApi
         }
     }
 
-    public static bool TryAddTokenedEvent(ScriptExecutor? executor, string eventName, string tokenKey, string? token, Action script, string context = "")
-    {
-        if (string.IsNullOrWhiteSpace(tokenKey) || script == null)
-        {
-            return false;
-        }
-
-        return TryAddEvent(executor, eventName, new Action(() =>
-        {
-            if (IsHookTokenActive(executor, tokenKey, token))
-            {
-                script();
-            }
-        }), context);
-    }
-
-    public static bool TryAddEvent<T>(ScriptExecutor? executor, string eventName, Action<T> script, string context = "")
+    internal static bool TryAddEventRaw<T>(
+        ScriptExecutor? executor,
+        string eventName,
+        Action<T> script,
+        string context = "")
         where T : ISourceData
     {
         if (executor == null || executor.Self == null || string.IsNullOrWhiteSpace(eventName) || script == null)
@@ -99,27 +153,12 @@ public static class ScriptEventApi
         }
     }
 
-    public static bool TryAddTokenedEvent<T>(
-        ScriptExecutor? executor,
-        string eventName,
-        string tokenKey,
-        string? token,
-        Action<T> script,
-        string context = "")
-        where T : ISourceData
+    private static string SingleEventRegistrationId(string eventName, string context, Delegate action)
     {
-        if (string.IsNullOrWhiteSpace(tokenKey) || script == null)
-        {
-            return false;
-        }
-
-        return TryAddEvent<T>(executor, eventName, data =>
-        {
-            if (IsHookTokenActive(executor, tokenKey, token))
-            {
-                script(data);
-            }
-        }, context);
+        var source = string.IsNullOrWhiteSpace(context)
+            ? (action.Method.DeclaringType?.FullName ?? "handler") + "." + action.Method.Name
+            : context.Trim();
+        return "Event." + source + "." + eventName.Trim();
     }
 
     public static bool TryAddOwnedEventListener(
@@ -134,13 +173,34 @@ public static class ScriptEventApi
             return false;
         }
 
+        var registrationId = SingleEventRegistrationId(eventName, context, script);
+        if (!AuraBattleLeaseLedger.TryAcquire(
+                owner,
+                TerriasIds.ModId,
+                registrationId,
+                out var token))
+        {
+            return true;
+        }
+
         try
         {
-            EventCenter.Instance.AddEventListener(eventName, script, owner, dispose);
+            EventCenter.Instance.AddEventListener(
+                eventName,
+                new Action(() =>
+                {
+                    if (AuraBattleLeaseLedger.IsCurrent(token))
+                    {
+                        script();
+                    }
+                }),
+                owner,
+                dispose);
             return true;
         }
         catch (Exception ex)
         {
+            AuraBattleLeaseLedger.Invalidate(token);
             TerriasLog.Debug("TryAddOwnedEventListener skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
@@ -162,6 +222,114 @@ public static class ScriptEventApi
         {
             TerriasLog.Debug("TryAddTempEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
+        }
+    }
+}
+
+public sealed class ScriptEventScope : IDisposable
+{
+    private readonly ScriptExecutor executor;
+    private readonly AuraBattleLeaseToken token;
+    private bool committed;
+    private bool failed;
+    private bool disposed;
+    private readonly HashSet<string> markers = new(StringComparer.Ordinal);
+
+    internal ScriptEventScope(
+        ScriptExecutor executor,
+        string registrationId,
+        AuraBattleLeaseToken token)
+    {
+        this.executor = executor;
+        RegistrationId = registrationId;
+        this.token = token;
+    }
+
+    public string RegistrationId { get; }
+    public long SessionId => token.SessionId;
+    public long Generation => token.Generation;
+    public bool IsActive => AuraBattleLeaseLedger.IsCurrent(token);
+
+    public bool TryMark(string key)
+    {
+        return !string.IsNullOrWhiteSpace(key) && markers.Add(key.Trim());
+    }
+
+    public bool AddRequired(string eventName, Action action, string context = "")
+    {
+        if (failed || action == null)
+        {
+            failed = true;
+            return false;
+        }
+
+        var registered = ScriptEventApi.TryAddEventRaw(
+            executor,
+            eventName,
+            new Action(() =>
+            {
+                if (IsActive)
+                {
+                    action();
+                }
+            }),
+            context);
+        failed |= !registered;
+        return registered;
+    }
+
+    public bool AddRequired<T>(string eventName, Action<T> action, string context = "")
+        where T : ISourceData
+    {
+        if (failed || action == null)
+        {
+            failed = true;
+            return false;
+        }
+
+        var registered = ScriptEventApi.TryAddEventRaw<T>(
+            executor,
+            eventName,
+            data =>
+            {
+                if (IsActive)
+                {
+                    action(data);
+                }
+            },
+            context);
+        failed |= !registered;
+        return registered;
+    }
+
+    public bool Commit()
+    {
+        if (disposed || failed || !IsActive)
+        {
+            AuraBattleLeaseLedger.Invalidate(token);
+            return false;
+        }
+
+        committed = true;
+        return true;
+    }
+
+    public void Invalidate()
+    {
+        AuraBattleLeaseLedger.Invalidate(token);
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (!committed)
+        {
+            AuraBattleLeaseLedger.Invalidate(token);
         }
     }
 }

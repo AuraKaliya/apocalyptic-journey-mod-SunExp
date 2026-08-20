@@ -43,42 +43,36 @@ public static class SolarBlessingService
 
     private static void RegisterSolarWitch(ScriptExecutor self)
     {
-        const string tokenKey = "TerriasSolarWitchToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasSolarWitchHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Blessing.SolarWitch");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "StartRound",
-            tokenKey,
-            token!,
             new Action(() => ResolveSolarWitch(self)),
             TerriasIds.SolarWitchBlessing);
+        scope.Commit();
     }
 
     private static void RegisterSunPriest(ScriptExecutor self)
     {
-        const string tokenKey = "TerriasSunPriestToken";
-        var token = ExecutorApi.RegisterHook(self, "TerriasSunPriestHook", tokenKey);
-        if (string.IsNullOrWhiteSpace(token))
+        using var scope = ScriptEventApi.BeginFightScope(self, "Blessing.SunPriest");
+        if (scope == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(
-            self,
+        scope.AddRequired(
             "FightStart",
-            tokenKey,
-            token!,
             new Action(() =>
             {
                 self.SetStatus("Self");
                 self.AddBuff(TerriasIds.SolarRadiance, "3");
             }),
             TerriasIds.SunPriestBlessing);
+        scope.Commit();
     }
 
     private static void ResolveSolarWitch(ScriptExecutor self)

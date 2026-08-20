@@ -253,16 +253,11 @@ public static class StarStonePouchService
         EnsureInitialized(state, resetPolicy);
         SyncBuff(self, state, channelId);
 
-        var hookKey = HookKey(channelId);
-        var tokenKey = TokenKey(channelId);
-        var token = ExecutorApi.RegisterHook(self, hookKey, tokenKey);
-        if (token == null)
-        {
-            return;
-        }
-
-        ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", tokenKey, token,
-            new Action(() => DrawForAction(self, channelId)), "star_stone_pouch." + channelId);
+        TerriasActionPassiveRegistry.Register(
+            self,
+            RegistrationId(channelId),
+            AuraShared.Core.AuraCardActionPhase.Committed,
+            _ => DrawForAction(self, channelId));
     }
 
     public static void Clear(ScriptExecutor self)
@@ -277,7 +272,7 @@ public static class StarStonePouchService
 
     private static void Clear(ScriptExecutor self, string channelId)
     {
-        ExecutorApi.ClearHook(self, HookKey(channelId), TokenKey(channelId));
+        TerriasActionPassiveRegistry.Unregister(self, RegistrationId(channelId));
         StarStonePouchStateStore.Remove(self?.Self, channelId);
     }
 
@@ -544,13 +539,8 @@ public static class StarStonePouchService
         return channelId == RelicChannel ? TerriasIds.RelicStarStonePouch : TerriasIds.StarStonePouch;
     }
 
-    private static string HookKey(string channelId)
+    private static string RegistrationId(string channelId)
     {
-        return channelId == RelicChannel ? "TerriasRelicStarStonePouchHook" : "TerriasStarStonePouchHook";
-    }
-
-    private static string TokenKey(string channelId)
-    {
-        return channelId == RelicChannel ? "TerriasRelicStarStonePouchToken" : "TerriasStarStonePouchToken";
+        return channelId == RelicChannel ? "Buff.RelicStarStonePouch" : "Buff.StarStonePouch";
     }
 }
