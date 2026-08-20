@@ -21,6 +21,7 @@ internal static class Program
         TestTerriasLocalizationValues();
         TestCardCostHelpers();
         TestGoldDreamRules();
+        TestCardRefreshReentryGuard();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
         TestSolarFlameSealFormula();
@@ -166,6 +167,49 @@ internal static class Program
         Equal(int.MaxValue - 2, normalized.DueOne, "Debt normalization preserves the nearest due bucket");
         Equal(2, normalized.DueTwo, "Debt normalization spends remaining capacity on the second bucket");
         Equal(0, normalized.DueThree, "Debt normalization drops only overflow from the latest bucket");
+
+        Equal(
+            GoldDreamPaymentState.Inactive,
+            GoldDreamRules.PaymentState(false, 1_000, 1_000),
+            "Inactive Golden Dream combat state does not publish stale payment values");
+        var belowFortuneThreshold = GoldDreamRules.PaymentState(true, 499, 500);
+        Equal(100, belowFortuneThreshold.WagerCost, "Golden Dream payment state projects the visible Wager cost");
+        True(belowFortuneThreshold.CanUseWager, "Golden Dream payment state projects Wager usability");
+        False(belowFortuneThreshold.CanUseFortuneThrow, "Fortune Throw stays disabled below one thousand combined Gold");
+        var atFortuneThreshold = GoldDreamRules.PaymentState(true, 500, 500);
+        True(atFortuneThreshold.CanUseFortuneThrow, "False Gold and real Gold jointly enable Fortune Throw");
+        Equal(
+            atFortuneThreshold,
+            GoldDreamRules.PaymentState(true, 500, 500),
+            "Equivalent payment projections compare equal for refresh deduplication");
+        NotEqual(
+            belowFortuneThreshold,
+            atFortuneThreshold,
+            "A visible Fortune Throw usability transition remains refreshable");
+    }
+
+    private static void TestCardRefreshReentryGuard()
+    {
+        AuraSharedFrameScheduler.Reset();
+        var card = new CardItem
+        {
+            dataConfig = new DataConfig(
+                new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
+                new Dictionary<string, string>())
+        };
+        card.DataUpdateAction = () => TerriasCardRefreshQueue.RequestDataUpdate(card, "test.reentrant");
+
+        TerriasCardRefreshQueue.RequestDataUpdate(card, "test.initial");
+        var request = AuraSharedFrameScheduler.TakePendingRequest();
+        True(request?.ExecuteSlice != null, "Card refresh queue schedules its initial cooperative slice");
+        var completed = request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
+
+        True(completed, "A self-requesting DataUpdate completes without leaving a feedback-loop item queued");
+        Equal(1, card.DataUpdateCount, "A card cannot recursively enqueue its own DataUpdate");
+        Equal<AuraSharedFrameWorkRequest?>(
+            null,
+            AuraSharedFrameScheduler.TakePendingRequest(),
+            "Re-entrant DataUpdate suppression does not schedule another frame flush");
     }
 
     private static void TestTerriasLocalizationValues()

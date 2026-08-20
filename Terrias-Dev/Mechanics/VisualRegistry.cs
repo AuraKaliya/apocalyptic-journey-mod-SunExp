@@ -361,16 +361,6 @@ internal static class VisualRegistryDefaults
                 {
                     Id = "solar_memory.event_map_card",
                     Path = "Mods/Terrias/ModResource/Images/MapNode/\u65e5\u8000\u56de\u5fc6-\u4e8b\u4ef6.png"
-                },
-                new()
-                {
-                    Id = "gold_dream.hud.false_gold",
-                    Path = "Mods/Terrias/ModResource/Images/Card/Gold/\u8c6a\u63b7\u5343\u91d1.png"
-                },
-                new()
-                {
-                    Id = "gold_dream.hud.debt",
-                    Path = "Mods/Terrias/ModResource/Images/Card/Gold/\u7a7a\u5934\u652f\u7968.png"
                 }
             },
             ModeEntries = new List<ModeEntryVisualSpec>

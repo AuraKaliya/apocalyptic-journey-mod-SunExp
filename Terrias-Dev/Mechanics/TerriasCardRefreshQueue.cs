@@ -16,6 +16,7 @@ public static class TerriasCardRefreshQueue
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PendingCardRefresh> PendingCards = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, PendingConfigRefresh> PendingConfigs = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> ActiveDataUpdateKeys = new(StringComparer.Ordinal);
     private const double CooperativeSliceBudgetMilliseconds = 2.0;
 
     public static void RequestDataUpdate(CardItem? card, string source)
@@ -83,6 +84,24 @@ public static class TerriasCardRefreshQueue
         {
             RefreshNow(card, source, refreshTags, dataUpdate, costUpdate, descriptionUpdate);
             return;
+        }
+
+        var reentrantDataUpdate = false;
+        lock (SyncRoot)
+        {
+            reentrantDataUpdate = ActiveDataUpdateKeys.Contains(key);
+        }
+
+        if (reentrantDataUpdate)
+        {
+            dataUpdate = false;
+            costUpdate = false;
+            descriptionUpdate = false;
+            TerriasPerformanceCounters.Record("CardRefreshQueue.ReentrantRefreshSuppressed");
+            if (!refreshTags)
+            {
+                return;
+            }
         }
 
         lock (SyncRoot)
@@ -335,7 +354,7 @@ public static class TerriasCardRefreshQueue
             if (dataUpdate)
             {
                 var dataStart = TerriasPerformanceCounters.Timestamp();
-                card.DataUpdate();
+                RunDataUpdateGuarded(card);
                 TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
             }
             else
@@ -347,7 +366,7 @@ public static class TerriasCardRefreshQueue
                             card.transform,
                             CardConfigApi.NativeDisplayCost(card.dataConfig, FightPlayer.Instance?.Status).ToString()))
                     {
-                        card.DataUpdate();
+                        RunDataUpdateGuarded(card);
                         TerriasPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
                         return;
                     }
@@ -360,7 +379,7 @@ public static class TerriasCardRefreshQueue
                     var descriptionStart = TerriasPerformanceCounters.Timestamp();
                     if (!TerriasCardDescriptionProjector.TryRefresh(card))
                     {
-                        card.DataUpdate();
+                        RunDataUpdateGuarded(card);
                         TerriasPerformanceCounters.Record("CardRefreshQueue.Card.DescriptionFallback");
                     }
                     else
@@ -382,6 +401,37 @@ public static class TerriasCardRefreshQueue
         {
             TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.Refresh", start);
             LogSlowRefresh("card", source, start);
+        }
+    }
+
+    private static void RunDataUpdateGuarded(CardItem card)
+    {
+        var key = CardKey(card);
+        if (key.Length == 0)
+        {
+            card.DataUpdate();
+            return;
+        }
+
+        lock (SyncRoot)
+        {
+            if (!ActiveDataUpdateKeys.Add(key))
+            {
+                TerriasPerformanceCounters.Record("CardRefreshQueue.NestedDataUpdateSuppressed");
+                return;
+            }
+        }
+
+        try
+        {
+            card.DataUpdate();
+        }
+        finally
+        {
+            lock (SyncRoot)
+            {
+                ActiveDataUpdateKeys.Remove(key);
+            }
         }
     }
 

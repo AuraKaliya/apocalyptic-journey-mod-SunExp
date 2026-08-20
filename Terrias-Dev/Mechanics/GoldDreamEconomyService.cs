@@ -10,8 +10,10 @@ public static class GoldDreamEconomyService
     private static readonly HashSet<string> RoundListenerStatusIds = new(StringComparer.Ordinal);
     private static string activeStatusId = "";
     private static int roundListenerEpoch;
+    private static GoldDreamPaymentState lastPublishedPaymentState = GoldDreamPaymentState.Inactive;
+    private static bool hasPublishedPaymentState;
 
-    public static event Action<GoldDreamSnapshot>? Changed;
+    public static event Action<GoldDreamPaymentState>? PaymentStateChanged;
 
     public static GoldDreamSnapshot CurrentSnapshot()
     {
@@ -29,7 +31,7 @@ public static class GoldDreamEconomyService
         activeStatusId = status.InstanceId ?? "";
         EnsureRoundListener(executor, status);
         var snapshot = Snapshot(status);
-        Changed?.Invoke(snapshot);
+        PublishPaymentState(status);
         return snapshot;
     }
 
@@ -118,7 +120,7 @@ public static class GoldDreamEconomyService
         SyncPotential(status, tier);
 
         var snapshot = Snapshot(status);
-        Changed?.Invoke(snapshot);
+        PublishPaymentState(status);
         return snapshot;
     }
 
@@ -186,10 +188,10 @@ public static class GoldDreamEconomyService
 
     public static void NotifyMoneyChanged()
     {
-        var snapshot = CurrentSnapshot();
-        if (snapshot.Active)
+        var status = FightPlayer.Instance?.Status;
+        if (status != null && IsActive(status))
         {
-            Changed?.Invoke(snapshot);
+            PublishPaymentState(status);
         }
     }
 
@@ -217,7 +219,8 @@ public static class GoldDreamEconomyService
         activeStatusId = "";
         RoundListenerStatusIds.Clear();
         roundListenerEpoch = roundListenerEpoch == int.MaxValue ? 1 : roundListenerEpoch + 1;
-        Changed?.Invoke(GoldDreamSnapshot.Empty);
+        lastPublishedPaymentState = GoldDreamPaymentState.Inactive;
+        hasPublishedPaymentState = false;
     }
 
     private static GoldDreamSnapshot Commit(
@@ -234,8 +237,26 @@ public static class GoldDreamEconomyService
         BuffApi.SetExactLevel(status, TerriasIds.DebtDueThree, debt.DueThree);
 
         var snapshot = Snapshot(status);
-        Changed?.Invoke(snapshot);
+        PublishPaymentState(status);
         return snapshot;
+    }
+
+    private static void PublishPaymentState(IStatusManager status)
+    {
+        var state = GoldDreamRules.PaymentState(
+            IsActive(status),
+            BuffApi.Level(status, TerriasIds.FalseGold),
+            PlayerApi.GetMoney());
+        if (hasPublishedPaymentState && state == lastPublishedPaymentState)
+        {
+            TerriasPerformanceCounters.Record("GoldDream.PaymentStateUnchanged");
+            return;
+        }
+
+        lastPublishedPaymentState = state;
+        hasPublishedPaymentState = true;
+        TerriasPerformanceCounters.Record("GoldDream.PaymentStateChanged");
+        PaymentStateChanged?.Invoke(state);
     }
 
     private static void SyncPotential(IStatusManager status, GoldenPotentialTier tier)

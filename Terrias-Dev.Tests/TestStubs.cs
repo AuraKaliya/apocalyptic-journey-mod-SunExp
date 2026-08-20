@@ -49,7 +49,25 @@ namespace AuraShared.Core
     }
     public static class AuraSharedFrameScheduler
     {
-        public static bool RunCooperative(AuraSharedFrameWorkRequest request) => true;
+        private static AuraSharedFrameWorkRequest? pendingRequest;
+
+        public static bool RunCooperative(AuraSharedFrameWorkRequest request)
+        {
+            pendingRequest = request;
+            return true;
+        }
+
+        public static AuraSharedFrameWorkRequest? TakePendingRequest()
+        {
+            var request = pendingRequest;
+            pendingRequest = null;
+            return request;
+        }
+
+        public static void Reset()
+        {
+            pendingRequest = null;
+        }
     }
     public static class AuraCardPresentationDelta
     {
@@ -312,12 +330,18 @@ public sealed class CardItem
 
     public UnityEngine.Transform transform { get; } = new();
 
+    public Action? DataUpdateAction { get; set; }
+
+    public int DataUpdateCount { get; private set; }
+
     public void RefreshTag()
     {
     }
 
     public void DataUpdate()
     {
+        DataUpdateCount++;
+        DataUpdateAction?.Invoke();
     }
 
     public int GetInstanceID()

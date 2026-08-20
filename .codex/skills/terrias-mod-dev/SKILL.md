@@ -1,6 +1,6 @@
 ---
 name: terrias-mod-dev
-description: Project-local routing and general-development skill for Terrias mod work in Witch's Apocalyptic Journey. Use when editing or reviewing Terrias shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, shared initialization registration, tool configuration overrides, multiplayer sync, multi-mod sync, timing and duplicate suppression, or when deciding which specialized Terrias skill to load for architecture, Solar Memory, events, shared runtime, visual runtime, card art, or skill evolution.
+description: Project-local routing and general-development skill for Terrias mod work in Witch's Apocalyptic Journey. Use when editing or reviewing Terrias shipped mod content, C# DLL scripts, CSV data and localization, cards, buffs, relics, card packs, roles, dialogue, assets, validation, shared initialization registration, tool configuration overrides, multiplayer sync, multi-mod sync, timing and duplicate suppression, or when deciding which specialized Terrias skill to load for complete-solution gating, architecture, Solar Memory, events, shared runtime, visual runtime, card art, or skill evolution.
 ---
 
 # Terrias Mod Dev
@@ -21,6 +21,10 @@ on the other.
 
 Use the smallest specialist set that covers the task:
 
+- `terrias-complete-solution-gate`: load first for every defect solution,
+  refactor, migration, compatibility repair, legacy-path replacement, or
+  technical-debt cleanup. It rejects temporary stopgaps and makes migration plus
+  removal of the retired implementation part of completion.
 - `terrias-architecture-dev`: C# layer boundaries, `GameApi` split, handler
   registries, Managed compatibility, hook containment, or architecture tests.
 - `terrias-solar-memory-dev`: Solar Memory mode, journey, map node pools,
@@ -43,7 +47,9 @@ Use the smallest specialist set that covers the task:
 
 ## Workflow
 
-1. Inspect the current feature surface before editing:
+1. For any solution, repair, refactor, migration, or compatibility change, load
+   `terrias-complete-solution-gate` before choosing an implementation direction.
+2. Inspect the current feature surface before editing:
    - `Terrias-Dev/**/*.cs`
    - `Terrias/Data/**/*.csv`
    - `Terrias/Text/**/*.csv`
@@ -52,7 +58,7 @@ Use the smallest specialist set that covers the task:
    - `Terrias/visual.registry.json` and `Terrias/SharedResources/*` when runtime
      visuals, Skill CG, or shared resource manifests change.
    - release-facing docs only when behavior, counts, or user-facing claims change.
-2. Load only the relevant reference:
+3. Load only the relevant reference:
    - Card, Buff, Relic, CardPack fields: `references/csv-schema.md`
    - C# boundaries, Managed signature drift, hook containment, multiplayer
      routing, and game-reference index routing:
@@ -71,7 +77,7 @@ Use the smallest specialist set that covers the task:
      suppression, also use `terrias-shared-runtime-dev`.
    - For runtime visual work, also use `terrias-visual-runtime-dev`.
    - For EventList, Text/EventList, map-visible event, and event helper work, also use the project-local `terrias-event-dev` skill.
-3. Keep behavior in C# by default:
+4. Keep behavior in C# by default:
    - CSV script columns should call `CS.Terrias.Dll.Scripting.*` entry points.
    - Put card, buff, relic, role, boss, and event behavior in the matching `Terrias-Dev/Scripting/*Scripts.cs` file.
    - Put shared game-facing wrappers in `Terrias-Dev/GameApi/`, reusable
@@ -81,11 +87,11 @@ Use the smallest specialist set that covers the task:
      unless the current repository already has a stable sub-domain grouping.
    - Put runtime hook and UI integration code in `Terrias-Dev/Hooks/`.
    - Put feature runtimes that are not CSV entry points under `Terrias-Dev/Features/`.
-4. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, map, or event needs both config and localized text when the template has both sides.
-5. Prefer existing Terrias C# helpers over inline CSV logic. Add a shared helper only when multiple scripts need the same behavior or nil-safe wrapper.
-6. Treat the repository `Managed/` assemblies as the current compile contract. Use the decompiled reference to understand behavior, then verify signatures against current assemblies when APIs may have changed.
-7. Check authoring boundaries before validation when edits touch new C# entry points, hooks, CSV script columns, resource paths, or localized descriptions.
-8. Select validation from `references/validation-rules.md` according to the
+5. Keep Data and Text rows synchronized. Any new card, buff, relic, card pack, role, dialogue, map, or event needs both config and localized text when the template has both sides.
+6. Prefer existing Terrias C# helpers over inline CSV logic. Add a shared helper only when multiple scripts need the same behavior or nil-safe wrapper.
+7. Treat the repository `Managed/` assemblies as the current compile contract. Use the decompiled reference to understand behavior, then verify signatures against current assemblies when APIs may have changed.
+8. Check authoring boundaries before validation when edits touch new C# entry points, hooks, CSV script columns, resource paths, or localized descriptions.
+9. Select validation from `references/validation-rules.md` according to the
    changed contract. Build and test commands that write `Terrias.Aura.dll`
    must be serial. A typical Terrias C# behavior change uses:
 
@@ -101,6 +107,9 @@ Elemental, Familiar, or Spirit validation.
 
 ## Hard Rules
 
+- For every proposed or implemented solution, obey
+  `terrias-complete-solution-gate`; do not retain a temporary or superseded
+  operational path as the final state.
 - Do not add script implementation paths outside the C# DLL production surface.
 - Do not paste official template snippets directly into CSV script columns. CSV script columns should call stable Terrias C# entry points.
 - Use full mod IDs when referencing Terrias-defined content.

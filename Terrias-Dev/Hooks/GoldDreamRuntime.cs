@@ -20,7 +20,6 @@ public static class GoldDreamRuntime
     public static void Initialize(ModConfig modConfig)
     {
         EnsureActionHandler();
-        GoldDreamHudRuntime.Initialize(modConfig);
         TerriasBattleLifecycleRouter.Register("GoldDream", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = _ => Reset("FightInitializing"),
@@ -33,8 +32,8 @@ public static class GoldDreamRuntime
             "ScriptExecutor.ChangeMoney",
             _ => GoldDreamEconomyService.NotifyMoneyChanged(),
             "GoldDream.MoneyChanged");
-        GoldDreamEconomyService.Changed -= OnEconomyChanged;
-        GoldDreamEconomyService.Changed += OnEconomyChanged;
+        GoldDreamEconomyService.PaymentStateChanged -= OnPaymentStateChanged;
+        GoldDreamEconomyService.PaymentStateChanged += OnPaymentStateChanged;
     }
 
     private static void EnsureActionHandler()
@@ -136,7 +135,7 @@ public static class GoldDreamRuntime
             || id == TerriasIds.GoldenDreamlandCardShortId;
     }
 
-    private static void OnEconomyChanged(GoldDreamSnapshot snapshot)
+    private static void OnPaymentStateChanged(GoldDreamPaymentState state)
     {
         var executor = FightPlayer.Instance?.Status == null
             ? null
@@ -155,7 +154,7 @@ public static class GoldDreamRuntime
                 TerriasIds.FortuneThrowCardId,
                 TerriasIds.FortuneThrowCardShortId
             },
-            "GoldDream.EconomyChanged");
+            "GoldDream.PaymentStateChanged");
     }
 
     private static ScriptExecutor? FindLocalExecutor()

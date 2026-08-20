@@ -45,6 +45,66 @@ public sealed class GoldDreamSnapshot
     public int TotalDebt => GoldDreamRules.TotalDebt(DebtDueOne, DebtDueTwo, DebtDueThree);
 }
 
+public readonly struct GoldDreamPaymentState : IEquatable<GoldDreamPaymentState>
+{
+    public static GoldDreamPaymentState Inactive { get; } = new(false, 0, false, false);
+
+    public GoldDreamPaymentState(
+        bool active,
+        int wagerCost,
+        bool canUseWager,
+        bool canUseFortuneThrow)
+    {
+        Active = active;
+        WagerCost = Math.Max(0, wagerCost);
+        CanUseWager = canUseWager;
+        CanUseFortuneThrow = canUseFortuneThrow;
+    }
+
+    public bool Active { get; }
+
+    public int WagerCost { get; }
+
+    public bool CanUseWager { get; }
+
+    public bool CanUseFortuneThrow { get; }
+
+    public bool Equals(GoldDreamPaymentState other)
+    {
+        return Active == other.Active
+            && WagerCost == other.WagerCost
+            && CanUseWager == other.CanUseWager
+            && CanUseFortuneThrow == other.CanUseFortuneThrow;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is GoldDreamPaymentState other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = Active ? 1 : 0;
+            hash = (hash * 397) ^ WagerCost;
+            hash = (hash * 397) ^ (CanUseWager ? 1 : 0);
+            hash = (hash * 397) ^ (CanUseFortuneThrow ? 1 : 0);
+            return hash;
+        }
+    }
+
+    public static bool operator ==(GoldDreamPaymentState left, GoldDreamPaymentState right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(GoldDreamPaymentState left, GoldDreamPaymentState right)
+    {
+        return !left.Equals(right);
+    }
+}
+
 public static class GoldDreamRules
 {
     public const long KThreshold = 1_000L;
@@ -80,6 +140,22 @@ public static class GoldDreamRules
     public static int WagerCost(int realGold)
     {
         return SaturatingAdd(50, Math.Max(0, realGold) / 10);
+    }
+
+    public static GoldDreamPaymentState PaymentState(bool active, int falseGold, int realGold)
+    {
+        if (!active)
+        {
+            return GoldDreamPaymentState.Inactive;
+        }
+
+        var normalizedRealGold = Math.Max(0, realGold);
+        var wagerCost = WagerCost(normalizedRealGold);
+        return new GoldDreamPaymentState(
+            true,
+            wagerCost,
+            normalizedRealGold >= wagerCost,
+            TotalAssets(falseGold, normalizedRealGold) >= 1_000L);
     }
 
     public static int TenPercentIncrease(int current)

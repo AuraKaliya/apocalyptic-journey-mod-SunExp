@@ -29,6 +29,7 @@ public static class TerriasCombatCardViewPool
     private static int materializedSinceLayout;
     private static Transform? poolRoot;
     private static bool initialized;
+    private static bool handOrderFailureLogged;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -60,6 +61,7 @@ public static class TerriasCombatCardViewPool
     {
         EndFight("BeginFight.Reset");
         generation++;
+        handOrderFailureLogged = false;
         EnsurePoolRoot();
         TerriasPerformanceCounters.Record("CombatCardViewPool.FightStarted");
     }
@@ -186,6 +188,7 @@ public static class TerriasCombatCardViewPool
         }
 
         AuditPooledHandViews();
+        RepairHandOrderImmediately(fightUi, "BatchMaterialize");
         fightUi.transform.SetAsFirstSibling();
         FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.BatchMaterialize");
         TerriasPerformanceCounters.Record("CombatCardViewPool.BatchLayoutRequested");
@@ -268,6 +271,7 @@ public static class TerriasCombatCardViewPool
             {
                 FightUI.cardItemList.Add(card);
             }
+            ApplyHandOrder(card, NextHandIndex(card, fightUi), "MaterializeCommit");
             Singleton<EventCenter>.Instance.EventTrigger("EndCreateCardItem" + FightPlayer.Instance.Status.InstanceId);
             TerriasPerformanceCounters.Record("CombatCardViewPool.Materialized");
             return true;
@@ -614,6 +618,7 @@ public static class TerriasCombatCardViewPool
         StopCardAnimation(card);
         card.StopAllCoroutines();
         card.transform.SetParent(fightUi.cardContainer.transform, false);
+        ApplyHandOrder(card, NextHandIndex(card, fightUi), "ActivateForUse");
         card.gameObject.SetActive(true);
         card.enabled = true;
         card.hasUse = false;
@@ -763,6 +768,87 @@ public static class TerriasCombatCardViewPool
             if (marker.Generation != generation)
             {
                 DestroyCardView(card);
+            }
+        }
+    }
+
+    private static void RepairHandOrderImmediately(FightUI fightUi, string source)
+    {
+        var handIndex = 0;
+        foreach (var card in FightUI.cardItemList)
+        {
+            if (card == null
+                || FightUI.SelectedCard.Contains(card)
+                || card.transform.parent != fightUi.cardContainer.transform)
+            {
+                continue;
+            }
+
+            ApplyHandOrder(card, handIndex, source);
+            handIndex++;
+        }
+    }
+
+    private static int NextHandIndex(CardItem card, FightUI fightUi)
+    {
+        var handIndex = 0;
+        foreach (var existing in FightUI.cardItemList)
+        {
+            if (existing == null
+                || ReferenceEquals(existing, card)
+                || FightUI.SelectedCard.Contains(existing)
+                || existing.transform.parent != fightUi.cardContainer.transform)
+            {
+                continue;
+            }
+
+            handIndex++;
+        }
+
+        return handIndex;
+    }
+
+    private static void ApplyHandOrder(CardItem card, int handIndex, string source)
+    {
+        var normalizedIndex = Math.Max(0, handIndex);
+        var expectedSortingOrder = normalizedIndex - 13;
+        try
+        {
+            var sortingGroup = card.GetComponent<SortingGroup>();
+            var needsRepair = card.transform.GetSiblingIndex() != normalizedIndex
+                || (sortingGroup != null && sortingGroup.sortingOrder != expectedSortingOrder);
+            card.SetIndex(normalizedIndex);
+            if (needsRepair)
+            {
+                TerriasPerformanceCounters.Record("CombatCardViewPool.HandOrderRepaired");
+            }
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                card.transform.SetSiblingIndex(normalizedIndex);
+                var sortingGroup = card.GetComponent<SortingGroup>();
+                if (sortingGroup != null)
+                {
+                    sortingGroup.sortingOrder = expectedSortingOrder;
+                }
+
+                TerriasPerformanceCounters.Record("CombatCardViewPool.HandOrderFallback");
+            }
+            catch (Exception fallbackEx)
+            {
+                TerriasPerformanceCounters.Record("CombatCardViewPool.HandOrderFailed");
+                if (!handOrderFailureLogged)
+                {
+                    handOrderFailureLogged = true;
+                    TerriasLog.Warn("[CombatCardViewPool] immediate hand order repair failed from "
+                        + source
+                        + ": "
+                        + ex.Message
+                        + "; fallback="
+                        + fallbackEx.Message);
+                }
             }
         }
     }
