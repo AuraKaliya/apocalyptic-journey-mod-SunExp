@@ -64,6 +64,9 @@ TestBundledFoundationRegistrationPlanner();
 TestBundledFoundationModelLayout();
 TestAutoBattleTechnicalFallbackState();
 TestAuraToolModuleCatalogAndStateStore();
+TestAuraRoutedHookOwnershipAndLeases();
+TestAuraToolsHookOwnerActivation();
+TestBackgroundWorkOwnerCancellation();
 TestNativeContentVisibilityLease();
 TestToolboxTooltipPlacementPolicy();
 

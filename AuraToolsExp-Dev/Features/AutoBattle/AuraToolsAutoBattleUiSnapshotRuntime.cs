@@ -109,7 +109,7 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
         var accepted = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<AutoBattleUiSnapshot>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = WorkKey,
                 Source = "AutoBattle.UiSnapshot",
                 Kind = AuraSharedBackgroundWorkKind.Io,

@@ -46,7 +46,7 @@ public static class AuraToolModuleHost
                         ConfigSubscriptions.Add(
                             AuraToolsConfigService.SubscribeModule(
                                 moduleId,
-                                () => RefreshState(moduleId)));
+                                () => ReconcileModule(moduleId)));
                     }
                 },
                 (step, ex) =>
@@ -85,6 +85,7 @@ public static class AuraToolModuleHost
         try
         {
             var result = module.SetEnabled(enabled);
+            module.ApplyCurrentConfiguration();
             States.Publish(module.SnapshotState());
             return result;
         }
@@ -118,6 +119,25 @@ public static class AuraToolModuleHost
                 "[Modules] failed to snapshot " + moduleId + ": " + ex.Message);
             return PublishFailureState(module, ex.Message);
         }
+    }
+
+    private static void ReconcileModule(string moduleId)
+    {
+        if (!Catalog.TryGet(moduleId, out var module)) return;
+        try
+        {
+            module.ApplyCurrentConfiguration();
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn(
+                "[Modules] failed to reconcile "
+                + moduleId
+                + ": "
+                + ex.Message);
+        }
+
+        RefreshState(moduleId);
     }
 
     private static AuraToolModuleState PublishFailureState(

@@ -48,6 +48,7 @@ public static class AuraToolsModSyncRuntime
     private static readonly Dictionary<string, ManifestChunkBuffer> ManifestChunkBuffers = new(StringComparer.Ordinal);
 
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static GameEntryUI? currentEntry;
     private static GameObject? buttonRoot;
     private static GameObject? activeOverlay;
@@ -58,6 +59,7 @@ public static class AuraToolsModSyncRuntime
     private static AuraChatModPlayerSnapshot? cachedHostManifest;
     private static string cachedHostPlayerId = "";
     private static DateTime cachedHostManifestAtUtc;
+    private static IDisposable? lobbySubscription;
 
     internal static bool CanShowOverlay => IsEnabled() && currentState != null && currentEntry != null;
 
@@ -69,33 +71,61 @@ public static class AuraToolsModSyncRuntime
         }
 
         initialized = true;
+        currentConfig = modConfig;
         SyncSession.Changed += RefreshOverlay;
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.ModSync,
             OnConfigChanged);
-        RegisterAfter(modConfig, "GameEntryUI.UpdateLobby", UpdateLobby);
-        RegisterAfter(modConfig, "GameEntryUI.Init", _ => RefreshButton());
+        lobbySubscription = AuraLobbySnapshotRuntime.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            "ModSync",
+            UpdateLobby,
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
         RegisterAfter(modConfig, "GameEntryUI.ShowCareer", _ => RefreshButton());
         RegisterBefore(modConfig, "GameEntryUI.StartGame", _ => DestroyUi("GameEntryUI.StartGame"));
         RegisterBefore(modConfig, "UIManager.CloseUI", HideOnUiManagerClose);
         RegisterBefore(modConfig, "UIBase.Close", context => HideOnUiBaseClose(context, "UIBase.Close"));
         RegisterBefore(modConfig, "UIBase.OnDestroy", context => HideOnUiBaseClose(context, "UIBase.OnDestroy"));
+        ApplyModuleActivation(IsEnabled());
     }
 
-    private static void UpdateLobby(ModHookContext context)
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            lobbySubscription?.Dispose();
+            lobbySubscription = null;
+            DestroyUi("module-disabled");
+            return;
+        }
+
+        lobbySubscription ??= AuraLobbySnapshotRuntime.Register(
+            currentConfig,
+            AuraToolsIds.ModId,
+            "ModSync",
+            UpdateLobby,
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
+        UpdateLobby(AuraLobbySnapshotRuntime.Current);
+    }
+
+    private static void UpdateLobby(AuraLobbySnapshot snapshot)
     {
         try
         {
-            currentEntry = context.Target as GameEntryUI;
-            var players = GetPlayersFromContext(context);
-            if (!IsEnabled() || players.Count == 0 || PlayerManager.Instance == null)
+            currentEntry = snapshot.Entry;
+            if (!IsEnabled()
+                || snapshot.Players.Count == 0
+                || PlayerManager.Instance == null)
             {
                 DestroyUi("UpdateLobby:not-available");
                 return;
             }
 
-            var localPlayerId = ResolveLocalPlayerId(players);
-            currentState = AuraChatModSyncSnapshot.BuildState(players, AuraToolsIds.ModId, localPlayerId);
+            currentState = snapshot.ModSyncState;
             LogStateDiagnostics(currentState);
             EnsureButton();
             RefreshOverlay();
@@ -476,214 +506,6 @@ public static class AuraToolsModSyncRuntime
         }
 
         return string.IsNullOrWhiteSpace(player.PlayerName) ? player.PlayerId : player.PlayerName;
-    }
-
-    private static IReadOnlyList<object> GetPlayersFromContext(ModHookContext context)
-    {
-        if (context.Arguments == null || context.Arguments.Length == 0)
-        {
-            return Array.Empty<object>();
-        }
-
-        if (context.Arguments[0] is IEnumerable enumerable)
-        {
-            return enumerable.Cast<object>().ToList();
-        }
-
-        return Array.Empty<object>();
-    }
-
-    private static string ResolveLocalPlayerId(IReadOnlyList<object> players)
-    {
-        var manager = PlayerManager.Instance;
-        var isClient = manager != null && !manager.isServer;
-        var playerId = (manager?.PlayerId ?? "").Trim();
-        if (IsUsableLocalPlayerId(players, playerId, isClient))
-        {
-            return playerId;
-        }
-
-        var configPlayerId = (Singleton<GameConfigManager>.Instance?.PlayerId ?? "").Trim();
-        if (IsUsableLocalPlayerId(players, configPlayerId, isClient))
-        {
-            return configPlayerId;
-        }
-
-        var managerName = (manager?.playerInfo?.Name ?? "").Trim();
-        var playerIdByManagerName = ResolvePlayerIdByName(players, managerName);
-        if (IsUsableLocalPlayerId(players, playerIdByManagerName, isClient))
-        {
-            return playerIdByManagerName;
-        }
-
-        var configName = (Singleton<GameConfigManager>.Instance?.PlayerName ?? "").Trim();
-        var playerIdByConfigName = ResolvePlayerIdByName(players, configName);
-        if (IsUsableLocalPlayerId(players, playerIdByConfigName, isClient))
-        {
-            return playerIdByConfigName;
-        }
-
-        var steamPlayerId = ResolveSteamPlayerId();
-        if (IsUsableLocalPlayerId(players, steamPlayerId, isClient))
-        {
-            return steamPlayerId;
-        }
-
-        if (isClient)
-        {
-            var nonHostId = ResolveOnlyNonHostPlayerId(players);
-            if (!string.IsNullOrWhiteSpace(nonHostId))
-            {
-                return nonHostId;
-            }
-        }
-
-        return "";
-    }
-
-    private static bool IsUsableLocalPlayerId(IReadOnlyList<object> players, string playerId, bool isClient)
-    {
-        if (!ContainsPlayerId(players, playerId))
-        {
-            return false;
-        }
-
-        return !isClient || !IsLobbyHostPlayerId(players, playerId) || CountDistinctPlayerIds(players) <= 1;
-    }
-
-    private static bool ContainsPlayerId(IReadOnlyList<object> players, string playerId)
-    {
-        return !string.IsNullOrWhiteSpace(playerId)
-               && players.Any(player => string.Equals(ReadString(player, "Id"), playerId, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool IsLobbyHostPlayerId(IReadOnlyList<object> players, string playerId)
-    {
-        var hostId = players
-            .Select(player => ReadString(player, "Id"))
-            .FirstOrDefault(id => !string.IsNullOrWhiteSpace(id)) ?? "";
-        return !string.IsNullOrWhiteSpace(playerId)
-               && string.Equals(hostId, playerId, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static int CountDistinctPlayerIds(IReadOnlyList<object> players)
-    {
-        return players
-            .Select(player => ReadString(player, "Id"))
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
-    }
-
-    private static string ResolvePlayerIdByName(IReadOnlyList<object> players, string playerName)
-    {
-        if (string.IsNullOrWhiteSpace(playerName))
-        {
-            return "";
-        }
-
-        var matches = players
-            .Where(player => string.Equals(ReadString(player, "Name"), playerName, StringComparison.OrdinalIgnoreCase))
-            .Select(player => ReadString(player, "Id"))
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return matches.Count == 1 ? matches[0] : "";
-    }
-
-    private static string ResolveOnlyNonHostPlayerId(IReadOnlyList<object> players)
-    {
-        var playerIds = players
-            .Select(player => ReadString(player, "Id"))
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return playerIds.Count == 2 ? playerIds[1] : "";
-    }
-
-    private static string ResolveSteamPlayerId()
-    {
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type? steamUserType;
-            try
-            {
-                steamUserType = assembly.GetType("Steamworks.SteamUser");
-            }
-            catch
-            {
-                continue;
-            }
-
-            var method = steamUserType?.GetMethod("GetSteamID", BindingFlags.Public | BindingFlags.Static);
-            if (method == null)
-            {
-                continue;
-            }
-
-            try
-            {
-                var steamId = SteamIdToString(method.Invoke(null, null));
-                if (!string.IsNullOrWhiteSpace(steamId))
-                {
-                    return steamId;
-                }
-            }
-            catch
-            {
-                return "";
-            }
-        }
-
-        return "";
-    }
-
-    private static string SteamIdToString(object? value)
-    {
-        if (value == null)
-        {
-            return "";
-        }
-
-        var text = (value.ToString() ?? "").Trim();
-        if (text.Length > 0 && text.All(char.IsDigit))
-        {
-            return text;
-        }
-
-        var type = value.GetType();
-        foreach (var memberName in new[] { "m_SteamID", "SteamID", "steamID" })
-        {
-            try
-            {
-                var member = type.GetField(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(value)
-                             ?? type.GetProperty(memberName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(value);
-                var memberText = Convert.ToString(member)?.Trim() ?? "";
-                if (memberText.Length > 0 && memberText.All(char.IsDigit))
-                {
-                    return memberText;
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        return "";
-    }
-
-    private static string ReadString(object target, string name)
-    {
-        try
-        {
-            var type = target.GetType();
-            return Convert.ToString(type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target)
-                                    ?? type.GetField(name, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target))?.Trim() ?? "";
-        }
-        catch
-        {
-            return "";
-        }
     }
 
     private static bool IsKnownLocalPlayer(AuraChatModSyncState? state)

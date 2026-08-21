@@ -276,7 +276,7 @@
   ],
   "requiredContracts": {
     "protocolVersion": 4,
-    "buildIdPrefix": "aura-shared-core-v4-",
+    "buildIdPrefix": "aura-shared-core-v5-",
     "buildIdSource": "assembly-mvid",
     "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
     "lockOrder": ["Resource", "Registry", "WriteMutex"]

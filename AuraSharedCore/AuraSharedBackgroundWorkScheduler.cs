@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace AuraShared.Core;
@@ -40,6 +41,8 @@ public static class AuraSharedBackgroundWorkScheduler
     private static readonly LinkedList<WorkItem> CpuQueue = new();
     private static readonly LinkedList<WorkItem> IoQueue = new();
     private static readonly Dictionary<string, WorkItem> QueuedByScopedKey = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, WorkItem> ActiveByScopedKey = new(StringComparer.Ordinal);
+    private static readonly HashSet<WorkItem> ActiveItems = new();
     private static readonly Dictionary<string, long> LatestGenerationByScopedKey = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, int> PendingByOwner = new(StringComparer.Ordinal);
     private static readonly ConcurrentQueue<Completion> Completions = new();
@@ -105,6 +108,13 @@ public static class AuraSharedBackgroundWorkScheduler
             {
                 RemoveQueuedItemNoLock(previous, cancel: true);
             }
+            if (item.ScopedKey.Length > 0
+                && ActiveByScopedKey.TryGetValue(
+                    item.ScopedKey,
+                    out var activePrevious))
+            {
+                activePrevious.Cancellation.Cancel();
+            }
 
             if (queue.Count >= queueLimit || OwnerPendingCountNoLock(item.OwnerId) >= Math.Max(1, MaxPendingPerOwner))
             {
@@ -128,6 +138,50 @@ public static class AuraSharedBackgroundWorkScheduler
 
         Launch(launch);
         return true;
+    }
+
+    public static int CancelOwner(string ownerId)
+    {
+        var owner = string.IsNullOrWhiteSpace(ownerId)
+            ? DefaultOwnerId
+            : ownerId.Trim();
+        var cancelled = 0;
+        lock (Gate)
+        {
+            var queued = CpuQueue
+                .Concat(IoQueue)
+                .Where(item => string.Equals(
+                    item.OwnerId,
+                    owner,
+                    StringComparison.Ordinal))
+                .ToArray();
+            for (var i = 0; i < queued.Length; i++)
+            {
+                RemoveQueuedItemNoLock(queued[i], cancel: true);
+                cancelled++;
+            }
+
+            foreach (var item in ActiveItems.Where(item => string.Equals(
+                         item.OwnerId,
+                         owner,
+                         StringComparison.Ordinal)).ToArray())
+            {
+                item.Cancellation.Cancel();
+                cancelled++;
+            }
+
+            var prefix = owner + ":";
+            foreach (var key in LatestGenerationByScopedKey.Keys
+                         .Where(key => key.StartsWith(
+                             prefix,
+                             StringComparison.Ordinal))
+                         .ToArray())
+            {
+                LatestGenerationByScopedKey.Remove(key);
+            }
+        }
+
+        return cancelled;
     }
 
     internal static void PumpMainThreadCompletions()
@@ -159,6 +213,15 @@ public static class AuraSharedBackgroundWorkScheduler
             List<WorkItem> launch;
             lock (Gate)
             {
+                ActiveItems.Remove(item);
+                if (item.ScopedKey.Length > 0
+                    && ActiveByScopedKey.TryGetValue(
+                        item.ScopedKey,
+                        out var active)
+                    && ReferenceEquals(active, item))
+                {
+                    ActiveByScopedKey.Remove(item.ScopedKey);
+                }
                 if (item.Kind == AuraSharedBackgroundWorkKind.Io)
                 {
                     activeIo = Math.Max(0, activeIo - 1);
@@ -205,6 +268,11 @@ public static class AuraSharedBackgroundWorkScheduler
             }
 
             active++;
+            ActiveItems.Add(item);
+            if (item.ScopedKey.Length > 0)
+            {
+                ActiveByScopedKey[item.ScopedKey] = item;
+            }
             launch.Add(item);
         }
     }

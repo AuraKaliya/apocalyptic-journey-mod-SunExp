@@ -408,6 +408,69 @@ if ($entrySource -notmatch "AuraToolModuleHost\.Initialize" `
     throw "AuraToolsExp Entry must compose feature initialization through AuraToolModuleHost."
 }
 
+$hookRegistrySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Infrastructure\AuraToolsHookRegistry.cs")
+$sharedHookSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraSharedCore\AuraSharedHooks.cs")
+$allAuraToolsSource = @(
+    Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev") `
+        -Recurse -File -Filter "*.cs"
+) | ForEach-Object { Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName }
+$allAuraToolsText = $allAuraToolsSource -join "`n"
+if ($allAuraToolsText -match '\[Hook(?:Before|After)\b' `
+        -or $hookRegistrySource -match 'AuraSharedHooks\.Register(?:Before|After)\s*\(' `
+        -or $sharedHookSource -match 'public\s+static\s+bool\s+Register(?:Before|After)\s*\(' `
+        -or $sharedHookSource -notmatch 'OwnerModId' `
+        -or $sharedHookSource -notmatch 'HandlerId' `
+        -or $sharedHookSource -notmatch 'LeaseCount' `
+        -or $sharedHookSource -notmatch 'Generation') {
+    throw "AuraToolsExp and AuraShared must use owner-qualified generation-safe routed hooks without attribute or direct registration paths."
+}
+
+$moduleHostSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolModuleHost.cs")
+$activationPolicySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Modules\AuraToolsModuleActivationPolicy.cs")
+if ($moduleSource -notmatch 'AuraToolsModuleActivationPolicy\.Activate' `
+        -or $moduleSource -notmatch 'activation\.Dispose\(\)' `
+        -or $moduleHostSource -notmatch 'ReconcileModule' `
+        -or $activationPolicySource -notmatch 'ActivationLease') {
+    throw "AuraToolsExp built-in module switches must own explicit activation leases and reconcile config changes."
+}
+
+$autoBattleRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleRuntime.cs")
+$replayCaptureSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Replay\Capture\ReplayFactCaptureV10.cs")
+$replayRecorderSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayRecorder.cs")
+if ($autoBattleRuntimeSource -match 'ChooseDecision\(state,\s*"prediction"\)' `
+        -or $autoBattleRuntimeSource -match 'private\s+CombatDecision\s+(?:ChooseDecision|RunDecisionEngine)\s*\(' `
+        -or $autoBattleRuntimeSource -notmatch 'AutoBattle\.PredictionDecision' `
+        -or $autoBattleRuntimeSource -notmatch 'CancelOwner' `
+        -or $autoBattleRuntimeSource -match 'OwnerId\s*=\s*AuraToolsIds\.ModId\s*,' `
+        -or $replayCaptureSource -match 'new\s+float\[valueCount\]' `
+        -or $replayCaptureSource -match 'new\s+MemoryStream\s*\(\s*44\s*\+' `
+        -or $replayCaptureSource -notmatch 'RunCooperative' `
+        -or $replayCaptureSource -notmatch 'DetachChunks' `
+        -or $replayCaptureSource -notmatch 'Replay\.AudioFinalize' `
+        -or $replayRecorderSource -match 'RevisionHash|MatchReplayActionConvergence' `
+        -or $replayRecorderSource -notmatch 'FinalizationGeneration' `
+        -or $replayRecorderSource -notmatch 'DelayFrames\s*=\s*2') {
+    throw "AuraToolsExp hot-path work must keep prediction search and whole-clip replay audio processing out of native hook calls."
+}
+
+$lobbySnapshotSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraOnlineShared\AuraLobbySnapshotRuntime.cs")
+if ($allAuraToolsText -match 'GameEntryUI\.UpdateLobby' `
+        -or ([regex]::Matches(
+                $lobbySnapshotSource,
+                '"GameEntryUI\.UpdateLobby"')).Count -ne 1 `
+        -or $lobbySnapshotSource -notmatch 'Fingerprint' `
+        -or $lobbySnapshotSource -notmatch 'AuraChatModSyncSnapshot\.BuildState') {
+    throw "AuraOnlineShared must own the single normalized Lobby snapshot projection consumed by AuraToolsExp."
+}
+
 $settingsSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs")
 $shellSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -622,8 +685,8 @@ if ($healthSource -notmatch 'loadedModDirectories' `
         -or $healthSource -notmatch 'Assembly\.LoadFrom' `
         -or $healthSource -notmatch 'CsvReader' `
         -or $healthSource -match 'Aura(?:Cg|Skin|Audio|Journey|Tool)Registry' `
-        -or $lobbyStatusSource -notmatch 'AuraChatModSyncSnapshot\.BuildState' `
-        -or $lobbyStatusSource -notmatch 'GameEntryUI\.UpdateLobby' `
+        -or $lobbyStatusSource -notmatch 'AuraLobbySnapshotRuntime\.Register' `
+        -or $lobbyStatusSource -match 'GameEntryUI\.UpdateLobby' `
         -or $lobbyStatusSource -match 'AuraToolsRpcSender|SendCommand|SendRPC' `
         -or $archiveStorageSource -notmatch 'DamageHistoryStorage\.Database\.DatabasePath' `
         -or $archiveDatabaseSource -notmatch 'adventure_archives' `

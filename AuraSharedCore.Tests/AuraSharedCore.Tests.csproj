@@ -49,7 +49,7 @@
     <Compile Include="..\AuraModeShared\AuraModeModels.cs" Link="Mode\AuraModeModels.cs" />
     <Compile Include="..\AuraModeShared\AuraModeOutcomeRuntime.cs" Link="Mode\AuraModeOutcomeRuntime.cs" />
     <Compile Include="..\AuraModeShared\AuraModePolicyEvaluator.cs" Link="Mode\AuraModePolicyEvaluator.cs" />
-    <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraLobbySnapshotRuntime.cs;..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorModels.cs" Link="Director\AuraDirectorModels.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorPlanCompiler.cs" Link="Director\AuraDirectorPlanCompiler.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorPortraitLayout.cs" Link="Director\AuraDirectorPortraitLayout.cs" />

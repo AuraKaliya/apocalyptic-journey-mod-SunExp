@@ -1,24 +1,40 @@
+using AuraToolsExp.Dll.Infrastructure;
+using Witch.Core;
 using Witch.Mod;
 
 namespace AuraToolsExp.Dll.Features.Logging;
 
 public static class CommandLogHooks
 {
-    [HookAfter(typeof(Commands), nameof(Commands.Log))]
-    public static void AfterLog(string tag, string message)
+    public static void Initialize(ModConfig config)
     {
-        AuraToolsFileLogRuntime.RecordCommand("Log", tag, message);
+        AuraToolsHookRegistry.After(
+            config,
+            "Commands.Log",
+            context => Record("Log", context),
+            "FileLogging");
+        AuraToolsHookRegistry.After(
+            config,
+            "Commands.LogWarning",
+            context => Record("Warning", context),
+            "FileLogging");
+        AuraToolsHookRegistry.After(
+            config,
+            "Commands.LogError",
+            context => Record("Error", context),
+            "FileLogging");
     }
 
-    [HookAfter(typeof(Commands), nameof(Commands.LogWarning))]
-    public static void AfterLogWarning(string tag, string message)
+    private static void Record(string level, ModHookContext context)
     {
-        AuraToolsFileLogRuntime.RecordCommand("Warning", tag, message);
-    }
-
-    [HookAfter(typeof(Commands), nameof(Commands.LogError))]
-    public static void AfterLogError(string tag, string message)
-    {
-        AuraToolsFileLogRuntime.RecordCommand("Error", tag, message);
+        var arguments = context.Arguments;
+        AuraToolsFileLogRuntime.RecordCommand(
+            level,
+            arguments != null && arguments.Length > 0
+                ? arguments[0]?.ToString()
+                : "",
+            arguments != null && arguments.Length > 1
+                ? arguments[1]?.ToString()
+                : "");
     }
 }

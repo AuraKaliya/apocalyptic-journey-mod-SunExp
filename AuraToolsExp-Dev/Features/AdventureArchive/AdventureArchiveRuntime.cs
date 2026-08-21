@@ -22,6 +22,7 @@ internal static class AdventureArchiveRuntime
 {
     private const string Owner = "AdventureArchive";
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static string activeAdventureId = "";
     private static string lastCompletedAdventureId = "";
     private static IDisposable? lifecycle;
@@ -43,6 +44,7 @@ internal static class AdventureArchiveRuntime
     {
         if (initialized) return;
         initialized = true;
+        currentConfig = modConfig;
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.AdventureArchive, OnConfigChanged);
         AuraToolsHookRegistry.After(modConfig, "GameEntryUI.StartGame", _ => BeginNewAdventure(), Owner);
         AuraToolsHookRegistry.After(modConfig, "NormalMapManager.InitRoleTable", _ => CaptureCheckpoint("adventure-ready", "冒险已开始"), Owner);
@@ -53,21 +55,7 @@ internal static class AdventureArchiveRuntime
         AuraToolsHookRegistry.Before(modConfig, "GameApp.GameOver", CompleteFromHook, Owner);
         AuraToolsHookRegistry.Before(modConfig, "PlayerManager.GameOver", CompleteFromHook, Owner);
         AuraToolsHookRegistry.After(modConfig, "GameExitUI.Start", context => Complete("Exited", HookSource(context)), Owner);
-        lifecycle = AuraBattleLifecycleRouter.Register(
-            modConfig,
-            AuraToolsIds.ModId,
-            Owner,
-            new AuraBattleLifecycleSubscription
-            {
-                BattleInitializing = _ => CaptureCheckpoint("battle-start", "进入战斗"),
-                BattleSettling = outcome => CaptureCheckpoint(
-                    "battle-end",
-                    "战斗结束",
-                    DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
-                BattleEnded = _ => CaptureSnapshot("battle-settled")
-            },
-            AuraToolsLog.Debug,
-            AuraToolsLog.Warn);
+        ApplyModuleActivation(Enabled);
         if (Enabled)
         {
             try
@@ -81,6 +69,7 @@ internal static class AdventureArchiveRuntime
 
     private static void OnConfigChanged()
     {
+        ApplyModuleActivation(Enabled);
         if (!Enabled) return;
         try
         {
@@ -91,6 +80,36 @@ internal static class AdventureArchiveRuntime
         {
             AuraToolsLog.Warn("[AdventureArchive] configuration apply failed: " + ex.Message);
         }
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            lifecycle?.Dispose();
+            lifecycle = null;
+            activeAdventureId = "";
+            return;
+        }
+
+        lifecycle ??= AuraBattleLifecycleRouter.Register(
+            currentConfig,
+            AuraToolsIds.ModId,
+            Owner,
+            new AuraBattleLifecycleSubscription
+            {
+                BattleInitializing = _ =>
+                    CaptureCheckpoint("battle-start", "进入战斗"),
+                BattleSettling = outcome => CaptureCheckpoint(
+                    "battle-end",
+                    "战斗结束",
+                    DamageMeterSettlementRuntime.FightResult(
+                        outcome.NativeContext)),
+                BattleEnded = _ => CaptureSnapshot("battle-settled")
+            },
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
     }
 
     private static void BeginNewAdventure()

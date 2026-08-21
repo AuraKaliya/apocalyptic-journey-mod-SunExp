@@ -27,10 +27,12 @@ public static class AuraToolsAutoBattleRuntime
 {
     private const string HandlerId = "AutoBattle";
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static AuraToolsAutoBattleController? controller;
     private static IDisposable? lifecycleSubscription;
     private static IDisposable? trainingSinkRegistration;
     private static IDisposable? automationCapabilityRegistration;
+    private static AuraToolsAutoBattleTrainingSink? trainingSink;
 
     internal static bool ModuleEnabled =>
         AuraToolsConfigService.MatchExperience.AutoBattle.Enabled;
@@ -45,16 +47,11 @@ public static class AuraToolsAutoBattleRuntime
         }
 
         initialized = true;
+        currentConfig = modConfig;
         AuraToolsCombatContentRuntime.Initialize();
         AuraToolsCombatKnowledgeRuntime.Initialize();
-        automationCapabilityRegistration ??= CombatActionAutomationRegistry.Register(
-            AuraToolsIds.ModId,
-            "player-ui-runtime",
-            new AuraToolsPlayerActionAutomationProvider(),
-            priority: 10);
         AuraToolsBundledFoundationModelRuntime.Initialize(modConfig);
         AuraToolsAutoBattleJourneyRuntime.Initialize(modConfig);
-        EnsureController();
         AuraToolsHookRegistry.After(
             modConfig,
             "DeckUI.CreateDeckMenuForSelect",
@@ -95,8 +92,48 @@ public static class AuraToolsAutoBattleRuntime
             "FightUI.onChangeTurnBtn",
             ObserveHumanEndTurn,
             HandlerId + ".Teacher");
-        lifecycleSubscription = AuraBattleLifecycleRouter.Register(
-            modConfig,
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.AutoBattle,
+            OnConfigurationChanged);
+        ApplyModuleActivation(ModuleEnabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        AuraToolsAutoBattleJourneyRuntime.ApplyModuleActivation(enabled);
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            AuraSharedBackgroundWorkScheduler.CancelOwner(
+                AuraToolsIds.ModId + ".AutoBattle");
+            controller?.EndBattle();
+            if (controller != null)
+            {
+                Object.Destroy(controller.gameObject);
+                controller = null;
+            }
+            lifecycleSubscription?.Dispose();
+            lifecycleSubscription = null;
+            automationCapabilityRegistration?.Dispose();
+            automationCapabilityRegistration = null;
+            trainingSinkRegistration?.Dispose();
+            trainingSinkRegistration = null;
+            trainingSink?.Dispose();
+            trainingSink = null;
+            AuraToolsAutoBattleGameValidationRuntime.ApplyModuleActivation(
+                false);
+            return;
+        }
+
+        EnsureController();
+        automationCapabilityRegistration ??=
+            CombatActionAutomationRegistry.Register(
+                AuraToolsIds.ModId,
+                "player-ui-runtime",
+                new AuraToolsPlayerActionAutomationProvider(),
+                priority: 10);
+        lifecycleSubscription ??= AuraBattleLifecycleRouter.Register(
+            currentConfig,
             AuraToolsIds.ModId,
             HandlerId,
             new AuraBattleLifecycleSubscription
@@ -108,14 +145,13 @@ public static class AuraToolsAutoBattleRuntime
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);
-        AuraToolsAutoBattleGameValidationRuntime.Initialize(modConfig);
-        trainingSinkRegistration = CombatAiRegistry.RegisterTrainingSink(
+        trainingSink ??= new AuraToolsAutoBattleTrainingSink();
+        trainingSinkRegistration ??= CombatAiRegistry.RegisterTrainingSink(
             AuraToolsIds.ModId,
             "JsonLinesV4",
-            new AuraToolsAutoBattleTrainingSink());
-        AuraToolsConfigService.SubscribeModule(
-            AuraToolModuleIds.AutoBattle,
-            OnConfigurationChanged);
+            trainingSink);
+        AuraToolsAutoBattleGameValidationRuntime.Initialize(currentConfig);
+        AuraToolsAutoBattleGameValidationRuntime.ApplyModuleActivation(true);
     }
 
     public static void SetActive(bool active)
@@ -125,6 +161,11 @@ public static class AuraToolsAutoBattleRuntime
 
     private static void OnConfigurationChanged()
     {
+        if (!ModuleEnabled)
+        {
+            controller?.ApplyConfiguration();
+            return;
+        }
         EnsureController().ApplyConfiguration();
     }
 
@@ -412,8 +453,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private string shadowPredictionCandidateId = "";
     private bool teacherPolicyVisibleToHuman;
     private string decisionCacheKey = "";
-    private CombatDecision? cachedBaselineDecision;
-    private CombatDecision? cachedLearnedDecision;
     private readonly List<double> decisionTimingsMs = new();
     private string pendingShadowFingerprint = "";
     private readonly Dictionary<string, float> failedActionStateKeys =
@@ -422,6 +461,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         new(StringComparer.Ordinal);
     private bool activeDecisionPending;
     private string pendingActiveDecisionKey = "";
+    private bool predictionDecisionPending;
+    private string pendingPredictionFingerprint = "";
     private long decisionWorkGeneration;
     private long continuationBattleSessionId;
     private string continuationCandidateId = "";
@@ -821,7 +862,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ActiveDecisionResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.ActiveDecision",
                 Source = "AutoBattle.ActiveDecision",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
@@ -902,14 +943,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                     }
                     activeDecisionQueuedAt = -1f;
                     pendingActiveDecisionLearned = false;
-                    if (result.Learned)
-                    {
-                        cachedLearnedDecision = result.Decision;
-                    }
-                    else
-                    {
-                        cachedBaselineDecision = result.Decision;
-                    }
                     currentDecisionOwner = result.Learned
                         ? "model"
                         : result.Phase.StartsWith(
@@ -1327,27 +1360,100 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         {
             return;
         }
-        var recommendation = ChooseDecision(state, "teacher");
-        var actualEvaluation = recommendation.Candidates.FirstOrDefault(candidate =>
-            string.Equals(
-                candidate.Action.CandidateId,
-                actualAction.CandidateId,
-                StringComparison.Ordinal));
-        if (actualEvaluation == null)
-        {
-            return;
-        }
-
         decisionIndex++;
         teacherTransactionId++;
         teacherStartedAt = Time.unscaledTime;
         teacherBeforeAction = state;
-        teacherRecommendedCandidateId = recommendation.Action?.CandidateId ?? "";
-        teacherPolicyVisibleToHuman = recommendation.Action != null
-                                      && predictionPresenter?.IsShowing(
+        teacherDecision = null;
+        teacherRecommendedCandidateId = "";
+        teacherPolicyVisibleToHuman = predictionPresenter?.IsShowing(
                                           state.Fingerprint,
-                                          recommendation.Action.CandidateId) == true;
+                                          shadowPredictionCandidateId) == true;
         ClearPredictionMarkers();
+        var profile = BuildProfile();
+        var engine = SelectPredictionEngine(out var learned);
+        var preparedState = engine.PrepareStateForIsolatedWorker(state);
+        var worker = engine.CreateIsolatedWorker(
+            engine.SnapshotSimulationRulesForIsolatedWorker());
+        var generation = decisionWorkGeneration;
+        var fingerprint = state.Fingerprint;
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<TeacherDecisionResult>
+            {
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
+                Key = "AutoBattle.TeacherDecision",
+                Source = "AutoBattle.TeacherDecision",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                Work = cancellation =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    var stopwatch = Stopwatch.StartNew();
+                    var recommendation = worker.Choose(
+                        preparedState,
+                        profile);
+                    stopwatch.Stop();
+                    return new TeacherDecisionResult(
+                        recommendation,
+                        stopwatch.Elapsed.TotalMilliseconds,
+                        learned);
+                },
+                IsStillCurrent = () =>
+                    generation == decisionWorkGeneration
+                    && teacherBeforeAction != null
+                    && string.Equals(
+                        teacherBeforeAction.Fingerprint,
+                        fingerprint,
+                        StringComparison.Ordinal),
+                ApplyOnMainThread = result => ApplyTeacherDecision(
+                    state,
+                    actualAction,
+                    result),
+                OnFailedOnMainThread = ex =>
+                {
+                    if (!(ex is OperationCanceledException))
+                    {
+                        AuraToolsLog.Warn(
+                            "[AutoBattle][Teacher] background recommendation failed: "
+                            + ex.Message);
+                    }
+                    ClearTeacherAction();
+                }
+            });
+        if (!queued)
+        {
+            ClearTeacherAction();
+        }
+    }
+
+    private void ApplyTeacherDecision(
+        CombatStateObservation state,
+        CombatActionObservation actualAction,
+        TeacherDecisionResult result)
+    {
+        var recommendation = result.Decision;
+        var actualEvaluation = recommendation.Candidates.FirstOrDefault(
+            candidate => string.Equals(
+                candidate.Action.CandidateId,
+                actualAction.CandidateId,
+                StringComparison.Ordinal));
+        if (actualEvaluation == null
+            || teacherBeforeAction == null
+            || !string.Equals(
+                teacherBeforeAction.Fingerprint,
+                state.Fingerprint,
+                StringComparison.Ordinal))
+        {
+            ClearTeacherAction();
+            return;
+        }
+
+        RecordDecisionTiming(
+            result.ElapsedMilliseconds,
+            result.Learned
+                ? "teacher-learned-background"
+                : "teacher-baseline-background");
+        teacherRecommendedCandidateId =
+            recommendation.Action?.CandidateId ?? "";
         teacherDecision = new CombatDecision
         {
             HasAction = true,
@@ -1845,7 +1951,150 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return;
         }
 
-        var decision = ChooseDecision(state, "prediction");
+        QueuePredictionDecision(state);
+    }
+
+    private void QueuePredictionDecision(CombatStateObservation state)
+    {
+        if (predictionDecisionPending
+            && string.Equals(
+                pendingPredictionFingerprint,
+                state.Fingerprint,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var profile = BuildProfile();
+        var engine = SelectPredictionEngine(out var learned);
+        var preparedState = engine.PrepareStateForIsolatedWorker(state);
+        var worker = engine.CreateIsolatedWorker(
+            engine.SnapshotSimulationRulesForIsolatedWorker());
+        var requestGeneration = decisionWorkGeneration;
+        var fingerprint = state.Fingerprint;
+        predictionDecisionPending = true;
+        pendingPredictionFingerprint = fingerprint;
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<PredictionDecisionResult>
+            {
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
+                Key = "AutoBattle.PredictionDecision",
+                Source = "AutoBattle.PredictionDecision",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                Work = cancellation =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    var stopwatch = Stopwatch.StartNew();
+                    var decision = worker.Choose(preparedState, profile);
+                    stopwatch.Stop();
+                    return new PredictionDecisionResult(
+                        decision,
+                        stopwatch.Elapsed.TotalMilliseconds,
+                        fingerprint,
+                        learned);
+                },
+                IsStillCurrent = () =>
+                    AuraToolsAutoBattleRuntime.ModuleEnabled
+                    && !Active
+                    && decisionWorkGeneration == requestGeneration
+                    && string.Equals(
+                        pendingPredictionFingerprint,
+                        fingerprint,
+                        StringComparison.Ordinal),
+                ApplyOnMainThread = result =>
+                {
+                    predictionDecisionPending = false;
+                    pendingPredictionFingerprint = "";
+                    RecordDecisionTiming(
+                        result.ElapsedMilliseconds,
+                        result.Learned
+                            ? "prediction-learned-background"
+                            : "prediction-baseline-background");
+                    if (!TryCapturePlayerState(out var currentState, out _)
+                        || !string.Equals(
+                            currentState.Fingerprint,
+                            result.Fingerprint,
+                            StringComparison.Ordinal)
+                        || !CombatDecisionExecutionBindingProtocol
+                            .TryBindToObservation(
+                                result.Decision,
+                                currentState,
+                                out var bound,
+                                out _))
+                    {
+                        ClearPredictionMarkers();
+                        nextPredictionAt = 0f;
+                        return;
+                    }
+
+                    if (string.Equals(
+                            trainedModelMode,
+                            "shadow",
+                            StringComparison.OrdinalIgnoreCase)
+                        && modelAvailable)
+                    {
+                        var cacheKey = DecisionCacheKey(
+                            currentState,
+                            profile);
+                        decisionCacheKey = cacheKey;
+                        QueueShadowComparison(
+                            currentState,
+                            profile,
+                            bound,
+                            cacheKey,
+                            "prediction");
+                    }
+
+                    PresentPrediction(currentState, bound);
+                },
+                OnFailedOnMainThread = ex =>
+                {
+                    predictionDecisionPending = false;
+                    pendingPredictionFingerprint = "";
+                    if (!(ex is OperationCanceledException))
+                    {
+                        AuraToolsLog.Warn(
+                            "[AutoBattle] prediction background task failed: "
+                            + ex.Message);
+                    }
+                }
+            });
+        if (!queued)
+        {
+            predictionDecisionPending = false;
+            pendingPredictionFingerprint = "";
+            nextPredictionAt = Time.unscaledTime + 0.1f;
+            AuraToolsLog.Warn(
+                "[AutoBattle] prediction background task could not be queued");
+        }
+    }
+
+    private CombatDecisionEngine SelectPredictionEngine(out bool learned)
+    {
+        learned = AuraToolsAutoBattleRuntime
+                      .IsModelApplicationMode(trainedModelMode)
+                  && modelAvailable
+                  && !modelLoadPending
+                  && !technicalFallback.IsolatedForBattle
+                  && !string.Equals(
+                      trainedModelId,
+                      "none",
+                      StringComparison.Ordinal);
+        return learned ? trainedDecisionEngine : baselineDecisionEngine;
+    }
+
+    private void PresentPrediction(
+        CombatStateObservation state,
+        CombatDecision decision)
+    {
+        if (Active
+            || !AuraToolsAutoBattleRuntime.ModuleEnabled
+            || !AuraToolsConfigService.MatchExperience.AutoBattle
+                .ShowPredictionMarkers)
+        {
+            return;
+        }
+
         var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
         if (!decision.HasAction
             || decision.Action == null
@@ -1994,7 +2243,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<AutoBattleResidentModelSet>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.ModelResidency",
                 Source = "AutoBattle.ModelResidency",
                 Kind = AuraSharedBackgroundWorkKind.Io,
@@ -2115,136 +2364,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
     }
 
-    private CombatDecision ChooseDecision(
-        CombatStateObservation state,
-        string source)
-    {
-        var profile = BuildProfile();
-        var cacheKey = DecisionCacheKey(state, profile);
-        if (AuraToolsAutoBattleRuntime.IsModelApplicationMode(trainedModelMode)
-            && modelAvailable
-            && !technicalFallback.ShouldUseEmergencyBaseline
-            && !string.Equals(trainedModelId, "none", StringComparison.Ordinal))
-        {
-            profile.ModelOwnsActionSelection = true;
-            profile.UseLowConfidenceFallback = false;
-            profile.PreferDominantFreeSetup = false;
-            cacheKey = DecisionCacheKey(state, profile);
-            if (string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal)
-                && cachedLearnedDecision != null)
-            {
-                return BindDecisionToCurrentObservation(
-                    cachedLearnedDecision,
-                    state,
-                    trainedDecisionEngine,
-                    profile,
-                    learned: true,
-                    "learned-active-cache");
-            }
-            ClearDecisionCache();
-            decisionCacheKey = cacheKey;
-            cachedLearnedDecision = RunDecisionEngine(
-                trainedDecisionEngine,
-                state,
-                profile,
-                "learned-active");
-            return BindDecisionToCurrentObservation(
-                cachedLearnedDecision,
-                state,
-                trainedDecisionEngine,
-                profile,
-                learned: true,
-                "learned-active");
-        }
-
-        if (!string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal))
-        {
-            ClearDecisionCache();
-            decisionCacheKey = cacheKey;
-        }
-        var baselineTemplate = cachedBaselineDecision
-                               ??= RunDecisionEngine(
-                                   baselineDecisionEngine,
-                                   state,
-                                   profile,
-                                   "baseline");
-        var baseline = BindDecisionToCurrentObservation(
-            baselineTemplate,
-            state,
-            baselineDecisionEngine,
-            profile,
-            learned: false,
-            "baseline-cache");
-        if (!string.Equals(trainedModelMode, "shadow", StringComparison.OrdinalIgnoreCase)
-            || !modelAvailable
-            || string.Equals(trainedModelId, "none", StringComparison.Ordinal)
-            || string.Equals(
-                lastModelComparisonFingerprint,
-                state.Fingerprint,
-                StringComparison.Ordinal))
-        {
-            return baseline;
-        }
-
-        profile.ModelOwnsActionSelection = true;
-        profile.UseLowConfidenceFallback = false;
-        profile.PreferDominantFreeSetup = false;
-        QueueShadowComparison(state, profile, baseline, cacheKey, source);
-        return baseline;
-    }
-
-    private CombatDecision BindDecisionToCurrentObservation(
-        CombatDecision template,
-        CombatStateObservation state,
-        CombatDecisionEngine engine,
-        CombatDecisionProfile profile,
-        bool learned,
-        string source)
-    {
-        if (CombatDecisionExecutionBindingProtocol.TryBindToObservation(
-                template,
-                state,
-                out var bound,
-                out _))
-        {
-            return bound;
-        }
-
-        var refreshed = RunDecisionEngine(
-            engine,
-            state,
-            profile,
-            source + "-refresh");
-        if (learned)
-        {
-            cachedLearnedDecision = refreshed;
-        }
-        else
-        {
-            cachedBaselineDecision = refreshed;
-        }
-        if (CombatDecisionExecutionBindingProtocol.TryBindToObservation(
-                refreshed,
-                state,
-                out bound,
-                out var reason))
-        {
-            AuraToolsLog.Debug(
-                "[AutoBattle][ActionRebind] cached decision refreshed for "
-                + state.ObservationId);
-            return bound;
-        }
-
-        AuraToolsLog.Warn(
-            "[AutoBattle][ActionRebind] current action binding failed: "
-            + reason);
-        return new CombatDecision
-        {
-            Reason = "current action binding failed: " + reason,
-            ProfileId = profile.Id
-        };
-    }
-
     private void QueueShadowComparison(
         CombatStateObservation state,
         CombatDecisionProfile profile,
@@ -2266,7 +2385,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ShadowDecisionResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.ShadowDecision",
                 Source = "AutoBattle.LearnedShadow",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
@@ -2284,7 +2403,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                     && string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal),
                 ApplyOnMainThread = result =>
                 {
-                    cachedLearnedDecision = result.Decision;
                     lastModelComparisonFingerprint = fingerprint;
                     RecordDecisionTiming(result.ElapsedMilliseconds, "learned-shadow-background");
                     AuraToolsLog.Info(
@@ -2484,19 +2602,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         return selected?.SearchDeathRisk ?? double.MaxValue;
     }
 
-    private CombatDecision RunDecisionEngine(
-        CombatDecisionEngine engine,
-        CombatStateObservation state,
-        CombatDecisionProfile profile,
-        string phase)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        var decision = engine.Choose(state, profile);
-        stopwatch.Stop();
-        RecordDecisionTiming(stopwatch.Elapsed.TotalMilliseconds, phase);
-        return decision;
-    }
-
     private void RecordDecisionTiming(double elapsedMilliseconds, string phase)
     {
         decisionTimingsMs.Add(elapsedMilliseconds);
@@ -2591,11 +2696,51 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         public double ElapsedMilliseconds { get; }
     }
 
+    private sealed class PredictionDecisionResult
+    {
+        public PredictionDecisionResult(
+            CombatDecision decision,
+            double elapsedMilliseconds,
+            string fingerprint,
+            bool learned)
+        {
+            Decision = decision;
+            ElapsedMilliseconds = elapsedMilliseconds;
+            Fingerprint = fingerprint ?? "";
+            Learned = learned;
+        }
+
+        public CombatDecision Decision { get; }
+
+        public double ElapsedMilliseconds { get; }
+
+        public string Fingerprint { get; }
+
+        public bool Learned { get; }
+    }
+
+    private sealed class TeacherDecisionResult
+    {
+        public TeacherDecisionResult(
+            CombatDecision decision,
+            double elapsedMilliseconds,
+            bool learned)
+        {
+            Decision = decision;
+            ElapsedMilliseconds = elapsedMilliseconds;
+            Learned = learned;
+        }
+
+        public CombatDecision Decision { get; }
+
+        public double ElapsedMilliseconds { get; }
+
+        public bool Learned { get; }
+    }
+
     private void ClearDecisionCache()
     {
         decisionCacheKey = "";
-        cachedBaselineDecision = null;
-        cachedLearnedDecision = null;
     }
 
     private void InvalidateDecisionWork()
@@ -2605,6 +2750,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         pendingActiveDecisionKey = "";
         activeDecisionQueuedAt = -1f;
         pendingActiveDecisionLearned = false;
+        predictionDecisionPending = false;
+        pendingPredictionFingerprint = "";
     }
 
     private void HandleLearnedInferenceFailure(
@@ -2844,7 +2991,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     }
 }
 
-internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSink
+internal sealed class AuraToolsAutoBattleTrainingSink :
+    ICombatTrainingSampleSink,
+    IDisposable
 {
     private static readonly object StorageGate = new();
     private static int storageGeneration;
@@ -2913,6 +3062,11 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             + selection.PolicyVisibleToHuman
             + " label="
             + selection.LabelKind);
+    }
+
+    public void Dispose()
+    {
+        Shutdown();
     }
 
     private void WriteLoop()

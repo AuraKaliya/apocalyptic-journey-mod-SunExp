@@ -45,11 +45,32 @@ public static class SkinRuntimeHooks
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, warn: SkinLog.Warn);
+        AuraSharedHooks.RegisterBeforeRouted(
+            config,
+            target,
+            Request(target, action),
+            warn: SkinLog.Warn);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, warn: SkinLog.Warn);
+        AuraSharedHooks.RegisterAfterRouted(
+            config,
+            target,
+            Request(target, action),
+            warn: SkinLog.Warn);
+    }
+
+    private static AuraRoutedHookRequest Request(
+        string target,
+        Action<ModHookContext> action)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = "AuraSkinShared",
+            HandlerId = target + ":" + action.Method.Name,
+            Handler = action,
+            SafeInvoke = true
+        };
     }
 }

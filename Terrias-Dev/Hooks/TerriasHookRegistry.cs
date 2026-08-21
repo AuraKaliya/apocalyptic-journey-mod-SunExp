@@ -27,10 +27,9 @@ public static class TerriasHookRegistry
         return AuraSharedHooks.RegisterBeforeRouted(
             config,
             target,
-            action,
+            Request(target, action, owner),
             TerriasLog.Debug,
-            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
-            safeInvoke: true);
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message));
     }
 
     public static IDisposable AfterRouted(ModConfig config, string target, Action<ModHookContext> action, string owner)
@@ -38,10 +37,25 @@ public static class TerriasHookRegistry
         return AuraSharedHooks.RegisterAfterRouted(
             config,
             target,
-            action,
+            Request(target, action, owner),
             TerriasLog.Debug,
-            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
-            safeInvoke: true);
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message));
+    }
+
+    private static AuraRoutedHookRequest Request(
+        string target,
+        Action<ModHookContext> action,
+        string owner)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = "Terrias",
+            HandlerId = (owner ?? "").Trim()
+                        + ":" + (target ?? "")
+                        + ":" + action.Method.Name,
+            Handler = action,
+            SafeInvoke = true
+        };
     }
 
     private static string OwnerPrefix(string owner)

@@ -1788,7 +1788,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<TrainingWorkResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.Train:" + profile,
                 Source = "AutoBattle.LocalResidualTraining",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
@@ -1882,7 +1882,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ImportWorkResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.Import:" + profile,
                 Source = "AutoBattle.CandidateImport",
                 Kind = AuraSharedBackgroundWorkKind.Io,
@@ -1926,7 +1926,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ImportWorkResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.Rollback:" + profile,
                 Source = "AutoBattle.ChampionRollback",
                 Kind = AuraSharedBackgroundWorkKind.Io,

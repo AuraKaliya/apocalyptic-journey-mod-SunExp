@@ -179,12 +179,17 @@ public interface IAuraToolModule
 }
 ```
 
-第一轮不要求运行期真正卸载程序集。`SetEnabled(false)` 的含义是：
+内置模块由 ModuleHost 持有唯一 activation lease。`SetEnabled(false)` 的含义是：
 
 - 立即停止功能行为和展示。
 - 释放支持释放的 Hook、订阅、协程和临时 UI。
 - 保留持久化数据、资源注册和再次启用所需的轻量基础设施。
 - 不删除用户数据，不修改外部 MOD 的注册源。
+
+`Initialize`只建立冷基础设施与注册定义；`ApplyCurrentConfiguration`负责创建或释放
+activation lease。配置 ChangeBus 会进入同一 reconciliation 路径，不能只刷新模块行。
+Hook lease、领域 Router订阅、Provider、Driver、临时UI与后台 generation都归 activation
+所有。共享 Registry声明可以保留，但关闭模块后不得继续执行逐帧业务。
 
 ### 6.3 模块状态
 
@@ -673,41 +678,17 @@ system.reload-tool-config
 5. 反复打开/关闭 SettingUI 和进入/退出回放，确认没有残留 Overlay 或射线阻塞。
 6. 在 16:9、16:10、窗口化和低分辨率下确认模块行文本不溢出。
 
-## 17. 迁移阶段
+## 17. 当前迁移状态
 
-### 阶段 0：先解决视图状态问题
+以下迁移已经完成，旧运行路径不再保留：
 
-- 在 `AuraUiShared` 实现 StableId、ViewState 和 MutationScope。
-- 将皮肤、美餐 CG、卡牌使用 CG 和自动战斗局部刷新改为差量更新或状态事务。
-- 禁止设置页 Build 方法修改配置。
-- 为现有页面补滚动和焦点回归测试。
-
-### 阶段 1：建立模块目录和新一级壳层
-
-- 添加模块契约、Catalog、Host 和 StateStore。
-- 使用薄适配器包装现有静态 Runtime。
-- 新壳层从 Catalog 生成分类和模块行。
-- 二级设置暂时调用现有 Editor，确保功能行为不变。
-
-### 阶段 2：迁移二级设置页所有权
-
-- 各 Feature 提供自己的 `SettingsPage`。
-- 从 `AuraToolsSettingsRuntime` 移除具体功能构建代码。
-- 将战斗策略、日志、对局记录、音频等详细参数完全迁入二级页。
-
-### 阶段 3：拆分配置和事件
-
-- 引入模块 ConfigStore 和模块级 ChangeBus。
-- 迁移旧配置，逐步移除根级隐藏开关和全局 `Changed`。
-- 拆开 DPT 与回放的父级门。
-
-### 阶段 4：收紧架构门禁
-
-- `Entry.cs` 只保留 Foundation + ModuleHost + SettingsShell。
-- 中央设置 Runtime 不再引用具体 Feature。
-- 添加模块边界、配置归属和 UI 刷新规则。
-- 发布 `AuraTooling.Shared` v1，并由 ModuleHost 动态投影、刷新和移除共享扩展。
-- 保持 Provider 的配置、运行时、设置页和多人权威归其 owner 所有。
+- ModuleHost、Catalog、StateStore、模块 ConfigStore 与模块级 ChangeBus成为唯一工具壳路径。
+- 内置模块通过 activation lease启停Hook、领域订阅、Provider、Driver、UI和后台任务。
+- Aura Shared Hook只保留owner-qualified、generation-safe routed subscription。
+- Lobby原生输入只由`AuraOnlineShared.AuraLobbySnapshotRuntime`解析一次并发布差量快照。
+- 自动战斗主动决策、预测和教师建议均在后台worker执行；主线程只生成快照和应用结果。
+- 回放音频Hook只登记请求；音频按帧采样，WAV收尾与哈希在后台完成。
+- 设置页不再保留属性Hook；AuraTools产品代码没有direct native Hook路径。
 
 ## 18. 文件级改造落点
 

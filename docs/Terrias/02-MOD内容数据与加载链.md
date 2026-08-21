@@ -166,12 +166,10 @@ Terrias 当前 `Scripts/` 只交付两个 DLL，不存在 `Entry.lua`。**反编
 - 调用带 `ModInitializeAttribute` 的静态方法；
 - 将带 `ModHookAttribute` 的静态方法转为 `Action<ModHookContext>` 并注册。
 
-Terrias 同时使用两种 Hook 注册方式：
-
-- `SpecialTagRuntime` 等少量入口使用 `[HookBefore]/[HookAfter]` 属性；
-- 大多数运行时在 `Entry.Initialize -> RuntimeHooks.Initialize` 中通过 `AuraSharedHooks` 动态注册字符串目标。
-
-动态注册让模式、UI、网络和性能运行时能够按步骤初始化，并复用 routed hook 与安全调用策略。
+游戏加载器仍具备属性Hook扫描能力，但Terrias当前只使用
+`Entry.Initialize -> RuntimeHooks.Initialize`后的owner-qualified routed Hook与类型化
+Router。这样模式、UI、网络和性能运行时可以按步骤初始化，共享同一宿主dispatcher，并在
+生命周期结束时释放订阅；产品层属性Hook与直接原生注册由架构门禁禁止。
 
 ## 7. JSON 注册表与资源
 

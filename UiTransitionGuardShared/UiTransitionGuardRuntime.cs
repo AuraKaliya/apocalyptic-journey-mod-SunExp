@@ -484,6 +484,7 @@ public static class UiTransitionGuardRuntime
         private int nativeInputRecoveryTicket;
         private string guardSource = "";
         private string primaryOwner = "";
+        private AuraHookRegistry? hookRegistry;
         private bool hooksRegistered;
         private UiTransitionGuardLogLevel logLevel = UiTransitionGuardLogLevel.Normal;
         private int maxGuardFrames = DefaultMaxGuardFrames;
@@ -506,6 +507,11 @@ public static class UiTransitionGuardRuntime
             }
 
             owners.Add(ownerModId);
+            hookRegistry ??= new AuraHookRegistry(
+                modConfig,
+                "UiTransitionGuard",
+                Trace,
+                Warn);
             var requestedLogLevel = ReadLogLevel(options);
             if (requestedLogLevel > logLevel)
             {
@@ -1055,28 +1061,18 @@ public static class UiTransitionGuardRuntime
 
         private void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
         {
-            try
-            {
-                config.AddMethodHookBefore(target, context => SafeHook(target, () => action(context)));
-                Trace("Hook before registered: " + target);
-            }
-            catch (Exception ex)
-            {
-                Warn("Hook before failed: " + target + " -> " + ex.Message);
-            }
+            hookRegistry?.BeforeRouted(
+                target,
+                context => SafeHook(target, () => action(context)),
+                target + ":" + action.Method.Name);
         }
 
         private void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
         {
-            try
-            {
-                config.AddMethodHookAfter(target, context => SafeHook(target, () => action(context)));
-                Trace("Hook after registered: " + target);
-            }
-            catch (Exception ex)
-            {
-                Warn("Hook after failed: " + target + " -> " + ex.Message);
-            }
+            hookRegistry?.AfterRouted(
+                target,
+                context => SafeHook(target, () => action(context)),
+                target + ":" + action.Method.Name);
         }
 
         private void SafeHook(string target, Action action)

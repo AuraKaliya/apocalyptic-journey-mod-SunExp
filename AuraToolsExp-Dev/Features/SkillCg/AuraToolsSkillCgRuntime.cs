@@ -30,9 +30,12 @@ public static class AuraToolsSkillCgRuntime
     private static int adventurePreloadSequence;
     private static bool reconcilingRegistry;
     private static long observedRegistryRevision = -1;
+    private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
     {
+        if (initialized) return;
+        initialized = true;
         AuraToolsSkillCgRuntime.modConfig = modConfig;
         SkillCgArbiterRuntime.Initialize(modConfig, AuraToolsIds.ModId, new SkillCgArbiterOptions
         {

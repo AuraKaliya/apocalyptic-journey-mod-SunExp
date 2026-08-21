@@ -6,6 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using UnityEngine;
 using Witch.UI.Window;
@@ -73,11 +75,6 @@ internal static class ReplayFactCaptureV10
             Label = First(Read(config?.Vars, "Name"), Read(config?.data, "Name"), Read(config?.data, "DisplayName"), content.StableContentId),
             PresentationKind = target is SkillItem ? ReplayPresentationKindsV10.Skill : ReplayPresentationKindsV10.Card
         };
-    }
-
-    internal static string RevisionHash(int turnIndex, ReplayContentCatalogBuilderV10 catalog)
-    {
-        return ReplayProjectionStateV10.Hash(CaptureState(turnIndex, catalog));
     }
 
     private static ReplayActorStateV10 CaptureActor(
@@ -253,9 +250,17 @@ internal sealed class ReplayActionSourceV10
 
 internal sealed class ReplayContentCatalogBuilderV10
 {
+    private static long nextAudioCaptureGeneration;
+    private static readonly MethodInfo? AudioClipGetData = typeof(AudioClip)
+        .GetMethod("GetData", new[] { typeof(float[]), typeof(int) });
     private readonly Dictionary<string, ReplayContentDefinitionV10> definitions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ReplayAttachmentV10> attachments = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> audioClipHashes = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AudioCaptureState> pendingAudioCaptures = new(StringComparer.Ordinal);
+
+    internal event Action? AudioCapturesDrained;
+
+    internal int PendingAudioCaptureCount => pendingAudioCaptures.Count;
 
     internal ReplayContentManifestV10 Manifest
     {
@@ -373,59 +378,329 @@ internal sealed class ReplayContentCatalogBuilderV10
         return content;
     }
 
-    internal string CaptureAudioClip(AudioClip clip, string usage)
+    internal void RequestAudioClip(
+        AudioClip clip,
+        string usage,
+        Action<string> completed)
     {
-        if (clip == null || clip.samples <= 0 || clip.channels <= 0 || clip.frequency <= 0) return "";
+        if (clip == null
+            || clip.samples <= 0
+            || clip.channels <= 0
+            || clip.frequency <= 0)
+        {
+            completed?.Invoke("");
+            return;
+        }
+
         var cacheKey = clip.GetInstanceID().ToString(CultureInfo.InvariantCulture)
                        + "|" + clip.samples + "|" + clip.channels + "|" + clip.frequency;
-        if (audioClipHashes.TryGetValue(cacheKey, out var cached)) return cached;
+        if (audioClipHashes.TryGetValue(cacheKey, out var cached))
+        {
+            completed?.Invoke(cached);
+            return;
+        }
+
+        if (pendingAudioCaptures.TryGetValue(cacheKey, out var pending))
+        {
+            pending.AddCompletion(completed);
+            return;
+        }
+
         var valueCount = checked(clip.samples * clip.channels);
-        if (valueCount > 32 * 1024 * 1024) return "";
-        var samples = new float[valueCount];
-        var getData = typeof(AudioClip).GetMethod("GetData", new[] { typeof(float[]), typeof(int) });
-        if (getData?.Invoke(clip, new object[] { samples, 0 }) is not true) return "";
-        byte[] payload;
-        using (var output = new MemoryStream(44 + valueCount * 2))
-        using (var writer = new BinaryWriter(output))
+        if (valueCount > 32 * 1024 * 1024)
         {
-            var dataBytes = valueCount * 2;
-            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
-            writer.Write(36 + dataBytes);
-            writer.Write(Encoding.ASCII.GetBytes("WAVEfmt "));
-            writer.Write(16);
-            writer.Write((short)1);
-            writer.Write((short)clip.channels);
-            writer.Write(clip.frequency);
-            writer.Write(clip.frequency * clip.channels * 2);
-            writer.Write((short)(clip.channels * 2));
-            writer.Write((short)16);
-            writer.Write(Encoding.ASCII.GetBytes("data"));
-            writer.Write(dataBytes);
-            foreach (var sample in samples)
+            completed?.Invoke("");
+            return;
+        }
+
+        var state = new AudioCaptureState(
+            cacheKey,
+            Interlocked.Increment(ref nextAudioCaptureGeneration),
+            clip,
+            usage);
+        state.AddCompletion(completed);
+        pendingAudioCaptures[cacheKey] = state;
+        var queued = AuraSharedFrameScheduler.RunCooperative(
+            new AuraSharedFrameWorkRequest
             {
-                writer.Write((short)Math.Round(Math.Max(-1f, Math.Min(1f, sample)) * short.MaxValue));
+                OwnerId = "AuraToolsExp",
+                Key = "Replay.AudioCapture." + state.Generation,
+                Source = "MatchRecords.Replay.AudioCapture",
+                DelayFrames = 1,
+                Phase = AuraSharedFramePhase.Reconcile,
+                Priority = 5,
+                EstimatedCost = 1,
+                SliceBudgetMilliseconds = 1.5d,
+                MaximumSlices = 1024,
+                IsCancelled = () => state.Cancelled,
+                ExecuteSlice = context => state.ReadSlice(context),
+                OnCompleted = _ => QueueAudioCaptureFinalization(state),
+                OnCancelled = _ => CompleteAudioCapture(state, null),
+                OnFailed = (_, _) => CompleteAudioCapture(state, null)
+            });
+        if (!queued)
+        {
+            CompleteAudioCapture(state, null);
+        }
+    }
+
+    internal void CancelAudioCaptures()
+    {
+        foreach (var capture in pendingAudioCaptures.Values.ToArray())
+        {
+            capture.Cancelled = true;
+            capture.Complete("");
+            capture.Dispose();
+        }
+
+        pendingAudioCaptures.Clear();
+        AudioCapturesDrained = null;
+    }
+
+    private void QueueAudioCaptureFinalization(AudioCaptureState state)
+    {
+        if (state.Cancelled)
+        {
+            CompleteAudioCapture(state, null);
+            return;
+        }
+
+        var chunks = state.DetachChunks();
+        var pcmByteLength = state.PcmByteLength;
+        var accepted = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<CapturedAudioPayload>
+            {
+                OwnerId = "AuraToolsExp",
+                Key = "Replay.AudioFinalize." + state.Generation,
+                Source = "MatchRecords.Replay.AudioFinalize",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                Work = cancellation =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    if (state.Cancelled)
+                    {
+                        throw new OperationCanceledException();
+                    }
+                    var payload = new byte[checked(44 + pcmByteLength)];
+                    WriteWaveHeader(
+                        payload,
+                        pcmByteLength,
+                        state.Channels,
+                        state.Frequency);
+                    var offset = 44;
+                    for (var i = 0; i < chunks.Length; i++)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        if (state.Cancelled)
+                        {
+                            throw new OperationCanceledException();
+                        }
+                        Buffer.BlockCopy(
+                            chunks[i],
+                            0,
+                            payload,
+                            offset,
+                            chunks[i].Length);
+                        offset += chunks[i].Length;
+                    }
+                    return new CapturedAudioPayload(
+                        ReplayCanonicalJsonV10.Sha256(payload),
+                        payload);
+                },
+                IsStillCurrent = () => !state.Cancelled,
+                ApplyOnMainThread = payload =>
+                    CompleteAudioCapture(state, payload),
+                OnFailedOnMainThread = _ =>
+                    CompleteAudioCapture(state, null)
+            });
+        if (!accepted)
+        {
+            CompleteAudioCapture(state, null);
+        }
+    }
+
+    private static void WriteWaveHeader(
+        byte[] target,
+        int dataBytes,
+        int channels,
+        int frequency)
+    {
+        WriteAscii(target, 0, "RIFF");
+        WriteInt32(target, 4, 36 + dataBytes);
+        WriteAscii(target, 8, "WAVEfmt ");
+        WriteInt32(target, 16, 16);
+        WriteInt16(target, 20, 1);
+        WriteInt16(target, 22, channels);
+        WriteInt32(target, 24, frequency);
+        WriteInt32(target, 28, frequency * channels * 2);
+        WriteInt16(target, 32, channels * 2);
+        WriteInt16(target, 34, 16);
+        WriteAscii(target, 36, "data");
+        WriteInt32(target, 40, dataBytes);
+    }
+
+    private static void WriteAscii(byte[] target, int offset, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        Buffer.BlockCopy(bytes, 0, target, offset, bytes.Length);
+    }
+
+    private static void WriteInt16(byte[] target, int offset, int value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+    }
+
+    private static void WriteInt32(byte[] target, int offset, int value)
+    {
+        target[offset] = (byte)value;
+        target[offset + 1] = (byte)(value >> 8);
+        target[offset + 2] = (byte)(value >> 16);
+        target[offset + 3] = (byte)(value >> 24);
+    }
+
+    private void CompleteAudioCapture(
+        AudioCaptureState state,
+        CapturedAudioPayload? captured)
+    {
+        if (!pendingAudioCaptures.TryGetValue(state.CacheKey, out var current)
+            || !ReferenceEquals(current, state))
+        {
+            state.Dispose();
+            return;
+        }
+
+        pendingAudioCaptures.Remove(state.CacheKey);
+        var hash = captured?.Sha256 ?? "";
+        if (captured != null && hash.Length > 0)
+        {
+            audioClipHashes[state.CacheKey] = hash;
+            if (!attachments.ContainsKey(hash))
+            {
+                attachments[hash] = new ReplayAttachmentV10
+                {
+                    Sha256 = hash,
+                    MediaType = "audio/wav",
+                    Extension = ".wav",
+                    Usage = state.Usage,
+                    ByteLength = captured.Payload.LongLength,
+                    SampleRate = state.Frequency,
+                    Channels = state.Channels,
+                    SampleFrames = state.SampleFrames,
+                    Required = true,
+                    Payload = captured.Payload
+                };
             }
-            payload = output.ToArray();
         }
-        var hash = ReplayCanonicalJsonV10.Sha256(payload);
-        if (!attachments.ContainsKey(hash))
+
+        state.Complete(hash);
+        state.Dispose();
+        if (pendingAudioCaptures.Count == 0)
         {
-            attachments[hash] = new ReplayAttachmentV10
-            {
-                Sha256 = hash,
-                MediaType = "audio/wav",
-                Extension = ".wav",
-                Usage = usage ?? "Audio",
-                ByteLength = payload.LongLength,
-                SampleRate = clip.frequency,
-                Channels = clip.channels,
-                SampleFrames = clip.samples,
-                Required = true,
-                Payload = payload
-            };
+            AudioCapturesDrained?.Invoke();
         }
-        audioClipHashes[cacheKey] = hash;
-        return hash;
+    }
+
+    private sealed class AudioCaptureState : IDisposable
+    {
+        private const int MaximumValuesPerSlice = 65_536;
+        private readonly AudioClip clip;
+        private readonly List<byte[]> chunks = new();
+        private readonly List<Action<string>> completions = new();
+        private int offsetFrames;
+        private int pcmByteLength;
+
+        public AudioCaptureState(
+            string cacheKey,
+            long generation,
+            AudioClip clip,
+            string usage)
+        {
+            CacheKey = cacheKey;
+            Generation = generation;
+            this.clip = clip;
+            Usage = usage ?? "Audio";
+            SampleFrames = clip.samples;
+            Channels = clip.channels;
+            Frequency = clip.frequency;
+        }
+
+        public string CacheKey { get; }
+        public long Generation { get; }
+        public string Usage { get; }
+        public int SampleFrames { get; }
+        public int Channels { get; }
+        public int Frequency { get; }
+        public bool Cancelled { get; set; }
+        public int PcmByteLength => pcmByteLength;
+
+        public void AddCompletion(Action<string>? completion)
+        {
+            if (completion != null) completions.Add(completion);
+        }
+
+        public bool ReadSlice(AuraSharedFrameSliceContext context)
+        {
+            if (Cancelled || offsetFrames >= SampleFrames) return true;
+            var maximumFrames = Math.Max(1, MaximumValuesPerSlice / Channels);
+            var frameCount = Math.Min(maximumFrames, SampleFrames - offsetFrames);
+            var samples = new float[checked(frameCount * Channels)];
+            if (AudioClipGetData?.Invoke(
+                    clip,
+                    new object[] { samples, offsetFrames }) is not true)
+            {
+                Cancelled = true;
+                return true;
+            }
+
+            var pcm = new byte[checked(samples.Length * 2)];
+            for (var i = 0; i < samples.Length; i++)
+            {
+                var value = (short)Math.Round(
+                    Math.Max(-1f, Math.Min(1f, samples[i]))
+                    * short.MaxValue);
+                pcm[i * 2] = (byte)value;
+                pcm[i * 2 + 1] = (byte)(value >> 8);
+            }
+
+            chunks.Add(pcm);
+            pcmByteLength = checked(pcmByteLength + pcm.Length);
+            offsetFrames += frameCount;
+            return offsetFrames >= SampleFrames;
+        }
+
+        public byte[][] DetachChunks()
+        {
+            var result = chunks.ToArray();
+            chunks.Clear();
+            return result;
+        }
+
+        public void Complete(string hash)
+        {
+            foreach (var completion in completions.ToArray())
+            {
+                try { completion(hash); } catch { }
+            }
+            completions.Clear();
+        }
+
+        public void Dispose()
+        {
+            chunks.Clear();
+        }
+    }
+
+    private sealed class CapturedAudioPayload
+    {
+        public CapturedAudioPayload(string sha256, byte[] payload)
+        {
+            Sha256 = sha256;
+            Payload = payload;
+        }
+
+        public string Sha256 { get; }
+        public byte[] Payload { get; }
     }
 
     private ReplayDisplaySnapshotV10 CaptureDisplay(IDataConfig? config, string contentKind)

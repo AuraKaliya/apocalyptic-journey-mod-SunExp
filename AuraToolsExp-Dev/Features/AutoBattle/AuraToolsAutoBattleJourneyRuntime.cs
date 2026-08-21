@@ -20,6 +20,7 @@ internal static class AuraToolsAutoBattleJourneyRuntime
     private const string HandlerId = "AutoBattleJourneyTraining";
     private static readonly object WriteGate = new();
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static bool settlementWritten;
     private static IDisposable? lifecycleSubscription;
     private static CombatJourneyTrainingEpisode? current;
@@ -32,20 +33,7 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             return;
         }
         initialized = true;
-        lifecycleSubscription = AuraBattleLifecycleRouter.Register(
-            modConfig,
-            AuraToolsIds.ModId,
-            HandlerId,
-            new AuraBattleLifecycleSubscription
-            {
-                AdventureStarting = _ => BeginAdventure(),
-                BattleInitializing = _ => BeginBattle(),
-                BattleRestarting = MarkBattleRestarting,
-                BattleSettling = outcome => MarkBattleEnding(outcome.NativeContext),
-                BattleEnded = outcome => FinishBattle(outcome.NativeContext)
-            },
-            AuraToolsLog.Info,
-            AuraToolsLog.Warn);
+        currentConfig = modConfig;
         AuraToolsHookRegistry.Before(
             modConfig,
             "CardChoiceUI.Select",
@@ -66,6 +54,39 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             "GameExitUI.Start",
             context => CompleteAdventure(context, settleUnknown: true),
             HandlerId);
+        ApplyModuleActivation(
+            AuraToolsConfigService.MatchExperience.AutoBattle.Enabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            lifecycleSubscription?.Dispose();
+            lifecycleSubscription = null;
+            current = null;
+            pendingReward = null;
+            settlementWritten = false;
+            return;
+        }
+
+        lifecycleSubscription ??= AuraBattleLifecycleRouter.Register(
+            currentConfig,
+            AuraToolsIds.ModId,
+            HandlerId,
+            new AuraBattleLifecycleSubscription
+            {
+                AdventureStarting = _ => BeginAdventure(),
+                BattleInitializing = _ => BeginBattle(),
+                BattleRestarting = MarkBattleRestarting,
+                BattleSettling = outcome =>
+                    MarkBattleEnding(outcome.NativeContext),
+                BattleEnded = outcome =>
+                    FinishBattle(outcome.NativeContext)
+            },
+            AuraToolsLog.Info,
+            AuraToolsLog.Warn);
     }
 
     public static string DescribeCurrentCapture()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
+using AuraOnline.Shared;
 using AuraSkin.Shared;
 using AuraSkin.Shared.Mechanics;
 using AuraSkin.Shared.Models;
@@ -22,8 +23,10 @@ public static class AuraToolsSkinRuntime
     private static ModConfig? currentConfig;
     private static bool initialized;
     private static bool migratingSelection;
+    private static bool localSelectionSubscribed;
     private static string lastBroadcastFingerprint = "";
     private static string lastInstallStatus = "Skin package not installed yet.";
+    private static IDisposable? lobbySubscription;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -32,7 +35,6 @@ public static class AuraToolsSkinRuntime
         if (!initialized)
         {
             initialized = true;
-            SkinRuntime.LocalSelectionChanged += OnLocalSelectionChanged;
             AuraToolsConfigService.SubscribeModule(
                 AuraToolModuleIds.Skin,
                 ConfigureFromSettings);
@@ -40,6 +42,40 @@ public static class AuraToolsSkinRuntime
 
         RegisterHooks(modConfig);
         RegisterBundledPackage();
+        ApplyModuleActivation(AuraToolsConfigService.Skin.Enabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            if (localSelectionSubscribed)
+            {
+                SkinRuntime.LocalSelectionChanged -=
+                    OnLocalSelectionChanged;
+                localSelectionSubscribed = false;
+            }
+            lobbySubscription?.Dispose();
+            lobbySubscription = null;
+            SkinRuntime.ConfigurePresentation(false, false);
+            return;
+        }
+
+        if (!localSelectionSubscribed)
+        {
+            SkinRuntime.LocalSelectionChanged += OnLocalSelectionChanged;
+            localSelectionSubscribed = true;
+        }
+        lobbySubscription ??= AuraLobbySnapshotRuntime.Register(
+            currentConfig,
+            AuraToolsIds.ModId,
+            "Skin.Selection",
+            _ => BroadcastLocalSelection(),
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
+        ConfigureFromSettings();
+        BroadcastLocalSelection();
     }
 
     public static void RegisterBundledPackage()
@@ -180,8 +216,6 @@ public static class AuraToolsSkinRuntime
 
     private static void RegisterHooks(ModConfig modConfig)
     {
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.UpdateLobby", _ => BroadcastLocalSelection(), "Skin");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ChangeRole", _ => BroadcastLocalSelection(), "Skin");
         AuraToolsHookRegistry.After(modConfig, "TopBarUI.ChangeCareer", _ => BroadcastLocalSelection(), "Skin");
         AuraToolsHookRegistry.After(modConfig, "TopBarUI.ChangeCareerAvator", _ => BroadcastLocalSelection(), "Skin");
     }

@@ -163,10 +163,15 @@ public static class AuraCardActionTransactionRouter
             presentationHookRegistration = AuraSharedHooks.RegisterBeforeRouted(
                 modConfig,
                 "FightUI.CallActionAnimation",
-                OnPresentationCommitted,
+                new AuraRoutedHookRequest
+                {
+                    OwnerModId = RuntimeOwnerId,
+                    HandlerId = "PresentationCommitted",
+                    Handler = OnPresentationCommitted,
+                    SafeInvoke = true
+                },
                 info,
-                warn,
-                safeInvoke: true);
+                warn);
         }
     }
 

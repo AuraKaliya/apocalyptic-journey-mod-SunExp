@@ -73,6 +73,34 @@ public static class AuraToolsSafeBoxRuntime
             RefreshTopBarButton);
     }
 
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (enabled)
+        {
+            RefreshTopBarButton();
+            return;
+        }
+
+        activeSnapshot?.Restore();
+        activeSnapshot = null;
+        try
+        {
+            var topBar = GameUIManager.Instance?.GetUI<TopBarUI>("TopBarUI");
+            var button = topBar?.transform.Find(
+                "Content/Buttons/" + ButtonName)?.gameObject;
+            if (button != null)
+            {
+                button.SetActive(false);
+                Object.Destroy(button);
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn(
+                "[SafeBox] module cleanup failed: " + ex.Message);
+        }
+    }
+
     internal static void HandleButtonClicked()
     {
         AuraToolsLog.Info("[SafeBox] TopBar click received.");

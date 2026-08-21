@@ -62,6 +62,9 @@ public static class AuraToolsDamageMeterRuntime
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.DamageStatistics,
             OnConfigChanged);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.FileLogging,
+            DamageMeterHookAdapter.EnsureHooksMatchConfig);
         DamageMeterHookAdapter.Initialize(modConfig);
         AuraToolsLog.Info("[DamageMeter] DPT runtime initialized. Network protocol v"
                           + DamageMeterProtocol.Version + ".");

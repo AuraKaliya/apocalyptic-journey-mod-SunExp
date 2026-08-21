@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using Fight.ActionCommand;
 using UnityEngine;
 using Witch.Core;
@@ -20,6 +22,7 @@ public static class AuraRemoteCombatActionRouter
     private const string StatusPopulateTarget = "StatusDataTransfer.Populate";
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Handler> Handlers = new(StringComparer.OrdinalIgnoreCase);
+    private static Handler[] handlerSnapshot = Array.Empty<Handler>();
     private static IDisposable? executeBeforeRegistration;
     private static IDisposable? executeAfterRegistration;
     private static IDisposable? cardRegistration;
@@ -39,22 +42,41 @@ public static class AuraRemoteCombatActionRouter
             ? "handler-" + Guid.NewGuid().ToString("N")
             : handlerId.Trim();
 
+        Handler handler;
         lock (Gate)
         {
-            Handlers[id] = new Handler(id, subscription ?? new AuraRemoteCombatActionSubscription(), warn);
+            handler = new Handler(
+                id,
+                subscription ?? new AuraRemoteCombatActionSubscription(),
+                warn);
+            Handlers[id] = handler;
+            RebuildSnapshotNoLock();
             executeBeforeRegistration ??= AuraSharedHooks.RegisterBeforeRouted(
-                modConfig, ExecuteTarget, BeginRemoteCommand, info, warn, safeInvoke: true);
+                modConfig, ExecuteTarget, Request("Execute.Before", BeginRemoteCommand), info, warn);
             executeAfterRegistration ??= AuraSharedHooks.RegisterAfterRouted(
-                modConfig, ExecuteTarget, EndRemoteCommand, info, warn, safeInvoke: true);
+                modConfig, ExecuteTarget, Request("Execute.After", EndRemoteCommand), info, warn);
             cardRegistration ??= AuraSharedHooks.RegisterBeforeRouted(
-                modConfig, CardPresentationTarget, DispatchCardPresentation, info, warn, safeInvoke: true);
+                modConfig, CardPresentationTarget, Request("CardPresentation", DispatchCardPresentation), info, warn);
             actionRegistration ??= AuraSharedHooks.RegisterBeforeRouted(
-                modConfig, ActionPresentationTarget, DispatchActionPresentation, info, warn, safeInvoke: true);
+                modConfig, ActionPresentationTarget, Request("ActionPresentation", DispatchActionPresentation), info, warn);
             statusRegistration ??= AuraSharedHooks.RegisterAfterRouted(
-                modConfig, StatusPopulateTarget, DispatchStatus, info, warn, safeInvoke: true);
+                modConfig, StatusPopulateTarget, Request("StatusPopulate", DispatchStatus), info, warn);
         }
 
-        return new Subscription(id);
+        return new Subscription(id, handler);
+    }
+
+    private static AuraRoutedHookRequest Request(
+        string handlerId,
+        Action<ModHookContext> handler)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = "AuraRemoteCombatAction",
+            HandlerId = handlerId,
+            Handler = handler,
+            SafeInvoke = true
+        };
     }
 
     internal static AuraRemoteCombatActionContext? TryBuildCommandContext(object? value, string localPlayerId = "")
@@ -237,12 +259,16 @@ public static class AuraRemoteCombatActionRouter
 
     private static Handler[] Snapshot()
     {
-        lock (Gate)
-        {
-            var snapshot = new Handler[Handlers.Count];
-            Handlers.Values.CopyTo(snapshot, 0);
-            return snapshot;
-        }
+        return Volatile.Read(ref handlerSnapshot);
+    }
+
+    private static void RebuildSnapshotNoLock()
+    {
+        Volatile.Write(
+            ref handlerSnapshot,
+            Handlers.Values
+                .OrderBy(value => value.Id, StringComparer.Ordinal)
+                .ToArray());
     }
 
     private sealed class Handler
@@ -286,11 +312,13 @@ public static class AuraRemoteCombatActionRouter
     private sealed class Subscription : IDisposable
     {
         private readonly string id;
+        private readonly Handler handler;
         private bool disposed;
 
-        public Subscription(string id)
+        public Subscription(string id, Handler handler)
         {
             this.id = id;
+            this.handler = handler;
         }
 
         public void Dispose()
@@ -303,7 +331,12 @@ public static class AuraRemoteCombatActionRouter
             disposed = true;
             lock (Gate)
             {
-                Handlers.Remove(id);
+                if (Handlers.TryGetValue(id, out var current)
+                    && ReferenceEquals(current, handler))
+                {
+                    Handlers.Remove(id);
+                    RebuildSnapshotNoLock();
+                }
             }
         }
     }

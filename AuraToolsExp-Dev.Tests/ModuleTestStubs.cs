@@ -7,8 +7,71 @@ namespace UnityEngine
 
 namespace Witch.Mod
 {
+    using System;
+    using System.Collections.Generic;
+    using Witch.Core;
+
     public class ModConfig
     {
+        private readonly Dictionary<string, List<Action<ModHookContext>>> before = new();
+        private readonly Dictionary<string, List<Action<ModHookContext>>> after = new();
+
+        public void AddMethodHookBefore(string target, Action<ModHookContext> action)
+        {
+            if (!before.TryGetValue(target, out var handlers))
+            {
+                handlers = new List<Action<ModHookContext>>();
+                before[target] = handlers;
+            }
+            handlers.Add(action);
+        }
+
+        public void AddMethodHookAfter(string target, Action<ModHookContext> action)
+        {
+            if (!after.TryGetValue(target, out var handlers))
+            {
+                handlers = new List<Action<ModHookContext>>();
+                after[target] = handlers;
+            }
+            handlers.Add(action);
+        }
+
+        public int BeforeRegistrationCount(string target) =>
+            before.TryGetValue(target, out var handlers) ? handlers.Count : 0;
+
+        public int AfterRegistrationCount(string target) =>
+            after.TryGetValue(target, out var handlers) ? handlers.Count : 0;
+
+        public void InvokeBefore(string target)
+        {
+            InvokeBefore(target, new ModHookContext());
+        }
+
+        public void InvokeBefore(string target, ModHookContext context)
+        {
+            if (!before.TryGetValue(target, out var handlers)) return;
+            foreach (var handler in handlers) handler(context);
+        }
+
+        public void InvokeAfter(string target)
+        {
+            InvokeAfter(target, new ModHookContext());
+        }
+
+        public void InvokeAfter(string target, ModHookContext context)
+        {
+            if (!after.TryGetValue(target, out var handlers)) return;
+            foreach (var handler in handlers) handler(context);
+        }
+    }
+}
+
+namespace Witch.Core
+{
+    public sealed class ModHookContext
+    {
+        public object? Target { get; set; }
+        public object[]? Arguments { get; set; }
     }
 }
 
@@ -101,6 +164,10 @@ namespace AuraToolsExp.Dll.Infrastructure
 {
     public static class AuraToolsLog
     {
+        public static void Info(string message)
+        {
+        }
+
         public static void Warn(string message)
         {
         }

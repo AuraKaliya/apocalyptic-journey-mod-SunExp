@@ -2,7 +2,6 @@ using System.Globalization;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Runtime;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Storage;
-using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 
 internal static partial class AuraToolsTestSuite
 {
@@ -60,11 +59,6 @@ internal static partial class AuraToolsTestSuite
         Assert(!ReplayDocumentValidatorV10.Validate(tampered).IsValid,
             "tampering with one authoritative event invalidates state, chain, and document hashes");
 
-        var stable = new MatchReplayActionConvergenceTracker();
-        Assert(stable.Observe("same") == MatchReplayActionFinalizationDecision.Observe
-               && stable.Observe("same") == MatchReplayActionFinalizationDecision.Observe
-               && stable.Observe("same") == MatchReplayActionFinalizationDecision.FinalizeStable,
-            "capture finalization waits for repeated authoritative state convergence");
     }
 
     private static ReplayDocumentV10 ReplayV10Document(string recordId)

@@ -18,6 +18,7 @@ public static class AuraToolsCardRefreshRuntime
 {
     private const string HandlerId = "CardRefresh";
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static IDisposable? selectionSubscription;
 
     internal static bool Enabled => AuraToolsConfigService.MatchExperience.CardRefresh.Enabled;
@@ -30,10 +31,30 @@ public static class AuraToolsCardRefreshRuntime
         }
 
         initialized = true;
+        currentConfig = modConfig;
         AuraToolsHookRegistry.Before(modConfig, "CardChoiceUI.Start", BeforeCardChoiceStart, "CardRefresh");
         AuraToolsHookRegistry.After(modConfig, "CardChoiceUI.Start", AfterCardChoiceStart, "CardRefresh");
-        selectionSubscription = AuraCardLifecycleRouter.Register(
-            modConfig,
+        ApplyModuleActivation(Enabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            selectionSubscription?.Dispose();
+            selectionSubscription = null;
+            foreach (var controller in UnityEngine.Object
+                         .FindObjectsByType<AuraToolsCardRefreshController>(
+                             FindObjectsSortMode.None))
+            {
+                controller?.DisableForSelection();
+            }
+            return;
+        }
+
+        selectionSubscription ??= AuraCardLifecycleRouter.Register(
+            currentConfig,
             AuraToolsIds.ModId,
             HandlerId,
             new AuraCardLifecycleSubscription

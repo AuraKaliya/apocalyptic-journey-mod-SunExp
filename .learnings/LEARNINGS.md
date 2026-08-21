@@ -137,3 +137,37 @@ The same mistake recurred in a final diff-plus-retired-token audit; keep these
 as separate tool calls even when both are read-only.
 
 ---
+## [LRN-20260821-PCM] best_practice
+
+**Logged**: 2026-08-21T12:00:00+08:00
+**Priority**: high
+**Status**: pending
+**Area**: backend
+
+### Summary
+Cooperative media processing must not reserve the final payload size in the
+requesting Hook before its slices begin.
+
+### Details
+Moving AudioClip sampling across frames was not sufficient while the capture
+constructor still created `MemoryStream(44 + valueCount * 2)`: that capacity
+allocates the complete PCM payload immediately on the native audio Hook. The
+final design stores bounded PCM chunks per slice and joins them only inside the
+background finalizer.
+
+### Suggested Action
+For future cooperative decoders and encoders, audit constructor-time capacity,
+array, and buffer allocations in addition to the work loop. Keep request
+registration O(1), bound every main-thread slice, and allocate the final joined
+payload only on a worker.
+
+### Metadata
+- Source: error
+- Related Files: AuraToolsExp-Dev/Features/MatchRecords/Replay/Capture/ReplayFactCaptureV10.cs
+- Tags: performance, audio, hooks, allocation, cooperative-work
+- Pattern-Key: performance.cooperative_media_no_eager_full_buffer
+- Recurrence-Count: 1
+- First-Seen: 2026-08-21
+- Last-Seen: 2026-08-21
+
+---

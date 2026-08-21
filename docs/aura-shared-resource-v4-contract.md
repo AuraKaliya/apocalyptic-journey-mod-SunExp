@@ -1,6 +1,6 @@
 # AuraShared resource protocol v4
 
-AuraShared v4 is a breaking, registration-only protocol. Runtime protocol 6 is
+AuraShared v4 is a breaking, registration-only protocol. Runtime protocol 7 is
 required; v3 manifests, legacy paths, unregistered files, and earlier user
 configuration are not imported or resolved.
 

@@ -417,7 +417,7 @@ internal static class AuraToolsCombatContentRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<ContentLoadBatch>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.CombatContent.Refresh",
                 Source = "AutoBattle.CombatContent.Refresh",
                 Kind = AuraSharedBackgroundWorkKind.Io,

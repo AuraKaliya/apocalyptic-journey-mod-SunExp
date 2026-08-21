@@ -40,6 +40,13 @@ public static class AuraToolsPixelEmojiRuntime
         AuraToolsHookRegistry.Before(modConfig, "UIAnimation.Play", BeforeUiAnimationPlay, "PixelEmoji");
     }
 
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (enabled) return;
+        lock (ReceivedEvents) ReceivedEvents.Clear();
+        PixelEmojiAssetCache.Clear();
+    }
+
     public static bool SetFavorite(string itemId, bool favorite, out string error)
     {
         error = "";
@@ -505,6 +512,12 @@ internal static class PixelEmojiAssetCache
             Destroy(Assets[key]);
             Assets.Remove(key);
         }
+    }
+
+    public static void Clear()
+    {
+        foreach (var asset in Assets.Values.ToArray()) Destroy(asset);
+        Assets.Clear();
     }
 
     public static void RemoveItem(string itemId)

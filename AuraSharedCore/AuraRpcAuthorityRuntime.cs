@@ -42,13 +42,25 @@ public static class AuraRpcAuthorityRuntime
         Action<string>? info,
         Action<string>? warn)
     {
-        AuraSharedHooks.RegisterBefore(
+        AuraSharedHooks.RegisterBeforeRouted(
             modConfig,
             target,
-            context => BindSender(context, target, isServerBoundCommand, bindServerSender, warn),
+            new AuraRoutedHookRequest
+            {
+                OwnerModId = string.IsNullOrWhiteSpace(ownerModId)
+                    ? "AuraRpcAuthority"
+                    : ownerModId.Trim(),
+                HandlerId = "RpcAuthority." + target,
+                Handler = context => BindSender(
+                    context,
+                    target,
+                    isServerBoundCommand,
+                    bindServerSender,
+                    warn),
+                SafeInvoke = true
+            },
             info,
-            warn,
-            safeInvoke: true);
+            warn);
     }
 
     private static void BindSender(

@@ -172,7 +172,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<BundledFoundationImportResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = WorkKey,
                 Source = "AutoBattle.BundledFoundationModels." + source,
                 Kind = AuraSharedBackgroundWorkKind.Io,

@@ -239,6 +239,7 @@ public static class BattleBgmArbiterRuntime
         private string activeProviderId = "";
         private BattleAudioMode battleMode = BattleAudioMode.None;
         private string ownerModId = "";
+        private AuraHookRegistry? hookRegistry;
         private bool hooksRegistered;
         private bool inBattle;
         private long battleSessionId;
@@ -252,6 +253,11 @@ public static class BattleBgmArbiterRuntime
         public void InitializeOwner(ModConfig modConfig, string owner)
         {
             ownerModId = owner;
+            hookRegistry = new AuraHookRegistry(
+                modConfig,
+                "BattleBgmArbiter",
+                Log,
+                Warn);
             if (hooksRegistered)
             {
                 return;
@@ -996,28 +1002,18 @@ public static class BattleBgmArbiterRuntime
 
         private void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
         {
-            try
-            {
-                config.AddMethodHookBefore(target, action);
-                Log("Hook before registered: " + target);
-            }
-            catch (Exception ex)
-            {
-                Warn("Hook before failed: " + target + " -> " + ex.Message);
-            }
+            hookRegistry?.BeforeRouted(
+                target,
+                action,
+                target + ":" + action.Method.Name);
         }
 
         private void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
         {
-            try
-            {
-                config.AddMethodHookAfter(target, action);
-                Log("Hook after registered: " + target);
-            }
-            catch (Exception ex)
-            {
-                Warn("Hook after failed: " + target + " -> " + ex.Message);
-            }
+            hookRegistry?.AfterRouted(
+                target,
+                action,
+                target + ":" + action.Method.Name);
         }
 
         private static T? GetField<T>(AudioManager manager, string fieldName)

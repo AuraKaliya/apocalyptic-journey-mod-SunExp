@@ -172,19 +172,19 @@ public static class AuraCardUseFxRuntime
         AuraSharedHooks.RegisterBeforeRouted(
             modConfig,
             "FightUI.DoCardUseAnimation",
-            BeforeObservedCardUseAnimation,
+            Request("ObservedCardUse.Begin", BeforeObservedCardUseAnimation),
             message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
             message => AuraSharedLog.Warn(RuntimeOwnerId, message));
         AuraSharedHooks.RegisterAfterRouted(
             modConfig,
             "ICard.SetCardStyle",
-            AfterObservedSetCardStyle,
+            Request("ObservedCardUse.SetCardStyle", AfterObservedSetCardStyle),
             message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
             message => AuraSharedLog.Warn(RuntimeOwnerId, message));
         AuraSharedHooks.RegisterAfterRouted(
             modConfig,
             "FightUI.DoCardUseAnimation",
-            AfterObservedCardUseAnimation,
+            Request("ObservedCardUse.End", AfterObservedCardUseAnimation),
             message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
             message => AuraSharedLog.Warn(RuntimeOwnerId, message));
 
@@ -193,12 +193,25 @@ public static class AuraCardUseFxRuntime
             AuraSharedHooks.RegisterBeforeRouted(
                 modConfig,
                 target,
-                _ => ClearTransient(),
+                Request("Lifecycle.Clear." + target, _ => ClearTransient()),
                 message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
                 message => AuraSharedLog.Warn(RuntimeOwnerId, message));
         }
 
         AuraSharedLog.InfoOnce(RuntimeOwnerId, "initialized", "Card-use FX local commit and observer bridges initialized.");
+    }
+
+    private static AuraRoutedHookRequest Request(
+        string handlerId,
+        Action<ModHookContext> handler)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = RuntimeOwnerId,
+            HandlerId = handlerId,
+            Handler = handler,
+            SafeInvoke = true
+        };
     }
 
     public static void ClearTransient()

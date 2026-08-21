@@ -7,11 +7,11 @@ namespace AuraShared.Core;
 
 public static class AuraSharedResourceProtocolVersions
 {
-    // Resource schema v4 remains the manifest boundary. Runtime protocol 6
-    // adds bounded physical paths, canonical relocation, and structured
-    // activation results; older global components must not accept these calls.
-    public const int Current = 6;
-    public const int MinimumSupported = 6;
+    // Resource schema v4 remains the manifest boundary. Runtime protocol 7
+    // makes owner-qualified, generation-safe routed hooks the only shared hook
+    // path; older global components must not accept the changed public API.
+    public const int Current = 7;
+    public const int MinimumSupported = 7;
 }
 
 public static class AuraSharedResourceSchemaVersions

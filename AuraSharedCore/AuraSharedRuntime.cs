@@ -12,7 +12,7 @@ public static class AuraSharedRuntime
     private const string GlobalObjectName = "AuraShared.Global";
     private const string ComponentFullName = "AuraShared.Core.AuraSharedRuntime+AuraSharedComponent";
 
-    public const string BuildIdPrefix = "aura-shared-core-v4-";
+    public const string BuildIdPrefix = "aura-shared-core-v5-";
     public static readonly string CurrentBuildId = BuildIdPrefix
                                                    + typeof(AuraSharedRuntime).Assembly.ManifestModule.ModuleVersionId.ToString("N");
     public const int CurrentProtocolVersion = AuraSharedResourceProtocolVersions.Current;

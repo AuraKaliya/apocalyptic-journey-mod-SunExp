@@ -21,6 +21,13 @@ public static class AuraToolsStarterDeckRuntime
         StarterDeckHookAdapter.Initialize(modConfig);
     }
 
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (enabled) return;
+        StarterDeckCardCatalog.Invalidate("module-disabled");
+        StarterRelicCatalog.Invalidate();
+    }
+
     public static List<StarterDeckCardPackGroup> BuildCandidateCardPackGroups() =>
         StarterDeckCardCatalog.BuildCandidateCardPackGroups();
 

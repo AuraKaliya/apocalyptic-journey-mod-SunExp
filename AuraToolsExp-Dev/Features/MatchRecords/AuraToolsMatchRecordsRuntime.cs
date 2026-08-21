@@ -15,6 +15,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords;
 public static class AuraToolsMatchRecordsRuntime
 {
     private static bool initialized;
+    private static bool mediaInitialized;
     private static GameObject? driverRoot;
 
     public static bool Enabled => AuraToolsConfigService.MatchExperience.MatchRecords.Enabled;
@@ -35,7 +36,6 @@ public static class AuraToolsMatchRecordsRuntime
 
         initialized = true;
         AuraToolsDamageMeterRuntime.Initialize(modConfig);
-        Media.MatchReplayVideoExporter.Initialize();
         MatchReplayHookAdapter.Initialize(modConfig);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.DamageStatistics,
@@ -43,20 +43,22 @@ public static class AuraToolsMatchRecordsRuntime
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.BattleReplay,
             OnConfigChanged);
-        EnsureDriver();
+        ApplyModuleActivation();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
                           + ReplayProtocolV10.DocumentVersion + ".");
-    }
-
-    internal static void Tick()
-    {
-        Media.MatchReplayVideoExporter.Tick();
     }
 
     internal static Coroutine? StartRuntimeCoroutine(IEnumerator routine)
     {
         EnsureDriver();
         return driverRoot?.GetComponent<AuraToolsMatchRecordsDriver>()?.StartCoroutine(routine);
+    }
+
+    internal static void ReleaseRuntimeDriver()
+    {
+        if (driverRoot == null) return;
+        Object.Destroy(driverRoot);
+        driverRoot = null;
     }
 
     public static void OpenLibrary(Transform parent)
@@ -66,10 +68,21 @@ public static class AuraToolsMatchRecordsRuntime
 
     private static void OnConfigChanged()
     {
-        MatchReplayHookAdapter.EnsureHooksMatchConfig();
+        ApplyModuleActivation();
         if (!Enabled && ReplaySceneRuntime.IsActive)
         {
             ReplaySceneRuntime.Stop();
+        }
+    }
+
+    internal static void ApplyModuleActivation()
+    {
+        if (!initialized) return;
+        MatchReplayHookAdapter.EnsureHooksMatchConfig();
+        if (ReplayEnabled && !mediaInitialized)
+        {
+            mediaInitialized = true;
+            Media.MatchReplayVideoExporter.Initialize();
         }
     }
 
@@ -100,8 +113,4 @@ public static class AuraToolsMatchRecordsRuntime
 
 internal sealed class AuraToolsMatchRecordsDriver : MonoBehaviour
 {
-    private void Update()
-    {
-        AuraToolsMatchRecordsRuntime.Tick();
-    }
 }

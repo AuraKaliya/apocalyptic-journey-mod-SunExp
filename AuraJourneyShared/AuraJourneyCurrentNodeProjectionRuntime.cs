@@ -74,12 +74,35 @@ public static class AuraJourneyCurrentNodeProjectionRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterBefore(config, target, action, message => AuraSharedDiagnostics.Info(AuraJourneyConstants.SystemName, OwnerId, target, message), message => AuraSharedDiagnostics.Warn(AuraJourneyConstants.SystemName, OwnerId, target, message), safeInvoke: true);
+        AuraSharedHooks.RegisterBeforeRouted(
+            config,
+            target,
+            Request(target, action),
+            message => AuraSharedDiagnostics.Info(AuraJourneyConstants.SystemName, OwnerId, target, message),
+            message => AuraSharedDiagnostics.Warn(AuraJourneyConstants.SystemName, OwnerId, target, message));
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        AuraSharedHooks.RegisterAfter(config, target, action, message => AuraSharedDiagnostics.Info(AuraJourneyConstants.SystemName, OwnerId, target, message), message => AuraSharedDiagnostics.Warn(AuraJourneyConstants.SystemName, OwnerId, target, message), safeInvoke: true);
+        AuraSharedHooks.RegisterAfterRouted(
+            config,
+            target,
+            Request(target, action),
+            message => AuraSharedDiagnostics.Info(AuraJourneyConstants.SystemName, OwnerId, target, message),
+            message => AuraSharedDiagnostics.Warn(AuraJourneyConstants.SystemName, OwnerId, target, message));
+    }
+
+    private static AuraRoutedHookRequest Request(
+        string target,
+        Action<ModHookContext> action)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = OwnerId,
+            HandlerId = target + ":" + action.Method.Name,
+            Handler = action,
+            SafeInvoke = true
+        };
     }
 
     private static void Capture(ModHookContext? context, string source)

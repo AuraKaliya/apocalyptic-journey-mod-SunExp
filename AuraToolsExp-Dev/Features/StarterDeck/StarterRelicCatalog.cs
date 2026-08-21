@@ -248,7 +248,7 @@ internal static class StarterRelicCatalog
         return row.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : fallback;
     }
 
-    private static void Invalidate()
+    internal static void Invalidate()
     {
         lock (Gate)
         {

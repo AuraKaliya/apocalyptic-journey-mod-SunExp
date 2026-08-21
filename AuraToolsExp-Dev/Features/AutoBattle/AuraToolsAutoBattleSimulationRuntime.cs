@@ -339,7 +339,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<SimulationWorkResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = WorkKey,
                 Source = "AutoBattle.PairedSimulation",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
@@ -433,7 +433,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<SimulationWorkResult>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = EvolutionWorkKey,
                 Source = "AutoBattle.PolicyEvolution",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,

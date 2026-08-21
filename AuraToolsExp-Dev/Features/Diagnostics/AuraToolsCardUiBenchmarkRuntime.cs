@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Modules;
 using TMPro;
 using UnityEngine;
 using Witch.Core;
@@ -17,21 +19,48 @@ public static class AuraToolsCardUiBenchmarkRuntime
     private static readonly object Gate = new();
     private static readonly HashSet<string> SampledCardIds = new(StringComparer.Ordinal);
     private static readonly List<IDisposable> Registrations = new();
+    private static ModConfig? currentConfig;
+    private static bool initialized;
     [ThreadStatic] private static Stack<SampleStart>? starts;
     [ThreadStatic] private static Stack<long>? keywordStarts;
 
     public static void Initialize(ModConfig modConfig)
     {
+        if (initialized) return;
+        initialized = true;
+        currentConfig = modConfig;
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.FileLogging,
+            EnsureHooksMatchConfig);
+        EnsureHooksMatchConfig();
+    }
+
+    private static void EnsureHooksMatchConfig()
+    {
         if (!AuraToolsPerformanceSettings.DiagnosticsEnabled)
         {
+            ReleaseHooks();
             AuraToolsLog.Debug("[CardUiBenchmark] performance diagnostics disabled.");
             return;
         }
 
-        Register(modConfig, "CardItem.DataUpdate");
-        Register(modConfig, "AttackCardItem.DataUpdate");
-        RegisterKeywordDisplay(modConfig);
+        if (currentConfig == null || Registrations.Count > 0) return;
+        Register(currentConfig, "CardItem.DataUpdate");
+        Register(currentConfig, "AttackCardItem.DataUpdate");
+        RegisterKeywordDisplay(currentConfig);
         AuraToolsLog.Performance("[CardUiBenchmark] slow-card incremental benchmark initialized.");
+    }
+
+    private static void ReleaseHooks()
+    {
+        for (var i = Registrations.Count - 1; i >= 0; i--)
+        {
+            try { Registrations[i].Dispose(); } catch { }
+        }
+        Registrations.Clear();
+        lock (Gate) SampledCardIds.Clear();
+        starts?.Clear();
+        keywordStarts?.Clear();
     }
 
     private static void RegisterKeywordDisplay(ModConfig modConfig)

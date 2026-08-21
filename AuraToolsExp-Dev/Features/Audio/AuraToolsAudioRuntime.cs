@@ -23,6 +23,7 @@ public static class AuraToolsAudioRuntime
 
     public static void Initialize(ModConfig config)
     {
+        if (initialized) return;
         modConfig = config;
         var audio = AuraAudioRuntime.Initialize(
             config,

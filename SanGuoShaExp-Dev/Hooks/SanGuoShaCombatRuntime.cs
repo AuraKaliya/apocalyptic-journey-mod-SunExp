@@ -1,4 +1,5 @@
 using System;
+using AuraShared.Core;
 using SanGuoShaExp.Dll.Infrastructure;
 using SanGuoShaExp.Dll.Scripting;
 using UiRaycastSafetyShared;
@@ -12,6 +13,7 @@ public static class SanGuoShaCombatRuntime
     private static bool initialized;
     private static bool combatActive;
     private static int generation;
+    private static AuraHookRegistry? hookRegistry;
 
     public static bool IsCombatActive => combatActive;
 
@@ -30,6 +32,11 @@ public static class SanGuoShaCombatRuntime
         }
 
         initialized = true;
+        hookRegistry = new AuraHookRegistry(
+            modConfig,
+            "SanGuoSha.Combat",
+            SanGuoShaExpLog.Info,
+            SanGuoShaExpLog.Warn);
         RegisterBefore(modConfig, "Fight_Start.Init", _ => BeginCombat("Fight_Start.Init.before"));
         RegisterAfter(modConfig, "Fight_Start.Init", _ => BeginCombat("Fight_Start.Init"));
         RegisterBefore(modConfig, "FightInit.Init", _ => BeginCombat("FightInit.Init.before"));
@@ -44,28 +51,18 @@ public static class SanGuoShaCombatRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, context => SafeInvoke(() => action(context)));
-            SanGuoShaExpLog.Info("Hook before registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
+        hookRegistry?.BeforeRouted(
+            target,
+            action,
+            target + ":" + action.Method.Name);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, context => SafeInvoke(() => action(context)));
-            SanGuoShaExpLog.Info("Hook after registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        hookRegistry?.AfterRouted(
+            target,
+            action,
+            target + ":" + action.Method.Name);
     }
 
     private static void BeginCombat(string source)
@@ -96,15 +93,4 @@ public static class SanGuoShaCombatRuntime
         SanGuoShaExpLog.Debug("Combat end: " + source + ", generation=" + generation);
     }
 
-    private static void SafeInvoke(Action action)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Warn("Combat lifecycle hook failed: " + ex.Message);
-        }
-    }
 }

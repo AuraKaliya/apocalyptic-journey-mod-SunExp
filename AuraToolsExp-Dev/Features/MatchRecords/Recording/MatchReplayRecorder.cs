@@ -35,11 +35,15 @@ internal static class MatchReplayRecorder
     private static int nextActionIndex;
     private static int turnIndex = 1;
     private static bool firstPlayerRoundSeen;
-    private static string lastAudioHash = "";
+    private static string lastAudioClipKey = "";
     private static long lastAudioStartSample = long.MinValue;
-    private static string lastBgmHash = "";
+    private static string lastBgmClipKey = "";
     private static long lastBgmOffset = long.MinValue;
     private static ReplayAudioCueV10? activeBgmCue;
+    private static bool completionPrepared;
+    private static string pendingCompletionResult = "";
+    private static int pendingAudioPathResolutions;
+    private static long nextAudioPathResolutionId;
 
     internal static bool IsRecording
     {
@@ -203,7 +207,6 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (activeAction == null || !activeAction.FinalizationScheduled) return;
-            activeAction.Convergence.Reset();
             ScheduleFinalizationNoLock(activeAction.ActionId);
         }
     }
@@ -226,7 +229,7 @@ internal static class MatchReplayRecorder
                                && !configuredPath.StartsWith("Sounds/", StringComparison.Ordinal)
                     ? "Sounds/" + configuredPath
                     : configuredPath;
-                try { clip = ResourceLoader.Load<AudioClip>(resolved); } catch { }
+                ScheduleNativeAudioPathCapture(resolved, bus);
             }
         }
         if (clip == null) return;
@@ -242,6 +245,123 @@ internal static class MatchReplayRecorder
                 "Witch",
                 clip.name ?? "",
                 bus);
+        }
+    }
+
+    private static void ScheduleNativeAudioPathCapture(
+        string resourcePath,
+        string bus)
+    {
+        if (string.IsNullOrWhiteSpace(resourcePath)) return;
+        string recordId;
+        long resolutionId;
+        lock (Gate)
+        {
+            if (activeRecord == null || completionPrepared) return;
+            recordId = activeRecord.RecordId;
+            resolutionId = ++nextAudioPathResolutionId;
+            pendingAudioPathResolutions++;
+        }
+        var timelineSample = ElapsedTicks()
+                             * ReplayOfflineAudioMixer.SampleRate
+                             / ReplayProtocolV10.TimebaseTicksPerSecond;
+        var scheduled = AuraSharedFrameScheduler.RunOnceAfterFrames(
+            new AuraSharedFrameActionRequest
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "ReplayV10.Audio.Resolve."
+                      + recordId
+                      + "."
+                      + resolutionId,
+                Source = "MatchRecords.ReplayV10.Audio.Resolve",
+                DelayFrames = 1,
+                Phase = AuraSharedFramePhase.Reconcile,
+                Priority = 5,
+                EstimatedCost = 1,
+                Action = () =>
+                {
+                    try
+                    {
+                        var resolvedClip = AuraToolsResourceCache.Load<AudioClip>(
+                            resourcePath);
+                        if (resolvedClip != null)
+                        {
+                            lock (Gate)
+                            {
+                                if (activeDocument != null
+                                    && activeRecord != null
+                                    && string.Equals(
+                                        activeRecord.RecordId,
+                                        recordId,
+                                        StringComparison.Ordinal))
+                                {
+                                    var manager = AudioManager.Instance;
+                                    RecordAudioClipNoLock(
+                                        resolvedClip,
+                                        string.Equals(
+                                            bus,
+                                            "Vocal",
+                                            StringComparison.OrdinalIgnoreCase)
+                                            ? manager?.NarrationVolume ?? 1f
+                                            : manager?.EffectVolume ?? 1f,
+                                        bus,
+                                        "Witch",
+                                        resourcePath,
+                                        bus,
+                                        timelineSample);
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                    finally
+                    {
+                        var notify = false;
+                        lock (Gate)
+                        {
+                            if (activeRecord != null
+                                && string.Equals(
+                                    activeRecord.RecordId,
+                                    recordId,
+                                    StringComparison.Ordinal))
+                            {
+                                pendingAudioPathResolutions = Math.Max(
+                                    0,
+                                    pendingAudioPathResolutions - 1);
+                                notify = completionPrepared
+                                         && pendingAudioPathResolutions == 0
+                                         && (catalog == null
+                                             || catalog.PendingAudioCaptureCount
+                                             == 0);
+                            }
+                        }
+                        if (notify) OnAudioCapturesDrained();
+                    }
+                }
+            });
+        if (!scheduled)
+        {
+            var notify = false;
+            lock (Gate)
+            {
+                if (activeRecord != null
+                    && string.Equals(
+                        activeRecord.RecordId,
+                        recordId,
+                        StringComparison.Ordinal))
+                {
+                    pendingAudioPathResolutions = Math.Max(
+                        0,
+                        pendingAudioPathResolutions - 1);
+                    notify = completionPrepared
+                             && pendingAudioPathResolutions == 0
+                             && (catalog == null
+                                 || catalog.PendingAudioCaptureCount == 0);
+                }
+            }
+            if (notify) OnAudioCapturesDrained();
         }
     }
 
@@ -280,12 +400,16 @@ internal static class MatchReplayRecorder
 
     internal static void Complete(string result)
     {
-        MatchRecord? record;
-        ReplayDocumentV10? document;
-        List<string> diagnostics;
+        CompletionSnapshot? completion;
         lock (Gate)
         {
-            if (activeDocument == null || activeRecord == null) return;
+            if (activeDocument == null
+                || activeRecord == null
+                || completionPrepared)
+            {
+                return;
+            }
+
             EnsureBaselineNoLock();
             FlushActionNoLock();
             if (lastState != null && catalog != null)
@@ -315,24 +439,87 @@ internal static class MatchReplayRecorder
                 EventType = ReplayEventTypesV10.BattleCompleted,
                 ActorId = lastState?.ActiveActorId ?? ""
             });
-            record = activeRecord;
-            document = activeDocument;
-            document.Content = catalog?.Manifest ?? new ReplayContentManifestV10();
-            document.Attachments = catalog?.Attachments ?? new List<ReplayAttachmentV10>();
-            record.Result = string.IsNullOrWhiteSpace(result) ? "Unknown" : result.Trim();
-            record.EndedUtc = DateTime.UtcNow.ToString("O");
-            record.TurnCount = Math.Max(1, turnIndex);
-            record.EventCount = document.Events.Count;
-            record.StatisticsJson = AuraSharedJson.SerializeCompact(AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
-            record.CaptureDiagnostics = new List<string>(Diagnostics);
-            document.Header.Result = record.Result;
-            document.Header.EndedUtc = record.EndedUtc;
-            document.Header.LevelId = record.LevelId;
-            diagnostics = new List<string>(Diagnostics);
-            ResetNoLock();
+            completionPrepared = true;
+            pendingCompletionResult = string.IsNullOrWhiteSpace(result)
+                ? "Unknown"
+                : result.Trim();
+            if (catalog != null)
+            {
+                catalog.AudioCapturesDrained -= OnAudioCapturesDrained;
+                catalog.AudioCapturesDrained += OnAudioCapturesDrained;
+            }
+            if (pendingAudioPathResolutions > 0
+                || catalog != null
+                && catalog.PendingAudioCaptureCount > 0)
+            {
+                return;
+            }
+
+            completion = DetachCompletionNoLock();
         }
 
-        QueueFinalization(record, document, diagnostics);
+        if (completion != null)
+        {
+            QueueFinalization(
+                completion.Record,
+                completion.Document,
+                completion.Diagnostics);
+        }
+    }
+
+    private static void OnAudioCapturesDrained()
+    {
+        CompletionSnapshot? completion;
+        lock (Gate)
+        {
+            if (!completionPrepared
+                || activeDocument == null
+                || activeRecord == null
+                || catalog == null
+                || pendingAudioPathResolutions > 0
+                || catalog.PendingAudioCaptureCount > 0)
+            {
+                return;
+            }
+
+            catalog.AudioCapturesDrained -= OnAudioCapturesDrained;
+            completion = DetachCompletionNoLock();
+        }
+
+        if (completion != null)
+        {
+            QueueFinalization(
+                completion.Record,
+                completion.Document,
+                completion.Diagnostics);
+        }
+    }
+
+    private static CompletionSnapshot? DetachCompletionNoLock()
+    {
+        if (activeDocument == null || activeRecord == null) return null;
+        var record = activeRecord;
+        var document = activeDocument;
+        document.Content = catalog?.Manifest ?? new ReplayContentManifestV10();
+        document.Attachments = catalog?.Attachments ?? new List<ReplayAttachmentV10>();
+        record.Result = pendingCompletionResult.Length == 0
+            ? "Unknown"
+            : pendingCompletionResult;
+        record.EndedUtc = DateTime.UtcNow.ToString("O");
+        record.TurnCount = Math.Max(1, turnIndex);
+        record.EventCount = document.Events.Count;
+        record.StatisticsJson = AuraSharedJson.SerializeCompact(
+            AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
+        record.CaptureDiagnostics = new List<string>(Diagnostics);
+        document.Header.Result = record.Result;
+        document.Header.EndedUtc = record.EndedUtc;
+        document.Header.LevelId = record.LevelId;
+        var completion = new CompletionSnapshot(
+            record,
+            document,
+            new List<string>(Diagnostics));
+        ResetNoLock();
+        return completion;
     }
 
     internal static void Abort()
@@ -389,19 +576,17 @@ internal static class MatchReplayRecorder
         if (source == null || clip == null || catalog == null || activeDocument == null) return;
         try
         {
-            var hash = catalog.CaptureAudioClip(clip, "BattleBgm");
-            if (string.IsNullOrWhiteSpace(hash))
-            {
-                AddDiagnosticNoLock("battle BGM could not be captured: " + clip.name);
-                return;
-            }
+            var clipKey = AudioClipKey(clip);
             var offset = Math.Max(0L, (long)Math.Round(source.time * clip.frequency));
-            if (string.Equals(hash, lastBgmHash, StringComparison.OrdinalIgnoreCase)
+            if (string.Equals(
+                    clipKey,
+                    lastBgmClipKey,
+                    StringComparison.Ordinal)
                 && Math.Abs(offset - lastBgmOffset) <= Math.Max(1, clip.frequency / 2))
             {
                 return;
             }
-            lastBgmHash = hash;
+            lastBgmClipKey = clipKey;
             lastBgmOffset = offset;
             var timelineTicks = nextSequence == 0 ? 0 : ElapsedTicks();
             var startSample = timelineTicks * ReplayOfflineAudioMixer.SampleRate / ReplayProtocolV10.TimebaseTicksPerSecond;
@@ -412,7 +597,7 @@ internal static class MatchReplayRecorder
             }
             var cue = new ReplayAudioCueV10
             {
-                AssetSha256 = hash,
+                AssetSha256 = "",
                 OwnerModId = "Witch",
                 ProviderId = clip.name ?? "",
                 Kind = "BattleBgm",
@@ -430,6 +615,19 @@ internal static class MatchReplayRecorder
                 Bus = "Bgm"
             };
             activeBgmCue = cue;
+            catalog.RequestAudioClip(clip, "BattleBgm", hash =>
+            {
+                cue.AssetSha256 = hash;
+                if (hash.Length == 0)
+                {
+                    lock (Gate)
+                    {
+                        AddDiagnosticNoLock(
+                            "battle BGM could not be captured: "
+                            + clip.name);
+                    }
+                }
+            });
             AddEventNoLock(new ReplayTimelineEventV10
             {
                 TimeTicks = timelineTicks,
@@ -488,26 +686,39 @@ internal static class MatchReplayRecorder
 
     private static void ScheduleFinalizationNoLock(string actionId)
     {
+        if (activeAction == null
+            || !string.Equals(
+                activeAction.ActionId,
+                actionId,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+        var generation = ++activeAction.FinalizationGeneration;
         AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
         {
             OwnerId = AuraToolsIds.ModId,
-            Key = "ReplayV10.Action.Finalize." + actionId,
+            Key = "ReplayV10.Action.Finalize."
+                  + actionId
+                  + "."
+                  + generation,
             Source = "MatchRecords.ReplayV10.Capture",
-            DelayFrames = 1,
+            DelayFrames = 2,
             Phase = AuraSharedFramePhase.Reconcile,
             Priority = 25,
             EstimatedCost = 1,
-            Action = () => FinalizeAction(actionId)
+            Action = () => FinalizeAction(actionId, generation)
         });
     }
 
-    private static void FinalizeAction(string actionId)
+    private static void FinalizeAction(string actionId, long generation)
     {
         lock (Gate)
         {
             if (activeAction == null
                 || catalog == null
-                || !string.Equals(activeAction.ActionId, actionId, StringComparison.Ordinal))
+                || !string.Equals(activeAction.ActionId, actionId, StringComparison.Ordinal)
+                || activeAction.FinalizationGeneration != generation)
             {
                 return;
             }
@@ -516,19 +727,6 @@ internal static class MatchReplayRecorder
             {
                 ScheduleFinalizationNoLock(actionId);
                 return;
-            }
-
-            var revision = ReplayFactCaptureV10.RevisionHash(turnIndex, catalog);
-            var decision = activeAction.Convergence.Observe(revision);
-            if (decision == MatchReplayActionFinalizationDecision.Observe)
-            {
-                ScheduleFinalizationNoLock(actionId);
-                return;
-            }
-
-            if (decision == MatchReplayActionFinalizationDecision.FinalizeDeadline)
-            {
-                AddDiagnosticNoLock("action projection did not converge: " + actionId);
             }
 
             FlushActionNoLock(ReplayFactCaptureV10.CaptureState(turnIndex, catalog));
@@ -687,6 +885,14 @@ internal static class MatchReplayRecorder
         return Math.Max(0L, (long)(elapsed * (double)ReplayProtocolV10.TimebaseTicksPerSecond / Stopwatch.Frequency));
     }
 
+    private static string AudioClipKey(AudioClip clip)
+    {
+        return clip.GetInstanceID()
+               + "|" + clip.samples
+               + "|" + clip.channels
+               + "|" + clip.frequency;
+    }
+
     private static void AddDiagnosticNoLock(string message)
     {
         var value = (message ?? "").Trim();
@@ -717,29 +923,31 @@ internal static class MatchReplayRecorder
         string bus,
         string ownerModId,
         string providerId,
-        string kind)
+        string kind,
+        long? requestedStartSample = null)
     {
         if (activeDocument == null || catalog == null || clip == null) return;
         try
         {
             EnsureBaselineNoLock();
-            var hash = catalog.CaptureAudioClip(clip, "Audio." + kind);
-            if (string.IsNullOrWhiteSpace(hash))
-            {
-                AddDiagnosticNoLock("audio could not be captured: " + clip.name);
-                return;
-            }
-            var startSample = ElapsedTicks() * ReplayOfflineAudioMixer.SampleRate / ReplayProtocolV10.TimebaseTicksPerSecond;
-            if (string.Equals(hash, lastAudioHash, StringComparison.OrdinalIgnoreCase)
+            var clipKey = AudioClipKey(clip);
+            var startSample = requestedStartSample
+                              ?? ElapsedTicks()
+                              * ReplayOfflineAudioMixer.SampleRate
+                              / ReplayProtocolV10.TimebaseTicksPerSecond;
+            if (string.Equals(
+                    clipKey,
+                    lastAudioClipKey,
+                    StringComparison.Ordinal)
                 && Math.Abs(startSample - lastAudioStartSample) <= ReplayOfflineAudioMixer.SampleRate / 20)
             {
                 return;
             }
-            lastAudioHash = hash;
+            lastAudioClipKey = clipKey;
             lastAudioStartSample = startSample;
             var cue = new ReplayAudioCueV10
             {
-                AssetSha256 = hash,
+                AssetSha256 = "",
                 OwnerModId = ownerModId ?? "",
                 ProviderId = providerId ?? "",
                 Kind = kind ?? "",
@@ -749,6 +957,18 @@ internal static class MatchReplayRecorder
                 GainQ16 = (int)Math.Round(Math.Max(0f, volume) * 65_536f),
                 Bus = bus ?? "Effect"
             };
+            catalog.RequestAudioClip(clip, "Audio." + kind, hash =>
+            {
+                cue.AssetSha256 = hash;
+                if (hash.Length == 0)
+                {
+                    lock (Gate)
+                    {
+                        AddDiagnosticNoLock(
+                            "audio could not be captured: " + clip.name);
+                    }
+                }
+            });
             if (activeAction != null)
             {
                 activeAction.Audio.Add(cue);
@@ -774,6 +994,11 @@ internal static class MatchReplayRecorder
     private static void ResetNoLock()
     {
         AudioArbiterRuntime.ResolvedPlayback -= OnResolvedPlayback;
+        if (catalog != null)
+        {
+            catalog.AudioCapturesDrained -= OnAudioCapturesDrained;
+            catalog.CancelAudioCaptures();
+        }
         activeRecord = null;
         activeDocument = null;
         catalog = null;
@@ -784,11 +1009,14 @@ internal static class MatchReplayRecorder
         nextActionIndex = 0;
         turnIndex = 1;
         firstPlayerRoundSeen = false;
-        lastAudioHash = "";
+        lastAudioClipKey = "";
         lastAudioStartSample = long.MinValue;
-        lastBgmHash = "";
+        lastBgmClipKey = "";
         lastBgmOffset = long.MinValue;
         activeBgmCue = null;
+        completionPrepared = false;
+        pendingCompletionResult = "";
+        pendingAudioPathResolutions = 0;
         Diagnostics.Clear();
     }
 
@@ -815,9 +1043,28 @@ internal static class MatchReplayRecorder
 
         internal bool FinalizationScheduled { get; set; }
 
-        internal MatchReplayActionConvergenceTracker Convergence { get; } = new();
+        internal long FinalizationGeneration { get; set; }
 
         internal List<ReplayAudioCueV10> Audio { get; } = new();
+    }
+
+    private sealed class CompletionSnapshot
+    {
+        public CompletionSnapshot(
+            MatchRecord record,
+            ReplayDocumentV10 document,
+            IReadOnlyCollection<string> diagnostics)
+        {
+            Record = record;
+            Document = document;
+            Diagnostics = diagnostics;
+        }
+
+        public MatchRecord Record { get; }
+
+        public ReplayDocumentV10 Document { get; }
+
+        public IReadOnlyCollection<string> Diagnostics { get; }
     }
 
     private sealed class FinalizationResult

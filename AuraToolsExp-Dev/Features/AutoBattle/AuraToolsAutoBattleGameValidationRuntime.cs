@@ -90,6 +90,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
     };
 
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static IDisposable? lifecycleSubscription;
     private static AuraToolsAutoBattleGameValidationDriver? driver;
     private static AutoBattleGameValidationStatus status = new();
@@ -132,18 +133,46 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             return;
         }
         initialized = true;
-        var host = new GameObject("AuraToolsAutoBattleGameValidation");
-        Object.DontDestroyOnLoad(host);
-        driver = host.AddComponent<AuraToolsAutoBattleGameValidationDriver>();
-        lifecycleSubscription = AuraBattleLifecycleRouter.Register(
-            modConfig,
+        currentConfig = modConfig;
+        ApplyModuleActivation(AuraToolsAutoBattleRuntime.ModuleEnabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            RestoreRole();
+            ResetSession();
+            lifecycleSubscription?.Dispose();
+            lifecycleSubscription = null;
+            if (driver != null)
+            {
+                Object.Destroy(driver.gameObject);
+                driver = null;
+            }
+            return;
+        }
+
+        if (driver == null)
+        {
+            var host = new GameObject(
+                "AuraToolsAutoBattleGameValidation");
+            Object.DontDestroyOnLoad(host);
+            driver = host.AddComponent<
+                AuraToolsAutoBattleGameValidationDriver>();
+        }
+        lifecycleSubscription ??= AuraBattleLifecycleRouter.Register(
+            currentConfig,
             AuraToolsIds.ModId,
             HandlerId,
             new AuraBattleLifecycleSubscription
             {
                 BattleReady = OnFightStarted,
-                BattleSettling = outcome => OnFightEnding(outcome.NativeContext),
-                BattleEnded = outcome => OnFightEnded(outcome.NativeContext)
+                BattleSettling = outcome =>
+                    OnFightEnding(outcome.NativeContext),
+                BattleEnded = outcome =>
+                    OnFightEnded(outcome.NativeContext)
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);
@@ -664,7 +693,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
         AuraSharedFrameScheduler.RunOnceNextFrame(
             new AuraSharedFrameActionRequest
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.GameValidation.RestoreModels",
                 Source = "AutoBattle.GameValidation.RestoreModels",
                 Action = AuraToolsAutoBattleRuntime.ReloadModels

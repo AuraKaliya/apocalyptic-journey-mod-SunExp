@@ -25,6 +25,7 @@ public static class AuraToolsFileLogRuntime
 
     public static void Initialize(ModConfig config)
     {
+        CommandLogHooks.Initialize(config);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.FileLogging,
             ApplyConfig);

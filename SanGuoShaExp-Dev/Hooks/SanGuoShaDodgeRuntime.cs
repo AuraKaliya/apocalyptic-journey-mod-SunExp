@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using SanGuoShaExp.Dll.Infrastructure;
 using Witch.Core;
@@ -13,37 +14,33 @@ public static class SanGuoShaDodgeRuntime
 
     private static readonly Dictionary<string, PendingDodge> PendingByTarget =
         new Dictionary<string, PendingDodge>(StringComparer.Ordinal);
+    private static AuraHookRegistry? hookRegistry;
 
     public static void Initialize(ModConfig modConfig)
     {
+        hookRegistry ??= new AuraHookRegistry(
+            modConfig,
+            "SanGuoSha.Dodge",
+            SanGuoShaExpLog.Info,
+            SanGuoShaExpLog.Warn);
         RegisterBefore(modConfig, "StatusManager.Hit", BeforeHit);
         RegisterAfter(modConfig, "StatusManager.Hit", AfterHit);
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookBefore(target, action);
-            SanGuoShaExpLog.Info("Hook before registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Warn("Hook before failed: " + target + " -> " + ex.Message);
-        }
+        hookRegistry?.BeforeRouted(
+            target,
+            action,
+            target + ":" + action.Method.Name);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        try
-        {
-            config.AddMethodHookAfter(target, action);
-            SanGuoShaExpLog.Info("Hook after registered: " + target);
-        }
-        catch (Exception ex)
-        {
-            SanGuoShaExpLog.Warn("Hook after failed: " + target + " -> " + ex.Message);
-        }
+        hookRegistry?.AfterRouted(
+            target,
+            action,
+            target + ":" + action.Method.Name);
     }
 
     private static void BeforeHit(ModHookContext context)

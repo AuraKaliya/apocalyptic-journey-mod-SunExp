@@ -30,12 +30,18 @@ internal static class MatchReplayVideoExporter
         foreach (var job in MatchRecordStorage.Database.LoadRecoverableExportJobs()) RecoveryQueue.Enqueue(job);
         current = MatchRecordStorage.Database.LoadLatestExportJob();
         ReconcileOrphanPartials();
+        ResumePending();
     }
 
-    internal static void Tick()
+    private static void ResumePending()
     {
         MatchReplayExportControlsPresenter.Refresh(current);
-        if (workerRunning || RecoveryQueue.Count == 0) return;
+        if (workerRunning) return;
+        if (RecoveryQueue.Count == 0)
+        {
+            AuraToolsMatchRecordsRuntime.ReleaseRuntimeDriver();
+            return;
+        }
         var job = RecoveryQueue.Dequeue();
         current = job;
         MatchReplayExportControlsPresenter.Show();
@@ -51,6 +57,7 @@ internal static class MatchReplayVideoExporter
         {
             workerRunning = false;
             Fail(job, "worker-unavailable", "无法启动回放导出恢复任务。", deleteStaging: true);
+            ResumePending();
         }
     }
 
@@ -186,6 +193,7 @@ internal static class MatchReplayVideoExporter
             AuraToolsLog.Warn("[MatchRecords] v10 video export failed: " + failure);
         }
         workerRunning = false;
+        ResumePending();
     }
 
     private static IEnumerator ExportCore(
@@ -362,6 +370,7 @@ internal static class MatchReplayVideoExporter
             Fail(job, "recovery-failed", failure.Message, deleteStaging: job.State != MatchReplayExportStates.Committing);
         }
         workerRunning = false;
+        ResumePending();
     }
 
     private static IEnumerator RecoverCore(MatchReplayExportJob job)
@@ -461,6 +470,7 @@ internal static class MatchReplayVideoExporter
         job.Progress = Math.Max(0f, Math.Min(1f, progress));
         job.Message = message ?? "";
         Persist(job);
+        MatchReplayExportControlsPresenter.Refresh(job);
     }
 
     private static void Fail(MatchReplayExportJob job, string code, string message, bool deleteStaging)

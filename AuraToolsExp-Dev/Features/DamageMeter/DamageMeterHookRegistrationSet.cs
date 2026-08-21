@@ -39,4 +39,27 @@ internal sealed class DamageMeterHookRegistrationSet
 
         return registrations.Count;
     }
+
+    internal int DisposeWhere(
+        Func<string, bool> predicate,
+        Action<string, Exception> onFailure)
+    {
+        var keys = new List<string>(registrations.Keys);
+        for (var i = keys.Count - 1; i >= 0; i--)
+        {
+            var key = keys[i];
+            if (!predicate(key)) continue;
+            try
+            {
+                registrations[key].Dispose();
+                registrations.Remove(key);
+            }
+            catch (Exception ex)
+            {
+                onFailure(key, ex);
+            }
+        }
+
+        return registrations.Count;
+    }
 }

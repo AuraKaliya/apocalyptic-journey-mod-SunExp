@@ -31,10 +31,9 @@ public sealed class AuraHookRegistry : IDisposable
         return Add(AuraSharedHooks.RegisterBeforeRouted(
             config,
             target,
-            action,
+            Request(action, target, handlerId),
             Debug,
-            Warn,
-            safeInvoke: true), target, handlerId, before: true);
+            Warn), target, handlerId, before: true);
     }
 
     public IDisposable AfterRouted(string target, Action<ModHookContext> action, string handlerId = "")
@@ -42,20 +41,9 @@ public sealed class AuraHookRegistry : IDisposable
         return Add(AuraSharedHooks.RegisterAfterRouted(
             config,
             target,
-            action,
+            Request(action, target, handlerId),
             Debug,
-            Warn,
-            safeInvoke: true), target, handlerId, before: false);
-    }
-
-    public bool Before(string target, Action<ModHookContext> action, string handlerId = "")
-    {
-        return AuraSharedHooks.RegisterBefore(config, target, action, Debug, Warn, safeInvoke: true);
-    }
-
-    public bool After(string target, Action<ModHookContext> action, string handlerId = "")
-    {
-        return AuraSharedHooks.RegisterAfter(config, target, action, Debug, Warn, safeInvoke: true);
+            Warn), target, handlerId, before: false);
     }
 
     public void Dispose()
@@ -91,6 +79,22 @@ public sealed class AuraHookRegistry : IDisposable
               + ", target="
               + target);
         return registration;
+    }
+
+    private AuraRoutedHookRequest Request(
+        Action<ModHookContext> action,
+        string target,
+        string handlerId)
+    {
+        return new AuraRoutedHookRequest
+        {
+            OwnerModId = owner,
+            HandlerId = string.IsNullOrWhiteSpace(handlerId)
+                ? (target ?? "") + ".anonymous"
+                : handlerId.Trim(),
+            Handler = action,
+            SafeInvoke = true
+        };
     }
 
     private void Debug(string message)

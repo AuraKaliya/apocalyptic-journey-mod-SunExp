@@ -10,6 +10,8 @@
   <ItemGroup>
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsIds.cs"
              Link="Infrastructure\AuraToolsIds.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsHookRegistry.cs"
+             Link="Infrastructure\AuraToolsHookRegistry.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcSender.cs"
              Link="Infrastructure\AuraToolsRpcSender.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsRpcPayloadGuard.cs"
@@ -20,6 +22,10 @@
              Link="Shared\AuraSharedJson.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs"
              Link="Shared\AuraFeatureSwitchRuntime.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedHooks.cs"
+             Link="Shared\AuraSharedHooks.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedBackgroundWorkScheduler.cs"
+             Link="Shared\AuraSharedBackgroundWorkScheduler.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsPerformanceSettings.cs"
              Link="Infrastructure\AuraToolsPerformanceSettings.cs" />
     <Compile Include="..\AuraSharedCore\AuraRpcSender.cs"
@@ -90,8 +96,6 @@
              Link="MatchRecords\MatchReplayProjectionModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Model\MatchReplayChunker.cs"
              Link="MatchRecords\MatchReplayChunker.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayActionFinalizationPolicy.cs"
-             Link="MatchRecords\MatchReplayActionFinalizationPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Replay\Core\*.cs"
              Link="MatchRecords\Replay\Core\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Replay\Storage\ReplayPayloadV10.cs"

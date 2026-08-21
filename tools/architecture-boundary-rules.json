@@ -140,11 +140,14 @@
         },
         {
           "id": "tool-hook-entrypoint",
-          "description": "AuraToolsExp feature hooks must route through AuraToolsHookRegistry.",
+          "description": "AuraToolsExp feature hooks must use the owner-qualified routed registry and may not use attribute or direct shared hooks.",
           "roots": ["AuraToolsExp-Dev"],
           "filePattern": "*.cs",
           "excludePathRegex": ["/AuraToolsHookRegistry\\.cs$"],
-          "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
+          "deny": [
+            "AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)",
+            "\\[Hook(?:Before|After)\\b"
+          ]
         },
         {
           "id": "toolbox-shell-module-boundary",
@@ -153,6 +156,43 @@
           "filePattern": "ToolboxSettingsShell.cs",
           "deny": [
             "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)"
+          ]
+        },
+        {
+          "id": "shared-native-hook-owner",
+          "description": "Only AuraSharedHooks may install native ModConfig method hooks; shared domains subscribe through routed hooks or typed routers.",
+          "roots": [
+            "AuraSharedCore",
+            "AuraAudioShared",
+            "AuraCgShared",
+            "AuraCardUseFxShared",
+            "AuraJourneyShared",
+            "AuraOnlineShared",
+            "AuraSkinShared",
+            "AudioArbiterShared",
+            "BattleBgmArbiterShared",
+            "StarterDeckArbiterShared",
+            "UiTransitionGuardShared"
+          ],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["^AuraSharedCore/AuraSharedHooks\\.cs$"],
+          "deny": [
+            "AddMethodHook(?:Before|After)\\s*\\(",
+            "\\[Hook(?:Before|After)\\b"
+          ]
+        },
+        {
+          "id": "product-native-hook-owner",
+          "description": "Product mods must subscribe through their routed registry or a typed shared router rather than installing native hooks directly.",
+          "roots": [
+            "AuraToolsExp-Dev",
+            "Terrias-Dev",
+            "SanGuoShaExp-Dev"
+          ],
+          "filePattern": "*.cs",
+          "deny": [
+            "AddMethodHook(?:Before|After)\\s*\\(",
+            "\\[Hook(?:Before|After)\\b"
           ]
         },
         {

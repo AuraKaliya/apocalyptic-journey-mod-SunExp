@@ -195,7 +195,7 @@ Feature 可以依赖共享协议、GameApi、Mechanics、Infrastructure 和必�
 - `TerriasHookTargets` 集中保存高频宿主目标字符串；
 - `TerriasHookRegistry` 包装 `AuraSharedHooks` 并默认 safe invoke；
 - Aura routed hooks 让同一宿主目标共享一个注册分发器；
-- `SpecialTagRuntime` 展示属性式 `[HookBefore]/[HookAfter]` 入口。
+- 属性Hook与产品直接`AddMethodHookBefore/After`已退出当前运行路径，并由架构门禁禁止。
 
 新增高频目标应进入 `TerriasHookTargets`。一次性、强局部目标可以保留在对应 Runtime，但仍需进入宿主映射表。
 

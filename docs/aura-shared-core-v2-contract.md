@@ -17,7 +17,7 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 - `CurrentProtocolVersion`: 4
 - `MinimumSupportedProtocolVersion`: 3
-- `BuildId`: `aura-shared-core-v4-<assembly-mvid>`
+- `BuildId`: `aura-shared-core-v5-<assembly-mvid>`
 
 运行时复用条件是：
 
@@ -159,6 +159,29 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 | 通用工具 | identity、JSON、diagnostics、log store、带有效状态变更通知的 feature switch | owner/domain identity 必须稳定且可诊断；变更回调在锁外执行 |
 
 后台调度不得修改进程级 CLR thread-pool 上限，也不得在 worker 线程访问 Unity 对象。
+模块级后台任务必须使用独立 owner id；activation lease释放时调用
+`AuraSharedBackgroundWorkScheduler.CancelOwner`，使排队任务被移除、活动任务收到取消令牌，
+而不是只依赖完成回调的 generation 检查。
+
+### Routed Hook Identity
+
+Runtime protocol 7 removes the direct shared Hook registration surface. Every
+shared Hook subscription uses one native dispatcher per `target + phase` and a
+stable subscriber identity of `ownerModId + handlerId`.
+
+- Registration returns a generation-bound lease. Repeated registration of the
+  same handler increments its lease count; the subscriber is removed only when
+  the final lease is disposed.
+- Reusing an active identity with a different handler or priority is rejected.
+- A stale lease cannot remove a later generation registered under the same
+  identity.
+- Dispatch reads an immutable, priority-ordered subscriber snapshot and does
+  not lock or allocate on the native callback path.
+- Native dispatchers remain dormant after their last subscriber is removed
+  because the game exposes no Hook-removal API. An empty subscriber snapshot is
+  the supported disabled state.
+- Feature enablement does not belong to Core. Tool and content runtimes add or
+  dispose their own leases when their effective state changes.
 `AuraAuthoritativeSyncRuntime` 只处理 session、token、快照请求节流和去重，不决定任何
 具体玩法状态是否有效。
 

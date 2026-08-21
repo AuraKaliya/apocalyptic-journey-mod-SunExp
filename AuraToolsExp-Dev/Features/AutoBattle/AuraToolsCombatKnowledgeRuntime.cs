@@ -282,7 +282,7 @@ internal static class AuraToolsCombatKnowledgeRuntime
         var accepted = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<List<KnowledgePackageLoad>>
             {
-                OwnerId = AuraToolsIds.ModId,
+                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
                 Key = "AutoBattle.CombatKnowledge.Load",
                 Source = "AutoBattle.CombatKnowledge.Load",
                 Kind = AuraSharedBackgroundWorkKind.Io,

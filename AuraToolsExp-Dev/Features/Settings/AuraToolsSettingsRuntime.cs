@@ -51,20 +51,6 @@ public static class AuraToolsSettingsRuntime
         }
     }
 
-    [HookAfter(typeof(SettingUI), nameof(SettingUI.OnEnable))]
-    public static void AfterSettingOnEnable(SettingUI __instance)
-    {
-        InjectSettings(__instance, "attribute:OnEnable");
-        AuraToolsLog.Debug("[Settings] native SettingUI enabled: instance="
-                           + (__instance == null ? "none" : __instance.GetInstanceID().ToString())
-                           + ", active=" + (__instance != null && __instance.gameObject.activeInHierarchy)
-                           + ", registered="
-                           + (Witch.UI.UIManager.Instance?.GetUI<SettingUI>("SettingUI") == __instance)
-                           + ", auraPanel="
-                           + (activePanel == null ? "none" : activePanel.GetInstanceID().ToString())
-                           + ".");
-    }
-
     internal static void HideActivePanel()
     {
         PanelBuildState.CancelBuild();

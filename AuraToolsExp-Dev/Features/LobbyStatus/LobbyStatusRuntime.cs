@@ -1,8 +1,6 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using AuraOnline.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
@@ -46,9 +44,10 @@ internal static class LobbyStatusRuntime
 {
     private const string ButtonName = "AuraToolsLobbyStatusButton";
     private static bool initialized;
+    private static ModConfig? currentConfig;
     private static GameEntryUI? currentEntry;
     private static GameObject? buttonRoot;
-    private static readonly Dictionary<string, string> RolesByPlayer = new(StringComparer.OrdinalIgnoreCase);
+    private static IDisposable? lobbySubscription;
 
     internal static LobbyStatusSnapshot Current { get; private set; } = new();
 
@@ -56,52 +55,76 @@ internal static class LobbyStatusRuntime
     {
         if (initialized) return;
         initialized = true;
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.UpdateLobby", UpdateLobby, "LobbyStatus");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ChangeRole", CaptureRole, "LobbyStatus");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.SetReady", _ => RefreshReady(), "LobbyStatus");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.Init", ResetLobby, "LobbyStatus");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.Outlobby", _ => ClearLobby(), "LobbyStatus");
-        AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ReturnHouse", _ => ClearLobby(), "LobbyStatus");
+        currentConfig = modConfig;
+        lobbySubscription = AuraLobbySnapshotRuntime.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            "LobbyStatus",
+            UpdateLobby,
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
         AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ShowCareer", _ => RefreshButton(), "LobbyStatus");
-        AuraToolsHookRegistry.Before(modConfig, "GameEntryUI.StartGame", _ => ClearLobby(), "LobbyStatus");
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.LobbyStatus, OnConfigChanged);
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.ModSync, RefreshButton);
         ModHealthRuntime.Changed += RefreshLocalHealth;
+        ApplyModuleActivation(AuraToolsConfigService.LobbyStatus.Enabled);
     }
 
-    private static void UpdateLobby(ModHookContext context)
+    internal static void ApplyModuleActivation(bool enabled)
     {
-        currentEntry = context.Target as GameEntryUI ?? currentEntry;
-        var players = ExtractPlayers(context.Arguments);
-        if (players.Count == 0)
+        if (!initialized || currentConfig == null) return;
+        if (!enabled)
+        {
+            lobbySubscription?.Dispose();
+            lobbySubscription = null;
+            Current = new LobbyStatusSnapshot();
+            currentEntry = null;
+            DestroyButton();
+            return;
+        }
+
+        lobbySubscription ??= AuraLobbySnapshotRuntime.Register(
+            currentConfig,
+            AuraToolsIds.ModId,
+            "LobbyStatus",
+            UpdateLobby,
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
+        UpdateLobby(AuraLobbySnapshotRuntime.Current);
+    }
+
+    private static void UpdateLobby(AuraLobbySnapshot snapshot)
+    {
+        currentEntry = snapshot.Entry;
+        if (snapshot.Players.Count == 0)
         {
             Current = new LobbyStatusSnapshot();
+            DestroyButton();
+            AuraToolModuleHost.RefreshState(AuraToolModuleIds.LobbyStatus);
             RefreshButton();
             return;
         }
-        var localId = PlayerManager.Instance?.PlayerId ?? "";
-        var modState = AuraChatModSyncSnapshot.BuildState(players, AuraToolsIds.ModId, localId);
-        var ready = ReadReadyMap(currentEntry);
-        var host = modState.Players.FirstOrDefault();
+        var host = snapshot.Players.FirstOrDefault(player => player.IsHost);
         Current = new LobbyStatusSnapshot
         {
-            LocalPlayerId = localId,
-            HostPlayerId = host?.PlayerId ?? "",
-            Players = modState.Players.Select((player, index) =>
+            LocalPlayerId = snapshot.LocalPlayerId,
+            HostPlayerId = snapshot.HostPlayerId,
+            Players = snapshot.Players.Select(player =>
             {
-                var raw = players.FirstOrDefault(value => string.Equals(Read(value, "Id"), player.PlayerId, StringComparison.OrdinalIgnoreCase));
                 return new LobbyPlayerStatus
                 {
                     PlayerId = player.PlayerId,
                     PlayerName = player.PlayerName,
-                    GameVersion = Read(raw, "Version"),
-                    RoleId = RolesByPlayer.TryGetValue(player.PlayerId, out var role) ? role : "",
-                    RoleSynced = ReadBool(raw, "IsSyncedRole"),
-                    Ready = ready.TryGetValue(player.PlayerId, out var isReady) && isReady,
-                    IsHost = index == 0,
-                    IsLocal = string.Equals(player.PlayerId, localId, StringComparison.OrdinalIgnoreCase),
-                    ModDifferenceCount = DifferenceCount(host, player),
-                    HealthLevel = string.Equals(player.PlayerId, localId, StringComparison.OrdinalIgnoreCase)
+                    GameVersion = player.GameVersion,
+                    RoleId = player.RoleId,
+                    RoleSynced = player.RoleSynced,
+                    Ready = player.Ready,
+                    IsHost = player.IsHost,
+                    IsLocal = player.IsLocal,
+                    ModDifferenceCount = DifferenceCount(
+                        host,
+                        player),
+                    HealthLevel = player.IsLocal
                                   && AuraToolsConfigService.LobbyStatus.ShowLocalHealthSummary
                         ? (ModHealthRuntime.Current.ScannedUtc.Length == 0 ? "尚未扫描" : ModHealthRuntime.Current.Level)
                         : "未提供"
@@ -110,46 +133,6 @@ internal static class LobbyStatusRuntime
         };
         AuraToolModuleHost.RefreshState(AuraToolModuleIds.LobbyStatus);
         RefreshButton();
-    }
-
-    private static void ResetLobby(ModHookContext context)
-    {
-        ClearLobby();
-        currentEntry = context.Target as GameEntryUI;
-        RefreshButton();
-    }
-
-    private static void ClearLobby()
-    {
-        RolesByPlayer.Clear();
-        Current = new LobbyStatusSnapshot();
-        currentEntry = null;
-        DestroyButton();
-        AuraToolModuleHost.RefreshState(AuraToolModuleIds.LobbyStatus);
-    }
-
-    private static void CaptureRole(ModHookContext context)
-    {
-        var data = context.Arguments?.OfType<DataConfig>().FirstOrDefault();
-        var playerId = context.Arguments?.OfType<string>().FirstOrDefault() ?? "";
-        if (data?.data != null && data.data.TryGetValue("Id", out var roleId) && !string.IsNullOrWhiteSpace(playerId))
-        {
-            RolesByPlayer[playerId] = roleId ?? "";
-            var player = Current.Players.FirstOrDefault(value =>
-                string.Equals(value.PlayerId, playerId, StringComparison.OrdinalIgnoreCase));
-            if (player != null) player.RoleId = roleId ?? "";
-            AuraToolModuleHost.RefreshState(AuraToolModuleIds.LobbyStatus);
-        }
-    }
-
-    private static void RefreshReady()
-    {
-        var ready = ReadReadyMap(currentEntry);
-        foreach (var player in Current.Players)
-        {
-            player.Ready = ready.TryGetValue(player.PlayerId, out var value) && value;
-        }
-        AuraToolModuleHost.RefreshState(AuraToolModuleIds.LobbyStatus);
     }
 
     private static void RefreshLocalHealth()
@@ -240,29 +223,9 @@ internal static class LobbyStatusRuntime
         buttonRoot.SetActive(true);
     }
 
-    private static List<object> ExtractPlayers(IReadOnlyList<object>? arguments)
-    {
-        foreach (var argument in arguments ?? Array.Empty<object>())
-        {
-            if (argument is string || argument is not IEnumerable enumerable) continue;
-            var values = enumerable.Cast<object>().Where(value => value != null).ToList();
-            if (values.Any(value => !string.IsNullOrWhiteSpace(Read(value, "Id")))) return values;
-        }
-        return new List<object>();
-    }
-
-    private static Dictionary<string, bool> ReadReadyMap(GameEntryUI? entry)
-    {
-        try
-        {
-            return typeof(GameEntryUI).GetField("Ready", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(entry)
-                       as Dictionary<string, bool>
-                   ?? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        }
-        catch { return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase); }
-    }
-
-    private static int DifferenceCount(AuraChatModPlayerSnapshot? host, AuraChatModPlayerSnapshot player)
+    private static int DifferenceCount(
+        AuraLobbyPlayerState? host,
+        AuraLobbyPlayerState player)
     {
         if (host == null) return 0;
         var keys = host.Mods.Select(mod => mod.MatchKey).Concat(player.Mods.Select(mod => mod.MatchKey)).Distinct(StringComparer.OrdinalIgnoreCase);
@@ -275,23 +238,6 @@ internal static class LobbyStatusRuntime
                 || !string.Equals(left.ModVersion, right.ModVersion, StringComparison.OrdinalIgnoreCase)) count++;
         }
         return count;
-    }
-
-    private static string Read(object? target, string name)
-    {
-        if (target == null) return "";
-        try
-        {
-            var type = target.GetType();
-            return Convert.ToString(type.GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(target)
-                                    ?? type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(target))?.Trim() ?? "";
-        }
-        catch { return ""; }
-    }
-
-    private static bool ReadBool(object? target, string name)
-    {
-        return bool.TryParse(Read(target, name), out var value) && value;
     }
 
     private static GameObject Row(Transform parent, string name, float height)

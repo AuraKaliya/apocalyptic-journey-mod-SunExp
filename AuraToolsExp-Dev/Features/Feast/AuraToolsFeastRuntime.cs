@@ -21,16 +21,15 @@ namespace AuraToolsExp.Dll.Features.Feast;
 public static class AuraToolsFeastRuntime
 {
     public const string FeastKind = "feast";
-    private const string DriverObjectName = "AuraTools.Feast.Driver";
     private const string FeastCardId = "AuraTools.Feast";
     private const int FoodsPerFrame = 8;
-    private static AuraToolsFeastDriver? driver;
     private static MethodInfo? eatFoodMethod;
     private static bool batchQueued;
     private static bool batchEating;
     private static long actionSequence;
     private static string cachedRoleId = "";
     private static bool catalogLoaded;
+    private static bool scopeSubscribed;
     private static IReadOnlyList<AuraCgCatalogResource> catalogResources = Array.Empty<AuraCgCatalogResource>();
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
 
@@ -43,7 +42,6 @@ public static class AuraToolsFeastRuntime
             DuplicateWindowSeconds = 1.25f
         });
 
-        driver = EnsureDriver();
         RegisterAfter(modConfig, "FoodItem.EatFood", OnFoodEaten);
         RegisterAfter(modConfig, "GameEntryUI.ChangeRole", CaptureCurrentRole);
         RegisterBefore(modConfig, "GameEntryUI.StartGame", CaptureCurrentRole);
@@ -59,7 +57,30 @@ public static class AuraToolsFeastRuntime
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.FeastCg,
             Reconfigure);
-        AuraSharedResourceProtocol.ScopeChanged += OnSharedScopeChanged;
+        ApplyModuleActivation(
+            AuraToolsConfigService.MatchExperience.Feast.Enabled);
+    }
+
+    internal static void ApplyModuleActivation(bool enabled)
+    {
+        if (!enabled)
+        {
+            if (scopeSubscribed)
+            {
+                AuraSharedResourceProtocol.ScopeChanged -=
+                    OnSharedScopeChanged;
+                scopeSubscribed = false;
+            }
+            batchQueued = false;
+            batchEating = false;
+            return;
+        }
+
+        if (!scopeSubscribed)
+        {
+            AuraSharedResourceProtocol.ScopeChanged += OnSharedScopeChanged;
+            scopeSubscribed = true;
+        }
         RefreshCatalog();
     }
 
@@ -258,13 +279,18 @@ public static class AuraToolsFeastRuntime
                 return;
             }
 
-            if (driver == null || batchQueued || batchEating)
+            if (batchQueued || batchEating)
             {
                 return;
             }
 
             batchQueued = true;
-            driver.StartCoroutine(EatRemainingFoodsNextFrame(context.Target));
+            if (!AuraSharedFrameScheduler.StartCoroutine(
+                    "AuraTools.Feast.Batch",
+                    EatRemainingFoodsNextFrame(context.Target)))
+            {
+                batchQueued = false;
+            }
         }
         catch (Exception ex)
         {
@@ -276,6 +302,11 @@ public static class AuraToolsFeastRuntime
     private static IEnumerator EatRemainingFoodsNextFrame(object? triggerFood)
     {
         yield return null;
+        if (!IsEnabled())
+        {
+            batchQueued = false;
+            yield break;
+        }
         var eaten = 0;
         try
         {
@@ -288,6 +319,7 @@ public static class AuraToolsFeastRuntime
             var seen = new HashSet<int>();
             foreach (var food in foods)
             {
+                if (!IsEnabled()) break;
                 if (food == null || ReferenceEquals(food, triggerFood))
                 {
                     continue;
@@ -761,23 +793,6 @@ public static class AuraToolsFeastRuntime
         AuraToolsHookRegistry.Before(modConfig, target, action, "Feast");
     }
 
-    private static AuraToolsFeastDriver EnsureDriver()
-    {
-        var existing = GameObject.Find(DriverObjectName);
-        if (existing != null)
-        {
-            var component = existing.GetComponent<AuraToolsFeastDriver>();
-            if (component != null)
-            {
-                return component;
-            }
-        }
-
-        var gameObject = new GameObject(DriverObjectName);
-        Object.DontDestroyOnLoad(gameObject);
-        return gameObject.AddComponent<AuraToolsFeastDriver>();
-    }
-
     private static void LogDiagnostic(string key, string message)
     {
         if (DiagnosticKeys.Add(key))
@@ -811,8 +826,4 @@ public enum FeastCgSourceKind
     Registered = 0,
     Default = 1,
     Manual = 2
-}
-
-public sealed class AuraToolsFeastDriver : MonoBehaviour
-{
 }

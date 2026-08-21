@@ -82,15 +82,17 @@ public static class AuraBattleLifecycleRouter
 
         var owner = string.IsNullOrWhiteSpace(ownerModId) ? "AuraShared" : ownerModId.Trim();
         var id = owner + ":" + (string.IsNullOrWhiteSpace(handlerId) ? Guid.NewGuid().ToString("N") : handlerId.Trim());
+        Handler handler;
         lock (Gate)
         {
             EnsureInitialized(modConfig, info, warn);
-            Handlers[id] = new Handler(id, subscription, warn);
+            handler = new Handler(id, subscription, warn);
+            Handlers[id] = handler;
             RebuildSnapshotNoLock();
         }
 
         AuraSharedLog.DebugLog(owner, "[BattleLifecycle] handler registered: " + id, false);
-        return new Subscription(id);
+        return new Subscription(id, handler);
     }
 
     private static void EnsureInitialized(ModConfig modConfig, Action<string>? info, Action<string>? warn)
@@ -381,15 +383,25 @@ public static class AuraBattleLifecycleRouter
     private sealed class Subscription : IDisposable
     {
         private readonly string id;
+        private readonly Handler handler;
         private bool disposed;
-        public Subscription(string id) => this.id = id;
+        public Subscription(string id, Handler handler)
+        {
+            this.id = id;
+            this.handler = handler;
+        }
         public void Dispose()
         {
             if (disposed) return;
             disposed = true;
             lock (Gate)
             {
-                if (Handlers.Remove(id)) RebuildSnapshotNoLock();
+                if (Handlers.TryGetValue(id, out var current)
+                    && ReferenceEquals(current, handler))
+                {
+                    Handlers.Remove(id);
+                    RebuildSnapshotNoLock();
+                }
             }
         }
     }

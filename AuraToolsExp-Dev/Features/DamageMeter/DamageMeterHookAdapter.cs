@@ -80,6 +80,17 @@ internal static class DamageMeterHookAdapter
             RegisterAfter("DamageText.InternalExecute", AfterDamageTextInternalExecute);
             RegisterAfter("FightUI.EnqueueDamageText", AfterFightUiEnqueueDamageText);
         }
+        else
+        {
+            HookRegistrations.DisposeWhere(
+                key => key == "after:DamageText.InternalExecute"
+                       || key == "after:FightUI.EnqueueDamageText",
+                (key, ex) => AuraToolsLog.Warn(
+                    "[DamageMeter] diagnostic hook release failed for "
+                    + key
+                    + ": "
+                    + ex.Message));
+        }
         RegisterBefore("ScriptExecutor.PureChangeHp", context => WithObservation(DamageMeterHookContextMapper.MapPureHp(context), DamageCaptureCoordinator.BeforePureChangeHp));
         RegisterAfter("ScriptExecutor.PureChangeHp", context => WithObservation(DamageMeterHookContextMapper.MapPureHp(context), DamageCaptureCoordinator.AfterPureChangeHp));
         RegisterBefore("StatusManager.set_CurHp", context => WithObservation(DamageMeterHookContextMapper.MapStatus(context), DamageCaptureCoordinator.BeforeSetCurHp));

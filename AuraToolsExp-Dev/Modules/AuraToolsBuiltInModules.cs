@@ -832,6 +832,7 @@ internal sealed class DelegateAuraToolModule : IAuraToolModule
     private readonly Action<bool> setEnabled;
     private readonly Func<AuraToolModuleState> state;
     private readonly Action<UnityEngine.Transform>? showSettings;
+    private IDisposable? activation;
 
     public DelegateAuraToolModule(
         AuraToolModuleDescriptor descriptor,
@@ -868,6 +869,24 @@ internal sealed class DelegateAuraToolModule : IAuraToolModule
 
     public void ApplyCurrentConfiguration()
     {
+        var shouldBeActive = enabled();
+        if (shouldBeActive)
+        {
+            activation ??= AuraToolsModuleActivationPolicy.Activate(
+                Descriptor.ModuleId);
+            return;
+        }
+
+        if (activation != null)
+        {
+            activation.Dispose();
+            activation = null;
+        }
+        else
+        {
+            AuraToolsModuleActivationPolicy.Deactivate(
+                Descriptor.ModuleId);
+        }
     }
 
     public IAuraToolSettingsPage? CreateSettingsPage()

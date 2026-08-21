@@ -14,6 +14,145 @@ The `combat-ai` release profile passed the shared build, all 674 behavior assert
 This artifact was not modified by the Terrias projection/Spirit implementation. Keep the focused behavior and compatibility passes as the validation signal for this change; repair or regenerate the unrelated model package separately.
 
 ---
+# ERR-20260821-009: AuraSharedCore test stub path was assumed
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+A parallel inspection command attempted to read
+`AuraSharedCore.Tests/TestStubs.cs`, but this test project keeps its stubs in
+several specifically named files and has no generic `TestStubs.cs`.
+
+## Resolution
+
+Enumerate the test project with `rg --files` before selecting stub files, then
+read only the paths returned by the inventory.
+
+---
+# ERR-20260821-010: Unity AudioClip GetData exposed an incompatible Span signature
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The first AuraTools build after adding cooperative replay audio capture called
+`AudioClip.GetData(float[], int)` directly. The current Managed reference
+advertises an incompatible `Span<T>` dependency for that call under net472, so
+the compiler reported CS7069.
+
+## Resolution
+
+Use the existing compatibility pattern: resolve the array overload once with
+reflection and invoke it for each bounded capture slice.
+
+---
+# ERR-20260821-011: Activation gate expected the pre-refactor dispose spelling
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first full AuraTools gate looked for `activation?.Dispose()` after the
+activation implementation had been finalized with an explicit null branch and
+`activation.Dispose()`. Production and behavior builds passed, but the stale
+source-contract token failed the release gate.
+
+## Resolution
+
+Align the boundary assertion with the final explicit activation-lease disposal
+path rather than the discarded nullable-call spelling.
+
+---
+# ERR-20260821-012: Lobby boundary gate still required the retired local projection
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+After Lobby projection moved to `AuraOnlineShared`, the older AuraTools gate
+still required `LobbyStatusRuntime` to call `AuraChatModSyncSnapshot.BuildState`
+and hook `GameEntryUI.UpdateLobby` locally. That correctly failed the new final
+architecture.
+
+## Resolution
+
+Require `AuraLobbySnapshotRuntime.Register` in LobbyStatus and reject any
+remaining local `GameEntryUI.UpdateLobby` hook.
+
+---
+# ERR-20260821-013: Shared native-hook gate found a remaining BGM direct hook
+
+**Logged**: 2026-08-21
+**Severity**: medium
+**Status**: resolved
+**Area**: backend
+
+## What failed
+
+The new shared native-hook ownership rule found that
+`BattleBgmArbiterRuntime` still called `ModConfig.AddMethodHookBefore/After`
+directly, even though the initial text inventory had focused on
+`AuraSharedHooks` call sites.
+
+## Resolution
+
+Give the global BGM arbiter an `AuraHookRegistry` and route all of its native
+targets through owner-qualified handlers. Keep the declarative boundary rule so
+future direct registrations fail immediately.
+
+---
+# ERR-20260821-014: Retired replay convergence test left an orphaned using
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+After deleting the repeated full-state convergence policy and its assertions,
+`MatchReplayRuntimeCoreBehaviorTests.cs` still imported the now-unlinked
+`MatchRecords.Recording` namespace, causing CS0234 in the source-linked test
+project.
+
+## Resolution
+
+Remove the orphaned namespace import together with the retired policy test.
+
+---
+# ERR-20260821-015: Final AuraTools rebuild advanced only one packaged shared DLL
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: infra
+
+## What failed
+
+The final AuraTools product build copied the newest `Aura.Shared.dll` into the
+AuraTools package, while the Terrias and SanGuoShaExp packaged copies still
+contained the preceding shared build. The packaging hash gate correctly
+reported the mismatch.
+
+## Resolution
+
+Rebuild all main shared consumers after the final shared-source change, then
+rerun the packaged-DLL hash gate.
+
+---
 
 ## [ERR-20260812-003] spirit-runtime-test-still-asserted-once-per-battle
 
