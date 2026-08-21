@@ -40,19 +40,18 @@ public static class TerriasCombatCardViewPool
 
         initialized = true;
         CombatCardViewPoolApi.Register(TryMaterialize);
-        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.CardItemEffectOfBurnCard,
-            context => SuppressNativeExitVisual(context, PooledCardExitKind.Burn), "CombatCardViewPool");
-        TerriasHookRegistry.After(modConfig, TerriasHookTargets.CardItemEffectOfBurnCard,
-            CompleteNativeExitVisual, "CombatCardViewPool");
-        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.CardItemEffectOfThrowCard,
-            context => SuppressNativeExitVisual(context, ThrowExitKind(context)), "CombatCardViewPool");
-        TerriasHookRegistry.After(modConfig, TerriasHookTargets.CardItemEffectOfThrowCard,
-            CompleteNativeExitVisual, "CombatCardViewPool");
+        TerriasCardExitRouter.Register("CombatCardViewPool", new TerriasCardExitSubscription
+        {
+            BeforeBurn = context => SuppressNativeExitVisual(context, PooledCardExitKind.Burn),
+            AfterBurn = CompleteNativeExitVisual,
+            BeforeThrow = context => SuppressNativeExitVisual(context, ThrowExitKind(context)),
+            AfterThrow = CompleteNativeExitVisual
+        });
 
         TerriasBattleLifecycleRouter.Register("CombatCardViewPool", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => BeginFight(),
-            FightEnded = _ => EndFight("FightEnded")
+            BattleMaterialized = _ => BeginFight(),
+            BattleEnded = _ => EndFight("BattleEnded")
         });
         TerriasLog.InfoAlways("Combat card view pool initialized");
     }
@@ -63,7 +62,7 @@ public static class TerriasCombatCardViewPool
         generation++;
         handOrderFailureLogged = false;
         EnsurePoolRoot();
-        TerriasPerformanceCounters.Record("CombatCardViewPool.FightStarted");
+        TerriasPerformanceCounters.Record("CombatCardViewPool.BattleMaterialized");
     }
 
     private static void EndFight(string source)
@@ -211,6 +210,12 @@ public static class TerriasCombatCardViewPool
 
             config.scriptExecutor.Self = FightPlayer.Instance.Status;
             config.scriptExecutor.RunScript("InitScript");
+            FightCardManager.Instance.RefreshTag(config);
+            TerriasCardInvalidationService.Acknowledge(
+                config,
+                TerriasCardDirtyFields.TagIndex,
+                "CombatCardViewPool.Materialize");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.TagIndexBound");
             if (!CombatCardViewPoolCatalog.TryResolveInitializedBucket(config, out var bucket))
             {
                 NativeFallback(request, "unsupported BaseScript=" + DictionaryUtil.Get(config.Vars, "BaseScript"));

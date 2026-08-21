@@ -107,7 +107,7 @@ public static class MorningStarDimmedService
             return false;
         }
 
-        TerriasCardRefreshQueue.RequestCostUpdate(card, "MorningStarDimmed:" + source);
+        TerriasCardInvalidationService.Invalidate(card, TerriasCardDirtyFields.Cost, "MorningStarDimmed:" + source);
         return true;
     }
 

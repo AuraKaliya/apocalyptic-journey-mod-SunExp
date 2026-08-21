@@ -17,9 +17,9 @@ public static class SolarMemoryCombatRuntime
     {
         TerriasBattleLifecycleRouter.Register("SolarMemoryCombat.Activator", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => ActivateStatusHandler(),
-            FightRestarting = _ => ReleaseStatusHandler(),
-            FightEnding = _ => ReleaseStatusHandler()
+            BattleInitializing = _ => ActivateStatusHandler(),
+            BattleRestarting = _ => ReleaseStatusHandler(),
+            BattleSettling = _ => ReleaseStatusHandler()
         });
     }
 

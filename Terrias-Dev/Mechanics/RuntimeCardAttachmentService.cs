@@ -449,7 +449,10 @@ public static class RuntimeCardAttachmentService
             changed += RemoveCardTags(card, addedVisibleTags, card.dataConfig?.data ?? card.data);
         }
 
-        RefreshCardItem(card);
+        if (changed > 0)
+        {
+            RefreshCardItem(card);
+        }
         return changed;
     }
 
@@ -813,18 +816,24 @@ public static class RuntimeCardAttachmentService
 
     private static void RefreshDataConfigTags(IDataConfig config)
     {
-        TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "RuntimeCardAttachment");
+        TerriasCardInvalidationService.Invalidate(
+            config,
+            TerriasCardDirtyFields.TagIndex,
+            "RuntimeCardAttachment");
     }
 
     private static void RefreshCardItem(CardItem card)
     {
         try
         {
-            TerriasCardRefreshQueue.RequestFullRefresh(card, "RuntimeCardAttachment");
-            if (card.dataConfig != null)
-            {
-                TerriasCardRefreshQueue.RequestConfigTagRefresh(card.dataConfig, "RuntimeCardAttachment.CardItem");
-            }
+            TerriasCardInvalidationService.Invalidate(
+                card,
+                TerriasCardDirtyFields.TagIndex
+                | TerriasCardDirtyFields.DerivedState
+                | TerriasCardDirtyFields.Description
+                | TerriasCardDirtyFields.Usability
+                | TerriasCardDirtyFields.Visual,
+                "RuntimeCardAttachment");
         }
         catch (Exception ex)
         {

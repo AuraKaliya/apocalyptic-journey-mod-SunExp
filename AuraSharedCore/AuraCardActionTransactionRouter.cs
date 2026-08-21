@@ -152,11 +152,11 @@ public static class AuraCardActionTransactionRouter
                 "BattleScope",
                 new AuraBattleLifecycleSubscription
                 {
-                    FightInitialized = _ => ResetAndRegister("FightInitialized"),
-                    FightStarted = _ => EnsureEventLane("FightStarted"),
-                    FightRestarting = _ => Clear("FightRestarting"),
-                    FightEnding = _ => Clear("FightEnding"),
-                    FightEnded = _ => Clear("FightEnded")
+                    BattleMaterialized = _ => ResetAndRegister("BattleMaterialized"),
+                    BattleOpening = _ => EnsureEventLane("BattleOpening"),
+                    BattleRestarting = _ => Clear("BattleRestarting"),
+                    BattleSettling = _ => Clear("BattleSettling"),
+                    BattleEnded = _ => Clear("BattleEnded")
                 },
                 info,
                 warn);

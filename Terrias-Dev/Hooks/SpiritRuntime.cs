@@ -41,32 +41,42 @@ public static class SpiritRuntime
         {
             Priority = 200,
             BeforeCommonCardUse = GateSpiritCardUse,
-            AfterCommonCardUse = RestoreSpiritCardUseGate
+            AfterCommonCardUse = RestoreSpiritCardUseGate,
+            BeforeAttackCardUse = GateCaptureUse,
+            AfterAttackCardUse = RestoreCaptureUse
         });
-        RegisterBefore(modConfig, TerriasHookTargets.AttackCardItemTrueUse, GateCaptureUse);
-        RegisterAfter(modConfig, TerriasHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
-        RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
-        RegisterAfter(modConfig, "OtherObj.EndRound", OnFightObjectRoundCompleted);
-        RegisterAfter(modConfig, "FightPlayer.EndRound", OnFightObjectRoundCompleted);
-        RegisterAfter(modConfig, "OtherPlayer.EndRound", OnFightObjectRoundCompleted);
-        RegisterAfter(modConfig, "FightObject.EndRound", OnFightObjectRoundCompleted);
         TerriasBattleLifecycleRouter.Register("Spirit", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = _ => SpiritCollectionApi.BeginAdventure(),
-            FightInitializing = _ => ClearBattle("FightInitializing"),
-            FightInitialized = BeginBattle,
-            PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
-            FightRestarting = _ => ClearBattle("FightRestarting"),
-            FightEnding = _ => ClearBattle("FightEnding")
+            BattleInitializing = _ => ClearBattle("BattleInitializing"),
+            BattleMaterialized = BeginBattle,
+            PlayerRoundReady = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundReady"),
+            BattleRestarting = _ => ClearBattle("BattleRestarting"),
+            OutcomeEntering = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Win)
+                {
+                    GrantBattleExperienceAndClear(context.NativeContext);
+                }
+                else
+                {
+                    ClearBattle("OutcomeEntering." + context.Outcome);
+                }
+            }
         });
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", _ => SpiritCollectionApi.BeginAdventure());
-        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, GrantBattleExperienceAndClear);
-        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, _ => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, _ => ClearBattle("Fight_Escape.Init:before"));
         TerriasStatusLifecycleRouter.Register("Spirit", new TerriasStatusLifecycleSubscription
         {
             AfterHit = context => RetireIfDead(context, "StatusManager.Hit"),
-            AfterStateChanged = context => RetireIfDead(context, "StatusManager.State")
+            AfterStateChanged = context => RetireIfDead(context, "StatusManager.State"),
+            AfterEnemyAdded = ObserveEnemyAdded
+        });
+        TerriasCombatActionRouter.Register("Spirit.RoundCompletion", new TerriasCombatActionSubscription
+        {
+            AfterOtherObjEndRound = OnFightObjectRoundCompleted,
+            AfterFightPlayerEndRound = OnFightObjectRoundCompleted,
+            AfterOtherPlayerEndRound = OnFightObjectRoundCompleted,
+            AfterFightObjectEndRound = OnFightObjectRoundCompleted
         });
         TerriasLog.Info("Spirit runtime initialized");
     }
@@ -200,7 +210,7 @@ public static class SpiritRuntime
         }
         finally
         {
-            ClearBattle("Fight_Win.Init:before");
+            ClearBattle("OutcomeEntering.Win");
         }
     }
 
@@ -280,11 +290,6 @@ public static class SpiritRuntime
     {
         var actor = context.Target as FightObject;
         SpiritTrainingBattleRuntime.OnActorTurnCompleted(actor);
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.Before(config, target, action, "Spirit");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

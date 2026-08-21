@@ -5,9 +5,11 @@ using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
 using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
+using Witch.UI.Window;
 
 internal static class Program
 {
@@ -25,7 +27,8 @@ internal static class Program
         TestLegacyBattleHookVarMigration();
         TestActionPassiveRegistry();
         TestScriptDelegateBinding();
-        TestCardRefreshReentryGuard();
+        TestCardInvalidationContract();
+        TestActiveCardPresentationCoverage();
         TestStarBlessingCostOverrideStore();
         TestResonanceCostTransactionStore();
         TestSolarFlameSealFormula();
@@ -326,28 +329,96 @@ internal static class Program
             "A visible Fortune Throw usability transition remains refreshable");
     }
 
-    private static void TestCardRefreshReentryGuard()
+    private static void TestCardInvalidationContract()
     {
         AuraSharedFrameScheduler.Reset();
+        AuraCardPresentationDelta.Reset();
+        TerriasCardDescriptionProjector.Reset();
+        FightCardManager.Instance.ResetDiagnostics();
         var card = new CardItem
         {
             dataConfig = new DataConfig(
                 new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
-                new Dictionary<string, string>())
+                new Dictionary<string, string> { ["Tag"] = "" })
         };
-        card.DataUpdateAction = () => TerriasCardRefreshQueue.RequestDataUpdate(card, "test.reentrant");
+        card.DataUpdateAction = () => TerriasCardInvalidationService.Invalidate(
+            card,
+            TerriasCardDirtyFields.Structure,
+            "test.reentrant");
 
-        TerriasCardRefreshQueue.RequestDataUpdate(card, "test.initial");
+        TerriasCardInvalidationService.Invalidate(
+            card,
+            TerriasCardDirtyFields.TagIndex
+            | TerriasCardDirtyFields.DerivedState
+            | TerriasCardDirtyFields.Description,
+            "test.initial");
+        TerriasCardInvalidationService.Invalidate(
+            card,
+            TerriasCardDirtyFields.TagIndex | TerriasCardDirtyFields.Cost,
+            "test.merge");
         var request = AuraSharedFrameScheduler.TakePendingRequest();
-        True(request?.ExecuteSlice != null, "Card refresh queue schedules its initial cooperative slice");
+        True(request?.ExecuteSlice != null, "Card invalidation schedules a cooperative slice");
         var completed = request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
 
-        True(completed, "A self-requesting DataUpdate completes without leaving a feedback-loop item queued");
-        Equal(1, card.DataUpdateCount, "A card cannot recursively enqueue its own DataUpdate");
+        True(completed, "Merged card invalidation completes in one slice");
+        Equal(1, FightCardManager.Instance.RefreshTagCount, "Merged config/card tag invalidation rebuilds the native tag index once");
+        Equal(0, card.RefreshTagCount, "Terrias invalidation never calls native CardItem.RefreshTag");
+        Equal(1, TerriasCardDescriptionProjector.RecomputeCount, "Derived card state is recomputed once for a merged request");
+        Equal(1, TerriasCardDescriptionProjector.ApplyDescriptionCount, "Description delta is applied once for a merged request");
+        Equal(1, AuraCardPresentationDelta.CostUpdates, "Cost delta is applied once for a merged request");
+        Equal(0, card.DataUpdateCount, "Successful delta invalidation avoids native full DataUpdate");
         Equal<AuraSharedFrameWorkRequest?>(
             null,
             AuraSharedFrameScheduler.TakePendingRequest(),
-            "Re-entrant DataUpdate suppression does not schedule another frame flush");
+            "A completed merged invalidation leaves no extra frame request");
+
+        var nativeContractCard = new CardItem { dataConfig = card.dataConfig };
+        nativeContractCard.RefreshTag();
+        Equal(1, nativeContractCard.DataUpdateCount, "The test host models native CardItem.RefreshTag as an implicit DataUpdate");
+
+        var fallbackCard = new CardItem
+        {
+            dataConfig = new DataConfig(
+                new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
+                new Dictionary<string, string> { ["Tag"] = "" })
+        };
+        AuraCardPresentationDelta.CostResult = false;
+        fallbackCard.DataUpdateAction = () => TerriasCardInvalidationService.Invalidate(
+            fallbackCard,
+            TerriasCardDirtyFields.Cost,
+            "test.fallback.reentrant");
+        TerriasCardInvalidationService.Invalidate(fallbackCard, TerriasCardDirtyFields.Cost, "test.fallback");
+        request = AuraSharedFrameScheduler.TakePendingRequest();
+        request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
+        Equal(1, fallbackCard.DataUpdateCount, "A failed delta adapter falls back to exactly one native DataUpdate");
+        Equal<AuraSharedFrameWorkRequest?>(null, AuraSharedFrameScheduler.TakePendingRequest(),
+            "A DataUpdate fallback cannot requeue the active dirty-field subset");
+        AuraCardPresentationDelta.CostResult = true;
+
+        var structuralCard = new CardItem
+        {
+            dataConfig = new DataConfig(
+                new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
+                new Dictionary<string, string> { ["Tag"] = "" })
+        };
+        TerriasCardPresentationRouter.ResetDiagnostics();
+        TerriasCardInvalidationService.Invalidate(structuralCard, TerriasCardDirtyFields.Structure, "test.structure");
+        request = AuraSharedFrameScheduler.TakePendingRequest();
+        request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
+        Equal(1, structuralCard.TransformCount, "Structural invalidation uses the native configured-type rebind exactly once");
+        Equal(1, structuralCard.DataUpdateCount, "Structural rebind subsumes ordinary derived and presentation DataUpdate work");
+        Equal(1, TerriasCardPresentationRouter.ApplyCount, "Structural rebind performs one final visual presentation commit");
+
+        var preMaterialized = new DataConfig(
+            new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
+            new Dictionary<string, string> { ["Tag"] = "" });
+        FightCardManager.Instance.ResetDiagnostics();
+        TerriasCardInvalidationService.Invalidate(preMaterialized, TerriasCardDirtyFields.TagIndex, "test.pre-materialized");
+        TerriasCardInvalidationService.Acknowledge(preMaterialized, TerriasCardDirtyFields.TagIndex, "test.materialized");
+        request = AuraSharedFrameScheduler.TakePendingRequest();
+        request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
+        Equal(0, FightCardManager.Instance.RefreshTagCount,
+            "Synchronous materialization can acknowledge and consume a queued config-only tag invalidation");
     }
 
     private static void TestTerriasLocalizationValues()
@@ -399,6 +470,39 @@ internal static class Program
             "localized text captures every native row locale independently");
         Equal("stable-id", fromRow.LegacyFallback,
             "localized row capture retains only a stable compatibility fallback");
+    }
+
+    private static void TestActiveCardPresentationCoverage()
+    {
+        FightUI.cardItemList.Clear();
+        TerriasActiveCardPresentationIndex.Clear();
+        var card = new CardItem
+        {
+            dataConfig = new DataConfig(new Dictionary<string, string>
+            {
+                ["Id"] = TerriasIds.WagerCardId,
+                ["Icon"] = "icon",
+                ["PackBelong"] = "Terrias_pack"
+            })
+        };
+        FightUI.cardItemList.Add(card);
+        False(TerriasActiveCardPresentationIndex.HasCompleteActiveCardCoverage(),
+            "A Terrias hand cannot suppress native refresh before every active view is indexed");
+        TerriasActiveCardPresentationIndex.Observe(card);
+        True(TerriasActiveCardPresentationIndex.HasCompleteActiveCardCoverage(),
+            "An exactly indexed Terrias hand proves active-card presentation coverage");
+
+        card.dataConfig = new DataConfig(new Dictionary<string, string>
+        {
+            ["Id"] = TerriasIds.FortuneThrowCardId,
+            ["Icon"] = "icon",
+            ["PackBelong"] = "Terrias_pack"
+        });
+        False(TerriasActiveCardPresentationIndex.HasCompleteActiveCardCoverage(),
+            "A pooled view rebound to another config invalidates the previous coverage proof");
+
+        TerriasActiveCardPresentationIndex.Clear();
+        FightUI.cardItemList.Clear();
     }
 
     private static void TestSolarFlameSealFormula()

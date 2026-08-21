@@ -108,12 +108,12 @@ internal static class MatchReplayHookAdapter
             "MatchRecords.Replay",
             new AuraBattleLifecycleSubscription
             {
-                FightStarting = _ => MatchReplayRecorder.StartFromCurrentFight(),
-                FightInitialized = _ => MatchReplayRecorder.StartFromCurrentFight(),
-                PlayerRoundStarted = _ => MatchReplayRecorder.StartTurn(),
-                FightRestarting = _ => MatchReplayRecorder.Abort(),
-                FightEnding = context => MatchReplayRecorder.Complete(DamageMeterSettlementRuntime.FightResult(context)),
-                FightEnded = _ => MatchReplayRecorder.Complete("Ended")
+                BattleInitializing = _ => MatchReplayRecorder.StartFromCurrentFight(),
+                BattleMaterialized = _ => MatchReplayRecorder.StartFromCurrentFight(),
+                PlayerRoundReady = _ => MatchReplayRecorder.StartTurn(),
+                BattleRestarting = _ => MatchReplayRecorder.Abort(),
+                BattleSettling = outcome => MatchReplayRecorder.Complete(DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
+                BattleEnded = _ => MatchReplayRecorder.Complete("Ended")
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));

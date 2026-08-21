@@ -21,9 +21,9 @@ public static class DuskPartnerRuntime
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
         TerriasBattleLifecycleRouter.Register("DuskPartner", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = GrantTraitOnFightStart,
-            FightRestarting = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightRestarting"),
-            FightEnding = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightEnding")
+            BattleOpening = GrantTraitOnFightStart,
+            BattleRestarting = _ => DuskAfterheatRecoveryService.Deactivate(null, "BattleRestarting"),
+            BattleSettling = _ => DuskAfterheatRecoveryService.Deactivate(null, "BattleSettling")
         });
         TerriasBuffMutationRouter.Register("DuskPartner.Buff", new TerriasBuffMutationSubscription
         {
@@ -65,12 +65,12 @@ public static class DuskPartnerRuntime
 
             if (status.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait) == null)
             {
-                DuskAfterheatRecoveryService.Deactivate(null, "FightStarted.NewStatus");
+                DuskAfterheatRecoveryService.Deactivate(null, "BattleOpening.NewStatus");
                 status.AddBuff(TerriasIds.DuskAfterheatRecoveryTrait, 1);
                 TerriasLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
             }
 
-            DuskAfterheatRecoveryService.EnsureActive(status, "FightStarted.EnsureActive");
+            DuskAfterheatRecoveryService.EnsureActive(status, "BattleOpening.EnsureActive");
         }
         catch (Exception ex)
         {

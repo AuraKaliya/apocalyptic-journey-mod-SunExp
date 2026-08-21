@@ -17,7 +17,7 @@ public static class OriginMilestoneRuntime
         TerriasBattleLifecycleRouter.Register("OriginMilestone", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = context => ReconcileCurrent(context),
-            FightInitializing = context => ReconcileCurrent(context)
+            BattleInitializing = context => ReconcileCurrent(context)
         });
     }
 

@@ -22,6 +22,19 @@ function Read-Rows {
     })
 }
 
+function Read-TableRows {
+    param([string]$Directory)
+    if (-not (Test-Path -LiteralPath $Directory)) {
+        return @()
+    }
+
+    $rows = @()
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -Filter "*.csv" -File | Sort-Object Name)) {
+        $rows += @(Read-Rows $file.FullName)
+    }
+    return @($rows)
+}
+
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
     $ModRoot = Join-Path $repoRoot "Terrias"
@@ -31,10 +44,10 @@ elseif (-not [System.IO.Path]::IsPathRooted($ModRoot)) {
 }
 
 $modRootPath = (Resolve-Path -LiteralPath $ModRoot).Path
-$cards = Read-Rows (Join-Path $modRootPath "Data\Card\terrias.csv")
-$relics = Read-Rows (Join-Path $modRootPath "Data\Relic\terrias.csv")
-$buffs = Read-Rows (Join-Path $modRootPath "Data\Buff\terrias.csv")
-$packs = Read-Rows (Join-Path $modRootPath "Data\CardPack\terrias.csv")
+$cards = Read-TableRows (Join-Path $modRootPath "Data\Card")
+$relics = Read-TableRows (Join-Path $modRootPath "Data\Relic")
+$buffs = Read-TableRows (Join-Path $modRootPath "Data\Buff")
+$packs = Read-TableRows (Join-Path $modRootPath "Data\CardPack")
 
 Write-Host "Terrias inventory"
 Write-Host "  Cards:  $($cards.Count)"
@@ -44,12 +57,12 @@ Write-Host "  Packs:  $($packs.Count)"
 
 Write-Host ""
 Write-Host "Cards by pack:"
-$cards | Group-Object PackBelong | Sort-Object Name | ForEach-Object {
+$cards | Group-Object { if ([string]::IsNullOrWhiteSpace($_.PackBelong)) { "<unpacked>" } else { $_.PackBelong } } | Sort-Object Name | ForEach-Object {
     Write-Host "  $($_.Name): $($_.Count)"
 }
 
 Write-Host ""
 Write-Host "Relics by pack:"
-$relics | Group-Object PackBelong | Sort-Object Name | ForEach-Object {
+$relics | Group-Object { if ([string]::IsNullOrWhiteSpace($_.PackBelong)) { "<unpacked>" } else { $_.PackBelong } } | Sort-Object Name | ForEach-Object {
     Write-Host "  $($_.Name): $($_.Count)"
 }

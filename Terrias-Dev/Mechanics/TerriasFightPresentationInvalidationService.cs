@@ -102,7 +102,7 @@ public static class TerriasFightPresentationInvalidationService
         var decision = TerriasPresentationInvalidationPolicy.Decide(
             check.WasPending,
             check.IsPending,
-            TerriasActiveCardPresentationIndex.AllActiveCardsManaged(),
+            TerriasActiveCardPresentationIndex.HasCompleteActiveCardCoverage(),
             check.Mutations.Count,
             allKnown,
             allDeltaSafe);
@@ -173,35 +173,42 @@ public static class TerriasFightPresentationInvalidationService
 
         foreach (var card in TerriasActiveCardPresentationIndex.Snapshot(rule.CardIds))
         {
+            var dirty = TerriasCardDirtyFields.None;
             if ((rule.Fields & (TerriasPresentationDirtyFields.Tags
-                                | TerriasPresentationDirtyFields.Visual)) != 0)
+                                 | TerriasPresentationDirtyFields.Visual)) != 0)
             {
-                TerriasCardRefreshQueue.RequestFullRefresh(card, source);
-                continue;
+                dirty |= TerriasCardDirtyFields.TagIndex
+                         | TerriasCardDirtyFields.DerivedState
+                         | TerriasCardDirtyFields.Description
+                         | TerriasCardDirtyFields.Usability
+                         | TerriasCardDirtyFields.Visual;
             }
-
 
             if ((rule.Fields & TerriasPresentationDirtyFields.Usability) != 0)
             {
-                TerriasCardRefreshQueue.RequestDataUpdate(card, source);
-                continue;
+                dirty |= TerriasCardDirtyFields.DerivedState | TerriasCardDirtyFields.Usability;
             }
 
             if ((rule.Fields & TerriasPresentationDirtyFields.Description) != 0)
             {
-                TerriasCardRefreshQueue.RequestDescriptionUpdate(card, source);
+                dirty |= TerriasCardDirtyFields.DerivedState | TerriasCardDirtyFields.Description;
             }
 
             if ((rule.Fields & TerriasPresentationDirtyFields.Cost) != 0)
             {
-                TerriasCardRefreshQueue.RequestCostUpdate(card, source);
+                dirty |= TerriasCardDirtyFields.Cost;
+            }
+
+            if (dirty != TerriasCardDirtyFields.None)
+            {
+                TerriasCardInvalidationService.Invalidate(card, dirty, source);
             }
         }
     }
 
     private static bool TryClearNativeRefresh(bool wasPending, bool isPending, string source)
     {
-        if (wasPending || !isPending || !TerriasActiveCardPresentationIndex.AllActiveCardsManaged())
+        if (wasPending || !isPending || !TerriasActiveCardPresentationIndex.HasCompleteActiveCardCoverage())
         {
             return false;
         }

@@ -4,14 +4,6 @@ public static class TerriasHookTargets
 {
     public const string GameEntryStartGame = "GameEntryUI.StartGame";
 
-    public const string FightStartInit = "Fight_Start.Init";
-    public const string FightInitInit = "FightInit.Init";
-    public const string FightWinInit = "Fight_Win.Init";
-    public const string FightWinResetStates = "Fight_Win.ResetStates";
-    public const string FightEscapeInit = "Fight_Escape.Init";
-    public const string FightEscapeResetStates = "Fight_Escape.ResetStates";
-    public const string FightLossInit = "Fight_Loss.Init";
-    public const string FightPlayerTurnInit = "Fight_PlayerTurn.Init";
     public const string FightUiCreateCardItem = "FightUI.CreateCardItem";
     public const string FightUiCreateCardItemInternal = "FightUI.CreateCardItemInternal";
     public const string FightUiUpdateCardMsg = "FightUI.UpdateCardMsg";
@@ -31,10 +23,6 @@ public static class TerriasHookTargets
     public const string CardItemEffectOfThrowCard = "CardItem.EffectOfThrowCard";
     public const string CommonCardItemDrawEffect = "CommonCardItem.DrawEffect";
     public const string AttackCardItemDrawEffect = "AttackCardItem.DrawEffect";
-    public const string CommonCardItemTrueUse = "CommonCardItem.TrueUse";
-    public const string CommonCardItemOnBeginDrag = "CommonCardItem.OnBeginDrag";
-    public const string CommonCardItemUseCardDirectly = "CommonCardItem.UseCardDirectly";
-    public const string AttackCardItemTrueUse = "AttackCardItem.TrueUse";
     public const string FightCardManagerCardTagCheck = "FightCardManager.CardTagCheck";
     public const string CardChoiceItemInitialize = "CardChoiceItem.Initialize";
     public const string CardChoiceUiSelect = "CardChoiceUI.Select";
@@ -60,7 +48,6 @@ public static class TerriasHookTargets
     public const string EnemyManagerAddEnemy = "EnemyManager.AddEnemy";
     public const string OtherObjDoOneAction = "OtherObj.DoOneAction";
     public const string OtherObjSetAction = "OtherObj.SetAction";
-    public const string SkillItemTrueUse = "SkillItem.TrueUse";
     public const string SkillItemTryUse = "SkillItem.TryUse";
     public const string ScriptExecutorUpdateSkillTime = "ScriptExecutor.UpdateSkillTime";
 

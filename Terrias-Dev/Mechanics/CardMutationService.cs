@@ -36,35 +36,9 @@ public static class CardMutationService
 
     public static bool AddSpecialTags(IDataConfig? config, params string[] tags)
     {
-        if (config == null)
-        {
-            return false;
-        }
-
-        var changed = false;
-        var existing = DictionaryUtil.Get(config.Vars, "SpecialTag");
-        foreach (var tag in NormalizeTags(tags))
-        {
-            if (HasSpecialTag(config, tag))
-            {
-                continue;
-            }
-
-            if (!DictionaryUtil.ContainsToken(existing, tag))
-            {
-                existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
-                changed = true;
-            }
-        }
-
-        if (!changed)
-        {
-            return false;
-        }
-
-        DictionaryUtil.Set(config.Vars, "SpecialTag", existing);
-        RefreshDataConfigTags(config);
-        return true;
+        var changed = AddSpecialTagsCore(config, tags);
+        if (changed && config != null) InvalidateConfigTags(config);
+        return changed;
     }
 
     public static bool AddSpecialTags(CardItem? card, params string[] tags)
@@ -74,7 +48,7 @@ public static class CardMutationService
             return false;
         }
 
-        var changed = AddSpecialTags(card.dataConfig, tags);
+        var changed = AddSpecialTagsCore(card.dataConfig, tags);
         var existing = DictionaryUtil.Get(card.Vars, "SpecialTag");
         foreach (var tag in NormalizeTags(tags))
         {
@@ -97,38 +71,15 @@ public static class CardMutationService
         }
 
         DictionaryUtil.Set(card.Vars, "SpecialTag", existing);
-        RefreshCardItem(card);
+        InvalidateCardTags(card);
         return true;
     }
 
     public static bool AddNativeTags(IDataConfig? config, params string[] tags)
     {
-        if (config == null)
-        {
-            return false;
-        }
-
-        var changed = false;
-        var existing = CurrentNativeTagText(config);
-        foreach (var tag in NormalizeTags(tags))
-        {
-            if (DictionaryUtil.ContainsToken(existing, tag))
-            {
-                continue;
-            }
-
-            existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
-            changed = true;
-        }
-
-        if (!changed)
-        {
-            return false;
-        }
-
-        DictionaryUtil.Set(config.Vars, "Tag", existing);
-        RefreshDataConfigTags(config);
-        return true;
+        var changed = AddNativeTagsCore(config, tags);
+        if (changed && config != null) InvalidateConfigTags(config);
+        return changed;
     }
 
     public static bool AddNativeTags(CardItem? card, params string[] tags)
@@ -138,7 +89,7 @@ public static class CardMutationService
             return false;
         }
 
-        var changed = AddNativeTags(card.dataConfig, tags);
+        var changed = AddNativeTagsCore(card.dataConfig, tags);
         var existing = CurrentNativeTagText(card.dataConfig);
         foreach (var tag in NormalizeTags(tags))
         {
@@ -161,33 +112,15 @@ public static class CardMutationService
         }
 
         DictionaryUtil.Set(card.Vars, "Tag", existing);
-        RefreshCardItem(card);
+        InvalidateCardTags(card);
         return true;
     }
 
     public static bool RemoveNativeTags(IDataConfig? config, params string[] tags)
     {
-        if (config == null)
-        {
-            return false;
-        }
-
-        var removed = new HashSet<string>(NormalizeTags(tags), StringComparer.Ordinal);
-        if (removed.Count == 0)
-        {
-            return false;
-        }
-
-        var existing = CurrentNativeTagText(config);
-        var next = string.Join(",", SplitTags(existing).Where(tag => !removed.Contains(tag)));
-        if (string.Equals(existing, next, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        DictionaryUtil.Set(config.Vars, "Tag", next);
-        RefreshDataConfigTags(config);
-        return true;
+        var changed = RemoveNativeTagsCore(config, tags);
+        if (changed && config != null) InvalidateConfigTags(config);
+        return changed;
     }
 
     public static bool RemoveNativeTags(CardItem? card, params string[] tags)
@@ -203,7 +136,7 @@ public static class CardMutationService
             return false;
         }
 
-        var changed = RemoveNativeTags(card.dataConfig, removed.ToArray());
+        var changed = RemoveNativeTagsCore(card.dataConfig, removed);
         var existing = CurrentNativeTagText(card.dataConfig);
         DictionaryUtil.Set(card.Vars, "Tag", existing);
         if (card.Tags != null)
@@ -216,7 +149,7 @@ public static class CardMutationService
 
         if (changed)
         {
-            RefreshCardItem(card);
+            InvalidateCardTags(card);
         }
 
         return changed;
@@ -338,20 +271,71 @@ public static class CardMutationService
             .Where(tag => tag.Length > 0);
     }
 
-    private static void RefreshDataConfigTags(IDataConfig config)
+    private static bool AddSpecialTagsCore(IDataConfig? config, IEnumerable<string> tags)
     {
-        TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "CardMutation");
+        if (config == null) return false;
+        var changed = false;
+        var existing = DictionaryUtil.Get(config.Vars, "SpecialTag");
+        foreach (var tag in NormalizeTags(tags))
+        {
+            if (HasSpecialTag(config, tag) || DictionaryUtil.ContainsToken(existing, tag)) continue;
+            existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
+            changed = true;
+        }
+
+        if (changed) DictionaryUtil.Set(config.Vars, "SpecialTag", existing);
+        return changed;
     }
 
-    private static void RefreshCardItem(CardItem card)
+    private static bool AddNativeTagsCore(IDataConfig? config, IEnumerable<string> tags)
+    {
+        if (config == null) return false;
+        var changed = false;
+        var existing = CurrentNativeTagText(config);
+        foreach (var tag in NormalizeTags(tags))
+        {
+            if (DictionaryUtil.ContainsToken(existing, tag)) continue;
+            existing = string.IsNullOrWhiteSpace(existing) ? tag : existing + "," + tag;
+            changed = true;
+        }
+
+        if (changed) DictionaryUtil.Set(config.Vars, "Tag", existing);
+        return changed;
+    }
+
+    private static bool RemoveNativeTagsCore(IDataConfig? config, IEnumerable<string> tags)
+    {
+        if (config == null) return false;
+        var removed = new HashSet<string>(NormalizeTags(tags), StringComparer.Ordinal);
+        if (removed.Count == 0) return false;
+        var existing = CurrentNativeTagText(config);
+        var next = string.Join(",", SplitTags(existing).Where(tag => !removed.Contains(tag)));
+        if (string.Equals(existing, next, StringComparison.Ordinal)) return false;
+        DictionaryUtil.Set(config.Vars, "Tag", next);
+        return true;
+    }
+
+    private static void InvalidateConfigTags(IDataConfig config)
+    {
+        TerriasCardInvalidationService.Invalidate(config, TerriasCardDirtyFields.TagIndex, "CardMutation");
+    }
+
+    private static void InvalidateCardTags(CardItem card)
     {
         try
         {
-            TerriasCardRefreshQueue.RequestTagRefresh(card, "CardMutation");
+            TerriasCardInvalidationService.Invalidate(
+                card,
+                TerriasCardDirtyFields.TagIndex
+                | TerriasCardDirtyFields.DerivedState
+                | TerriasCardDirtyFields.Description
+                | TerriasCardDirtyFields.Usability
+                | TerriasCardDirtyFields.Visual,
+                "CardMutation");
         }
         catch (Exception ex)
         {
-            TerriasLog.Debug("Card item refresh skipped: " + ex.Message);
+            TerriasLog.Debug("Card invalidation skipped: " + ex.Message);
         }
     }
 }

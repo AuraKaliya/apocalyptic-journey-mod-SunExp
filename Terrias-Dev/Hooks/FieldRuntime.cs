@@ -28,13 +28,13 @@ public static class FieldRuntime
         FieldApi.Changed += OnFieldChanged;
         TerriasBattleLifecycleRouter.Register("FieldRuntime", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = context => ResetFightState("FightInitializing"),
-            FightOpening = OnFightOpening,
-            FightRestarting = context => ResetFightState("FightRestarting"),
-            FightEnding = context => ResetFightState("FightEnding"),
-            FightEnded = context => ResetFightState("FightEnded")
+            BattleInitializing = context => ResetFightState("BattleInitializing"),
+            BattleOpening = OnFightOpening,
+            PlayerTurnEntering = OnPlayerTurnStart,
+            BattleRestarting = context => ResetFightState("BattleRestarting"),
+            BattleSettling = context => ResetFightState("BattleSettling"),
+            BattleEnded = context => ResetFightState("BattleEnded")
         });
-        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.FightPlayerTurnInit, OnPlayerTurnStart, "FieldRuntime");
         TerriasLog.Info("Field runtime initialized");
     }
 
@@ -86,15 +86,15 @@ public static class FieldRuntime
         {
             if (!FieldApi.CanResolveFieldEffects())
             {
-                FieldNetworkSync.RequestSnapshot("Fight_PlayerTurn.Init");
-                FieldBuffHudRuntime.RequestRefresh("Fight_PlayerTurn.Init.ClientSnapshotPending");
+                FieldNetworkSync.RequestSnapshot("PlayerTurnEntering");
+                FieldBuffHudRuntime.RequestRefresh("PlayerTurnEntering.ClientSnapshotPending");
                 return;
             }
 
             var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
             var sequence = CombatVarApi.AddInt(RoundSequenceKey, 1);
-            FieldApi.ResolveRoundStart(executor, sequence.ToString(), "Fight_PlayerTurn.Init");
-            FieldBuffHudRuntime.RequestRefresh("Fight_PlayerTurn.Init");
+            FieldApi.ResolveRoundStart(executor, sequence.ToString(), "PlayerTurnEntering");
+            FieldBuffHudRuntime.RequestRefresh("PlayerTurnEntering");
         }
         catch (Exception ex)
         {

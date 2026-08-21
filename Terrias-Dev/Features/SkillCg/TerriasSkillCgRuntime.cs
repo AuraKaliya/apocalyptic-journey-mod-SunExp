@@ -39,10 +39,10 @@ public static class TerriasSkillCgRuntime
         TerriasBattleLifecycleRouter.Register("SkillCG", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = OnAdventureStart,
-            FightStarted = OnFightStart,
-            FightRestarting = OnFightEnding,
-            FightEnding = OnFightEnding,
-            FightEnded = OnFightEnded
+            BattleOpening = OnFightStart,
+            BattleRestarting = OnFightEnding,
+            BattleSettling = OnFightEnding,
+            BattleEnded = OnFightEnded
         });
     }
 

@@ -363,9 +363,12 @@ public static class CardScripts
             TerriasIds.FortuneThrowAscension,
             GoldDreamRules.SaturatingAdd(ascension, 1).ToString());
         RestorePrimaryTargetForAnimation(self, target);
-        TerriasCardRefreshQueue.RequestDataUpdateForHandCards(
+        TerriasCardInvalidationService.InvalidateHandCards(
             self.HandCard,
             new[] { TerriasIds.FortuneThrowCardId, TerriasIds.FortuneThrowCardShortId },
+            TerriasCardDirtyFields.DerivedState
+            | TerriasCardDirtyFields.Description
+            | TerriasCardDirtyFields.Usability,
             "FortuneThrow.Ascension");
     }
 
@@ -954,7 +957,7 @@ public static class CardScripts
 
             DictionaryUtil.Set(card.Vars, "ExCost", used.ToString());
             DictionaryUtil.Set(card.dataConfig?.Vars, "ExCost", used.ToString());
-            TerriasCardRefreshQueue.RequestCostUpdate(card, "FlamewheelHand");
+            TerriasCardInvalidationService.Invalidate(card, TerriasCardDirtyFields.Cost, "FlamewheelHand");
         }
     }
 }

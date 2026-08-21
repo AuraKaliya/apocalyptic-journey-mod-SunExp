@@ -101,10 +101,10 @@ public static class AuraToolsAutoBattleRuntime
             HandlerId,
             new AuraBattleLifecycleSubscription
             {
-                FightStarting = _ => ResetForBattle(),
-                FightRestarting = _ => EndBattle(),
-                FightEnding = _ => EndBattle(),
-                FightEnded = _ => EndBattle()
+                BattleInitializing = _ => ResetForBattle(),
+                BattleRestarting = _ => EndBattle(),
+                BattleSettling = _ => EndBattle(),
+                BattleEnded = _ => EndBattle()
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);

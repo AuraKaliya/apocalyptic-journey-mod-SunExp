@@ -10,15 +10,23 @@ namespace Terrias.Dll.Hooks;
 public sealed class TerriasBattleLifecycleSubscription
 {
     public Action<ModHookContext>? AdventureStarting { get; set; }
-    public Action<ModHookContext>? FightInitializing { get; set; }
-    public Action<ModHookContext>? FightInitialized { get; set; }
-    public Action<ModHookContext>? FightOpening { get; set; }
-    public Action<ModHookContext>? FightStarted { get; set; }
-    public Action<ModHookContext>? PlayerRoundStarted { get; set; }
-    public Action<ModHookContext>? FightRestarting { get; set; }
-    public Action<ModHookContext>? FightRestarted { get; set; }
-    public Action<ModHookContext>? FightEnding { get; set; }
-    public Action<ModHookContext>? FightEnded { get; set; }
+    public Action<ModHookContext>? BattleInitializing { get; set; }
+    public Action<ModHookContext>? BattleManagerInitialized { get; set; }
+    public Action<ModHookContext>? BattleMaterialized { get; set; }
+    public Action<ModHookContext>? BattleOpening { get; set; }
+    public Action<ModHookContext>? FightStartSignaled { get; set; }
+    public Action<ModHookContext>? BattleReady { get; set; }
+    public Action<ModHookContext>? ActionLoopStarting { get; set; }
+    public Action<ModHookContext>? PlayerTurnEntering { get; set; }
+    public Action<ModHookContext>? PlayerRoundStarting { get; set; }
+    public Action<ModHookContext>? PlayerRoundReady { get; set; }
+    public Action<ModHookContext>? BattleRestarting { get; set; }
+    public Action<ModHookContext>? BattleRestarted { get; set; }
+    public Action<AuraBattleOutcomeContext>? OutcomeEntering { get; set; }
+    public Action<AuraBattleOutcomeContext>? OutcomeSettling { get; set; }
+    public Action<ModHookContext>? BattleSettling { get; set; }
+    public Action<AuraBattleOutcomeContext>? OutcomeEnded { get; set; }
+    public Action<ModHookContext>? BattleEnded { get; set; }
 }
 
 public static class TerriasBattleLifecycleRouter
@@ -80,15 +88,29 @@ public static class TerriasBattleLifecycleRouter
             new AuraBattleLifecycleSubscription
             {
                 AdventureStarting = subscription.AdventureStarting,
-                FightInitializing = subscription.FightInitializing,
-                FightInitialized = subscription.FightInitialized,
-                FightOpening = subscription.FightOpening,
-                FightStarted = subscription.FightStarted,
-                PlayerRoundStarted = subscription.PlayerRoundStarted,
-                FightRestarting = subscription.FightRestarting,
-                FightRestarted = subscription.FightRestarted,
-                FightEnding = subscription.FightEnding,
-                FightEnded = subscription.FightEnded
+                BattleInitializing = subscription.BattleInitializing,
+                BattleManagerInitialized = subscription.BattleManagerInitialized,
+                BattleMaterialized = subscription.BattleMaterialized,
+                BattleOpening = subscription.BattleOpening,
+                FightStartSignaled = subscription.FightStartSignaled,
+                BattleReady = subscription.BattleReady,
+                ActionLoopStarting = subscription.ActionLoopStarting,
+                PlayerTurnEntering = subscription.PlayerTurnEntering,
+                PlayerRoundStarting = subscription.PlayerRoundStarting,
+                PlayerRoundReady = subscription.PlayerRoundReady,
+                BattleRestarting = subscription.BattleRestarting,
+                BattleRestarted = subscription.BattleRestarted,
+                OutcomeEntering = subscription.OutcomeEntering,
+                BattleSettling = context =>
+                {
+                    subscription.OutcomeSettling?.Invoke(context);
+                    subscription.BattleSettling?.Invoke(context.NativeContext);
+                },
+                BattleEnded = context =>
+                {
+                    subscription.OutcomeEnded?.Invoke(context);
+                    subscription.BattleEnded?.Invoke(context.NativeContext);
+                }
             },
             TerriasLog.Debug,
             TerriasLog.Warn);

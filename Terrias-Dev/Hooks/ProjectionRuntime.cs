@@ -23,25 +23,21 @@ public static class ProjectionRuntime
             "projection-card-runtime",
             new ProjectionCardAutomationProvider(),
             priority: 100);
-        RegisterBefore(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
-            context => GateDuplicateProjectionUseBefore(context, "OnBeginDrag"));
-        RegisterAfter(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
-            context => RestoreProjectionUseGate(context, "OnBeginDrag"));
-        RegisterBefore(modConfig, TerriasHookTargets.CommonCardItemUseCardDirectly,
-            context => GateDuplicateProjectionUseBefore(context, "UseCardDirectly"));
-        RegisterAfter(modConfig, TerriasHookTargets.CommonCardItemUseCardDirectly,
-            context => RestoreProjectionUseGate(context, "UseCardDirectly"));
+        TerriasCardInteractionRouter.Register("Projection", new TerriasCardInteractionSubscription
+        {
+            Priority = 100,
+            BeforeCommonBeginDrag = context => GateDuplicateProjectionUseBefore(context, "OnBeginDrag"),
+            AfterCommonBeginDrag = context => RestoreProjectionUseGate(context, "OnBeginDrag"),
+            BeforeCommonUseDirectly = context => GateDuplicateProjectionUseBefore(context, "UseCardDirectly"),
+            AfterCommonUseDirectly = context => RestoreProjectionUseGate(context, "UseCardDirectly")
+        });
         TerriasBattleLifecycleRouter.Register("Projection", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = context => BeginBattle("Fight_Start.Init"),
-            FightRestarting = context => ClearBattle("FightRestarting"),
-            FightEnding = context => ClearBattle("FightEnding")
+            BattleOpening = context => BeginBattle("BattleOpening"),
+            PlayerRoundReady = context => ProjectionTurnCoordinator.BeginPlayerRound("PlayerRoundReady"),
+            BattleRestarting = context => ClearBattle("BattleRestarting"),
+            OutcomeEntering = context => ClearBattle("OutcomeEntering." + context.Outcome)
         });
-        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterAfter(modConfig, TerriasHookTargets.FightPlayerTurnInit,
-            context => ProjectionTurnCoordinator.BeginPlayerRound("Fight_PlayerTurn.Init"));
         TerriasStatusLifecycleRouter.Register("Projection", new TerriasStatusLifecycleSubscription
         {
             AfterHit = RetireProjectionAfterDamage,
@@ -49,16 +45,6 @@ public static class ProjectionRuntime
             AfterMaxHpChanged = RetireProjectionAfterHpChange
         });
         TerriasLog.Info("Projection runtime initialized");
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.Before(config, target, action, "Projection");
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "Projection");
     }
 
     internal static void ClearBattle(string source, bool sweepVisualOrphans = true)

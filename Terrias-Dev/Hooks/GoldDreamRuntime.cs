@@ -21,10 +21,10 @@ public static class GoldDreamRuntime
         EnsureActionHandler(modConfig);
         TerriasBattleLifecycleRouter.Register("GoldDream", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => Reset("FightInitializing"),
-            FightStarted = _ => ActivateFromCombatDeck(),
-            FightRestarting = _ => Reset("FightRestarting"),
-            FightEnding = _ => Reset("FightEnding")
+            BattleInitializing = _ => Reset("BattleInitializing"),
+            BattleOpening = _ => ActivateFromCombatDeck(),
+            BattleRestarting = _ => Reset("BattleRestarting"),
+            BattleSettling = _ => Reset("BattleSettling")
         });
         TerriasHookRegistry.After(
             modConfig,
@@ -146,7 +146,7 @@ public static class GoldDreamRuntime
             return;
         }
 
-        TerriasCardRefreshQueue.RequestDataUpdateForHandCards(
+        TerriasCardInvalidationService.InvalidateHandCards(
             executor.HandCard,
             new[]
             {
@@ -155,6 +155,9 @@ public static class GoldDreamRuntime
                 TerriasIds.FortuneThrowCardId,
                 TerriasIds.FortuneThrowCardShortId
             },
+            TerriasCardDirtyFields.DerivedState
+            | TerriasCardDirtyFields.Description
+            | TerriasCardDirtyFields.Usability,
             "GoldDream.PaymentStateChanged");
     }
 

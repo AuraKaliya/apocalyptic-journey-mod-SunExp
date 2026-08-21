@@ -37,14 +37,37 @@ public static class TerriasHardTagRuntime
         activeConfig = modConfig;
         TerriasBattleLifecycleRouter.Register("HardTag", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = OnFightInitializing,
-            FightInitialized = OnFightInitialized,
-            FightRestarting = _ => ReleaseBattleSubscriptions(),
-            FightEnding = OnFightEnding
+            BattleInitializing = OnFightInitializing,
+            BattleMaterialized = OnFightInitialized,
+            PlayerRoundReady = OnPlayerTurn,
+            BattleRestarting = _ => ReleaseBattleSubscriptions(),
+            BattleSettling = OnFightEnding
         });
-        RegisterAfter(modConfig, TerriasHookTargets.FightPlayerTurnInit, OnPlayerTurn);
-        RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseBefore);
-        RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseAfter);
+        AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "HardTag.SkillUse",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.Attempting | AuraSkillActionPhase.Completed | AuraSkillActionPhase.Aborted,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraSkillActionPhase.Attempting)
+                    {
+                        OnSkillUseBefore(context.NativeContext);
+                    }
+                    else if (context.Phase == AuraSkillActionPhase.Completed)
+                    {
+                        OnSkillUseAfter(context.NativeContext);
+                    }
+                    else if (context.NativeContext.Target is SkillItem skillItem)
+                    {
+                        CancelStagnantWaterSkillCooldown(skillItem);
+                    }
+                }
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasLog.Info("Terrias hard tag runtime initialized");
     }
 
@@ -202,14 +225,14 @@ public static class TerriasHardTagRuntime
             EnsureCardLifecycleRegistered();
             TerriasLifecycleStepRunner.RunBattleOnce(
                 "HardTag",
-                "FightInitialized",
+                "BattleMaterialized",
                 new[]
                 {
                     new TerriasFrameStep("SunsetExpedition", ApplySunsetExpedition),
-                    new TerriasFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "FightInit.Init")),
-                    new TerriasFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "FightInit.Init")),
-                    new TerriasFrameStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("FightInit.Init")),
-                    new TerriasFrameStep("BlackSunListener", () => RegisterPlayerRoundListener("FightInit.Init"))
+                    new TerriasFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "BattleMaterialized")),
+                    new TerriasFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "BattleMaterialized")),
+                    new TerriasFrameStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("BattleMaterialized")),
+                    new TerriasFrameStep("BlackSunListener", () => RegisterPlayerRoundListener("BattleMaterialized"))
                 },
                 AuraSharedFramePhase.GameplayMutation,
                 priority: 10,
@@ -230,10 +253,10 @@ public static class TerriasHardTagRuntime
                 return;
             }
 
-            MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
-            EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
-            RegisterAbyssGazeEndRoundListener("Fight_PlayerTurn.Init");
-            RegisterPlayerRoundListener("Fight_PlayerTurn.Init");
+            MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "PlayerRoundReady");
+            EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "PlayerRoundReady");
+            RegisterAbyssGazeEndRoundListener("PlayerRoundReady");
+            RegisterPlayerRoundListener("PlayerRoundReady");
         }
         catch (Exception ex)
         {
@@ -246,8 +269,8 @@ public static class TerriasHardTagRuntime
         try
         {
             ReleaseBattleSubscriptions();
-            EndlessAbyssCrackService.RestoreTemporaryCracks("FightEnding");
-            EndlessAbyssCurseService.CleanupTemporaryCombatCurses("FightEnding");
+            EndlessAbyssCrackService.RestoreTemporaryCracks("BattleSettling");
+            EndlessAbyssCurseService.CleanupTemporaryCombatCurses("BattleSettling");
         }
         catch (Exception ex)
         {
@@ -634,6 +657,12 @@ public static class TerriasHardTagRuntime
         TerriasFrameDispatcher.RunOnceNextFrame(
             "TerriasHard.StagnantWaterCooldown." + token,
             () => DoubleStagnantWaterCooldown(skillId, before, executor, "SkillItem.TrueUse"));
+    }
+
+    private static void CancelStagnantWaterSkillCooldown(SkillItem skillItem)
+    {
+        var skillId = RoleSkillApi.NormalizeSkillId(CardConfigApi.Id(skillItem?.dataConfig));
+        if (!string.IsNullOrWhiteSpace(skillId)) SkillCooldownBeforeUse.Remove(skillId);
     }
 
     private static void DoubleStagnantWaterCooldown(string skillId, int before, ScriptExecutor? executor, string source)

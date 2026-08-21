@@ -107,10 +107,10 @@ public static class AuraToolsSkillCgRuntime
             new AuraBattleLifecycleSubscription
             {
                 AdventureStarting = OnAdventureStart,
-                FightStarted = OnFightStart,
-                FightRestarting = OnFightEnding,
-                FightEnding = OnFightEnding,
-                FightEnded = OnFightEnded
+                BattleOpening = OnFightStart,
+                BattleRestarting = OnFightEnding,
+                BattleSettling = outcome => OnFightEnding(outcome.NativeContext),
+                BattleEnded = outcome => OnFightEnded(outcome.NativeContext)
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));

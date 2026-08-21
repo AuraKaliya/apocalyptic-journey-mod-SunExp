@@ -32,9 +32,9 @@ public static class TerriasCardUseFxRuntime
         AuraCardUseFxRuntime.Triggered += OnTriggered;
         TerriasBattleLifecycleRouter.Register("CardUseFx", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => Clear("fight-start"),
-            FightRestarting = _ => Clear("fight-restarting"),
-            FightEnding = _ => Clear("fight-end")
+            BattleOpening = _ => Clear("battle-opening"),
+            BattleRestarting = _ => Clear("battle-restarting"),
+            BattleSettling = _ => Clear("battle-settling")
         });
         TerriasLog.Info("[CardUseFx] Stellar Overture card-use FX runtime initialized.");
     }

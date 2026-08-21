@@ -211,6 +211,6 @@ public static class MorningStarRelicService
             return;
         }
 
-        TerriasCardRefreshQueue.RequestFullRefresh(card, "Relic.TimelessClock");
+        TerriasCardInvalidationService.Invalidate(card, TerriasCardDirtyFields.Cost, "Relic.TimelessClock");
     }
 }

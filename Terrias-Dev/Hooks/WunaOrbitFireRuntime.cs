@@ -17,17 +17,33 @@ public static class WunaOrbitFireRuntime
     private const string LogPrefix = "[WunaOrbitFire]";
     private static readonly HashSet<int> AttachedRendererIds = new();
     private static readonly HashSet<string> LoggedSkips = new(StringComparer.Ordinal);
+    private static IDisposable? actionRegistration;
+    private static ModConfig? activeConfig;
 
     public static void Initialize(ModConfig modConfig)
     {
+        activeConfig = modConfig;
         TerriasStatusLifecycleRouter.Register("WunaOrbitFire", new TerriasStatusLifecycleSubscription
         {
             AfterInitAnimator = AttachFromStatusContext,
             AfterSetSprite = AttachFromStatusContext,
             AfterFightUiFadeIn = AttachFromFightUiContext
         });
-        AuraCardActionTransactionRouter.Register(
-            modConfig,
+        TerriasBattleLifecycleRouter.Register("WunaOrbitFire", new TerriasBattleLifecycleSubscription
+        {
+            BattleOpening = _ => ReconcileActionSubscription(),
+            BattleRestarting = _ => ReleaseActionSubscription(),
+            OutcomeEntering = _ => ReleaseActionSubscription()
+        });
+        TerriasLog.Info(LogPrefix + " runtime initialized");
+    }
+
+    private static void ReconcileActionSubscription()
+    {
+        ReleaseActionSubscription();
+        if (activeConfig == null || !TerriasPerformanceSettings.WunaOrbitFireEnabled || !IsCurrentCareerWuna()) return;
+        actionRegistration = AuraCardActionTransactionRouter.Register(
+            activeConfig,
             TerriasIds.ModId,
             "WunaOrbitFire",
             new AuraCardActionSubscription
@@ -37,7 +53,12 @@ public static class WunaOrbitFireRuntime
             },
             TerriasLog.Debug,
             TerriasLog.Warn);
-        TerriasLog.Info(LogPrefix + " runtime initialized");
+    }
+
+    private static void ReleaseActionSubscription()
+    {
+        actionRegistration?.Dispose();
+        actionRegistration = null;
     }
 
     public static void AttachFromExecutor(IScriptExecutor? executor, string action = "", string source = "executor")

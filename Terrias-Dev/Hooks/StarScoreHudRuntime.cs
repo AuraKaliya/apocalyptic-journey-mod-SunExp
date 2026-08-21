@@ -20,20 +20,13 @@ public static class StarScoreHudRuntime
     {
         TerriasBattleLifecycleRouter.Register("StarScoreHud", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = OnFightBoundary,
-            FightEnding = OnFightBoundary
+            BattleOpening = OnFightBoundary,
+            OutcomeEntering = context => OnFightBoundary(context.NativeContext)
         });
-        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, OnFightBoundary);
-        RegisterAfter(modConfig, TerriasHookTargets.FightEscapeInit, OnFightBoundary);
 
         StarScoreService.Changed -= OnStarScoreChanged;
         StarScoreService.Changed += OnStarScoreChanged;
         TerriasLog.Info("Star score HUD runtime initialized");
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "StarScoreHud");
     }
 
     private static void OnFightBoundary(ModHookContext context)

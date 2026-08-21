@@ -14,9 +14,18 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
 - `TerriasConfigIndex`: cached data-table row and filtered-row lookup.
 - `AuraCardActionTransactionRouter`: shared typed card-action transactions for
   `Action`, `ActionAfter`, successful presentation commit, completion, and abort.
+- `AuraSkillActionTransactionRouter`: shared skill attempts that observe the
+  native `UseScript` boundary and publish committed/completed versus aborted
+  transactions.
 - `TerriasActionPassiveRegistry`: phase-indexed Terrias Buff/relic/career
   passives behind the single shared native action lane.
-- `TerriasCardRefreshQueue`: debounced card refresh and `DataUpdate` work.
+- `TerriasCardInteractionRouter`, `TerriasCardExitRouter`,
+  `TerriasScriptExecutionRouter`, `TerriasCombatActionRouter`, and
+  `TerriasStatusLifecycleRouter`: lock-free semantic subscriber snapshots behind
+  one routed native callback per combat boundary.
+- `TerriasCardInvalidationService`: dirty-field card invalidation, config/view
+  coalescing, derived-state projection, delta presentation, and the single
+  guarded `DataUpdate` fallback.
 - `ScriptDelegateApi`: replaces the first CSV/XLua card initialization bridge
   with a cached direct C# delegate for subsequent presentation refreshes.
 - `TerriasBuffMutationRouter`: typed Add/Remove/level/check transactions with
@@ -32,8 +41,10 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
   resource caches, or duplicate listener registrations.
 - Route card action semantics through `AuraCardActionTransactionRouter`; do not
   restore Terrias-local Action/ActionAfter stacks.
-- Queue repeated card UI refresh through `TerriasCardRefreshQueue` instead of
-  issuing immediate repeated `DataUpdate` calls.
+- Submit explicit `TerriasCardDirtyFields` through
+  `TerriasCardInvalidationService`; never call `CardItem.RefreshTag`, whose
+  native contract also performs `DataUpdate`, and never issue repeated direct
+  `DataUpdate` calls.
 - Route repeated resource loads through `TerriasResourceCache`.
 - Route repeated data-table scans through `TerriasConfigIndex` when a cached
   lookup is already available.

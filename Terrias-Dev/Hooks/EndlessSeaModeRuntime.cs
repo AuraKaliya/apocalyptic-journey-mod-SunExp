@@ -35,7 +35,7 @@ public static class EndlessSeaModeRuntime
         RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncSeaClientLastNodeAfterNextMap);
         TerriasBattleLifecycleRouter.Register("EndlessSeaMode", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = context => EndlessAbyssMilestonePromptService.Reset("Fight_Start.Init")
+            BattleOpening = context => EndlessAbyssMilestonePromptService.Reset("BattleOpening")
         });
     }
 

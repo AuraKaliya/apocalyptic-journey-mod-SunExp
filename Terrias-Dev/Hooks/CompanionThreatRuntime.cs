@@ -11,13 +11,11 @@ public static class CompanionThreatRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "ScriptExecutor.SetStatus", ExtendEnemyTargetsAfterSetStatus);
+        TerriasScriptExecutionRouter.Register("CompanionThreat", new TerriasScriptExecutionSubscription
+        {
+            AfterSetStatus = ExtendEnemyTargetsAfterSetStatus
+        });
         TerriasLog.Info("Companion threat runtime initialized");
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "CompanionThreat");
     }
 
     private static void ExtendEnemyTargetsAfterSetStatus(ModHookContext context)

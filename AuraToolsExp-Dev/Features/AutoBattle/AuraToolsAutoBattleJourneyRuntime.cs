@@ -39,10 +39,10 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             new AuraBattleLifecycleSubscription
             {
                 AdventureStarting = _ => BeginAdventure(),
-                FightStarting = _ => BeginBattle(),
-                FightRestarting = MarkBattleRestarting,
-                FightEnding = MarkBattleEnding,
-                FightEnded = FinishBattle
+                BattleInitializing = _ => BeginBattle(),
+                BattleRestarting = MarkBattleRestarting,
+                BattleSettling = outcome => MarkBattleEnding(outcome.NativeContext),
+                BattleEnded = outcome => FinishBattle(outcome.NativeContext)
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);

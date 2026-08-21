@@ -23,9 +23,9 @@ public static class EndlessSeaCardAffixRuntime
     {
         TerriasBattleLifecycleRouter.Register("EndlessSeaCardAffix.Activator", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => EnsureCardLifecycleRegisteredForEndlessSea(),
-            FightRestarting = _ => ReleaseCardLifecycle(),
-            FightEnding = _ => ReleaseCardLifecycle()
+            BattleOpening = _ => EnsureCardLifecycleRegisteredForEndlessSea(),
+            BattleRestarting = _ => ReleaseCardLifecycle(),
+            BattleSettling = _ => ReleaseCardLifecycle()
         });
         EnsureCardLifecycleRegisteredForEndlessSea();
         TerriasLog.Info("Endless Sea card affix runtime initialized");

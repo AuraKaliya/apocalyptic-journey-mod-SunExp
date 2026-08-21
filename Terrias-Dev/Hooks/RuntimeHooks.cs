@@ -19,7 +19,7 @@ public static class RuntimeHooks
         {
             TerriasBattleLifecycleRouter.Register("CardScripts", new TerriasBattleLifecycleSubscription
             {
-                FightInitializing = _ =>
+                BattleInitializing = _ =>
                 {
                     LegacyBattleHookVarMigration.ReconcileCurrentRole();
                     CardScripts.ResetFightState();
@@ -42,14 +42,17 @@ public static class RuntimeHooks
                 TerriasLog.Warn);
             TerriasBattleLifecycleRouter.Register("ActionPassives", new TerriasBattleLifecycleSubscription
             {
-                FightInitializing = _ => TerriasActionPassiveRegistry.Clear(),
-                FightRestarting = _ => TerriasActionPassiveRegistry.Clear(),
-                FightEnding = _ => TerriasActionPassiveRegistry.Clear()
+                BattleInitializing = _ => TerriasActionPassiveRegistry.Clear(),
+                BattleRestarting = _ => TerriasActionPassiveRegistry.Clear(),
+                BattleSettling = _ => TerriasActionPassiveRegistry.Clear()
             });
         });
         RunHookStep("companion scene lifecycle", () => CompanionSceneLifecycleRuntime.Initialize(modConfig));
         RunHookStep("card lifecycle router", () => TerriasCardLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card interaction router", () => TerriasCardInteractionRouter.Initialize(modConfig));
+        RunHookStep("card exit router", () => TerriasCardExitRouter.Initialize(modConfig));
         RunHookStep("combat action router", () => TerriasCombatActionRouter.Initialize(modConfig));
+        RunHookStep("script execution router", () => TerriasScriptExecutionRouter.Initialize(modConfig));
         RunHookStep("status lifecycle router", () => TerriasStatusLifecycleRouter.Initialize(modConfig));
         RunHookStep("buff mutation router", () => TerriasBuffMutationRouter.Initialize(modConfig));
         RunHookStep("remote target event compatibility", () => RemoteTargetEventRuntime.Initialize(modConfig));

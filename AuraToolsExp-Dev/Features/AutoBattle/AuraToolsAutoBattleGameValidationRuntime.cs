@@ -141,9 +141,9 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             HandlerId,
             new AuraBattleLifecycleSubscription
             {
-                FightStarted = OnFightStarted,
-                FightEnding = OnFightEnding,
-                FightEnded = OnFightEnded
+                BattleReady = OnFightStarted,
+                BattleSettling = outcome => OnFightEnding(outcome.NativeContext),
+                BattleEnded = outcome => OnFightEnded(outcome.NativeContext)
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);

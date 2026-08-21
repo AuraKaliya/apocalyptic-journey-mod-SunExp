@@ -86,7 +86,30 @@ namespace AuraShared.Core
     }
     public static class AuraCardPresentationDelta
     {
-        public static bool TrySetCost(UnityEngine.Transform? transform, string costText) => true;
+        public static bool CostResult { get; set; } = true;
+        public static bool DescriptionResult { get; set; } = true;
+        public static int CostUpdates { get; private set; }
+        public static int DescriptionUpdates { get; private set; }
+
+        public static bool TrySetCost(UnityEngine.Transform? transform, string costText)
+        {
+            CostUpdates++;
+            return CostResult;
+        }
+
+        public static bool TrySetDescription(UnityEngine.Transform? transform, string description)
+        {
+            DescriptionUpdates++;
+            return DescriptionResult;
+        }
+
+        public static void Reset()
+        {
+            CostResult = true;
+            DescriptionResult = true;
+            CostUpdates = 0;
+            DescriptionUpdates = 0;
+        }
     }
 }
 
@@ -187,6 +210,10 @@ namespace AuraGameData.Shared.GameApi
 
 namespace UnityEngine
 {
+    public sealed class GameObject
+    {
+    }
+
     public sealed class Transform
     {
     }
@@ -194,6 +221,17 @@ namespace UnityEngine
 
 namespace Witch.Core
 {
+    public sealed class ModHookContext
+    {
+        public object? Target { get; set; }
+    }
+}
+
+namespace Witch.Mod
+{
+    public sealed class ModConfig
+    {
+    }
 }
 
 public sealed class FightPlayer
@@ -326,9 +364,20 @@ public sealed class FightCardManager
     public List<DataConfig> usedCardList { get; } = new();
 
     public Dictionary<DataConfig, HashSet<string>> CardTags { get; } = new();
+    public int RefreshTagCount { get; private set; }
 
     public void RefreshTag(IDataConfig config)
     {
+        RefreshTagCount++;
+        if (config is DataConfig dataConfig)
+        {
+            CardTags[dataConfig] = new HashSet<string>(StringComparer.Ordinal);
+        }
+    }
+
+    public void ResetDiagnostics()
+    {
+        RefreshTagCount = 0;
     }
 }
 
@@ -354,19 +403,33 @@ public sealed class CardItem
     public List<string> Tags { get; } = new();
 
     public UnityEngine.Transform transform { get; } = new();
+    public UnityEngine.GameObject gameObject { get; } = new();
 
     public Action? DataUpdateAction { get; set; }
 
     public int DataUpdateCount { get; private set; }
+    public int RefreshTagCount { get; private set; }
+    public int TransformCount { get; private set; }
 
     public void RefreshTag()
     {
+        RefreshTagCount++;
+        FightCardManager.Instance.RefreshTag(dataConfig!);
+        DataUpdate();
     }
 
     public void DataUpdate()
     {
         DataUpdateCount++;
         DataUpdateAction?.Invoke();
+    }
+
+    public CardItem TransformToConfiguredType(DataConfig nextDataConfig)
+    {
+        TransformCount++;
+        dataConfig = nextDataConfig;
+        DataUpdate();
+        return this;
     }
 
     public int GetInstanceID()
@@ -435,7 +498,48 @@ namespace Terrias.Dll.Hooks
 {
     public enum TerriasCardPresentationSurface
     {
+        CombatCard,
         PostCommit
+    }
+
+    public sealed class TerriasCardPresentationContext
+    {
+        public UnityEngine.Transform? Root { get; set; }
+        public IDataConfig? Config { get; set; }
+        public CardItem? Card { get; set; }
+        public string Source { get; set; } = "";
+        public TerriasCardPresentationSurface Surface { get; set; }
+    }
+
+    public sealed class TerriasCardLifecycleSubscription
+    {
+        public Action<Witch.Core.ModHookContext>? AfterCardItemInit { get; set; }
+        public Action<Witch.Core.ModHookContext>? AfterAttackCardItemInit { get; set; }
+        public Action<Witch.Core.ModHookContext>? AfterCardItemDataUpdate { get; set; }
+        public Action<Witch.Core.ModHookContext>? AfterAttackCardItemDataUpdate { get; set; }
+    }
+
+    public static class TerriasCardLifecycleRouter
+    {
+        public static IDisposable Register(string id, TerriasCardLifecycleSubscription subscription) => EmptyDisposable.Instance;
+    }
+
+    public sealed class TerriasBattleLifecycleSubscription
+    {
+        public Action<Witch.Core.ModHookContext>? BattleInitializing { get; set; }
+        public Action<Witch.Core.ModHookContext>? BattleSettling { get; set; }
+        public Action<Witch.Core.ModHookContext>? BattleRestarting { get; set; }
+    }
+
+    public static class TerriasBattleLifecycleRouter
+    {
+        public static IDisposable Register(string id, TerriasBattleLifecycleSubscription subscription) => EmptyDisposable.Instance;
+    }
+
+    internal sealed class EmptyDisposable : IDisposable
+    {
+        public static readonly EmptyDisposable Instance = new();
+        public void Dispose() { }
     }
 
     public sealed class TestCardRoot
@@ -456,6 +560,8 @@ namespace Terrias.Dll.Hooks
 
     public static class TerriasCardPresentationRouter
     {
+        public static int ApplyCount { get; private set; }
+
         public static TestCardRoot? FindCombatCardRoot(IDataConfig config)
         {
             foreach (var item in Witch.UI.Window.FightUI.cardItemList)
@@ -471,10 +577,21 @@ namespace Terrias.Dll.Hooks
 
         public static void RequestApply(TestCardRoot root, IDataConfig config, string source, TerriasCardPresentationSurface surface)
         {
+            ApplyCount++;
+        }
+
+        public static void RequestApply(TerriasCardPresentationContext context)
+        {
+            ApplyCount++;
         }
 
         public static void RequestActiveCombatCardsReapply(string source, int delayFrames)
         {
+        }
+
+        public static void ResetDiagnostics()
+        {
+            ApplyCount = 0;
         }
     }
 }
@@ -582,16 +699,46 @@ namespace Terrias.Dll.Infrastructure
         public static void RecordDuration(string name, long startTimestamp)
         {
         }
+
+        public static double ElapsedMilliseconds(long startTimestamp)
+        {
+            return 0d;
+        }
     }
 }
 
 namespace Terrias.Dll.Mechanics
 {
+    public static class CardVisualThemeCatalog
+    {
+        public static bool IsTerriasCard(IDataConfig? config)
+        {
+            return config != null
+                   && Terrias.Dll.GameApi.CardConfigApi.Id(config).StartsWith("Terrias_", StringComparison.Ordinal);
+        }
+    }
+
     public static class TerriasCardDescriptionProjector
     {
-        public static bool TryRefresh(CardItem? card)
+        public static int RecomputeCount { get; private set; }
+        public static int ApplyDescriptionCount { get; private set; }
+
+        public static bool TryRecompute(CardItem? card)
         {
-            return false;
+            RecomputeCount++;
+            return true;
+        }
+
+        public static bool TryApplyDescription(CardItem? card)
+        {
+            ApplyDescriptionCount++;
+            return AuraShared.Core.AuraCardPresentationDelta.TrySetDescription(card?.transform, "description");
+        }
+
+        public static void Reset()
+        {
+            RecomputeCount = 0;
+            ApplyDescriptionCount = 0;
         }
     }
 }

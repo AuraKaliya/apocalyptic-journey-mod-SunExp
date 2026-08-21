@@ -24,7 +24,6 @@ public static class FamiliarGrowthRuntime
             TerriasLibrarySubMenuSlot.BottomRight,
             OpenPanel));
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkActiveForRun);
-        RegisterBefore(modConfig, TerriasHookTargets.FightWinResetStates, GrantBattleWinExperience);
         TerriasStatusLifecycleRouter.Register("FamiliarGrowth", new TerriasStatusLifecycleSubscription
         {
             BeforeHit = FamiliarFinalBlessingService.BeforeHit,
@@ -55,10 +54,17 @@ public static class FamiliarGrowthRuntime
         TerriasBattleLifecycleRouter.Register("FamiliarGrowth", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = MarkActiveForRun,
-            FightInitialized = ApplySelectedCombatStartEffects,
-            PlayerRoundStarted = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
-            FightRestarting = context => FamiliarBlessingEffectRuntime.EndEpoch(),
-            FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch()
+            BattleMaterialized = ApplySelectedCombatStartEffects,
+            PlayerRoundStarting = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
+            BattleRestarting = context => FamiliarBlessingEffectRuntime.EndEpoch(),
+            OutcomeSettling = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Win)
+                {
+                    GrantBattleWinExperience(context.NativeContext);
+                }
+                FamiliarBlessingEffectRuntime.EndEpoch();
+            }
         });
         TerriasLog.Info(LogPrefix + " runtime initialized.");
     }
@@ -67,11 +73,6 @@ public static class FamiliarGrowthRuntime
     {
         FamiliarGrowthApi.RefreshCurrentPartner();
         FamiliarGrowthPanel.Open();
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.Before(config, target, action, "FamiliarGrowth");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

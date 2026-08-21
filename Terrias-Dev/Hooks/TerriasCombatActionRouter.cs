@@ -12,6 +12,11 @@ public sealed class TerriasCombatActionSubscription
     public int Priority { get; set; }
     public Action<ModHookContext>? BeforeOtherObjAction { get; set; }
     public Action<ModHookContext>? AfterOtherObjAction { get; set; }
+    public Action<ModHookContext>? AfterOtherObjSetAction { get; set; }
+    public Action<ModHookContext>? AfterOtherObjEndRound { get; set; }
+    public Action<ModHookContext>? AfterFightPlayerEndRound { get; set; }
+    public Action<ModHookContext>? AfterOtherPlayerEndRound { get; set; }
+    public Action<ModHookContext>? AfterFightObjectEndRound { get; set; }
 }
 
 public static class TerriasCombatActionRouter
@@ -20,6 +25,11 @@ public static class TerriasCombatActionRouter
     private static readonly Dictionary<string, TerriasCombatActionSubscription> Subscriptions = new(StringComparer.Ordinal);
     private static PhaseHandler[] beforeOtherObj = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterOtherObj = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterOtherObjSetAction = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterOtherObjEndRound = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterFightPlayerEndRound = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterOtherPlayerEndRound = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterFightObjectEndRound = Array.Empty<PhaseHandler>();
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -28,6 +38,11 @@ public static class TerriasCombatActionRouter
         initialized = true;
         Before(modConfig, TerriasHookTargets.OtherObjDoOneAction, () => beforeOtherObj);
         After(modConfig, TerriasHookTargets.OtherObjDoOneAction, () => afterOtherObj);
+        After(modConfig, TerriasHookTargets.OtherObjSetAction, () => afterOtherObjSetAction);
+        After(modConfig, "OtherObj.EndRound", () => afterOtherObjEndRound);
+        After(modConfig, "FightPlayer.EndRound", () => afterFightPlayerEndRound);
+        After(modConfig, "OtherPlayer.EndRound", () => afterOtherPlayerEndRound);
+        After(modConfig, "FightObject.EndRound", () => afterFightObjectEndRound);
     }
 
     public static IDisposable Register(string id, TerriasCombatActionSubscription subscription)
@@ -63,6 +78,11 @@ public static class TerriasCombatActionRouter
     {
         beforeOtherObj = Build(value => value.BeforeOtherObjAction);
         afterOtherObj = Build(value => value.AfterOtherObjAction);
+        afterOtherObjSetAction = Build(value => value.AfterOtherObjSetAction);
+        afterOtherObjEndRound = Build(value => value.AfterOtherObjEndRound);
+        afterFightPlayerEndRound = Build(value => value.AfterFightPlayerEndRound);
+        afterOtherPlayerEndRound = Build(value => value.AfterOtherPlayerEndRound);
+        afterFightObjectEndRound = Build(value => value.AfterFightObjectEndRound);
     }
 
     private static PhaseHandler[] Build(Func<TerriasCombatActionSubscription, Action<ModHookContext>?> selector)

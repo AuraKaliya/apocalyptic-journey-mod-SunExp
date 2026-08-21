@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Visual;
 using Terrias.Dll.Infrastructure;
@@ -21,26 +22,36 @@ public static class PolymorphRuntime
         TerriasBattleLifecycleRouter.Register("Polymorph", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = context => ClearAdventure("AdventureStarting"),
-            FightStarted = context => ClearBattle("Fight_Start.Init"),
-            FightRestarting = context => ClearBattle("FightRestarting"),
-            FightEnding = context => ClearBattle("FightEnding")
+            BattleInitializing = context => ClearBattle("BattleInitializing"),
+            BattleRestarting = context => ClearBattle("BattleRestarting"),
+            OutcomeEntering = context => ClearBattle("OutcomeEntering." + context.Outcome)
         });
-        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);
-        RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, MarkSkillUseAfter);
+        AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "Polymorph.SkillUse",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.Attempting | AuraSkillActionPhase.Completed | AuraSkillActionPhase.Aborted,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraSkillActionPhase.Attempting)
+                    {
+                        CaptureSkillUseBefore(context.NativeContext);
+                    }
+                    else if (context.Phase == AuraSkillActionPhase.Completed)
+                    {
+                        MarkSkillUseAfter(context.NativeContext);
+                    }
+                    else if (context.NativeContext.Target is SkillItem skillItem)
+                    {
+                        TakePendingSkillUse(skillItem);
+                    }
+                }
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
         TerriasLog.Info("Polymorph runtime initialized");
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.Before(config, target, action, "Polymorph");
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "Polymorph");
     }
 
     private static void ClearBattle(string source)

@@ -24,8 +24,8 @@ public static class SandroneCatRuntime
             "SandroneCat");
         TerriasBattleLifecycleRouter.Register("SandroneCat", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = OnFightStarted,
-            FightEnding = OnFightEnding
+            BattleOpening = OnFightStarted,
+            BattleSettling = OnFightEnding
         });
     }
 

@@ -11,18 +11,17 @@ public static class EmberAdventureStateRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.After(
-            modConfig,
-            "Fight_Start.Init",
-            RestoreForLocalPlayer,
-            "EmberAdventureState");
+        TerriasBattleLifecycleRouter.Register("EmberAdventureState", new TerriasBattleLifecycleSubscription
+        {
+            BattleOpening = RestoreForLocalPlayer
+        });
     }
 
     private static void RestoreForLocalPlayer(ModHookContext context)
     {
         try
         {
-            EmberAdventureStateService.RestoreForLocalPlayer("Fight_Start.Init");
+            EmberAdventureStateService.RestoreForLocalPlayer("BattleOpening");
         }
         catch (Exception ex)
         {

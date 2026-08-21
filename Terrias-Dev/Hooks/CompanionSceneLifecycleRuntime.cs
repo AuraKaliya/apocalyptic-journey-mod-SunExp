@@ -31,12 +31,12 @@ public static class CompanionSceneLifecycleRuntime
         RegisterMenuExitBoundary(modConfig, "GameEntryUI.Init");
         TerriasBattleLifecycleRouter.Register("CompanionScene", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing"),
-            FightStarted = _ => CompanionSceneApi.TrackBattleScene(
+            BattleInitializing = _ => CleanupAfterSceneBoundary("BattleInitializing"),
+            BattleMaterialized = _ => CompanionSceneApi.TrackBattleScene(
                 SceneManager.GetActiveScene(),
-                "FightStarted"),
-            FightRestarting = _ => CleanupAfterSceneBoundary("FightRestarting"),
-            FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")
+                "BattleMaterialized"),
+            BattleRestarting = _ => CleanupAfterSceneBoundary("BattleRestarting"),
+            BattleEnded = _ => CleanupAfterSceneBoundary("BattleEnded")
         });
         TerriasLog.Info("Companion scene lifecycle runtime initialized");
     }

@@ -17,13 +17,19 @@ public static class EndlessSeaCombatRuntime
     {
         TerriasBattleLifecycleRouter.Register("EndlessSeaCombat", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => ActivateStatusHandler(),
-            FightInitialized = MarkEndlessBattleStarted,
-            FightRestarting = _ => ReleaseStatusHandler(),
-            FightEnding = _ => ReleaseStatusHandler()
+            BattleInitializing = _ => ActivateStatusHandler(),
+            BattleManagerInitialized = AddEndlessExtraEnemiesAfterFightInit,
+            BattleMaterialized = MarkEndlessBattleStarted,
+            BattleRestarting = _ => ReleaseStatusHandler(),
+            BattleSettling = _ => ReleaseStatusHandler(),
+            OutcomeEntering = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Win)
+                {
+                    MarkEndlessBattleWon(context.NativeContext);
+                }
+            }
         });
-        RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
-        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, MarkEndlessBattleWon);
     }
 
     private static void ActivateStatusHandler()
@@ -44,11 +50,6 @@ public static class EndlessSeaCombatRuntime
     {
         statusRegistration?.Dispose();
         statusRegistration = null;
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "EndlessSeaCombat");
     }
 
     private static void ScaleEnemyAfterInit(ModHookContext context)
@@ -150,7 +151,7 @@ public static class EndlessSeaCombatRuntime
         {
             if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "FightInit.Init");
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "BattleMaterialized");
             }
         }
         catch (Exception ex)
@@ -165,7 +166,7 @@ public static class EndlessSeaCombatRuntime
         {
             if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
-                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, "Fight_Win.Init");
+                EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, "OutcomeEntering.Win");
             }
         }
         catch (Exception ex)

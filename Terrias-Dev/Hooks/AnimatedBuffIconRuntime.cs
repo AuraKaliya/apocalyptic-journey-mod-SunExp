@@ -17,12 +17,10 @@ public static class AnimatedBuffIconRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        RegisterAfter(modConfig, "BuffItem.Init", AttachFromContext);
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "AnimatedBuffIcon");
+        TerriasStatusLifecycleRouter.Register("AnimatedBuffIcon", new TerriasStatusLifecycleSubscription
+        {
+            AfterBuffItemInit = AttachFromContext
+        });
     }
 
     private static void AttachFromContext(ModHookContext context)

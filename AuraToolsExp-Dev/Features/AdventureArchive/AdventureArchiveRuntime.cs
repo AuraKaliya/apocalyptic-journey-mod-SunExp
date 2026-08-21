@@ -59,12 +59,12 @@ internal static class AdventureArchiveRuntime
             Owner,
             new AuraBattleLifecycleSubscription
             {
-                FightStarting = _ => CaptureCheckpoint("battle-start", "进入战斗"),
-                FightEnding = context => CaptureCheckpoint(
+                BattleInitializing = _ => CaptureCheckpoint("battle-start", "进入战斗"),
+                BattleSettling = outcome => CaptureCheckpoint(
                     "battle-end",
                     "战斗结束",
-                    DamageMeterSettlementRuntime.FightResult(context)),
-                FightEnded = _ => CaptureSnapshot("battle-settled")
+                    DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
+                BattleEnded = _ => CaptureSnapshot("battle-settled")
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn);

@@ -18,7 +18,7 @@ public static class StarClayDollRuntime
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
         TerriasBattleLifecycleRouter.Register("StarClayDoll", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = GrantTraitOnFightStart
+            BattleOpening = GrantTraitOnFightStart
         });
         TerriasStatusLifecycleRouter.Register("StarClayDoll", new TerriasStatusLifecycleSubscription
         {

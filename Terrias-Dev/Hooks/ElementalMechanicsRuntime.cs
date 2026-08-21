@@ -23,10 +23,10 @@ public static class ElementalMechanicsRuntime
         EnsureRunner();
         TerriasBattleLifecycleRouter.Register("ElementalMechanics", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => BeginBattle(),
-            FightRestarting = _ => EndBattle("FightRestarting"),
-            FightEnding = _ => EndBattle("FightEnding"),
-            FightEnded = _ => EndBattle("FightEnded")
+            BattleInitializing = _ => BeginBattle(),
+            BattleRestarting = _ => EndBattle("BattleRestarting"),
+            BattleSettling = _ => EndBattle("BattleSettling"),
+            BattleEnded = _ => EndBattle("BattleEnded")
         });
         TerriasStatusLifecycleRouter.Register("ElementalMechanics", new TerriasStatusLifecycleSubscription
         {

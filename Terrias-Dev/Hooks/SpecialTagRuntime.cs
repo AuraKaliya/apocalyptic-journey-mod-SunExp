@@ -33,7 +33,7 @@ public static class SpecialTagRuntime
             "SpecialTag",
             new AuraBattleLifecycleSubscription
             {
-                FightInitializing = _ => ResetForFight("FightInit.Init")
+                BattleInitializing = _ => ResetForFight("BattleInitializing")
             },
             TerriasLog.Debug,
             TerriasLog.Warn);

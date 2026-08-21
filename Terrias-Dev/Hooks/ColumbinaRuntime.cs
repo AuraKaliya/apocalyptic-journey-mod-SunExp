@@ -17,11 +17,10 @@ public static class ColumbinaRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.Before(
-            modConfig,
-            "BuffItem.Init",
-            OnBuffItemInitializing,
-            "ConstellationPresentation");
+        TerriasStatusLifecycleRouter.Register("ConstellationPresentation", new TerriasStatusLifecycleSubscription
+        {
+            BeforeBuffItemInit = OnBuffItemInitializing
+        });
         AuraCardActionTransactionRouter.Register(
             modConfig,
             TerriasIds.ModId,
@@ -35,9 +34,9 @@ public static class ColumbinaRuntime
             TerriasLog.Warn);
         TerriasBattleLifecycleRouter.Register("Columbina", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = _ => OnFightStarted(),
-            PlayerRoundStarted = _ => OnPlayerRoundStarted(),
-            FightEnded = _ => OnFightEnded()
+            BattleOpening = _ => OnFightStarted(),
+            PlayerRoundReady = _ => OnPlayerRoundStarted(),
+            BattleEnded = _ => OnFightEnded()
         });
         TerriasCardLifecycleRouter.Register("Columbina.CardGain", new TerriasCardLifecycleSubscription
         {
@@ -60,8 +59,8 @@ public static class ColumbinaRuntime
         }
 
         ColumbinaBattleStateService.BeginBattle();
-        ConstellationService.RestoreLocalForBattle("ColumbinaRuntime.FightStarted");
-        ConstellationService.SynchronizeBattleState("ColumbinaRuntime.FightStarted");
+        ConstellationService.RestoreLocalForBattle("ColumbinaRuntime.BattleOpening");
+        ConstellationService.SynchronizeBattleState("ColumbinaRuntime.BattleOpening");
     }
 
     private static void OnFightEnded()

@@ -103,7 +103,14 @@ public static class CardAttachmentService
 
         if (changed > 0)
         {
-            TerriasCardRefreshQueue.RequestFullRefresh(card, "CardAttachment");
+            TerriasCardInvalidationService.Invalidate(
+                card,
+                TerriasCardDirtyFields.TagIndex
+                | TerriasCardDirtyFields.DerivedState
+                | TerriasCardDirtyFields.Description
+                | TerriasCardDirtyFields.Usability
+                | TerriasCardDirtyFields.Visual,
+                "CardAttachment");
         }
 
         return changed;

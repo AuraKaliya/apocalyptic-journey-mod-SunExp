@@ -1826,7 +1826,7 @@ rg: AuraCombatAiShared/CombatAuthoritativeBranchTeacherPolicy.cs: The system can
 **Priority**: low
 **Status**: resolved
 **Area**: tooling
-**Recurrence-Count**: 3
+**Recurrence-Count**: 4
 
 ### Summary
 A phase-metrics inspection piped directly from a `foreach` statement and produced an empty-pipe parser error.
@@ -6818,7 +6818,7 @@ boundary files and the Terrias architecture assertions passed.
 **Severity**: low
 **Status**: resolved
 **Area**: docs
-**Recurrence-Count**: 2
+**Recurrence-Count**: 3
 
 ## What failed
 
@@ -6831,8 +6831,9 @@ Windows path instead of expanding it.
 Use `rg` glob filters such as `-g '*architecture*'` or enumerate matching
 paths with `rg --files` before searching their contents.
 
-The same mistake recurred with `Aura*Shared` and `*.csproj`; keep wildcard
-expressions in `-g` filters rather than positional Windows paths.
+The same mistake recurred with `Aura*Shared`, `*.csproj`, and later
+`Terrias-Dev/Mechanics/*.cs`, and later `AuraSharedCore.Tests/*.cs`; keep
+wildcard expressions in `-g` filters rather than positional Windows paths.
 
 ---
 # ERR-20260820-002: PowerShell quoting produced an incomplete ripgrep regex
@@ -6890,3 +6891,157 @@ name in that expression position.
 
 Assigned the `if` statement result to `$count` first, then formatted the output;
 the retired Playback file count is zero.
+
+---
+# ERR-20260821-001: Terrias game-reference index pointed to a retired snapshot
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+The Terrias game-reference index named `反编译文件夹v1.0.24591395` as the
+current decompile root, but that directory no longer exists. The repository now
+contains `反编译文件夹v1.0.24605918` as the newest snapshot, so the documented
+search command failed with a path-not-found error.
+
+## Resolution
+
+For the current analysis, enumerate `开发参考资料` first and use the newest
+available decompile snapshot. The stale index should be updated through the
+Terrias skill-evolution workflow rather than silently treated as authoritative.
+
+---
+# ERR-20260821-002: Terrias CSV inventory paths were assumed to be flat
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+An inventory probe tried to read `Terrias/Data/Card.csv`, `Buff.csv`, and
+`Relic.csv`. Terrias stores these tables in type subdirectories such as
+`Terrias/Data/Card/terrias.csv`, so all three reads failed.
+
+## Resolution
+
+Enumerate `Terrias/Data` recursively and select CSV files by their parent table
+directory before reading or importing them.
+
+---
+# ERR-20260821-003: PowerShell Sort-Object mixed descending syntax was invalid
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+An analysis command used `Sort-Object Count -Descending,Name`. PowerShell does
+not accept a second property after the `-Descending` switch in that form, so
+the parser reported a missing argument.
+
+## Resolution
+
+Use calculated property specifications when sort directions differ, for
+example `Sort-Object @{Expression='Count';Descending=$true}, Name`.
+
+---
+# ERR-20260821-004: FightObject source assembly path was assumed
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+A decompiled combat-flow search included `Witch/FightObject.cs`, but that type
+is not stored at the assumed path in the current snapshot. Ripgrep reported a
+path-not-found error while still returning results from the other files.
+
+## Resolution
+
+Locate decompiled type files with `rg -l 'class FightObject'` before passing
+their paths to focused searches.
+
+---
+# ERR-20260821-005: New Terrias coverage test missed namespace qualification
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first compile of the active-card coverage test referenced `FightUI` without
+importing `Witch.UI.Window`, and a test stub referenced `CardConfigApi` from the
+wrong namespace.
+
+## Resolution
+
+Imported the native UI namespace in the test program and fully qualified the
+GameApi facade in the stub.
+
+---
+# ERR-20260821-006: Structural invalidation test counter landed on the wrong stub
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+The first structural-invalidation test patch added `TransformCount` to the
+`FightCardManager` stub instead of `CardItem`, and the test program did not
+import the presentation router namespace.
+
+## Resolution
+
+Moved the counter onto `CardItem` and imported `Terrias.Dll.Hooks`.
+
+---
+# ERR-20260821-007: apply_patch combined delete and add for one path
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+An `apply_patch` request attempted to delete and add
+`AuraBattleLifecycleRouter.cs` in one patch. The patch verifier rejected two
+operations targeting the same path. A later architecture JSON patch also used
+stale surrounding text and failed verification.
+
+## Resolution
+
+Split full-file replacement into separate delete and add patches, and inspect
+the exact current lines before patching structured configuration.
+
+---
+# ERR-20260821-008: Generic learning status patch matched the wrong entry
+
+**Logged**: 2026-08-21
+**Severity**: low
+**Status**: resolved
+**Area**: docs
+
+## What failed
+
+A learning-resolution patch matched the first generic `Status: pending` line
+in `.learnings/LEARNINGS.md`, marking an unrelated writing correction resolved
+instead of the Terrias inventory learning.
+
+## Resolution
+
+Restored the unrelated entry and updated both intended learning statuses using
+their unique learning headers as patch context.

@@ -16,21 +16,27 @@ public static class SolarMemoryBattleExitCoordinator
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.Before(
-            modConfig,
-            TerriasHookTargets.FightEscapeResetStates,
-            PrepareSolarMemoryFightAbort,
-            HookOwner);
-        TerriasHookRegistry.After(
-            modConfig,
-            TerriasHookTargets.FightEscapeResetStates,
-            SettleSolarMemoryFightAbort,
-            HookOwner);
-        TerriasHookRegistry.After(
-            modConfig,
-            TerriasHookTargets.FightLossInit,
-            SettleSolarMemoryFightLoss,
-            HookOwner);
+        TerriasBattleLifecycleRouter.Register(HookOwner, new TerriasBattleLifecycleSubscription
+        {
+            OutcomeSettling = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Escape)
+                {
+                    PrepareSolarMemoryFightAbort(context.NativeContext);
+                }
+            },
+            OutcomeEnded = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Escape)
+                {
+                    SettleSolarMemoryFightAbort(context.NativeContext);
+                }
+                else if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Loss)
+                {
+                    SettleSolarMemoryFightLoss(context.NativeContext);
+                }
+            }
+        });
     }
 
     internal static void CloseTransientUi(string source)

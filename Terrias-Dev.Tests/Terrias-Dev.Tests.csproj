@@ -38,8 +38,8 @@
     <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinSpec.cs" Link="Source\CardVisualSkinSpec.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinRule.cs" Link="Source\CardVisualSkinRule.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinRegistry.cs" Link="Source\CardVisualSkinRegistry.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\TerriasCardRefreshQueue.cs" Link="Source\TerriasCardRefreshQueue.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs" Link="Source\CardGrantPostCommitQueue.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\TerriasCardInvalidationService.cs" Link="Source\TerriasCardInvalidationService.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\TerriasActiveCardPresentationIndex.cs" Link="Source\TerriasActiveCardPresentationIndex.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CardMutationService.cs" Link="Source\CardMutationService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs" Link="Source\RuntimeCardAttachmentService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\GoldDreamRules.cs" Link="Source\GoldDreamRules.cs" />

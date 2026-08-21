@@ -16,7 +16,10 @@ public static class SpiritPartnerTurnOrderRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.Before(modConfig, "FightManager.DOAllAction", ReorderBeforeSnapshot, "PartnerTurnOrder");
+        TerriasBattleLifecycleRouter.Register("PartnerTurnOrder", new TerriasBattleLifecycleSubscription
+        {
+            ActionLoopStarting = ReorderBeforeSnapshot
+        });
     }
 
     private static void ReorderBeforeSnapshot(ModHookContext context)

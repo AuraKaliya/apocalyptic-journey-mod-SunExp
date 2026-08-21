@@ -18,9 +18,12 @@ public sealed class TerriasStatusLifecycleSubscription
     public Action<ModHookContext>? AfterMaxHpChanged { get; set; }
     public Action<ModHookContext>? AfterStateChanged { get; set; }
     public Action<ModHookContext>? AfterEnemyInit { get; set; }
+    public Action<ModHookContext>? AfterEnemyAdded { get; set; }
     public Action<ModHookContext>? AfterInitAnimator { get; set; }
     public Action<ModHookContext>? AfterSetSprite { get; set; }
     public Action<ModHookContext>? AfterFightUiFadeIn { get; set; }
+    public Action<ModHookContext>? BeforeBuffItemInit { get; set; }
+    public Action<ModHookContext>? AfterBuffItemInit { get; set; }
 }
 
 public static class TerriasStatusLifecycleRouter
@@ -35,9 +38,12 @@ public static class TerriasStatusLifecycleRouter
     private static PhaseHandler[] afterMaxHpChanged = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterStateChanged = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterEnemyInit = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterEnemyAdded = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterInitAnimator = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterSetSprite = Array.Empty<PhaseHandler>();
     private static PhaseHandler[] afterFightUiFadeIn = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] beforeBuffItemInit = Array.Empty<PhaseHandler>();
+    private static PhaseHandler[] afterBuffItemInit = Array.Empty<PhaseHandler>();
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -52,9 +58,12 @@ public static class TerriasStatusLifecycleRouter
         After(modConfig, TerriasHookTargets.StatusManagerSetMaxHp, () => afterMaxHpChanged);
         After(modConfig, TerriasHookTargets.StatusManagerSetState, () => afterStateChanged);
         After(modConfig, TerriasHookTargets.EnemyInit, () => afterEnemyInit);
+        After(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, () => afterEnemyAdded);
         After(modConfig, TerriasHookTargets.StatusManagerInitAnimator, () => afterInitAnimator);
         After(modConfig, TerriasHookTargets.StatusManagerSetSprite, () => afterSetSprite);
         After(modConfig, TerriasHookTargets.FightUiFadeIn, () => afterFightUiFadeIn);
+        Before(modConfig, "BuffItem.Init", () => beforeBuffItemInit);
+        After(modConfig, "BuffItem.Init", () => afterBuffItemInit);
     }
 
     public static IDisposable Register(string id, TerriasStatusLifecycleSubscription subscription)
@@ -96,9 +105,12 @@ public static class TerriasStatusLifecycleRouter
         afterMaxHpChanged = Build(value => value.AfterMaxHpChanged);
         afterStateChanged = Build(value => value.AfterStateChanged);
         afterEnemyInit = Build(value => value.AfterEnemyInit);
+        afterEnemyAdded = Build(value => value.AfterEnemyAdded);
         afterInitAnimator = Build(value => value.AfterInitAnimator);
         afterSetSprite = Build(value => value.AfterSetSprite);
         afterFightUiFadeIn = Build(value => value.AfterFightUiFadeIn);
+        beforeBuffItemInit = Build(value => value.BeforeBuffItemInit);
+        afterBuffItemInit = Build(value => value.AfterBuffItemInit);
     }
 
     private static PhaseHandler[] Build(Func<TerriasStatusLifecycleSubscription, Action<ModHookContext>?> selector)

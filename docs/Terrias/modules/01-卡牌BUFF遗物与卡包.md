@@ -194,7 +194,7 @@ Terrias 会在战斗中创建或修改卡牌副本，例如：
 - `CardGrantRequest` 和 `CardApi.GrantCardToHand` 的事务式授予；
 - `CardMutationService` 修改 runtime tags/special tags；
 - `RuntimeCardAttachmentService` 保存附着声明、请求联机同步和清理；
-- `TerriasBuffMutationRouter` 统一采集 Add/Remove/level/CheckAllBuff 事务；55 个自有 Buff 与 Terrias 直接使用的原生 Buff 均由 `TerriasBuffPresentationDependencyCatalog` 显式声明影响，并通过 `TerriasFightPresentationInvalidationService` 与 `TerriasCardRefreshQueue` 增量刷新。未知第三方 Buff 保留原生全量回退。
+- `TerriasBuffMutationRouter` 统一采集 Add/Remove/level/CheckAllBuff 事务；55 个自有 Buff 与 Terrias 直接使用的原生 Buff 均由 `TerriasBuffPresentationDependencyCatalog` 显式声明影响，并通过 `TerriasFightPresentationInvalidationService` 与 `TerriasCardInvalidationService` 合并为一次 dirty-field 提交。未知第三方 Buff 保留原生全量回退。
 
 不能把战斗临时标签写回 `Terrias/Data/Card/*.csv` 的共享行，也不能只改 DataConfig Vars 而忘记 FightCardManager 的 tag cache 和 UI 表现。
 

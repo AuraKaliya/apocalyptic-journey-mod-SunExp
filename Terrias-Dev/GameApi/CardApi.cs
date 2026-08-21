@@ -427,14 +427,10 @@ public static class CardApi
                         "CombatCardViewPool.NativeFallback" + SourceSuffix(request));
                 }
             }
-            CardGrantPostCommitQueue.Request(new CardGrantPostCommitRequest
-            {
-                Config = added,
-                Source = "CardApi.GrantCardToHand" + SourceSuffix(request),
-                RefreshTags = HasPostCommitTagWork(request),
-                RefreshVisuals = CardVisualInterestIndex.MayAffect(added),
-                DataUpdate = false
-            });
+            TerriasCardInvalidationService.Acknowledge(
+                added,
+                TerriasCardDirtyFields.TagIndex,
+                "CardApi.GrantCardToHand" + SourceSuffix(request));
             return CardGrantResult.Ok(resolved, added, warnings);
         }
         catch (Exception ex)
@@ -470,14 +466,6 @@ public static class CardApi
     private static bool NeedsWritableRuntimeConfig(CardGrantRequest? request)
     {
         return request?.RequiresWritableRuntimeConfig == true || request?.Mutations.Count > 0;
-    }
-
-    private static bool HasPostCommitTagWork(CardGrantRequest? request)
-    {
-        return request != null
-            && (!string.IsNullOrWhiteSpace(request.RuntimeTags)
-                || request.Mutations.Count > 0
-                || request.RequiresWritableRuntimeConfig);
     }
 
     private static DataConfig EnsureWritableRuntimeConfig(

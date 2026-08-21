@@ -63,7 +63,7 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: true))
             {
-                TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreview:" + source);
+                TerriasCardInvalidationService.Invalidate(item, TerriasCardDirtyFields.Cost, "AbyssGazePreview:" + source);
             }
         }
         catch (Exception ex)
@@ -88,7 +88,7 @@ public static class EndlessAbyssGazePressureService
             }
 
             CancelActiveCost(state, "CancelPreview:" + source);
-            TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreviewCancel:" + source);
+            TerriasCardInvalidationService.Invalidate(item, TerriasCardDirtyFields.Cost, "AbyssGazePreviewCancel:" + source);
             return true;
         }
         catch (Exception ex)
@@ -170,7 +170,7 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: false))
             {
-                TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazeCost:" + source);
+                TerriasCardInvalidationService.Invalidate(item, TerriasCardDirtyFields.Cost, "AbyssGazeCost:" + source);
             }
         }
         catch (Exception ex)

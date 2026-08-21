@@ -33,9 +33,9 @@ public static class TerriasActiveCardPresentationIndex
         });
         TerriasBattleLifecycleRouter.Register("ActiveCardPresentationIndex", new TerriasBattleLifecycleSubscription
         {
-            FightInitializing = _ => Clear(),
-            FightEnding = _ => Clear(),
-            FightRestarting = _ => Clear()
+            BattleInitializing = _ => Clear(),
+            BattleSettling = _ => Clear(),
+            BattleRestarting = _ => Clear()
         });
     }
 
@@ -125,7 +125,7 @@ public static class TerriasActiveCardPresentationIndex
         return result;
     }
 
-    public static bool AllActiveCardsManaged()
+    public static bool HasCompleteActiveCardCoverage()
     {
         var cards = FightUI.cardItemList;
         if (cards == null)
@@ -135,9 +135,22 @@ public static class TerriasActiveCardPresentationIndex
 
         foreach (var card in cards)
         {
-            if (card != null
-                && card.gameObject != null
-                && !CardVisualThemeCatalog.IsTerriasCard(card.dataConfig))
+            if (card == null || card.gameObject == null)
+            {
+                continue;
+            }
+
+            if (card.dataConfig == null || !CardVisualThemeCatalog.IsTerriasCard(card.dataConfig))
+            {
+                return false;
+            }
+
+            var currentId = LocalId(card.dataConfig);
+            if (currentId.Length == 0
+                || !IdByCard.TryGetValue(card, out var observedId)
+                || !string.Equals(observedId, currentId, StringComparison.Ordinal)
+                || !CardsById.TryGetValue(currentId, out var indexedCards)
+                || !indexedCards.Contains(card))
             {
                 return false;
             }
@@ -177,7 +190,8 @@ public static class TerriasActiveCardPresentationIndex
     {
         return card != null
                && card.gameObject != null
-               && FightUI.cardItemList?.Contains(card) == true;
+               && FightUI.cardItemList?.Contains(card) == true
+               && IdByCard.ContainsKey(card);
     }
 
     private static string LocalId(IDataConfig? config)

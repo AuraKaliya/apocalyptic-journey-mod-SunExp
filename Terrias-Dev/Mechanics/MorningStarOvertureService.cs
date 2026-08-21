@@ -135,7 +135,7 @@ public static class MorningStarOvertureService
                 {
                     CardMutationService.SetTemporaryCost(config, 1);
                     CardMutationService.SetRuntimeMarkers(config, "TerriasMorningStarTransposed");
-                    TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "MorningStarTranspose");
+                    TerriasCardInvalidationService.Invalidate(config, TerriasCardDirtyFields.TagIndex, "MorningStarTranspose");
                     PlayerApi.ShowCaption("星轨换位：临时费用变为1。");
                 }
             },

@@ -6,8 +6,8 @@
 
 分别测试“玩家断线触发重建”和“联机投票重开”。主机、客机各观察一次。
 
-- 原战斗只触发一次 `FightRestarting`，不产生胜利、失败或逃跑结算。
-- 新战斗进入完整的 `FightInitializing -> FightInitialized -> FightOpening -> FightStarted -> FightRestarted`；`FightStarted` 只由 `Fight_Start.Init` 提交一次，战斗 session 只递增一次。
+- 原战斗只触发一次 `BattleRestarting`，不产生胜利、失败或逃跑结算。
+- 新战斗进入完整的 `BattleInitializing -> BattleMaterialized -> BattleOpening -> FightStartSignaled -> BattleReady -> BattleRestarted`；一次性阶段由 session ledger 提交，战斗 session 只递增一次。
 - 日志出现成对的 `[BattleRestart] restarting` 与 `[BattleRestart] restarted`，其中 rebuilt session 大于 interrupted session。
 - AuraToolsExp 自动战斗停止旧决策、清除待执行操作，并按设置在新战斗重新启用。
 - 伤害统计清空旧战斗捕获，但不把旧战斗归档成胜负结果。

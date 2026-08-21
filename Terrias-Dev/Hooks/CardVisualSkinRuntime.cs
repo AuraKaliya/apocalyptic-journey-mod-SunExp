@@ -24,14 +24,14 @@ public static class CardVisualSkinRuntime
         });
         TerriasCardLifecycleRouter.Register("CardVisualSkin.UseGuards", new TerriasCardLifecycleSubscription
         {
-            BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.CommonCardItemTrueUse),
-            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.AttackCardItemTrueUse)
+            BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, "CardLifecycle.BeforeCommonCardUse"),
+            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, "CardLifecycle.BeforeAttackCardUse")
         });
-        TerriasHookRegistry.Before(
-            modConfig,
-            TerriasHookTargets.CardItemEffectOfBurnCard,
-            PrepareBurnVisualHandoff,
-            "CardVisualSkin.BurnHandoff");
+        TerriasCardExitRouter.Register("CardVisualSkin.BurnHandoff", new TerriasCardExitSubscription
+        {
+            Priority = 100,
+            BeforeBurn = PrepareBurnVisualHandoff
+        });
 
         TerriasLog.InfoAlways("Card visual skin runtime initialized");
     }

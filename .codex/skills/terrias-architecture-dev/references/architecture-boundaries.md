@@ -73,6 +73,12 @@ Cards, buffs, and relics should use handler registries:
 Prefer adding a handler entry and private implementation method over adding a
 top-level `switch (id)`.
 
+Battle semantics use one routed owner per native boundary. Features consume
+`BattleInitializing/Materialized/Opening`, the real `FightStartSignaled` and
+`BattleReady` barrier, `PlayerTurnEntering/PlayerRoundStarting/Ready`, and
+`OutcomeEntering/BattleSettling/BattleEnded`. Do not restore the retired
+`FightStarted` or `PlayerRoundStarted` aliases.
+
 ## Dependency Direction
 
 `Scripting` may depend on `GameApi`, `Mechanics`, and `Infrastructure`.

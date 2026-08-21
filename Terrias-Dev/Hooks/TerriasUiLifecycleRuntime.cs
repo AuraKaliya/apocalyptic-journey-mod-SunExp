@@ -15,11 +15,8 @@ public static class TerriasUiLifecycleRuntime
     {
         TerriasBattleLifecycleRouter.Register("TerriasUiLifecycle", new TerriasBattleLifecycleSubscription
         {
-            FightEnding = context => CloseAll("FightEnding")
+            OutcomeEntering = context => CloseAll("OutcomeEntering." + context.Outcome)
         });
-        RegisterBefore(modConfig, "Fight_Win.Init", context => CloseAll("Fight_Win.Init"));
-        RegisterBefore(modConfig, "Fight_Loss.Init", context => CloseAll("Fight_Loss.Init"));
-        RegisterBefore(modConfig, "Fight_Escape.Init", context => CloseAll("Fight_Escape.Init"));
         RegisterBefore(modConfig, "UIManager.CloseUI", CloseForUiManager);
         RegisterBefore(modConfig, "UIBase.Close", CloseForUiBase);
         RegisterBefore(modConfig, "GameEntryUI.Init", context => ResetForGameEntry("GameEntryUI.Init"));

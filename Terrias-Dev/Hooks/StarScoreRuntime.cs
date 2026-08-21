@@ -38,7 +38,7 @@ public static class StarScoreRuntime
             TerriasLog.Warn);
         TerriasBattleLifecycleRouter.Register("StarScore", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = OnFightStart
+            BattleInitializing = OnFightStart
         });
         TerriasCardLifecycleRouter.Register("StarScore", new TerriasCardLifecycleSubscription
         {
@@ -47,24 +47,17 @@ public static class StarScoreRuntime
             AfterCommonCardUse = OnCardUseAfter,
             AfterAttackCardUse = OnCardUseAfter
         });
-        RegisterAfter(modConfig, "CommonCardItem.OnBeginDrag", OnCommonCardBeginDragAfter);
-        RegisterAfter(modConfig, "CommonCardItem.OnEndDrag", OnCardSelectionEndedAfter);
-        RegisterAfter(modConfig, "AttackCardItem.OnPointerDown", OnAttackCardPointerDownAfter);
-        RegisterAfter(modConfig, "AttackCardItem.CancelLineMode", OnCardSelectionEndedAfter);
-        RegisterAfter(modConfig, "AttackCardItem.CommitOrCancelFromKeyboard", OnCardSelectionEndedAfter);
-        RegisterAfter(modConfig, "CardItem.CancelUseDrag", OnCardSelectionEndedAfter);
-        RegisterBefore(modConfig, "CardItem.OnDestroy", OnCardDestroyedBefore);
+        TerriasCardInteractionRouter.Register("StarScore", new TerriasCardInteractionSubscription
+        {
+            AfterCommonBeginDrag = OnCommonCardBeginDragAfter,
+            AfterCommonEndDrag = OnCardSelectionEndedAfter,
+            AfterAttackPointerDown = OnAttackCardPointerDownAfter,
+            AfterAttackCancelLineMode = OnCardSelectionEndedAfter,
+            AfterAttackCommitOrCancel = OnCardSelectionEndedAfter,
+            AfterCardCancelUseDrag = OnCardSelectionEndedAfter,
+            BeforeCardDestroy = OnCardDestroyedBefore
+        });
         TerriasLog.Info("Star score runtime initialized");
-    }
-
-    private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.Before(config, target, action, "StarScore");
-    }
-
-    private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
-    {
-        TerriasHookRegistry.After(config, target, action, "StarScore");
     }
 
     private static void OnFightStart(ModHookContext context)
@@ -529,8 +522,9 @@ public static class StarScoreRuntime
         }
 
         TerriasPerformanceCounters.Record("StarScore.RefreshRequested");
-        TerriasCardRefreshQueue.RequestCostUpdate(
+        TerriasCardInvalidationService.Invalidate(
             card,
+            TerriasCardDirtyFields.Cost,
             "StarScore:" + reason + ":" + CardConfigApi.Id(config));
     }
 

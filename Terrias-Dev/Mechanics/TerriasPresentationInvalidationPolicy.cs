@@ -12,14 +12,14 @@ public static class TerriasPresentationInvalidationPolicy
     public static TerriasPresentationInvalidationDecision Decide(
         bool wasPending,
         bool isPending,
-        bool allActiveCardsManaged,
+        bool allAffectedSurfacesCovered,
         int mutationCount,
         bool allMutationsKnown,
         bool allImpactsDeltaSafe)
     {
         if (wasPending
             || !isPending
-            || !allActiveCardsManaged
+            || !allAffectedSurfacesCovered
             || !allMutationsKnown
             || !allImpactsDeltaSafe)
         {

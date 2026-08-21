@@ -22,11 +22,16 @@ public static class SolarMemoryBossTransitionCoordinator
 
     public static void Initialize(ModConfig modConfig)
     {
-        TerriasHookRegistry.After(
-            modConfig,
-            TerriasHookTargets.FightWinResetStates,
-            SettleSolarMemoryBossAfterWin,
-            HookOwner);
+        TerriasBattleLifecycleRouter.Register(HookOwner, new TerriasBattleLifecycleSubscription
+        {
+            OutcomeEnded = context =>
+            {
+                if (context.Outcome == AuraShared.Core.AuraBattleOutcome.Win)
+                {
+                    SettleSolarMemoryBossAfterWin(context.NativeContext);
+                }
+            }
+        });
     }
 
     public static void CompleteSolarMemoryRunForSettlementFromDialogue(string source)

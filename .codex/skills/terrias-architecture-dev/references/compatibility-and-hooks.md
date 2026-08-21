@@ -23,9 +23,19 @@ files.
 
 ## Hook Containment
 
-Register hooks through shared wrappers such as `AuraSharedHooks.RegisterBefore`
-or `AuraSharedHooks.RegisterAfter` when available. Log failures with a prefix
-that identifies the subsystem.
+Register hooks through routed shared wrappers such as
+`AuraSharedHooks.RegisterBeforeRouted` or
+`AuraSharedHooks.RegisterAfterRouted`. Log failures with a prefix that
+identifies the subsystem.
+
+Combat features must subscribe to the established semantic routers rather than
+owning native targets. `AuraBattleLifecycleRouter` derives exact battle phases
+from native boundaries and EventCenter signals; `AuraCardActionTransactionRouter`
+and `AuraSkillActionTransactionRouter` own card and skill use; Terrias card
+interaction, exit, Buff mutation, status, script execution, and other-object
+routers own their respective native targets. `TerriasHookRegistry.Before/After`
+are routed compatibility entry points for non-combat adapters, not permission
+to create a second combat lifecycle.
 
 Independent startup or fight-start actions should run in separately named
 steps. A failed HP adjustment, UI setup, listener, resource registration, or

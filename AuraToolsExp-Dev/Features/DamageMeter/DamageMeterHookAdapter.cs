@@ -99,15 +99,15 @@ internal static class DamageMeterHookAdapter
                 "DamageMeter",
                 new AuraBattleLifecycleSubscription
                 {
-                    FightStarting = context => DamageMeterLifecycleCoordinator.OnFightInitStarting(
+                    BattleInitializing = context => DamageMeterLifecycleCoordinator.OnFightInitStarting(
                         DamageMeterAvailabilityRuntime.IsSupportedDamageMeterContext(context, allowMapManagerFallback: true)),
-                    FightStarted = _ => DamageMeterLifecycleCoordinator.OnFightStartFallback(),
-                    PlayerRoundStarted = context => DamageMeterLifecycleCoordinator.OnPlayerRoundStart(
+                    FightStartSignaled = _ => DamageMeterLifecycleCoordinator.OnFightStartFallback(),
+                    PlayerRoundReady = context => DamageMeterLifecycleCoordinator.OnPlayerRoundStart(
                         DamageMeterHookContextMapper.MapRoundUnit(context)),
-                    FightRestarting = _ => DamageMeterLifecycleCoordinator.OnFightRestarting(),
-                    FightEnding = context => DamageMeterLifecycleCoordinator.OnFightEnding(
-                        DamageMeterSettlementRuntime.FightResult(context)),
-                    FightEnded = _ => DamageMeterLifecycleCoordinator.OnFightEnded()
+                    BattleRestarting = _ => DamageMeterLifecycleCoordinator.OnFightRestarting(),
+                    BattleSettling = outcome => DamageMeterLifecycleCoordinator.OnFightEnding(
+                        DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
+                    BattleEnded = _ => DamageMeterLifecycleCoordinator.OnFightEnded()
                 },
                 AuraToolsLog.Debug,
                 AuraToolsLog.Warn));

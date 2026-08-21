@@ -177,7 +177,7 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 7.1 Routed Hook
 
-`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。`AuraBattleLifecycleRouter` 以 session phase ledger 保证 `FightStarted` exactly-once；`AuraCardActionTransactionRouter` 用同一 payload-aware 事务承接 Action、ActionAfter、表现提交、完成与异常终止。Terrias 的 Buff/status/other-object 路由只保留内容侧语义分发。
+`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。`AuraBattleLifecycleRouter` 以原生方法边界和 EventCenter 信号推导 `BattleInitializing/Materialized/Opening`、`FightStartSignaled/Ready`、玩家回合及 outcome 三阶段，并由 session phase ledger 保证一次性阶段 exactly-once；`AuraCardActionTransactionRouter` 与 `AuraSkillActionTransactionRouter` 分别统一卡牌和技能事务。Terrias 的 Buff/status/other-object 路由只保留内容侧语义分发。
 
 `AuraBattleLeaseLedger` 让持久卡牌、遗物、祝福和职业 executor 在每个 battle session 重新注册，同时避免把 battle-only hook/token 写入 DataConfig Vars。好处是减少重复宿主注册、统一异常边界并允许订阅释放；业务过滤和 Buff 依赖仍属于 Terrias，不能塞进通用 dispatcher。
 

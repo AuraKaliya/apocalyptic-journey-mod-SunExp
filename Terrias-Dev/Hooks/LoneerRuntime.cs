@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -16,10 +17,29 @@ public static class LoneerRuntime
     {
         TerriasBattleLifecycleRouter.Register("Loneer", new TerriasBattleLifecycleSubscription
         {
-            FightStarted = OnFightStart
+            BattleOpening = OnFightStart
         });
-        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.SkillItemTrueUse, BeginMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
-        TerriasHookRegistry.After(modConfig, TerriasHookTargets.SkillItemTrueUse, EndMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
+        AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            TerriasIds.ModId,
+            "Loneer.MorningPrayerAttempt",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.Attempting | AuraSkillActionPhase.Completed | AuraSkillActionPhase.Aborted,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraSkillActionPhase.Attempting)
+                    {
+                        BeginMorningPrayerAttempt(context.NativeContext);
+                    }
+                    else
+                    {
+                        EndMorningPrayerAttempt(context.NativeContext);
+                    }
+                }
+            },
+            TerriasLog.Debug,
+            TerriasLog.Warn);
     }
 
     private static void OnFightStart(ModHookContext context)

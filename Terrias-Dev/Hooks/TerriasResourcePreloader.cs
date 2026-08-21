@@ -37,8 +37,8 @@ public static class TerriasResourcePreloader
         TerriasBattleLifecycleRouter.Register("ResourcePreloader", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = _ => BeginAdventureWarmup(),
-            FightInitializing = _ => OnFightInitializing(),
-            FightEnded = _ =>
+            BattleInitializing = _ => OnFightInitializing(),
+            BattleEnded = _ =>
             {
                 battleActive = false;
                 ScheduleNext();

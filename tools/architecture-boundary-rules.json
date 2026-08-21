@@ -341,7 +341,12 @@
             "\\bTryAddTokenedEvent",
             "(?:TryAddEvent|AddRequired)(?:<[^>]+>)?\\s*\\(\\s*(?:self\\s*,\\s*)?\"Action(?:After)?\"",
             "\\bProjectionNetworkRunner\\b",
-            "\\bTickNetworkSynchronization\\b"
+            "\\bTickNetworkSynchronization\\b",
+            "\\bTerriasCardRefreshQueue\\b",
+            "\\bCardGrantPostCommitQueue\\b",
+            "\\bcard\\.RefreshTag\\s*\\(",
+            "\\bTerriasHookTargets\\.(?:FightStartInit|FightInitInit|FightWinInit|FightWinResetStates|FightEscapeInit|FightEscapeResetStates|FightLossInit|FightPlayerTurnInit|SkillItemTrueUse)\\b",
+            "\\b(?:FightInitializing|FightStarting|FightInitialized|FightStarted|PlayerRoundStarted|FightRestarting|FightRestarted|FightEnding|FightEnded)\\s*="
           ]
         },
         {

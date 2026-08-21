@@ -170,11 +170,12 @@ public static class TerriasCombatCardUiWorkloadRuntime
             TerriasHookTargets.StatusManagerRemoveBuff,
             context => TerriasCombatCardUiDiagnostics.RecordBuffMutation("remove", context),
             "CombatCardUiRefreshCause"));
-        Registrations.Add(TerriasHookRegistry.AfterRouted(
-            config,
-            TerriasHookTargets.FightPlayerTurnInit,
-            context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("player-turn"),
-            "CombatCardUiRefreshCause"));
+        Registrations.Add(TerriasBattleLifecycleRouter.Register(
+            "CombatCardUiRefreshCause",
+            new TerriasBattleLifecycleSubscription
+            {
+                PlayerRoundReady = context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("player-round-ready")
+            }));
         Registrations.Add(TerriasHookRegistry.AfterRouted(
             config,
             TerriasHookTargets.BuffBarUiCheckAllBuff,
