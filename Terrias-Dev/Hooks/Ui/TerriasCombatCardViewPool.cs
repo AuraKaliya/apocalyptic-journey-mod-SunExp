@@ -665,9 +665,6 @@ public static class TerriasCombatCardViewPool
         card.isReverse = false;
         SetInteraction(card, false);
         SetCanvasAlpha(card, 1f);
-        var skinMarker = CardPresentationRootResolver.FindCardVisualRoot(card.transform)
-            ?.GetComponent<CardVisualSkinMarker>();
-        skinMarker?.ClearAllVisualOverrides();
         var parent = EnsurePoolRoot();
         if (parent != null)
         {

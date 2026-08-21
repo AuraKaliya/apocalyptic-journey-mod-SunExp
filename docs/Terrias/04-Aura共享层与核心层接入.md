@@ -155,19 +155,21 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.3 Audio 与 BGM
 
-`AuraAudioRuntime` 负责共享初始化；`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、上下文匹配、优先级、fallback 和必要的表现同步。文件语音 provider 在注册时即开始预热；本地或远端请求若遇到尚未就绪/尚未注册的目标 provider，会进入有界等待队列，并保留原请求的联机同步决策。Terrias 的 `AudioApi` 提供内容侧初始化和上下文。
+`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、信号/阶段匹配、优先级、fallback 和必要的表现同步。AuraToolsExp 注册角色语音与卡牌音效，Terrias 不再初始化媒体 provider。请求使用 `Kind + Stage` 锚定选人提交、卡牌表现提交、低血量阈值穿越和战斗完成等稳定时点。
 
 ### 6.4 CG
 
-`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责触发请求、播放、session、网络事件和去重。内容生产权与本机展示开关是两条独立链路：Terrias 只按 manifest owner 产生并转发请求，AuraToolsExp 只维护本机激活覆盖；本机播放先入队，不能因联机转发准备失败而被丢弃。Terrias 的 Skill CG Feature 不建立第二套私有 RPC relay。
+`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责播放、session、黑键/闪屏、网络事件和去重。AuraToolsExp 拥有 Terrias 目标的可选 CG 资源、manifest、配置和请求生成；Terrias 不保留第二条 CG 运行时或资源回退路径。
 
 ### 6.5 Skin
 
-`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。Terrias 提供乌娜等角色的共享皮肤包和 manifest，不让工具 MOD扫描私有路径猜测皮肤。
+`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。全部替换皮肤由 AuraToolsExp 的工具皮肤包提供；旧 Terrias qualified selection 会一次性迁移到 AuraToolsExp owner。
 
 ### 6.6 卡牌使用特效
 
 `AuraCardUseFxShared` 的 v2 manifest 使用 `presentationScope` 区分 `ownerLocal`、`observers` 和 `all`。本地通道在真实卡牌 `TrueUse` 前捕获屏幕位置，并以 `FightUI.CallActionAnimation` 作为成功提交点；观察者通道继续消费 `FightUI.DoCardUseAnimation` 的中央卡牌副本。表现消费者必须使用源位置快照，不能依赖随后可能被焚毁或移入弃牌堆的卡牌对象。
+
+通用卡牌展示生命周期由 `AuraCardPresentationRuntime` 统一路由。AuraToolsExp 在此基础上应用逐卡白名单卡框和动态效果；Terrias 只订阅必要的内容表现。完整边界见[内容与工具资源边界](12-内容与工具资源边界.md)。
 
 ### 6.7 UI 安全
 

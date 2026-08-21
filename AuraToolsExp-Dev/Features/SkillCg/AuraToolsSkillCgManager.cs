@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using AuraCg.Shared;
@@ -141,7 +142,142 @@ public static class AuraToolsSkillCgManager
             AuraToolsUi.TextMinHeight,
             1f);
 
-        AuraToolsUi.AddButton(row.transform, "\u76ee\u5f55", () => OpenEntryDirectory(entry), 76f, 34f);
+        AuraToolsUi.AddButton(row.transform, "\u9884\u89c8", () => PreviewEntry(entry), 68f, 34f);
+        AuraToolsUi.AddButton(row.transform, "\u914d\u7f6e", () => OpenEntrySettings(entry), 68f, 34f);
+        AuraToolsUi.AddButton(row.transform, "\u76ee\u5f55", () => OpenEntryDirectory(entry), 68f, 34f);
+    }
+
+    private static void PreviewEntry(SkillCgRegisteredEntryView entry)
+    {
+        var played = AuraToolsSkillCgRuntime.PreviewRegisteredCardUseCg(entry.OwnerModId, entry.CgId);
+        SetHint((played ? "\u5df2\u9884\u89c8\uff1a" : "\u9884\u89c8\u5931\u8d25\uff1a") + DisplayName(entry));
+    }
+
+    private static void OpenEntrySettings(SkillCgRegisteredEntryView entry)
+    {
+        var overrides = AuraToolsConfigService.SkillCg.CardUseCg.PresentationOverrides;
+        if (!overrides.TryGetValue(entry.QualifiedCgId, out var settings) || settings == null)
+        {
+            settings = new CardUseCgPresentationOverrideSettings();
+            overrides[entry.QualifiedCgId] = settings;
+        }
+
+        var window = AuraToolsUi.CreateOverlay(
+            "AuraTools.CardUseCg.Settings." + entry.QualifiedCgId,
+            content!,
+            DisplayName(entry),
+            () =>
+            {
+                settings.Normalize();
+                AuraToolsConfigService.SaveCardUseCg();
+            });
+        var editor = AuraToolsUi.CreateScroll(window.transform, "CardUseCgPresentation");
+        AddChoiceSettingRow(editor, settings);
+        AddSettingRow(editor, "\u65f6\u957f", new[]
+        {
+            Field("\u6de1\u5165", Format(settings.FadeIn), value => settings.FadeIn = ParseFloat(value)),
+            Field("\u505c\u7559", Format(settings.Hold), value => settings.Hold = ParseFloat(value)),
+            Field("\u6de1\u51fa", Format(settings.FadeOut), value => settings.FadeOut = ParseFloat(value))
+        });
+        AddSettingRow(editor, "\u5e8f\u5217", new[]
+        {
+            Field("\u5e27\u95f4\u9694", Format(settings.FrameSeconds), value => settings.FrameSeconds = ParseFloat(value)),
+            Field("\u9ed1\u952e", Format(settings.KeyThreshold), value => settings.KeyThreshold = ParseFloat(value)),
+            Field("\u8fb9\u7f18", Format(settings.KeySoftness), value => settings.KeySoftness = ParseFloat(value))
+        });
+        AddSettingRow(editor, "\u95ea\u5c4f", new[]
+        {
+            Field("\u65f6\u523b", Format(settings.FlashAtSeconds), value => settings.FlashAtSeconds = ParseFloat(value)),
+            Field("\u65f6\u957f", Format(settings.FlashDuration), value => settings.FlashDuration = ParseFloat(value)),
+            Field("\u5f3a\u5ea6", Format(settings.FlashStrength), value => settings.FlashStrength = ParseFloat(value))
+        });
+        AddSettingRow(editor, "\u5e27\u95ea\u5c4f", new[]
+        {
+            Field("\u8d77\u59cb\u5e27", Format(settings.FlashStartFrame), value => settings.FlashStartFrame = ParseInt(value)),
+            Field("\u7ed3\u675f\u5e27", Format(settings.FlashEndFrame), value => settings.FlashEndFrame = ParseInt(value)),
+            Field("\u8109\u51b2\u95f4\u9694", Format(settings.FlashPulseEveryFrames), value => settings.FlashPulseEveryFrames = ParseInt(value))
+        });
+    }
+
+    private static void AddChoiceSettingRow(Transform parent, CardUseCgPresentationOverrideSettings settings)
+    {
+        var row = AuraToolsUi.CreateLayout("CardUseCgChoices", parent);
+        AuraToolsUi.SetFixedHeight(row, 42f);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 5, 5);
+        layout.spacing = 6f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        AuraToolsUi.AddText(row.transform, "\u6a21\u5f0f", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 70f);
+        AddChoice(row.transform, "\u8868\u73b0", settings.PresentationMode,
+            new[] { "", SkillCgPresentationModes.Slide, SkillCgPresentationModes.FullscreenFade, SkillCgPresentationModes.CenterFade },
+            value => settings.PresentationMode = value);
+        AddChoice(row.transform, "\u9002\u914d", settings.FitMode,
+            new[] { "", SkillCgFitModes.Contain, SkillCgFitModes.Cover, SkillCgFitModes.Stretch },
+            value => settings.FitMode = value);
+        AddChoice(row.transform, "Alpha", settings.AlphaMode,
+            new[] { "", SkillCgAlphaModes.None, SkillCgAlphaModes.BlackKey },
+            value => settings.AlphaMode = value);
+        AddChoice(row.transform, "\u95ea\u5c4f", settings.FlashMode,
+            new[] { "", SkillCgFlashModes.Screen, SkillCgFlashModes.MaskedInvert, SkillCgFlashModes.ScreenBwPulse, SkillCgFlashModes.HybridBwPulse },
+            value => settings.FlashMode = value);
+    }
+
+    private static void AddChoice(Transform parent, string label, string current, string[] values, Action<string> apply)
+    {
+        AuraToolsUi.AddText(parent, label, AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter,
+            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 48f);
+        var labels = values.Select(value => string.IsNullOrWhiteSpace(value) ? "\u7ee7\u627f" : value).ToArray();
+        var selected = Array.FindIndex(values, value => string.Equals(value, current, StringComparison.OrdinalIgnoreCase));
+        AuraToolsUi.AddSelectButton(parent, labels, Math.Max(0, selected), value => apply(values[value]), 126f);
+    }
+
+    private static void AddSettingRow(Transform parent, string title, System.Collections.Generic.IEnumerable<SettingField> fields)
+    {
+        var row = AuraToolsUi.CreateLayout(title, parent);
+        AuraToolsUi.SetFixedHeight(row, 42f);
+        var layout = row.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(8, 8, 5, 5);
+        layout.spacing = 6f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        AuraToolsUi.AddText(row.transform, title, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 70f);
+        foreach (var field in fields)
+        {
+            AuraToolsUi.AddText(row.transform, field.Label, AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter,
+                AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 58f);
+            AuraToolsUi.AddInput(row.transform, field.Value, value => field.Apply(value.Trim()), 102f);
+        }
+    }
+
+    private static SettingField Field(string label, string value, Action<string> apply)
+    {
+        return new SettingField(label, value, apply);
+    }
+
+    private static string Format(float? value) => value?.ToString("0.###", CultureInfo.InvariantCulture) ?? "";
+    private static string Format(int? value) => value?.ToString(CultureInfo.InvariantCulture) ?? "";
+    private static float? ParseFloat(string value) => float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+    private static int? ParseInt(string value) => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? parsed : null;
+
+    private readonly struct SettingField
+    {
+        public SettingField(string label, string value, Action<string> apply)
+        {
+            Label = label;
+            Value = value;
+            Apply = apply;
+        }
+
+        public string Label { get; }
+        public string Value { get; }
+        public Action<string> Apply { get; }
     }
 
     private static void OpenEntryDirectory(SkillCgRegisteredEntryView entry)

@@ -12,6 +12,7 @@ internal static class AudioNetworkEventMapper
             ProviderId = request.ProviderId,
             OwnerModId = request.OwnerModId,
             Kind = request.Kind,
+            Stage = request.Stage,
             CareerId = request.CareerId,
             RoleId = request.RoleId,
             StatusInstanceId = request.StatusInstanceId,

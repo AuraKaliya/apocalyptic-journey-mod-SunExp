@@ -13,6 +13,7 @@ internal sealed partial class AudioArbiterContractTests
             ProviderId = "provider-1",
             OwnerModId = "owner-1",
             Kind = "CardUse",
+            Stage = "PresentationCommitted",
             CareerId = "career-1",
             RoleId = "role-1",
             StatusInstanceId = "status-1",
@@ -161,6 +162,7 @@ internal sealed partial class AudioArbiterContractTests
         public string ProviderId => "provider-1";
         public string OwnerModId => "owner-1";
         public string Kind => "CardUse";
+        public string Stage => "PresentationCommitted";
         public string CareerId => "career-1";
         public string RoleId => "role-1";
         public string StatusInstanceId => "status-1";

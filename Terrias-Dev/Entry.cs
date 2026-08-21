@@ -5,9 +5,7 @@ using AuraCg.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
 using AuraShared.Core;
-using AuraSkin.Shared;
 using Witch.Mod;
-using Terrias.Dll.Features.SkillCg;
 using Terrias.Dll.Features.Director;
 using Terrias.Dll.Features;
 using Terrias.Dll.GameApi;
@@ -30,6 +28,10 @@ public static class Entry
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => TerriasRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
+        RunStep("legacy skin package retirement", () => RegisterSharedResourcePackage(
+            modConfig,
+            "SharedResources/Skins/retire.registration.json"));
+        RunStep("legacy CG registry retirement", () => RetireLegacyCgRegistry(modConfig));
         RunStep("localization catalog", () => TerriasTextCatalog.Load(modConfig));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
@@ -37,16 +39,9 @@ public static class Entry
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("dimension shop config", () => DimensionShopConfigStore.Load(modConfig));
         RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
-        RunStep("card visual skin registry", CardVisualSkinApi.RegisterTerriasDefaults);
-        RunStep("card visual effect registry", CardVisualEffectApi.RegisterTerriasDefaults);
         RunStep("card use effect runtime", () => TerriasCardUseFxRuntime.Initialize(modConfig));
-        RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
-        RunStep("skill CG runtime", () => TerriasSkillCgRuntime.Initialize(modConfig));
-        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "Terrias"));
-        RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));
         RunStep("mode runtime", () => TerriasModeApi.Initialize(modConfig));
-        RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "Terrias"));
         RunStep("performance runtime", () => TerriasFrameScheduler.Initialize(modConfig));
         TerriasLog.Info("Terrias C# entry loaded");
@@ -57,14 +52,6 @@ public static class Entry
     private static void RunStep(string name, Action action)
     {
         AuraSharedHooks.RunStep(name, action, (step, ex) => TerriasLog.Error("Initialization step failed: " + step, ex));
-    }
-
-    private static void RegisterSkinPackage(ModConfig modConfig)
-    {
-        if (!AuraSkinRuntime.RegisterPackage(modConfig, "Terrias"))
-        {
-            TerriasLog.Warn("Terrias bundled skin package was rejected; skin package registration skipped.");
-        }
     }
 
     private static void RegisterSharedFeatureDefaults()
@@ -84,15 +71,28 @@ public static class Entry
         }
     }
 
-    private static void RegisterSharedResourcePackage(ModConfig modConfig)
+    private static void RegisterSharedResourcePackage(
+        ModConfig modConfig,
+        string manifestRelativePath = AuraSharedResourceProtocol.DefaultManifestPath)
     {
-        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "Terrias");
+        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "Terrias", manifestRelativePath);
         foreach (var response in result.Responses)
         {
             if (!response.Success)
             {
                 throw new InvalidOperationException("Terrias shared resource package was rejected: " + response.Message);
             }
+        }
+    }
+
+    private static void RetireLegacyCgRegistry(ModConfig modConfig)
+    {
+        if (!AuraCgRegistryRuntime.RegisterManifest(
+                modConfig,
+                TerriasIds.ModId,
+                "SharedResources/cg.retire.registry.json"))
+        {
+            throw new InvalidOperationException("Terrias legacy CG registry retirement was rejected.");
         }
     }
 

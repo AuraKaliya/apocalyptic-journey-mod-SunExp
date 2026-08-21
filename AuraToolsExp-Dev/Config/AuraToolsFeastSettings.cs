@@ -227,7 +227,7 @@ public sealed class FeastRoleSettings
         DisplayName = DisplayName?.Trim() ?? "";
         var legacySelectedCgId = (LegacySelectedCgId ?? "").Trim();
         EnabledCgIds = (EnabledCgIds ?? new List<string>())
-            .Select(value => (value ?? "").Trim())
+            .Select(value => MigrateTerriasCgId((value ?? "").Trim()))
             .Where(value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -239,7 +239,7 @@ public sealed class FeastRoleSettings
         LegacySelectedCgId = null;
         ResourceOverrides = (ResourceOverrides ?? new Dictionary<string, bool>())
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
-            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(pair => MigrateTerriasCgId(pair.Key.Trim()), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
         ManualResources ??= new List<FeastManualResourceSettings>();
         foreach (var manual in ManualResources)
@@ -283,6 +283,14 @@ public sealed class FeastRoleSettings
         LastSeenRoleRevision = Math.Max(0, LastSeenRoleRevision);
         Presentation = (Presentation ?? SkillCgPresentationSettings.CreateInherited()).Resolve(fallbackPresentation);
         EffectivePresentation = Presentation;
+    }
+
+    private static string MigrateTerriasCgId(string value)
+    {
+        if (string.Equals(value, "Terrias:loneer.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:loneer.feast";
+        if (string.Equals(value, "Terrias:wuna.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:wuna.feast";
+        if (string.Equals(value, "Terrias:columbina.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:columbina.feast";
+        return value;
     }
 
     public bool IsCandidateEnabled(string qualifiedCgId)

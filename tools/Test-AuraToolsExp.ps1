@@ -277,6 +277,14 @@ $officialSummerSkins = @($skinValidation.Skins | Where-Object {
 if ($officialSummerSkins.Count -ne 1) {
     throw "AuraToolsExp must publish its official career_1 summer skin exactly once."
 }
+$terriasSkins = @($skinValidation.Skins | Where-Object {
+    ($_.TargetCareerId -eq "Terrias_wuna_wuna" -and $_.SkinId -eq "AuraToolsExp.Terrias_wuna_wuna.summer_cool") `
+        -or ($_.TargetCareerId -eq "Terrias_columbina_columbina" -and $_.SkinId -eq "AuraToolsExp.Terrias_columbina_columbina.restore_colors") `
+        -or ($_.TargetCareerId -eq "Terrias_loneer_loneer" -and $_.SkinId -eq "AuraToolsExp.Terrias_loneer_loneer.stellar_priest")
+})
+if ($terriasSkins.Count -ne 3) {
+    throw "AuraToolsExp must own all three Terrias replacement skins."
+}
 
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\MatchExperienceSettings.json") | ConvertFrom-Json
@@ -324,8 +332,12 @@ $audioSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\AudioSettings.json") | ConvertFrom-Json
 $pixelEmojiSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\PixelEmojiSettings.json") | ConvertFrom-Json
-if ($audioSettings.schemaVersion -ne 3 `
+if ($rootSettings.schemaVersion -ne 2 `
+        -or $audioSettings.schemaVersion -ne 4 `
         -or $null -ne $audioSettings.audioSystemVersion `
+        -or $audioSettings.voice.enabled -ne $true `
+        -or $null -eq $audioSettings.voice.bindings `
+        -or $rootSettings.cardVisual.configFile -ne "CardVisualSettings.json" `
         -or $rootSettings.pixelEmoji.configFile -ne "PixelEmojiSettings.json" `
         -or $pixelEmojiSettings.schemaVersion -ne 1 `
         -or $pixelEmojiSettings.enabled -ne $false `
@@ -346,7 +358,7 @@ if ($loggingSettings.schemaVersion -ne 4 `
 
 $skillCgSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\SkillCgSettings.json") | ConvertFrom-Json
-if ($skillCgSettings.schemaVersion -ne 3 `
+if ($skillCgSettings.schemaVersion -ne 6 `
         -or $skillCgSettings.disableAfterFailures -ne $true `
         -or $null -ne $skillCgSettings.PSObject.Properties["preloadOnFightStart"]) {
     throw "AuraToolsExp Skill CG configuration contract is invalid."
@@ -361,12 +373,53 @@ $officialSkillCg = @($cgRegistry.entries | Where-Object {
         "official.career_1.careercard_1",
         "official.career_3.careercard_4")
 })
+$terriasSkillCg = @($cgRegistry.entries | Where-Object {
+    $_.kind -eq "skill" -and $_.cgId -in @(
+        "loneer.morning-star-prayer",
+        "wuna.white-sun-prayer",
+        "columbina.homesickness")
+})
+$terriasCardUseCg = @($cgRegistry.entries | Where-Object {
+    $_.kind -eq "cardUse" -and $_.cgId -eq "terrias.blazing-crown-collapse"
+})
+$terriasFeastCg = @($cgRegistry.entries | Where-Object {
+    $_.kind -eq "feast" -and $_.cgId -in @("loneer.feast", "wuna.feast", "columbina.feast")
+})
+$cardVisualRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\card-visual.registry.json") | ConvertFrom-Json
+$cardVisualSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\Config\CardVisualSettings.json") | ConvertFrom-Json
+$terriasTheme = @($cardVisualRegistry.themes | Where-Object themeId -eq "terrias")
+$audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\audio.registry.json") | ConvertFrom-Json
+$voiceProviders = @($audioRegistry.providers | Where-Object { $_.match.stages.Count -gt 0 })
+$visualBundle = Join-Path $repoRoot "AuraToolsExp\ModResource\VisualBundles\auratools_visuals"
 if ($registration.schemaVersion -ne 4 `
         -or $registration.ownerModId -ne "AuraToolsExp" `
         -or $registration.participantKind -ne "Tool" `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
-        -or $officialSkillCg.Count -ne 2) {
+        -or $officialSkillCg.Count -ne 2 `
+        -or $terriasSkillCg.Count -ne 3 `
+        -or $terriasCardUseCg.Count -ne 1 `
+        -or $terriasFeastCg.Count -ne 3 `
+        -or @($cardVisualSettings.themes.PSObject.Properties).Count -ne 0 `
+        -or @($cardVisualSettings.dynamicEffects.PSObject.Properties).Count -ne 0 `
+        -or $terriasTheme.Count -ne 1 `
+        -or @($terriasTheme[0].skins).Count -ne 3 `
+        -or @($terriasTheme[0].mappingPreset).Count -ne 2 `
+        -or @($cardVisualRegistry.effects).Count -ne 2 `
+        -or $audioRegistry.schemaVersion -ne 3 `
+        -or $audioRegistry.ownerModId -ne "AuraToolsExp" `
+        -or $voiceProviders.Count -ne @($audioRegistry.providers).Count `
+        -or -not (Test-Path -LiteralPath $visualBundle -PathType Leaf) `
+        -or (Get-Item -LiteralPath $visualBundle).Length -le 0) {
     throw "AuraToolsExp shared resource and CG ownership contract is invalid."
+}
+foreach ($resource in $registration.resources) {
+    $source = Join-Path $repoRoot ("AuraToolsExp\SharedResources\" + ([string]$resource.source).Replace('/', '\'))
+    if (-not (Test-Path -LiteralPath $source)) {
+        throw "AuraToolsExp shared resource source is missing: $($resource.source)"
+    }
 }
 
 $moduleSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -382,9 +435,11 @@ $expectedModuleIds = @(
     "presentation.skin",
     "presentation.battle-bgm",
     "presentation.card-use-audio",
+    "presentation.character-voice",
     "presentation.pixel-emoji",
     "presentation.skill-cg",
     "presentation.card-use-cg",
+    "presentation.card-visual",
     "records.damage-statistics",
     "records.battle-replay",
     "records.adventure-archive",

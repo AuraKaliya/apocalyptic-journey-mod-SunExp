@@ -5,12 +5,17 @@ namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardUseFxMaterials
 {
+    private const string ShaderId = "terrias.card_use_fx.stardust.shader";
+    private const string ShaderName = "Terrias/CardUseStardust";
+    private static readonly int OverlayMode = Shader.PropertyToID("_TerriasOverlayMode");
+    private static readonly int FrameOnlyOverlay = Shader.PropertyToID("_TerriasFrameOnlyOverlay");
+
     public static Material? CreateFaceSweepMaterial(string visualEffectId)
     {
         var material = EffectMaterialFactory.CreateMaterial(
             visualEffectId,
-            TerriasIds.CardFaceEffectShaderId,
-            CardFaceEffectShaderIds.ShaderName,
+            ShaderId,
+            ShaderName,
             "[CardUseFx]");
         if (material == null)
         {
@@ -18,13 +23,13 @@ internal static class CardUseFxMaterials
         }
 
         material.name = "Terrias_CardUseFx_FaceSweep";
-        if (material.HasProperty(CardFaceEffectShaderIds.OverlayMode))
+        if (material.HasProperty(OverlayMode))
         {
-            material.SetFloat(CardFaceEffectShaderIds.OverlayMode, 1f);
+            material.SetFloat(OverlayMode, 1f);
         }
-        if (material.HasProperty(CardFaceEffectShaderIds.FrameOnlyOverlay))
+        if (material.HasProperty(FrameOnlyOverlay))
         {
-            material.SetFloat(CardFaceEffectShaderIds.FrameOnlyOverlay, 0f);
+            material.SetFloat(FrameOnlyOverlay, 0f);
         }
 
         return material;

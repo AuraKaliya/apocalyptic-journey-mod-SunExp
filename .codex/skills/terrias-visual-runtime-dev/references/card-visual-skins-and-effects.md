@@ -1,60 +1,55 @@
-# Card Visual Skins And Effects
+# Card Visual Themes And Effects
 
-Use this reference for card face skins, card frames, card-frame material
-effects, and card-use visual effects.
+Use this reference for AuraTools card frames, card backgrounds, dynamic card
+effects, theme presets, and the shared card presentation lifecycle.
 
-## Runtime Split
+## Ownership
 
-- `GameApi/CardVisualSkinApi.cs` and `GameApi/CardVisualEffectApi.cs` expose
-  registration and CSV-facing facades.
-- `Mechanics/CardVisualSkin*` and `Mechanics/CardVisualEffect*` own matching,
-  priority, target, and owner-scoped registry behavior.
-- `Hooks/CardVisualSkinRuntime.cs` observes card UI lifecycle and applies
-  registered rules.
-- `Hooks/Visual/CardVisualSkinApplier.cs`,
-  `CardVisualSkinMarker.cs`, `CardVisualSkinSpriteCache.cs`,
-  `CardVisualEffectApplier.cs`, `CardFrameEffectApplier.cs`, and
-  `CardFrameEffectMaterials.cs` mutate Unity card visuals.
-- `Mechanics/RuntimeCardAttachmentService.cs` owns runtime-added card
-  attachments such as special generated cards.
+- `AuraSharedCore/AuraCardPresentationRuntime.cs` owns the semantic-free,
+  owner-qualified lifecycle for combat, reward, display, shop, warehouse,
+  dictionary, pack, and safe-box card surfaces.
+- `AuraToolsExp/card-visual.registry.json` declares tool-owned themes, skins,
+  preset mappings, dynamic effects, materials, textures, and editable ranges.
+- `AuraToolsExp-Dev/Features/CardVisual/*` owns configuration, batch expansion,
+  Unity visual application, restoration, and the player-facing editor.
+- `AuraToolsExp/SharedResources/CardVisual/*` and the AuraTools VisualBundle own
+  the optional visual resources.
+- Terrias owns only content ids and necessary content presentation such as Star
+  Score card-use feedback. It does not register generic card skins or effects.
 
-## Rules
+## Whitelist Contract
 
-- Register rules by stable owner identity and stable ids. Do not rely on
-  localized card names for matching.
-- Prefer pack ids, full card ids, icon prefixes, or explicit registry targets
-  over string searches in UI hierarchies.
-- Keep conflict resolution priority-driven and deterministic.
-- Clear owner-scoped registrations when replacing a rule set in tests or
-  initialization.
-- Keep visual mutation in hook/visual appliers. Do not add Unity object mutation
-  to CSV-callable `Scripting`.
-- Keep card art generation in `terrias-card-art-style`; keep runtime skin/effect
-  application here.
-- For dynamic card-frame effects that must survive native card UI lifecycle
-  events, especially card-use or Burnout destruction animations, prefer an
-  integrated dynamic frame-skin material on the real frame node. Independent
-  overlay objects can remain visually detached from native animation and may
-  linger or pop during burn/destroy transitions.
-- Use card-frame overlays only as a fallback when the runtime card UI lacks a
-  real frame `Image` or `MeshRenderer` target and a resolved frame sprite or
-  texture is available. Fallback overlays must stay non-blocking and below text,
-  but should not be the primary battle-card path.
-- Integrated card-frame materials should use the resolved frame texture as
-  `_MainTex`, render in non-overlay shader mode, and disable overlay-only
-  frame masking. Clear paths must restore original frame materials because card
-  UI instances may be pooled and reused.
-- When debugging mismatches between Unity Lab, dictionary cards, and battle
-  cards, first determine whether the card surface is a true frame node or a
-  fallback/background-sized overlay. Tune parameters only after the rendering
-  path and shader mode match the intended surface.
+Runtime configuration is an explicit map from `ownerModId:cardId` to a skin or
+dynamic effect. There is no global default whitelist.
+
+Card-pack and rarity selectors are editor conveniences. They resolve the native
+catalog once and write the resulting explicit card ids. Runtime matching must
+not inspect pack, rarity, icon prefix, suffix, or wildcard patterns.
+
+## Theme Presets
+
+A theme may declare a versioned `mappingPreset`. On the first successful load,
+after the native card catalog is ready, AuraTools expands the preset to the
+theme's explicit card map. The mapping then belongs to that theme profile and
+is editable.
+
+Ordinary startup never reapplies a preset to an initialized theme. A deliberate
+reset command may replace that theme's map and update its applied preset
+version. A card may belong to at most one frame theme at a time.
+
+## Runtime Rules
+
+- Keep resource ids and card ids stable and owner-qualified.
+- Restore original sprites, textures, and materials when disabling a mapping or
+  reusing a pooled card view.
+- Keep visual-only overlays non-blocking for raycasts and directly adjacent to
+  their source frame/face layer.
+- Dynamic parameters are accepted only when declared by the effect's exposed
+  range map and are clamped before material application.
+- Load the AuraTools VisualBundle through the tool-owned bundle cache so Skill
+  CG and card effects do not load the same bundle twice.
 
 ## Validation
 
-`tools\Test-TerriasCSharp.ps1` contains focused registry behavior tests for card
-visual skin and effect resolution. Update those tests when changing matching,
-priority, or owner-clear semantics.
-
-`tools\Test-TerriasArchitecture.ps1` should guard fragile visual lifecycle
-decisions, including whether card-frame effects use integrated frame materials
-or fallback overlays.
+Run `tools/Test-AuraToolsExp.ps1`, `tools/Test-ContentToolSharedBoundary.ps1`,
+and both VisualBundle builders when shader or material ownership changes.

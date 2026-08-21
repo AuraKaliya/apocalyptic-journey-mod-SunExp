@@ -153,9 +153,10 @@ internal sealed partial class AudioArbiterContractTests
             vocalState = "Attack",
             match = new AudioProviderMatch
             {
+                stages = new[] { AudioSignalStages.PresentationCommitted },
                 careerIds = new[] { "career" },
                 roleIds = new[] { "role" },
-                cardIds = new[] { "card-1" },
+                cardIds = new[] { "*card-1" },
                 buffIds = new[] { "buff-1" },
                 effectNames = new[] { "effect-1" },
                 actionNames = new[] { "action-1" },
@@ -172,6 +173,10 @@ internal sealed partial class AudioArbiterContractTests
         request.PreviousHpRatio = 0.5f;
         request.HpRatio = 0.3f;
         Equal(true, condition(request), "complete manifest match");
+
+        request.Stage = AudioSignalStages.Applied;
+        Equal(false, condition(request), "signal stage mismatch rejected");
+        request.Stage = AudioSignalStages.PresentationCommitted;
     
         request.CardId = "other";
         Equal(false, condition(request), "card mismatch rejected");

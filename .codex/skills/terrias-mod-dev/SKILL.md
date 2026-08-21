@@ -54,7 +54,7 @@ Use the smallest specialist set that covers the task:
    - `Terrias/Data/**/*.csv`
    - `Terrias/Text/**/*.csv`
    - `Terrias/ModConfig.json`
-   - `Terrias/audio.registry.json` when audio, vocal, or BGM behavior changes.
+   - `AuraToolsExp/audio.registry.json` when optional voice or card-use audio changes.
    - `Terrias/visual.registry.json` and `Terrias/SharedResources/*` when runtime
      visuals, Skill CG, or shared resource manifests change.
    - release-facing docs only when behavior, counts, or user-facing claims change.
@@ -125,6 +125,10 @@ Elemental, Familiar, or Spirit validation.
   Tool and content mods must depend on shared/core layers, not on each other.
   Promote shared hook, UI, resource, logging, pooling, or multiplayer
   presentation foundations to Aura shared runtimes instead.
+- Keep Terrias free of optional resource extensions. Skill/card-use/Feast CG,
+  role voice, card-use audio, replacement skins, card-frame themes, and
+  configurable card dynamic effects belong to AuraToolsExp; only stable
+  Terrias content ids and required content presentation stay in Terrias.
 - Do not bind directly to a Managed method whose signature has drifted across supported game versions. Put reflection-based current/legacy dispatch and a deterministic fallback in `GameApi/`.
 - Do not let one independent fight-start or lifecycle action abort later actions. Isolate fragile steps and log each failure with its step name.
 - For shared multiplayer progression, player-scoped state, presentation events,

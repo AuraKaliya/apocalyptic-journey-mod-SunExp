@@ -71,14 +71,6 @@ public static class TerriasPerformanceSettings
 
     public static int FrameSchedulerBudget => 32;
 
-    public static bool CardFaceEffectsEnabled => true;
-
-    public static float CardFaceEffectQualityScale => 0.86f;
-
-    public static bool CardFrameEffectsEnabled => true;
-
-    public static float CardFrameEffectQualityScale => CardFaceEffectQualityScale;
-
     public static int CardUseFxRibbonSamples => 32;
 
     public static int WunaCoreSections => 96;

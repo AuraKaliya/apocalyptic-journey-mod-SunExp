@@ -56,6 +56,7 @@ public sealed class AudioProviderManifest
 [Serializable]
 public sealed class AudioProviderMatch
 {
+    public string[]? stages;
     public string[]? careerIds;
     public string[]? roleIds;
     public string[]? cardIds;
@@ -83,6 +84,16 @@ public static class SoundEventKinds
     public const string LowHealth = "LowHealth";
     public const string BattleCompleted = "BattleCompleted";
     public const string VocalState = "VocalState";
+}
+
+public static class AudioSignalStages
+{
+    public const string Committed = "Committed";
+    public const string PresentationCommitted = "PresentationCommitted";
+    public const string Applied = "Applied";
+    public const string Observed = "Observed";
+    public const string ThresholdCrossedDown = "ThresholdCrossedDown";
+    public const string Completed = "Completed";
 }
 
 public static class SoundBuses
@@ -119,6 +130,8 @@ public sealed class SoundPlaybackRequest
     public string OwnerModId { get; set; } = "";
 
     public string Kind { get; set; } = "";
+
+    public string Stage { get; set; } = "";
 
     public string CareerId { get; set; } = "";
 
@@ -173,6 +186,7 @@ public sealed class SoundPlaybackRequest
             ProviderId = AudioPropertyReader.ReadString(request, nameof(ProviderId)),
             OwnerModId = AudioPropertyReader.ReadString(request, nameof(OwnerModId)),
             Kind = AudioPropertyReader.ReadString(request, nameof(Kind)),
+            Stage = AudioPropertyReader.ReadString(request, nameof(Stage)),
             CareerId = AudioPropertyReader.ReadString(request, nameof(CareerId)),
             RoleId = AudioPropertyReader.ReadString(request, nameof(RoleId)),
             StatusInstanceId = AudioPropertyReader.ReadString(request, nameof(StatusInstanceId)),

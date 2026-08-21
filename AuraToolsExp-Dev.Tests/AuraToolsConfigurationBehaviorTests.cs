@@ -15,6 +15,85 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 internal static partial class AuraToolsTestSuite
 {
+    public static void TestPresentationOwnershipMigrations()
+    {
+        var cardVisual = new AuraToolsCardVisualSettings();
+        cardVisual.Normalize();
+        Assert(cardVisual.Themes.Count == 0 && cardVisual.DynamicEffects.Count == 0,
+            "card visuals start without a global whitelist; theme presets are seeded only by the runtime");
+
+        var skin = new AuraToolsSkinSettings
+        {
+            SelectionSchemaVersion = 3,
+            ResourceOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Terrias:Terrias_wuna_wuna:Terrias.Terrias_wuna_wuna.summer_cool"] = false,
+                ["Terrias:Terrias_columbina_columbina:Terrias.Terrias_columbina_columbina.restore_colors"] = true
+            }
+        };
+        skin.Normalize();
+        Assert(skin.SchemaVersion == 4
+               && skin.ResourceOverrides.ContainsKey("AuraToolsExp:Terrias_wuna_wuna:AuraToolsExp.Terrias_wuna_wuna.summer_cool")
+               && skin.ResourceOverrides.ContainsKey("AuraToolsExp:Terrias_columbina_columbina:AuraToolsExp.Terrias_columbina_columbina.restore_colors")
+               && skin.MigrateLegacyCandidateSelection(Array.Empty<string>()),
+            "Terrias-owned replacement-skin preferences migrate once to AuraToolsExp ownership");
+
+        var skillCg = new AuraToolsSkillCgSettings
+        {
+            CardUseCg = new AuraToolsCardUseCgSettings
+            {
+                RegisteredEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Terrias:terrias.blazing-crown-collapse"] = false
+                },
+                PresentationOverrides = new Dictionary<string, CardUseCgPresentationOverrideSettings>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Terrias:terrias.blazing-crown-collapse"] = new()
+                    {
+                        FlashStrength = 2f,
+                        FrameSeconds = 0f
+                    }
+                }
+            },
+            Roles = new Dictionary<string, SkillCgRoleSettings>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Terrias_wuna_wuna"] = new SkillCgRoleSettings
+                {
+                    RoleId = "Terrias_wuna_wuna",
+                    Rules = new List<SkillCgRuleSettings>
+                    {
+                        new()
+                        {
+                            SourceOwnerModId = "Terrias",
+                            SourceCgId = "wuna.white-sun-prayer",
+                            CardId = "Terrias_wuna_wuna_*wuna_white_sun_prayer"
+                        }
+                    }
+                }
+            }
+        };
+        skillCg.Normalize();
+        Assert(skillCg.SchemaVersion == 6
+               && skillCg.CardUseCg.RegisteredEntries.ContainsKey("AuraToolsExp:terrias.blazing-crown-collapse")
+               && skillCg.CardUseCg.PresentationOverrides.TryGetValue("AuraToolsExp:terrias.blazing-crown-collapse", out var cardUseOverride)
+               && cardUseOverride.FlashStrength == 1f
+               && Math.Abs(cardUseOverride.FrameSeconds!.Value - 0.01f) < 0.001f
+               && skillCg.Roles["Terrias_wuna_wuna"].Rules[0].SourceOwnerModId == "AuraToolsExp",
+            "Skill CG and card-use CG preferences migrate to the tool-owned registry without a second runtime path");
+
+        var feastRole = new FeastRoleSettings
+        {
+            RoleId = "Terrias_wuna_wuna",
+            ResourceOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Terrias:wuna.feast"] = false
+            }
+        };
+        feastRole.Normalize("Terrias_wuna_wuna", FeastSettings.CreateDefaultPresentation());
+        Assert(feastRole.ResourceOverrides.ContainsKey("AuraToolsExp:wuna.feast"),
+            "Terrias Feast CG preferences migrate to the AuraToolsExp resource owner");
+    }
+
     public static void TestAutoBattleTechnicalFallbackState()
     {
         var state = new AuraToolsExp.Dll.Features.AutoBattle
@@ -142,12 +221,13 @@ internal static partial class AuraToolsTestSuite
         var root = JsonConvert.DeserializeObject<AuraToolsRootConfig>(
             "{\"schemaVersion\":0,\"audio\":null,\"matchExperience\":null,\"skillCg\":null,\"skin\":null,\"logging\":null}")!;
         root.Normalize();
-        Assert(root.SchemaVersion == 1
+        Assert(root.SchemaVersion == 2
                && root.Audio.ConfigFile == "AudioSettings.json"
                && root.MatchExperience.ConfigFile == "MatchExperienceSettings.json"
                && root.PixelEmoji.ConfigFile == "PixelEmojiSettings.json"
                && root.SkillCg.ConfigFile == "SkillCgSettings.json"
                && root.Skin.ConfigFile == "SkinSettings.json"
+               && root.CardVisual.ConfigFile == "CardVisualSettings.json"
                && root.Logging.ConfigFile == "LoggingSettings.json",
             "root config preserves module-file defaults after JSON deserialization");
     
@@ -182,9 +262,11 @@ internal static partial class AuraToolsTestSuite
         var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
         audio.Normalize();
-        Assert(audio.SchemaVersion == 3
+        Assert(audio.SchemaVersion == 4
                && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
-               && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3",
+               && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3"
+               && audio.Voice.Enabled
+               && audio.Voice.Bindings.Count == 0,
             "audio config preserves user resource paths while recovering missing domains");
         Assert(AuraToolsConfigSchemaPolicy.IsNewer(
                    storedEnvelopeVersion: 2,
@@ -194,7 +276,7 @@ internal static partial class AuraToolsTestSuite
                    storedEnvelopeVersion: 1,
                    storedValue: new AuraToolsAudioSettings
                    {
-                       SchemaVersion = 4
+                       SchemaVersion = 5
                    },
                    supportedValue: new AuraToolsAudioSettings())
                && !AuraToolsConfigSchemaPolicy.IsNewer(
@@ -427,11 +509,11 @@ internal static partial class AuraToolsTestSuite
         var skin = JsonConvert.DeserializeObject<AuraToolsSkinSettings>(
             "{\"schemaVersion\":0,\"autoInstallBundledSkins\":false}")!;
         skin.Normalize();
-        Assert(skin.SchemaVersion == 3 && skin.AutoInstallBundledSkins,
+        Assert(skin.SchemaVersion == 4 && skin.AutoInstallBundledSkins,
             "skin config keeps its always-on bundled installation policy after the file split");
         skin.SetCandidateEnabled("ContentB:summer", false, new[] { "ContentA:summer", "ContentB:summer" });
         Assert(!skin.CandidateSelectionConfigured
-               && skin.SelectionSchemaVersion == 3
+               && skin.SelectionSchemaVersion == 4
                && skin.IsCandidateEnabled("ContentA:summer")
                && !skin.IsCandidateEnabled("ContentB:summer")
                && skin.IsCandidateEnabled("NewContent:summer"),

@@ -1,8 +1,10 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 6,
   "enabled": true,
   "cardUseCg": {
-    "enabled": true
+    "enabled": true,
+    "registeredEntries": {},
+    "presentationOverrides": {}
   },
   "syncRemote": true,
   "maxQueueLength": 8,

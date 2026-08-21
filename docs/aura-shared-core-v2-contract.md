@@ -94,14 +94,14 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 ```json
 {
-  "ownerModId": "Terrias",
+  "ownerModId": "AuraToolsExp",
   "system": "Audio",
-  "logicalId": "Terrias.WuNa.VoicePack",
-  "packageId": "Terrias.SharedResources",
-  "packageVersion": 1,
+  "logicalId": "AuraToolsExp.Terrias.WuNa.VoicePack",
+  "packageId": "AuraToolsExp.SharedResources.V4",
+  "packageVersion": 2,
   "kind": "Directory",
-  "sourcePath": "D:/.../Terrias/SharedResources/Audio/WuNa",
-  "destinationRelativePath": "Audio/Terrias/WuNa"
+  "sourcePath": "D:/.../AuraToolsExp/SharedResources/Audio/Terrias/WuNa",
+  "destinationRelativePath": "Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack"
 }
 ```
 
@@ -231,9 +231,8 @@ stable subscriber identity of `ownerModId + handlerId`.
 可以把当前游戏职业表扫描结果作为独立 contribution 发布到 `AuraRoleShared`。贡献以
 `contributorModId + contributionId + sessionId` 分区，避免旧会话或某个动态扫描器覆盖
 其他 MOD 的声明。AuraToolsExp 读取角色目录与 v4 Catalog，但不再为每个新角色生成
-`generated-feast-defaults` 双注册贡献。内容 MOD 的美餐 CG 只由其 v4 manifest 注册；
-工具默认资源仍归 AuraToolsExp 所有，并且仅在对应角色没有“当前 MOD 已启用且注册成功”
-的内容资源时作为一个候选显示。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
+`generated-feast-defaults` 双注册贡献。Terrias 目标的美餐 CG 由 AuraToolsExp v4 manifest
+注册并归工具所有；其他 MOD 仍可按各自产品边界注册候选。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
 既不伪装成注册资源，也不阻止工具默认资源出现。
 
 ## Conflict And Candidate Policy（冲突与候选策略）

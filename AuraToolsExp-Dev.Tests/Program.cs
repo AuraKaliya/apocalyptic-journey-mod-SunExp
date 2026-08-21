@@ -38,6 +38,7 @@ TestMatchReplayPackage();
 TestDamageMeterSettingsNormalization();
 TestMatchRecordSettingsMigration();
 TestConfigModelSerializationCompatibility();
+TestPresentationOwnershipMigrations();
 TestPixelEmojiCore();
 TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();

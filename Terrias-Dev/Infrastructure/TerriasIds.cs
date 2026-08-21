@@ -28,22 +28,8 @@ public static class TerriasIds
     public const string SpiritProfileDirectory = "SpiritCollectionProfiles";
     public const string SpiritAdventureSessionDirectory = "SpiritAdventureSessions";
 
-    public const string SunCardVisualSkinId = "terrias.card_visual.sun";
-    public const string MorningStarCardVisualSkinId = "terrias.card_visual.morning_star";
-    public const string CardFaceEffectShaderId = "terrias.card_visual_effect.card_face.shader";
-    public const string CardFaceFoilHoloVisualEffectId = "terrias.card_visual_effect.foil_holo";
-    public const string CardFaceStardustVisualEffectId = "terrias.card_visual_effect.stardust_overture";
-    public const string CardFrameHoloFlowShaderId = CardFaceEffectShaderId;
-    public const string CardFrameHoloFlowVisualEffectId = CardFaceFoilHoloVisualEffectId;
-    public const string BlazingCrownCollapseHoloEffectBindingId = "terrias.card_visual_effect.blazing_crown_collapse.holo_flow";
-    public const string StellarOvertureStardustEffectBindingId = "terrias.card_visual_effect.stellar_overture.stardust";
     public const string StellarOvertureCardUseFxId = "stellar-overture-star-trail";
-    public const string StellarOvertureCardUseVisualEffectId = CardFaceStardustVisualEffectId;
-    public const string SunCardFramePath = "Mods/Terrias/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
-    public const string SunCardBackgroundPath = "Mods/Terrias/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
-    public const string MorningStarCardFramePath = "Mods/Terrias/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
-    public const string SunCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Terrias/";
-    public const string StellarOvertureCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Loneer/stellar_overture_";
+    public const string StellarOvertureCardUseVisualEffectId = "terrias.star_score.card_use_fx.stardust_overture";
     public const string SolarEmberCrownCanopyCardPackId = "Terrias_terrias_cardpack_solar_ember_crown_canopy";
     public const string RadiantSparkCardPackId = "Terrias_terrias_cardpack_radiant_spark";
     public const string EmberCrownCardPackId = "Terrias_terrias_cardpack_ember_crown";
@@ -58,19 +44,6 @@ public static class TerriasIds
         RadiantSparkCardPackId,
         EmberCrownCardPackId,
         SolarCanopyCardPackId
-    };
-
-    public static readonly string[] SunThemeCardPackIds =
-    {
-        SolarEmberCrownCanopyCardPackId,
-        RadiantSparkCardPackId,
-        EmberCrownCardPackId,
-        SolarCanopyCardPackId
-    };
-
-    public static readonly string[] MorningStarThemeCardPackIds =
-    {
-        MorningStarOvertureCardPackId
     };
 
     public static bool IsHiddenRelicId(string id)
@@ -374,35 +347,6 @@ public static class TerriasIds
         StellarOvertureSustainCardId,
         StellarOvertureTurnCardId,
         StellarOvertureCloseCardId
-    };
-
-    public static readonly string[] StellarOvertureCardEffectIds =
-    {
-        StellarOvertureStartCardId,
-        StellarOvertureSustainCardId,
-        StellarOvertureTurnCardId,
-        StellarOvertureCloseCardId,
-        StellarOvertureStartShortCardId,
-        StellarOvertureSustainShortCardId,
-        StellarOvertureTurnShortCardId,
-        StellarOvertureCloseShortCardId,
-        "*" + StellarOvertureStartShortCardId,
-        "*" + StellarOvertureSustainShortCardId,
-        "*" + StellarOvertureTurnShortCardId,
-        "*" + StellarOvertureCloseShortCardId
-    };
-
-    public static readonly string[] SunThemeExplicitCardIds =
-    {
-        WunaCoronationTokenCardId,
-        "Terrias_wuna_card_*wuna_coronation_token",
-        "*wuna_coronation_token",
-        "wuna_coronation_token"
-    };
-
-    public static readonly string[] SunThemeCardIconPathPrefixes =
-    {
-        SunCardIconPathPrefix
     };
 
     public const string StarClayDollPartnerId = "Terrias_terrias_star_clay_doll";

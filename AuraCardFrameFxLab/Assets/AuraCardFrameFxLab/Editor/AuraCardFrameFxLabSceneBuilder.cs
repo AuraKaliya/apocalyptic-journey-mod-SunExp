@@ -77,7 +77,7 @@ namespace AuraCardFrameFxLabEditor
             RequireObject("CardDescription");
 
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
-            if (shader == null || shader.name != "Terrias/CardFaceEffect")
+            if (shader == null || shader.name != "AuraTools/CardFaceEffect")
             {
                 throw new System.InvalidOperationException("CardFaceEffect shader is not available.");
             }

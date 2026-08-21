@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "battleBgm": {
     "enabled": true,
     "mode": "Common",
@@ -23,5 +23,9 @@
       "gainDb": 6.0
     },
     "roles": {}
+  },
+  "voice": {
+    "enabled": true,
+    "bindings": {}
   }
 }

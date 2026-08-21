@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "themeId": "terrias",
+  "displayName": "Terrias主题",
+  "skins": ["solar", "morning-star", "radiant-moon"]
+}

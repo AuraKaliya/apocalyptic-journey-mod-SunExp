@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 2,
-  "ownerModId": "Terrias",
+  "schemaVersion": 3,
+  "ownerModId": "AuraToolsExp",
   "audioProtocol": {
-    "minVersion": 2,
-    "preferredVersion": 2
+    "minVersion": 7,
+    "preferredVersion": 7
   },
   "defaults": {
     "sync": true,
@@ -14,14 +14,15 @@
   },
   "providers": [
     {
-      "providerId": "Terrias.Wuna.CareerSelected",
+      "providerId": "AuraToolsExp.Terrias.Wuna.CareerSelected",
       "kind": "CareerSelected",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_career_selected.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_career_selected.wav",
       "gainDb": 20,
       "match": {
+        "stages": ["Committed"],
         "careerIds": [
           "wuna",
           "Terrias_wuna_wuna"
@@ -33,15 +34,16 @@
       }
     },
     {
-      "providerId": "Terrias.Wuna.LowHealth",
+      "providerId": "AuraToolsExp.Terrias.Wuna.LowHealth",
       "kind": "LowHealth",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_low_health.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_low_health.wav",
       "gainDb": 22,
       "cooldownSeconds": 1.0,
       "match": {
+        "stages": ["ThresholdCrossedDown"],
         "careerIds": [
           "wuna",
           "Terrias_wuna_wuna"
@@ -64,15 +66,16 @@
       }
     },
     {
-      "providerId": "Terrias.Wuna.WhiteSunPrayer",
-      "kind": "Terrias.Wuna.WhiteSunPrayer",
+      "providerId": "AuraToolsExp.Terrias.Wuna.WhiteSunPrayer",
+      "kind": "SkillVoice",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_white_sun_prayer.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_white_sun_prayer.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
+        "stages": ["PresentationCommitted"],
         "careerIds": [
           "wuna",
           "Terrias_wuna_wuna"
@@ -80,19 +83,24 @@
         "roleIds": [
           "wuna",
           "Terrias_wuna_wuna"
+        ],
+        "cardIds": [
+          "Terrias_wuna_wuna_white_sun_prayer",
+          "*wuna_white_sun_prayer"
         ]
       }
     },
     {
-      "providerId": "Terrias.Wuna.GraveSong",
-      "kind": "Terrias.Wuna.GraveSong",
+      "providerId": "AuraToolsExp.Terrias.Wuna.GraveSong",
+      "kind": "SkillVoice",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_grave_song.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_grave_song.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
+        "stages": ["PresentationCommitted"],
         "careerIds": [
           "wuna",
           "Terrias_wuna_wuna"
@@ -100,19 +108,24 @@
         "roleIds": [
           "wuna",
           "Terrias_wuna_wuna"
+        ],
+        "cardIds": [
+          "Terrias_wuna_wuna_grave_song",
+          "*wuna_grave_song"
         ]
       }
     },
     {
-      "providerId": "Terrias.Wuna.BattleWin",
+      "providerId": "AuraToolsExp.Terrias.Wuna.BattleWin",
       "kind": "BattleCompleted",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 100,
-      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_battle_win.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_battle_win.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.5,
       "match": {
+        "stages": ["Completed"],
         "careerIds": [
           "wuna",
           "Terrias_wuna_wuna"
@@ -127,19 +140,20 @@
       }
     },
     {
-      "providerId": "Terrias.Columbina.CareerSelected",
+      "providerId": "AuraToolsExp.Terrias.Columbina.CareerSelected",
       "kind": "CareerSelected",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_career_selected_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_02.ogg",
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_03.ogg",
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_04.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_career_selected_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_career_selected_03.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_career_selected_04.ogg"
       ],
       "gainDb": 8,
       "match": {
+        "stages": ["Committed"],
         "careerIds": [
           "columbina",
           "Terrias_columbina_columbina"
@@ -151,18 +165,19 @@
       }
     },
     {
-      "providerId": "Terrias.Columbina.LowHealth",
+      "providerId": "AuraToolsExp.Terrias.Columbina.LowHealth",
       "kind": "LowHealth",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_low_health_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_low_health_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_low_health_02.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_low_health_02.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 1.0,
       "match": {
+        "stages": ["ThresholdCrossedDown"],
         "careerIds": [
           "columbina",
           "Terrias_columbina_columbina"
@@ -185,19 +200,20 @@
       }
     },
     {
-      "providerId": "Terrias.Columbina.EternalTide",
-      "kind": "Terrias.Columbina.EternalTide",
+      "providerId": "AuraToolsExp.Terrias.Columbina.EternalTide",
+      "kind": "SkillVoice",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_eternal_tide_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_02.ogg",
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_03.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_eternal_tide_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_eternal_tide_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,
       "match": {
+        "stages": ["PresentationCommitted"],
         "careerIds": [
           "columbina",
           "Terrias_columbina_columbina"
@@ -205,23 +221,28 @@
         "roleIds": [
           "columbina",
           "Terrias_columbina_columbina"
+        ],
+        "cardIds": [
+          "Terrias_columbina_columbina_eternal_tide",
+          "*columbina_eternal_tide"
         ]
       }
     },
     {
-      "providerId": "Terrias.Columbina.Homesickness",
-      "kind": "Terrias.Columbina.Homesickness",
+      "providerId": "AuraToolsExp.Terrias.Columbina.Homesickness",
+      "kind": "SkillVoice",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_homesickness_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_02.ogg",
-        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_03.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_homesickness_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/columbina_homesickness_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,
       "match": {
+        "stages": ["PresentationCommitted"],
         "careerIds": [
           "columbina",
           "Terrias_columbina_columbina"
@@ -229,6 +250,10 @@
         "roleIds": [
           "columbina",
           "Terrias_columbina_columbina"
+        ],
+        "cardIds": [
+          "Terrias_columbina_columbina_homesickness",
+          "*columbina_homesickness"
         ]
       }
     }

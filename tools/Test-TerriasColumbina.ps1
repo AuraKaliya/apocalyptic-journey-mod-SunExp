@@ -83,9 +83,10 @@ foreach ($modPath in @($career.ActionImage1, $career.ActionImage2)) {
     Assert-True (Test-Path -LiteralPath (Join-Path $repoRoot $relative)) "Missing Columbina skill image from career data."
 }
 
-$sharedPackagePath = Join-Path $repoRoot "Terrias\SharedResources\aura.registration.json"
+$sharedPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\aura.registration.json"
 $sharedPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $sharedPackagePath | ConvertFrom-Json
 Assert-True ([int]$sharedPackage.schemaVersion -eq 4) "Columbina resources require AuraShared resource protocol v4."
+Assert-True ($sharedPackage.ownerModId -eq "AuraToolsExp" -and $sharedPackage.participantKind -eq "Tool") "Columbina optional media must be owned by AuraToolsExp."
 $sharedPackageRoot = Split-Path -Parent $sharedPackagePath
 foreach ($resourceId in @("columbina.homesickness", "columbina.feast")) {
     $resource = $sharedPackage.resources | Where-Object { $_.resourceId -eq $resourceId -and $_.moduleId -eq "CG" -and $_.kind -eq "File" } | Select-Object -First 1
@@ -93,12 +94,12 @@ foreach ($resourceId in @("columbina.homesickness", "columbina.feast")) {
     Assert-True (Test-Path -LiteralPath (Join-Path $sharedPackageRoot $resource.source) -PathType Leaf) "Missing Columbina shared CG source: $($resource.source)"
 }
 
-$cgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias\SharedResources\cg.registry.json") | ConvertFrom-Json
+$cgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp\SharedResources\cg.registry.json") | ConvertFrom-Json
 $homesicknessCg = $cgRegistry.entries | Where-Object { $_.cgId -eq "columbina.homesickness" } | Select-Object -First 1
 Assert-True ($null -ne $homesicknessCg -and $homesicknessCg.kind -eq "skill") "Columbina Homesickness skill CG registration is missing."
 Assert-True (@($homesicknessCg.targetRoleIds) -contains "Terrias_columbina_columbina") "Columbina Homesickness CG must target the full role id."
 Assert-True (@($homesicknessCg.cardIds) -contains "Terrias_columbina_columbina_homesickness") "Columbina Homesickness CG must target the full skill card id."
-Assert-True ($homesicknessCg.defaultActivation.consumerMode -eq "contentOwned") "Columbina Homesickness CG must be content-owned."
+Assert-True ($homesicknessCg.defaultActivation.consumerMode -eq "toolManaged" -and $homesicknessCg.defaultActivation.consumerModId -eq "AuraToolsExp") "Columbina Homesickness CG must be managed by AuraToolsExp."
 $feastCg = $cgRegistry.entries | Where-Object { $_.cgId -eq "columbina.feast" } | Select-Object -First 1
 Assert-True ($null -ne $feastCg -and $feastCg.kind -eq "feast") "Columbina Feast CG registration is missing."
 Assert-True ($feastCg.defaultActivation.consumerMode -eq "toolManaged" -and $feastCg.defaultActivation.consumerModId -eq "AuraToolsExp") "Columbina Feast CG must be managed by AuraToolsExp."
@@ -111,12 +112,12 @@ $voiceFiles = @(Get-ChildItem -LiteralPath $voiceRoot -Filter "*.ogg" -File)
 Assert-True ($voiceFiles.Count -eq 12) "Columbina voice pack must contain exactly 12 normalized Ogg files."
 Assert-True (@(Get-ChildItem -LiteralPath $voiceRoot -Filter "*.mp3" -File).Count -eq 0) "Columbina voice pack must not retain mislabeled MP3 files."
 
-$audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias\audio.registry.json") | ConvertFrom-Json
+$audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp\audio.registry.json") | ConvertFrom-Json
 $expectedVoiceCounts = @{
-    "Terrias.Columbina.CareerSelected" = 4
-    "Terrias.Columbina.LowHealth" = 2
-    "Terrias.Columbina.EternalTide" = 3
-    "Terrias.Columbina.Homesickness" = 3
+    "AuraToolsExp.Terrias.Columbina.CareerSelected" = 4
+    "AuraToolsExp.Terrias.Columbina.LowHealth" = 2
+    "AuraToolsExp.Terrias.Columbina.EternalTide" = 3
+    "AuraToolsExp.Terrias.Columbina.Homesickness" = 3
 }
 foreach ($providerId in $expectedVoiceCounts.Keys) {
     $provider = $audioRegistry.providers | Where-Object { $_.providerId -eq $providerId } | Select-Object -First 1
@@ -125,12 +126,12 @@ foreach ($providerId in $expectedVoiceCounts.Keys) {
     Assert-True ($paths.Count -eq $expectedVoiceCounts[$providerId]) "Unexpected Columbina voice variant count: $providerId"
     Assert-True ([double]$provider.gainDb -eq 8) "Columbina voices must use the configured +8 dB provider gain: $providerId"
     foreach ($path in $paths) {
-        Assert-True ($path.StartsWith("Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/")) "Columbina voice must resolve through the v4 shared scope: $path"
+        Assert-True ($path.StartsWith("Shared:Audio/Role/Terrias_columbina_columbina/Voice/AuraToolsExp/columbina.voice-pack/content/")) "Columbina voice must resolve through the AuraToolsExp v4 shared scope: $path"
         Assert-True (Test-Path -LiteralPath (Join-Path $voiceRoot ([System.IO.Path]::GetFileName($path))) -PathType Leaf) "Missing declared Columbina voice file: $path"
     }
 }
 
-$lowHealthVoice = $audioRegistry.providers | Where-Object { $_.providerId -eq "Terrias.Columbina.LowHealth" } | Select-Object -First 1
+$lowHealthVoice = $audioRegistry.providers | Where-Object { $_.providerId -eq "AuraToolsExp.Terrias.Columbina.LowHealth" } | Select-Object -First 1
 Assert-True ([double]$lowHealthVoice.match.hpRatioCrossDown -eq 0.2 -and $lowHealthVoice.match.localOwnerOnly) "Columbina low-health voice must use the local-owner 20% crossing rule."
 
 $behaviorProject = Join-Path $repoRoot "Terrias-Dev.ColumbinaTests\Terrias-Dev.ColumbinaTests.csproj"

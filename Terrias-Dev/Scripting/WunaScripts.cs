@@ -136,7 +136,6 @@ public static class WunaScripts
 
         self.SetStatus("Self");
         AttachOrbitFire(self, "WhiteSunPrayer", "Skill");
-        AudioApi.PlayWhiteSunPrayer();
         var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, TerriasIds.WunaCoronationTokenCardId);
         if (!grant.Success)
         {
@@ -175,7 +174,6 @@ public static class WunaScripts
         }
 
         var burn = ember / 2;
-        AudioApi.PlayGraveSong();
         self.SetStatus("Self");
         AttachOrbitFire(self, "GraveSong", "Skill");
         BuffApi.ClearEmberDamageBonus(self, self.Self);

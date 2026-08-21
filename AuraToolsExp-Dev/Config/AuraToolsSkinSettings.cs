@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsSkinSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -37,16 +37,16 @@ public sealed class AuraToolsSkinSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(3, SchemaVersion);
+        SchemaVersion = Math.Max(4, SchemaVersion);
         AutoInstallBundledSkins = true;
         EnabledSkinIds = (EnabledSkinIds ?? new List<string>())
-            .Select(value => (value ?? "").Trim())
+            .Select(value => MigrateQualifiedSkinId((value ?? "").Trim()))
             .Where(value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         ResourceOverrides = (ResourceOverrides ?? new Dictionary<string, bool>())
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
-            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(pair => MigrateQualifiedSkinId(pair.Key.Trim()), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -67,12 +67,12 @@ public sealed class AuraToolsSkinSettings
         }
 
         ResourceOverrides[id] = enabled;
-        SelectionSchemaVersion = 3;
+        SelectionSchemaVersion = 4;
     }
 
     public bool MigrateLegacyCandidateSelection(IEnumerable<string> currentCandidateIds)
     {
-        if (!CandidateSelectionConfigured && SelectionSchemaVersion >= 3)
+        if (!CandidateSelectionConfigured && SelectionSchemaVersion >= 4)
         {
             return false;
         }
@@ -92,7 +92,16 @@ public sealed class AuraToolsSkinSettings
 
         CandidateSelectionConfigured = false;
         (EnabledSkinIds ??= new List<string>()).Clear();
-        SelectionSchemaVersion = 3;
+        SelectionSchemaVersion = 4;
         return true;
+    }
+
+    private static string MigrateQualifiedSkinId(string value)
+    {
+        if (string.Equals(value, "Terrias:Terrias_wuna_wuna:Terrias.Terrias_wuna_wuna.summer_cool", StringComparison.OrdinalIgnoreCase))
+            return "AuraToolsExp:Terrias_wuna_wuna:AuraToolsExp.Terrias_wuna_wuna.summer_cool";
+        if (string.Equals(value, "Terrias:Terrias_columbina_columbina:Terrias.Terrias_columbina_columbina.restore_colors", StringComparison.OrdinalIgnoreCase))
+            return "AuraToolsExp:Terrias_columbina_columbina:AuraToolsExp.Terrias_columbina_columbina.restore_colors";
+        return value;
     }
 }

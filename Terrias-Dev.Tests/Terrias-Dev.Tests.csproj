@@ -29,15 +29,6 @@
     <Compile Include="..\Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs" Link="Source\CombatCardViewPoolCatalog.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PooledCardViewExit.cs" Link="Source\PooledCardViewExit.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CardConfigApi.cs" Link="Source\CardConfigApi.cs" />
-    <Compile Include="..\Terrias-Dev\GameApi\CardVisualSkinApi.cs" Link="Source\CardVisualSkinApi.cs" />
-    <Compile Include="..\Terrias-Dev\GameApi\CardVisualEffectApi.cs" Link="Source\CardVisualEffectApi.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualEffectTarget.cs" Link="Source\CardVisualEffectTarget.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualEffectSpec.cs" Link="Source\CardVisualEffectSpec.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualEffectRegistry.cs" Link="Source\CardVisualEffectRegistry.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualInterestIndex.cs" Link="Source\CardVisualInterestIndex.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinSpec.cs" Link="Source\CardVisualSkinSpec.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinRule.cs" Link="Source\CardVisualSkinRule.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CardVisualSkinRegistry.cs" Link="Source\CardVisualSkinRegistry.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\TerriasCardInvalidationService.cs" Link="Source\TerriasCardInvalidationService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\TerriasActiveCardPresentationIndex.cs" Link="Source\TerriasActiveCardPresentationIndex.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CardMutationService.cs" Link="Source\CardMutationService.cs" />

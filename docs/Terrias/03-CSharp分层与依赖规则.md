@@ -124,7 +124,7 @@ GameApi 把易变的游戏对象、反射签名和空值处理隔离在集中位
 | 内容操作 | `CardApi`、`BuffApi`、`DamageApi`、`StatusApi`、`EnemyApi` | 对游戏内容对象做 nil-safe 操作 |
 | 配置访问 | `CardConfigApi`、`GameCompatibilityApi`、`TerriasResourceCache` | DataConfig、签名漂移、资源缓存 |
 | 流程适配 | `SolarMemoryFlowApi`、`SolarMemoryJourneyApi`、`BattleRewardApi` | 把脚本/机制接到宿主流程 |
-| 表现适配 | `CardVisualSkinApi`、`FightUiCardLayoutApi`、`DialogueUiApi` | UI/视觉宿主对象操作 |
+| 表现适配 | `FightUiCardLayoutApi`、`DialogueUiApi` | Terrias 必需 UI/视觉宿主对象操作；通用卡牌视觉由共享生命周期和 AuraToolsExp 承担 |
 | 网络/提交 | `SolarMemoryRoleCommitApi` | 最终权威提交 facade |
 
 `ExecutorApi` 保留为兼容 facade，将实现委托给更聚焦的 GameApi 类型。新能力优先进入聚焦包装类，只有既有脚本需要时才通过 ExecutorApi 暴露便利方法。
@@ -169,7 +169,7 @@ Mechanics 不能成为 AuraToolsExp 的隐式开发框架。如果其他 MOD 也
 
 ## 7. Features：独立功能运行时
 
-`Features/SkillCg/TerriasSkillCgRuntime` 是当前唯一 Feature。它由 Entry 初始化，不是 CSV 公共入口，负责把 Terrias 内容触发转换为共享 Skill CG 请求。
+Terrias 不再包含 Skill CG Feature。可配置 Skill CG、卡牌使用 CG 和美餐 CG 由 AuraToolsExp 通过共享卡牌动作信号与 `AuraCgShared` 播放；Terrias 只提供稳定内容 id 和机制。
 
 Feature 可以依赖共享协议、GameApi、Mechanics、Infrastructure 和必要的表现 helper，但不应复制 shared domain 已经拥有的注册、网络 relay 或去重逻辑。
 

@@ -43,6 +43,7 @@ public static class AuraToolsSkillCgRuntime
             MaxRequestAgeSeconds = AuraToolsConfigService.SkillCg.MaxRequestAgeSeconds,
             DuplicateWindowSeconds = AuraToolsConfigService.SkillCg.DuplicateWindowSeconds
         });
+        AuraToolsCgVisualBootstrap.Initialize();
         SkillCgArbiterRuntime.RegisterProvider(modConfig, AuraToolsIds.ModId, new AuraToolsSkillCgProvider());
 
         AuraToolsConfigService.SubscribeModule(
@@ -425,6 +426,52 @@ public static class AuraToolsSkillCgRuntime
             AuraToolsLog.Debug(message);
         }
     }
+
+    public static bool PreviewRegisteredCardUseCg(string ownerModId, string cgId)
+    {
+        var request = SkillCgArbiterRuntime.BuildCardUsePreviewRequest(
+            AuraToolsIds.ModId,
+            ownerModId,
+            cgId);
+        if (request == null) return false;
+        ApplyCardUsePresentationOverride(request);
+        SkillCgArbiterRuntime.RequestCg(AuraToolsIds.ModId, request);
+        return true;
+    }
+
+    internal static void ApplyCardUsePresentationOverride(SkillCgRequest request)
+    {
+        var providerId = request.ProviderId ?? "";
+        const string marker = ".SkillCG.";
+        var markerIndex = providerId.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0) return;
+        var cgId = providerId.Substring(markerIndex + marker.Length).Trim();
+        var key = (request.OwnerModId ?? "").Trim() + ":" + cgId;
+        if (!AuraToolsConfigService.SkillCg.CardUseCg.PresentationOverrides.TryGetValue(key, out var settings)
+            || settings == null)
+        {
+            return;
+        }
+
+        settings.Normalize();
+        if (!string.IsNullOrWhiteSpace(settings.PresentationMode)) request.PresentationMode = settings.PresentationMode;
+        if (!string.IsNullOrWhiteSpace(settings.FitMode)) request.FitMode = settings.FitMode;
+        if (settings.FadeIn.HasValue) request.FadeIn = settings.FadeIn.Value;
+        if (settings.Hold.HasValue) request.Hold = settings.Hold.Value;
+        if (settings.FadeOut.HasValue) request.FadeOut = settings.FadeOut.Value;
+        if (settings.FrameSeconds.HasValue) request.FrameSeconds = settings.FrameSeconds.Value;
+        if (!string.IsNullOrWhiteSpace(settings.AlphaMode)) request.AlphaMode = settings.AlphaMode;
+        if (settings.KeyThreshold.HasValue) request.KeyThreshold = settings.KeyThreshold.Value;
+        if (settings.KeySoftness.HasValue) request.KeySoftness = settings.KeySoftness.Value;
+        if (!string.IsNullOrWhiteSpace(settings.FlashMode)) request.FlashMode = settings.FlashMode;
+        if (settings.FlashAtSeconds.HasValue) request.FlashAtSeconds = settings.FlashAtSeconds.Value;
+        if (settings.FlashDuration.HasValue) request.FlashDuration = settings.FlashDuration.Value;
+        if (settings.FlashStartFrame.HasValue) request.FlashStartFrame = settings.FlashStartFrame.Value;
+        if (settings.FlashEndFrame.HasValue) request.FlashEndFrame = settings.FlashEndFrame.Value;
+        if (settings.FlashPulseEveryFrames.HasValue) request.FlashPulseEveryFrames = settings.FlashPulseEveryFrames.Value;
+        if (settings.FlashStrength.HasValue) request.FlashStrength = settings.FlashStrength.Value;
+        request.Normalize();
+    }
 }
 
 public sealed class AuraToolsSkillCgProvider
@@ -536,6 +583,7 @@ public sealed class AuraToolsSkillCgProvider
                          trigger,
                          disableSync: !AuraToolsConfigService.SkillCg.SyncRemote))
             {
+                AuraToolsSkillCgRuntime.ApplyCardUsePresentationOverride(request);
                 emitted = true;
                 yield return request;
             }

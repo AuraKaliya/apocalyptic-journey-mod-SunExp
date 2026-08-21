@@ -10,7 +10,7 @@ of duplicating them in top-level skills.
 
 | Scenario | Examples | Authority | Sync shape |
 | --- | --- | --- | --- |
-| Initialization registration | Terrias registers mod-owned roles, CG, audio, skins, and unique content extensions. AuraToolsExp registers official-content or tool-owned extensions. Custom-start loadouts are AuraTools-local/imported configuration, not content-mod registration. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
+| Initialization registration | Terrias registers roles and gameplay/content declarations; its optional-media retirement package is empty. AuraToolsExp registers CG, audio, replacement skins, card visuals, and other tool-owned extensions targeting stable content ids. Custom-start loadouts remain AuraTools-local/imported configuration. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
 | Tool configuration | AuraToolsExp reads local persistent settings and forces or overrides effective tool behavior. | Tool-local config store. | Local effective-state overlay. Do not mutate or re-own foreign registrations. |
 | Shared progression | Map state, route state, run counters, shared reward state, final role commit. | Host/server. | Client request -> server validate -> authoritative snapshot/result broadcast. |
 | Player-scoped state | Player choices, Wuna ember, damage submit, role-owned presentation request. | Bound sender/player owner. | Sender-bound command. Server binds sender from receive context before validation. |

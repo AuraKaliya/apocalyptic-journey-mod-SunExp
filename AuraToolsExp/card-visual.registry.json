@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "AuraToolsExp",
+  "protocol": {
+    "minVersion": 1,
+    "preferredVersion": 1
+  },
+  "themes": [
+    {
+      "themeId": "terrias",
+      "displayName": "Terrias主题",
+      "resourceRoot": "CardVisual/Global/all/FrameTheme/AuraToolsExp/terrias.theme/content",
+      "presetVersion": 1,
+      "skins": [
+        {
+          "skinId": "solar",
+          "displayName": "日耀",
+          "frame": "skins/solar/frame.png",
+          "background": "skins/solar/background.png"
+        },
+        {
+          "skinId": "morning-star",
+          "displayName": "晨星",
+          "frame": "skins/morning-star/frame.png",
+          "background": ""
+        },
+        {
+          "skinId": "radiant-moon",
+          "displayName": "辉月",
+          "frame": "skins/radiant-moon/frame.png",
+          "background": ""
+        }
+      ],
+      "mappingPreset": [
+        {
+          "skinId": "solar",
+          "contentOwnerModId": "Terrias",
+          "cardPackIds": [
+            "Terrias_terrias_cardpack_solar_ember_crown_canopy"
+          ],
+          "cardIds": []
+        },
+        {
+          "skinId": "morning-star",
+          "contentOwnerModId": "Terrias",
+          "cardPackIds": [
+            "Terrias_terrias_cardpack_morning_star_overture"
+          ],
+          "cardIds": [
+            "Terrias_terrias_stellar_overture_start",
+            "Terrias_terrias_stellar_overture_sustain",
+            "Terrias_terrias_stellar_overture_turn",
+            "Terrias_terrias_stellar_overture_close"
+          ]
+        }
+      ],
+      "enabled": true
+    }
+  ],
+  "effects": [
+    {
+      "effectId": "foil-holo",
+      "displayName": "箔光幻彩",
+      "rendererId": "aura.card-visual.material-v1",
+      "targetLayer": "frameOverlay",
+      "bundlePath": "Mods/AuraToolsExp/ModResource/VisualBundles/auratools_visuals",
+      "materialPath": "AuraToolsExp/Materials/CardFaceEffect",
+      "textures": {
+        "_FoilTex": "CardVisual/Global/all/DynamicEffect/AuraToolsExp/foil-holo/content/textures/foil.png"
+      },
+      "floats": {
+        "_TerriasOverlayMode": 1,
+        "_TerriasFrameOnlyOverlay": 1,
+        "_TerriasEffectMode": 0.23,
+        "_TerriasFoilMode": 1.603,
+        "_TerriasFlowSpeed": -2,
+        "_TerriasFlowScale": 1.603,
+        "_TerriasEffectIntensity": 1.093,
+        "_TerriasRainbowStrength": 1.25
+      },
+      "colors": {
+        "_TerriasHoloColorA": "#FFF0A6FF",
+        "_TerriasHoloColorB": "#A6F2FFFF",
+        "_TerriasHoloColorC": "#D2B8FFFF"
+      },
+      "exposedParameters": {
+        "_TerriasEffectIntensity": { "min": 0, "max": 2 },
+        "_TerriasFlowSpeed": { "min": -4, "max": 4 },
+        "_TerriasRainbowStrength": { "min": 0, "max": 2 }
+      },
+      "enabled": true
+    },
+    {
+      "effectId": "stardust",
+      "displayName": "晨星尘辉",
+      "rendererId": "aura.card-visual.material-v1",
+      "targetLayer": "frameOverlay",
+      "bundlePath": "Mods/AuraToolsExp/ModResource/VisualBundles/auratools_visuals",
+      "materialPath": "AuraToolsExp/Materials/CardFaceEffect",
+      "textures": {
+        "_NoiseTex": "CardVisual/Global/all/DynamicEffect/AuraToolsExp/stardust/content/textures/noise.png"
+      },
+      "floats": {
+        "_TerriasOverlayMode": 1,
+        "_TerriasFrameOnlyOverlay": 1,
+        "_TerriasEffectMode": 1,
+        "_TerriasFlowSpeed": 0.72,
+        "_TerriasFlowScale": 1.5,
+        "_TerriasEffectIntensity": 0.95,
+        "_TerriasStardustDensity": 0.46,
+        "_TerriasStardustTwinkle": 1.25,
+        "_TerriasStardustTwinkleSpeed": 2.15
+      },
+      "colors": {
+        "_TerriasStardustColorA": "#F3FBFFFF",
+        "_TerriasStardustColorB": "#FFE6A8FF"
+      },
+      "exposedParameters": {
+        "_TerriasEffectIntensity": { "min": 0, "max": 2 },
+        "_TerriasStardustDensity": { "min": 0, "max": 1 },
+        "_TerriasStardustTwinkleSpeed": { "min": 0, "max": 5 }
+      },
+      "enabled": true
+    }
+  ]
+}

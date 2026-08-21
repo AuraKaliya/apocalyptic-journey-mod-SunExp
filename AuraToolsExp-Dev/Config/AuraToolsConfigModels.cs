@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsRootConfig
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     [JsonProperty("audio")]
     public ModuleFileConfig Audio { get; set; } = new() { ConfigFile = "AudioSettings.json" };
@@ -29,21 +29,26 @@ public sealed class AuraToolsRootConfig
     [JsonProperty("logging")]
     public ModuleFileConfig Logging { get; set; } = new() { Enabled = true, ConfigFile = "LoggingSettings.json" };
 
+    [JsonProperty("cardVisual")]
+    public ModuleFileConfig CardVisual { get; set; } = new() { ConfigFile = "CardVisualSettings.json" };
+
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        SchemaVersion = Math.Max(2, SchemaVersion);
         Audio ??= new ModuleFileConfig { ConfigFile = "AudioSettings.json" };
         MatchExperience ??= new ModuleFileConfig { ConfigFile = "MatchExperienceSettings.json" };
         PixelEmoji ??= new ModuleFileConfig { ConfigFile = "PixelEmojiSettings.json" };
         SkillCg ??= new ModuleFileConfig { ConfigFile = "SkillCgSettings.json" };
         Skin ??= new ModuleFileConfig { ConfigFile = "SkinSettings.json" };
         Logging ??= new ModuleFileConfig { Enabled = true, ConfigFile = "LoggingSettings.json" };
+        CardVisual ??= new ModuleFileConfig { ConfigFile = "CardVisualSettings.json" };
         Audio.ConfigFile = string.IsNullOrWhiteSpace(Audio.ConfigFile) ? "AudioSettings.json" : Audio.ConfigFile.Trim();
         MatchExperience.ConfigFile = string.IsNullOrWhiteSpace(MatchExperience.ConfigFile) ? "MatchExperienceSettings.json" : MatchExperience.ConfigFile.Trim();
         PixelEmoji.ConfigFile = string.IsNullOrWhiteSpace(PixelEmoji.ConfigFile) ? "PixelEmojiSettings.json" : PixelEmoji.ConfigFile.Trim();
         SkillCg.ConfigFile = string.IsNullOrWhiteSpace(SkillCg.ConfigFile) ? "SkillCgSettings.json" : SkillCg.ConfigFile.Trim();
         Skin.ConfigFile = string.IsNullOrWhiteSpace(Skin.ConfigFile) ? "SkinSettings.json" : Skin.ConfigFile.Trim();
         Logging.ConfigFile = string.IsNullOrWhiteSpace(Logging.ConfigFile) ? "LoggingSettings.json" : Logging.ConfigFile.Trim();
+        CardVisual.ConfigFile = string.IsNullOrWhiteSpace(CardVisual.ConfigFile) ? "CardVisualSettings.json" : CardVisual.ConfigFile.Trim();
     }
 }
 

@@ -28,6 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="VisualAssets\UnityProject\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="netstandard">
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
       <Private>false</Private>
@@ -46,6 +50,10 @@
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(DllPath)\UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">

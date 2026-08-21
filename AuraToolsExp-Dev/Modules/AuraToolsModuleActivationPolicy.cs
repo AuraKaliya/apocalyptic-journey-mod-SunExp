@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.AdventureArchive;
 using AuraToolsExp.Dll.Features.CardRefresh;
+using AuraToolsExp.Dll.Features.CardVisual;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.LobbyStatus;
 using AuraToolsExp.Dll.Features.MatchRecords;
@@ -65,6 +66,9 @@ internal static class AuraToolsModuleActivationPolicy
         {
             case AuraToolModuleIds.Skin:
                 AuraToolsSkinRuntime.ApplyModuleActivation(enabled);
+                break;
+            case AuraToolModuleIds.CardVisual:
+                AuraToolsCardVisualRuntime.ApplyModuleActivation(enabled);
                 break;
             case AuraToolModuleIds.AutoBattle:
                 AuraToolsAutoBattleRuntime.ApplyModuleActivation(enabled);

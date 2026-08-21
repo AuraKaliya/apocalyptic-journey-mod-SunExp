@@ -61,7 +61,6 @@ public static class ColumbinaScripts
             return;
         }
 
-        AudioApi.PlayColumbinaEternalTide();
         self.SetStatus("Self");
         self.AddBuff(TerriasIds.GravityRipple, "20");
         PlayerApi.SetSkillTime(TerriasIds.ColumbinaEternalTideCardId, 3);
@@ -75,7 +74,6 @@ public static class ColumbinaScripts
             return;
         }
 
-        AudioApi.PlayColumbinaHomesickness();
         var damage = Math.Max(1, StatusApi.MaxHp(self.Self) * 30 / 100);
         var targets = TargetApi.OpposingSideTargets(self, self.Self).ToArray();
         ElementalReactionService.HitAll(self, targets, ElementalType.Hydro, damage, "Columbina.Homesickness");

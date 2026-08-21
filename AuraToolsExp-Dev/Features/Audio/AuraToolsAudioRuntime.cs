@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 using AuraAudio.Shared;
 using AuraShared.Core;
 using AudioArbiter.Shared;
@@ -18,6 +19,7 @@ public static class AuraToolsAudioRuntime
     private static readonly Dictionary<string, bool> PathExistsCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredBattleBgmSignatures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredCardUseSignatures = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> RegisteredVoiceSignatures = new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool initialized;
 
@@ -25,20 +27,17 @@ public static class AuraToolsAudioRuntime
     {
         if (initialized) return;
         modConfig = config;
-        var audio = AuraAudioRuntime.Initialize(
-            config,
-            AuraToolsIds.ModId,
-            installPackage: false);
-        if (!audio.Success)
-        {
-            AuraToolsLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
-        }
+        AuraSharedRuntime.Initialize(config, AuraToolsIds.ModId);
+        AudioArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
         BattleBgmArbiterRuntime.Initialize(config, AuraToolsIds.ModId);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.BattleBgm,
             RegisterProviders);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.CardUseAudio,
+            RegisterProviders);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.Voice,
             RegisterProviders);
         initialized = true;
         RegisterProviders();
@@ -56,6 +55,7 @@ public static class AuraToolsAudioRuntime
             RefreshPathExistsCache();
             RegisterBattleBgmProviders(modConfig);
             RegisterCardUseProviders(modConfig);
+            RegisterVoiceProviders(modConfig);
         }
         catch (Exception ex)
         {
@@ -245,6 +245,166 @@ public static class AuraToolsAudioRuntime
         AudioArbiterRuntime.RegisterSoundProvider(config, AuraToolsIds.ModId, factory());
         RegisteredCardUseSignatures[providerId] = signature;
         return 1;
+    }
+
+    private static void RegisterVoiceProviders(ModConfig config)
+    {
+        var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var path = Path.Combine(config.DirectoryName, "audio.registry.json");
+        if (AuraToolsConfigService.Audio.Voice.Enabled && File.Exists(path))
+        {
+            var manifest = JsonConvert.DeserializeObject<AudioRegistryManifest>(File.ReadAllText(path));
+            if (manifest == null
+                || manifest.schemaVersion > AudioArbiterRuntime.SupportedManifestSchemaVersion
+                || manifest.audioProtocol?.minVersion > AudioArbiterRuntime.CurrentProtocolVersion
+                || !string.Equals(manifest.ownerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("AuraTools voice registry schema, protocol, or owner is incompatible.");
+            }
+            var defaults = manifest?.defaults ?? new AudioRegistryDefaults();
+            foreach (var provider in manifest?.providers ?? Array.Empty<AudioProviderManifest>())
+            {
+                if (provider == null || string.IsNullOrWhiteSpace(provider.providerId)) continue;
+                var settings = EnsureVoiceBinding(provider);
+                if (!settings.Enabled) continue;
+                var providerId = provider.providerId.Trim();
+                var signal = string.IsNullOrWhiteSpace(settings.Signal) ? provider.kind : settings.Signal;
+                var stage = string.IsNullOrWhiteSpace(settings.Stage)
+                    ? provider.match?.stages?.FirstOrDefault() ?? ""
+                    : settings.Stage;
+                var resourceOverridden = !string.IsNullOrWhiteSpace(settings.ResourcePath);
+                var audioPath = ResolveVoicePath(config, resourceOverridden ? settings.ResourcePath : provider.path);
+                var variants = resourceOverridden
+                    ? Array.Empty<string>()
+                    : (provider.variantPaths ?? Array.Empty<string>())
+                        .Select(value => ResolveVoicePath(config, value))
+                        .Where(value => value.Length > 0)
+                        .ToArray();
+                var gain = settings.GainDb ?? provider.gainDb ?? defaults.gainDb ?? 0f;
+                var cooldown = settings.CooldownSeconds ?? provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f;
+                var threshold = settings.HpRatioThreshold ?? provider.match?.hpRatioCrossDown;
+                var signature = Signature(audioPath, string.Join(";", variants), signal, stage, settings.ActionId,
+                    gain, cooldown, threshold, settings.Enabled);
+                desired.Add(providerId);
+                if (RegisteredVoiceSignatures.TryGetValue(providerId, out var current)
+                    && string.Equals(current, signature, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                AudioArbiterRuntime.RegisterSoundProvider(config, AuraToolsIds.ModId, new FileSoundProvider(
+                    providerId,
+                    AuraToolsIds.ModId,
+                    audioPath,
+                    variants,
+                    provider.priority,
+                    string.IsNullOrWhiteSpace(provider.bus) ? defaults.bus ?? SoundBuses.Vocal : provider.bus,
+                    string.IsNullOrWhiteSpace(provider.policy) ? defaults.policy ?? SoundPolicies.Additive : provider.policy,
+                    provider.hardClaim ?? defaults.hardClaim ?? false,
+                    request => VoiceMatches(request, provider, settings, signal, stage, threshold),
+                    cooldown,
+                    provider.sync ?? defaults.sync ?? true,
+                    gain,
+                    provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
+                    signal,
+                    threshold,
+                    provider.suppressOriginal?.vocalStates,
+                    provider.suppressOriginal?.narrationIds));
+                RegisteredVoiceSignatures[providerId] = signature;
+            }
+        }
+
+        foreach (var providerId in RegisteredVoiceSignatures.Keys.Where(id => !desired.Contains(id)).ToList())
+        {
+            AudioArbiterRuntime.UnregisterSoundProvider(config, AuraToolsIds.ModId, providerId);
+            RegisteredVoiceSignatures.Remove(providerId);
+        }
+    }
+
+    private static AuraToolsVoiceBindingSettings EnsureVoiceBinding(AudioProviderManifest provider)
+    {
+        var bindings = AuraToolsConfigService.Audio.Voice.Bindings;
+        if (!bindings.TryGetValue(provider.providerId, out var settings) || settings == null)
+        {
+            settings = new AuraToolsVoiceBindingSettings
+            {
+                ProviderId = provider.providerId,
+                Signal = provider.kind,
+                Stage = provider.match?.stages?.FirstOrDefault() ?? "",
+                ActionId = FirstActionId(provider),
+                HpRatioThreshold = provider.match?.hpRatioCrossDown
+            };
+            settings.Normalize(provider.providerId);
+            bindings[provider.providerId] = settings;
+        }
+        return settings;
+    }
+
+    private static string FirstActionId(AudioProviderManifest provider)
+    {
+        return provider.match?.cardIds?.FirstOrDefault()
+               ?? provider.match?.battleResults?.FirstOrDefault()
+               ?? provider.vocalState
+               ?? "";
+    }
+
+    private static string ResolveVoicePath(ModConfig config, string value)
+    {
+        var text = (value ?? "").Trim();
+        const string shared = "Shared:";
+        if (text.StartsWith(shared, StringComparison.OrdinalIgnoreCase))
+        {
+            return AuraSharedResourceProtocol.ResolvePath(AuraToolsIds.ModId, text.Substring(shared.Length));
+        }
+        return Path.IsPathRooted(text) ? text : Path.Combine(config.DirectoryName, text.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    private static bool VoiceMatches(
+        object? request,
+        AudioProviderManifest provider,
+        AuraToolsVoiceBindingSettings settings,
+        string signal,
+        string stage,
+        float? threshold)
+    {
+        if (!string.Equals(AudioArbiterRuntime.ReadString(request, "Kind"), signal, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrWhiteSpace(stage)
+            && !string.Equals(AudioArbiterRuntime.ReadString(request, "Stage"), stage, StringComparison.OrdinalIgnoreCase)) return false;
+        var match = provider.match ?? new AudioProviderMatch();
+        if (!MatchesAny(match.careerIds, AudioArbiterRuntime.ReadString(request, "CareerId"))) return false;
+        if (!MatchesAny(match.roleIds, AudioArbiterRuntime.ReadString(request, "RoleId"))) return false;
+        var actionId = settings.ActionId;
+        if (!string.IsNullOrWhiteSpace(actionId))
+        {
+            var actual = string.Equals(signal, SoundEventKinds.BattleCompleted, StringComparison.OrdinalIgnoreCase)
+                ? AudioArbiterRuntime.ReadString(request, "BattleResult")
+                : string.Equals(signal, SoundEventKinds.VocalState, StringComparison.OrdinalIgnoreCase)
+                    ? AudioArbiterRuntime.ReadString(request, "VocalState")
+                    : AudioArbiterRuntime.ReadString(request, "CardId");
+            if (!MatchesId(actionId, actual)) return false;
+        }
+        if (match.localOwnerOnly == true
+            && !AudioArbiterRuntime.ReadBool(request, "IsRemote", false)
+            && !AudioArbiterRuntime.ReadBool(request, "IsLocalOwner", false)) return false;
+        if (threshold.HasValue
+            && !(AudioArbiterRuntime.ReadFloat(request, "PreviousHpRatio", 0f) > threshold.Value
+                 && AudioArbiterRuntime.ReadFloat(request, "HpRatio", 0f) <= threshold.Value)) return false;
+        return true;
+    }
+
+    private static bool MatchesAny(IEnumerable<string>? expected, string actual)
+    {
+        var values = (expected ?? Array.Empty<string>()).Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
+        return values.Length == 0 || values.Any(value => MatchesId(value, actual));
+    }
+
+    private static bool MatchesId(string expected, string actual)
+    {
+        var left = (expected ?? "").Trim().TrimStart('*');
+        var right = (actual ?? "").Trim();
+        return left.Length > 0 && (string.Equals(left, right, StringComparison.OrdinalIgnoreCase)
+                                  || right.EndsWith("_" + left, StringComparison.OrdinalIgnoreCase)
+                                  || right.EndsWith("_*" + left, StringComparison.OrdinalIgnoreCase));
     }
 
     private static int RemoveStaleBattleBgmProviders(ModConfig config, ISet<string> desired)

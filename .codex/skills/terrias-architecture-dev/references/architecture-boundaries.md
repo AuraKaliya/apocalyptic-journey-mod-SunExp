@@ -52,8 +52,9 @@ current architectural split includes:
 - `DialogueApi` and `DialogueUiApi`: dialogue flow and UI access wrappers.
 - `MapItemApi`: map item lookup and map UI compatibility.
 - `BattleRewardApi`: safe battle reward access and mutation.
-- `CardVisualSkinApi` and `CardVisualEffectApi`: registration facades for
-  runtime card skins and visual effects.
+- `AuraCardPresentationRuntime`: shared owner-qualified card UI lifecycle used
+  by sibling consumers. AuraToolsExp owns generic card themes/effects; Terrias
+  may subscribe only for necessary content presentation.
 - `TerriasResourceCache`: the central resource-loading choke point.
 - `SolarMemoryFlowApi`: CSV-callable facade into Solar Memory hook runtimes.
 - `SolarMemoryRoleCommitApi`: final prepared role submission.

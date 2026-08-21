@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.IO;
-using AuraCg.Shared;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using UnityEngine;
@@ -31,7 +30,6 @@ public static class VisualBundleRuntimeValidator
 
         ValidateWunaMaterials();
         ValidateCardFaceMaterials();
-        RegisterAuraCgMaterials();
     }
 
     private static void ValidateWunaMaterials()
@@ -54,54 +52,11 @@ public static class VisualBundleRuntimeValidator
     {
         var material = AssetBundleCache.LoadAsset<Material>(
             "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-            "Terrias/Materials/CardFaceEffect",
+            "Terrias/Materials/CardUseStardust",
             LogPrefix);
         if (material != null)
         {
-            TerriasLog.Info(LogPrefix + " card face effect material loaded from bundle.");
-        }
-    }
-
-    private static void RegisterAuraCgMaterials()
-    {
-        const string bundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals";
-        var bundle = AssetBundleCache.LoadBundle(bundlePath, LogPrefix);
-        if (bundle != null)
-        {
-            SkillCgArbiterRuntime.RegisterAssetBundle(bundlePath, bundle);
-        }
-
-        var lumaKey = AssetBundleCache.LoadAsset<Material>(
-            bundlePath,
-            "AuraCgLumaKeyUI",
-            LogPrefix);
-        var maskedInvert = AssetBundleCache.LoadAsset<Material>(
-            bundlePath,
-            "AuraCgMaskedInvertFlash",
-            LogPrefix);
-        var screenBwFlash = AssetBundleCache.LoadAsset<Material>(
-            bundlePath,
-            "AuraCgScreenBwFlash",
-            LogPrefix);
-
-        if (lumaKey != null)
-        {
-            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/LumaKeyUI", lumaKey);
-        }
-
-        if (maskedInvert != null)
-        {
-            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/MaskedInvertFlash", maskedInvert);
-        }
-
-        if (screenBwFlash != null)
-        {
-            SkillCgArbiterRuntime.RegisterMaterial("AuraCg/ScreenBwFlash", screenBwFlash);
-        }
-
-        if (lumaKey != null && maskedInvert != null && screenBwFlash != null && bundle != null)
-        {
-            TerriasLog.Info(LogPrefix + " Aura CG shader materials and bundle registered.");
+            TerriasLog.Info(LogPrefix + " Star Score card-use effect material loaded from bundle.");
         }
     }
 }

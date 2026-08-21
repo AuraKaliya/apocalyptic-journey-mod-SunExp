@@ -85,7 +85,7 @@ internal static partial class AuraToolsTestSuite
     
         settings.Normalize();
         var rules = settings.Roles["career_1"].Rules;
-        Assert(settings.SchemaVersion == 5
+        Assert(settings.SchemaVersion == 6
                && rules[0].Image == "CG/Roles/1/skill_cg.png"
                && rules[0].EffectivePresentation.Mode == "fullscreenFade"
                && rules[0].EffectivePresentation.Fit == "cover"

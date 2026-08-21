@@ -20,6 +20,12 @@ public static class AuraToolsSkinRuntime
     private const string OfficialCareerId = "career_1";
     private const string LegacyOfficialSummerSkinId = "SkinExp.career_1.summer_cool";
     private const string OfficialSummerSkinId = "AuraToolsExp.career_1.summer_cool";
+    private const string WunaCareerId = "Terrias_wuna_wuna";
+    private const string LegacyWunaSkinId = "Terrias:Terrias_wuna_wuna:Terrias.Terrias_wuna_wuna.summer_cool";
+    private const string WunaSkinId = "AuraToolsExp:Terrias_wuna_wuna:AuraToolsExp.Terrias_wuna_wuna.summer_cool";
+    private const string ColumbinaCareerId = "Terrias_columbina_columbina";
+    private const string LegacyColumbinaSkinId = "Terrias:Terrias_columbina_columbina:Terrias.Terrias_columbina_columbina.restore_colors";
+    private const string ColumbinaSkinId = "AuraToolsExp:Terrias_columbina_columbina:AuraToolsExp.Terrias_columbina_columbina.restore_colors";
     private static ModConfig? currentConfig;
     private static bool initialized;
     private static bool migratingSelection;
@@ -104,9 +110,12 @@ public static class AuraToolsSkinRuntime
 
         ConfigureFromSettings();
 
-        if (SkinRuntime.TryRemapSelection(OfficialCareerId, LegacyOfficialSummerSkinId, OfficialSummerSkinId))
+        var migrated = SkinRuntime.TryRemapSelection(OfficialCareerId, LegacyOfficialSummerSkinId, OfficialSummerSkinId);
+        migrated |= SkinRuntime.TryRemapSelection(WunaCareerId, LegacyWunaSkinId, WunaSkinId);
+        migrated |= SkinRuntime.TryRemapSelection(ColumbinaCareerId, LegacyColumbinaSkinId, ColumbinaSkinId);
+        if (migrated)
         {
-            AuraToolsLog.Info("[Skin] migrated legacy official summer skin selection to AuraToolsExp ownership.");
+            AuraToolsLog.Info("[Skin] migrated legacy skin selections to AuraToolsExp ownership.");
             BroadcastLocalSelection();
         }
     }

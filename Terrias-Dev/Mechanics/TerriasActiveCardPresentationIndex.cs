@@ -140,7 +140,7 @@ public static class TerriasActiveCardPresentationIndex
                 continue;
             }
 
-            if (card.dataConfig == null || !CardVisualThemeCatalog.IsTerriasCard(card.dataConfig))
+            if (card.dataConfig == null)
             {
                 return false;
             }

@@ -19,6 +19,14 @@ internal sealed class AudioHookContextMapper
 
     public AudioCareerObservation? MapCareerDetail(ModHookContext context)
     {
+        if (context.Arguments != null
+            && context.Arguments.Length >= 3
+            && context.Arguments[2] is bool applySelection
+            && !applySelection)
+        {
+            return null;
+        }
+
         var showCareer = ReadArgument<ShowCareer>(context, 0);
         var careerId = gameStateReader.ReadCareerId(showCareer);
         return string.IsNullOrWhiteSpace(careerId)
@@ -26,7 +34,7 @@ internal sealed class AudioHookContextMapper
             : new AudioCareerObservation
             {
                 CareerId = careerId,
-                SourceName = "GameEntryUI.ShowDetail"
+                SourceName = "GameEntryUI.ShowDetail.ApplySelection"
             };
     }
 

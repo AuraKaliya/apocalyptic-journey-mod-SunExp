@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     [JsonProperty("battleBgm")]
     public AudioFeatureSettings BattleBgm { get; set; } = AudioFeatureSettings.CreateBattleBgmDefault();
@@ -17,13 +17,83 @@ public sealed class AuraToolsAudioSettings
     [JsonProperty("cardUse")]
     public AudioFeatureSettings CardUse { get; set; } = AudioFeatureSettings.CreateCardUseDefault();
 
+    [JsonProperty("voice")]
+    public AuraToolsVoiceSettings Voice { get; set; } = new();
+
     public void Normalize()
     {
-        SchemaVersion = Math.Max(3, SchemaVersion);
+        SchemaVersion = Math.Max(4, SchemaVersion);
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
+        Voice ??= new AuraToolsVoiceSettings();
         BattleBgm.Normalize("Audio/Global/all/BattleBgm/AuraToolsExp/default-battle-bgm/content.mp3", -1000, false);
         CardUse.Normalize("Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3", -1000, false);
+        Voice.Normalize();
+    }
+}
+
+public sealed class AuraToolsVoiceSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("bindings")]
+    public Dictionary<string, AuraToolsVoiceBindingSettings> Bindings { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public void Normalize()
+    {
+        Bindings ??= new Dictionary<string, AuraToolsVoiceBindingSettings>(StringComparer.OrdinalIgnoreCase);
+        Bindings = Bindings
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group =>
+            {
+                var value = group.Last().Value;
+                value.Normalize(group.Key);
+                return value;
+            }, StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+public sealed class AuraToolsVoiceBindingSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("providerId")]
+    public string ProviderId { get; set; } = "";
+
+    [JsonProperty("signal")]
+    public string Signal { get; set; } = "";
+
+    [JsonProperty("stage")]
+    public string Stage { get; set; } = "";
+
+    [JsonProperty("actionId")]
+    public string ActionId { get; set; } = "";
+
+    [JsonProperty("resourcePath")]
+    public string ResourcePath { get; set; } = "";
+
+    [JsonProperty("gainDb")]
+    public float? GainDb { get; set; }
+
+    [JsonProperty("cooldownSeconds")]
+    public float? CooldownSeconds { get; set; }
+
+    [JsonProperty("hpRatioThreshold")]
+    public float? HpRatioThreshold { get; set; }
+
+    public void Normalize(string fallbackProviderId)
+    {
+        ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? fallbackProviderId.Trim() : ProviderId.Trim();
+        Signal = Signal?.Trim() ?? "";
+        Stage = Stage?.Trim() ?? "";
+        ActionId = ActionId?.Trim() ?? "";
+        ResourcePath = ResourcePath?.Trim() ?? "";
+        if (CooldownSeconds.HasValue) CooldownSeconds = Math.Max(0f, CooldownSeconds.Value);
+        if (HpRatioThreshold.HasValue) HpRatioThreshold = Math.Max(0.01f, Math.Min(0.99f, HpRatioThreshold.Value));
     }
 }
 

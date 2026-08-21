@@ -1,6 +1,6 @@
 ---
 name: terrias-visual-runtime-dev
-description: Project-local skill for editing or reviewing Terrias visual runtime systems, including Terrias visual.registry.json, VisualBundles, shaders, card visual skins and frame effects, Skill CG registration/playback, map-node card art, animated icons, Wuna orbit fire, Star Score HUD visuals, visual resource caches, and visual validation in Witch's Apocalyptic Journey.
+description: Project-local skill for editing or reviewing the Terrias/AuraTools visual split, including Terrias-required visuals, AuraTools-owned CG and card visuals, shared presentation lifecycles, VisualBundles, shaders, map-node art, Wuna orbit fire, Star Score feedback, and visual validation in Witch's Apocalyptic Journey.
 ---
 
 # Terrias Visual Runtime Dev
@@ -13,10 +13,14 @@ manifests change.
 
 ## Workflow
 
-1. Classify the visual surface:
-   - Visual registry, VisualBundle, shader, material, or runtime asset cache.
-   - Card visual skin, card frame/effect material, or runtime card attachment.
-   - Skill CG, Aura CG registry, shared resource package, or tool-consumed CG.
+1. Classify ownership before implementation:
+   - Terrias-required content presentation: opening director animation,
+     Wuna orbit fire, Star Score HUD/card-use feedback, map-node art, and
+     content-owned animated icons.
+   - AuraTools optional media: Skill CG, card-use CG, Feast CG, replacement
+     skins, card-frame themes, and configurable card dynamic effects.
+   - Shared foundation: card presentation lifecycle, CG/audio protocols,
+     playback/network identity, resource paths, caches, and hook routing.
    - Map-node card art, animated buff/blessing/enemy icons, Star Score HUD, or
      Wuna orbit fire.
 2. Inspect the smallest current surface:
@@ -24,10 +28,15 @@ manifests change.
    - `Terrias-Dev/VisualAssets/*`
    - `Terrias-Dev/Hooks/Visual/*`
    - `Terrias-Dev/Hooks/Ui/*`
-   - `Terrias-Dev/Features/SkillCg/*`
-   - `Terrias/SharedResources/package.json`
-   - `Terrias/SharedResources/cg.registry.json`
+   - `AuraSharedCore/AuraCardPresentationRuntime.cs`
+   - `AuraToolsExp/card-visual.registry.json`
+   - `AuraToolsExp/SharedResources/cg.registry.json`
+   - `AuraToolsExp/SharedResources/CardVisual/*`
+   - `AuraToolsExp-Dev/Features/CardVisual/*`
+   - `AuraToolsExp-Dev/Features/SkillCg/*`
+   - `AuraToolsExp-Dev/VisualAssets/*`
    - `tools/Build-TerriasVisualBundle.ps1`
+   - `tools/Build-AuraToolsVisualBundle.ps1`
 3. Load references as needed:
    - `references/visual-registry-and-bundle.md`: registry, bundle, shaders,
      cache, and build pipeline.
@@ -48,10 +57,23 @@ manifests change.
   hard-coded runtime paths.
 - Do not bypass `TerriasResourceCache`, `AssetBundleCache`, or shader/material
   cache helpers for repeated visual loads.
-- Keep VisualBundle source and shipped bundle aligned. Rebuild the bundle after
-  shader, material, or bundled CG changes.
-- Keep Skill CG resources in the shared package/CG registry path. Do not make
-  AuraTools scan private Terrias folders as a substitute for registration.
+- Keep each VisualBundle aligned with its owner. Terrias bundles only required
+  content visuals; AuraTools bundles optional CG/card-visual shaders and
+  materials.
+- Exclude generated UnityProject editor sources from product MOD compilation;
+  they require UnityEditor and are built only by the VisualBundle script.
+- Terrias must not ship optional CG, voice, replacement-skin, card-frame, or
+  configurable card-effect resources. Put those files, manifests, settings,
+  runtime, and UI in AuraToolsExp.
+- Opening director animation remains Terrias-owned. Wuna orbit fire remains a
+  Terrias-only implementation and must not be generalized or split.
+- Keep Star Score card-use feedback distinct from the generic AuraTools card
+  dynamic-effect feature, even if their shaders share implementation ideas.
+- Card visuals use explicit owner-qualified card ids at runtime. Card-pack and
+  rarity choices are editor batch expansion only; do not restore runtime pack,
+  rarity, icon-prefix, suffix, wildcard, or default-whitelist matching.
+- A card-frame theme may seed a versioned, theme-bound mapping preset on first
+  load. Never overwrite later user edits during ordinary startup.
 - Keep visual-only overlays non-blocking for raycasts.
 - Respect performance settings and counters for expensive visuals, especially
   Wuna orbit fire and HUD/shader updates.
@@ -63,9 +85,12 @@ Run the affected checks serially:
 
 ```powershell
 tools\Build-TerriasDll.ps1
+tools\Build-AuraToolsExpDll.ps1
 tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
-tools\Build-TerriasVisualBundle.ps1 # when VisualAssets, shaders, bundled CG, or bundle manifests change
+tools\Build-TerriasVisualBundle.ps1 # Terrias-required visual assets
+tools\Build-AuraToolsVisualBundle.ps1 # AuraTools CG/card-visual assets
+tools\Test-AuraToolsExp.ps1
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```
 

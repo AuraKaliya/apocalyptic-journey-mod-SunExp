@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsSkillCgSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 5;
+    public int SchemaVersion { get; set; } = 6;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -43,7 +43,7 @@ public sealed class AuraToolsSkillCgSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(5, SchemaVersion);
+        SchemaVersion = Math.Max(6, SchemaVersion);
         CardUseCg ??= new AuraToolsCardUseCgSettings();
         CardUseCg.Normalize();
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
@@ -97,13 +97,78 @@ public sealed class AuraToolsCardUseCgSettings
     [JsonProperty("registeredEntries")]
     public Dictionary<string, bool> RegisteredEntries { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    [JsonProperty("presentationOverrides")]
+    public Dictionary<string, CardUseCgPresentationOverrideSettings> PresentationOverrides { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public void Normalize()
     {
         RegisteredEntries ??= new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         RegisteredEntries = RegisteredEntries
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Key))
-            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(pair => MigrateQualifiedCgId(pair.Key.Trim()), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.OrdinalIgnoreCase);
+        PresentationOverrides = (PresentationOverrides ?? new Dictionary<string, CardUseCgPresentationOverrideSettings>())
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+            .GroupBy(pair => MigrateQualifiedCgId(pair.Key.Trim()), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group =>
+            {
+                var value = group.Last().Value;
+                value.Normalize();
+                return value;
+            }, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string MigrateQualifiedCgId(string value)
+    {
+        return string.Equals(value, "Terrias:terrias.blazing-crown-collapse", StringComparison.OrdinalIgnoreCase)
+            ? "AuraToolsExp:terrias.blazing-crown-collapse"
+            : value;
+    }
+}
+
+public sealed class CardUseCgPresentationOverrideSettings
+{
+    [JsonProperty("presentationMode")] public string PresentationMode { get; set; } = "";
+    [JsonProperty("fitMode")] public string FitMode { get; set; } = "";
+    [JsonProperty("fadeIn")] public float? FadeIn { get; set; }
+    [JsonProperty("hold")] public float? Hold { get; set; }
+    [JsonProperty("fadeOut")] public float? FadeOut { get; set; }
+    [JsonProperty("frameSeconds")] public float? FrameSeconds { get; set; }
+    [JsonProperty("alphaMode")] public string AlphaMode { get; set; } = "";
+    [JsonProperty("keyThreshold")] public float? KeyThreshold { get; set; }
+    [JsonProperty("keySoftness")] public float? KeySoftness { get; set; }
+    [JsonProperty("flashMode")] public string FlashMode { get; set; } = "";
+    [JsonProperty("flashAtSeconds")] public float? FlashAtSeconds { get; set; }
+    [JsonProperty("flashDuration")] public float? FlashDuration { get; set; }
+    [JsonProperty("flashStartFrame")] public int? FlashStartFrame { get; set; }
+    [JsonProperty("flashEndFrame")] public int? FlashEndFrame { get; set; }
+    [JsonProperty("flashPulseEveryFrames")] public int? FlashPulseEveryFrames { get; set; }
+    [JsonProperty("flashStrength")] public float? FlashStrength { get; set; }
+
+    public void Normalize()
+    {
+        PresentationMode = PresentationMode?.Trim() ?? "";
+        FitMode = FitMode?.Trim() ?? "";
+        AlphaMode = AlphaMode?.Trim() ?? "";
+        FlashMode = FlashMode?.Trim() ?? "";
+        FadeIn = ClampNullable(FadeIn, 0f, 10f);
+        Hold = ClampNullable(Hold, 0f, 30f);
+        FadeOut = ClampNullable(FadeOut, 0f, 10f);
+        FrameSeconds = ClampNullable(FrameSeconds, 0.01f, 1f);
+        KeyThreshold = ClampNullable(KeyThreshold, 0f, 1f);
+        KeySoftness = ClampNullable(KeySoftness, 0.001f, 1f);
+        FlashAtSeconds = FlashAtSeconds.HasValue && FlashAtSeconds.Value < 0f ? null : FlashAtSeconds;
+        FlashDuration = ClampNullable(FlashDuration, 0.03f, 1f);
+        FlashStartFrame = FlashStartFrame.HasValue ? Math.Max(0, FlashStartFrame.Value) : null;
+        FlashEndFrame = FlashEndFrame.HasValue ? Math.Max(0, FlashEndFrame.Value) : null;
+        FlashPulseEveryFrames = FlashPulseEveryFrames.HasValue ? Math.Max(1, FlashPulseEveryFrames.Value) : null;
+        FlashStrength = ClampNullable(FlashStrength, 0f, 1f);
+    }
+
+    private static float? ClampNullable(float? value, float minimum, float maximum)
+    {
+        return value.HasValue ? Math.Max(minimum, Math.Min(maximum, value.Value)) : null;
     }
 }
 
@@ -363,6 +428,11 @@ public sealed class SkillCgRuleSettings
         DisplayName = DisplayName?.Trim() ?? "";
         SourceOwnerModId = SourceOwnerModId?.Trim() ?? "";
         SourceCgId = SourceCgId?.Trim() ?? "";
+        if (string.Equals(SourceOwnerModId, "Terrias", StringComparison.OrdinalIgnoreCase)
+            && IsMigratedTerriasCg(SourceCgId))
+        {
+            SourceOwnerModId = "AuraToolsExp";
+        }
         Image = Image?.Trim() ?? "";
         ProviderId = ProviderId?.Trim() ?? "";
         Presentation ??= SkillCgPresentationSettings.CreateInherited();
@@ -370,5 +440,12 @@ public sealed class SkillCgRuleSettings
         FadeIn = EffectivePresentation.FadeIn;
         Hold = EffectivePresentation.Hold;
         FadeOut = EffectivePresentation.FadeOut;
+    }
+
+    private static bool IsMigratedTerriasCg(string cgId)
+    {
+        return string.Equals(cgId, "loneer.morning-star-prayer", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(cgId, "wuna.white-sun-prayer", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(cgId, "columbina.homesickness", StringComparison.OrdinalIgnoreCase);
     }
 }

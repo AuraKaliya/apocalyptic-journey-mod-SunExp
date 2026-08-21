@@ -1,4 +1,4 @@
-Shader "Terrias/CardFaceEffect"
+Shader "AuraTools/CardFaceEffect"
 {
     Properties
     {

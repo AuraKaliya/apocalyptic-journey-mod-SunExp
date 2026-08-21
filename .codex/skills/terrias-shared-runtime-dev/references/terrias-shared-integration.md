@@ -33,11 +33,9 @@ calls. Preserve step isolation for:
 - XLua assembly registration;
 - shared core and shared resource package;
 - shared registry;
-- visual registry and CG registry;
+- Terrias-required visual registry;
 - shared starter-deck ownership/application for Terrias-owned modes;
-- shared skin runtime and package;
 - journey runtime;
-- audio runtime;
 - UI transition guard;
 - gameplay hooks and special tags.
 
@@ -53,10 +51,10 @@ Shared resources should resolve through the shared resource layer. Audio and BGM
 providers may use `Shared:` paths; do not regress to bare local-path assumptions
 when the manifest expects shared package installation.
 
-Skill CG resources should be installed through `Terrias/SharedResources/package.json`
-and declared through `Terrias/SharedResources/cg.registry.json`. Tool mods should
-consume those declarations through the shared CG protocol instead of scanning
-Terrias private folders.
+Terrias optional-media resources are retired. AuraTools installs CG, voice,
+replacement skins, and card visuals through its own manifests and consumes
+stable Terrias content ids through shared/native catalogs. Terrias retains an
+empty versioned retirement manifest only to remove prior registrations.
 
 ## Solar Memory Touchpoints
 

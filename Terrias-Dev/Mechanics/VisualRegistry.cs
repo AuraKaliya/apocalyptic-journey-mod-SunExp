@@ -474,11 +474,11 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = TerriasIds.CardFaceEffectShaderId,
-                    ShaderName = "Terrias/CardFaceEffect",
+                    Id = "terrias.card_use_fx.stardust.shader",
+                    ShaderName = "Terrias/CardUseStardust",
                     BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-                    MaterialPath = "Terrias/Materials/CardFaceEffect",
-                    ShaderPath = "Terrias/CardFaceEffect"
+                    MaterialPath = "Terrias/Materials/CardUseStardust",
+                    ShaderPath = "Terrias/CardUseStardust"
                 }
             },
             Effects = new List<VisualEffectVisualSpec>
@@ -504,60 +504,11 @@ internal static class VisualRegistryDefaults
                 },
                 new()
                 {
-                    Id = TerriasIds.CardFaceFoilHoloVisualEffectId,
-                    Kind = "card-visual-face-material",
-                    ShaderId = TerriasIds.CardFaceEffectShaderId,
+                    Id = TerriasIds.StellarOvertureCardUseVisualEffectId,
+                    Kind = "star-score-card-use-material",
+                    ShaderId = "terrias.card_use_fx.stardust.shader",
                     BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-                    MaterialPath = "Terrias/Materials/CardFaceEffect",
-                    Textures = new Dictionary<string, string>
-                    {
-                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
-                        ["_FoilTex"] = "Mods/Terrias/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
-                    },
-                    Floats = new Dictionary<string, float>
-                    {
-                        ["_TerriasEffectMode"] = 0f,
-                        ["_TerriasFoilMode"] = 1f,
-                        ["_TerriasFlowSpeed"] = 0.55f,
-                        ["_TerriasFlowScale"] = 1.22f,
-                        ["_TerriasNoiseScale"] = 4f,
-                        ["_TerriasDistortion"] = 0.009f,
-                        ["_TerriasEffectIntensity"] = 1.04f,
-                        ["_TerriasEdgeGlow"] = 0.28f,
-                        ["_TerriasSweepFrequency"] = 4.4f,
-                        ["_TerriasSweepWidth"] = 0.13f,
-                        ["_TerriasSweepIntensity"] = 1.12f,
-                        ["_TerriasPrismScale"] = 13.5f,
-                        ["_TerriasPrismStrength"] = 1f,
-                        ["_TerriasFoilGrain"] = 0.08f,
-                        ["_TerriasMirrorSweep"] = 0.58f,
-                        ["_TerriasSwirlStrength"] = 0.06f,
-                        ["_TerriasFoilShardScale"] = 18f,
-                        ["_TerriasFoilShardWarp"] = 0.08f,
-                        ["_TerriasFoilGalaxyDensity"] = 0.015f,
-                        ["_TerriasFoilGlintSpeed"] = 1.1f,
-                        ["_TerriasFoilTextureStrength"] = 0.6f,
-                        ["_TerriasRainbowStrength"] = 1.25f,
-                        ["_TerriasRidgeStrength"] = 0.7f,
-                        ["_TerriasGlareStrength"] = 0.35f,
-                        ["_TerriasPointerAutoSpeed"] = 0.78f,
-                        ["_TerriasFoilOverlayAlpha"] = 1f,
-                        ["_TerriasEdgeSample"] = 2f
-                    },
-                    Colors = new Dictionary<string, string>
-                    {
-                        ["_TerriasHoloColorA"] = "#FFF0A6FF",
-                        ["_TerriasHoloColorB"] = "#A6F2FFFF",
-                        ["_TerriasHoloColorC"] = "#D2B8FFFF"
-                    }
-                },
-                new()
-                {
-                    Id = TerriasIds.CardFaceStardustVisualEffectId,
-                    Kind = "card-visual-face-material",
-                    ShaderId = TerriasIds.CardFaceEffectShaderId,
-                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-                    MaterialPath = "Terrias/Materials/CardFaceEffect",
+                    MaterialPath = "Terrias/Materials/CardUseStardust",
                     Textures = new Dictionary<string, string>
                     {
                         ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
@@ -571,7 +522,7 @@ internal static class VisualRegistryDefaults
                         ["_TerriasDistortion"] = 0.004f,
                         ["_TerriasEffectIntensity"] = 0.95f,
                         ["_TerriasEdgeGlow"] = 0.12f,
-                        ["_TerriasFoilGrain"] = 0.28f,
+                        ["_TerriasStardustGrain"] = 0.28f,
                         ["_TerriasStardustDensity"] = 0.46f,
                         ["_TerriasStardustTwinkle"] = 1.25f,
                         ["_TerriasStardustTwinkleSpeed"] = 2.15f,

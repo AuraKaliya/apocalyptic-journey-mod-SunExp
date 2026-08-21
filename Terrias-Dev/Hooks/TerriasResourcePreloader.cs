@@ -331,8 +331,7 @@ public static class TerriasResourcePreloader
 
         foreach (var effectId in new[]
                  {
-                     TerriasIds.CardFaceFoilHoloVisualEffectId,
-                     TerriasIds.CardFaceStardustVisualEffectId,
+                     TerriasIds.StellarOvertureCardUseVisualEffectId,
                      "terrias.wuna.orbit_fire.core.back",
                      "terrias.wuna.orbit_fire.core.front",
                      "terrias.wuna.orbit_fire.back",

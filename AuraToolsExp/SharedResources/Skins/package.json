@@ -1,11 +1,20 @@
 {
   "schemaVersion": 1,
   "packageId": "AuraToolsExp.BundledSkins",
-  "packageVersion": 2,
+  "packageVersion": 4,
   "participantKind": "Tool",
   "resources": [
     {
       "source": "career_1/summer_cool"
+    },
+    {
+      "source": "Terrias_wuna_wuna/summer_cool"
+    },
+    {
+      "source": "Terrias_columbina_columbina/DoByHand"
+    },
+    {
+      "source": "Terrias_loneer_loneer/stellar_priest"
     }
   ]
 }

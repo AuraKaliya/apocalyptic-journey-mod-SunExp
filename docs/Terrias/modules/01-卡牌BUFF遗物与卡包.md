@@ -28,7 +28,7 @@
 
 卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 Terrias 的 `GameCompatibilityApi` 负责按包查询。
 
-旧的三个日耀卡包勾选会在运行时迁移为合并卡包；旧卡牌实例仍保留卡框皮肤兼容规则。合并卡包暂时复用【日耀：烬冠】封面。
+旧的三个日耀卡包勾选会在运行时迁移为合并卡包。可选卡框由 AuraToolsExp 的 Terrias 主题管理：主题首次加载时把卡包预设展开为显式逐卡映射，之后不覆盖用户修改。
 
 ## 3. 卡牌分类
 

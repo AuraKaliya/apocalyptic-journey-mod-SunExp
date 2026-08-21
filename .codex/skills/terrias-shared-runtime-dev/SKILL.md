@@ -82,10 +82,9 @@ visual resources.
 - Initialization registration is not content-mod-exclusive. Terrias and
   AuraToolsExp may both register extension declarations they own; identity must
   still be `ownerModId` plus stable domain id.
-- Preserve the content/tool split: content mods own, install, and register
-  resources plus manifest semantics; tool mods only read shared registries,
-  parse them by protocol, register tool-owned extensions, and manage local
-  overrides.
+- Preserve the project product boundary: Terrias owns content mechanics and
+  required presentation; AuraToolsExp owns optional CG/audio/skin/card-visual
+  resources, manifests, settings, and editors. Both consume shared protocols.
 - Keep registered defaults separate from tool-local effective configuration.
   Content-owned shared declarations default to enabled when used alone.
   AuraToolsExp local persistence wins for tool-managed effective behavior when
@@ -99,10 +98,10 @@ visual resources.
   resource preload, logging, pooling, or multiplayer presentation behavior,
   promote the semantic-free part to a shared component instead of making
   Terrias the implicit base framework.
-- Put cross-mod presentation protocols, such as Skill CG playback, in the
-  shared domain component. Content mods declare resources and trigger requests;
-  tool mods configure or override; neither owns private multiplayer relay or
-  de-duplication for the shared feature.
+- Put cross-mod presentation protocols, such as Skill CG playback and card UI
+  lifecycle, in the shared domain component. AuraToolsExp declares/configures
+  optional media and observes stable content signals; neither consumer owns a
+  private multiplayer relay or de-duplication path.
 - Use `references/sync-scenario-model.md` as the source of truth for
   synchronized event shape, RPC authority, payload fields, timing, and
   duplicate suppression.

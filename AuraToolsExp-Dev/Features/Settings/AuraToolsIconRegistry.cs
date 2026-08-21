@@ -24,6 +24,8 @@ internal static class AuraToolsIconRegistry
             ["presentation.skin"] = "skin.png",
             ["presentation.battle-bgm"] = "battle-bgm.png",
             ["presentation.card-use-audio"] = "card-use-audio.png",
+            ["presentation.character-voice"] = "card-use-audio.png",
+            ["presentation.card-visual"] = "skin.png",
             ["gameplay.starter-deck"] = "starter-deck.png",
             ["gameplay.card-refresh"] = "card-refresh.png",
             ["gameplay.feast"] = "feast.png",

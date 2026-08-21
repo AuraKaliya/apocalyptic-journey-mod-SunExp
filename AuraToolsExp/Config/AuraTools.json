@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "audio": {
     "enabled": true,
     "configFile": "AudioSettings.json"
@@ -19,6 +19,10 @@
   "skin": {
     "enabled": true,
     "configFile": "SkinSettings.json"
+  },
+  "cardVisual": {
+    "enabled": true,
+    "configFile": "CardVisualSettings.json"
   },
   "logging": {
     "enabled": true,

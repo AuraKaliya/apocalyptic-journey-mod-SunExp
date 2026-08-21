@@ -23,6 +23,7 @@ internal static class AudioRequestFactory
         return new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.CareerSelected,
+            Stage = AudioSignalStages.Committed,
             CareerId = observation.CareerId,
             RoleId = observation.CareerId,
             SourceName = observation.SourceName
@@ -38,6 +39,7 @@ internal static class AudioRequestFactory
         {
             EventId = cardUseEventId ?? "",
             Kind = SoundEventKinds.CardUse,
+            Stage = AudioSignalStages.PresentationCommitted,
             CardId = observation.CardId,
             CareerId = observation.CareerId,
             RoleId = observation.RoleId,
@@ -49,6 +51,7 @@ internal static class AudioRequestFactory
         var skillVoice = new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.SkillVoice,
+            Stage = AudioSignalStages.PresentationCommitted,
             CardId = observation.CardId,
             CareerId = observation.CareerId,
             RoleId = observation.RoleId,
@@ -66,6 +69,7 @@ internal static class AudioRequestFactory
         return new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.BuffApplied,
+            Stage = AudioSignalStages.Applied,
             BuffId = observation.BuffId,
             CareerId = observation.CareerId,
             RoleId = observation.CareerId,
@@ -80,6 +84,7 @@ internal static class AudioRequestFactory
         return new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.VocalState,
+            Stage = AudioSignalStages.Observed,
             VocalState = observation.VocalState,
             CareerId = observation.CareerId,
             RoleId = observation.RoleId,
@@ -94,6 +99,7 @@ internal static class AudioRequestFactory
         return new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.LowHealth,
+            Stage = AudioSignalStages.ThresholdCrossedDown,
             CareerId = snapshot.CareerId,
             RoleId = string.IsNullOrWhiteSpace(snapshot.RoleId) ? snapshot.CareerId : snapshot.RoleId,
             StatusInstanceId = snapshot.StatusInstanceId,
@@ -112,6 +118,7 @@ internal static class AudioRequestFactory
         return new SoundPlaybackRequest
         {
             Kind = SoundEventKinds.BattleCompleted,
+            Stage = AudioSignalStages.Completed,
             BattleResult = observation.Result,
             CareerId = observation.CareerId,
             RoleId = observation.CareerId,

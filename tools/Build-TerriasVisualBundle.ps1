@@ -11,8 +11,6 @@ $bundlePath = Join-Path $repoRoot "Terrias\ModResource\VisualBundles\terrias_vis
 $builderSource = Join-Path $repoRoot "Terrias-Dev\VisualAssets\Editor\TerriasVisualBundleBuilder.cs.txt"
 $defaultUnityProjectPath = Join-Path $repoRoot "Terrias-Dev\VisualAssets\UnityProject"
 $shaderSourceDir = Join-Path $repoRoot "Terrias-Dev\VisualAssets\Shaders"
-$auraCgShaderSourceDir = Join-Path $repoRoot "AuraCgShared\VisualAssets\Shaders"
-$cgFrameSourceDir = Join-Path $repoRoot "Terrias\SharedResources\CG\WuNa\BlazingCrownCollapse"
 
 function Find-UnityEditor {
     if (-not [string]::IsNullOrWhiteSpace($UnityPath)) {
@@ -188,25 +186,17 @@ function Prepare-UnityProject {
     $assetsDir = Join-Path $ProjectPath "Assets"
     $editorDir = Join-Path $assetsDir "Editor"
     $shaderDestDir = Join-Path $assetsDir "Terrias\Visuals\Shaders"
-    $cgFrameDestDir = Join-Path $assetsDir "Terrias\Visuals\CG\WuNa\BlazingCrownCollapse"
     $packagesDir = Join-Path $ProjectPath "Packages"
     $projectSettingsDir = Join-Path $ProjectPath "ProjectSettings"
 
     New-Item -ItemType Directory -Path $editorDir -Force | Out-Null
     New-Item -ItemType Directory -Path $shaderDestDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $cgFrameDestDir -Force | Out-Null
     New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
     New-Item -ItemType Directory -Path $projectSettingsDir -Force | Out-Null
 
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "StarScoreHud.shader") -Destination (Join-Path $shaderDestDir "StarScoreHud.shader") -Force
     Copy-Item -LiteralPath (Join-Path $shaderSourceDir "WunaOrbitFire.shader") -Destination (Join-Path $shaderDestDir "WunaOrbitFire.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "CardFaceEffect.shader") -Destination (Join-Path $shaderDestDir "CardFaceEffect.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgLumaKeyUI.shader") -Destination (Join-Path $shaderDestDir "AuraCgLumaKeyUI.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgMaskedInvertFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgMaskedInvertFlash.shader") -Force
-    Copy-Item -LiteralPath (Join-Path $auraCgShaderSourceDir "AuraCgScreenBwFlash.shader") -Destination (Join-Path $shaderDestDir "AuraCgScreenBwFlash.shader") -Force
-    if (Test-Path -LiteralPath $cgFrameSourceDir) {
-        Copy-Item -Path (Join-Path $cgFrameSourceDir "*.png") -Destination $cgFrameDestDir -Force
-    }
+    Copy-Item -LiteralPath (Join-Path $shaderSourceDir "CardUseStardust.shader") -Destination (Join-Path $shaderDestDir "CardUseStardust.shader") -Force
 
     Copy-Item -LiteralPath $builderSource -Destination (Join-Path $editorDir "TerriasVisualBundleBuilder.cs") -Force
 

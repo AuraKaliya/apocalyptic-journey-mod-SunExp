@@ -10,9 +10,11 @@ public static class AuraToolModuleIds
     public const string Skin = "presentation.skin";
     public const string BattleBgm = "presentation.battle-bgm";
     public const string CardUseAudio = "presentation.card-use-audio";
+    public const string Voice = "presentation.character-voice";
     public const string PixelEmoji = "presentation.pixel-emoji";
     public const string SkillCg = "presentation.skill-cg";
     public const string CardUseCg = "presentation.card-use-cg";
+    public const string CardVisual = "presentation.card-visual";
     public const string DamageStatistics = "records.damage-statistics";
     public const string BattleReplay = "records.battle-replay";
     public const string AdventureArchive = "records.adventure-archive";
@@ -34,9 +36,11 @@ public static class AuraToolModuleIds
         Skin,
         BattleBgm,
         CardUseAudio,
+        Voice,
         PixelEmoji,
         SkillCg,
         CardUseCg,
+        CardVisual,
         DamageStatistics,
         BattleReplay,
         AdventureArchive,

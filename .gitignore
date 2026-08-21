@@ -124,6 +124,7 @@ env/
 
 # Rebuildable Unity visual-bundle workspace.
 /Terrias-Dev/VisualAssets/UnityProject/
+/AuraToolsExp-Dev/VisualAssets/UnityProject/
 
 # Rebuildable shipped binary destinations. Existing tracked release binaries
 # remain tracked; these rules prevent accidental addition of new binaries.

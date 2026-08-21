@@ -65,9 +65,9 @@
 | 心变 | 心变卡牌、Buff | `HeartChangeControlService`、`HeartChangeControlRuntime` | shared hooks | `OtherObj.SetAction`、`ScriptExecutor.SetStatus/RunScript`、战斗边界 | 模块 09 | P1 |
 | 地图事件与对话 | EventList、Map、Dialogue | `EventScripts`、DialogueFlow*、MapItem API | shared hooks、Journey 仅模式路径 | `MapItem.Init`、`DialogueUI.ChooseOption`、`MapSelectUI` | 模块 10 | P1 |
 | Boss、敌人意图与奖励 | Enemy、EnemyCard、Buff、Level | `BossScripts`、BattleReward*、敌人池/意图服务 | BGM arbiter、shared hooks | `BattleRewardsUI.Entry/ModeSetReward`、敌人 Card/Status 流程 | 模块 10 | P1 |
-| 卡牌表现与卡框 | visual registry、图片、VisualBundle | CardVisual registries、presentation routers、`Hooks/Visual` | shared scheduler/log/UI | `CardChoiceItem.Initialize`、CardItem 生命周期、`FightUI.UpdateCardItemPos` | 模块 11 | P1 |
+| 必需卡牌表现 | visual registry、Star Score VisualBundle | presentation router、StarScore card-use FX | shared card presentation lifecycle/scheduler | CardItem 生命周期、`FightUI.UpdateCardItemPos` | 模块 11 | P1 |
 | HUD、图标与临时 UI | Buff/Blessing/Enemy 图标、UI 素材 | StarScore/Field HUD、animated icon runtimes、modal/pool/safety | AuraUiShared、raycast safety、transition guard | `BuffItem.Init`、`BlessItem.Init`、`EnemyItem.Init`、`UIManager.CloseUI`、`UIBase.Close` | 模块 11 | P1 |
-| 音频、BGM、皮肤、CG | audio/visual registry、SharedResources | `AudioApi`、BGM provider、SkillCg feature、resource preloader | AuraAudio/Cg/Skin、Audio/BGM arbiters、Core package | 战斗/角色上下文、Unity Audio/AssetBundle、共享注册协议 | 模块 12 | P1 |
+| 可选媒体扩展 | AuraToolsExp audio/CG/card-visual registries、SharedResources | AuraTools voice/CG/skin/card-visual modules | AuraAudio/Cg/Skin、Audio/BGM arbiters、Core package | 共享动作/语音信号、Unity Audio/AssetBundle、共享注册协议 | 模块 12 | P1 |
 | 联机 RPC 与状态同步 | 模式、场地、投影、百变、冒险状态 | `TerriasNetworkRuntime`、authority runtime、各 Rpc/NetworkSync | AuraOnline、shared sync/authority conventions | Mirror Command/ClientRpc/TargetRpc、`MapManager` 网络方法 | 模块 13 | P0 |
 | 生命周期、性能与兼容 | ModConfig、性能设置 | routers、frame scheduler、resource cache、pool、diagnostics、compat APIs | Core hooks/scheduler/log | 战斗、卡牌、UI 生命周期及反射目标 | 模块 14 | P0 |
 | 构建与发布 | csproj、Scripts DLL、VisualBundle、shared manifests | build/test PowerShell、架构与发布门禁 | `Aura.Shared.dll` 全消费者一致性 | `Managed` 编译契约，不属于运行时 Hook | 模块 15 | P0 |

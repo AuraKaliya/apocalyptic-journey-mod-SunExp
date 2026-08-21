@@ -32,6 +32,8 @@ public static class AuraToolsConfigService
 
     public static AuraToolsSkinSettings Skin { get; internal set; } = new();
 
+    public static AuraToolsCardVisualSettings CardVisual { get; internal set; } = new();
+
     public static AuraToolsLoggingSettings Logging { get; internal set; } = new();
 
     public static PresetLibrarySettings PresetLibrary { get; internal set; } = new();
@@ -239,6 +241,24 @@ public static class AuraToolsConfigService
             () => SaveModule(Audio, Root.Audio.ConfigFile));
     }
 
+    public static void SaveVoice()
+    {
+        Audio.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.Voice,
+            Audio.Voice,
+            () => SaveModule(Audio, Root.Audio.ConfigFile));
+    }
+
+    public static void SaveCardVisual()
+    {
+        CardVisual.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.CardVisual,
+            CardVisual,
+            () => SaveModule(CardVisual, Root.CardVisual.ConfigFile));
+    }
+
     public static void SaveAudioFeature(bool battleBgm)
     {
         if (battleBgm)
@@ -389,12 +409,14 @@ public static class AuraToolsConfigService
         Root.PixelEmoji.Enabled = true;
         Root.SkillCg.Enabled = true;
         Root.Skin.Enabled = true;
+        Root.CardVisual.Enabled = true;
         Root.Logging.Enabled = true;
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
         MatchExperience = LoadOrDefault(Root.MatchExperience.ConfigFile, new AuraToolsMatchExperienceSettings());
         PixelEmoji = LoadOrDefault(Root.PixelEmoji.ConfigFile, new AuraToolsPixelEmojiSettings());
         SkillCg = LoadOrDefault(Root.SkillCg.ConfigFile, new AuraToolsSkillCgSettings());
         Skin = LoadOrDefault(Root.Skin.ConfigFile, new AuraToolsSkinSettings());
+        CardVisual = LoadOrDefault(Root.CardVisual.ConfigFile, new AuraToolsCardVisualSettings());
         Logging = LoadOrDefault(Root.Logging.ConfigFile, new AuraToolsLoggingSettings());
 
         Audio.Normalize();
@@ -402,6 +424,7 @@ public static class AuraToolsConfigService
         PixelEmoji.Normalize();
         SkillCg.Normalize();
         Skin.Normalize();
+        CardVisual.Normalize();
         Logging.Normalize();
 
         var migrated = 0;
@@ -412,6 +435,10 @@ public static class AuraToolsConfigService
         Audio.CardUse = LoadModuleSetting(
             AuraToolModuleIds.CardUseAudio,
             Audio.CardUse,
+            ref migrated);
+        Audio.Voice = LoadModuleSetting(
+            AuraToolModuleIds.Voice,
+            Audio.Voice,
             ref migrated);
         MatchExperience.StarterDeck = LoadModuleSetting(
             AuraToolModuleIds.StarterDeck,
@@ -476,6 +503,10 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.Skin,
             Skin,
             ref migrated);
+        CardVisual = LoadModuleSetting(
+            AuraToolModuleIds.CardVisual,
+            CardVisual,
+            ref migrated);
         Logging = LoadModuleSetting(
             AuraToolModuleIds.FileLogging,
             Logging,
@@ -504,6 +535,7 @@ public static class AuraToolsConfigService
         ImportRegisteredSkillCgDefaultsNoLock();
         SkillCg.Normalize();
         Skin.Normalize();
+        CardVisual.Normalize();
         Logging.Normalize();
         PresetLibrary.Normalize();
         ModHealth.Normalize();
@@ -553,6 +585,7 @@ public static class AuraToolsConfigService
         SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile);
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
         SaveModule(Skin, Root.Skin.ConfigFile);
+        SaveModule(CardVisual, Root.CardVisual.ConfigFile);
         SaveModule(Logging, Root.Logging.ConfigFile);
         SaveAllModuleSettingsNoLock();
     }
@@ -579,6 +612,10 @@ public static class AuraToolsConfigService
         SaveModuleSettingNoNotify(
             AuraToolModuleIds.CardUseAudio,
             Audio.CardUse,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.Voice,
+            Audio.Voice,
             out _);
         SaveModuleSettingNoNotify(
             AuraToolModuleIds.StarterDeck,
@@ -631,6 +668,10 @@ public static class AuraToolsConfigService
         SaveModuleSettingNoNotify(
             AuraToolModuleIds.Skin,
             Skin,
+            out _);
+        SaveModuleSettingNoNotify(
+            AuraToolModuleIds.CardVisual,
+            CardVisual,
             out _);
         SaveModuleSettingNoNotify(
             AuraToolModuleIds.FileLogging,
@@ -783,7 +824,11 @@ public static class AuraToolsConfigService
         {
             var cardId = cardIds[i];
             var providerId = RegisteredProviderId(entry, i);
-            var existing = role.Rules.FirstOrDefault(rule => IsSameRegisteredRule(rule, providerId, cardId, image));
+            var existing = role.Rules.FirstOrDefault(rule => IsSameRegisteredRule(rule, providerId, cardId, image))
+                           ?? role.Rules.FirstOrDefault(rule =>
+                               string.Equals(rule.SourceOwnerModId, entry.OwnerModId, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(rule.SourceCgId, entry.CgId, StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(rule.CardId, cardId, StringComparison.OrdinalIgnoreCase));
             if (existing != null)
             {
                 if (ApplyRegisteredRuleDefaults(existing, entry, providerId, cardId, image))

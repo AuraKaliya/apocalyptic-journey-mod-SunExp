@@ -35,8 +35,8 @@ Initialization registration is the startup phase where a mod declares the
 resources, rules, providers, or extension metadata that it owns. This is not
 content-mod-exclusive:
 
-- Terrias registers Terrias-owned roles, resources, manifests, and MOD-unique
-  content extensions.
+- Terrias registers roles, gameplay declarations, and required content
+  presentation. Its optional-media retirement manifest remains empty.
 - AuraToolsExp may register official-content extensions or tool-owned providers
   and declarations.
 - Other mods may register their own resources and extension metadata.
@@ -45,20 +45,18 @@ Every registered artifact still needs a stable `ownerModId` and a stable
 domain id. A tool mod may register what it owns, but it must not re-own a
 foreign mod's resources.
 
-Content mods own content. They install their resources into AuraShared, register
-domain manifests, and provide the machine-readable semantics needed by
-consumers: target roles, trigger/card ids, resource paths, presentation or
-playback options, priority, enabled state, and display labels.
+Content mods own gameplay content and stable semantic ids. In this project,
+AuraToolsExp owns optional media and installs its CG, voice, replacement-skin,
+card-theme, and configurable-effect resources into AuraShared.
 
 Tool mods consume shared declarations. They read shared registries, parse
 entries by the domain protocol, display/manage them, register tool-owned
 extensions, and may import entries as local editable configuration or
 overrides.
 
-Tool mods must not guess a content mod's folder layout, hard-code content mod
-resources, scan private content folders as a substitute for registration, or
-re-own foreign resources by copying them under the tool mod unless the user
-explicitly creates a local override.
+Tool mods must not guess a content mod's folder layout or depend on its private
+runtime. AuraTools may target stable Terrias content ids while owning the
+optional media resource and its manifest identity.
 
 Keep registered defaults separate from tool-local effective configuration.
 Content-owned declarations are usually enabled by default. AuraToolsExp may
@@ -82,18 +80,16 @@ Keep display semantics separated:
 - Stable ids (`roleId`, `cgId`, `resourceId`, `profileId`) must not depend on
   localized display text.
 
-For Skill CG specifically, content mods should provide CG registry entries with
+For Skill CG specifically, the optional-media owner should provide registry entries with
 `cgId`, `displayName`, `kind`, `targetRoleIds`, `cardIds`, `media.resource`,
 `defaultPresentation`, `priority`, and `enabled`. Tool mods may import these as
 rules, but must keep the CG `displayName` on the rule, not on the role.
 
 Skill CG playback is a shared presentation protocol, not a Terrias-private or
 AuraTools-private feature. Keep multiplayer relay, sender authority, playback
-identity, and cross-mod de-duplication inside `AuraCgShared`. Content mods such
-as Terrias should install and register CG resources, match local trigger
-semantics, and submit playback requests to the shared runtime. Tool mods such
-as AuraTools should configure enablement, local rules, overrides, and imported
-registry entries without creating a second network playback path.
+identity, and cross-mod de-duplication inside `AuraCgShared`. AuraTools installs
+and registers Terrias-targeted CG resources and creates requests from shared
+card-action signals. Terrias provides only stable content ids and mechanics.
 The multiplayer payload is limited to registered owner/provider/CG identities,
 owner/action/session ids, and bounded sequencing data. Each peer resolves the
 same local registry and resource package; raw media bytes, paths, bundle data,

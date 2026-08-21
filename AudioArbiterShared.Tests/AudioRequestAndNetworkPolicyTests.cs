@@ -11,6 +11,7 @@ internal sealed partial class AudioArbiterContractTests
             SourceName = "career-source"
         });
         Equal(SoundEventKinds.CareerSelected, career.Kind, "career request kind");
+        Equal(AudioSignalStages.Committed, career.Stage, "career request stage");
         Equal("career", career.CareerId, "career request career");
         Equal("career", career.RoleId, "career request role follows career");
         Equal("career-source", career.SourceName, "career request source");
@@ -28,6 +29,7 @@ internal sealed partial class AudioArbiterContractTests
         }, "play-id");
         Equal("play-id", combat.CardUse.EventId, "card-use request keeps network play id");
         Equal(SoundEventKinds.CardUse, combat.CardUse.Kind, "card-use request kind");
+        Equal(AudioSignalStages.PresentationCommitted, combat.CardUse.Stage, "card-use request stage");
         Equal("card", combat.CardUse.CardId, "card-use request card");
         Equal("career", combat.CardUse.CareerId, "card-use request career");
         Equal("role", combat.CardUse.RoleId, "card-use request role");
@@ -37,6 +39,7 @@ internal sealed partial class AudioArbiterContractTests
         Equal("combat-source", combat.CardUse.SourceName, "card-use request source");
         Equal("", combat.SkillVoice.EventId, "skill voice does not reuse authoritative card event id");
         Equal(SoundEventKinds.SkillVoice, combat.SkillVoice.Kind, "skill voice request kind");
+        Equal(AudioSignalStages.PresentationCommitted, combat.SkillVoice.Stage, "skill voice request stage");
         Equal("card", combat.SkillVoice.CardId, "skill voice request card");
         Equal("career", combat.SkillVoice.CareerId, "skill voice request career");
         Equal("role", combat.SkillVoice.RoleId, "skill voice request role");
@@ -53,6 +56,7 @@ internal sealed partial class AudioArbiterContractTests
             SourceName = "buff-source"
         });
         Equal(SoundEventKinds.BuffApplied, buff.Kind, "buff request kind");
+        Equal(AudioSignalStages.Applied, buff.Stage, "buff request stage");
         Equal("buff", buff.BuffId, "buff request id");
         Equal("career", buff.CareerId, "buff request career");
         Equal("career", buff.RoleId, "buff request role preserves current-career behavior");
@@ -68,6 +72,7 @@ internal sealed partial class AudioArbiterContractTests
             SourceName = "vocal-source"
         });
         Equal(SoundEventKinds.VocalState, vocal.Kind, "vocal request kind");
+        Equal(AudioSignalStages.Observed, vocal.Stage, "vocal request stage");
         Equal("Dying", vocal.VocalState, "vocal request state");
         Equal("career", vocal.CareerId, "vocal request career");
         Equal("role", vocal.RoleId, "vocal request role");
@@ -86,6 +91,7 @@ internal sealed partial class AudioArbiterContractTests
             SourceName = "hp-source"
         }, 0.5f);
         Equal(SoundEventKinds.LowHealth, lowHealth.Kind, "low-health request kind");
+        Equal(AudioSignalStages.ThresholdCrossedDown, lowHealth.Stage, "low-health request stage");
         Equal("status", lowHealth.StatusInstanceId, "low-health request status");
         Equal("role", lowHealth.RoleId, "low-health request role");
         Equal("career", lowHealth.CareerId, "low-health request career");
@@ -109,6 +115,7 @@ internal sealed partial class AudioArbiterContractTests
             SourceName = "Fight_Win.ResetStates"
         });
         Equal(SoundEventKinds.BattleCompleted, battle.Kind, "battle request kind");
+        Equal(AudioSignalStages.Completed, battle.Stage, "battle request stage");
         Equal("Win", battle.BattleResult, "battle request result");
         Equal("career", battle.CareerId, "battle request career");
         Equal("career", battle.RoleId, "battle request role follows career");
@@ -328,6 +335,7 @@ internal sealed partial class AudioArbiterContractTests
         Equal("provider-1", request.ProviderId, scope + " provider");
         Equal("owner-1", request.OwnerModId, scope + " owner");
         Equal("CardUse", request.Kind, scope + " kind");
+        Equal("PresentationCommitted", request.Stage, scope + " stage");
         Equal("career-1", request.CareerId, scope + " career");
         Equal("role-1", request.RoleId, scope + " role");
         Equal("status-1", request.StatusInstanceId, scope + " status");
@@ -378,6 +386,9 @@ internal sealed partial class AudioArbiterContractTests
         Equal("invalid event kind", AudioNetworkPolicy.ValidateServerCardUsePresentation(null, sender, (_, _) => true), "missing server presentation");
         request.Kind = SoundEventKinds.SkillVoice;
         Equal("invalid event kind", AudioNetworkPolicy.ValidateServerCardUsePresentation(request, sender, (_, _) => true), "invalid server presentation kind");
+        request = CreateRequest();
+        request.Stage = AudioSignalStages.Applied;
+        Equal("invalid event stage", AudioNetworkPolicy.ValidateServerCardUsePresentation(request, sender, (_, _) => true), "invalid server presentation stage");
         request = CreateRequest();
         Equal("missing sender", AudioNetworkPolicy.ValidateServerCardUsePresentation(request, new AudioNetworkSenderSnapshot(false, false, false, ""), (_, _) => true), "missing bound sender");
         Equal("sender outside lobby: player-1", AudioNetworkPolicy.ValidateServerCardUsePresentation(request, new AudioNetworkSenderSnapshot(true, false, false, "player-1"), (_, _) => true), "sender lobby membership");

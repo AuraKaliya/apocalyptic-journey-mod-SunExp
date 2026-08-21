@@ -7,6 +7,7 @@ using AuraToolsExp.Dll.Features.AdventureArchive;
 using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.CardRefresh;
+using AuraToolsExp.Dll.Features.CardVisual;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
@@ -34,8 +35,10 @@ internal static class AuraToolsBuiltInModules
         {
             FileLoggingModule(),
             SkinModule(),
+            CardVisualModule(),
             BattleBgmModule(),
             CardUseAudioModule(),
+            VoiceModule(),
             StarterDeckModule(),
             FeastModule(),
             FeastCgModule(),
@@ -117,6 +120,34 @@ internal static class AuraToolsBuiltInModules
             new[] { "皮肤", "角色", "外观" });
     }
 
+    private static IAuraToolModule CardVisualModule()
+    {
+        return Module(
+            AuraToolModuleIds.CardVisual,
+            "presentation",
+            215,
+            21,
+            "卡牌视觉",
+            "按逐卡白名单配置卡框主题与动态效果。",
+            context => AuraToolsCardVisualRuntime.Initialize(context.ModConfig),
+            () => AuraToolsConfigService.CardVisual.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.CardVisual.Enabled = enabled;
+                AuraToolsConfigService.SaveCardVisual();
+                AuraToolsCardVisualRuntime.ApplyModuleActivation(enabled);
+            },
+            () => State(
+                AuraToolModuleIds.CardVisual,
+                AuraToolsConfigService.CardVisual.Enabled,
+                "主题 " + AuraToolsCardVisualRegistry.Themes.Count
+                + " 个 · 卡牌映射 " + AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)
+                + " 条",
+                AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)),
+            AuraToolsCardVisualEditor.Show,
+            new[] { "卡框", "卡面", "主题", "动态效果", "稀有度", "卡包" });
+    }
+
     private static IAuraToolModule BattleBgmModule()
     {
         return Module(
@@ -163,6 +194,32 @@ internal static class AuraToolsBuiltInModules
                 AudioModeSummary(AuraToolsConfigService.Audio.CardUse)),
             AuraToolsAudioSettingsPage.ShowCardUse,
             new[] { "音效", "出牌", "音频" });
+    }
+
+    private static IAuraToolModule VoiceModule()
+    {
+        return Module(
+            AuraToolModuleIds.Voice,
+            "presentation",
+            240,
+            32,
+            "角色语音",
+            "按稳定信号、阶段和动作管理角色语音。",
+            context => AuraToolsAudioRuntime.Initialize(context.ModConfig),
+            () => AuraToolsConfigService.Audio.Voice.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.Audio.Voice.Enabled = enabled;
+                AuraToolsConfigService.SaveVoice();
+                AuraToolsAudioRuntime.RegisterProviders();
+            },
+            () => State(
+                AuraToolModuleIds.Voice,
+                AuraToolsConfigService.Audio.Voice.Enabled,
+                "语音绑定 " + AuraToolsConfigService.Audio.Voice.Bindings.Count + " 条",
+                AuraToolsConfigService.Audio.Voice.Bindings.Count),
+            AuraToolsVoiceSettingsPage.Show,
+            new[] { "语音", "角色", "技能", "低血量", "结算" });
     }
 
     private static IAuraToolModule StarterDeckModule()

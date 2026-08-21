@@ -1,0 +1,88 @@
+using System;
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+public static class AuraToolsVisualBundleBuilder
+{
+    private const string BundleName = "auratools_visuals";
+    private const string ShaderPath = "Assets/AuraToolsExp/Visuals/Shaders/CardFaceEffect.shader";
+    private const string MaterialPath = "Assets/AuraToolsExp/Visuals/Materials/CardFaceEffect.mat";
+    private const string LumaKeyShaderPath = "Assets/AuraToolsExp/Visuals/Shaders/AuraCgLumaKeyUI.shader";
+    private const string LumaKeyMaterialPath = "Assets/AuraToolsExp/Visuals/Materials/AuraCgLumaKeyUI.mat";
+    private const string MaskedInvertShaderPath = "Assets/AuraToolsExp/Visuals/Shaders/AuraCgMaskedInvertFlash.shader";
+    private const string MaskedInvertMaterialPath = "Assets/AuraToolsExp/Visuals/Materials/AuraCgMaskedInvertFlash.mat";
+    private const string ScreenFlashShaderPath = "Assets/AuraToolsExp/Visuals/Shaders/AuraCgScreenBwFlash.shader";
+    private const string ScreenFlashMaterialPath = "Assets/AuraToolsExp/Visuals/Materials/AuraCgScreenBwFlash.mat";
+
+    public static void BuildVisualBundle()
+    {
+        var cardMaterial = EnsureMaterial(ShaderPath, MaterialPath, "CardFaceEffect");
+        var lumaKey = EnsureMaterial(LumaKeyShaderPath, LumaKeyMaterialPath, "AuraCgLumaKeyUI");
+        lumaKey.SetFloat("_AuraCgKeyThreshold", 0.02f);
+        lumaKey.SetFloat("_AuraCgKeySoftness", 0.1f);
+        var maskedInvert = EnsureMaterial(MaskedInvertShaderPath, MaskedInvertMaterialPath, "AuraCgMaskedInvertFlash");
+        maskedInvert.SetFloat("_AuraCgFlashStrength", 0.88f);
+        maskedInvert.SetFloat("_AuraCgKeyThreshold", 0.02f);
+        maskedInvert.SetFloat("_AuraCgKeySoftness", 0.1f);
+        var screenFlash = EnsureMaterial(ScreenFlashShaderPath, ScreenFlashMaterialPath, "AuraCgScreenBwFlash");
+        screenFlash.SetFloat("_AuraCgFlashStrength", 0.9f);
+        EditorUtility.SetDirty(cardMaterial);
+        EditorUtility.SetDirty(lumaKey);
+        EditorUtility.SetDirty(maskedInvert);
+        EditorUtility.SetDirty(screenFlash);
+        AssetDatabase.SaveAssets();
+        AssignBundleName(MaterialPath);
+        AssignBundleName(LumaKeyMaterialPath);
+        AssignBundleName(MaskedInvertMaterialPath);
+        AssignBundleName(ScreenFlashMaterialPath);
+
+        const string buildDirectory = "Build/AuraToolsVisualBundles";
+        Directory.CreateDirectory(buildDirectory);
+        BuildPipeline.BuildAssetBundles(
+            buildDirectory,
+            new[]
+            {
+                new AssetBundleBuild
+                {
+                    assetBundleName = BundleName,
+                    assetNames = new[] { MaterialPath, LumaKeyMaterialPath, MaskedInvertMaterialPath, ScreenFlashMaterialPath }
+                }
+            },
+            BuildAssetBundleOptions.ChunkBasedCompression,
+            EditorUserBuildSettings.activeBuildTarget);
+        var built = Path.Combine(buildDirectory, BundleName);
+        if (!File.Exists(built)) throw new FileNotFoundException("AuraTools visual bundle was not produced.", built);
+        var output = Environment.GetEnvironmentVariable("AURATOOLS_VISUAL_BUNDLE_OUTPUT");
+        if (string.IsNullOrWhiteSpace(output)) output = "../AuraToolsExp/ModResource/VisualBundles/auratools_visuals";
+        Directory.CreateDirectory(Path.GetDirectoryName(output));
+        File.Copy(built, output, true);
+        Debug.Log("Built AuraTools visual bundle: " + output);
+    }
+
+    private static Material EnsureMaterial(string shaderPath, string materialPath, string name)
+    {
+        var shader = AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+        if (shader == null) throw new FileNotFoundException("AuraTools shader is missing.", shaderPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(materialPath));
+        var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+        if (material == null)
+        {
+            material = new Material(shader) { name = name };
+            AssetDatabase.CreateAsset(material, materialPath);
+        }
+        else
+        {
+            material.shader = shader;
+        }
+        return material;
+    }
+
+    private static void AssignBundleName(string materialPath)
+    {
+        var importer = AssetImporter.GetAtPath(materialPath);
+        if (importer == null) throw new FileNotFoundException("AuraTools material importer is missing.", materialPath);
+        importer.assetBundleName = BundleName;
+        importer.SaveAndReimport();
+    }
+}

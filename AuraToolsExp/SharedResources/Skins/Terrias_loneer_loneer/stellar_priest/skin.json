@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 2,
+  "enabled": true,
+  "skinId": "AuraToolsExp.Terrias_loneer_loneer.stellar_priest",
+  "targetCareerId": "Terrias_loneer_loneer",
+  "name": "星辰祭司",
+  "author": "Aura",
+  "preview": "Idle/Idle-01.png",
+  "assets": {
+    "CareerImage": "Idle/Idle-01.png",
+    "Character": "Idle/Idle-01.png",
+    "Animation": "."
+  }
+}

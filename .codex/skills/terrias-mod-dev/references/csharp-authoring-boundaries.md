@@ -12,7 +12,8 @@ when checking game API shape through the indexed game reference project.
 - `Terrias-Dev/Hooks/*`: code that attaches to game methods, event listeners, UI points, map behavior, or lifecycle points.
 - `Terrias/Data/**/*.csv`: configuration rows and short `CS.Terrias.Dll.Scripting.*` calls.
 - `Terrias/Text/**/*.csv`: localized player-facing text that must match the Data rows when the table has a Text side.
-- `Terrias/audio.registry.json`: declarative audio and BGM provider registration used by the audio runtimes.
+- `AuraToolsExp/audio.registry.json`: tool-owned optional voice and card-use
+  audio declarations. Terrias supplies stable role/card ids, not media providers.
 
 Do not put long implementation logic in CSV script columns. Add or reuse a C#
 entry point, then call that entry point from CSV.

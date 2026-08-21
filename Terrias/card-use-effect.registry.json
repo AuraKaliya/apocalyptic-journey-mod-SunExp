@@ -19,7 +19,7 @@
         "stellar_overture_turn",
         "stellar_overture_close"
       ],
-      "visualEffectId": "terrias.card_visual_effect.stardust_overture",
+      "visualEffectId": "terrias.star_score.card_use_fx.stardust_overture",
       "presentationScope": "ownerLocal",
       "stackMode": "stack",
       "exclusiveGroup": "",

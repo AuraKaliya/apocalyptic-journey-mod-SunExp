@@ -62,8 +62,7 @@ public static class RuntimeHooks
         RunHookStep("solar card pack migration", () => SunCardPackMigrationRuntime.Initialize(modConfig));
         RunHookStep("field effect registry", () => FieldEffectRegistry.WarmupConfigCache("RuntimeHooks.Initialize"));
         RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
-        RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
-        RunHookStep("card presentation bridge", TerriasCardPresentationLifecycleBridge.Initialize);
+        RunHookStep("card presentation bridge", () => TerriasCardPresentationLifecycleBridge.Initialize(modConfig));
         RunHookStep("active card presentation index", () => TerriasActiveCardPresentationIndex.Initialize(modConfig));
         RunHookStep("fight presentation invalidation", TerriasFightPresentationInvalidationService.Initialize);
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));

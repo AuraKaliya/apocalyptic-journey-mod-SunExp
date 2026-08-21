@@ -194,11 +194,11 @@
       "enabled": true
     },
     {
-      "id": "terrias.card_visual_effect.card_face.shader",
-      "shaderName": "Terrias/CardFaceEffect",
-      "shaderPath": "Terrias/CardFaceEffect",
+      "id": "terrias.card_use_fx.stardust.shader",
+      "shaderName": "Terrias/CardUseStardust",
+      "shaderPath": "Terrias/CardUseStardust",
       "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-      "materialPath": "Terrias/Materials/CardFaceEffect",
+      "materialPath": "Terrias/Materials/CardUseStardust",
       "enabled": true
     }
   ],
@@ -222,59 +222,11 @@
       "enabled": true
     },
     {
-      "id": "terrias.card_visual_effect.foil_holo",
-      "kind": "card-visual-face-material",
-      "shaderId": "terrias.card_visual_effect.card_face.shader",
+      "id": "terrias.star_score.card_use_fx.stardust_overture",
+      "kind": "star-score-card-use-material",
+      "shaderId": "terrias.card_use_fx.stardust.shader",
       "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-      "materialPath": "Terrias/Materials/CardFaceEffect",
-      "textures": {
-        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
-        "_FoilTex": "Mods/Terrias/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
-      },
-      "floats": {
-        "_TerriasOverlayMode": 0,
-        "_TerriasFrameOnlyOverlay": 1,
-        "_TerriasEffectMode": 0.23,
-        "_TerriasFoilMode": 1.603,
-        "_TerriasFlowSpeed": -2,
-        "_TerriasFlowScale": 1.603,
-        "_TerriasNoiseScale": 7.722,
-        "_TerriasDistortion": 0.021,
-        "_TerriasEffectIntensity": 1.093,
-        "_TerriasEdgeGlow": 0.12,
-        "_TerriasSweepFrequency": 3.716,
-        "_TerriasSweepWidth": 0.18,
-        "_TerriasSweepIntensity": 0.892,
-        "_TerriasPrismScale": 18.19,
-        "_TerriasPrismStrength": 0.759,
-        "_TerriasFoilGrain": 0.453,
-        "_TerriasMirrorSweep": 0.846,
-        "_TerriasSwirlStrength": 0.206,
-        "_TerriasFoilShardScale": 15.367,
-        "_TerriasFoilShardWarp": 0.162,
-        "_TerriasFoilGalaxyDensity": 0.148,
-        "_TerriasFoilGlintSpeed": 1.1,
-        "_TerriasFoilTextureStrength": 0.967,
-        "_TerriasRainbowStrength": 1.25,
-        "_TerriasRidgeStrength": 0.523,
-        "_TerriasGlareStrength": 1.008,
-        "_TerriasPointerAutoSpeed": 0.646,
-        "_TerriasFoilOverlayAlpha": 1.557,
-        "_TerriasEdgeSample": 3.218
-      },
-      "colors": {
-        "_TerriasHoloColorA": "#FFF0A6FF",
-        "_TerriasHoloColorB": "#A6F2FFFF",
-        "_TerriasHoloColorC": "#D2B8FFFF"
-      },
-      "enabled": true
-    },
-    {
-      "id": "terrias.card_visual_effect.stardust_overture",
-      "kind": "card-visual-face-material",
-      "shaderId": "terrias.card_visual_effect.card_face.shader",
-      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
-      "materialPath": "Terrias/Materials/CardFaceEffect",
+      "materialPath": "Terrias/Materials/CardUseStardust",
       "textures": {
         "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
@@ -286,7 +238,7 @@
         "_TerriasDistortion": 0.004,
         "_TerriasEffectIntensity": 0.95,
         "_TerriasEdgeGlow": 0.12,
-        "_TerriasFoilGrain": 0.28,
+        "_TerriasStardustGrain": 0.28,
         "_TerriasStardustDensity": 0.46,
         "_TerriasStardustTwinkle": 1.25,
         "_TerriasStardustTwinkleSpeed": 2.15,

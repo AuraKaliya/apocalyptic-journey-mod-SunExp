@@ -5,14 +5,16 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestAuraToolModuleCatalogAndStateStore()
     {
-        Assert(AuraToolModuleIds.Persisted.Length == 20
-               && AuraToolModuleIds.Persisted.Distinct(StringComparer.Ordinal).Count() == 20
+        Assert(AuraToolModuleIds.Persisted.Length == 22
+               && AuraToolModuleIds.Persisted.Distinct(StringComparer.Ordinal).Count() == 22
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.FeastCg)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.Voice)
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.CardVisual)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.PresetLibrary)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.ModHealth)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.LobbyStatus)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.AdventureArchive),
-            "tool module config inventory contains twenty unique persisted module ids including the four foundation modules");
+            "tool module config inventory contains twenty-two unique persisted module ids including voice and card visuals");
         var second = new FakeModule("module.second", "presentation", 20, visible: true);
         var first = new FakeModule("module.first", "gameplay", 10, visible: true);
         var hidden = new FakeModule("module.hidden", "system", 1, visible: false);

@@ -1,89 +1,67 @@
-# Skill CG And Shared Resources
+# CG And Shared Resources
 
-Use this reference when editing Skill CG declarations, CG playback, shared
-resource manifests, or AuraTools consumption of Terrias CG entries.
+Use this reference for Skill CG, card-use CG, Feast CG, shared playback, and
+AuraTools resource ownership.
 
-## Terrias Surfaces
+## Current Surfaces
 
-- `Terrias/SharedResources/package.json`: installs shared CG files and bundle
-  resources into AuraShared.
-- `Terrias/SharedResources/cg.registry.json`: declares CG entries, display
-  names, target roles/cards, media resources, presentation, priority, and
-  enabled state.
-- `Terrias-Dev/Features/SkillCg/TerriasSkillCgRuntime.cs`: Terrias-side trigger
-  and runtime integration.
-- `AuraCgShared/*`: shared CG registry, activation, overlay playback, and
-  runtime protocol.
-- `AuraToolsExp-Dev/Features/SkillCg/*`: tool-side consumption and rule
-  management.
+- `AuraToolsExp/SharedResources/aura.registration.json` installs optional CG,
+  voice, card-visual, and other tool-managed resources.
+- `AuraToolsExp/SharedResources/cg.registry.json` declares Skill, card-use, and
+  Feast CG entries owned by AuraToolsExp.
+- `AuraToolsExp-Dev/Features/SkillCg/*` owns local configuration, provider
+  requests, previews, per-entry presentation/effect overrides, activation, and
+  CG VisualBundle registration.
+- `AuraCgShared/*` owns registry, playback queue, overlay presentation, black
+  keying, flash steps, session identity, networking, and duplicate suppression.
+- `Terrias/SharedResources/aura.registration.json` is a bounded empty retirement
+  manifest. It removes the former Terrias optional-media registrations and must
+  not acquire new ones.
+- `Terrias/SharedResources/cg.retire.registry.json` is the bounded empty
+  `manifest` contribution that removes persisted legacy Terrias CG entries.
 
-## Content/Tool Split
+Terrias provides stable role/card ids and game mechanics only. It does not ship
+or trigger optional Skill CG, card-use CG, Feast CG, role voice, or card-use
+audio. Opening director animation is unaffected because it is required content
+presentation rather than an externally configurable media extension.
 
-Terrias is a content owner. It installs files, registers CG manifests, and
-provides machine-readable semantics. AuraTools consumes the shared declarations
-and may create local tool rules or overrides.
+## Blazing Crown Collapse
 
-When AuraToolsExp is installed, its local effective CG configuration gates the
-registered entry on that machine, including received multiplayer playback. It
-must not replace a Terrias CG request with a private AuraTools provider; the
-network identity remains the content owner's registered `ownerModId + cgId`.
+The card's successful action identity remains a Terrias content id. Generic
+card-action observation, playback sequencing, black-key handling, flash
+presentation, network authority, and deduplication belong to shared runtimes.
+AuraTools owns the frame sequence, manifest entry, bundle/material resources,
+configuration, and final presentation recipe.
 
-Do not make AuraTools guess Terrias folder layout, scan private content folders,
-or copy foreign CG files into a tool-owned default directory unless the user is
-explicitly creating a local override.
+## Migration
 
-## CG Playback Rules
+Preserve semantic CG ids while changing the provider owner from `Terrias` to
+`AuraToolsExp`. Migrate retained local rules, activation entries, Feast
+resource overrides, and replacement-skin selections once, then persist only the
+new qualified identities. Do not keep a Terrias runtime fallback.
 
-- Keep visual overlays independent from game UI canvases.
-- Keep visual-only overlays non-blocking: no `GraphicRaycaster`, graphics with
-  `raycastTarget = false`, and root canvas groups with raycasts disabled.
-- Use shared CG registry display names for CG/rule names; role display names
-  remain role names only.
-- Keep bundled-frame metadata aligned between `package.json`,
-  `cg.registry.json`, and the VisualBundle.
-- Treat online de-duplication, relay, and multi-mod coordination as
-  `AuraCgShared` responsibilities. Terrias should request playback; AuraTools
-  should configure or override playback; neither should implement a private
-  Skill CG multiplayer protocol.
+The Terrias empty retirement package and the higher AuraTools package version
+provide the source-level cutover. Shipped Terrias assets and registries must be
+deleted, not disabled.
 
-## Multiplayer Playback Flow
+## Playback Rules
 
-Use this shape for synchronized Skill CG playback:
-
-1. Only the local owner of the action may initiate playback. In multiplayer,
-   skip and log if `OwnerInstanceId` is empty or if the observed action belongs
-   to a remote owner/status.
-2. The initiator creates a `SkillCgPlayId` from stable event parts such as
-   `issuerPlayerId`, `ownerStatusId`, `cardId`, a local counter, and a
-   run/fight token. The initiator inserts `(issuerPlayerId, SkillCgPlayId)` into
-   the local playback pool and plays once immediately.
-3. A non-host initiator sends a server-bound request to the host. It must not
-   broadcast directly to all players.
-4. The host binds the real sender from the receive context, validates that the
-   sender owns the submitted owner/status, normalizes the issuer to the bound
-   sender, and broadcasts an authorized playback event to all players.
-5. Every client, including the original initiator, checks the global playback
-   pool by `(issuerPlayerId, SkillCgPlayId)`. Already seen events are ignored;
-   new events are inserted and played.
-6. If multiple content/tool paths match the same local action, the shared layer
-   should reuse the same play id within a short action window so imported
-   AuraTools rules and Terrias declarations cannot produce duplicate playback.
-
-Remote `FightUI.CallActionAnimation` observations are only observations. They
-must not create fresh play ids or local broadcasts. Valid network playback comes
-from the local owner or from a host-authorized relay.
+- Only the local action owner initiates synchronized playback.
+- The host binds and validates the real sender before broadcasting.
+- All peers deduplicate by issuer and stable playback id.
+- Raw media, local paths, bundles, and presentation parameters are never RPC
+  payloads; peers resolve the same registered tool resource locally.
+- Visual-only overlays are non-blocking and cleaned up on fight/session end.
 
 ## Validation
 
-For Skill CG or shared resource protocol changes, run:
+Run:
 
 ```powershell
-tools\Build-TerriasDll.ps1
+tools\Build-AuraToolsVisualBundle.ps1
 tools\Build-AuraToolsExpDll.ps1
+tools\Test-AuraCgShared.ps1
+tools\Test-AuraToolsExp.ps1
 tools\Test-SharedReleaseGate.ps1 -Profile network
-tools\Test-SharedArchitectureGuidelines.ps1
 tools\Test-SharedDllPackaging.ps1
 ```
-
-If only Terrias registry data changes, still run Terrias validation and inspect
-shared resource paths.

@@ -10,6 +10,7 @@ internal static class AudioManifestMatchPolicy
     {
         var match = provider.match ?? new AudioProviderMatch();
         var kind = provider.kind?.Trim() ?? "";
+        var stages = ToSet(match.stages);
         var vocalState = provider.vocalState?.Trim() ?? "";
         var careerIds = ToSet(match.careerIds);
         var roleIds = ToSet(match.roleIds);
@@ -35,6 +36,11 @@ internal static class AudioManifestMatchPolicy
                 return false;
             }
 
+            if (stages.Count > 0 && !stages.Contains(AudioPropertyReader.ReadString(request, "Stage")))
+            {
+                return false;
+            }
+
             if (careerIds.Count > 0 && !MatchesAnyId(careerIds, AudioPropertyReader.ReadString(request, "CareerId")))
             {
                 return false;
@@ -45,7 +51,7 @@ internal static class AudioManifestMatchPolicy
                 return false;
             }
 
-            if (cardIds.Count > 0 && !cardIds.Contains(AudioPropertyReader.ReadString(request, "CardId")))
+            if (cardIds.Count > 0 && !MatchesAnyId(cardIds, AudioPropertyReader.ReadString(request, "CardId")))
             {
                 return false;
             }
@@ -111,8 +117,13 @@ internal static class AudioManifestMatchPolicy
             return true;
         }
 
-        return accepted.Any(id =>
-            value.StartsWith(id + "_", StringComparison.OrdinalIgnoreCase)
-            || value.EndsWith("_" + id, StringComparison.OrdinalIgnoreCase));
+        return accepted.Any(raw =>
+        {
+            var id = (raw ?? "").Trim().TrimStart('*');
+            return id.Length > 0
+                   && (string.Equals(value, id, StringComparison.OrdinalIgnoreCase)
+                       || value.StartsWith(id + "_", StringComparison.OrdinalIgnoreCase)
+                       || value.EndsWith("_" + id, StringComparison.OrdinalIgnoreCase));
+        });
     }
 }

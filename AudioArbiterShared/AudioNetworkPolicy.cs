@@ -56,9 +56,11 @@ internal static class AudioNetworkPolicy
         long nowUtcTicks = 0L)
     {
         if (!IsCardUsePresentation(request)) return "invalid event kind";
+        if (!string.Equals(request!.Stage, AudioSignalStages.PresentationCommitted, StringComparison.OrdinalIgnoreCase))
+            return "invalid event stage";
         if (!sender.IsAvailable) return "missing sender";
         if (!sender.IsLobbyMember) return "sender outside lobby: " + sender.PlayerId;
-        if (string.IsNullOrWhiteSpace(request!.EventId)) return "missing event id";
+        if (string.IsNullOrWhiteSpace(request.EventId)) return "missing event id";
         if (request.EventId.Length > 160) return "event id too long";
         if (string.IsNullOrWhiteSpace(request.FightToken)) return "missing fight token";
         if (request.FightToken.Length > 96) return "fight token too long";
