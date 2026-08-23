@@ -175,7 +175,7 @@ internal static class AuraToolConfigCodecRegistry
     {
         var result = new List<IAuraToolConfigCodec>
         {
-            Codec(Audit(AuraToolModuleIds.StarterDeck, "自定义开局", "resource", "卡牌与遗物 ID、继承和模式", "运行时 Applied 标记"),
+            Codec(Audit(AuraToolModuleIds.StarterDeck, "自定义开局", "resource", "卡牌、遗物、继承和模式", "运行时应用标记"),
                 StarterDeckSettings.CurrentSchemaVersion,
                 () => AuraToolsConfigService.MatchExperience.StarterDeck,
                 value => value.Normalize(),
@@ -216,7 +216,7 @@ internal static class AuraToolConfigCodecRegistry
                 _ => { },
                 value => CommitSetting(AuraToolModuleIds.SafeBox, value,
                     item => AuraToolsConfigService.MatchExperience.SafeBox = item, AuraToolsConfigService.SaveSafeBox)),
-            Codec(Audit(AuraToolModuleIds.Skin, "角色皮肤", "resource", "开关、选择与资源 ID", "皮肤包文件"), 3,
+            Codec(Audit(AuraToolModuleIds.Skin, "角色皮肤", "resource", "开关、选择与资源引用", "皮肤包文件"), 3,
                 () => AuraToolsConfigService.Skin,
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.Skin, value,
@@ -268,13 +268,13 @@ internal static class AuraToolConfigCodecRegistry
                 _ => { },
                 value => CommitSetting(AuraToolModuleIds.ModSync, value,
                     item => AuraToolsConfigService.MatchExperience.ModSync = item, AuraToolsConfigService.SaveModSync)),
-            Codec(Audit(AuraToolModuleIds.AutoBattle, "战斗策略实验室", "high", "运行模式、模型引用和评估参数", "模型文件、训练样本、实验确认令牌"), 1,
+            Codec(Audit(AuraToolModuleIds.AutoBattle, "自动战斗与策略模型实验室", "high", "运行模式、模型引用和评估参数", "模型文件、训练样本、模型风险确认记录"), 1,
                 () => AuraToolsConfigService.MatchExperience.AutoBattle,
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.AutoBattle, value,
                     item => AuraToolsConfigService.MatchExperience.AutoBattle = item, AuraToolsConfigService.SaveAutoBattle),
                 SanitizeAutoBattle),
-            Codec(Audit(AuraToolModuleIds.FileLogging, "文件日志", "low", "日志等级、过滤与保留设置", "日志正文和机器路径"), 4,
+            Codec(Audit(AuraToolModuleIds.FileLogging, "文件日志", "low", "日志等级、镜像与保留设置", "日志正文和机器路径"), 5,
                 () => AuraToolsConfigService.Logging,
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.FileLogging, value,
@@ -294,7 +294,7 @@ internal static class AuraToolConfigCodecRegistry
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.LobbyStatus, value,
                     item => AuraToolsConfigService.LobbyStatus = item, AuraToolsConfigService.SaveLobbyStatus)),
-            Codec(Audit(AuraToolModuleIds.AdventureArchive, "冒险档案馆", "data", "采集开关与保留策略", "冒险数据库"), 1,
+            Codec(Audit(AuraToolModuleIds.AdventureArchive, "冒险历程", "data", "记录开关与保留策略", "冒险数据库"), 1,
                 () => AuraToolsConfigService.AdventureArchive,
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.AdventureArchive, value,
@@ -344,7 +344,8 @@ internal static class AuraToolConfigCodecRegistry
 
     private static JObject SanitizeAutoBattle(JObject payload)
     {
-        payload["experimentalModelAcknowledgement"] = "";
+        payload.Remove("experimentalModelAcknowledgement");
+        payload["modelRiskAcknowledgements"] = new JArray();
         payload["captureTrainingSamples"] = false;
         RemoveResolvedFields(payload);
         return payload;

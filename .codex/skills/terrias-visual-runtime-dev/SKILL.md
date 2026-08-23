@@ -17,8 +17,11 @@ manifests change.
    - Terrias-required content presentation: opening director animation,
      Wuna orbit fire, Star Score HUD/card-use feedback, map-node art, and
      content-owned animated icons.
-   - AuraTools optional media: Skill CG, card-use CG, Feast CG, replacement
-     skins, card-frame themes, and configurable card dynamic effects.
+   - Terrias-carried optional media: Terrias role voice and Skill/card-use/Feast
+     CG declarations/assets under `SharedResources`; AuraTools discovers and
+     configures them.
+   - AuraTools-owned media: tool defaults, replacement skins, card-frame themes,
+     and configurable card dynamic effects.
    - Shared foundation: card presentation lifecycle, CG/audio protocols,
      playback/network identity, resource paths, caches, and hook routing.
    - Map-node card art, animated buff/blessing/enemy icons, Star Score HUD, or
@@ -30,7 +33,9 @@ manifests change.
    - `Terrias-Dev/Hooks/Ui/*`
    - `AuraSharedCore/AuraCardPresentationRuntime.cs`
    - `AuraToolsExp/card-visual.registry.json`
-   - `AuraToolsExp/SharedResources/cg.registry.json`
+   - `Terrias/SharedResources/aura.discovery.json`, `audio.registry.json`, and
+     `cg.registry.json`
+   - `AuraToolsExp/SharedResources/cg.registry.json` for tool-owned entries
    - `AuraToolsExp/SharedResources/CardVisual/*`
    - `AuraToolsExp-Dev/Features/CardVisual/*`
    - `AuraToolsExp-Dev/Features/SkillCg/*`
@@ -62,9 +67,10 @@ manifests change.
   materials.
 - Exclude generated UnityProject editor sources from product MOD compilation;
   they require UnityEditor and are built only by the VisualBundle script.
-- Terrias must not ship optional CG, voice, replacement-skin, card-frame, or
-  configurable card-effect resources. Put those files, manifests, settings,
-  runtime, and UI in AuraToolsExp.
+- Terrias may ship its own optional voice/CG files and declarations only under
+  the shared discovery contract. It must not own their active registration,
+  playback, networking, settings, or editor runtime. Replacement skins,
+  card-frame themes, configurable effects, and tool defaults stay in AuraToolsExp.
 - Opening director animation remains Terrias-owned. Wuna orbit fire remains a
   Terrias-only implementation and must not be generalized or split.
 - Keep Star Score card-use feedback distinct from the generic AuraTools card

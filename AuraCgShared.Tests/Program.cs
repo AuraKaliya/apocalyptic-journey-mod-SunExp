@@ -98,6 +98,15 @@ var context = new SkillCgTriggerContext
 };
 Assert(AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: true), "matching trigger accepted");
 Assert(!AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: false), "consumer activation enforced");
+entry.SkillIds = new List<string> { "sun_card" };
+context.SkillId = "sun_card";
+context.TriggerKind = "card";
+Assert(!AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: true),
+    "card-use transactions cannot trigger skill CG entries");
+context.TriggerKind = "skill";
+Assert(AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: true),
+    "typed skill transactions match schema-v3 skill ids");
+context.TriggerKind = "";
 Assert(AuraCgRegistryQueryService.MatchesAction("future-action"), "action remains forward-compatible");
 Assert(AuraCgRegistryQueryService.ResolveImageResource(entry) == "cg/sequence", "primary resource selected");
 entry.Media.Resource = "";
@@ -162,6 +171,7 @@ var registeredEvent = new SkillCgNetworkEvent
     CgId = entry.CgId,
     ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
     CardId = "sun_card",
+    TriggerKind = "skill",
     OwnerInstanceId = "status-network",
     ActionSequence = 33,
     EventToken = "event-network",
@@ -177,6 +187,10 @@ Assert(hostResolved != null
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) == null, "registered resolver enforces recipient-local activation");
 resolverEnabled = true;
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) != null, "registered resolver admits locally enabled network playback");
+registeredEvent.TriggerKind = "card";
+Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false) == null,
+    "card-use network events cannot resolve schema-v3 skill targets");
+registeredEvent.TriggerKind = "skill";
 registeredEvent.ProviderId = "Other.SkillCG." + entry.CgId;
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false) == null, "registered resolver rejects provider identity substitution");
 registeredEvent.ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId;
@@ -249,6 +263,7 @@ var networkEvent = new SkillCgNetworkEvent
     CgId = "solar",
     ProviderId = "provider",
     CardId = "card",
+    TriggerKind = "card",
     OwnerInstanceId = "status"
 };
 Assert(AuraCgNetworkPolicy.HasValidEventIdentity(networkEvent, maxIdentifier), "bounded event identity");
@@ -274,6 +289,7 @@ AuraCgNetworkPolicy.NormalizePlaybackSnapshot(playback);
 Assert(playback.IssuerPlayerId == "player" && playback.SkillCgPlayId == "play", "playback identity normalized");
 Assert(networkEvent.IssuerPlayerId == "player" && networkEvent.OwnerInstanceId == "status", "event authority identity projected");
 Assert(networkEvent.EventToken == "play" && networkEvent.ActionSequence == 91, "event sequence projected");
+Assert(networkEvent.TriggerKind == "card", "event trigger kind survives playback normalization");
 Assert(AuraCgNetworkPolicy.PlaybackKey(" player ", " play ") == "player|play", "playback key normalized");
 Assert(AuraCgNetworkPolicy.PlaybackKey("", "play") == "", "incomplete playback key rejected");
 

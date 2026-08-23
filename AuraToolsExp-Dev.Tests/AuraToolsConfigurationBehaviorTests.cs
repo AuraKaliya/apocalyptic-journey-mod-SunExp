@@ -21,6 +21,14 @@ internal static partial class AuraToolsTestSuite
         cardVisual.Normalize();
         Assert(cardVisual.Themes.Count == 0 && cardVisual.DynamicEffects.Count == 0,
             "card visuals start without a global whitelist; theme presets are seeded only by the runtime");
+        var legacyCardVisual = JsonConvert.DeserializeObject<AuraToolsCardVisualSettings>(
+            "{\"schemaVersion\":1,\"dynamicEffects\":{\"Terrias:legacy\":{\"enabled\":true,\"effectId\":\"foil-holo\",\"parameters\":{}}}}")!;
+        legacyCardVisual.Normalize();
+        Assert(legacyCardVisual.SchemaVersion == 2
+               && legacyCardVisual.DynamicEffectOverrides.TryGetValue("Terrias:legacy", out var migratedEffect)
+               && migratedEffect.EffectId == "foil-holo"
+               && !JsonConvert.SerializeObject(legacyCardVisual).Contains("dynamicEffects", StringComparison.Ordinal),
+            "card visual schema v1 effects migrate once into explicit v2 overrides");
 
         var skin = new AuraToolsSkinSettings
         {
@@ -44,11 +52,11 @@ internal static partial class AuraToolsTestSuite
             {
                 RegisteredEntries = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["Terrias:terrias.blazing-crown-collapse"] = false
+                    ["AuraToolsExp:terrias.blazing-crown-collapse"] = false
                 },
                 PresentationOverrides = new Dictionary<string, CardUseCgPresentationOverrideSettings>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["Terrias:terrias.blazing-crown-collapse"] = new()
+                    ["AuraToolsExp:terrias.blazing-crown-collapse"] = new()
                     {
                         FlashStrength = 2f,
                         FrameSeconds = 0f
@@ -64,7 +72,7 @@ internal static partial class AuraToolsTestSuite
                     {
                         new()
                         {
-                            SourceOwnerModId = "Terrias",
+                            SourceOwnerModId = "AuraToolsExp",
                             SourceCgId = "wuna.white-sun-prayer",
                             CardId = "Terrias_wuna_wuna_*wuna_white_sun_prayer"
                         }
@@ -74,24 +82,24 @@ internal static partial class AuraToolsTestSuite
         };
         skillCg.Normalize();
         Assert(skillCg.SchemaVersion == 6
-               && skillCg.CardUseCg.RegisteredEntries.ContainsKey("AuraToolsExp:terrias.blazing-crown-collapse")
-               && skillCg.CardUseCg.PresentationOverrides.TryGetValue("AuraToolsExp:terrias.blazing-crown-collapse", out var cardUseOverride)
+               && skillCg.CardUseCg.RegisteredEntries.ContainsKey("Terrias:terrias.blazing-crown-collapse")
+               && skillCg.CardUseCg.PresentationOverrides.TryGetValue("Terrias:terrias.blazing-crown-collapse", out var cardUseOverride)
                && cardUseOverride.FlashStrength == 1f
                && Math.Abs(cardUseOverride.FrameSeconds!.Value - 0.01f) < 0.001f
-               && skillCg.Roles["Terrias_wuna_wuna"].Rules[0].SourceOwnerModId == "AuraToolsExp",
-            "Skill CG and card-use CG preferences migrate to the tool-owned registry without a second runtime path");
+               && skillCg.Roles["Terrias_wuna_wuna"].Rules[0].SourceOwnerModId == "Terrias",
+            "Skill CG and card-use CG preferences migrate to content ownership while remaining tool-configured");
 
         var feastRole = new FeastRoleSettings
         {
             RoleId = "Terrias_wuna_wuna",
             ResourceOverrides = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
             {
-                ["Terrias:wuna.feast"] = false
+                ["AuraToolsExp:wuna.feast"] = false
             }
         };
         feastRole.Normalize("Terrias_wuna_wuna", FeastSettings.CreateDefaultPresentation());
-        Assert(feastRole.ResourceOverrides.ContainsKey("AuraToolsExp:wuna.feast"),
-            "Terrias Feast CG preferences migrate to the AuraToolsExp resource owner");
+        Assert(feastRole.ResourceOverrides.ContainsKey("Terrias:wuna.feast"),
+            "Terrias Feast CG preferences migrate back to the content resource owner");
     }
 
     public static void TestAutoBattleTechnicalFallbackState()
@@ -250,24 +258,46 @@ internal static partial class AuraToolsTestSuite
         lobby.Normalize();
         Assert(presetLibrary.SchemaVersion == 1
                && presetLibrary.MaximumPresets == 256
-               && archive.SchemaVersion == 1
+               && archive.SchemaVersion == 2
                && archive.MaximumAdventures == 10
-               && archive.CaptureSnapshots
                && health.SchemaVersion == 1
                && health.ScanOnOpen
                && lobby.SchemaVersion == 1
                && lobby.ShowLocalHealthSummary,
             "foundation module settings normalize bounded retention and safe default behaviors");
+        var migratedArchive = JsonConvert.DeserializeObject<AdventureArchiveSettings>(
+            "{\"schemaVersion\":1,\"enabled\":true,\"maximumAdventures\":80,\"captureSnapshots\":false}")!;
+        migratedArchive.Normalize();
+        var migratedArchiveJson = JsonConvert.SerializeObject(migratedArchive);
+        Assert(!migratedArchiveJson.Contains("captureSnapshots", StringComparison.Ordinal)
+               && migratedArchiveJson.Contains("\"schemaVersion\":2", StringComparison.Ordinal),
+            "adventure history retires the optional snapshot path and migrates to the required v2 contract");
     
         var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
         audio.Normalize();
-        Assert(audio.SchemaVersion == 4
+        Assert(audio.SchemaVersion == 5
                && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
                && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3"
                && audio.Voice.Enabled
                && audio.Voice.Bindings.Count == 0,
             "audio config preserves user resource paths while recovering missing domains");
+        var voice = new AuraToolsVoiceSettings
+        {
+            Bindings = new Dictionary<string, AuraToolsVoiceBindingSettings>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["AuraToolsExp.Terrias.Wuna.BattleWin"] = new()
+                {
+                    ProviderId = "AuraToolsExp.Terrias.Wuna.BattleWin",
+                    ResourcePath = "Shared:Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack/content/wuna_battle_win.wav"
+                }
+            }
+        };
+        voice.Normalize();
+        Assert(voice.Bindings.TryGetValue("Terrias:Terrias.Wuna.BattleWin", out var migratedVoice)
+               && migratedVoice.ProviderId == "Terrias:Terrias.Wuna.BattleWin"
+               && migratedVoice.ResourcePath.Contains("/Voice/Terrias/"),
+            "voice bindings migrate once from tool-owned ids and paths to Terrias content ownership");
         Assert(AuraToolsConfigSchemaPolicy.IsNewer(
                    storedEnvelopeVersion: 2,
                    storedValue: new AuraToolsAudioSettings(),
@@ -276,7 +306,7 @@ internal static partial class AuraToolsTestSuite
                    storedEnvelopeVersion: 1,
                    storedValue: new AuraToolsAudioSettings
                    {
-                       SchemaVersion = 5
+                        SchemaVersion = 6
                    },
                    supportedValue: new AuraToolsAudioSettings())
                && !AuraToolsConfigSchemaPolicy.IsNewer(
@@ -330,8 +360,8 @@ internal static partial class AuraToolsTestSuite
                && matchExperience.AutoBattle.Training.Epochs == 80
                && matchExperience.AutoBattle.Training.MaximumCorrection == 0.75d
                && matchExperience.AutoBattle.SelectedModelId == ""
-               && matchExperience.AutoBattle.ExperimentalModelAcknowledgement
-                  == ""
+               && matchExperience.AutoBattle.ModelRiskAcknowledgements.Count
+                  == 0
                && matchExperience.AutoBattle.EvaluationModelId == ""
                && matchExperience.AutoBattle.Simulation.ScenarioId
                == "witch.world-simulation.standard-v2"
@@ -399,13 +429,19 @@ internal static partial class AuraToolsTestSuite
             "{\"trainedModelMode\":\"active\",\"experimentalModelAcknowledgement\":\"  sha256:abc  \"}")!;
         trainedModel.Normalize();
         Assert(trainedModel.TrainedModelMode == "trial"
-               && trainedModel.ExperimentalModelAcknowledgement
-                  == "sha256:abc",
-            "legacy active mode migrates to current-battle trial while experimental acknowledgement survives normalization");
+               && trainedModel.ModelRiskAcknowledgements.SequenceEqual(
+                   new[] { "sha256:abc" })
+               && !JsonConvert.SerializeObject(trainedModel).Contains(
+                   "experimentalModelAcknowledgement",
+                   StringComparison.Ordinal),
+            "legacy active mode and acknowledgement migrate into the multi-model risk ledger without retaining the retired field");
         trainedModel.TrainedModelMode = "full";
+        trainedModel.ModelRiskAcknowledgements.Add("sha256:def");
         trainedModel.Normalize();
-        Assert(trainedModel.TrainedModelMode == "full",
-            "full model application survives normalization");
+        Assert(trainedModel.TrainedModelMode == "full"
+               && trainedModel.ModelRiskAcknowledgements.SequenceEqual(
+                   new[] { "sha256:abc", "sha256:def" }),
+            "full model application and per-model risk confirmations survive normalization");
         trainedModel.TrainedModelMode = "off";
         trainedModel.Normalize();
         Assert(trainedModel.TrainedModelMode == "off",
@@ -571,7 +607,7 @@ internal static partial class AuraToolsTestSuite
     {
         var defaults = new AuraToolsLoggingSettings();
         defaults.Normalize();
-        Assert(defaults.SchemaVersion == 4, "logging settings use the opt-in performance-diagnostics schema");
+        Assert(defaults.SchemaVersion == 5, "logging settings use the single-source persistence schema");
         Assert(!defaults.PerformanceDiagnostics, "performance diagnostics default to disabled");
         AuraToolsConfigService.Logging = defaults;
         AuraToolsPerformanceSettings.PublishSharedOverride();
@@ -579,7 +615,10 @@ internal static partial class AuraToolsTestSuite
             "disabled logging diagnostics publish a disabled shared performance override");
         Assert(defaults.MinimumLevel == LoggingLevelNames.Info, "logging defaults keep AuraTools lifecycle logs visible");
         Assert(!defaults.MirrorUnityLog && !defaults.MirrorCommandsLog, "logging defaults do not mirror high-volume logs");
-        Assert(defaults.EnabledSources.SequenceEqual(new[] { "AuraTools" }), "logging defaults to the AuraTools source only");
+        Assert(!JsonConvert.SerializeObject(defaults).Contains(
+                "enabledSources",
+                StringComparison.Ordinal),
+            "logging no longer serializes the retired duplicate source gate");
         Assert(!defaults.UnityLogTypes.Contains("Log"), "logging defaults do not mirror Unity info logs");
         Assert(defaults.StackTraceMode == LoggingStackTraceModes.ErrorsOnly, "logging defaults keep stack traces to errors");
         Assert(defaults.MaxQueueLength == 1024, "logging default queue is bounded");
@@ -612,17 +651,15 @@ internal static partial class AuraToolsTestSuite
             MinimumLevel = LoggingLevelNames.Debug,
             MirrorUnityLog = true,
             MirrorCommandsLog = true,
-            EnabledSources = new List<string> { "AuraTools", "Unity", "Command" },
             UnityLogTypes = new List<string> { "Log", "Warning", "Error", "Exception", "Assert" },
             StackTraceMode = LoggingStackTraceModes.All,
             MaxQueueLength = 4096
         };
         legacy.Normalize();
-        Assert(legacy.SchemaVersion == 4, "legacy logging settings migrate schema");
+        Assert(legacy.SchemaVersion == 5, "legacy logging settings migrate schema");
         Assert(legacy.MinimumLevel == LoggingLevelNames.Info
                && !legacy.MirrorUnityLog
                && !legacy.MirrorCommandsLog
-               && legacy.EnabledSources.SequenceEqual(new[] { "AuraTools" })
                && !legacy.UnityLogTypes.Contains("Log")
                && legacy.StackTraceMode == LoggingStackTraceModes.ErrorsOnly
                && legacy.MaxQueueLength == 1024,
@@ -636,11 +673,10 @@ internal static partial class AuraToolsTestSuite
             MirrorCommandsLog = true
         };
         legacyInfoMirror.Normalize();
-        Assert(legacyInfoMirror.SchemaVersion == 4
+        Assert(legacyInfoMirror.SchemaVersion == 5
                && legacyInfoMirror.MinimumLevel == LoggingLevelNames.Info
                && !legacyInfoMirror.MirrorUnityLog
-               && !legacyInfoMirror.MirrorCommandsLog
-               && legacyInfoMirror.EnabledSources.SequenceEqual(new[] { "AuraTools" }),
+               && !legacyInfoMirror.MirrorCommandsLog,
             "schema-v1 Info mirror defaults migrate away from Unity and command mirrors");
     
         var warningOnly = new AuraToolsLoggingSettings
@@ -649,13 +685,12 @@ internal static partial class AuraToolsTestSuite
             MinimumLevel = LoggingLevelNames.Warning,
             MirrorUnityLog = false,
             MirrorCommandsLog = false,
-            EnabledSources = new List<string> { "AuraTools" },
             UnityLogTypes = new List<string> { "Warning", "Error", "Exception", "Assert" },
             StackTraceMode = LoggingStackTraceModes.ErrorsOnly,
             MaxQueueLength = 1024
         };
         warningOnly.Normalize();
-        Assert(warningOnly.SchemaVersion == 4
+        Assert(warningOnly.SchemaVersion == 5
                && warningOnly.MinimumLevel == LoggingLevelNames.Info
                && !warningOnly.MirrorUnityLog
                && !warningOnly.MirrorCommandsLog,
@@ -663,12 +698,11 @@ internal static partial class AuraToolsTestSuite
     
         var custom = new AuraToolsLoggingSettings
         {
-            SchemaVersion = 4,
+            SchemaVersion = 5,
             PerformanceDiagnostics = true,
             MinimumLevel = LoggingLevelNames.Debug,
             MirrorUnityLog = true,
             MirrorCommandsLog = false,
-            EnabledSources = new List<string> { "AuraTools", "Unity" },
             UnityLogTypes = new List<string> { "Warning", "Error" },
             StackTraceMode = LoggingStackTraceModes.All,
             MaxQueueLength = 2048
@@ -682,10 +716,38 @@ internal static partial class AuraToolsTestSuite
                && custom.MinimumLevel == LoggingLevelNames.Debug
                && custom.MirrorUnityLog
                && !custom.MirrorCommandsLog
-               && custom.EnabledSources.SequenceEqual(new[] { "AuraTools", "Unity" })
                && custom.StackTraceMode == LoggingStackTraceModes.All
                && custom.MaxQueueLength == 2048,
-            "schema-v4 custom logging and diagnostics choices are preserved");
+            "schema-v5 custom logging and diagnostics choices are preserved");
+        var loggingRoundTrip = JsonConvert.DeserializeObject<
+            AuraToolsLoggingSettings>(JsonConvert.SerializeObject(custom))!;
+        loggingRoundTrip.Normalize();
+        Assert(loggingRoundTrip.PerformanceDiagnostics
+               && loggingRoundTrip.MirrorUnityLog
+               && !loggingRoundTrip.MirrorCommandsLog
+               && loggingRoundTrip.UnityLogTypes.SequenceEqual(
+                   new[] { "Warning", "Error" })
+               && loggingRoundTrip.MaxQueueLength == 2048,
+            "logging choices survive a close/reopen serialization round trip: "
+            + JsonConvert.SerializeObject(loggingRoundTrip));
+
+        var migratedDisabledSource = JsonConvert.DeserializeObject<
+            AuraToolsLoggingSettings>(
+            "{\"schemaVersion\":4,\"mirrorUnityLog\":true,\"mirrorCommandsLog\":true,\"enabledSources\":[\"AuraTools\",\"Command\"]}")!;
+        migratedDisabledSource.Normalize();
+        Assert(!migratedDisabledSource.MirrorUnityLog
+               && migratedDisabledSource.MirrorCommandsLog,
+            "schema-v4 duplicate source switches migrate their previously effective mirror state exactly once");
+
+        var emptyUnityTypes = new AuraToolsLoggingSettings
+        {
+            SchemaVersion = 5,
+            MirrorUnityLog = true,
+            UnityLogTypes = new List<string>()
+        };
+        emptyUnityTypes.Normalize();
+        Assert(emptyUnityTypes.UnityLogTypes.Count == 0,
+            "an intentionally empty Unity type selection remains empty instead of silently restoring defaults");
     }
     
     public static void TestDamageSettlementCgSettingsAndLayout()

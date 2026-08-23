@@ -183,17 +183,18 @@ public static class PixelEmojiLibraryStore
             Directory.CreateDirectory(staging);
             for (var index = 0; index < pngFrames.Count; index++)
             {
-                File.WriteAllBytes(
+                AuraSharedFileStore.WriteAllBytes(
+                    AuraToolsIds.ModId,
                     Path.Combine(staging, PixelEmojiExportPolicy.FrameFileName(name, index + 1)),
                     pngFrames[index]);
             }
 
             if (Directory.Exists(target))
             {
-                Directory.Move(target, backup);
+                AuraSharedFileStore.MoveDirectory(AuraToolsIds.ModId, target, backup);
                 movedExisting = true;
             }
-            Directory.Move(staging, target);
+            AuraSharedFileStore.MoveDirectory(AuraToolsIds.ModId, staging, target);
             if (movedExisting) TryDeleteDirectory(backup);
 
             var legacy = LegacyRenderedPath(itemId);
@@ -215,7 +216,7 @@ public static class PixelEmojiLibraryStore
             {
                 if (movedExisting && !Directory.Exists(target) && Directory.Exists(backup))
                 {
-                    Directory.Move(backup, target);
+                    AuraSharedFileStore.MoveDirectory(AuraToolsIds.ModId, backup, target);
                 }
             }
             catch (Exception restoreEx)

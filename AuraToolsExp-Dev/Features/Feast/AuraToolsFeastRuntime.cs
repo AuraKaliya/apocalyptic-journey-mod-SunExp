@@ -415,6 +415,7 @@ public static class AuraToolsFeastRuntime
         {
             ProviderId = AuraToolsIds.ModId + ".Feast." + SafeProviderSegment(candidate.OwnerModId) + "." + SafeProviderSegment(candidate.CgId),
             OwnerModId = AuraToolsIds.ModId,
+            TriggerKind = "feast",
             CardId = FeastCardId,
             OwnerInstanceId = normalizedRole,
             ImagePath = imagePath,

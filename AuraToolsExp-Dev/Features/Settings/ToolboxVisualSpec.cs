@@ -7,7 +7,7 @@ internal static class ToolboxVisualSpec
     internal const float CategoryWidth = 168f;
     internal const float CategoryHeight = 48f;
     internal const float HeaderHeight = 60f;
-    internal const float ModuleRowHeight = 96f;
+    internal const float ModuleRowHeight = 78f;
     internal const float ModuleIconSize = 46f;
     internal const float IconButtonSize = 42f;
     internal const float CheckboxSize = 32f;

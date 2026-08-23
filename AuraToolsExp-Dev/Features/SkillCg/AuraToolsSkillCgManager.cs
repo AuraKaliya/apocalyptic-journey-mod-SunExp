@@ -93,9 +93,11 @@ public static class AuraToolsSkillCgManager
         layout.padding = new RectOffset(12, 12, 3, 3);
         layout.childControlWidth = true;
         layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         AuraToolsUi.AddText(
             header.transform,
-            ownerModId + "  (" + count + ")",
+            AuraToolsPlayerDisplay.OwnerName(ownerModId) + "  (" + count + ")",
             AuraToolsUi.SectionFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.Accent,
@@ -108,7 +110,7 @@ public static class AuraToolsSkillCgManager
         var row = AuraToolsUi.CreateLayout("SkillCg-" + entry.QualifiedCgId, content!);
         AuraUiStableId.Assign(row, "card-use-cg." + entry.QualifiedCgId);
         AuraToolsUi.SetFixedHeight(row, 54f);
-        AuraToolsUi.AddPanelImage(row, entry.Enabled ? AuraToolsUi.ActiveRow : AuraToolsUi.Row);
+        AuraToolsUi.AddListRowImage(row, entry.Enabled ? AuraToolsUi.ActiveRow : AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(10, 10, 6, 6);
         layout.spacing = 8f;
@@ -218,7 +220,7 @@ public static class AuraToolsSkillCgManager
         AddChoice(row.transform, "\u9002\u914d", settings.FitMode,
             new[] { "", SkillCgFitModes.Contain, SkillCgFitModes.Cover, SkillCgFitModes.Stretch },
             value => settings.FitMode = value);
-        AddChoice(row.transform, "Alpha", settings.AlphaMode,
+        AddChoice(row.transform, "背景", settings.AlphaMode,
             new[] { "", SkillCgAlphaModes.None, SkillCgAlphaModes.BlackKey },
             value => settings.AlphaMode = value);
         AddChoice(row.transform, "\u95ea\u5c4f", settings.FlashMode,
@@ -230,9 +232,18 @@ public static class AuraToolsSkillCgManager
     {
         AuraToolsUi.AddText(parent, label, AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter,
             AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 48f);
-        var labels = values.Select(value => string.IsNullOrWhiteSpace(value) ? "\u7ee7\u627f" : value).ToArray();
+        var labels = values.Select(value => ChoiceLabel(label, value)).ToArray();
         var selected = Array.FindIndex(values, value => string.Equals(value, current, StringComparison.OrdinalIgnoreCase));
         AuraToolsUi.AddSelectButton(parent, labels, Math.Max(0, selected), value => apply(values[value]), 126f);
+    }
+
+    private static string ChoiceLabel(string field, string value)
+    {
+        if (field == "\u8868\u73b0") return AuraToolsPlayerDisplay.PresentationMode(value);
+        if (field == "\u9002\u914d") return AuraToolsPlayerDisplay.FitMode(value);
+        if (field == "背景") return AuraToolsPlayerDisplay.AlphaMode(value);
+        if (field == "\u95ea\u5c4f") return AuraToolsPlayerDisplay.FlashMode(value);
+        return string.IsNullOrWhiteSpace(value) ? "\u6cbf\u7528\u8d44\u6e90\u8bbe\u7f6e" : value;
     }
 
     private static void AddSettingRow(Transform parent, string title, System.Collections.Generic.IEnumerable<SettingField> fields)

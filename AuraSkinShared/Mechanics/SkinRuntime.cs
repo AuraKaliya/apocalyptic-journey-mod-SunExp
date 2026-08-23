@@ -97,6 +97,10 @@ public static class SkinRuntime
             return null;
         }
 
+        var scoped = SkinScopedSelectionStore.Get(careerId, instanceId);
+        if (!string.IsNullOrWhiteSpace(scoped))
+            return SkinRegistry.ResolveReference(careerId, scoped, effectiveOnly: false);
+
         var remote = GetRemoteSelection(instanceId);
         if (remote != null
             && string.Equals(remote.CareerId, CareerConfigApi.NormalizeId(careerId), StringComparison.OrdinalIgnoreCase))
@@ -112,6 +116,15 @@ public static class SkinRuntime
         }
 
         return SkinRegistry.ResolveReference(careerId, SkinSelectionStore.Get(careerId));
+    }
+
+    public static IDisposable PushScopedSelection(
+        string ownerId,
+        string careerId,
+        string instanceId,
+        string qualifiedSkinId)
+    {
+        return SkinScopedSelectionStore.Push(ownerId, careerId, instanceId, qualifiedSkinId);
     }
 
     public static string GetSelectedSkinId(string careerId, string instanceId = "")

@@ -19,6 +19,7 @@ public static class AuraToolsConfigService
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, bool> LastModuleSaveResults = new(StringComparer.Ordinal);
     private static readonly AuraToolModuleConfigStore ModuleStore = new();
+    private static AuraToolsLoggingSettings lastCommittedLogging = new();
 
     public static AuraToolsRootConfig Root { get; internal set; } = new();
 
@@ -190,13 +191,49 @@ public static class AuraToolsConfigService
 
     public static void SaveLogging()
     {
-        Logging.Normalize();
-        SaveModuleSetting(
-            AuraToolModuleIds.FileLogging,
-            Logging,
-            () => SaveModule(Logging, Root.Logging.ConfigFile));
-        AuraToolsPerformanceSettings.PublishSharedOverride();
-        LoggingChanged?.Invoke();
+        if (!TrySaveLogging(out var message))
+        {
+            AuraToolsLog.Warn("[Logging] " + message);
+        }
+    }
+
+    public static bool TryUpdateLogging(
+        Action<AuraToolsLoggingSettings> update,
+        out string message)
+    {
+        if (update == null)
+        {
+            message = "没有可保存的设置变更";
+            return false;
+        }
+
+        AuraToolsLoggingSettings candidate;
+        lock (Gate)
+        {
+            candidate = CloneLogging(Logging);
+            try
+            {
+                update(candidate);
+                candidate.Normalize();
+            }
+            catch (Exception ex)
+            {
+                message = "设置无效：" + ex.Message;
+                return false;
+            }
+        }
+        return TryCommitLogging(candidate, out message);
+    }
+
+    public static bool TrySaveLogging(out string message)
+    {
+        AuraToolsLoggingSettings candidate;
+        lock (Gate)
+        {
+            candidate = CloneLogging(Logging);
+            candidate.Normalize();
+        }
+        return TryCommitLogging(candidate, out message);
     }
 
     public static void SavePresetLibrary()
@@ -537,6 +574,7 @@ public static class AuraToolsConfigService
         Skin.Normalize();
         CardVisual.Normalize();
         Logging.Normalize();
+        lastCommittedLogging = CloneLogging(Logging);
         PresetLibrary.Normalize();
         ModHealth.Normalize();
         LobbyStatus.Normalize();
@@ -586,7 +624,6 @@ public static class AuraToolsConfigService
         SaveModule(SkillCg, Root.SkillCg.ConfigFile);
         SaveModule(Skin, Root.Skin.ConfigFile);
         SaveModule(CardVisual, Root.CardVisual.ConfigFile);
-        SaveModule(Logging, Root.Logging.ConfigFile);
         SaveAllModuleSettingsNoLock();
     }
 
@@ -728,6 +765,46 @@ public static class AuraToolsConfigService
         out long revision)
     {
         return ModuleStore.Save(moduleId, settings, out revision);
+    }
+
+    private static bool TryCommitLogging(
+        AuraToolsLoggingSettings candidate,
+        out string message)
+    {
+        long revision;
+        lock (Gate)
+        {
+            if (!ModuleStore.Save(
+                    AuraToolModuleIds.FileLogging,
+                    candidate,
+                    out revision))
+            {
+                LastModuleSaveResults[AuraToolModuleIds.FileLogging] = false;
+                Logging = CloneLogging(lastCommittedLogging);
+                message = ModuleStore.IsReadOnly(AuraToolModuleIds.FileLogging)
+                    ? "配置由更高版本创建，当前版本只能读取，未覆盖原文件"
+                    : "写入模块配置失败，已恢复上一次保存的设置";
+                return false;
+            }
+
+            Logging = candidate;
+            lastCommittedLogging = CloneLogging(candidate);
+            LastModuleSaveResults[AuraToolModuleIds.FileLogging] = true;
+        }
+
+        AuraToolConfigChangeBus.Publish(AuraToolModuleIds.FileLogging, revision);
+        AuraToolsPerformanceSettings.PublishSharedOverride();
+        LoggingChanged?.Invoke();
+        message = "已保存";
+        return true;
+    }
+
+    private static AuraToolsLoggingSettings CloneLogging(
+        AuraToolsLoggingSettings source)
+    {
+        return JsonConvert.DeserializeObject<AuraToolsLoggingSettings>(
+                   JsonConvert.SerializeObject(source))
+               ?? new AuraToolsLoggingSettings();
     }
 
     private static T LoadOrDefault<T>(string fileName, T fallback)
@@ -983,7 +1060,10 @@ public static class AuraToolsConfigService
     private static IEnumerable<string> ResolveRegisteredCardIds(AuraCgRegistryEntry entry)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var value in entry.CardIds ?? new List<string>())
+        var registeredIds = entry.SkillIds != null && entry.SkillIds.Count > 0
+            ? entry.SkillIds
+            : entry.CardIds;
+        foreach (var value in registeredIds ?? new List<string>())
         {
             var cardId = (value ?? "").Trim();
             if (string.IsNullOrWhiteSpace(cardId))

@@ -12,6 +12,7 @@ using AuraDecision.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 
 namespace AuraToolsExp.Dll.Features.AutoBattle;
 
@@ -311,6 +312,8 @@ internal sealed class AutoBattleExternalValidationEntry
 
     public string QualityCertification { get; set; } =
         CombatFoundationModelPackageProtocol.QualityCertificationPassed;
+
+    public string QualitySummary { get; set; } = "";
 
     public string CapabilityStatus { get; set; } =
         CombatFoundationModelPackageProtocol.CapabilityStatusPass;
@@ -861,10 +864,18 @@ internal static class AuraToolsAutoBattleModelRuntime
                 message = "待验底模包大小必须在 1 字节到 64MB 之间";
                 return false;
             }
-            var json = File.ReadAllText(path);
+            if (!CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+                    file.Length,
+                    out message))
+            {
+                return false;
+            }
+            var json = File.ReadAllText(
+                path,
+                new UTF8Encoding(false, true));
             var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
                 json);
-            if (!CombatFoundationModelPackageProtocol.TryValidate(
+            if (!CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                     package,
                     out message))
             {
@@ -875,6 +886,13 @@ internal static class AuraToolsAutoBattleModelRuntime
                 && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
                     sourceDirectory,
                     package.ModelArtifact,
+                    out message))
+            {
+                return false;
+            }
+            if (!TryValidateFoundationRuntimeConstruction(
+                    sourceDirectory,
+                    package,
                     out message))
             {
                 return false;
@@ -890,6 +908,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                     CurrentRuntimeContext());
             var acceptance = CombatFoundationModelPackageProtocol
                 .NormalizeAcceptance(package!);
+            var evidence = CombatFoundationModelPackageProtocol
+                .AssessEvidence(package);
             modelId = package.Model?.ModelId
                       ?? package.ModelArtifact?.ModelId
                       ?? "";
@@ -962,24 +982,23 @@ internal static class AuraToolsAutoBattleModelRuntime
                             WorkerProvenance =
                                 DescribeWorkerProvenance(package),
                             AcceptanceKind = acceptance.Classification,
-                            DeploymentTier = CombatFoundationModelPackageProtocol
-                                .ResolveDeploymentTier(package),
+                            DeploymentTier = evidence.QualityTier,
                             QualityCertification = package.QualityCertification,
+                            QualitySummary = evidence.Summary,
                             CapabilityStatus = package.CapabilityStatus,
                             PromotionProtocolVersion =
                                 acceptance.PromotionProtocolVersion
                         }),
                     createBackup: true);
             }
-            message = "底模正确性验证通过，已解析并暂存“"
+            message = "底模兼容性校验通过，已解析并暂存“"
                       + stagedDisplayName
                       + "”；"
-                      + FoundationTierDisplayName(
-                          CombatFoundationModelPackageProtocol
-                              .ResolveDeploymentTier(package),
-                          package.CapabilityStatus)
+                      + "质量标记："
+                      + evidence.DisplayName
                       + "；"
-                      + CapabilityWarning(package.CapabilityStatus)
+                      + evidence.Summary
+                      + "；"
                       + coverageAssessment.Summary
                       + "；尚未加入模型库";
             return true;
@@ -1068,7 +1087,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         return true;
     }
 
-    public static bool ExternalValidationMeetsGate(
+    public static bool ExternalPackageIsLoadable(
         string decisionProfile,
         string modelId,
         out string reason)
@@ -1081,23 +1100,12 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return false;
         }
-        if (!package.Validation.Passed
-            || !package.Validation.BehaviorPassed
-            || package.Validation.SevereEndTurnMistakes != 0
-            || package.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
-            || package.Validation.NoEffectActionAttempts != 0
-            || package.Validation.RepeatedNoEffectActionAttempts != 0
-            || package.Validation.GuaranteedNoEffectActionAttempts != 0
-            || package.Validation.InteractiveActionContractFailures != 0
-            || package.Validation.InvalidCampaigns != 0)
-        {
-            reason = "外部底模没有通过训练阶段的运行时安全验证";
-            return false;
-        }
-        reason = "外部底模训练与运行时安全验证门禁已通过（"
-                 + FoundationTierDisplayName(
-                     CombatFoundationModelPackageProtocol
-                         .ResolveDeploymentTier(package))
+        var evidence = CombatFoundationModelPackageProtocol
+            .AssessEvidence(package);
+        reason = "底模文件、权重、运行时契约与内容绑定兼容；质量标记："
+                 + evidence.DisplayName
+                 + "（"
+                 + evidence.Summary
                  + "）";
         return true;
     }
@@ -1121,16 +1129,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                 StringComparison.Ordinal)
             || !bundle.FoundationArtifactValidated
             || bundle.PolicyValue == null
-               && bundle.PolicyValueArtifact == null
-            || !ValidFoundationAcceptance(bundle))
+               && bundle.PolicyValueArtifact == null)
         {
-            reason = "所选模型不是已通过正确性验证的可移植底模";
-            return false;
-        }
-        if (IsExperimentalTier(bundle.FoundationDeploymentTier)
-            && !ExperimentalAcknowledgementMatches(bundle))
-        {
-            reason = "实验底模仅完成技术兼容与安全验证；请先在模型库中确认承担效果差异风险";
+            reason = "所选模型不是与当前运行时兼容的可加载底模";
             return false;
         }
         var contentSet = AuraToolsCombatContentRuntime.SnapshotContentSet();
@@ -1152,11 +1153,34 @@ internal static class AuraToolsAutoBattleModelRuntime
             return false;
         }
         var assessment = AssessBundleCoverage(bundle);
-        reason = "底模工件正确性验证已通过"
+        reason = "底模兼容性校验已通过"
                  + (assessment == null
                      ? ""
                      : "；" + assessment.Summary);
         return true;
+    }
+
+    public static bool FoundationActiveUseRiskAcknowledged(
+        string decisionProfile,
+        string modelId,
+        out string reason)
+    {
+        if (!TryReadLibraryBundle(
+                NormalizeProfile(decisionProfile),
+                modelId,
+                out var bundle,
+                out reason))
+        {
+            return false;
+        }
+        if (!FoundationRequiresRiskAcknowledgement(bundle)
+            || RiskAcknowledgementMatches(bundle))
+        {
+            reason = "模型使用风险已确认";
+            return true;
+        }
+        reason = "该模型尚未取得正式质量认证；第一次进入试用或正式接管前需要确认效果差异风险";
+        return false;
     }
 
     public static bool TryPromoteExternalValidationModel(
@@ -1207,8 +1231,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         var acceptance = CombatFoundationModelPackageProtocol
             .NormalizeAcceptance(package);
         bundle.FoundationAcceptanceKind = acceptance.Classification;
-        bundle.FoundationDeploymentTier =
-            CombatFoundationModelPackageProtocol.ResolveDeploymentTier(package);
+        var evidence = CombatFoundationModelPackageProtocol.AssessEvidence(package);
+        bundle.FoundationDeploymentTier = evidence.QualityTier;
         bundle.FoundationQualityCertification = package.QualityCertification;
         bundle.FoundationSameModelEvidenceBound = package.SameModelEvidenceBound;
         bundle.FoundationCapabilityStatus = package.CapabilityStatus;
@@ -1219,9 +1243,9 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.FoundationAcceptance = acceptance;
         bundle.FoundationDistributionOrigin = "external";
         bundle.ProjectionNormalWinRate =
-            package.Validation.NormalWinRate;
+            package.Validation?.NormalWinRate ?? 0d;
         bundle.ProjectionAdvancedWinRate =
-            package.Validation.AdvancedWinRate;
+            package.Validation?.AdvancedWinRate ?? 0d;
         var sourcePath =
             SnapshotExternalValidationModel()?.SourcePath ?? "";
         var stagedEntry = SnapshotExternalValidationModel();
@@ -1250,6 +1274,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         RegisterLibraryBundle(bundle, promotedModelId);
         message = FoundationTierDisplayName(bundle.FoundationDeploymentTier)
                   + "已加入模型库，默认保持关闭；"
+                  + evidence.Summary
+                  + "；"
                   + CombatFoundationModelCoverageProtocol.Assess(
                       trainingSubject,
                       declaredCoverage,
@@ -2996,9 +3022,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                     bundle.ModelPurpose,
                     "foundation",
                     StringComparison.Ordinal)
-                && !ValidFoundationAcceptance(bundle))
+                && !bundle.FoundationArtifactValidated)
             {
-                reason = "底模验收证明与模型库协议不兼容";
+                reason = "底模没有完成当前运行时的兼容性校验";
                 return false;
             }
             reason = "";
@@ -3705,7 +3731,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             var json = new UTF8Encoding(false, true).GetString(sourceBytes);
             var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
                 json);
-            if (!CombatFoundationModelPackageProtocol.TryValidate(
+            if (!CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                     package,
                     out diagnostic))
             {
@@ -3716,6 +3742,13 @@ internal static class AuraToolsAutoBattleModelRuntime
                 && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
                     packageDirectory,
                     package.ModelArtifact,
+                    out diagnostic))
+            {
+                return false;
+            }
+            if (!TryValidateFoundationRuntimeConstruction(
+                    packageDirectory,
+                    package,
                     out diagnostic))
             {
                 return false;
@@ -3782,7 +3815,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
     }
 
-    public static bool IsExperimentalFoundationModel(string modelId)
+    public static bool FoundationRequiresRiskAcknowledgement(string modelId)
     {
         var id = (modelId ?? "").Trim();
         if (string.IsNullOrWhiteSpace(id))
@@ -3797,11 +3830,11 @@ internal static class AuraToolsAutoBattleModelRuntime
                     item.ModelPurpose,
                     "foundation",
                     StringComparison.Ordinal)
-                && IsExperimentalTier(item.DeploymentTier));
+                && !IsFormalTier(item.DeploymentTier));
         }
     }
 
-    public static bool IsExperimentalFoundationAcknowledged(string modelId)
+    public static bool IsFoundationRiskAcknowledged(string modelId)
     {
         var id = (modelId ?? "").Trim();
         lock (LibraryGate)
@@ -3813,16 +3846,17 @@ internal static class AuraToolsAutoBattleModelRuntime
                     "foundation",
                     StringComparison.Ordinal));
             return entry != null
-                   && (!IsExperimentalTier(entry.DeploymentTier)
-                       || string.Equals(
-                           AuraToolsConfigService.MatchExperience.AutoBattle
-                               .ExperimentalModelAcknowledgement,
-                           ExperimentalAcknowledgementKey(entry),
-                           StringComparison.OrdinalIgnoreCase));
+                   && (IsFormalTier(entry.DeploymentTier)
+                       || AuraToolsConfigService.MatchExperience.AutoBattle
+                           .ModelRiskAcknowledgements.Any(value =>
+                               string.Equals(
+                                   value,
+                                   RiskAcknowledgementKey(entry),
+                                   StringComparison.OrdinalIgnoreCase)));
         }
     }
 
-    public static bool TryAcknowledgeExperimentalFoundation(
+    public static bool TryAcknowledgeFoundationRisk(
         string modelId,
         out string message)
     {
@@ -3842,22 +3876,47 @@ internal static class AuraToolsAutoBattleModelRuntime
             message = "模型库中不存在该底模";
             return false;
         }
-        if (!IsExperimentalTier(entry.DeploymentTier))
+        if (IsFormalTier(entry.DeploymentTier))
         {
-            message = "正式底模无需实验风险确认";
+            message = "正式底模无需风险确认";
             return true;
         }
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
-        settings.ExperimentalModelAcknowledgement =
-            ExperimentalAcknowledgementKey(entry);
+        var key = RiskAcknowledgementKey(entry);
+        var added = !settings.ModelRiskAcknowledgements.Any(value => string.Equals(
+                value,
+                key,
+                StringComparison.OrdinalIgnoreCase));
+        if (added)
+        {
+            settings.ModelRiskAcknowledgements.Add(key);
+        }
         settings.Normalize();
         AuraToolsConfigService.SaveAutoBattle();
+        try
+        {
+            AuraToolsConfigService.RequireLastModuleSaveSucceeded(
+                AuraToolModuleIds.AutoBattle);
+        }
+        catch (Exception ex)
+        {
+            if (added)
+            {
+                settings.ModelRiskAcknowledgements.RemoveAll(value =>
+                    string.Equals(
+                        value,
+                        key,
+                        StringComparison.OrdinalIgnoreCase));
+            }
+            message = "风险确认未能保存：" + ex.Message;
+            return false;
+        }
         message = string.Equals(
                 entry.CapabilityStatus,
                 CombatFoundationModelPackageProtocol.CapabilityStatusFail,
                 StringComparison.Ordinal)
-            ? "已确认该实验底模的能力探针检测到回退；现在允许用于实机问题收集"
-            : "已确认实验底模可能存在效果差异；现在允许切换为主动模式";
+            ? "已确认该模型的能力证据检测到回退；现在允许进入试用或正式接管"
+            : "已确认该模型尚未取得正式质量认证；现在允许进入试用或正式接管";
         return true;
     }
 
@@ -4277,8 +4336,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         var acceptance = CombatFoundationModelPackageProtocol
             .NormalizeAcceptance(package);
         bundle.FoundationAcceptanceKind = acceptance.Classification;
-        bundle.FoundationDeploymentTier =
-            CombatFoundationModelPackageProtocol.ResolveDeploymentTier(package);
+        var evidence = CombatFoundationModelPackageProtocol.AssessEvidence(package);
+        bundle.FoundationDeploymentTier = evidence.QualityTier;
         bundle.FoundationQualityCertification = package.QualityCertification;
         bundle.FoundationSameModelEvidenceBound = package.SameModelEvidenceBound;
         bundle.FoundationCapabilityStatus = package.CapabilityStatus;
@@ -4291,8 +4350,8 @@ internal static class AuraToolsAutoBattleModelRuntime
             candidate.DistributionOrigin);
         bundle.FoundationSourcePackageSha256 = candidate.SourceSha256;
         bundle.FoundationSourcePackageFile = sourcePackageReference;
-        bundle.ProjectionNormalWinRate = package.Validation.NormalWinRate;
-        bundle.ProjectionAdvancedWinRate = package.Validation.AdvancedWinRate;
+        bundle.ProjectionNormalWinRate = package.Validation?.NormalWinRate ?? 0d;
+        bundle.ProjectionAdvancedWinRate = package.Validation?.AdvancedWinRate ?? 0d;
         bundle.GeneratedUtc = package.CreatedUtc;
         bundle.PolicyValue = package.Model;
         return bundle;
@@ -4669,7 +4728,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
                           json)
                       ?? new CombatFoundationModelPackage();
-            if (!CombatFoundationModelPackageProtocol.TryValidate(
+            if (!CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                     package,
                     out reason)
                 || package.ModelArtifact != null
@@ -4682,6 +4741,13 @@ internal static class AuraToolsAutoBattleModelRuntime
                     ?? package.ModelArtifact?.ModelId,
                     entry.ModelId,
                     StringComparison.Ordinal))
+            {
+                return false;
+            }
+            if (!TryValidateFoundationRuntimeConstruction(
+                    ExternalValidationDirectory(),
+                    package,
+                    out reason))
             {
                 return false;
             }
@@ -4726,75 +4792,63 @@ internal static class AuraToolsAutoBattleModelRuntime
                 subject);
     }
 
-    private static bool ValidFoundationAcceptance(
-        AutoBattleCandidateBundle bundle)
+    private static bool IsFormalTier(string value)
     {
-        if (bundle.SchemaVersion < 4)
+        return string.Equals(
+            (value ?? "").Trim(),
+            CombatFoundationModelEvidenceTiers.Formal,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryValidateFoundationRuntimeConstruction(
+        string packageDirectory,
+        CombatFoundationModelPackage package,
+        out string reason)
+    {
+        try
         {
+            if (package.Model != null)
+            {
+                _ = new ManagedCombatPolicyValueModel(package.Model);
+            }
+            else
+            {
+                if (!CombatPolicyValueArtifactProtocol.TryLoad(
+                        packageDirectory,
+                        package.ModelArtifact,
+                        out var runtimeModel,
+                        out reason))
+                {
+                    reason = "底模权重无法按生产路径加载：" + reason;
+                    return false;
+                }
+                _ = new ManagedCombatPolicyValueModel(runtimeModel);
+            }
+            reason = "";
             return true;
         }
-        var acceptance = bundle.FoundationAcceptance;
-        if (acceptance == null
-            || !string.Equals(
-                bundle.FoundationAcceptanceKind,
-                acceptance.Classification,
-                StringComparison.Ordinal))
+        catch (Exception ex)
         {
+            reason = "底模运行时构造失败：" + ex.Message;
             return false;
         }
-        if (string.Equals(
-                acceptance.Classification,
-                "legacy-formal-acceptance",
-                StringComparison.Ordinal))
-        {
-            return acceptance.FormalIsolationPassed;
-        }
-        var deploymentTier = bundle.SchemaVersion < 6
-            ? CombatFoundationDeploymentTier.Formal
-            : (bundle.FoundationDeploymentTier ?? "").Trim().ToLowerInvariant();
-        if (string.Equals(
-                deploymentTier,
-                CombatFoundationDeploymentTier.Experimental,
-                StringComparison.Ordinal))
-        {
-            return string.Equals(
-                       bundle.FoundationQualityCertification,
-                       CombatFoundationModelPackageProtocol
-                           .QualityCertificationIncomplete,
-                       StringComparison.Ordinal)
-                   && bundle.FoundationSameModelEvidenceBound
-                   && CombatFoundationModelPackageProtocol
-                       .IsValidExperimentalAcceptance(acceptance);
-        }
-        return string.Equals(
-                   deploymentTier,
-                   CombatFoundationDeploymentTier.Formal,
-                   StringComparison.Ordinal)
-               && string.Equals(
-                   bundle.FoundationQualityCertification,
-                   CombatFoundationModelPackageProtocol
-                       .QualityCertificationPassed,
-                   StringComparison.Ordinal)
-               && bundle.FoundationSameModelEvidenceBound
-               && string.Equals(
-                   bundle.FoundationCapabilityStatus,
-                   CombatFoundationModelPackageProtocol.CapabilityStatusPass,
-                   StringComparison.Ordinal)
-               && CombatFoundationModelPackageProtocol.IsValidAcceptance(
-                   acceptance);
     }
 
     private static bool IsExperimentalTier(string value)
     {
         return string.Equals(
             (value ?? "").Trim(),
-            CombatFoundationDeploymentTier.Experimental,
+            CombatFoundationModelEvidenceTiers.Experimental,
             StringComparison.OrdinalIgnoreCase);
     }
 
     private static string FoundationTierDisplayName(string value)
     {
-        return IsExperimentalTier(value) ? "实验底模" : "正式底模";
+        return IsFormalTier(value)
+            ? "正式底模"
+            : IsExperimentalTier(value)
+                ? "实验底模"
+                : "未验证底模";
     }
 
     private static string FoundationTierDisplayName(
@@ -4810,27 +4864,24 @@ internal static class AuraToolsAutoBattleModelRuntime
             : FoundationTierDisplayName(value);
     }
 
-    private static string CapabilityWarning(string capabilityStatus)
-    {
-        return string.Equals(
-            capabilityStatus,
-            CombatFoundationModelPackageProtocol.CapabilityStatusFail,
-            StringComparison.Ordinal)
-            ? "能力探针已检测到相对基线回退，仅供实机配置测试与问题收集；"
-            : "";
-    }
-
-    private static bool ExperimentalAcknowledgementMatches(
+    private static bool FoundationRequiresRiskAcknowledgement(
         AutoBattleCandidateBundle bundle)
     {
-        return string.Equals(
-            AuraToolsConfigService.MatchExperience.AutoBattle
-                .ExperimentalModelAcknowledgement,
-            ExperimentalAcknowledgementKey(bundle),
-            StringComparison.OrdinalIgnoreCase);
+        return !IsFormalTier(bundle.FoundationDeploymentTier);
     }
 
-    private static string ExperimentalAcknowledgementKey(
+    private static bool RiskAcknowledgementMatches(
+        AutoBattleCandidateBundle bundle)
+    {
+        var key = RiskAcknowledgementKey(bundle);
+        return AuraToolsConfigService.MatchExperience.AutoBattle
+            .ModelRiskAcknowledgements.Any(value => string.Equals(
+                value,
+                key,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string RiskAcknowledgementKey(
         AutoBattleCandidateBundle bundle)
     {
         var hash = (bundle.FoundationSourcePackageSha256 ?? "").Trim();
@@ -4839,7 +4890,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             : "sha256:" + hash.ToLowerInvariant();
     }
 
-    private static string ExperimentalAcknowledgementKey(
+    private static string RiskAcknowledgementKey(
         AutoBattleModelLibraryEntry entry)
     {
         var hash = (entry.SourcePackageSha256 ?? "").Trim();

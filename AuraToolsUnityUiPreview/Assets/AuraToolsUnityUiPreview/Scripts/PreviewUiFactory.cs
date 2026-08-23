@@ -553,8 +553,16 @@ namespace AuraTools.UnityUiPreview
         {
             var root = PreviewUi.Rect("ToolboxCheckbox", parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             PreviewUi.Fixed(root, size, size);
-            var image = PreviewUi.Image(root, Color.white, PreviewAssets.ToolboxCheckbox(initialValue ? 1 : 0));
-            var toggle = root.AddComponent<Toggle>();
+            var visual = PreviewUi.Rect(
+                "Square",
+                root.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(size, size),
+                Vector2.zero);
+            var image = PreviewUi.Image(visual, Color.white, PreviewAssets.ToolboxCheckbox(initialValue ? 1 : 0));
+            var toggle = visual.AddComponent<Toggle>();
             toggle.targetGraphic = image;
             toggle.transition = Selectable.Transition.SpriteSwap;
             toggle.SetIsOnWithoutNotify(initialValue);

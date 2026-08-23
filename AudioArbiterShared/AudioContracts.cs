@@ -37,6 +37,7 @@ public sealed class AudioProviderManifest
 {
     public string providerId = "";
     public string ownerModId = "";
+    public string displayName = "";
     public string kind = "";
     public string vocalState = "";
     public string bus = "";

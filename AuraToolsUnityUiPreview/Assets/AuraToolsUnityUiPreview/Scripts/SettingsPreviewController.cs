@@ -185,7 +185,8 @@ namespace AuraTools.UnityUiPreview
         internal void ShowToolSettings(string title, string summary, string description)
         {
             overlayTitle.text = title + "设置";
-            overlaySummary.text = summary + "。" + description;
+            overlaySummary.text = "";
+            overlaySummary.gameObject.SetActive(false);
             overlay.SetActive(true);
             overlay.transform.SetAsLastSibling();
             var close = overlay.transform.Find("Window/Header/Close")?.gameObject;

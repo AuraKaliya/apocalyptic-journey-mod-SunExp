@@ -29,10 +29,7 @@ internal static class DamageHistoryWindowRenderer
 
         AuraToolsDamageMeterUi.CloseHistory();
         var overlay = AuraToolsDamageMeterUi.CreateRect(HistoryName, AuraToolsDamageMeterUi.Root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        AuraToolsDamageMeterUi.AddPanel(overlay, new Color(0f, 0f, 0f, 0.42f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(AuraToolsDamageMeterUi.CloseHistory);
+        AuraToolsDamageMeterUi.AddModalBackdrop(overlay, AuraToolsDamageMeterUi.CloseHistory);
 
         var window = AuraToolsDamageMeterUi.CreateRect(
             "Window",
@@ -57,6 +54,7 @@ internal static class DamageHistoryWindowRenderer
         headerLayout.childControlWidth = true;
         headerLayout.childControlHeight = true;
         headerLayout.childForceExpandWidth = false;
+        headerLayout.childForceExpandHeight = false;
         AuraToolsDamageMeterUi.AddText(header.transform, "本轮冒险输出历史", 17, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 34f, 1f);
         AuraToolsDamageMeterUi.AddButton(header.transform, "清空", () =>
         {
@@ -141,10 +139,7 @@ internal static class DamageHistoryWindowRenderer
 
         AuraToolsDamageMeterUi.CloseHistory();
         var overlay = AuraToolsDamageMeterUi.CreateRect(HistoryName, AuraToolsDamageMeterUi.Root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        AuraToolsDamageMeterUi.AddPanel(overlay, new Color(0f, 0f, 0f, 0.42f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(AuraToolsDamageMeterUi.CloseHistory);
+        AuraToolsDamageMeterUi.AddModalBackdrop(overlay, AuraToolsDamageMeterUi.CloseHistory);
 
         var window = AuraToolsDamageMeterUi.CreateRect(
             "Window",
@@ -169,6 +164,7 @@ internal static class DamageHistoryWindowRenderer
         headerLayout.childControlWidth = true;
         headerLayout.childControlHeight = true;
         headerLayout.childForceExpandWidth = false;
+        headerLayout.childForceExpandHeight = false;
         AuraToolsDamageMeterUi.AddText(header.transform, "局外历史记录", 17, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 34f, 1f);
         AuraToolsDamageMeterUi.AddButton(
             header.transform,
@@ -256,6 +252,7 @@ internal static class DamageHistoryWindowRenderer
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         var label = "第 " + record.Sequence + " 场  " + ResultLabel(record.Result)
                     + "  " + record.Snapshot.CompletedRoundCount + "回合";
         AuraToolsDamageMeterUi.AddButton(row.transform, label, () => RenderHistoryRecord(details, record, settings), 174f, 34f);
@@ -322,6 +319,7 @@ internal static class DamageHistoryWindowRenderer
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         AuraToolsDamageMeterUi.AddText(row.transform, "游玩模式", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 120f);
         AuraToolsDamageMeterUi.AddText(row.transform, "状态", 12, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 58f);
         AuraToolsDamageMeterUi.AddText(row.transform, "队伍成员", 12, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 0f, 460f);
@@ -345,8 +343,9 @@ internal static class DamageHistoryWindowRenderer
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
 
-        AuraToolsDamageMeterUi.AddText(row.transform, string.IsNullOrWhiteSpace(record.ModeDisplayName) ? record.ModeId : record.ModeDisplayName, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 0f, 120f);
+        AuraToolsDamageMeterUi.AddText(row.transform, string.IsNullOrWhiteSpace(record.ModeDisplayName) ? AuraToolsPlayerDisplay.ModeName(record.ModeId) : record.ModeDisplayName, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 40f, 0f, 120f);
         AuraToolsDamageMeterUi.AddText(row.transform, record.Status ?? "", 13, TextAnchor.MiddleCenter, AuraToolsUi.Text, 40f, 0f, 58f);
 
         var members = AuraToolsDamageMeterUi.CreateLayout("Members", row.transform);
@@ -359,6 +358,7 @@ internal static class DamageHistoryWindowRenderer
         memberLayout.childControlWidth = true;
         memberLayout.childControlHeight = true;
         memberLayout.childForceExpandWidth = false;
+        memberLayout.childForceExpandHeight = false;
         for (var index = 0; index < DamageMeterProtocol.MaxTeamMembers; index++)
         {
             var member = record.TeamMembers != null && index < record.TeamMembers.Count
@@ -393,6 +393,7 @@ internal static class DamageHistoryWindowRenderer
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
 
         var avatar = AuraToolsDamageMeterUi.CreateLayout("Avatar", cell.transform);
         var avatarElement = avatar.AddComponent<LayoutElement>();
@@ -597,6 +598,7 @@ internal static class DamageHistoryWindowRenderer
         columnsLayout.childControlWidth = true;
         columnsLayout.childControlHeight = true;
         columnsLayout.childForceExpandWidth = false;
+        columnsLayout.childForceExpandHeight = false;
         AuraToolsDamageMeterUi.AddText(columns.transform, "队", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 22f, 0f, 28f);
         AuraToolsDamageMeterUi.AddText(columns.transform, "角色", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 22f, 1f);
         AuraToolsDamageMeterUi.AddText(columns.transform, "总计", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 22f, 0f, 78f);
@@ -617,6 +619,7 @@ internal static class DamageHistoryWindowRenderer
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
             AuraToolsDamageMeterUi.AddText(row.transform, AuraToolsDamageMeterUi.TeamLabel(stat.Team), 12, TextAnchor.MiddleCenter, AuraToolsUi.Text, 30f, 0f, 28f);
             AuraToolsDamageMeterUi.AddText(row.transform, AuraToolsDamageMeterUi.TrimName(stat.DisplayName), 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 30f, 1f);
             AuraToolsDamageMeterUi.AddText(row.transform, historyRow.Total.ToString(), 13, TextAnchor.MiddleRight, AuraToolsUi.Accent, 30f, 0f, 78f);

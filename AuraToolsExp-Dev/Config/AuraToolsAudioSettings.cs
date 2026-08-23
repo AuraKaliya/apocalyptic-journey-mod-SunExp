@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     [JsonProperty("battleBgm")]
     public AudioFeatureSettings BattleBgm { get; set; } = AudioFeatureSettings.CreateBattleBgmDefault();
@@ -22,7 +22,7 @@ public sealed class AuraToolsAudioSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(4, SchemaVersion);
+        SchemaVersion = Math.Max(5, SchemaVersion);
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
         Voice ??= new AuraToolsVoiceSettings();
@@ -46,13 +46,29 @@ public sealed class AuraToolsVoiceSettings
         Bindings ??= new Dictionary<string, AuraToolsVoiceBindingSettings>(StringComparer.OrdinalIgnoreCase);
         Bindings = Bindings
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
-            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(pair => MigrateProviderId(pair.Key.Trim()), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group =>
             {
                 var value = group.Last().Value;
                 value.Normalize(group.Key);
                 return value;
             }, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string MigrateProviderId(string value)
+    {
+        var id = (value ?? "").Trim();
+        const string qualifiedOld = "AuraToolsExp:AuraToolsExp.Terrias.";
+        const string old = "AuraToolsExp.Terrias.";
+        if (id.StartsWith(qualifiedOld, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Terrias:Terrias." + id.Substring(qualifiedOld.Length);
+        }
+        if (id.StartsWith(old, StringComparison.OrdinalIgnoreCase))
+        {
+            return "Terrias:Terrias." + id.Substring(old.Length);
+        }
+        return id;
     }
 }
 
@@ -88,10 +104,15 @@ public sealed class AuraToolsVoiceBindingSettings
     public void Normalize(string fallbackProviderId)
     {
         ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? fallbackProviderId.Trim() : ProviderId.Trim();
+        if (ProviderId.StartsWith("AuraToolsExp.Terrias.", StringComparison.OrdinalIgnoreCase))
+        {
+            ProviderId = "Terrias:Terrias." + ProviderId.Substring("AuraToolsExp.Terrias.".Length);
+        }
         Signal = Signal?.Trim() ?? "";
         Stage = Stage?.Trim() ?? "";
         ActionId = ActionId?.Trim() ?? "";
-        ResourcePath = ResourcePath?.Trim() ?? "";
+        ResourcePath = (ResourcePath?.Trim() ?? "")
+            .Replace("/Voice/AuraToolsExp/", "/Voice/Terrias/");
         if (CooldownSeconds.HasValue) CooldownSeconds = Math.Max(0f, CooldownSeconds.Value);
         if (HpRatioThreshold.HasValue) HpRatioThreshold = Math.Max(0.01f, Math.Min(0.99f, HpRatioThreshold.Value));
     }

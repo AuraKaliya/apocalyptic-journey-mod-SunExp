@@ -70,8 +70,33 @@ internal static partial class AuraToolsTestSuite
         try
         {
             var wave = Path.Combine(root, "audio.partial.wav");
+            var missingAudioDocument = ReplayV11Document("audio-test");
+            missingAudioDocument.Events[0].Audio.Add(new ReplayAudioCueV11
+            {
+                NativeResourceId = "Sounds/native-missing-in-export-context",
+                Kind = "Effect",
+                Bus = "Effect"
+            });
+            var missingRejected = false;
+            try
+            {
+                ReplayOfflineAudioMixer.MixToWave(
+                    missingAudioDocument,
+                    videoFrameCount: 60,
+                    framesPerSecond: 30,
+                    _ => "",
+                    wave);
+            }
+            catch (InvalidDataException)
+            {
+                missingRejected = true;
+            }
+            Assert(missingRejected,
+                "v11 export rejects an audio cue that was not frozen as PCM instead of manufacturing silence");
+
+            var silentDocument = ReplayV11Document("silent-audio-test");
             var samples = ReplayOfflineAudioMixer.MixToWave(
-                ReplayV10Document("audio-test"),
+                silentDocument,
                 videoFrameCount: 60,
                 framesPerSecond: 30,
                 _ => "",
@@ -84,8 +109,8 @@ internal static partial class AuraToolsTestSuite
             var source = Path.Combine(root, "source-44100-mono.wav");
             WritePcmWave(source, 44_100, 1, 4410, 4096);
             var mixed = Path.Combine(root, "mixed.wav");
-            var document = ReplayV10Document("audio-cue-test");
-            document.Events[0].Audio.Add(new ReplayAudioCueV10
+            var document = ReplayV11Document("audio-cue-test");
+            document.Events[0].Audio.Add(new ReplayAudioCueV11
             {
                 AssetSha256 = "audio-test",
                 StartSample = 4800,

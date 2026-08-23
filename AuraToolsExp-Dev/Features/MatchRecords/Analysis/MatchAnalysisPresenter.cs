@@ -4,7 +4,7 @@ using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
@@ -36,11 +36,11 @@ internal static class MatchAnalysisPresenter
             report = MatchRecordStorage.Database.GetAnalysis(selected.RecordId);
             if (report == null || report.Protocol != MatchAnalysisProtocol.Version)
             {
-                var document = selected.ReplayProtocol == ReplayProtocolV10.DocumentVersion
-                    ? MatchRecordStorage.Database.LoadV10(selected.RecordId)
+                var document = selected.ReplayProtocol == ReplayProtocolV11.DocumentVersion
+                    ? MatchRecordStorage.Database.LoadV11(selected.RecordId)
                     : null;
                 report = document != null
-                    ? MatchAnalysisBuilder.BuildV10(selected, document)
+                    ? MatchAnalysisBuilder.BuildV11(selected, document)
                     : MatchAnalysisBuilder.Build(
                         selected,
                         MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId)));
@@ -85,9 +85,15 @@ internal static class MatchAnalysisPresenter
         var actions = Row("AnalysisActions", body, AuraToolsUi.ToolbarHeight);
         AddReplayButton(actions, "完整回放", 0, 96f);
         var packageButton = AuraToolsUi.AddButton(actions, "导出回放包", ExportPackage, 108f);
-        packageButton.interactable = CanReplay;
+        AuraToolsUi.SetButtonAvailable(
+            packageButton,
+            CanReplay,
+            "当前记录仅保留摘要，不能导出结构化回放包");
         var videoButton = AuraToolsUi.AddButton(actions, "导出视频", () => StartVideoExport(record.RecordId), 96f);
-        videoButton.interactable = CanReplay;
+        AuraToolsUi.SetButtonAvailable(
+            videoButton,
+            CanReplay,
+            "当前记录没有可用于视频导出的完整回放");
         AuraToolsUi.AddButton(actions, "打开导出目录", () => FileResourceUtil.OpenDirectory(MatchRecordStorage.ExportsDirectory), 120f);
         if (!string.IsNullOrWhiteSpace(message))
         {
@@ -131,8 +137,10 @@ internal static class MatchAnalysisPresenter
         }
 
         AuraToolsUi.AddText(parent,
-            (string.IsNullOrWhiteSpace(record.LevelId) ? "未知战斗" : record.LevelId)
-            + "   " + record.Result + "   " + report.TurnCount + " 回合\n"
+            (string.IsNullOrWhiteSpace(record.BattleTitle)
+                ? AuraToolsPlayerDisplay.LevelName(record.LevelId)
+                : record.BattleTitle)
+            + "   " + AuraToolsPlayerDisplay.BattleResult(record.Result) + "   " + report.TurnCount + " 回合\n"
             + "我方造成 " + report.FriendlyDamageDealt + "   敌方造成 " + report.EnemyDamageDealt
             + "   我方承受 " + report.FriendlyDamageTaken + "\n"
             + "生命伤害 " + report.HpDamage + "   护盾伤害 " + report.ShieldDamage
@@ -171,8 +179,6 @@ internal static class MatchAnalysisPresenter
 
     private static void BuildCards(Transform parent)
     {
-        AuraToolsUi.AddText(parent, "优先使用行动因果链归因；旧回放缺少因果字段时显示推断结果。",
-            AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 42f, 1f);
         foreach (var item in report!.Cards)
         {
             var row = Row("Card-" + item.CardId, parent, 54f, withBackground: true);
@@ -230,24 +236,28 @@ internal static class MatchAnalysisPresenter
 
     private static void StartReplay(long sequence)
     {
-        if (!ReplaySceneRuntime.TryStart(record!.RecordId, sequence, out var result))
-        {
-            message = result;
-            Build();
-            return;
-        }
-
-        CloseForPlayback("Replay Document v10 launch");
+        MatchReplayLaunchCoordinator.Start(
+            record!.RecordId,
+            sequence,
+            () => CloseForPlayback("Replay Document v11 native launch"),
+            detail =>
+            {
+                message = detail;
+                Build();
+            });
     }
 
     private static bool CanReplay => record != null
-                                     && record.ReplayProtocol == ReplayProtocolV10.DocumentVersion
+                                     && record.ReplayProtocol == ReplayProtocolV11.DocumentVersion
                                      && string.Equals(record.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
 
     private static Button AddReplayButton(Transform parent, string label, long sequence, float width)
     {
         var button = AuraToolsUi.AddButton(parent, label, () => StartReplay(sequence), width);
-        button.interactable = CanReplay;
+        AuraToolsUi.SetButtonAvailable(
+            button,
+            CanReplay,
+            "当前记录仅保留摘要，不能进行结构化回放");
         return button;
     }
 

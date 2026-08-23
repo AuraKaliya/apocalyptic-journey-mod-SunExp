@@ -60,6 +60,25 @@ try
     SkinSelectionStore.Set("career_1", "");
     Assert(SkinSelectionStore.Get("career_1") == "", "empty selection restores the native default");
 
+    using (var careerScope = SkinScopedSelectionStore.Push(
+               "ReplayTest", "career_1", "", "OwnerA:career_1:summer"))
+    {
+        Assert(SkinScopedSelectionStore.Get("career_1") == "OwnerA:career_1:summer",
+            "a runtime skin scope overrides the career without changing persistent selection");
+        using (var instanceScope = SkinScopedSelectionStore.Push(
+                   "ReplayTest", "career_1", "player-b", "OwnerB:career_1:summer"))
+        {
+            Assert(SkinScopedSelectionStore.Get("career_1", "player-b") == "OwnerB:career_1:summer"
+                   && SkinScopedSelectionStore.Get("career_1", "player-a") == "OwnerA:career_1:summer",
+                "instance-scoped replay skin selection wins only for its recorded actor");
+        }
+        Assert(SkinScopedSelectionStore.Get("career_1", "player-b") == "OwnerA:career_1:summer",
+            "disposing an instance scope reveals the enclosing career scope");
+    }
+    Assert(SkinScopedSelectionStore.Get("career_1") == ""
+           && SkinSelectionStore.Get("career_1") == "",
+        "disposing replay skin scopes restores the unchanged persistent selection");
+
     Assert(SkinProtocolCompatibility.IsCompatible(7, 7, 7, 7), "equal skin protocol ranges are compatible");
     Assert(SkinProtocolCompatibility.IsCompatible(9, 7, 10, 8), "overlapping skin protocol ranges are compatible");
     Assert(!SkinProtocolCompatibility.IsCompatible(9, 7, 6, 5), "remote protocols below the local minimum are rejected");

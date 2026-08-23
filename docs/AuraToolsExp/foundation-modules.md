@@ -1,6 +1,6 @@
 # AuraToolsExp 基础工具模块
 
-本文记录妙妙方案库、MOD 健康检查、大厅状态面板和冒险档案馆的生产边界。
+本文记录妙妙方案库、MOD 健康检查、大厅状态面板和冒险历程的生产边界。
 
 ## 妙妙方案库
 
@@ -25,17 +25,20 @@
 - 复用游戏原生 `LobbyInfo.PlayerInfo`、`GameEntryUI.Ready` 和现有 MOD 同步快照，显示玩家、角色同步、准备状态、游戏版本和相对房主的 MOD 差异。
 - 面板提供现有 MOD 配置同步入口，但不建立第二套同步协议。
 - MOD 健康摘要只显示本机结果；完整报告、文件路径和诊断内容不通过大厅网络广播。
+- 准备大厅只放置一个“大厅状态”停靠按钮。MOD 配置在该面板内展开；DPT 使用独立悬浮按钮，详情/历史窗口的遮罩与内容面板是兄弟节点，点击内容不会冒泡到关闭遮罩。
 
-## 冒险档案馆
+## 冒险历程
 
 - 稳定 ID：`records.adventure-archive`，默认关闭采集。
-- 与 DPT/战斗回放共用 `MatchRecords.sqlite3` 物理数据库，但只拥有 `adventure_archives`、`adventure_archive_events` 和 `adventure_archive_snapshots` 三张表。
+- 与 DPT/战斗回放共用 `MatchRecords.sqlite3` 物理数据库，但只拥有 `adventure_archives`、`adventure_archive_events` 和 `adventure_archive_snapshots` 三张表；当前冒险历程 Schema 为 2。
 - 使用相同 `AdventureId` 关联 `battle_records`，不复制回放数据；删除档案不会删除战斗记录。
-- 仅在冒险开始、地图就绪、战斗开始/结束、奖励选择和冒险结束等低频节点写入。关键快照记录角色、卡牌 ID、遗物 ID和少量状态摘要，不依赖回放模块启用。
+- 冒险初始化提交后绑定角色的卡牌、遗物和祝福集合；地图前进、事件与选择、商店、奖励、战斗开始/结束和冒险结束会生成结构化时间线。
+- 快照同时保存稳定内容 ID、所有者、当时的本地化名称、所在区域、数量、金币、理智、层数与地图节点。界面按快照差异生成卡牌、遗物、祝福和金币变化。
+- 旧 Schema 1 记录在数据库初始化时单向迁移到 Schema 2，并标记为“旧版简要记录”；不保留第二套读取或写入路径。
 - 一级模块状态使用缓存计数，不在工具箱渲染路径查询数据库。
 
 ## 验证
 
 - `AuraToolsExp-Dev.Tests` 覆盖模块清单、配置事件批处理，以及冒险档案的时间线、快照、`AdventureId` 关联和独立删除。
 - `tools/Test-AuraToolsExp.ps1` 审计 20 个模块 Codec、敏感字段排除、事务回滚、模块设置页和图标清单。
-- Unity UI Preview 使用与生产一致的 20 个模块 ID 和 35 个图标资源，并单独覆盖记录、联机和系统分类。
+- Unity UI Preview 使用与生产一致的模块目录和图标资源，并单独覆盖记录、联机、智能战斗和系统分类。

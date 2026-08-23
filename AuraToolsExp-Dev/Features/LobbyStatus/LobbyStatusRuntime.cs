@@ -42,11 +42,9 @@ internal sealed class LobbyStatusSnapshot
 
 internal static class LobbyStatusRuntime
 {
-    private const string ButtonName = "AuraToolsLobbyStatusButton";
     private static bool initialized;
     private static ModConfig? currentConfig;
     private static GameEntryUI? currentEntry;
-    private static GameObject? buttonRoot;
     private static IDisposable? lobbySubscription;
 
     internal static LobbyStatusSnapshot Current { get; private set; } = new();
@@ -66,6 +64,14 @@ internal static class LobbyStatusRuntime
         AuraToolsHookRegistry.After(modConfig, "GameEntryUI.ShowCareer", _ => RefreshButton(), "LobbyStatus");
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.LobbyStatus, OnConfigChanged);
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.ModSync, RefreshButton);
+        AuraToolsPreparationDock.Register(
+            "lobby-status",
+            "大厅状态",
+            20,
+            () => AuraToolsConfigService.LobbyStatus.Enabled
+                  && currentEntry != null
+                  && Current.Players.Count > 0,
+            Show);
         ModHealthRuntime.Changed += RefreshLocalHealth;
         ApplyModuleActivation(AuraToolsConfigService.LobbyStatus.Enabled);
     }
@@ -96,6 +102,7 @@ internal static class LobbyStatusRuntime
     private static void UpdateLobby(AuraLobbySnapshot snapshot)
     {
         currentEntry = snapshot.Entry;
+        AuraToolsPreparationDock.Attach(currentEntry);
         if (snapshot.Players.Count == 0)
         {
             Current = new LobbyStatusSnapshot();
@@ -177,7 +184,7 @@ internal static class LobbyStatusRuntime
                 (player.IsHost ? "房主 · " : "") + (player.IsLocal ? "本机 · " : "") + player.PlayerName
                 + "\n" + (string.IsNullOrWhiteSpace(player.RoleId)
                     ? (player.RoleSynced ? "角色已同步" : "角色未同步")
-                    : RoleCatalog.GetDisplayName(player.RoleId)),
+                    : AuraToolsPlayerDisplay.RoleName(player.RoleId)),
                 AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 70f, 1f);
             AuraToolsUi.AddText(row.transform,
                 "游戏 " + (string.IsNullOrWhiteSpace(player.GameVersion) ? "未知" : player.GameVersion)
@@ -193,34 +200,8 @@ internal static class LobbyStatusRuntime
 
     private static void RefreshButton()
     {
-        if (!AuraToolsConfigService.LobbyStatus.Enabled || currentEntry == null || Current.Players.Count == 0)
-        {
-            DestroyButton();
-            return;
-        }
-        var ready = currentEntry.transform.Find("ForeBack/Button");
-        if (ready == null || ready.parent == null) return;
-        if (buttonRoot == null || buttonRoot.transform.parent != ready.parent)
-        {
-            DestroyButton();
-            buttonRoot = AuraToolsUi.CreateRect(ButtonName, ready.parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f), new Vector2(132f, 34f));
-            AuraToolsUi.AddButtonImage(buttonRoot, new Color(0.16f, 0.13f, 0.22f, 0.98f));
-            var button = buttonRoot.AddComponent<Button>();
-            AuraUiButtonFeedback.Apply(button, buttonRoot.GetComponent<Image>(), AuraToolsUi.Accent);
-            button.onClick.AddListener(() => Show(ready.parent));
-            AuraToolsUi.AddFillText(buttonRoot.transform, "大厅状态", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text);
-        }
-        if (ready is RectTransform readyRect && buttonRoot.transform is RectTransform rect)
-        {
-            rect.anchorMin = readyRect.anchorMin;
-            rect.anchorMax = readyRect.anchorMax;
-            rect.pivot = readyRect.pivot;
-            var offset = Mathf.Max(Mathf.Abs(readyRect.sizeDelta.y), 34f) + 6f;
-            var row = AuraToolsConfigService.MatchExperience.ModSync.Enabled ? 2f : 1f;
-            rect.anchoredPosition = readyRect.anchoredPosition + new Vector2(0f, -offset * row);
-        }
-        buttonRoot.SetActive(true);
+        AuraToolsPreparationDock.Attach(currentEntry);
+        AuraToolsPreparationDock.Refresh();
     }
 
     private static int DifferenceCount(
@@ -244,21 +225,19 @@ internal static class LobbyStatusRuntime
     {
         var row = AuraToolsUi.CreateLayout(name, parent);
         AuraToolsUi.SetFixedHeight(row, height);
-        AuraToolsUi.AddPanelImage(row, AuraToolsUi.Row);
+        AuraToolsUi.AddListRowImage(row, AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(8, 8, 4, 4);
         layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         return row;
     }
 
     private static void DestroyButton()
     {
-        if (buttonRoot == null) return;
-        UiRaycastSafetyShared.UiRaycastSafeDestroyRuntime.DisableAndHide(buttonRoot, "LobbyStatus");
-        UnityEngine.Object.Destroy(buttonRoot);
-        buttonRoot = null;
+        AuraToolsPreparationDock.Refresh();
     }
 }

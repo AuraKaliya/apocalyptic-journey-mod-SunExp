@@ -8,8 +8,8 @@ behavior belongs.
 The durable project model is:
 
 - `Terrias`: content mod. It owns gameplay rules, story, cards, buffs, relics,
-  modes, rewards, stable content ids, and resources required to present those
-  contents. It does not own optional externally configurable media extensions.
+  modes, rewards, stable content ids, required presentation, and may carry
+  Terrias-owned optional voice/CG declarations and files.
 - `AuraToolsExp`: tool mod. It owns configuration, inspection, preview,
   override, debugging, import/export, and player-facing tooling over shared
   declarations.
@@ -32,9 +32,10 @@ Treat this as the highest-priority boundary rule:
 - AuraToolsExp is a tool mod. It depends on the core/shared layers and uses
   them to enable, disable, configure, inspect, import, preview, or override
   shared feature modules.
-- Terrias is a content mod. It depends on the core/shared layers and registers
-  Terrias-owned gameplay/content declarations. Optional CG, voice, replacement
-  skins, card frames, and configurable card effects are AuraTools resources.
+- Terrias is a content mod. It depends on core/shared layers and registers
+  gameplay declarations. Optional Terrias voice/CG is carried under the fixed
+  discovery contract; replacement skins, card frames, configurable effects,
+  and generic tool media remain AuraTools resources.
 - Tool mods and content mods do not depend on each other. They are sibling
   consumers of the shared foundation.
 - A content mod must separate content it owns from shared feature declarations
@@ -84,7 +85,8 @@ Keep behavior in AuraToolsExp when it is tool-local:
   export flows, and one-click management tools.
 - Tool-owned providers, rules, and official-content extensions that have stable
   `ownerModId` identities.
-- Skill/card-use/Feast CG, role voice, card-use audio, replacement skins,
+- Discovery and local configuration of content-carried voice/CG; tool-owned
+  official-content extensions, generic card-use audio, replacement skins,
   card-frame themes, and configurable per-card dynamic effects.
 - Theme-bound mapping presets that seed an editable explicit-card whitelist.
 - Effective-state overrides using the precedence:
@@ -92,10 +94,10 @@ Keep behavior in AuraToolsExp when it is tool-local:
 - Feature-module enablement and local configuration over shared declarations,
   without editing the declaration owner.
 
-AuraToolsExp may target foreign content ids through shared/native catalogs while
-owning the optional resource itself. It must not scan Terrias private folders or
-depend on Terrias runtime helpers; migrated optional resources live directly in
-AuraToolsExp and carry AuraToolsExp owner ids.
+AuraToolsExp may target foreign content ids through shared/native catalogs. It
+must not scan private folders or depend on content runtime helpers; content
+packages opt in only through `SharedResources/aura.discovery.json`, and tool
+overrides never change the foreign semantic owner.
 
 ## Promote To Shared
 
@@ -124,7 +126,8 @@ Treat these as drift:
 - AuraToolsExp imports `Terrias-Dev` internals or assumes Terrias private folder
   layout.
 - Terrias owns a generic runtime that AuraToolsExp must call to function.
-- Terrias ships optional CG/audio/skin/card-visual registries or payloads.
+- Terrias actively registers or plays optional media from `Entry`, or ships
+  replacement-skin/card-visual tool resources outside the discovery contract.
 - Shared components mention Terrias card ids, mode names, story state, or
   content-specific rewards.
 - A tool override rewrites a foreign registered declaration instead of layering

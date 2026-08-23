@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "Terrias",
+  "participantKind": "Content",
+  "contributions": [
+    {
+      "kind": "resources",
+      "id": "media",
+      "path": "aura.registration.json",
+      "required": true
+    },
+    {
+      "kind": "audio",
+      "id": "voice",
+      "path": "audio.registry.json",
+      "required": true
+    },
+    {
+      "kind": "cg",
+      "id": "media",
+      "path": "cg.registry.json",
+      "required": true
+    }
+  ]
+}

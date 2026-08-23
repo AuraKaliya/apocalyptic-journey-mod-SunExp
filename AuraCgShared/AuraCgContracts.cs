@@ -45,6 +45,7 @@ public sealed class SkillCgRegisteredEntryView
         Kind = entry.Kind;
         TargetRoleIds = (entry.TargetRoleIds ?? new List<string>()).ToList();
         CardIds = (entry.CardIds ?? new List<string>()).ToList();
+        SkillIds = (entry.SkillIds ?? new List<string>()).ToList();
         MediaType = entry.Media.Type;
         Resource = entry.Media.Resource;
         FallbackImage = entry.Media.FallbackImage;
@@ -72,6 +73,8 @@ public sealed class SkillCgRegisteredEntryView
 
     public List<string> CardIds { get; set; } = new();
 
+    public List<string> SkillIds { get; set; } = new();
+
     public string MediaType { get; set; } = "";
 
     public string Resource { get; set; } = "";
@@ -96,6 +99,8 @@ public sealed class SkillCgRegisteredEntryView
 }
 public sealed class SkillCgTriggerContext
 {
+    public string TriggerKind { get; set; } = "";
+
     public long ActionSequence { get; set; }
 
     public string EventToken { get; set; } = "";
@@ -103,6 +108,8 @@ public sealed class SkillCgTriggerContext
     public string Action { get; set; } = "";
 
     public string CardId { get; set; } = "";
+
+    public string SkillId { get; set; } = "";
 
     public string OwnerInstanceId { get; set; } = "";
 
@@ -121,6 +128,8 @@ public sealed class SkillCgRequest
     public string OwnerModId { get; set; } = "";
 
     public string CardId { get; set; } = "";
+
+    public string TriggerKind { get; set; } = "";
 
     public string OwnerInstanceId { get; set; } = "";
 
@@ -189,6 +198,7 @@ public sealed class SkillCgRequest
     public bool DisableSync { get; set; }
 
     public string DuplicateKey => OwnerInstanceId
+                                  + "|" + TriggerKind
                                   + "|" + CardId
                                   + "|" + CanonicalMediaKey()
                                   + "|" + MediaType
@@ -212,6 +222,7 @@ public sealed class SkillCgRequest
         ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? "unknown" : ProviderId.Trim();
         OwnerModId = OwnerModId?.Trim() ?? "";
         CardId = CardId?.Trim() ?? "";
+        TriggerKind = TriggerKind?.Trim().ToLowerInvariant() ?? "";
         OwnerInstanceId = OwnerInstanceId?.Trim() ?? "";
         ImagePath = ImagePath?.Trim() ?? "";
         ImageResource = ImageResource?.Trim() ?? "";
@@ -277,6 +288,7 @@ public sealed class SkillCgRequest
             ProviderId = ReadString(type, source, "ProviderId", providerId),
             OwnerModId = ReadString(type, source, "OwnerModId", ownerModId),
             CardId = ReadString(type, source, "CardId", context.CardId),
+            TriggerKind = ReadString(type, source, "TriggerKind", context.TriggerKind),
             OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
             ImagePath = ReadString(type, source, "ImagePath", ""),
             ImageResource = ReadString(type, source, "ImageResource", ""),

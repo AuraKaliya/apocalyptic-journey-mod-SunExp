@@ -169,7 +169,9 @@ Mechanics 不能成为 AuraToolsExp 的隐式开发框架。如果其他 MOD 也
 
 ## 7. Features：独立功能运行时
 
-Terrias 不再包含 Skill CG Feature。可配置 Skill CG、卡牌使用 CG 和美餐 CG 由 AuraToolsExp 通过共享卡牌动作信号与 `AuraCgShared` 播放；Terrias 只提供稳定内容 id 和机制。
+Terrias 不包含 Skill CG 播放 Feature。Terrias 只携带 owner-qualified CG
+声明与文件；AuraToolsExp 发现并配置这些声明，`AuraCgShared` 负责共享卡牌
+动作信号、播放、联机与去重。不得恢复 Terrias 私有播放路径。
 
 Feature 可以依赖共享协议、GameApi、Mechanics、Infrastructure 和必要的表现 helper，但不应复制 shared domain 已经拥有的注册、网络 relay 或去重逻辑。
 

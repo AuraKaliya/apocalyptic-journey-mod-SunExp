@@ -4,6 +4,8 @@ namespace AuraToolsExp.Dll.Features.AdventureArchive;
 
 internal sealed class AdventureArchiveRecord
 {
+    internal int SchemaVersion { get; set; } = AdventureArchiveSchema.CurrentVersion;
+    internal string DataCompleteness { get; set; } = AdventureArchiveSchema.Rich;
     internal string AdventureId { get; set; } = "";
     internal string StartedUtc { get; set; } = "";
     internal string EndedUtc { get; set; } = "";
@@ -11,6 +13,8 @@ internal sealed class AdventureArchiveRecord
     internal string Result { get; set; } = "";
     internal string ModeId { get; set; } = "";
     internal string RoleId { get; set; } = "";
+    internal string RoleName { get; set; } = "";
+    internal string ModeName { get; set; } = "";
     internal string GameBuild { get; set; } = "";
     internal string ToolBuild { get; set; } = "";
     internal string ModFingerprint { get; set; } = "";
@@ -28,6 +32,7 @@ internal sealed class AdventureArchiveEvent
     internal string Title { get; set; } = "";
     internal string Detail { get; set; } = "";
     internal string PayloadJson { get; set; } = "{}";
+    internal string DedupeKey { get; set; } = "";
 }
 
 internal sealed class AdventureArchiveSnapshot
@@ -39,7 +44,16 @@ internal sealed class AdventureArchiveSnapshot
     internal string RoleId { get; set; } = "";
     internal string CardsJson { get; set; } = "[]";
     internal string RelicsJson { get; set; } = "[]";
+    internal string BlessingsJson { get; set; } = "[]";
     internal string StateJson { get; set; } = "{}";
+}
+
+internal static class AdventureArchiveSchema
+{
+    internal const int CurrentVersion = 2;
+    internal const string Rich = "rich";
+    internal const string Partial = "partial";
+    internal const string SummaryOnly = "summary-only";
 }
 
 internal sealed class AdventureArchiveDetails

@@ -26,6 +26,7 @@ TestFilteringAndGrandTotal();
 TestDetailLimit();
 TestAdventureHistory();
 TestAdventureArchiveDatabase();
+TestPlayerContentIdentity();
 TestBestHitAndScientificFormat();
 TestOutOfRunHistoryBuilder();
 TestDeterministicAllocation();
@@ -70,6 +71,7 @@ TestAuraToolsHookOwnerActivation();
 TestBackgroundWorkOwnerCancellation();
 TestNativeContentVisibilityLease();
 TestToolboxTooltipPlacementPolicy();
+TestPreparationDockLayoutPolicy();
 
 Console.WriteLine($"AuraToolsExp tests passed: {assertions} assertions.");
 return;

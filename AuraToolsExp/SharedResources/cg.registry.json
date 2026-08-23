@@ -1,57 +1,93 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "ownerModId": "AuraToolsExp",
   "protocol": {
     "minVersion": 1,
-    "preferredVersion": 1
+    "preferredVersion": 3
   },
   "entries": [
     {
       "cgId": "official.career_1.careercard_1",
       "displayName": "Official career_1 - Skill CG",
       "kind": "skill",
-      "targetRoleIds": ["career_1"],
-      "cardIds": ["careercard_1"],
+      "targetRoleIds": [
+        "career_1"
+      ],
+      "skillIds": [
+        "careercard_1"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png",
         "fallbackImage": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png"
       },
       "defaultPresentation": {
-        "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
+        "mode": "fullscreenFade",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
       },
-      "defaultActivation": { "enabled": true, "consumerMode": "contentOwned" },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
       "priority": 10,
-      "tags": ["skill-cg", "official-role"],
+      "tags": [
+        "skill-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_3.careercard_4",
       "displayName": "Official career_3 - Skill CG",
       "kind": "skill",
-      "targetRoleIds": ["career_3"],
-      "cardIds": ["careercard_4"],
+      "targetRoleIds": [
+        "career_3"
+      ],
+      "skillIds": [
+        "careercard_4"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png",
         "fallbackImage": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png"
       },
       "defaultPresentation": {
-        "mode": "fullscreenFade", "fit": "contain", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
+        "mode": "fullscreenFade",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
       },
-      "defaultActivation": { "enabled": true, "consumerMode": "contentOwned" },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
       "priority": 10,
-      "tags": ["skill-cg", "official-role"],
+      "tags": [
+        "skill-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_1.feast",
       "displayName": "官方角色 career_1 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_1"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_1"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_1/Feast/AuraToolsExp/template.career_1/content.png",
@@ -65,7 +101,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -73,15 +109,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_2.feast",
       "displayName": "官方角色 career_2 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_2"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_2"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_2/Feast/AuraToolsExp/template.career_2/content.png",
@@ -95,7 +138,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -103,15 +146,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_3.feast",
       "displayName": "官方角色 career_3 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_3"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_3"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_3/Feast/AuraToolsExp/template.career_3/content.png",
@@ -125,7 +175,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -133,15 +183,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_5.feast",
       "displayName": "官方角色 career_5 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_5"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_5"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_5/Feast/AuraToolsExp/template.career_5/content.png",
@@ -155,7 +212,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -163,15 +220,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_6.feast",
       "displayName": "官方角色 career_6 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_6"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_6"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_6/Feast/AuraToolsExp/template.career_6/content.png",
@@ -185,7 +249,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -193,15 +257,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_7.feast",
       "displayName": "官方角色 career_7 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_7"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_7"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_7/Feast/AuraToolsExp/template.career_7/content.png",
@@ -215,7 +286,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -223,15 +294,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_8.feast",
       "displayName": "官方角色 career_8 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_8"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_8"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_8/Feast/AuraToolsExp/template.career_8/content.png",
@@ -245,7 +323,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -253,15 +331,22 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "official.career_9.feast",
       "displayName": "官方角色 career_9 - 美餐",
       "kind": "feast",
-      "targetRoleIds": ["career_9"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "career_9"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_9/Feast/AuraToolsExp/template.career_9/content.png",
@@ -275,7 +360,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -283,15 +368,23 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "official-role"],
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
       "enabled": true
     },
     {
       "cgId": "agua.feast",
       "displayName": "Agua - Feast",
       "kind": "feast",
-      "targetRoleIds": ["Agua_agua_agua", "agua"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "Agua_agua_agua",
+        "agua"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Agua_agua_agua/Feast/AuraToolsExp/template.agua/content.png",
@@ -305,7 +398,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -313,15 +406,24 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "mod-role", "agua"],
+      "tags": [
+        "feast-cg",
+        "mod-role",
+        "agua"
+      ],
       "enabled": true
     },
     {
       "cgId": "saya.feast",
       "displayName": "Saya - Feast",
       "kind": "feast",
-      "targetRoleIds": ["Saya_careersample_saya", "saya"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "Saya_careersample_saya",
+        "saya"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Saya_careersample_saya/Feast/AuraToolsExp/template.saya/content.png",
@@ -335,7 +437,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -343,15 +445,24 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "mod-role", "saya"],
+      "tags": [
+        "feast-cg",
+        "mod-role",
+        "saya"
+      ],
       "enabled": true
     },
     {
       "cgId": "pw_chiha.jk_chiha.feast",
       "displayName": "Taki Chiha (Academy Freshman) - Feast",
       "kind": "feast",
-      "targetRoleIds": ["PW_Chiha_career_time_JK_Chiha", "JK_Chiha"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "PW_Chiha_career_time_JK_Chiha",
+        "JK_Chiha"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/PW_Chiha_career_time_JK_Chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png",
@@ -365,7 +476,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -373,15 +484,25 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "mod-role", "pw-chiha", "jk-chiha"],
+      "tags": [
+        "feast-cg",
+        "mod-role",
+        "pw-chiha",
+        "jk-chiha"
+      ],
       "enabled": true
     },
     {
       "cgId": "pw_chiha.mg_chiha.feast",
       "displayName": "Taki Chiha (Magical Girl) - Feast",
       "kind": "feast",
-      "targetRoleIds": ["PW_Chiha_career_time_MG_Chiha", "MG_Chiha"],
-      "cardIds": ["*"],
+      "targetRoleIds": [
+        "PW_Chiha_career_time_MG_Chiha",
+        "MG_Chiha"
+      ],
+      "cardIds": [
+        "*"
+      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/PW_Chiha_career_time_MG_Chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png",
@@ -395,7 +516,7 @@
         "fadeOut": 0.5,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "defaultActivation": {
         "enabled": true,
@@ -403,123 +524,13 @@
         "consumerModId": "AuraToolsExp"
       },
       "priority": 10,
-      "tags": ["feast-cg", "mod-role", "pw-chiha", "mg-chiha"],
+      "tags": [
+        "feast-cg",
+        "mod-role",
+        "pw-chiha",
+        "mg-chiha"
+      ],
       "enabled": true
-    },
-    {
-      "cgId": "loneer.morning-star-prayer",
-      "displayName": "Loneer - 晨星祈愿",
-      "kind": "skill",
-      "targetRoleIds": ["Terrias_loneer_loneer", "loneer"],
-      "cardIds": ["Terrias_loneer_loneer_morning_star_prayer", "loneer_morning_star_prayer"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_loneer_loneer/SkillCg/AuraToolsExp/loneer.morning-star-prayer/content.png",
-        "fallbackImage": "CG/Role/Terrias_loneer_loneer/SkillCg/AuraToolsExp/loneer.morning-star-prayer/content.png"
-      },
-      "defaultPresentation": {
-        "mode": "slide", "fit": "contain", "fadeIn": 0.35, "hold": 1.0, "fadeOut": 0.45,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
-      },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["skill-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "wuna.white-sun-prayer",
-      "displayName": "WuNa - 白曜圣祷",
-      "kind": "skill",
-      "targetRoleIds": ["Terrias_wuna_wuna", "wuna"],
-      "cardIds": ["Terrias_wuna_wuna_white_sun_prayer", "wuna_white_sun_prayer"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_wuna_wuna/SkillCg/AuraToolsExp/wuna.white-sun-prayer/content.png",
-        "fallbackImage": "CG/Role/Terrias_wuna_wuna/SkillCg/AuraToolsExp/wuna.white-sun-prayer/content.png"
-      },
-      "defaultPresentation": {
-        "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.4, "hold": 1.4, "fadeOut": 0.5,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
-      },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["skill-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "columbina.homesickness",
-      "displayName": "Columbina - 她的乡愁",
-      "kind": "skill",
-      "targetRoleIds": ["Terrias_columbina_columbina", "columbina"],
-      "cardIds": ["Terrias_columbina_columbina_homesickness", "columbina_homesickness"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_columbina_columbina/SkillCg/AuraToolsExp/columbina.homesickness/content.png",
-        "fallbackImage": "CG/Role/Terrias_columbina_columbina/SkillCg/AuraToolsExp/columbina.homesickness/content.png"
-      },
-      "defaultPresentation": {
-        "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.4, "hold": 2.1, "fadeOut": 0.5,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
-      },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["skill-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "terrias.blazing-crown-collapse",
-      "displayName": "Terrias - 炽冕崩落",
-      "kind": "cardUse",
-      "targetRoleIds": ["*"],
-      "cardIds": ["Terrias_terrias_blazing_crown_collapse", "blazing_crown_collapse"],
-      "media": {
-        "type": "sequence",
-        "resource": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/AuraToolsExp/terrias.blazing-crown-collapse/content",
-        "fallbackImage": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/AuraToolsExp/terrias.blazing-crown-collapse/content",
-        "frameSeconds": 0.054054,
-        "alphaMode": "blackKey", "keyThreshold": 0.02, "keySoftness": 0.1,
-        "flashAtSeconds": -1, "flashDuration": 0.18, "flashMode": "hybridBwPulse",
-        "flashStartFrame": 6, "flashEndFrame": 20, "flashPulseEveryFrames": 1, "flashStrength": 0.88
-      },
-      "defaultPresentation": {
-        "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.12, "hold": 0.08, "fadeOut": 0.28,
-        "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0
-      },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 30, "tags": ["card-use-cg", "sequence-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "loneer.feast",
-      "displayName": "Loneer - 美餐", "kind": "feast",
-      "targetRoleIds": ["Terrias_loneer_loneer", "loneer"], "cardIds": ["*"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_loneer_loneer/Feast/AuraToolsExp/loneer.feast/content.png",
-        "fallbackImage": "CG/Role/Terrias_loneer_loneer/Feast/AuraToolsExp/loneer.feast/content.png"
-      },
-      "defaultPresentation": { "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5, "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0 },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["feast-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "wuna.feast",
-      "displayName": "WuNa - 美餐", "kind": "feast",
-      "targetRoleIds": ["Terrias_wuna_wuna", "wuna"], "cardIds": ["*"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_wuna_wuna/Feast/AuraToolsExp/wuna.feast/content.png",
-        "fallbackImage": "CG/Role/Terrias_wuna_wuna/Feast/AuraToolsExp/wuna.feast/content.png"
-      },
-      "defaultPresentation": { "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5, "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0 },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["feast-cg", "terrias"], "enabled": true
-    },
-    {
-      "cgId": "columbina.feast",
-      "displayName": "Columbina - 美餐", "kind": "feast",
-      "targetRoleIds": ["Terrias_columbina_columbina", "columbina"], "cardIds": ["*"],
-      "media": {
-        "type": "image",
-        "resource": "CG/Role/Terrias_columbina_columbina/Feast/AuraToolsExp/columbina.feast/content.png",
-        "fallbackImage": "CG/Role/Terrias_columbina_columbina/Feast/AuraToolsExp/columbina.feast/content.png"
-      },
-      "defaultPresentation": { "mode": "fullscreenFade", "fit": "cover", "fadeIn": 0.35, "hold": 1.5, "fadeOut": 0.5, "focusX": 0.5, "focusY": 0.5, "safeScale": 1.0 },
-      "defaultActivation": { "enabled": true, "consumerMode": "toolManaged", "consumerModId": "AuraToolsExp" },
-      "priority": 20, "tags": ["feast-cg", "terrias"], "enabled": true
     }
   ]
 }

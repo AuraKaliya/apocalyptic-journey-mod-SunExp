@@ -111,6 +111,35 @@ namespace AuraShared.Core
             DescriptionUpdates = 0;
         }
     }
+
+    public enum AuraCardPresentationSurface
+    {
+        CombatCard
+    }
+
+    public sealed class AuraCardPresentationContext
+    {
+        public UnityEngine.Transform? Root { get; set; }
+        public object? Config { get; set; }
+        public object? Card { get; set; }
+        public string Source { get; set; } = "";
+        public AuraCardPresentationSurface Surface { get; set; }
+    }
+
+    public static class AuraCardPresentationRuntime
+    {
+        public static int ApplyCount { get; private set; }
+
+        public static void RequestApply(AuraCardPresentationContext context)
+        {
+            ApplyCount++;
+        }
+
+        public static void ResetDiagnostics()
+        {
+            ApplyCount = 0;
+        }
+    }
 }
 
 namespace AuraGameData.Shared

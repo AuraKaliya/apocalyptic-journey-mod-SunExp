@@ -8,7 +8,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsCardVisualSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -17,15 +17,38 @@ public sealed class AuraToolsCardVisualSettings
     public Dictionary<string, CardFrameThemeSettings> Themes { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
-    [JsonProperty("dynamicEffects")]
-    public Dictionary<string, CardDynamicEffectSettings> DynamicEffects { get; set; } =
+    [JsonProperty("dynamicEffectOverrides")]
+    public Dictionary<string, CardDynamicEffectSettings> DynamicEffectOverrides { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    // Schema v1 copied every effective effect mapping into the user file. It
+    // is read once and folded into explicit overrides; schema v2 resolves
+    // shipped defaults from card-visual.registry.json at runtime.
+    [JsonProperty("dynamicEffects", NullValueHandling = NullValueHandling.Ignore)]
+    private Dictionary<string, CardDynamicEffectSettings>? LegacyDynamicEffects { get; set; }
+
+    [JsonIgnore]
+    public IReadOnlyDictionary<string, CardDynamicEffectSettings> DynamicEffects => DynamicEffectOverrides;
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        if (SchemaVersion < 2 && LegacyDynamicEffects != null)
+        {
+            foreach (var pair in LegacyDynamicEffects)
+            {
+                if (!DynamicEffectOverrides.ContainsKey(pair.Key))
+                {
+                    DynamicEffectOverrides[pair.Key] = pair.Value;
+                }
+            }
+        }
+
+        SchemaVersion = 2;
         Themes = NormalizeDictionary(Themes, (key, value) => value.Normalize(key));
-        DynamicEffects = NormalizeDictionary(DynamicEffects, (key, value) => value.Normalize());
+        DynamicEffectOverrides = NormalizeDictionary(
+            DynamicEffectOverrides,
+            (key, value) => value.Normalize());
+        LegacyDynamicEffects = null;
     }
 
     private static Dictionary<string, T> NormalizeDictionary<T>(

@@ -122,7 +122,9 @@ public static class AuraToolsAudioSettingsPage
             pathRow.transform,
             settings.Common.RelativePath,
             value => ApplyCommonAudioPath(settings, battleBgm, value, RefreshPath),
-            620f);
+            260f,
+            AuraToolsUi.StandardButtonHeight,
+            flexibleWidth: true);
         AuraToolsUi.AddButton(actionRow.transform, "选择音频", () =>
         {
             OptionalFileDialog.PickAudioFileAsync(
@@ -221,6 +223,7 @@ public static class AuraToolsAudioSettingsPage
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         return row;
     }
 }

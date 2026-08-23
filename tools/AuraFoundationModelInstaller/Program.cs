@@ -8,7 +8,7 @@ var packagePath = Argument(args, "--package");
 var sharedRoot = Argument(args, "--aura-shared-root");
 var displayName = Argument(args, "--display-name");
 var activate = Flag(args, "--activate");
-var acknowledgeExperimental = Flag(args, "--acknowledge-experimental");
+var acknowledgeRisk = Flag(args, "--acknowledge-risk");
 if (string.IsNullOrWhiteSpace(packagePath)
     || string.IsNullOrWhiteSpace(sharedRoot)
     || string.IsNullOrWhiteSpace(displayName))
@@ -18,7 +18,7 @@ if (string.IsNullOrWhiteSpace(packagePath)
         + "--package <foundation-model-package-v5.json> "
         + "--aura-shared-root <ModsData/AuraShared> "
         + "--display-name <name> [--activate] "
-        + "[--acknowledge-experimental]");
+        + "[--acknowledge-risk]");
     return 2;
 }
 if (displayName.Trim().Length > 40)
@@ -48,30 +48,27 @@ var utf8 = new UTF8Encoding(false, true);
 var packageJson = File.ReadAllText(packagePath, utf8);
 var package = JsonConvert.DeserializeObject<CombatFoundationModelPackage>(
     packageJson);
-if (!CombatFoundationModelPackageProtocol.TryValidate(
+if (!CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
         package,
         out var diagnostic))
 {
     Console.Error.WriteLine("Package validation failed: " + diagnostic);
     return 3;
 }
-var deploymentTier = CombatFoundationModelPackageProtocol
-    .ResolveDeploymentTier(package);
+var evidence = CombatFoundationModelPackageProtocol.AssessEvidence(package);
+var deploymentTier = evidence.QualityTier;
 if (activate
-    && string.Equals(
-        deploymentTier,
-        CombatFoundationDeploymentTier.Experimental,
-        StringComparison.Ordinal)
-    && !acknowledgeExperimental)
+    && evidence.RequiresRiskAcknowledgement
+    && !acknowledgeRisk)
 {
     Console.Error.WriteLine(
-        "Experimental foundation models require "
-        + "--acknowledge-experimental when used with --activate.");
+        "Experimental or unverified models require "
+        + "--acknowledge-risk when used with --activate.");
     return 2;
 }
 if (string.Equals(
         deploymentTier,
-        CombatFoundationDeploymentTier.Experimental,
+        CombatFoundationModelEvidenceTiers.Experimental,
         StringComparison.Ordinal)
     && string.Equals(
         package!.CapabilityStatus,
@@ -129,12 +126,13 @@ var settingsPath = InsideRoot(
     "Config",
     "Owners",
     "AuraToolsExp",
-    "AuraTools",
-    "MatchExperienceSettings.json");
-if (!File.Exists(manifestPath) || !File.Exists(settingsPath))
+    "AuraTools.Modules",
+    "intelligence.auto-battle.json");
+if (!File.Exists(manifestPath)
+    || activate && !File.Exists(settingsPath))
 {
     Console.Error.WriteLine(
-        "Existing model library or MatchExperience settings are missing.");
+        "Existing model library is missing, or activation was requested before the auto-battle module config was created.");
     return 4;
 }
 
@@ -180,11 +178,17 @@ if (!CombatPolicyValueArtifactProtocol.TryLoad(
     return 3;
 }
 _ = new ManagedCombatPolicyValueModel(installedRuntime);
-var settings = JObject.Parse(File.ReadAllText(settingsPath, utf8));
-var autoBattle = settings["data"]?["autoBattle"] as JObject
-                 ?? throw new InvalidDataException(
-                     "MatchExperience settings have no autoBattle object.");
-var oldSelectedModelId = (string?)autoBattle["selectedModelId"] ?? "";
+var settings = activate
+    ? JObject.Parse(File.ReadAllText(settingsPath, utf8))
+    : new JObject();
+var autoBattle = activate
+    ? settings["data"]?["settings"] as JObject
+      ?? throw new InvalidDataException(
+          "Auto-battle module config has no settings object.")
+    : new JObject();
+var oldSelectedModelId = activate
+    ? (string?)autoBattle["selectedModelId"] ?? ""
+    : "";
 
 var normalizedAcceptance = CombatFoundationModelPackageProtocol
     .NormalizeAcceptance(package);
@@ -274,8 +278,8 @@ models.Add(new JObject
     ["CoverageLevel"] = "full",
     ["CoverageSummary"] = "完全覆盖",
     ["ModelPurpose"] = "foundation",
-    ["ProjectionNormalWinRate"] = package.Validation.NormalWinRate,
-    ["ProjectionAdvancedWinRate"] = package.Validation.AdvancedWinRate,
+    ["ProjectionNormalWinRate"] = package.Validation?.NormalWinRate ?? 0d,
+    ["ProjectionAdvancedWinRate"] = package.Validation?.AdvancedWinRate ?? 0d,
     ["BundleFile"] = bundleFile,
     ["ModelVersion"] = Clone(packageNode["ModelVersion"]),
     ["AcceptanceKind"] = normalizedAcceptance.Classification,
@@ -293,20 +297,22 @@ if (activate)
     autoBattle["profile"] = package.Profile;
     autoBattle["selectedModelId"] = modelId;
     autoBattle["trainedModelMode"] = "full";
-    if (string.Equals(
-            deploymentTier,
-            CombatFoundationDeploymentTier.Experimental,
-            StringComparison.Ordinal))
+    if (evidence.RequiresRiskAcknowledgement)
     {
-        autoBattle["experimentalModelAcknowledgement"] =
-            "sha256:" + packageSha256;
+        var acknowledgements = autoBattle["modelRiskAcknowledgements"]
+                               as JArray
+                               ?? new JArray();
+        var acknowledgement = "sha256:" + packageSha256;
+        if (!acknowledgements.Values<string>().Any(value => string.Equals(
+                value,
+                acknowledgement,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            acknowledgements.Add(acknowledgement);
+        }
+        autoBattle["modelRiskAcknowledgements"] = acknowledgements;
     }
-    if (settings["data"] is JObject settingsData)
-    {
-        settingsData["schemaVersion"] = Math.Max(
-            28,
-            (int?)settingsData["schemaVersion"] ?? 0);
-    }
+    autoBattle.Remove("experimentalModelAcknowledgement");
     settings["revision"] = ((int?)settings["revision"] ?? 0) + 1;
     settings["updatedBy"] = "AuraToolsExp";
     settings["updatedUtc"] = DateTime.UtcNow.ToString("o");
@@ -338,6 +344,7 @@ Console.WriteLine(JsonConvert.SerializeObject(new
     DisplayName = displayName.Trim(),
     Profile = package.Profile,
     DeploymentTier = deploymentTier,
+    QualitySummary = evidence.Summary,
     CapabilityStatus = package.CapabilityStatus,
     BundlePath = bundlePath,
     BundleBackup = bundleBackup,

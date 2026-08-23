@@ -841,6 +841,10 @@ internal static class MatchReplayProjectionState
                      .OrderBy(item => item.InstanceId, StringComparer.Ordinal))
         {
             hash.Add(status.InstanceId);
+            hash.Add(status.ContentOwnerModId);
+            hash.Add(status.ContentId);
+            hash.Add(status.EntityKind);
+            hash.Add(status.SlotIndex);
             hash.Add(status.MaxHp);
             hash.Add(status.CurrentHp);
             hash.Add(status.Defend);
@@ -925,6 +929,10 @@ internal static class MatchReplayProjectionState
         return new MatchReplayStatusState
         {
             InstanceId = source.InstanceId ?? "",
+            ContentOwnerModId = source.ContentOwnerModId ?? "",
+            ContentId = source.ContentId ?? "",
+            EntityKind = source.EntityKind ?? "",
+            SlotIndex = source.SlotIndex,
             MaxHp = source.MaxHp,
             CurrentHp = source.CurrentHp,
             Defend = source.Defend,

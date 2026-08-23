@@ -63,14 +63,14 @@ function assertSourceContract() {
   const required = [
     [files.visualSpec, "CategoryWidth = 168f", "preview category width drifted from production"],
     [files.visualSpec, "HeaderHeight = 60f", "preview header height drifted from production"],
-    [files.visualSpec, "ModuleRowHeight = 96f", "preview row height drifted from production"],
+    [files.visualSpec, "ModuleRowHeight = 78f", "preview row height drifted from production"],
     [files.visualSpec, "0.031f, 0.016f, 0.227f, 1f", "preview background token drifted from production"],
     [files.shell, "ToolboxCategoryRail.Create", "production category rail is missing"],
     [files.shell, "!string.IsNullOrWhiteSpace(search)", "production search no longer spans categories"]
   ];
   for (const [source, token, message] of required) assert(source.includes(token), message);
   const moduleIds = [...files.ids.matchAll(/public const string \w+ = "([^"]+)";/g)].map(match => match[1]);
-  assert(moduleIds.length === 20, `expected 20 production module ids, found ${moduleIds.length}`);
+  assert(moduleIds.length === 23, `expected 23 production module ids, found ${moduleIds.length}`);
   return moduleIds.sort();
 }
 
@@ -119,6 +119,12 @@ async function verifyInteractions(page, productionModuleIds, report) {
   await page.locator('[data-category-id="multiplayer"]').click();
   await waitUntilReady(page);
   assert(await page.locator(".module-row").count() === 2, "multiplayer category should contain two tools");
+
+  await page.locator('[data-category-id="intelligence"]').click();
+  await waitUntilReady(page);
+  assert(await page.locator(".module-row").count() === 2, "intelligence category should separate auto battle and the strategy lab");
+  assert(await page.locator('[data-module-id="intelligence.strategy-model-lab"] .toolbox-checkbox').count() === 0,
+    "strategy model lab should not expose a duplicate enable switch");
 
   await page.locator('[data-category-id="system"]').click();
   await waitUntilReady(page);

@@ -79,12 +79,16 @@ visual resources.
 - Keep Terrias and AuraToolsExp as sibling consumers of shared foundations.
   Shared code must not depend on Terrias content semantics, and AuraToolsExp
   must not depend on Terrias internal runtime helpers.
-- Initialization registration is not content-mod-exclusive. Terrias and
-  AuraToolsExp may both register extension declarations they own; identity must
-  still be `ownerModId` plus stable domain id.
-- Preserve the project product boundary: Terrias owns content mechanics and
-  required presentation; AuraToolsExp owns optional CG/audio/skin/card-visual
-  resources, manifests, settings, and editors. Both consume shared protocols.
+- Content MODs do not actively register optional media from their `Entry`.
+  They may carry owner-qualified declarations under `SharedResources`; the
+  AuraToolsExp discovery adapter scans only actually loaded MODs, deduplicates
+  physical sources by numeric `.modproj` id, and registers them through shared
+  domain protocols. Semantic identity remains `ownerModId` plus domain id.
+- Preserve the project product boundary: Terrias owns content mechanics,
+  required presentation, and Terrias-carried optional voice/CG files and
+  declarations. AuraToolsExp owns discovery, local effective configuration,
+  editors, replacement skins, card themes/effects, and tool defaults. Shared
+  runtimes own storage, registries, playback, networking, and reconciliation.
 - Keep registered defaults separate from tool-local effective configuration.
   Content-owned shared declarations default to enabled when used alone.
   AuraToolsExp local persistence wins for tool-managed effective behavior when
@@ -99,9 +103,10 @@ visual resources.
   promote the semantic-free part to a shared component instead of making
   Terrias the implicit base framework.
 - Put cross-mod presentation protocols, such as Skill CG playback and card UI
-  lifecycle, in the shared domain component. AuraToolsExp declares/configures
-  optional media and observes stable content signals; neither consumer owns a
-  private multiplayer relay or de-duplication path.
+  lifecycle, in the shared domain component. Content MODs may declare their
+  own optional media; AuraToolsExp discovers/configures it and observes stable
+  content signals. Neither consumer owns a private multiplayer relay or
+  de-duplication path.
 - Use `references/sync-scenario-model.md` as the source of truth for
   synchronized event shape, RPC authority, payload fields, timing, and
   duplicate suppression.

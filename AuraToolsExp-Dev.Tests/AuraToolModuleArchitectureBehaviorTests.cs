@@ -13,8 +13,9 @@ internal static partial class AuraToolsTestSuite
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.PresetLibrary)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.ModHealth)
                && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.LobbyStatus)
-               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.AdventureArchive),
-            "tool module config inventory contains twenty-two unique persisted module ids including voice and card visuals");
+               && AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.AdventureArchive)
+               && !AuraToolModuleIds.Persisted.Contains(AuraToolModuleIds.StrategyLab),
+            "tool module config inventory contains twenty-two unique persisted modules while the strategy lab remains a view over auto-battle configuration");
         var second = new FakeModule("module.second", "presentation", 20, visible: true);
         var first = new FakeModule("module.first", "gameplay", 10, visible: true);
         var hidden = new FakeModule("module.hidden", "system", 1, visible: false);

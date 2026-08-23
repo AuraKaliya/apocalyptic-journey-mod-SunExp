@@ -6,6 +6,7 @@ using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
@@ -24,7 +25,10 @@ internal static class MatchReplayMediaStore
                 ImportFile(recordId, source);
                 var completed = Path.Combine(MatchRecordStorage.ImportsDirectory, "Imported");
                 Directory.CreateDirectory(completed);
-                File.Move(source, UniquePath(Path.Combine(completed, Path.GetFileName(source))));
+                AuraSharedFileStore.MoveFile(
+                    AuraToolsIds.ModId,
+                    source,
+                    UniquePath(Path.Combine(completed, Path.GetFileName(source))));
                 imported++;
             }
             catch (Exception ex)
@@ -111,7 +115,7 @@ internal static class MatchReplayMediaStore
             {
                 throw new IOException("导入任务状态发生并发冲突。");
             }
-            File.Move(staging, target);
+            AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, staging, target);
             var asset = new MatchMediaAsset
             {
                 MediaId = job.JobId,
@@ -183,14 +187,14 @@ internal static class MatchReplayMediaStore
         {
             if (File.Exists(fullPath))
             {
-                if (File.Exists(staged)) File.Delete(staged);
-                File.Move(fullPath, staged);
+                if (File.Exists(staged)) AuraSharedFileStore.DeleteFile(AuraToolsIds.ModId, staged);
+                AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, fullPath, staged);
                 moved = true;
             }
             var deleted = MatchRecordStorage.Database.DeleteMedia(mediaId) != null;
             if (!deleted)
             {
-                if (moved) File.Move(staged, fullPath);
+                if (moved) AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, staged, fullPath);
                 return false;
             }
             TryDelete(staged);
@@ -200,7 +204,7 @@ internal static class MatchReplayMediaStore
         {
             if (moved && File.Exists(staged) && !File.Exists(fullPath))
             {
-                try { File.Move(staged, fullPath); } catch { }
+                try { AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, staged, fullPath); } catch { }
             }
             throw;
         }

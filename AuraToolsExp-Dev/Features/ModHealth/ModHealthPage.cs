@@ -44,10 +44,9 @@ internal static class ModHealthPage
     {
         if (summary != null)
         {
-            summary.text = report.Level + " · MOD " + report.Mods.Count
-                           + " · 严重 " + report.CriticalCount
-                           + " · 错误 " + report.ErrorCount
-                           + " · 警告 " + report.WarningCount;
+            summary.text = report.Issues.Count == 0
+                ? "未发现需要处理的问题"
+                : "需要处理 " + report.Issues.Count + " 项";
             summary.color = report.CriticalCount + report.ErrorCount > 0
                 ? AuraToolsUi.WarningText
                 : report.WarningCount > 0 ? AuraToolsUi.Accent : AuraToolsUi.SuccessText;
@@ -59,16 +58,18 @@ internal static class ModHealthPage
                      .ThenBy(issue => issue.ModId)
                      .ThenBy(issue => issue.Code))
         {
-            var row = Row(content, "Issue-" + issue.Code, 74f);
+            var row = Row(content, "Issue-" + issue.Code, 64f);
+            var modName = report.Mods.FirstOrDefault(mod => string.Equals(
+                mod.ModId,
+                issue.ModId,
+                StringComparison.OrdinalIgnoreCase))?.ModName ?? "";
             AuraToolsUi.AddText(row.transform,
-                SeverityLabel(issue.Severity) + " · " + issue.Code
-                + (string.IsNullOrWhiteSpace(issue.ModId) ? "" : " · " + issue.ModId)
+                SeverityLabel(issue.Severity)
+                + (string.IsNullOrWhiteSpace(modName) ? "" : " · " + modName)
                 + "\n" + Compact(issue.Message, 132),
                 AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
                 issue.Severity == ModHealthSeverities.Info ? AuraToolsUi.MutedText : AuraToolsUi.WarningText,
-                66f, 1f);
-            AuraToolsUi.AddText(row.transform, issue.RelativePath,
-                AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 66f, 0f, 260f);
+                56f, 1f);
         }
         if (report.Issues.Count == 0)
         {
@@ -81,8 +82,8 @@ internal static class ModHealthPage
     {
         try
         {
-            var path = ModHealthRuntime.ExportReport();
-            if (summary != null) summary.text = "报告已导出：" + path;
+            _ = ModHealthRuntime.ExportReport();
+            if (summary != null) summary.text = "报告已导出";
         }
         catch (Exception ex)
         {
@@ -108,13 +109,14 @@ internal static class ModHealthPage
     {
         var row = AuraToolsUi.CreateLayout(name, parent);
         AuraToolsUi.SetFixedHeight(row, height);
-        AuraToolsUi.AddPanelImage(row, AuraToolsUi.Row);
+        AuraToolsUi.AddListRowImage(row, AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(8, 8, 4, 4);
         layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         return row;
     }
 

@@ -6,6 +6,7 @@ using AuraMode.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
+using AuraToolsExp.Dll.Features.SharedResources;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using UiTransitionGuardShared;
@@ -31,8 +32,10 @@ public static class Entry
         RunStep("mode runtime", () => AuraModeRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("config", () => AuraToolsConfigService.Initialize(modConfig));
+        RunStep("preparation tool dock", () => AuraToolsPreparationDock.Initialize(modConfig));
         RunStep("bundled resources", () => AuraToolsResourceBootstrap.Initialize(modConfig));
         RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, AuraToolsIds.ModId));
+        RunStep("content shared resource discovery", () => AuraToolsSharedResourceDiscoveryRuntime.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("tool modules", () => AuraToolModuleHost.Initialize(modConfig));
         RunStep("settings", () => AuraToolsSettingsRuntime.Initialize(modConfig));

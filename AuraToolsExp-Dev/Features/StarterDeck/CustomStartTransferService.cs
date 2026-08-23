@@ -420,10 +420,10 @@ internal static class CustomStartTransferService
 
         if (!string.IsNullOrWhiteSpace(reference.DisplayName))
         {
-            return reference.DisplayName + " (" + reference.Id + ")";
+            return reference.DisplayName;
         }
 
-        return reference.Id ?? "";
+        return "已失效内容";
     }
 
     private static void BackupCurrent(string roleId, bool global)
@@ -447,16 +447,7 @@ internal static class CustomStartTransferService
 
     private static void WriteAtomic(string path, string text)
     {
-        var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            File.WriteAllText(temporary, text);
-            File.Move(temporary, path);
-        }
-        finally
-        {
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
-        }
+        AuraSharedFileStore.WriteAllText(AuraToolsIds.ModId, path, text);
     }
 
     private static string SafeFileName(string value)

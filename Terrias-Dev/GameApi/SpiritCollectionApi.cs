@@ -453,13 +453,11 @@ public static class SpiritCollectionApi
         public void Save(SpiritCollectionDocument document)
         {
             var path = ProfilePath();
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-            var temporary = path + ".tmp";
-            var backup = path + ".bak";
-            File.WriteAllText(temporary, JsonConvert.SerializeObject(document, Formatting.Indented));
-            if (File.Exists(path)) File.Replace(temporary, path, backup, ignoreMetadataErrors: true);
-            else File.Move(temporary, path);
+            AuraSharedFileStore.WriteAllText(
+                TerriasIds.ModId,
+                path,
+                JsonConvert.SerializeObject(document, Formatting.Indented),
+                createBackup: true);
         }
 
         private string ProfilePath()
@@ -574,13 +572,11 @@ public static class SpiritCollectionApi
         public void Save(SpiritAdventurePartySessionDocument document)
         {
             var path = SessionPath();
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-            var temporary = path + ".tmp";
-            var backup = path + ".bak";
-            File.WriteAllText(temporary, JsonConvert.SerializeObject(document, Formatting.Indented));
-            if (File.Exists(path)) File.Replace(temporary, path, backup, ignoreMetadataErrors: true);
-            else File.Move(temporary, path);
+            AuraSharedFileStore.WriteAllText(
+                TerriasIds.ModId,
+                path,
+                JsonConvert.SerializeObject(document, Formatting.Indented),
+                createBackup: true);
         }
 
         private string SessionPath()

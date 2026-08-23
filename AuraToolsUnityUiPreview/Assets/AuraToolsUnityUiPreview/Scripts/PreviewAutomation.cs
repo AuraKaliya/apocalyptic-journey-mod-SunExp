@@ -85,8 +85,9 @@ namespace AuraTools.UnityUiPreview
                 Case("toolbox-extensions-1280x720", 4, "extensions", 1280, 720, true),
                 Case("toolbox-records-1280x720", 4, "default", 1280, 720, true, false, "records"),
                 Case("toolbox-multiplayer-1280x720", 4, "default", 1280, 720, true, false, "multiplayer"),
+                Case("toolbox-intelligence-1280x720", 4, "default", 1280, 720, true, false, "intelligence"),
                 Case("toolbox-system-1280x720", 4, "default", 1280, 720, true, false, "system"),
-                Case("toolbox-default-920x848", 4, "default", 920, 848, true),
+                Case("toolbox-default-922x838", 4, "default", 922, 838, true),
                 Case("toolbox-compact-1024x640", 4, "default", 1024, 640, true),
                 Case("toolbox-overlay-1280x720", 4, "default", 1280, 720, true, true)
             };

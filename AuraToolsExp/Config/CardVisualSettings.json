@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "enabled": true,
   "themes": {},
-  "dynamicEffects": {}
+  "dynamicEffectOverrides": {}
 }

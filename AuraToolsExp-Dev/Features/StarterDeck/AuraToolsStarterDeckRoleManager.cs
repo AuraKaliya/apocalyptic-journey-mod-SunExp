@@ -23,6 +23,7 @@ public static class AuraToolsStarterDeckRoleManager
         toolbarLayout.childControlWidth = true;
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandWidth = false;
+        toolbarLayout.childForceExpandHeight = false;
         Settings.AuraToolsUi.AddText(
             toolbar.transform,
             "",

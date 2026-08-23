@@ -69,7 +69,7 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 {
   "scope": "Owner",
   "system": "AuraTools",
-  "ownerModId": "AuraToolsExp",
+  "ownerModId": "Terrias",
   "writerId": "AuraToolsExp",
   "authorityId": "AuraToolsExp",
   "fileName": "AudioSettings.json",
@@ -96,12 +96,12 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 {
   "ownerModId": "AuraToolsExp",
   "system": "Audio",
-  "logicalId": "AuraToolsExp.Terrias.WuNa.VoicePack",
-  "packageId": "AuraToolsExp.SharedResources.V4",
-  "packageVersion": 2,
+  "logicalId": "Terrias.WuNa.VoicePack",
+  "packageId": "Terrias.SharedResources.V4",
+  "packageVersion": 3,
   "kind": "Directory",
-  "sourcePath": "D:/.../AuraToolsExp/SharedResources/Audio/Terrias/WuNa",
-  "destinationRelativePath": "Audio/Role/Terrias_wuna_wuna/Voice/AuraToolsExp/wuna.voice-pack"
+  "sourcePath": "D:/.../Terrias/SharedResources/Audio/WuNa",
+  "destinationRelativePath": "Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack"
 }
 ```
 
@@ -114,10 +114,10 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 - `kind` 与规范目标路径不可在同一资源身份下悄然改变。
 - 安装使用 staging、事务 journal、注册表提交、完成/回滚与启动恢复。
 
-`SharedResources/aura.registration.json` 使用
-`AuraSharedCore/Schemas/resource-package.schema.json`。当前 schema version 1 支持
-`ownerModId`、`packageKind`、`capabilities`、`dependencies`，以及资源级
-`targetRoleIds`、`tags`、`metadata`。包引擎仍只安装文件或目录，不解释领域语义。
+内容 MOD 通过 `SharedResources/aura.discovery.json` 声明资源、Audio 与 CG
+contribution。物理来源由 MOD 根目录唯一 `.modproj` 数字 id 绑定和去重；
+`ownerModId` 仍是语义命名空间。`aura.registration.json` 维持 v4 资源声明，
+包引擎只安装文件或目录，不解释领域语义。
 
 ## Adapter Manifest Shape（适配器清单形状）
 
@@ -231,8 +231,8 @@ stable subscriber identity of `ownerModId + handlerId`.
 可以把当前游戏职业表扫描结果作为独立 contribution 发布到 `AuraRoleShared`。贡献以
 `contributorModId + contributionId + sessionId` 分区，避免旧会话或某个动态扫描器覆盖
 其他 MOD 的声明。AuraToolsExp 读取角色目录与 v4 Catalog，但不再为每个新角色生成
-`generated-feast-defaults` 双注册贡献。Terrias 目标的美餐 CG 由 AuraToolsExp v4 manifest
-注册并归工具所有；其他 MOD 仍可按各自产品边界注册候选。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
+`generated-feast-defaults` 双注册贡献。Terrias 美餐 CG 由 Terrias discovery manifest
+声明、AuraToolsExp 发现注册，并保持 Terrias owner；其他 MOD 仍可按各自产品边界注册候选。人工导入是独立候选，写入角色粒度的 `aura.user.json`，
 既不伪装成注册资源，也不阻止工具默认资源出现。
 
 ## Conflict And Candidate Policy（冲突与候选策略）
@@ -307,6 +307,15 @@ Resource -> Registry -> cross-process write mutex
 `tools/shared-release-matrix.json` 驱动，并要求显式指定 `-Profile`、`-Tag` 或
 `-StepId`。当前覆盖：Core 契约、共享写入口扫描、架构边界、内容/工具边界、
 网络 RPC authority、AuraTools 功能、主要消费者构建和共享 DLL 打包一致性。
+
+`write-entrypoint-scan` 是共享存储的源码架构扫描，不是运行时报错。它检查产品模块是否绕过
+`AuraSharedStorageCoordinator` / `AuraSharedFileStore`，直接调用 `File.Write*`、`File.Move`、
+`Directory.Move` 或删除 API。扫描失败表示存在跨模块文件写入所有权技术债：原子提交、路径预算、
+备份/恢复和边界校验可能被绕开。正确结果是迁移所有命中点并让门禁归零，而不是添加忽略项。
+
+大文件或流式输出使用 `AuraSharedFileStore.BeginWrite`。短 staging 固定放在
+`Transactions/FileWrites/<Owner>`，验证成功后由协调器提交到存储根内的最终路径；未提交事务在
+释放时清理 staging。普通字节/文本写入、文件/目录移动和删除也必须走相同 owner-scoped facade。
 
 `tools/Test-SharedDllPackaging.ps1` 校验：
 

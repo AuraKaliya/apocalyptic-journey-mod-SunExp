@@ -46,16 +46,16 @@
     },
     {
       "id": "records.match-replay",
-      "currentVersion": 10,
-      "minimumSupportedVersion": 10,
+      "currentVersion": 11,
+      "minimumSupportedVersion": 11,
       "requiredCapabilities": [
-        "self-contained-document.v10",
-        "canonical-state-projection.v10",
-        "dedicated-presentation-runtime.v1",
-        "content-addressed-attachments.v1",
-        "verified-mp4-export.v1"
+        "authoritative-state-events.v11",
+        "native-battle-view.v1",
+        "exact-dependency-manifest.v1",
+        "embedded-audio.v1",
+        "fixed-rendertexture-mp4.v1"
       ],
-      "fallback": "legacy-migration-report-only"
+      "fallback": "summary-analysis-and-verified-mp4-only"
     }
   ]
 }

@@ -25,6 +25,7 @@ namespace AuraTools.UnityUiPreview
         internal bool Enabled;
         internal bool HasSettings;
         internal bool Experimental;
+        internal bool ShowEnableControl = true;
         internal string Availability;
 
         internal PreviewModule Clone()
@@ -57,15 +58,18 @@ namespace AuraTools.UnityUiPreview
             Module("presentation.skin", "presentation", "角色皮肤", "管理已注册皮肤并选择本地显示效果。", "已启用 3/3 个候选皮肤", "skin", true, true),
             Module("presentation.battle-bgm", "presentation", "战斗背景音乐", "替换战斗音乐，并可按角色设置不同曲目。", "通用音频", "battle-bgm", false, true),
             Module("presentation.card-use-audio", "presentation", "出牌音效", "配置通用或按角色生效的出牌音效。", "通用音效", "card-use-audio", true, true),
+            Module("presentation.character-voice", "presentation", "角色语音", "管理内容 MOD 注册的角色语音。", "", "card-use-audio", true, true),
             Module("presentation.pixel-emoji", "presentation", "像素表情", "制作、收藏并在联机中展示像素表情。", "作品 12 · 收藏 5", "pixel-emoji", true, true),
             Module("presentation.skill-cg", "presentation", "技能 CG", "管理技能触发的角色表现和联机同步。", "角色规则 6 条 · 联机同步开启", "skill-cg", true, true),
             Module("presentation.card-use-cg", "presentation", "卡牌使用 CG", "管理注册卡牌的使用演出。", "已启用 4/7 个注册项", "card-use-cg", true, true),
+            Module("presentation.card-visual", "presentation", "卡牌视觉", "管理卡框主题与动态效果。", "", "skin", true, true),
             Module("records.damage-statistics", "records", "伤害统计", "记录本场伤害并提供局内和冒险统计。", "本场 · 全部阵营 · 表格", "damage-statistics", true, true),
             Module("records.battle-replay", "records", "战斗回放", "自动记录对局并提供回放与视频导出。", "自动保存上限 20", "battle-replay", true, true),
-            Module("records.adventure-archive", "records", "冒险档案馆", "按轮次保存冒险时间线、关键快照并关联战斗记录。", "已保存 28 轮冒险", "adventure-archive", true, true),
+            Module("records.adventure-archive", "records", "冒险历程", "记录整轮冒险中的地点、选择、收藏变化与战斗。", "", "adventure-archive", true, true),
             Module("multiplayer.mod-sync", "multiplayer", "MOD 配置同步", "在联机大厅中检查并同步工具配置。", "当前不在联机大厅", "mod-sync", true, true),
             Module("multiplayer.lobby-status", "multiplayer", "大厅状态面板", "集中查看玩家、角色、准备状态、游戏版本与 MOD 差异。", "大厅玩家 3", "lobby-status", true, true),
-            Module("intelligence.auto-battle", "intelligence", "战斗策略实验室", "管理模型、训练、评估和实机验证。", "未选择模型", "auto-battle", false, true, true),
+            Module("intelligence.auto-battle", "intelligence", "自动战斗", "选择战斗策略并控制自动接管方式。", "", "auto-battle", false, true, true),
+            Module("intelligence.strategy-model-lab", "intelligence", "策略模型实验室", "管理、训练和评估自动战斗模型。", "", "auto-battle", true, true, true, false),
             Module("system.file-logging", "system", "文件日志", "将工具运行信息写入独立日志文件。", "Info 及以上", "file-logging", true, true),
             Module("system.preset-library", "system", "妙妙方案库", "保存、预检并事务式应用跨模块配置方案。", "本地方案 6 个", "preset-library", true, true),
             Module("system.mod-health", "system", "MOD 健康检查", "按游戏原生 MOD 加载契约检查依赖、入口与注册资源。", "警告 · 问题 2", "mod-health", true, true)
@@ -82,8 +86,8 @@ namespace AuraTools.UnityUiPreview
                     starter.Summary = "全局 · 卡牌 15/15 · 遗物 6/6 · 已配置 12 个角色覆盖";
                     starter.Description = "为世界推演配置全局或按角色的开局卡牌与遗物，并支持版本兼容的配置导入导出。";
                     var auto = modules.First(module => module.Id == "intelligence.auto-battle");
-                    auto.Summary = "完整应用 · foundation-package-20260810-155337232-c81434ca";
-                    auto.Attention = "候选模型尚未通过高级难度 Wilson 置信下界认证";
+                    auto.Summary = "完整应用";
+                    auto.Attention = "候选模型尚未完成高级难度验证";
                     auto.Availability = "warning";
                     break;
                 case "warning":
@@ -126,7 +130,8 @@ namespace AuraTools.UnityUiPreview
             string icon,
             bool enabled,
             bool settings,
-            bool experimental = false)
+            bool experimental = false,
+            bool showEnableControl = true)
         {
             return new PreviewModule
             {
@@ -140,6 +145,7 @@ namespace AuraTools.UnityUiPreview
                 Enabled = enabled,
                 HasSettings = settings,
                 Experimental = experimental,
+                ShowEnableControl = showEnableControl,
                 Availability = enabled ? "ready" : "disabled"
             };
         }

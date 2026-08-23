@@ -43,7 +43,7 @@
 | 训练治理 | `foundation-governance-v29-source-audit-partitioned-v4` + `foundation-stagnation-v3-behavior-vs-pipeline-progress` + `paired-evidence-v8-tiered-same-model` |
 | 自动并发规划 | `foundation-parallelism-v4-phase-aware-128m-reserve` + `foundation-auto-tune-v12-signed-microbenchmark`；推理计划按硬件、模型协议/特征版本、张量形状和并发档位签名复用，仅在真实 Replay 输入上运行有界微基准；运行期健康失败切换 direct 并进入持久化冷却。常规阶段固定保留 128 MiB，Transformer 阶段按预测峰值另保留 128 MiB；隔离 Worker 冷启动保守，后续按真实 Worker/Python 峰值、私有内存和 GC 碎片逐级恢复每进程 2–3 轮与模型训练并行，压力出现时退回 1/12。跨进程 Replay 检查点最多携带 512 Episodes / 48000 Frames / 256 MiB 估算常驻量，其余进入压缩磁盘仓库 |
 | 外部模型包 | `formal` 与 `experimental` 都写入 `training-artifacts-v1/deployment/foundation-model-package-v5.json` + `foundation-model-weights-v5.bin`；`diagnostic` 不写游戏加载包；读取兼容正式验收的 v3/v4 JSON 包 |
-| 底模发布 | `ModResource/Model/<角色名 [RoleId]>/<使魔名 [PartnerId]>/[可选用户发布名]/`；来源身份（官方/玩家训练）与质量等级（正式/实验）正交。游戏可加载两种等级，但实验底模主动运行前必须按包哈希确认，并持续显示黄色实验标识 |
+| 底模发布 | `ModResource/Model/<角色名 [RoleId]>/<使魔名 [PartnerId]>/[可选用户发布名]/`；来源身份（官方/玩家训练）与质量等级（正式/实验/未验证）正交。兼容性决定能否入库与加载，质量证据只决定标记；实验或未验证模型第一次进入试用/正式接管前必须按包哈希确认 |
 | CLI 搜索策略 | `risk-puct` |
 
 输入不满足这些合同会被拒绝。需要改变布局时，应同时切换写入、读取、测试、示例与文档，并删除被替代内容。

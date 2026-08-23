@@ -21,6 +21,7 @@
     <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageModels.cs" Link="Core\AuraSharedStorageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedFileStore.cs" Link="Core\AuraSharedFileStore.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPathBudgetException.cs" Link="Core\AuraSharedPathBudgetException.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
@@ -32,6 +33,7 @@
     <Compile Include="..\AuraGameDataShared\AuraGameDataFieldPolicy.cs" Link="GameData\AuraGameDataFieldPolicy.cs" />
     <Compile Include="..\AuraGameDataShared\AuraGameDataCatalog.cs" Link="GameData\AuraGameDataCatalog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBootstrapResult.cs" Link="Core\AuraSharedBootstrapResult.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedDiscovery.cs" Link="Core\AuraSharedDiscovery.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleSessionRuntime.cs" Link="Core\AuraLifecycleSessionRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraLifecycleOperationLedger.cs" Link="Core\AuraLifecycleOperationLedger.cs" />

@@ -18,17 +18,19 @@ public static class SkillCgArbiterRuntime
     public const string FeastCgKind = "feast";
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-08-17-v13";
-    public const int CurrentProtocolVersion = 9;
+    public const string CurrentBuildId = "aura-cg-shared-2026-08-22-v15";
+    public const int CurrentProtocolVersion = 11;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
     private const string DefaultNetworkOwner = "AuraCgShared";
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object LifecycleGate = new();
     private static readonly Dictionary<string, string> DataDirectories = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> ContentDirectories = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Material> RegisteredMaterials = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, AssetBundle> RegisteredBundles = new(StringComparer.OrdinalIgnoreCase);
+    private static IDisposable? battleLifecycleRegistration;
     private static readonly AuraCgRegisteredRequestResolver RegisteredRequestResolver = new(
         ownerModId => AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId),
         AuraCgActivationRuntime.IsLocallyEnabled,
@@ -47,10 +49,32 @@ public static class SkillCgArbiterRuntime
             DataDirectories[ownerModId] = AuraSharedPaths.RootDirectory;
             ContentDirectories[ownerModId] = modConfig.DirectoryName;
             AuraCgRpcAuthorityRuntime.Initialize(modConfig);
+            EnsureBattleLifecycle(modConfig);
         }
 
         var arbiter = EnsureArbiter(ownerModId);
         Invoke(arbiter, "Configure", options ?? new SkillCgArbiterOptions());
+    }
+
+    private static void EnsureBattleLifecycle(ModConfig modConfig)
+    {
+        lock (LifecycleGate)
+        {
+            if (battleLifecycleRegistration != null) return;
+            battleLifecycleRegistration = AuraBattleLifecycleRouter.Register(
+                modConfig,
+                "AuraCgShared",
+                "PlaybackSession",
+                new AuraBattleLifecycleSubscription
+                {
+                    BattleOpening = _ => BeginFightSession(DefaultNetworkOwner, "battle opening"),
+                    BattleRestarting = _ => Clear(DefaultNetworkOwner, "battle restarting"),
+                    BattleSettling = _ => BeginFightDrain(DefaultNetworkOwner, "battle settling", 12f),
+                    BattleEnded = _ => BeginFightDrain(DefaultNetworkOwner, "battle ended", 12f)
+                },
+                message => AuraCgLog.DebugLog(message),
+                message => AuraCgLog.WarnOnce("battle-lifecycle", message));
+        }
     }
 
     public static void RegisterProvider(ModConfig modConfig, string ownerModId, object provider)
@@ -289,13 +313,18 @@ public static class SkillCgArbiterRuntime
             return null;
         }
 
-        var cardId = (entry.CardIds ?? new List<string>())
+        var targetIds = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
+            ? entry.SkillIds
+            : entry.CardIds;
+        var cardId = (targetIds ?? new List<string>())
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && !value.Contains("*")) ?? "*";
         return BuildRegisteredRequestByKind(entry, kind, consumerModId, new SkillCgTriggerContext
         {
+            TriggerKind = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? "skill" : "card",
             ActionSequence = -Math.Abs(DateTime.UtcNow.Ticks),
             Action = "*",
             CardId = cardId,
+            SkillId = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? cardId : "",
             OwnerRoleId = (entry.TargetRoleIds ?? new List<string>()).FirstOrDefault() ?? "*",
             CreatedAt = Time.unscaledTime
         }, disableSync: true);
@@ -364,7 +393,13 @@ public static class SkillCgArbiterRuntime
             .Where(AuraCgActivationRuntime.IsLocallyEnabled)
             .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
             {
-                CardId = (entry.CardIds ?? new List<string>()).FirstOrDefault() ?? "*",
+                TriggerKind = string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? "skill" : "card",
+                CardId = (string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
+                    ? entry.SkillIds
+                    : entry.CardIds)?.FirstOrDefault() ?? "*",
+                SkillId = string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
+                    ? entry.SkillIds?.FirstOrDefault() ?? "*"
+                    : "",
                 OwnerRoleId = roleId,
                 CreatedAt = Time.unscaledTime
             }, disableSync: true))
@@ -596,6 +631,15 @@ public static class SkillCgArbiterRuntime
         Invoke(arbiter, "BeginFightSession", new SkillCgFightSessionRequest(ownerModId, reason));
     }
 
+    public static void BeginFightDrain(string ownerModId, string reason, float maximumDrainSeconds = 12f)
+    {
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "BeginFightDrain", new SkillCgFightDrainRequest(
+            ownerModId,
+            reason,
+            maximumDrainSeconds));
+    }
+
     internal static void ApplyServerPlaybackRequest(SkillCgPlaybackSnapshot playback, AuraCgRpcSender sender)
     {
         var ownerModId = FirstOwnerModId(playback) ?? DefaultNetworkOwner;
@@ -769,6 +813,22 @@ public static class SkillCgArbiterRuntime
         public string Reason { get; }
     }
 
+    private sealed class SkillCgFightDrainRequest
+    {
+        public SkillCgFightDrainRequest(string ownerModId, string? reason, float maximumDrainSeconds)
+        {
+            OwnerModId = (ownerModId ?? "").Trim();
+            Reason = string.IsNullOrWhiteSpace(reason) ? "fight settling" : reason!.Trim();
+            MaximumDrainSeconds = Math.Max(1f, Math.Min(30f, maximumDrainSeconds));
+        }
+
+        public string OwnerModId { get; }
+
+        public string Reason { get; }
+
+        public float MaximumDrainSeconds { get; }
+    }
+
     private sealed class RegisteredBundleChange
     {
         public RegisteredBundleChange(string ownerModId, string bundleId)
@@ -816,6 +876,9 @@ public static class SkillCgArbiterRuntime
         private SkillCgArbiterOptions options = new();
         private string lastClearKind = "";
         private float lastClearAt = -999f;
+        private bool acceptingBattleRequests = true;
+        private bool drainScheduled;
+        private int fightSessionGeneration;
 
         public int ProtocolVersion => CurrentProtocolVersion;
 
@@ -1109,7 +1172,27 @@ public static class SkillCgArbiterRuntime
 
         public void BeginFightSession(object? value)
         {
+            fightSessionGeneration++;
+            drainScheduled = false;
             networkRuntime.BeginFightSession(value, ClearTransientPlayback);
+            acceptingBattleRequests = true;
+        }
+
+        public void BeginFightDrain(object? value)
+        {
+            var request = value as SkillCgFightDrainRequest
+                          ?? new SkillCgFightDrainRequest("AuraCgShared", "fight settling", 12f);
+            acceptingBattleRequests = false;
+            if (drainScheduled)
+            {
+                return;
+            }
+
+            drainScheduled = true;
+            StartCoroutine(DrainFightPlayback(
+                fightSessionGeneration,
+                request.Reason,
+                request.MaximumDrainSeconds));
         }
 
         public void ApplyFightSession(object? value)
@@ -1182,6 +1265,12 @@ public static class SkillCgArbiterRuntime
 
         private bool QueueLocalRequests(IReadOnlyList<SkillCgRequest> requests)
         {
+            if (!acceptingBattleRequests)
+            {
+                AuraCgLog.DebugLog("CG request ignored after the battle entered settlement.");
+                return false;
+            }
+
             var batch = (requests ?? Array.Empty<SkillCgRequest>())
                 .Where(request => request != null)
                 .ToList();
@@ -1271,6 +1360,10 @@ public static class SkillCgArbiterRuntime
 
         private void EnqueueNetworkPlayback(IReadOnlyList<SkillCgRequest> requests)
         {
+            if (!acceptingBattleRequests)
+            {
+                return;
+            }
             EnqueueBatch(requests);
             if (playbackCoordinator.QueueCount > 0)
             {
@@ -1358,6 +1451,32 @@ public static class SkillCgArbiterRuntime
             {
                 FlushReleasedMedia();
             }
+        }
+
+        private IEnumerator DrainFightPlayback(
+            int sessionGeneration,
+            string reason,
+            float maximumDrainSeconds)
+        {
+            var deadline = Time.unscaledTime + Math.Max(1f, Math.Min(30f, maximumDrainSeconds));
+            while (sessionGeneration == fightSessionGeneration
+                   && !acceptingBattleRequests
+                   && (playbackCoordinator.IsPlaying || playbackCoordinator.QueueCount > 0)
+                   && Time.unscaledTime < deadline)
+            {
+                yield return null;
+            }
+
+            if (sessionGeneration != fightSessionGeneration || acceptingBattleRequests)
+            {
+                yield break;
+            }
+
+            drainScheduled = false;
+            ClearTransientPlayback(
+                playbackCoordinator.IsPlaying || playbackCoordinator.QueueCount > 0
+                    ? reason + " (drain timeout)"
+                    : reason + " (drain complete)");
         }
 
         private IEnumerator PlayRequest(SkillCgRequest request, int generation)

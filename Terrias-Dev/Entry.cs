@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Reflection;
-using AuraCg.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
 using AuraShared.Core;
@@ -27,11 +26,6 @@ public static class Entry
         RunStep("shared game data", RegisterSharedGameData);
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => TerriasRpcAuthorityRuntime.Initialize(modConfig));
-        RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
-        RunStep("legacy skin package retirement", () => RegisterSharedResourcePackage(
-            modConfig,
-            "SharedResources/Skins/retire.registration.json"));
-        RunStep("legacy CG registry retirement", () => RetireLegacyCgRegistry(modConfig));
         RunStep("localization catalog", () => TerriasTextCatalog.Load(modConfig));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
@@ -68,31 +62,6 @@ public static class Entry
         if (!result.Success)
         {
             throw new InvalidOperationException("Terrias v5 game-data ownership registration failed: " + result.Message);
-        }
-    }
-
-    private static void RegisterSharedResourcePackage(
-        ModConfig modConfig,
-        string manifestRelativePath = AuraSharedResourceProtocol.DefaultManifestPath)
-    {
-        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "Terrias", manifestRelativePath);
-        foreach (var response in result.Responses)
-        {
-            if (!response.Success)
-            {
-                throw new InvalidOperationException("Terrias shared resource package was rejected: " + response.Message);
-            }
-        }
-    }
-
-    private static void RetireLegacyCgRegistry(ModConfig modConfig)
-    {
-        if (!AuraCgRegistryRuntime.RegisterManifest(
-                modConfig,
-                TerriasIds.ModId,
-                "SharedResources/cg.retire.registry.json"))
-        {
-            throw new InvalidOperationException("Terrias legacy CG registry retirement was rejected.");
         }
     }
 

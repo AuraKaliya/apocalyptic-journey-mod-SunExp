@@ -3584,6 +3584,10 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    foundationPackage,
                    out var foundationPackageDiagnostic)
                && string.IsNullOrEmpty(foundationPackageDiagnostic)
+               && CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(foundationPackage, out _)
+               && CombatFoundationModelPackageProtocol.AssessEvidence(
+                       foundationPackage).FormallyCertified
                && foundationPackage.Model != null
                && foundationPackage.Model.ModelId
                   == foundationTraining.Champion!.ModelId
@@ -3636,6 +3640,11 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    experimentalPackage,
                    out var experimentalPackageDiagnostic)
                && string.IsNullOrEmpty(experimentalPackageDiagnostic)
+               && CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(experimentalPackage, out _)
+               && CombatFoundationModelPackageProtocol.AssessEvidence(
+                       experimentalPackage).QualityTier
+                  == CombatFoundationModelEvidenceTiers.Experimental
                && experimentalPackage.DeploymentTier
                   == CombatFoundationDeploymentTier.Experimental
                && experimentalPackage.QualityCertification
@@ -3656,10 +3665,17 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    experimentalPackage.Acceptance),
             "runtime-safe experimental worker results remain loadable when formal Wilson and capability gates fail");
         experimentalPackage.SameModelEvidenceBound = false;
-        Assert(!CombatFoundationModelPackageProtocol.TryValidate(
-                experimentalPackage,
-                out _),
-            "experimental packages reject evidence assembled from different models");
+        Assert(CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
+                   experimentalPackage,
+                   out _)
+               && !CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(
+                       experimentalPackage,
+                       out _)
+               && CombatFoundationModelPackageProtocol.AssessEvidence(
+                       experimentalPackage).QualityTier
+                  == CombatFoundationModelEvidenceTiers.Unverified,
+            "evidence assembled from different models downgrades quality to unverified without blocking a structurally loadable artifact");
         foundationTraining.AcceptancePassed = true;
         foundationTraining.ExperimentalEligibilityPassed = false;
         foundationTraining.DeploymentTier = formalDeploymentTier;
@@ -3751,8 +3767,10 @@ internal static class CombatAiFoundationTrainingBehaviorTests
                    out var legacyV3PackageDiagnostic)
                && string.IsNullOrEmpty(legacyV3PackageDiagnostic)
                && CombatFoundationModelPackageProtocol.NormalizeAcceptance(
-                      foundationPackage).Classification
-                  == "legacy-formal-acceptance",
+                       foundationPackage).Classification
+                  == "legacy-formal-acceptance"
+               && CombatFoundationModelPackageProtocol.AssessEvidence(
+                       foundationPackage).FormallyCertified,
             "v5 readers retain compatibility with formally accepted v3 model packages");
         foundationPackage.SchemaVersion = packageSchema;
         foundationPackage.ModelVersion = packageVersion;
@@ -3762,13 +3780,17 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         foundationPackage.Acceptance.EquivalentNonInferior = true;
         foundationPackage.Acceptance.ValidNormalPairs = 8;
         foundationPackage.Acceptance.ValidAdvancedPairs = 8;
-        Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+        Assert(CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                    foundationPackage,
-                   out var weakNonInferiorityPackageDiagnostic)
+                   out _)
+               && !CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(
+                       foundationPackage,
+                       out var weakNonInferiorityPackageDiagnostic)
                && weakNonInferiorityPackageDiagnostic.Contains(
                    "质量证明",
                    StringComparison.Ordinal),
-            "v5 model packages reject non-inferiority claims without the required paired evidence");
+            "weak non-inferiority evidence blocks formal publication but not loading the compatible model artifact");
         foundationPackage.Acceptance.Classification = "retained-champion";
         foundationPackage.Acceptance.EquivalentNonInferior = false;
         foundationPackage.Acceptance.ValidNormalPairs = 0;
@@ -3816,13 +3838,15 @@ internal static class CombatAiFoundationTrainingBehaviorTests
         Assert(endTurnCounterfactualGateRejected,
             "foundation export rejects dominated, avoidable-lethal, or certified-cycle end turns");
         foundationPackage.Validation.EndTurnsWithCertifiedCycle = 1;
-        Assert(!CombatFoundationModelPackageProtocol.TryValidate(
-                foundationPackage,
-                out var certifiedCycleGateDiagnostic)
-               && certifiedCycleGateDiagnostic.Contains(
-                   "验证",
-                   StringComparison.Ordinal),
-            "foundation import rejects validation that abandoned a certified cycle");
+        Assert(CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
+                   foundationPackage,
+                   out _)
+               && !CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(
+                       foundationPackage,
+                       out var certifiedCycleGateDiagnostic)
+               && !string.IsNullOrWhiteSpace(certifiedCycleGateDiagnostic),
+            "a failed application-safety test downgrades publication evidence without blocking a compatible model artifact");
         foundationPackage.Validation.EndTurnsWithCertifiedCycle = 0;
         var noEffectActionGateRejected = false;
         foundationTraining.Validation.NoEffectActionAttempts = 1;
@@ -3980,13 +4004,17 @@ internal static class CombatAiFoundationTrainingBehaviorTests
             "extended foundation packages reject internally inconsistent training subject metadata");
         foundationPackage.TrainingSubject.RoleId = foundationPackage.RoleId;
         foundationPackage.CompletionKind = "training-rejected";
-        Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+        Assert(CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                    foundationPackage,
-                   out var rejectedFoundationPackageDiagnostic)
+                   out _)
+               && !CombatFoundationModelPackageProtocol
+                   .TryValidatePublicationEvidence(
+                       foundationPackage,
+                       out var rejectedFoundationPackageDiagnostic)
                && rejectedFoundationPackageDiagnostic.Contains(
-                   "部署等级",
+                   "训练来源",
                    StringComparison.Ordinal),
-            "external foundation package validation rejects non-accepted training results");
+            "a rejected training result remains structurally loadable but cannot claim formal publication evidence");
         foundationPackage.CompletionKind = "training-accepted";
         packageJob.Request.TrainingCampaign.Player.RoleId = packageOriginalRoleId;
         packageJob.Request.TrainingCampaign.Player.PartnerId = packageOriginalPartnerId;

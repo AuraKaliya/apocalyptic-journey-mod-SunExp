@@ -190,7 +190,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
     {
         if (!AuraToolsAutoBattleRuntime.ModuleEnabled)
         {
-            message = "请先启用战斗策略实验室";
+            message = "请先启用自动战斗";
             return false;
         }
         if (FightManager.Instance == null

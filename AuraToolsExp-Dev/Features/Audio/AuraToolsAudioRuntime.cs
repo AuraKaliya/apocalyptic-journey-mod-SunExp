@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Newtonsoft.Json;
 using AuraAudio.Shared;
 using AuraShared.Core;
 using AudioArbiter.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
+using AuraToolsExp.Dll.Features.SharedResources;
 using BattleBgmArbiter.Shared;
 using Witch.Mod;
 
@@ -19,7 +19,8 @@ public static class AuraToolsAudioRuntime
     private static readonly Dictionary<string, bool> PathExistsCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredBattleBgmSignatures = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> RegisteredCardUseSignatures = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, string> RegisteredVoiceSignatures = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, VoiceProviderRegistration> RegisteredVoiceProviders =
+        new(StringComparer.OrdinalIgnoreCase);
     private static ModConfig? modConfig;
     private static bool initialized;
 
@@ -250,92 +251,104 @@ public static class AuraToolsAudioRuntime
     private static void RegisterVoiceProviders(ModConfig config)
     {
         var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var path = Path.Combine(config.DirectoryName, "audio.registry.json");
-        if (AuraToolsConfigService.Audio.Voice.Enabled && File.Exists(path))
+        if (AuraToolsConfigService.Audio.Voice.Enabled)
         {
-            var manifest = JsonConvert.DeserializeObject<AudioRegistryManifest>(File.ReadAllText(path));
-            if (manifest == null
-                || manifest.schemaVersion > AudioArbiterRuntime.SupportedManifestSchemaVersion
-                || manifest.audioProtocol?.minVersion > AudioArbiterRuntime.CurrentProtocolVersion
-                || !string.Equals(manifest.ownerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
+            foreach (var contribution in AuraAudioRegistryRuntime.GetSnapshot().Contributions)
             {
-                throw new InvalidDataException("AuraTools voice registry schema, protocol, or owner is incompatible.");
-            }
-            var defaults = manifest?.defaults ?? new AudioRegistryDefaults();
-            foreach (var provider in manifest?.providers ?? Array.Empty<AudioProviderManifest>())
-            {
-                if (provider == null || string.IsNullOrWhiteSpace(provider.providerId)) continue;
-                var settings = EnsureVoiceBinding(provider);
-                if (!settings.Enabled) continue;
-                var providerId = provider.providerId.Trim();
-                var signal = string.IsNullOrWhiteSpace(settings.Signal) ? provider.kind : settings.Signal;
-                var stage = string.IsNullOrWhiteSpace(settings.Stage)
-                    ? provider.match?.stages?.FirstOrDefault() ?? ""
-                    : settings.Stage;
-                var resourceOverridden = !string.IsNullOrWhiteSpace(settings.ResourcePath);
-                var audioPath = ResolveVoicePath(config, resourceOverridden ? settings.ResourcePath : provider.path);
-                var variants = resourceOverridden
-                    ? Array.Empty<string>()
-                    : (provider.variantPaths ?? Array.Empty<string>())
-                        .Select(value => ResolveVoicePath(config, value))
-                        .Where(value => value.Length > 0)
-                        .ToArray();
-                var gain = settings.GainDb ?? provider.gainDb ?? defaults.gainDb ?? 0f;
-                var cooldown = settings.CooldownSeconds ?? provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f;
-                var threshold = settings.HpRatioThreshold ?? provider.match?.hpRatioCrossDown;
-                var signature = Signature(audioPath, string.Join(";", variants), signal, stage, settings.ActionId,
-                    gain, cooldown, threshold, settings.Enabled);
-                desired.Add(providerId);
-                if (RegisteredVoiceSignatures.TryGetValue(providerId, out var current)
-                    && string.Equals(current, signature, StringComparison.Ordinal))
+                if (!AuraToolsSharedResourceDiscoveryRuntime.IsSourceActive(
+                        contribution.SourceModProjectId))
                 {
                     continue;
                 }
+                var manifest = contribution.Manifest ?? new AudioRegistryManifest();
+                var defaults = manifest.defaults ?? new AudioRegistryDefaults();
+                foreach (var provider in manifest.providers ?? Array.Empty<AudioProviderManifest>())
+                {
+                    if (provider == null || string.IsNullOrWhiteSpace(provider.providerId)) continue;
+                    var owner = string.IsNullOrWhiteSpace(provider.ownerModId)
+                        ? contribution.OwnerModId
+                        : provider.ownerModId.Trim();
+                    var providerId = provider.providerId.Trim();
+                    var qualifiedId = owner + ":" + providerId;
+                    var settings = EnsureVoiceBinding(qualifiedId, provider);
+                    if (!settings.Enabled) continue;
+                    var signal = string.IsNullOrWhiteSpace(settings.Signal) ? provider.kind : settings.Signal;
+                    var stage = string.IsNullOrWhiteSpace(settings.Stage)
+                        ? provider.match?.stages?.FirstOrDefault() ?? ""
+                        : settings.Stage;
+                    var resourceOverridden = !string.IsNullOrWhiteSpace(settings.ResourcePath);
+                    var audioPath = ResolveVoicePath(owner, config, resourceOverridden ? settings.ResourcePath : provider.path);
+                    var variants = resourceOverridden
+                        ? Array.Empty<string>()
+                        : (provider.variantPaths ?? Array.Empty<string>())
+                            .Select(value => ResolveVoicePath(owner, config, value))
+                            .Where(value => value.Length > 0)
+                            .ToArray();
+                    var gain = settings.GainDb ?? provider.gainDb ?? defaults.gainDb ?? 0f;
+                    var cooldown = settings.CooldownSeconds ?? provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f;
+                    var threshold = settings.HpRatioThreshold ?? provider.match?.hpRatioCrossDown;
+                    var signature = Signature(audioPath, string.Join(";", variants), signal, stage, settings.ActionId,
+                        gain, cooldown, threshold, settings.Enabled);
+                    desired.Add(qualifiedId);
+                    if (RegisteredVoiceProviders.TryGetValue(qualifiedId, out var current)
+                        && string.Equals(current.Signature, signature, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
 
-                AudioArbiterRuntime.RegisterSoundProvider(config, AuraToolsIds.ModId, new FileSoundProvider(
-                    providerId,
-                    AuraToolsIds.ModId,
-                    audioPath,
-                    variants,
-                    provider.priority,
-                    string.IsNullOrWhiteSpace(provider.bus) ? defaults.bus ?? SoundBuses.Vocal : provider.bus,
-                    string.IsNullOrWhiteSpace(provider.policy) ? defaults.policy ?? SoundPolicies.Additive : provider.policy,
-                    provider.hardClaim ?? defaults.hardClaim ?? false,
-                    request => VoiceMatches(request, provider, settings, signal, stage, threshold),
-                    cooldown,
-                    provider.sync ?? defaults.sync ?? true,
-                    gain,
-                    provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
-                    signal,
-                    threshold,
-                    provider.suppressOriginal?.vocalStates,
-                    provider.suppressOriginal?.narrationIds));
-                RegisteredVoiceSignatures[providerId] = signature;
+                    AudioArbiterRuntime.RegisterSoundProvider(config, AuraToolsIds.ModId, new FileSoundProvider(
+                        providerId,
+                        owner,
+                        audioPath,
+                        variants,
+                        provider.priority,
+                        string.IsNullOrWhiteSpace(provider.bus) ? defaults.bus ?? SoundBuses.Vocal : provider.bus,
+                        string.IsNullOrWhiteSpace(provider.policy) ? defaults.policy ?? SoundPolicies.Additive : provider.policy,
+                        provider.hardClaim ?? defaults.hardClaim ?? false,
+                        request => VoiceMatches(request, provider, settings, signal, stage, threshold),
+                        cooldown,
+                        provider.sync ?? defaults.sync ?? true,
+                        gain,
+                        provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
+                        signal,
+                        threshold,
+                        provider.suppressOriginal?.vocalStates,
+                        provider.suppressOriginal?.narrationIds));
+                    RegisteredVoiceProviders[qualifiedId] = new VoiceProviderRegistration
+                    {
+                        OwnerModId = owner,
+                        ProviderId = providerId,
+                        Signature = signature
+                    };
+                }
             }
         }
 
-        foreach (var providerId in RegisteredVoiceSignatures.Keys.Where(id => !desired.Contains(id)).ToList())
+        foreach (var qualifiedId in RegisteredVoiceProviders.Keys.Where(id => !desired.Contains(id)).ToList())
         {
-            AudioArbiterRuntime.UnregisterSoundProvider(config, AuraToolsIds.ModId, providerId);
-            RegisteredVoiceSignatures.Remove(providerId);
+            var registered = RegisteredVoiceProviders[qualifiedId];
+            AudioArbiterRuntime.UnregisterSoundProvider(config, registered.OwnerModId, registered.ProviderId);
+            RegisteredVoiceProviders.Remove(qualifiedId);
         }
     }
 
-    private static AuraToolsVoiceBindingSettings EnsureVoiceBinding(AudioProviderManifest provider)
+    private static AuraToolsVoiceBindingSettings EnsureVoiceBinding(
+        string qualifiedProviderId,
+        AudioProviderManifest provider)
     {
         var bindings = AuraToolsConfigService.Audio.Voice.Bindings;
-        if (!bindings.TryGetValue(provider.providerId, out var settings) || settings == null)
+        if (!bindings.TryGetValue(qualifiedProviderId, out var settings) || settings == null)
         {
             settings = new AuraToolsVoiceBindingSettings
             {
-                ProviderId = provider.providerId,
+                ProviderId = qualifiedProviderId,
                 Signal = provider.kind,
                 Stage = provider.match?.stages?.FirstOrDefault() ?? "",
                 ActionId = FirstActionId(provider),
                 HpRatioThreshold = provider.match?.hpRatioCrossDown
             };
-            settings.Normalize(provider.providerId);
-            bindings[provider.providerId] = settings;
+            settings.Normalize(qualifiedProviderId);
+            bindings[qualifiedProviderId] = settings;
         }
         return settings;
     }
@@ -348,13 +361,13 @@ public static class AuraToolsAudioRuntime
                ?? "";
     }
 
-    private static string ResolveVoicePath(ModConfig config, string value)
+    private static string ResolveVoicePath(string ownerModId, ModConfig config, string value)
     {
         var text = (value ?? "").Trim();
         const string shared = "Shared:";
         if (text.StartsWith(shared, StringComparison.OrdinalIgnoreCase))
         {
-            return AuraSharedResourceProtocol.ResolvePath(AuraToolsIds.ModId, text.Substring(shared.Length));
+            return AuraSharedResourceProtocol.ResolvePath(ownerModId, text.Substring(shared.Length));
         }
         return Path.IsPathRooted(text) ? text : Path.Combine(config.DirectoryName, text.Replace('/', Path.DirectorySeparatorChar));
     }
@@ -627,5 +640,12 @@ public static class AuraToolsAudioRuntime
         {
             return string.Join("_", (value ?? "").Split(Path.GetInvalidFileNameChars()));
         }
+    }
+
+    private sealed class VoiceProviderRegistration
+    {
+        public string OwnerModId { get; set; } = "";
+        public string ProviderId { get; set; } = "";
+        public string Signature { get; set; } = "";
     }
 }

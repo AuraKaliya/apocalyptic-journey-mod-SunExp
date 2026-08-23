@@ -87,13 +87,14 @@ public static class AuraToolsStarterDeckEditor
             toolbarLayout.childControlWidth = true;
             toolbarLayout.childControlHeight = true;
             toolbarLayout.childForceExpandWidth = false;
+            toolbarLayout.childForceExpandHeight = false;
 
             cardTabButton = Settings.AuraToolsUi.AddButton(toolbar.transform, "卡牌 " + cards.Count + "/15", () => SwitchTab(true), 128f);
             relicTabButton = Settings.AuraToolsUi.AddButton(toolbar.transform, "遗物 " + relics.Count + "/6", () => SwitchTab(false), 128f);
             searchInput = Settings.AuraToolsUi.AddTmpInput(
                 toolbar.transform,
                 "",
-                "搜索名称或 ID",
+                "搜索名称",
                 value =>
                 {
                     search = (value ?? "").Trim();
@@ -124,6 +125,7 @@ public static class AuraToolsStarterDeckEditor
             footerLayout.childControlWidth = true;
             footerLayout.childControlHeight = true;
             footerLayout.childForceExpandWidth = false;
+            footerLayout.childForceExpandHeight = false;
             hintText = Settings.AuraToolsUi.AddText(
                 footer.transform,
                 "",
@@ -201,6 +203,7 @@ public static class AuraToolsStarterDeckEditor
             headerLayout.childControlWidth = true;
             headerLayout.childControlHeight = true;
             headerLayout.childForceExpandWidth = false;
+            headerLayout.childForceExpandHeight = false;
             Settings.AuraToolsUi.AddText(
                 header.transform,
                 title,
@@ -319,6 +322,7 @@ public static class AuraToolsStarterDeckEditor
             headerLayout.childControlWidth = true;
             headerLayout.childControlHeight = true;
             headerLayout.childForceExpandWidth = false;
+            headerLayout.childForceExpandHeight = false;
             Settings.AuraToolsUi.AddText(
                 header.transform,
                 title,
@@ -681,6 +685,7 @@ public static class AuraToolsStarterDeckEditor
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
             Settings.AuraToolsUi.AddText(
                 footer.transform,
                 "确认后将覆盖当前配置",

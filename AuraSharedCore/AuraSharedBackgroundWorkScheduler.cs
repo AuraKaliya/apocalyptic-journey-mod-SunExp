@@ -31,6 +31,8 @@ public sealed class AuraSharedBackgroundWorkRequest<T>
     public Action<T>? ApplyOnMainThread { get; set; }
 
     public Action<Exception>? OnFailedOnMainThread { get; set; }
+
+    public Action<string>? OnCancelledOnMainThread { get; set; }
 }
 
 public static class AuraSharedBackgroundWorkScheduler
@@ -106,14 +108,14 @@ public static class AuraSharedBackgroundWorkScheduler
                 : Math.Max(1, MaxPendingCpu);
             if (item.ScopedKey.Length > 0 && QueuedByScopedKey.TryGetValue(item.ScopedKey, out var previous))
             {
-                RemoveQueuedItemNoLock(previous, cancel: true);
+                RemoveQueuedItemNoLock(previous, cancel: true, cancellationReason: "superseded");
             }
             if (item.ScopedKey.Length > 0
                 && ActiveByScopedKey.TryGetValue(
                     item.ScopedKey,
                     out var activePrevious))
             {
-                activePrevious.Cancellation.Cancel();
+                activePrevious.Cancel("superseded");
             }
 
             if (queue.Count >= queueLimit || OwnerPendingCountNoLock(item.OwnerId) >= Math.Max(1, MaxPendingPerOwner))
@@ -157,7 +159,7 @@ public static class AuraSharedBackgroundWorkScheduler
                 .ToArray();
             for (var i = 0; i < queued.Length; i++)
             {
-                RemoveQueuedItemNoLock(queued[i], cancel: true);
+                RemoveQueuedItemNoLock(queued[i], cancel: true, cancellationReason: "owner-cancelled");
                 cancelled++;
             }
 
@@ -166,7 +168,7 @@ public static class AuraSharedBackgroundWorkScheduler
                          owner,
                          StringComparison.Ordinal)).ToArray())
             {
-                item.Cancellation.Cancel();
+                item.Cancel("owner-cancelled");
                 cancelled++;
             }
 
@@ -277,7 +279,10 @@ public static class AuraSharedBackgroundWorkScheduler
         }
     }
 
-    private static void RemoveQueuedItemNoLock(WorkItem item, bool cancel)
+    private static void RemoveQueuedItemNoLock(
+        WorkItem item,
+        bool cancel,
+        string cancellationReason = "cancelled")
     {
         if (item.Node != null)
         {
@@ -295,7 +300,9 @@ public static class AuraSharedBackgroundWorkScheduler
 
         if (cancel)
         {
-            item.Cancellation.Cancel();
+            item.Cancel(cancellationReason);
+            var completion = item.CreateCancellationCompletion();
+            if (completion != null) Completions.Enqueue(completion);
         }
     }
 
@@ -385,16 +392,27 @@ public static class AuraSharedBackgroundWorkScheduler
 
         public CancellationTokenSource Cancellation { get; } = new();
 
+        public string CancellationReason { get; private set; } = "cancelled";
+
         public long Generation { get; set; }
 
         public LinkedListNode<WorkItem>? Node { get; set; }
 
         public abstract Completion? Run();
+
+        public abstract Completion? CreateCancellationCompletion();
+
+        public void Cancel(string reason)
+        {
+            CancellationReason = string.IsNullOrWhiteSpace(reason) ? "cancelled" : reason.Trim();
+            Cancellation.Cancel();
+        }
     }
 
     private sealed class WorkItem<T> : WorkItem
     {
         private readonly AuraSharedBackgroundWorkRequest<T> request;
+        private int cancellationCompletionCreated;
 
         public WorkItem(AuraSharedBackgroundWorkRequest<T> request)
             : base(request.OwnerId, request.Key, request.Source, request.Kind, request.CompletionPriority)
@@ -408,13 +426,13 @@ public static class AuraSharedBackgroundWorkScheduler
             {
                 if (Cancellation.IsCancellationRequested)
                 {
-                    return null;
+                    return CreateCancellationCompletion();
                 }
 
                 var result = request.Work!(Cancellation.Token);
                 if (Cancellation.IsCancellationRequested)
                 {
-                    return null;
+                    return CreateCancellationCompletion();
                 }
 
                 return new Completion(OwnerId, Source, Priority, () =>
@@ -442,7 +460,7 @@ public static class AuraSharedBackgroundWorkScheduler
             }
             catch (OperationCanceledException)
             {
-                return null;
+                return CreateCancellationCompletion();
             }
             catch (Exception ex)
             {
@@ -463,6 +481,21 @@ public static class AuraSharedBackgroundWorkScheduler
                     }
                 });
             }
+        }
+
+        public override Completion? CreateCancellationCompletion()
+        {
+            if (request.OnCancelledOnMainThread == null
+                || Interlocked.Exchange(ref cancellationCompletionCreated, 1) != 0)
+            {
+                return null;
+            }
+            var reason = CancellationReason;
+            return new Completion(
+                OwnerId,
+                Source,
+                Priority,
+                () => request.OnCancelledOnMainThread?.Invoke(reason));
         }
     }
 

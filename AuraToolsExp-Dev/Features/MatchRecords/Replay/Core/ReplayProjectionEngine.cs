@@ -6,20 +6,20 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 
 internal sealed class ReplayProjectionEngine
 {
-    private ReplayLogicalStateV10 current = new();
+    private ReplayLogicalStateV11 current = new();
     private long lastSequence;
 
-    internal ReplayLogicalStateV10 Current => ReplayProjectionStateV10.Clone(current);
+    internal ReplayLogicalStateV11 Current => ReplayProjectionStateV11.Clone(current);
 
     internal long LastSequence => lastSequence;
 
-    internal void Reset(ReplayLogicalStateV10 state, long sequence = 0)
+    internal void Reset(ReplayLogicalStateV11 state, long sequence = 0)
     {
-        current = ReplayProjectionStateV10.Clone(state ?? new ReplayLogicalStateV10());
+        current = ReplayProjectionStateV11.Clone(state ?? new ReplayLogicalStateV11());
         lastSequence = Math.Max(0, sequence);
     }
 
-    internal void Apply(ReplayTimelineEventV10 value, bool verifyHash = true)
+    internal void Apply(ReplayTimelineEventV11 value, bool verifyHash = true)
     {
         if (value == null)
         {
@@ -31,11 +31,11 @@ internal sealed class ReplayProjectionEngine
             throw new InvalidOperationException("Replay event sequence is not contiguous at " + value.Sequence + ".");
         }
 
-        current = ReplayProjectionStateV10.Apply(current, value.Delta);
+        current = ReplayProjectionStateV11.Apply(current, value.Delta);
         lastSequence = value.Sequence;
         if (verifyHash && !string.IsNullOrWhiteSpace(value.StateHashAfter))
         {
-            var actual = ReplayProjectionStateV10.Hash(current);
+            var actual = ReplayProjectionStateV11.Hash(current);
             if (!string.Equals(actual, value.StateHashAfter, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Replay state hash mismatch after event " + value.Sequence + ".");
@@ -43,14 +43,14 @@ internal sealed class ReplayProjectionEngine
         }
     }
 
-    internal void Restore(ReplayCheckpointV10 checkpoint)
+    internal void Restore(ReplayCheckpointV11 checkpoint)
     {
         if (checkpoint == null)
         {
             throw new ArgumentNullException(nameof(checkpoint));
         }
 
-        var actual = ReplayProjectionStateV10.Hash(checkpoint.State);
+        var actual = ReplayProjectionStateV11.Hash(checkpoint.State);
         if (!string.Equals(actual, checkpoint.LogicalStateSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Replay checkpoint hash mismatch at event " + checkpoint.EventSequence + ".");
@@ -60,19 +60,19 @@ internal sealed class ReplayProjectionEngine
     }
 }
 
-internal static class ReplayProjectionStateV10
+internal static class ReplayProjectionStateV11
 {
-    internal static ReplayStateDeltaV10 CreateDelta(ReplayLogicalStateV10 before, ReplayLogicalStateV10 after)
+    internal static ReplayStateDeltaV11 CreateDelta(ReplayLogicalStateV11 before, ReplayLogicalStateV11 after)
     {
-        before ??= new ReplayLogicalStateV10();
-        after ??= new ReplayLogicalStateV10();
+        before ??= new ReplayLogicalStateV11();
+        after ??= new ReplayLogicalStateV11();
         var beforeActors = Index(before.Actors, item => item.InstanceId);
         var afterActors = Index(after.Actors, item => item.InstanceId);
         var beforeCards = Index(before.Cards, item => item.InstanceId);
         var afterCards = Index(after.Cards, item => item.InstanceId);
         var beforeIntents = Index(before.Intents, item => item.InstanceId);
         var afterIntents = Index(after.Intents, item => item.InstanceId);
-        return new ReplayStateDeltaV10
+        return new ReplayStateDeltaV11
         {
             LevelChanged = !string.Equals(before.LevelId, after.LevelId, StringComparison.Ordinal),
             LevelId = after.LevelId ?? "",
@@ -95,9 +95,9 @@ internal static class ReplayProjectionStateV10
         };
     }
 
-    internal static ReplayLogicalStateV10 Apply(ReplayLogicalStateV10 source, ReplayStateDeltaV10? delta)
+    internal static ReplayLogicalStateV11 Apply(ReplayLogicalStateV11 source, ReplayStateDeltaV11? delta)
     {
-        var result = Clone(source ?? new ReplayLogicalStateV10());
+        var result = Clone(source ?? new ReplayLogicalStateV11());
         if (delta == null)
         {
             return result;
@@ -134,14 +134,14 @@ internal static class ReplayProjectionStateV10
         return result;
     }
 
-    internal static string Hash(ReplayLogicalStateV10 state)
+    internal static string Hash(ReplayLogicalStateV11 state)
     {
-        return ReplayCanonicalJsonV10.Sha256(Normalize(state));
+        return ReplayCanonicalJsonV11.Sha256(Normalize(state));
     }
 
-    internal static ReplayLogicalStateV10 Clone(ReplayLogicalStateV10 source)
+    internal static ReplayLogicalStateV11 Clone(ReplayLogicalStateV11 source)
     {
-        return new ReplayLogicalStateV10
+        return new ReplayLogicalStateV11
         {
             LevelId = source?.LevelId ?? "",
             TurnIndex = Math.Max(1, source?.TurnIndex ?? 1),
@@ -149,51 +149,51 @@ internal static class ReplayProjectionStateV10
             PlayerPower = source?.PlayerPower ?? 0,
             PlayerMaxPower = source?.PlayerMaxPower ?? 0,
             CardTopCount = source?.CardTopCount ?? 0,
-            Actors = (source?.Actors ?? new List<ReplayActorStateV10>()).Select(Clone).ToList(),
-            Cards = (source?.Cards ?? new List<ReplayCardStateV10>()).Select(Clone).ToList(),
-            Intents = (source?.Intents ?? new List<ReplayIntentStateV10>()).Select(Clone).ToList()
+            Actors = (source?.Actors ?? new List<ReplayActorStateV11>()).Select(Clone).ToList(),
+            Cards = (source?.Cards ?? new List<ReplayCardStateV11>()).Select(Clone).ToList(),
+            Intents = (source?.Intents ?? new List<ReplayIntentStateV11>()).Select(Clone).ToList()
         };
     }
 
-    internal static ReplayActorStateV10 Clone(ReplayActorStateV10 source)
+    internal static ReplayActorStateV11 Clone(ReplayActorStateV11 source)
     {
-        return new ReplayActorStateV10
+        return new ReplayActorStateV11
         {
             InstanceId = source?.InstanceId ?? "",
             Content = Clone(source?.Content),
             EntityKind = source?.EntityKind ?? "",
-            Team = source?.Team ?? ReplayTeamsV10.Neutral,
+            Team = source?.Team ?? ReplayTeamsV11.Neutral,
             OwnerPlayerId = source?.OwnerPlayerId ?? "",
             SlotIndex = source?.SlotIndex ?? 0,
             MaxHp = source?.MaxHp ?? 0,
             CurrentHp = source?.CurrentHp ?? 0,
             Defense = source?.Defense ?? 0,
             State = source?.State ?? "",
-            Variables = (source?.Variables ?? new List<ReplayIntValueV10>())
-                .Select(item => new ReplayIntValueV10 { Key = item.Key ?? "", Value = item.Value })
+            Variables = (source?.Variables ?? new List<ReplayIntValueV11>())
+                .Select(item => new ReplayIntValueV11 { Key = item.Key ?? "", Value = item.Value })
                 .ToList(),
-            Buffs = (source?.Buffs ?? new List<ReplayBuffStateV10>()).Select(Clone).ToList()
+            Buffs = (source?.Buffs ?? new List<ReplayBuffStateV11>()).Select(Clone).ToList()
         };
     }
 
-    internal static ReplayCardStateV10 Clone(ReplayCardStateV10 source)
+    internal static ReplayCardStateV11 Clone(ReplayCardStateV11 source)
     {
-        return new ReplayCardStateV10
+        return new ReplayCardStateV11
         {
             InstanceId = source?.InstanceId ?? "",
             Content = Clone(source?.Content),
             Zone = source?.Zone ?? "",
             Order = source?.Order ?? 0,
             DisplayedCost = source?.DisplayedCost ?? 0,
-            Values = (source?.Values ?? new List<ReplayStringValueV10>())
-                .Select(item => new ReplayStringValueV10 { Key = item.Key ?? "", Value = item.Value ?? "" })
+            Values = (source?.Values ?? new List<ReplayStringValueV11>())
+                .Select(item => new ReplayStringValueV11 { Key = item.Key ?? "", Value = item.Value ?? "" })
                 .ToList()
         };
     }
 
-    internal static ReplayIntentStateV10 Clone(ReplayIntentStateV10 source)
+    internal static ReplayIntentStateV11 Clone(ReplayIntentStateV11 source)
     {
-        return new ReplayIntentStateV10
+        return new ReplayIntentStateV11
         {
             InstanceId = source?.InstanceId ?? "",
             ActorId = source?.ActorId ?? "",
@@ -204,9 +204,9 @@ internal static class ReplayProjectionStateV10
         };
     }
 
-    private static ReplayBuffStateV10 Clone(ReplayBuffStateV10 source)
+    private static ReplayBuffStateV11 Clone(ReplayBuffStateV11 source)
     {
-        return new ReplayBuffStateV10
+        return new ReplayBuffStateV11
         {
             InstanceId = source?.InstanceId ?? "",
             Content = Clone(source?.Content),
@@ -215,15 +215,15 @@ internal static class ReplayProjectionStateV10
             ReducePerTurn = source?.ReducePerTurn ?? 0,
             ReducePerUse = source?.ReducePerUse ?? 0,
             ReducePerAttacked = source?.ReducePerAttacked ?? 0,
-            Values = (source?.Values ?? new List<ReplayStringValueV10>())
-                .Select(item => new ReplayStringValueV10 { Key = item.Key ?? "", Value = item.Value ?? "" })
+            Values = (source?.Values ?? new List<ReplayStringValueV11>())
+                .Select(item => new ReplayStringValueV11 { Key = item.Key ?? "", Value = item.Value ?? "" })
                 .ToList()
         };
     }
 
-    private static ReplayContentRefV10 Clone(ReplayContentRefV10? source)
+    private static ReplayContentRefV11 Clone(ReplayContentRefV11? source)
     {
-        return new ReplayContentRefV10
+        return new ReplayContentRefV11
         {
             OwnerModId = source?.OwnerModId ?? "Witch",
             ContentKind = source?.ContentKind ?? "",
@@ -231,7 +231,7 @@ internal static class ReplayProjectionStateV10
         };
     }
 
-    private static ReplayLogicalStateV10 Normalize(ReplayLogicalStateV10 source)
+    private static ReplayLogicalStateV11 Normalize(ReplayLogicalStateV11 source)
     {
         var result = Clone(source);
         result.Actors = result.Actors.OrderBy(item => item.InstanceId, StringComparer.Ordinal).ToList();
@@ -279,8 +279,8 @@ internal static class ReplayProjectionStateV10
         {
             if (!before.TryGetValue(pair.Key, out var previous)
                 || !string.Equals(
-                    ReplayCanonicalJsonV10.Sha256(previous!),
-                    ReplayCanonicalJsonV10.Sha256(pair.Value!),
+                    ReplayCanonicalJsonV11.Sha256(previous!),
+                    ReplayCanonicalJsonV11.Sha256(pair.Value!),
                     StringComparison.Ordinal))
             {
                 yield return pair.Value;

@@ -97,7 +97,7 @@ internal sealed class AuraCgNetworkRuntime
 
         if (IsMultiplayerSession() && !HasBoundedIdentifier(session.FightToken))
         {
-            AuraCgLog.WarnOnce("fight-session-not-ready", "Skill CG playback skipped: host fight session is not ready.");
+            AuraCgLog.WarnOnce("fight-session-not-ready", "CG playback skipped: host fight session is not ready.");
             return false;
         }
 
@@ -453,6 +453,7 @@ internal sealed class AuraCgNetworkRuntime
             OwnerModId = request.OwnerModId,
             CgId = RegisteredCgId(request),
             CardId = request.CardId,
+            TriggerKind = request.TriggerKind,
             OwnerInstanceId = request.OwnerInstanceId,
             ActionSequence = request.ActionSequence,
             EventToken = request.EventToken,

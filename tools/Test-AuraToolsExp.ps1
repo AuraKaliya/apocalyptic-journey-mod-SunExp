@@ -28,7 +28,7 @@ $requiredProtocolFeatures = @{
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
     "presentation.damage-settlement-cg" = @(1, 1)
-    "records.match-replay" = @(10, 10)
+    "records.match-replay" = @(11, 11)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
         -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
@@ -230,19 +230,12 @@ finally {
     }
 }
 
-$retiredPlaybackRoot = Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Playback"
-if (Test-Path -LiteralPath $retiredPlaybackRoot) {
-    $retiredFiles = @(Get-ChildItem -LiteralPath $retiredPlaybackRoot -Recurse -File)
-    if ($retiredFiles.Count -gt 0) {
-        throw "AuraToolsExp retired native replay Playback sources remain: $($retiredFiles.FullName -join ', ')"
-    }
-}
 $replaySources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords") -Recurse -File -Filter "*.cs")
 $replayText = ($replaySources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
-if ($replayText -match 'ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+if ($replayText -match 'ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplaySceneRuntime|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsMatchRecordSettings.cs")) -match 'PreferMp4|FfmpegPath' `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")) -match 'UnityEngine\.ScreenCaptureModule') {
-    throw "AuraToolsExp v10 release still contains a retired replay, AVI, screenshot, PATH FFmpeg, or legacy setting path."
+    throw "AuraToolsExp v11 release still contains a retired synthetic/network replay, AVI, screenshot, PATH FFmpeg, or silent-audio path."
 }
 
 & dotnet run --project $project -c $Configuration
@@ -300,7 +293,8 @@ if ($matchSettings.schemaVersion -ne 32 `
         -or $matchSettings.feast.enabled -ne $true `
         -or $matchSettings.feast.cg.enabled -ne $true `
         -or $matchSettings.feast.PSObject.Properties.Name -contains "playCg" `
-        -or $matchSettings.autoBattle.experimentalModelAcknowledgement -ne "" `
+        -or @($matchSettings.autoBattle.modelRiskAcknowledgements).Count -ne 0 `
+        -or $matchSettings.autoBattle.PSObject.Properties.Name -contains "experimentalModelAcknowledgement" `
         -or $matchSettings.cardRefresh.enabled -ne $false `
         -or $matchSettings.autoBattle.enabled -ne $false `
         -or $matchSettings.autoBattle.training.preset -ne "steady" `
@@ -333,7 +327,7 @@ $audioSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $pixelEmojiSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\PixelEmojiSettings.json") | ConvertFrom-Json
 if ($rootSettings.schemaVersion -ne 2 `
-        -or $audioSettings.schemaVersion -ne 4 `
+        -or $audioSettings.schemaVersion -ne 5 `
         -or $null -ne $audioSettings.audioSystemVersion `
         -or $audioSettings.voice.enabled -ne $true `
         -or $null -eq $audioSettings.voice.bindings `
@@ -348,11 +342,12 @@ if ($rootSettings.schemaVersion -ne 2 `
 
 $loggingSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\LoggingSettings.json") | ConvertFrom-Json
-if ($loggingSettings.schemaVersion -ne 4 `
+if ($loggingSettings.schemaVersion -ne 5 `
         -or $loggingSettings.minimumLevel -ne "Info" `
         -or $loggingSettings.performanceDiagnostics -ne $false `
         -or $loggingSettings.mirrorUnityLog -ne $false `
-        -or $loggingSettings.mirrorCommandsLog -ne $false) {
+        -or $loggingSettings.mirrorCommandsLog -ne $false `
+        -or $loggingSettings.PSObject.Properties.Name -contains "enabledSources") {
     throw "AuraToolsExp logging configuration contract is invalid."
 }
 
@@ -368,6 +363,10 @@ $registration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\SharedResources\aura.registration.json") | ConvertFrom-Json
 $cgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\SharedResources\cg.registry.json") | ConvertFrom-Json
+$terriasRegistration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "Terrias\SharedResources\aura.registration.json") | ConvertFrom-Json
+$terriasCgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "Terrias\SharedResources\cg.registry.json") | ConvertFrom-Json
 $officialSkillCg = @($cgRegistry.entries | Where-Object {
     $_.kind -eq "skill" -and $_.cgId -in @(
         "official.career_1.careercard_1",
@@ -390,26 +389,52 @@ $cardVisualRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $cardVisualSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\CardVisualSettings.json") | ConvertFrom-Json
 $terriasTheme = @($cardVisualRegistry.themes | Where-Object themeId -eq "terrias")
+$foilEffect = @($cardVisualRegistry.effects | Where-Object effectId -eq "foil-holo")
+$stardustEffect = @($cardVisualRegistry.effects | Where-Object effectId -eq "stardust")
 $audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp\audio.registry.json") | ConvertFrom-Json
+    Join-Path $repoRoot "Terrias\SharedResources\audio.registry.json") | ConvertFrom-Json
 $voiceProviders = @($audioRegistry.providers | Where-Object { $_.match.stages.Count -gt 0 })
 $visualBundle = Join-Path $repoRoot "AuraToolsExp\ModResource\VisualBundles\auratools_visuals"
 if ($registration.schemaVersion -ne 4 `
         -or $registration.ownerModId -ne "AuraToolsExp" `
         -or $registration.participantKind -ne "Tool" `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
+        -or $cgRegistry.schemaVersion -ne 3 `
         -or $officialSkillCg.Count -ne 2 `
-        -or $terriasSkillCg.Count -ne 3 `
-        -or $terriasCardUseCg.Count -ne 1 `
-        -or $terriasFeastCg.Count -ne 3 `
+        -or @($officialSkillCg | Where-Object { @($_.skillIds).Count -eq 0 -or $null -ne $_.cardIds }).Count -ne 0 `
+        -or $terriasSkillCg.Count -ne 0 `
+        -or $terriasCardUseCg.Count -ne 0 `
+        -or $terriasFeastCg.Count -ne 0 `
+        -or $terriasRegistration.ownerModId -ne "Terrias" `
+        -or @($terriasRegistration.resources).Count -ne 9 `
+        -or $terriasCgRegistry.ownerModId -ne "Terrias" `
+        -or $terriasCgRegistry.schemaVersion -ne 3 `
+        -or @($terriasCgRegistry.entries).Count -ne 7 `
+        -or @($terriasSkillCg | Where-Object { @($_.skillIds).Count -eq 0 -or $null -ne $_.cardIds }).Count -ne 0 `
+        -or $cardVisualSettings.schemaVersion -ne 2 `
         -or @($cardVisualSettings.themes.PSObject.Properties).Count -ne 0 `
-        -or @($cardVisualSettings.dynamicEffects.PSObject.Properties).Count -ne 0 `
+        -or @($cardVisualSettings.dynamicEffectOverrides.PSObject.Properties).Count -ne 0 `
         -or $terriasTheme.Count -ne 1 `
         -or @($terriasTheme[0].skins).Count -ne 3 `
         -or @($terriasTheme[0].mappingPreset).Count -ne 2 `
         -or @($cardVisualRegistry.effects).Count -ne 2 `
-        -or $audioRegistry.schemaVersion -ne 3 `
-        -or $audioRegistry.ownerModId -ne "AuraToolsExp" `
+        -or $foilEffect.Count -ne 1 `
+        -or @($foilEffect[0].mappingPreset[0].cardIds).Count -ne 1 `
+        -or $stardustEffect.Count -ne 1 `
+        -or @($stardustEffect[0].mappingPreset[0].cardIds).Count -ne 4 `
+        -or $cardVisualRegistry.schemaVersion -ne 4 `
+        -or $cardVisualRegistry.protocol.minVersion -ne 4 `
+        -or $cardVisualRegistry.protocol.preferredVersion -ne 4 `
+        -or @($cardVisualRegistry.effects | Where-Object {
+            $_.rendererId -ne "aura.card-visual.material-v2" `
+                -or $_.targetLayer -ne "frame" `
+                -or $_.coverageProfile -ne "native-frame-v1" `
+                -or $_.floats._TerriasOverlayMode -ne 0 `
+                -or $_.floats._TerriasFrameOnlyOverlay -ne 0
+        }).Count -ne 0 `
+        -or @($cardVisualRegistry.effects | ForEach-Object { $_.exposedParameters.PSObject.Properties.Value } | Where-Object { [string]::IsNullOrWhiteSpace($_.displayName) -or $_.step -le 0 }).Count -ne 0 `
+        -or $audioRegistry.schemaVersion -ne 4 `
+        -or $audioRegistry.ownerModId -ne "Terrias" `
         -or $voiceProviders.Count -ne @($audioRegistry.providers).Count `
         -or -not (Test-Path -LiteralPath $visualBundle -PathType Leaf) `
         -or (Get-Item -LiteralPath $visualBundle).Length -le 0) {
@@ -420,6 +445,42 @@ foreach ($resource in $registration.resources) {
     if (-not (Test-Path -LiteralPath $source)) {
         throw "AuraToolsExp shared resource source is missing: $($resource.source)"
     }
+}
+
+$cardPresentationSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraSharedCore\AuraCardPresentationRuntime.cs")
+$skillCgRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\SkillCg\AuraToolsSkillCgRuntime.cs")
+$cgSharedRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraCgShared\AuraCgRuntime.cs")
+$bundledFoundationSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsBundledFoundationModelRuntime.cs")
+if ($cardPresentationSource -notmatch 'AfterCommonCardUse\s*=' `
+        -or $cardPresentationSource -notmatch 'FinalCombatCardPass' `
+        -or $cardPresentationSource -notmatch 'OrderBy\(pair\s*=>\s*pair\.Value\.Priority\)' `
+        -or $skillCgRuntimeSource -notmatch 'AuraSkillActionTransactionRouter\.Register' `
+        -or $skillCgRuntimeSource -notmatch 'AuraSkillActionPhase\.Committed' `
+        -or $cgSharedRuntimeSource -notmatch 'BeginFightDrain' `
+        -or $cgSharedRuntimeSource -notmatch 'BattleSettling\s*=\s*_\s*=>\s*BeginFightDrain' `
+        -or $bundledFoundationSource -notmatch 'AuraToolsSharedResourceDiscoveryRuntime\.Changed' `
+        -or $bundledFoundationSource -notmatch 'TryAutoSelectSingleCompatibleModel' `
+        -or $bundledFoundationSource -notmatch 'TrainedModelMode\s*=\s*"off"') {
+    throw "Card presentation, typed CG transaction/drain, or model discovery lifecycle contract is invalid."
+}
+
+$discoveryRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\SharedResources\AuraToolsSharedResourceDiscoveryRuntime.cs")
+$loadedModCatalogSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\GameApi\AuraToolsLoadedModCatalog.cs")
+$coreDiscoverySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraSharedCore\AuraSharedDiscovery.cs")
+if ($discoveryRuntimeSource -notmatch "AuraToolsLoadedModCatalog\.Capture" `
+        -or $discoveryRuntimeSource -notmatch "AuraSharedDiscoveryLoader\.Load" `
+        -or $loadedModCatalogSource -notmatch "loadedModDirectories" `
+        -or $loadedModCatalogSource -notmatch "manager\.modConfigs" `
+        -or $coreDiscoverySource -notmatch '\*\.modproj' `
+        -or $coreDiscoverySource -notmatch "MaximumSharedResourceFiles") {
+    throw "AuraToolsExp loaded-Mod discovery, .modproj identity, or resource budget contract is invalid."
 }
 
 $moduleSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -446,6 +507,7 @@ $expectedModuleIds = @(
     "multiplayer.mod-sync",
     "multiplayer.lobby-status",
     "intelligence.auto-battle",
+    "intelligence.strategy-model-lab",
     "system.file-logging",
     "system.preset-library",
     "system.mod-health"
@@ -496,23 +558,24 @@ if ($moduleSource -notmatch 'AuraToolsModuleActivationPolicy\.Activate' `
 $autoBattleRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleRuntime.cs")
 $replayCaptureSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Replay\Capture\ReplayFactCaptureV10.cs")
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Replay\Capture\ReplayFactCaptureV11.cs")
 $replayRecorderSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayRecorder.cs")
+$replayAudioCaptureSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Recording\ReplayAudioAttachmentCaptureV11.cs")
 if ($autoBattleRuntimeSource -match 'ChooseDecision\(state,\s*"prediction"\)' `
         -or $autoBattleRuntimeSource -match 'private\s+CombatDecision\s+(?:ChooseDecision|RunDecisionEngine)\s*\(' `
         -or $autoBattleRuntimeSource -notmatch 'AutoBattle\.PredictionDecision' `
         -or $autoBattleRuntimeSource -notmatch 'CancelOwner' `
         -or $autoBattleRuntimeSource -match 'OwnerId\s*=\s*AuraToolsIds\.ModId\s*,' `
-        -or $replayCaptureSource -match 'new\s+float\[valueCount\]' `
-        -or $replayCaptureSource -match 'new\s+MemoryStream\s*\(\s*44\s*\+' `
-        -or $replayCaptureSource -notmatch 'RunCooperative' `
-        -or $replayCaptureSource -notmatch 'DetachChunks' `
-        -or $replayCaptureSource -notmatch 'Replay\.AudioFinalize' `
+        -or $replayAudioCaptureSource -notmatch 'RunCooperative' `
+        -or $replayAudioCaptureSource -notmatch 'AuraSharedBackgroundWorkScheduler' `
+        -or $replayRecorderSource -notmatch 'AudioArbiterRuntime\.ResolvedPlayback' `
+        -or $replayRecorderSource -notmatch 'embedded-required' `
         -or $replayRecorderSource -match 'RevisionHash|MatchReplayActionConvergence' `
         -or $replayRecorderSource -notmatch 'FinalizationGeneration' `
         -or $replayRecorderSource -notmatch 'DelayFrames\s*=\s*2') {
-    throw "AuraToolsExp hot-path work must keep prediction search and whole-clip replay audio processing out of native hook calls."
+    throw "AuraToolsExp hot-path work must keep prediction search out of native hooks and capture replay PCM cooperatively."
 }
 
 $lobbySnapshotSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -575,15 +638,17 @@ if ($settingsSource -match "NativeContentLease" `
         -or $moduleListItemSource -notmatch "Descriptor\.IconKey" `
         -or $iconRegistrySource -notmatch "ToolboxIcons" `
         -or $toolboxVisualSpecSource -notmatch "CategoryWidth\s*=\s*168f" `
-        -or $toolboxVisualSpecSource -notmatch "ModuleRowHeight\s*=\s*96f" `
+        -or $toolboxVisualSpecSource -notmatch "ModuleRowHeight\s*=\s*78f" `
         -or $toolboxV2ComponentsSource -notmatch "ToolboxIconButtonV2" `
         -or $toolboxV2ComponentsSource -notmatch "ToolboxCheckboxV2" `
+        -or $toolboxV2ComponentsSource -notmatch '"Square"' `
+        -or $toolboxV2ComponentsSource -notmatch "ToolboxSearchPickerV3" `
         -or $toolboxV2ComponentsSource -notmatch "ToolboxTooltipTrigger\.Attach" `
         -or $toolboxV2ComponentsSource -match "AuraUiNativeHoverHint\.Attach" `
         -or $toolboxTooltipSource -notmatch "overrideSorting\s*=\s*true" `
         -or $toolboxTooltipSource -notmatch "blocksRaycasts\s*=\s*false" `
         -or $toolboxTooltipSource -notmatch "ToolboxTooltipPlacementPolicy\.Resolve" `
-        -or $moduleSource -notmatch "IconKey\s*=\s*id") {
+        -or $moduleSource -notmatch "IconKey\s*=\s*string\.IsNullOrWhiteSpace\(iconKey\)") {
     throw "AuraToolsExp toolbox visual shell or non-mutating native-page overlay contract is invalid."
 }
 if ($settingsSource -notmatch "PlacePanelAboveNativeCanvases" -or $settingsSource -notmatch "panel render state") {
@@ -647,6 +712,7 @@ $moduleSettingsPages = @(
     "AuraToolsExp-Dev\Features\MatchRecords\AuraToolsReplaySettingsPage.cs",
     "AuraToolsExp-Dev\Features\Logging\AuraToolsLoggingSettingsPage.cs",
     "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\CardVisual\AuraToolsCardVisualEditor.cs",
     "AuraToolsExp-Dev\Features\PresetLibrary\AuraPresetLibraryPage.cs",
     "AuraToolsExp-Dev\Features\ModHealth\ModHealthPage.cs",
     "AuraToolsExp-Dev\Features\LobbyStatus\LobbyStatusRuntime.cs",
@@ -656,6 +722,26 @@ foreach ($relativePage in $moduleSettingsPages) {
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $relativePage) -PathType Leaf)) {
         throw "AuraToolsExp feature-owned settings page is missing: $relativePage"
     }
+    $pageSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot $relativePage)
+    if ($pageSource -match 'AddDecoratedReplayPanelImage\(') {
+        throw "AuraToolsExp settings page still uses the decorated toolbox-home surface: $relativePage"
+    }
+}
+
+$layoutSources = @(Get-ChildItem -LiteralPath (
+        Join-Path $repoRoot "AuraToolsExp-Dev\Features") -Recurse -File -Filter "*.cs")
+foreach ($layoutSource in $layoutSources) {
+    $lines = @(Get-Content -Encoding UTF8 -LiteralPath $layoutSource.FullName)
+    for ($index = 0; $index -lt $lines.Count; $index++) {
+        if ($lines[$index] -notmatch 'AddComponent<HorizontalLayoutGroup>') {
+            continue
+        }
+        $end = [Math]::Min($lines.Count - 1, $index + 10)
+        $layoutBlock = $lines[$index..$end] -join "`n"
+        if ($layoutBlock -notmatch 'childForceExpandHeight\s*=') {
+            throw "AuraToolsExp horizontal layout leaves vertical expansion implicit: $($layoutSource.FullName):$($index + 1)"
+        }
+    }
 }
 if ($moduleSource -match "AuraToolsSettingsRuntime" `
         -or $moduleSource -notmatch "AuraToolsAudioSettingsPage" `
@@ -663,7 +749,9 @@ if ($moduleSource -match "AuraToolsSettingsRuntime" `
         -or $moduleSource -notmatch "AuraToolsFeastRoleEditor" `
         -or $moduleSource -notmatch "AuraToolsReplaySettingsPage" `
         -or $moduleSource -notmatch "AuraToolsLoggingSettingsPage" `
-        -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage") {
+        -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage" `
+        -or $moduleSource -notmatch "ShowStrategyLab" `
+        -or $moduleSource -notmatch 'showEnableControl:\s*false') {
     throw "AuraToolsExp built-in modules must route to feature-owned settings pages."
 }
 
@@ -671,6 +759,10 @@ $configSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigService.cs")
 $moduleConfigSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolModuleConfig.cs")
+$loggingConfigSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsLoggingSettings.cs")
+$loggingRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Logging\AuraToolsFileLogRuntime.cs")
 foreach ($saveMethod in @(
         "SaveBattleBgm",
         "SaveCardUseAudio",
@@ -702,6 +794,12 @@ if ($moduleConfigSource -notmatch 'ConfigSystem = "AuraTools\.Modules"' `
         -or $moduleConfigSource -notmatch "BeginBatch") {
     throw "AuraToolsExp module config store, document, or change bus contract is invalid."
 }
+if ($configSource -notmatch 'TryUpdateLogging' `
+        -or $configSource -match 'SaveModule\(Logging' `
+        -or $loggingRuntimeSource -match 'EnabledSources' `
+        -or $loggingConfigSource -match 'public\s+List<string>\s+EnabledSources') {
+    throw "AuraToolsExp file logging must use transactional module persistence and one mirror gate per source."
+}
 
 $codecSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\PresetLibrary\AuraToolConfigCodecs.cs")
@@ -719,7 +817,7 @@ if ($codecNames.Count -ne 20 `
         -or @($codecNames | Sort-Object -Unique).Count -ne 20 `
         -or @(Compare-Object ($codecNames | Sort-Object) ($expectedCodecNames | Sort-Object)).Count -ne 0 `
         -or $codecSource -notmatch 'payload\.Remove\("cardUseCg"\)' `
-        -or $codecSource -notmatch 'experimentalModelAcknowledgement' `
+        -or $codecSource -notmatch 'modelRiskAcknowledgements' `
         -or $codecSource -notmatch 'captureTrainingSamples' `
         -or $presetServiceSource -notmatch 'AuraToolConfigChangeBus\.BeginBatch' `
         -or $presetServiceSource -notmatch 'AsEnumerable\(\)\.Reverse' `
@@ -735,6 +833,10 @@ $archiveDatabaseSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveDatabase.cs")
 $archiveStorageSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveStorage.cs")
+$archiveRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveRuntime.cs")
+$archiveModelSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveModels.cs")
 if ($healthSource -notmatch 'loadedModDirectories' `
         -or $healthSource -notmatch 'ModConfig\.json' `
         -or $healthSource -notmatch 'Assembly\.LoadFrom' `
@@ -745,7 +847,13 @@ if ($healthSource -notmatch 'loadedModDirectories' `
         -or $lobbyStatusSource -match 'AuraToolsRpcSender|SendCommand|SendRPC' `
         -or $archiveStorageSource -notmatch 'DamageHistoryStorage\.Database\.DatabasePath' `
         -or $archiveDatabaseSource -notmatch 'adventure_archives' `
-        -or $archiveDatabaseSource -notmatch 'battle_records') {
+        -or $archiveDatabaseSource -notmatch 'battle_records' `
+        -or $archiveDatabaseSource -notmatch 'MigrateLegacyRows' `
+        -or $archiveModelSource -notmatch 'CurrentVersion = 2' `
+        -or $archiveRuntimeSource -notmatch 'AttachEventChoiceObservers' `
+        -or $archiveRuntimeSource -notmatch 'manager\.onClick\.AddListener' `
+        -or $archiveRuntimeSource -notmatch 'CollectionChanged' `
+        -or $archiveRuntimeSource -match 'CaptureSnapshots') {
     throw "AuraToolsExp health, lobby-read-model, or shared AdventureId storage boundary is invalid."
 }
 
@@ -764,15 +872,50 @@ if ($consumerConfigText -match "AuraToolsConfigService\.(?:Changed|AudioChanged|
 
 $uiSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUi.cs")
+$uiThemeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsUiTheme.cs")
 $viewStateSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraUiShared\AuraUiViewState.cs")
-if ($uiSource -notmatch "SetIsOnWithoutNotify" `
+$preparationDockSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsPreparationDock.cs")
+$lobbyLauncherSources = ((Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\ModSync\AuraToolsModSyncRuntime.cs")) + "`n" +
+    (Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\LobbyStatus\LobbyStatusRuntime.cs")) + "`n" +
+    (Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\DamageMeter\AuraToolsDamageMeterUi.cs")))
+if (($uiSource + $toolboxV2ComponentsSource) -notmatch "SetIsOnWithoutNotify" `
         -or $uiSource -notmatch "created\.layer\s*=\s*parent\.gameObject\.layer" `
-        -or $uiSource -notmatch "tint\.layer\s*=\s*target\.layer" `
+        -or $uiSource -notmatch "ToolboxSurfaceV2\.ApplyControl" `
+        -or $uiSource -notmatch "ConfigureHorizontalLayout" `
+        -or $uiSource -notmatch "AddSettingsWindowImage\(window\)" `
+        -or $uiSource -match "Mathf\.Max\(height, ButtonHeight\)" `
+        -or $uiSource -match "button-九宫格|background-九宫格" `
+        -or $uiThemeSource -match "AuraUiStyleIds\.WitchNative" `
+        -or $preparationDockSource -notmatch 'Toolbox-styled action dock' `
+        -or $preparationDockSource -notmatch 'AuraToolsUi\.AddButtonImage' `
+        -or $toolboxV2ComponentsSource -notmatch 'enum\s+ActionState' `
+        -or $toolboxV2ComponentsSource -notmatch 'SetActionState\(' `
+        -or $toolboxV2ComponentsSource -notmatch 'button\.interactable\s*==\s*lastInteractable' `
+        -or [regex]::Matches($lobbyLauncherSources, 'AuraToolsPreparationDock\.Register\(').Count -ne 1 `
+        -or $lobbyLauncherSources -notmatch 'AuraToolsPreparationDock\.Register\s*\(\s*"lobby-status"' `
+        -or $lobbyLauncherSources -notmatch 'AddModalBackdrop[\s\S]*backdrop\.transform\.SetAsFirstSibling\(\)' `
+        -or $lobbyLauncherSources -match 'AuraToolsModConfigButton|AuraToolsLobbyStatusButton|button-九宫格|DamageMeterUiAssets' `
         -or $viewStateSource -notmatch "AnchorId" `
         -or $viewStateSource -notmatch "FocusedId" `
         -or $viewStateSource -notmatch "AuraUiKeyedListReconciler") {
     throw "AuraToolsExp UI layer inheritance, stable toggle, scroll-anchor, focus, or keyed-list contract is invalid."
+}
+
+$playerDisplaySource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\Settings\AuraToolsPlayerDisplay.cs")
+$cardVisualEditorSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\CardVisual\AuraToolsCardVisualEditor.cs")
+if ($playerDisplaySource -notmatch 'AuraToolsContentIdentity\.Parse' `
+        -or $cardVisualEditorSource -match 'AddText\([^\r\n]*parameter\.Key' `
+        -or $cardVisualEditorSource -notmatch 'parameter\.Value\.DisplayName' `
+        -or $cardVisualEditorSource -notmatch 'ToolboxSearchPickerV3\.Create') {
+    throw "AuraToolsExp player-facing content labels or card parameters drifted."
 }
 
 $toolingProtocolSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

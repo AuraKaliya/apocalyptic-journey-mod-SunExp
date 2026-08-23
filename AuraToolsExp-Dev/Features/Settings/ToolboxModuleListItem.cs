@@ -18,7 +18,6 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
     private Image? icon;
     private TextMeshProUGUI? iconFallback;
     private TextMeshProUGUI? titleText;
-    private TextMeshProUGUI? descriptionText;
     private TextMeshProUGUI? statusText;
     private ToolboxCheckboxV2? checkbox;
     private ToolboxIconButtonV2? settingsButton;
@@ -40,7 +39,7 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
         layout.childForceExpandHeight = false;
 
         var marker = AuraToolsUi.CreateLayout("StatusMarker", transform);
-        AuraToolsUi.SetFixedSize(marker, 4f, 68f);
+        AuraToolsUi.SetFixedSize(marker, 4f, 52f);
         statusMarker = AuraToolsUi.AddImage(marker, ToolboxVisualSpec.MutedText);
         statusMarker.raycastTarget = false;
 
@@ -93,20 +92,10 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
             ToolboxVisualSpec.StatusSize,
             TextAnchor.MiddleLeft,
             ToolboxVisualSpec.MutedText,
-            26f,
+            24f,
             1f,
             autoSize: true);
         statusText.textWrappingMode = TextWrappingModes.NoWrap;
-        descriptionText = AuraToolsUi.AddTmpText(
-            copy.transform,
-            "",
-            ToolboxVisualSpec.DescriptionSize,
-            TextAnchor.MiddleLeft,
-            ToolboxVisualSpec.MutedText,
-            23f,
-            1f,
-            autoSize: true);
-        descriptionText.textWrappingMode = TextWrappingModes.NoWrap;
 
         settingsButton = ToolboxIconButtonV2.Create(
             transform,
@@ -141,6 +130,7 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
         AuraUiStableId.Assign(
             checkbox.Root,
             "toolbox.module." + value.Descriptor.ModuleId + ".toggle");
+        enableRoot.SetActive(value.Descriptor.ShowEnableControl);
         Bind(value, AuraToolModuleHost.RefreshState(value.Descriptor.ModuleId));
     }
 
@@ -152,10 +142,6 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
             titleText.text = value.Descriptor.DisplayName
                              + (value.Descriptor.Experimental ? "  ·  实验" : "");
         }
-        if (descriptionText != null)
-        {
-            descriptionText.text = value.Descriptor.Description;
-        }
         if (settingsButton != null)
         {
             hasSettings = value.Descriptor.HasSettingsPage;
@@ -164,6 +150,11 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
             group.alpha = hasSettings ? 1f : 0f;
             group.blocksRaycasts = hasSettings;
             group.interactable = hasSettings;
+        }
+        var enableRoot = transform.Find("EnableControl");
+        if (enableRoot != null)
+        {
+            enableRoot.gameObject.SetActive(value.Descriptor.ShowEnableControl);
         }
 
         var resolvedIcon = AuraToolsIconRegistry.Resolve(
@@ -207,10 +198,9 @@ internal sealed class ToolboxModuleListItem : MonoBehaviour,
         var statusColor = ResolveStatusColor(state);
         if (statusText != null)
         {
-            statusText.text = string.IsNullOrWhiteSpace(state.Attention)
-                ? state.Summary
-                : state.Summary + "  ·  " + state.Attention;
+            statusText.text = AuraToolsPlayerDisplay.ModuleStatus(state);
             statusText.color = statusColor;
+            statusText.gameObject.SetActive(statusText.text.Length > 0);
         }
         if (statusMarker != null)
         {

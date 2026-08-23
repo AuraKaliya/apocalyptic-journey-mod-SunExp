@@ -37,8 +37,13 @@ public sealed class AutoBattleSettings
     [JsonProperty("selectedModelId")]
     public string SelectedModelId { get; set; } = "";
 
+    [JsonProperty(
+        "modelRiskAcknowledgements",
+        ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<string> ModelRiskAcknowledgements { get; set; } = new();
+
     [JsonProperty("experimentalModelAcknowledgement")]
-    public string ExperimentalModelAcknowledgement { get; set; } = "";
+    private string LegacyExperimentalModelAcknowledgement { get; set; } = "";
 
     [JsonProperty("evaluationModelId")]
     public string EvaluationModelId { get; set; } = "";
@@ -126,8 +131,23 @@ public sealed class AutoBattleSettings
             "trial",
             "full");
         SelectedModelId = SelectedModelId?.Trim() ?? "";
-        ExperimentalModelAcknowledgement =
-            ExperimentalModelAcknowledgement?.Trim() ?? "";
+        ModelRiskAcknowledgements ??= new List<string>();
+        if (!string.IsNullOrWhiteSpace(LegacyExperimentalModelAcknowledgement))
+        {
+            ModelRiskAcknowledgements.Add(
+                LegacyExperimentalModelAcknowledgement.Trim());
+        }
+        LegacyExperimentalModelAcknowledgement = "";
+        var normalizedAcknowledgements = ModelRiskAcknowledgements
+            .Select(value => value?.Trim() ?? "")
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        ModelRiskAcknowledgements = normalizedAcknowledgements.Count <= 64
+            ? normalizedAcknowledgements
+            : normalizedAcknowledgements
+                .Skip(normalizedAcknowledgements.Count - 64)
+                .ToList();
         EvaluationModelId = EvaluationModelId?.Trim() ?? "";
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
@@ -169,6 +189,11 @@ public sealed class AutoBattleSettings
         Simulation.Normalize();
         GameValidation ??= new AutoBattleGameValidationSettings();
         GameValidation.Normalize();
+    }
+
+    public bool ShouldSerializeLegacyExperimentalModelAcknowledgement()
+    {
+        return false;
     }
 
     private static string NormalizeChoice(string value, params string[] choices)

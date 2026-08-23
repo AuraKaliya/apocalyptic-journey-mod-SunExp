@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace AuraShared.Core;
 
@@ -30,6 +31,8 @@ public sealed class AuraSkillActionContext
     public IDataConfig? Config { get; internal set; }
     public SkillItem? Skill { get; internal set; }
     public IStatusManager? OwnerStatus { get; internal set; }
+    public string OwnerStatusId { get; internal set; } = "";
+    public string OwnerRoleId { get; internal set; } = "";
     public ModHookContext NativeContext { get; internal set; } = new();
     public string AbortReason { get; internal set; } = "";
 }
@@ -183,6 +186,8 @@ public static class AuraSkillActionTransactionRouter
             Config = transaction.Config,
             Skill = transaction.Skill,
             OwnerStatus = transaction.OwnerStatus,
+            OwnerStatusId = transaction.OwnerStatus?.InstanceId ?? "",
+            OwnerRoleId = ReadOwnerRoleId(transaction.OwnerStatus),
             NativeContext = nativeContext,
             AbortReason = abortReason ?? ""
         };
@@ -215,6 +220,25 @@ public static class AuraSkillActionTransactionRouter
         return config.Vars != null && config.Vars.TryGetValue("Id", out var runtimeId) && !string.IsNullOrWhiteSpace(runtimeId)
             ? runtimeId
             : config.data != null && config.data.TryGetValue("Id", out var id) ? id ?? "" : "";
+    }
+
+    private static string ReadOwnerRoleId(IStatusManager? owner)
+    {
+        var fatherId = AuraSharedReflection.ReadString(owner?.fatherObject, "Id", "id");
+        var careerId = ReadDataId(RoleTable.Instance?.Career ?? GameEntryUI.career);
+        return AuraSharedIdentity.SelectRoleId(fatherId, careerId);
+    }
+
+    private static string ReadDataId(IDataConfig? config)
+    {
+        try
+        {
+            return config?.data != null && config.data.TryGetValue("Id", out var id) ? id ?? "" : "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static string Normalize(string value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();

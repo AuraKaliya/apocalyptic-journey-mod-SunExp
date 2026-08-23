@@ -104,6 +104,16 @@ public static class AuraToolsSkillCgRuntime
                 Handler = BeforeCombatAction
             },
             warn: AuraToolsLog.Warn));
+        HookRegistrations.Add(AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            AuraToolsIds.ModId + ".SkillCG.SkillAction",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.Committed,
+                Handler = OnSkillActionCommitted
+            },
+            warn: AuraToolsLog.Warn));
         HookRegistrations.Add(AuraBattleLifecycleRouter.Register(
             modConfig,
             AuraToolsIds.ModId,
@@ -112,8 +122,7 @@ public static class AuraToolsSkillCgRuntime
             {
                 AdventureStarting = OnAdventureStart,
                 BattleOpening = OnFightStart,
-                BattleRestarting = OnFightEnding,
-                BattleSettling = outcome => OnFightEnding(outcome.NativeContext),
+                BattleRestarting = OnFightRestarting,
                 BattleEnded = outcome => OnFightEnded(outcome.NativeContext)
             },
             AuraToolsLog.Debug,
@@ -178,6 +187,7 @@ public static class AuraToolsSkillCgRuntime
         AuraToolsSkillCgProvider.RememberOwnerRole(context.OwnerStatusId, context.OwnerRoleId);
         return new SkillCgTriggerContext
         {
+            TriggerKind = "card",
             ActionSequence = context.Sequence,
             EventToken = context.TransactionId,
             Action = context.Action,
@@ -186,6 +196,40 @@ public static class AuraToolsSkillCgRuntime
             OwnerRoleId = context.OwnerRoleId,
             CreatedAt = context.CreatedAt
         };
+    }
+
+    private static void OnSkillActionCommitted(AuraSkillActionContext context)
+    {
+        RunHook("skill action", () =>
+        {
+            EnsureRegistryStateCurrent();
+            if (!AuraToolsConfigService.SkillCg.Enabled
+                || string.IsNullOrWhiteSpace(context.SkillDataId))
+            {
+                return;
+            }
+
+            AuraToolsSkillCgProvider.RememberOwnerRole(context.OwnerStatusId, context.OwnerRoleId);
+            var trigger = new SkillCgTriggerContext
+            {
+                TriggerKind = "skill",
+                ActionSequence = context.Sequence,
+                EventToken = context.TransactionId,
+                Action = "Skill",
+                SkillId = context.SkillDataId,
+                CardId = context.SkillDataId,
+                OwnerInstanceId = context.OwnerStatusId,
+                OwnerRoleId = context.OwnerRoleId,
+                CreatedAt = Time.unscaledTime
+            };
+            if (ShouldEmitLocalRequest(trigger))
+            {
+                SkillCgArbiterRuntime.Trigger(
+                    AuraToolsConfigService.SkillCg,
+                    AuraToolsIds.ModId,
+                    trigger);
+            }
+        });
     }
 
     private static bool ShouldEmitLocalRequest(SkillCgTriggerContext trigger)
@@ -239,7 +283,6 @@ public static class AuraToolsSkillCgRuntime
         RunHook("fight start", () =>
         {
             AuraToolsSkillCgProvider.ClearOwnerRoles();
-            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight start");
             EnsureRegistryStateCurrent();
         });
     }
@@ -370,18 +413,13 @@ public static class AuraToolsSkillCgRuntime
 
     private static void OnFightEnded(ModHookContext context)
     {
-        RunHook("fight ended", () =>
-        {
-            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ended");
-            AuraToolsSkillCgProvider.ClearOwnerRoles();
-        });
+        RunHook("fight ended", AuraToolsSkillCgProvider.ClearOwnerRoles);
     }
 
-    private static void OnFightEnding(ModHookContext context)
+    private static void OnFightRestarting(ModHookContext context)
     {
-        RunHook("fight ending", () =>
+        RunHook("fight restarting", () =>
         {
-            SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "fight ending");
             AuraToolsSkillCgProvider.ClearOwnerRoles();
         });
     }
@@ -472,6 +510,33 @@ public static class AuraToolsSkillCgRuntime
         if (settings.FlashStrength.HasValue) request.FlashStrength = settings.FlashStrength.Value;
         request.Normalize();
     }
+
+    internal static void ApplyRegisteredSkillPresentationOverride(SkillCgRequest request)
+    {
+        var providerId = request.ProviderId ?? "";
+        const string marker = ".SkillCG.";
+        var markerIndex = providerId.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0) return;
+        var cgId = providerId.Substring(markerIndex + marker.Length).Trim();
+        var rule = AuraToolsConfigService.SkillCg.Roles.Values
+            .Where(role => role != null && role.Enabled)
+            .SelectMany(role => role.Rules ?? Enumerable.Empty<SkillCgRuleSettings>())
+            .FirstOrDefault(candidate => candidate != null
+                                         && candidate.Enabled
+                                         && string.Equals(candidate.SourceOwnerModId, request.OwnerModId, StringComparison.OrdinalIgnoreCase)
+                                         && string.Equals(candidate.SourceCgId, cgId, StringComparison.OrdinalIgnoreCase));
+        if (rule == null) return;
+        var presentation = rule.EffectivePresentation;
+        request.FadeIn = presentation.FadeIn;
+        request.Hold = presentation.Hold;
+        request.FadeOut = presentation.FadeOut;
+        request.PresentationMode = presentation.Mode;
+        request.FitMode = presentation.Fit;
+        request.FocusX = presentation.FocusX;
+        request.FocusY = presentation.FocusY;
+        request.SafeScale = presentation.SafeScale;
+        request.Normalize();
+    }
 }
 
 public sealed class AuraToolsSkillCgProvider
@@ -541,6 +606,7 @@ public sealed class AuraToolsSkillCgProvider
                         ? AuraToolsIds.ModId + ".SkillCG." + role.RoleId + "." + (string.IsNullOrWhiteSpace(rule.CardId) ? "*" : rule.CardId)
                         : rule.ProviderId,
                     OwnerModId = AuraToolsIds.ModId,
+                    TriggerKind = "skill",
                     CardId = string.IsNullOrWhiteSpace(rule.CardId) ? "*" : rule.CardId,
                     ImagePath = imagePath,
                     ImageResource = rule.Image,
@@ -576,7 +642,8 @@ public sealed class AuraToolsSkillCgProvider
 
         var roleId = ResolveRoleId(trigger);
         var emitted = false;
-        if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled)
+        if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled
+            && !string.Equals(trigger.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase))
         {
             foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(
                          AuraToolsIds.ModId,
@@ -589,9 +656,20 @@ public sealed class AuraToolsSkillCgProvider
             }
         }
 
-        if (!AuraToolsConfigService.SkillCg.Enabled)
+        if (!AuraToolsConfigService.SkillCg.Enabled
+            || string.Equals(trigger.TriggerKind, "card", StringComparison.OrdinalIgnoreCase))
         {
             yield break;
+        }
+
+        foreach (var request in SkillCgArbiterRuntime.BuildRegisteredRequests(
+                     AuraToolsIds.ModId,
+                     trigger,
+                     disableSync: !AuraToolsConfigService.SkillCg.SyncRemote))
+        {
+            AuraToolsSkillCgRuntime.ApplyRegisteredSkillPresentationOverride(request);
+            emitted = true;
+            yield return request;
         }
 
         foreach (var role in MatchingRoles(roleId))
@@ -617,11 +695,11 @@ public sealed class AuraToolsSkillCgProvider
                     continue;
                 }
 
-                // Foreign content remains responsible for semantic trigger
-                // matching and requests. AuraTools only supplies its local
-                // effective enablement/override for that registered entry.
+                // Registered entries are emitted from the live registry above;
+                // imported v6 rules only carry the user's local activation and
+                // presentation override during the bounded migration window.
                 if (!string.IsNullOrWhiteSpace(rule.SourceOwnerModId)
-                    && !string.Equals(rule.SourceOwnerModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
+                    && !string.IsNullOrWhiteSpace(rule.SourceCgId))
                 {
                     continue;
                 }
@@ -649,6 +727,9 @@ public sealed class AuraToolsSkillCgProvider
                         ? AuraToolsIds.ModId + ".SkillCG." + role.RoleId + "." + requestCardId
                         : rule.ProviderId,
                     OwnerModId = AuraToolsIds.ModId,
+                    TriggerKind = string.IsNullOrWhiteSpace(trigger.TriggerKind)
+                        ? "skill"
+                        : trigger.TriggerKind,
                     CardId = requestCardId,
                     OwnerInstanceId = trigger.OwnerInstanceId,
                     ImagePath = imagePath,
@@ -798,7 +879,7 @@ public sealed class AuraToolsSkillCgProvider
 
 public static class AuraToolsSkillCgEditor
 {
-    private const float SkillCgRuleBlockHeight = 166f;
+    private const float SkillCgRuleBlockHeight = 240f;
     private static Transform? roleContent;
     private static Text? hintText;
 
@@ -813,7 +894,7 @@ public static class AuraToolsSkillCgEditor
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandWidth = false;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "提示：图片会写入 AuraShared/CG/Role/{角色ID}/SkillCg/AuraToolsExp/。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
+        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "为角色技能选择本地 CG 图片。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () => RefreshRoles(true), 92f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
@@ -826,6 +907,7 @@ public static class AuraToolsSkillCgEditor
         behaviorLayout.childControlWidth = true;
         behaviorLayout.childControlHeight = true;
         behaviorLayout.childForceExpandWidth = false;
+        behaviorLayout.childForceExpandHeight = false;
         Settings.AuraToolsUi.AddToggle(
             behavior.transform,
             AuraToolsConfigService.SkillCg.SyncRemote,
@@ -900,7 +982,7 @@ public static class AuraToolsSkillCgEditor
     private static void CreateRoleRow(string key, SkillCgRoleSettings role)
     {
         var box = Settings.AuraToolsUi.CreateLayout("Role-" + key, roleContent!);
-        Settings.AuraToolsUi.AddPanelImage(box, Settings.AuraToolsUi.Panel);
+        Settings.AuraToolsUi.AddSectionImage(box);
         var boxElement = Settings.AuraToolsUi.EnsureLayoutElement(box);
         boxElement.minHeight = 112f;
         boxElement.flexibleHeight = 0f;
@@ -947,17 +1029,16 @@ public static class AuraToolsSkillCgEditor
 
     private static string RoleDisplayName(SkillCgRoleSettings role)
     {
-        var displayName = string.IsNullOrWhiteSpace(role.DisplayName)
-            ? RoleCatalog.GetDisplayName(role.RoleId)
-            : role.DisplayName.Trim();
-        var catalogName = RoleCatalog.GetDisplayName(role.RoleId);
-        if (!string.IsNullOrWhiteSpace(catalogName)
-            && !string.Equals(catalogName, role.RoleId, StringComparison.OrdinalIgnoreCase))
+        var catalogName = Settings.AuraToolsPlayerDisplay.RoleName(role.RoleId);
+        if (!string.Equals(catalogName, "未知角色", StringComparison.Ordinal))
         {
             return catalogName;
         }
-
-        return string.IsNullOrWhiteSpace(displayName) ? role.RoleId : displayName;
+        var displayName = (role.DisplayName ?? "").Trim();
+        return string.IsNullOrWhiteSpace(displayName)
+               || string.Equals(displayName, role.RoleId, StringComparison.OrdinalIgnoreCase)
+            ? "未知角色"
+            : displayName;
     }
 
     private static bool IsRuleDisplayName(string displayName, IEnumerable<SkillCgRuleSettings>? rules)
@@ -988,7 +1069,7 @@ public static class AuraToolsSkillCgEditor
         blockLayout.childForceExpandHeight = false;
 
         var top = Settings.AuraToolsUi.CreateLayout("RuleTop", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(top, Settings.AuraToolsUi.ButtonHeight);
+        Settings.AuraToolsUi.SetFixedHeight(top, Settings.AuraToolsUi.StandardButtonHeight);
         var topLayout = top.AddComponent<HorizontalLayoutGroup>();
         topLayout.spacing = 8f;
         topLayout.childControlWidth = true;
@@ -997,33 +1078,47 @@ public static class AuraToolsSkillCgEditor
         topLayout.childForceExpandHeight = false;
 
         Settings.AuraToolsUi.AddToggle(top.transform, rule.Enabled, value => rule.Enabled = value);
-        Settings.AuraToolsUi.AddText(top.transform, RuleDisplayName(rule), Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f, 150f);
-        Settings.AuraToolsUi.AddText(top.transform, "\u6280\u80fd", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 42f);
+        Settings.AuraToolsUi.AddText(top.transform, RuleDisplayName(rule), Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.Text, Settings.AuraToolsUi.TextMinHeight, 1f);
+        Settings.AuraToolsUi.AddButton(top.transform, "\u5220\u9664", () =>
+        {
+            role.Rules.Remove(rule);
+            RefreshRows();
+        }, 72f, Settings.AuraToolsUi.CompactButtonHeight);
+
+        var skillRow = Settings.AuraToolsUi.CreateLayout("RuleSkill", block.transform);
+        Settings.AuraToolsUi.SetFixedHeight(skillRow, Settings.AuraToolsUi.StandardButtonHeight);
+        var skillLayout = skillRow.AddComponent<HorizontalLayoutGroup>();
+        skillLayout.spacing = 8f;
+        skillLayout.childControlWidth = true;
+        skillLayout.childControlHeight = true;
+        skillLayout.childForceExpandWidth = false;
+        skillLayout.childForceExpandHeight = false;
+        Settings.AuraToolsUi.AddText(skillRow.transform, "触发技能", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 80f);
         var skillOptions = BuildSkillOptions(role, rule);
-        Settings.AuraToolsUi.AddSelectButton(top.transform, skillOptions.Select(option => option.Label).ToList(), SelectedOptionIndex(skillOptions, rule.CardId), index =>
+        Settings.AuraToolsUi.AddSelectButton(skillRow.transform, skillOptions.Select(option => option.Label).ToList(), SelectedOptionIndex(skillOptions, rule.CardId), index =>
         {
             if (index >= 0 && index < skillOptions.Count)
             {
                 rule.CardId = skillOptions[index].Id;
                 rule.Action = "*";
             }
-        }, 300f);
-        Settings.AuraToolsUi.AddText(top.transform, "\u4f18\u5148", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 52f);
-        Settings.AuraToolsUi.AddInput(top.transform, rule.Priority.ToString(), value =>
+        }, 300f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(skillRow.transform, "优先级", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 70f);
+        Settings.AuraToolsUi.AddInput(skillRow.transform, rule.Priority.ToString(), value =>
         {
             if (int.TryParse(value, out var priority))
             {
                 rule.Priority = priority;
             }
-        }, 80f);
-        Settings.AuraToolsUi.AddButton(top.transform, "\u5220\u9664", () =>
-        {
-            role.Rules.Remove(rule);
-            RefreshRows();
-        }, 72f, 30f);
+        }, 80f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(skillRow.transform, "", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
 
         var presentationRow = Settings.AuraToolsUi.CreateLayout("RulePresentation", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(presentationRow, Settings.AuraToolsUi.ButtonHeight);
+        Settings.AuraToolsUi.SetFixedHeight(presentationRow, Settings.AuraToolsUi.StandardButtonHeight);
         var presentationLayout = presentationRow.AddComponent<HorizontalLayoutGroup>();
         presentationLayout.spacing = 8f;
         presentationLayout.childControlWidth = true;
@@ -1032,7 +1127,8 @@ public static class AuraToolsSkillCgEditor
         presentationLayout.childForceExpandHeight = false;
 
         var effective = rule.EffectivePresentation;
-        Settings.AuraToolsUi.AddText(presentationRow.transform, "表现", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 42f);
+        Settings.AuraToolsUi.AddText(presentationRow.transform, "演出方式", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 80f);
         var modeOptions = BuildPresentationModeOptions();
         Settings.AuraToolsUi.AddSelectButton(presentationRow.transform, modeOptions.Select(option => option.Label).ToList(), SelectedOptionIndex(modeOptions, effective.Mode), index =>
         {
@@ -1040,7 +1136,9 @@ public static class AuraToolsSkillCgEditor
             {
                 rule.Presentation.Mode = modeOptions[index].Id;
             }
-        }, 156f);
+        }, 180f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(presentationRow.transform, "画面适配", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 90f);
         var fitOptions = BuildFitOptions();
         Settings.AuraToolsUi.AddSelectButton(presentationRow.transform, fitOptions.Select(option => option.Label).ToList(), SelectedOptionIndex(fitOptions, effective.Fit), index =>
         {
@@ -1048,16 +1146,29 @@ public static class AuraToolsSkillCgEditor
             {
                 rule.Presentation.Fit = fitOptions[index].Id;
             }
-        }, 132f);
-        Settings.AuraToolsUi.AddText(presentationRow.transform, "焦点X", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 52f);
-        Settings.AuraToolsUi.AddInput(presentationRow.transform, FormatFloat(effective.FocusX), value => rule.Presentation.FocusX = ParseClampedFloat(value, rule.Presentation.FocusX, 0f, 1f), 70f);
-        Settings.AuraToolsUi.AddText(presentationRow.transform, "焦点Y", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 52f);
-        Settings.AuraToolsUi.AddInput(presentationRow.transform, FormatFloat(effective.FocusY), value => rule.Presentation.FocusY = ParseClampedFloat(value, rule.Presentation.FocusY, 0f, 1f), 70f);
-        Settings.AuraToolsUi.AddText(presentationRow.transform, "缩放", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 42f);
-        Settings.AuraToolsUi.AddInput(presentationRow.transform, FormatFloat(effective.SafeScale), value => rule.Presentation.SafeScale = ParseClampedFloat(value, rule.Presentation.SafeScale, 1f, 3f), 70f);
+        }, 160f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(presentationRow.transform, "", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
+
+        var transformRow = Settings.AuraToolsUi.CreateLayout("RuleTransform", block.transform);
+        Settings.AuraToolsUi.SetFixedHeight(transformRow, Settings.AuraToolsUi.StandardButtonHeight);
+        var transformLayout = transformRow.AddComponent<HorizontalLayoutGroup>();
+        transformLayout.spacing = 8f;
+        transformLayout.childControlWidth = true;
+        transformLayout.childControlHeight = true;
+        transformLayout.childForceExpandWidth = false;
+        transformLayout.childForceExpandHeight = false;
+        Settings.AuraToolsUi.AddText(transformRow.transform, "横向焦点", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 72f);
+        Settings.AuraToolsUi.AddInput(transformRow.transform, FormatFloat(effective.FocusX), value => rule.Presentation.FocusX = ParseClampedFloat(value, rule.Presentation.FocusX, 0f, 1f), 70f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(transformRow.transform, "纵向焦点", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 72f);
+        Settings.AuraToolsUi.AddInput(transformRow.transform, FormatFloat(effective.FocusY), value => rule.Presentation.FocusY = ParseClampedFloat(value, rule.Presentation.FocusY, 0f, 1f), 70f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(transformRow.transform, "画面缩放", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 72f);
+        Settings.AuraToolsUi.AddInput(transformRow.transform, FormatFloat(effective.SafeScale), value => rule.Presentation.SafeScale = ParseClampedFloat(value, rule.Presentation.SafeScale, 1f, 3f), 70f, Settings.AuraToolsUi.StandardButtonHeight);
+        Settings.AuraToolsUi.AddText(transformRow.transform, "", Settings.AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 1f);
 
         var bottom = Settings.AuraToolsUi.CreateLayout("RuleBottom", block.transform);
-        Settings.AuraToolsUi.SetFixedHeight(bottom, Settings.AuraToolsUi.ButtonHeight);
+        Settings.AuraToolsUi.SetFixedHeight(bottom, Settings.AuraToolsUi.StandardButtonHeight);
         var bottomLayout = bottom.AddComponent<HorizontalLayoutGroup>();
         bottomLayout.spacing = 8f;
         bottomLayout.childControlWidth = true;
@@ -1066,44 +1177,13 @@ public static class AuraToolsSkillCgEditor
         bottomLayout.childForceExpandHeight = false;
 
         Settings.AuraToolsUi.AddText(bottom.transform, "\u56fe\u7247", Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, Settings.AuraToolsUi.TextMinHeight, 0f, 42f);
-        Settings.AuraToolsUi.AddInput(bottom.transform, rule.Image, value => ApplyRuleImagePath(role, rule, value, false, false), 560f);
-        Settings.AuraToolsUi.AddButton(bottom.transform, "选择图片", () => PickRuleImage(role, rule), 92f);
-        Settings.AuraToolsUi.AddButton(bottom.transform, "图片目录", () => OpenRuleImageDirectory(role, rule), 92f);
-    }
-
-    private static void CreateRuleRow(Transform parent, SkillCgRoleSettings role, SkillCgRuleSettings rule)
-    {
-        var row = Settings.AuraToolsUi.CreateLayout("Rule-" + rule.ProviderId, parent);
-        var rowElement = row.AddComponent<LayoutElement>();
-        rowElement.minHeight = Settings.AuraToolsUi.RoleRowHeight;
-        rowElement.preferredHeight = Settings.AuraToolsUi.RoleRowHeight;
-        Settings.AuraToolsUi.AddImage(row, Settings.AuraToolsUi.Row);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(8, 8, 4, 4);
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        Settings.AuraToolsUi.AddToggle(row.transform, rule.Enabled, value => rule.Enabled = value);
-        Settings.AuraToolsUi.AddText(row.transform, "卡牌", 12, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, 28f, 0f, 34f);
-        Settings.AuraToolsUi.AddInput(row.transform, rule.CardId, value => rule.CardId = string.IsNullOrWhiteSpace(value) ? "*" : value.Trim(), 160f);
-        Settings.AuraToolsUi.AddText(row.transform, "动作", 12, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, 28f, 0f, 34f);
-        Settings.AuraToolsUi.AddInput(row.transform, rule.Action, value => rule.Action = string.IsNullOrWhiteSpace(value) ? "*" : value.Trim(), 100f);
-        Settings.AuraToolsUi.AddText(row.transform, "图片", 12, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, 28f, 0f, 34f);
-        Settings.AuraToolsUi.AddInput(row.transform, rule.Image, value => ApplyRuleImagePath(role, rule, value, false, false), 320f);
-        Settings.AuraToolsUi.AddText(row.transform, "优先", 12, TextAnchor.MiddleCenter, Settings.AuraToolsUi.MutedText, 28f, 0f, 42f);
-        Settings.AuraToolsUi.AddInput(row.transform, rule.Priority.ToString(), value =>
-        {
-            if (int.TryParse(value, out var priority))
-            {
-                rule.Priority = priority;
-            }
-        }, 80f);
-        Settings.AuraToolsUi.AddButton(row.transform, "删除", () =>
-        {
-            role.Rules.Remove(rule);
-            RefreshRows();
-        }, 60f, 28f);
+        Settings.AuraToolsUi.AddInput(bottom.transform, rule.Image,
+            value => ApplyRuleImagePath(role, rule, value, false, false), 220f,
+            Settings.AuraToolsUi.StandardButtonHeight, flexibleWidth: true);
+        Settings.AuraToolsUi.AddButton(bottom.transform, "选择图片", () => PickRuleImage(role, rule), 92f,
+            Settings.AuraToolsUi.CompactButtonHeight);
+        Settings.AuraToolsUi.AddButton(bottom.transform, "图片目录", () => OpenRuleImageDirectory(role, rule), 92f,
+            Settings.AuraToolsUi.CompactButtonHeight);
     }
 
     private sealed class SkillDropdownOption
@@ -1217,7 +1297,7 @@ public static class AuraToolsSkillCgEditor
 
         return string.IsNullOrWhiteSpace(rule.CardId) || string.Equals(rule.CardId, "*", StringComparison.Ordinal)
             ? "自定义CG"
-            : rule.CardId.Trim();
+            : Settings.AuraToolsPlayerDisplay.CardName(rule.CardId);
     }
 
     private static string FormatFloat(float value)

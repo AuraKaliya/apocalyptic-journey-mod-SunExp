@@ -2,7 +2,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
@@ -44,8 +44,9 @@ public static class AuraToolsMatchRecordsRuntime
             AuraToolModuleIds.BattleReplay,
             OnConfigChanged);
         ApplyModuleActivation();
+        EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
-                          + ReplayProtocolV10.DocumentVersion + ".");
+                          + ReplayProtocolV11.DocumentVersion + ".");
     }
 
     internal static Coroutine? StartRuntimeCoroutine(IEnumerator routine)
@@ -69,9 +70,9 @@ public static class AuraToolsMatchRecordsRuntime
     private static void OnConfigChanged()
     {
         ApplyModuleActivation();
-        if (!Enabled && ReplaySceneRuntime.IsActive)
+        if (!Enabled && MatchReplayPlayer.IsActive)
         {
-            ReplaySceneRuntime.Stop();
+            MatchReplayPlayer.Stop();
         }
     }
 
@@ -113,4 +114,5 @@ public static class AuraToolsMatchRecordsRuntime
 
 internal sealed class AuraToolsMatchRecordsDriver : MonoBehaviour
 {
+    private void Update() => MatchReplayPlayer.Tick();
 }

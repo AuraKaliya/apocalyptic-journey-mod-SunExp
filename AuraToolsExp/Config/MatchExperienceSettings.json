@@ -54,7 +54,7 @@
     "trainingMode": "hybrid",
     "trainedModelMode": "off",
     "selectedModelId": "",
-    "experimentalModelAcknowledgement": "",
+    "modelRiskAcknowledgements": [],
     "evaluationModelId": "",
     "showPredictionMarkers": true,
     "searchQuality": "balanced",

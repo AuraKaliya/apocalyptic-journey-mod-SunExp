@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using UnityEngine;
 using Witch.Core;
@@ -33,7 +34,16 @@ public sealed class AuraCardPresentationContext
 
 public sealed class AuraCardPresentationSubscription
 {
+    /// <summary>
+    /// Lower-priority presentation layers run first. Tool/user overrides should
+    /// use a positive priority so their final state is applied after native and
+    /// content-owned layers.
+    /// </summary>
+    public int Priority { get; set; }
+
     public Action<AuraCardPresentationContext>? Apply { get; set; }
+
+    public Action<AuraCardPresentationContext>? Reset { get; set; }
 }
 
 public static class AuraCardPresentationRuntime
@@ -68,6 +78,8 @@ public static class AuraCardPresentationRuntime
                 AfterCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.CardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
                 AfterCommonCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.CommonCardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
                 AfterAttackCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.AttackCardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
+                AfterCommonCardUse = context => ReapplyAfterCardUse(context, AuraCardLifecycleRouter.CommonCardItemTrueUse),
+                AfterAttackCardUse = context => ReapplyAfterCardUse(context, AuraCardLifecycleRouter.AttackCardItemTrueUse),
                 AfterFightUiCreateCardItem = context => Publish(context, AuraCardLifecycleRouter.FightUiCreateCardItem, AuraCardPresentationSurface.CombatCard),
                 AfterFightUiCreateCardItemInternal = context => Publish(context, AuraCardLifecycleRouter.FightUiCreateCardItemInternal, AuraCardPresentationSurface.CombatCard),
                 AfterCardChoiceItemInitialize = context => Publish(context, AuraCardLifecycleRouter.CardChoiceItemInitialize, AuraCardPresentationSurface.RewardChoice),
@@ -169,6 +181,71 @@ public static class AuraCardPresentationRuntime
         });
     }
 
+    public static void RequestReset(AuraCardPresentationContext context)
+    {
+        if (context?.Root == null) return;
+        foreach (var pair in Snapshot())
+        {
+            try
+            {
+                pair.Value.Reset?.Invoke(context);
+            }
+            catch (Exception ex)
+            {
+                AuraSharedLog.Warn(RuntimeOwnerId,
+                    "Card presentation reset handler failed: " + pair.Key + " @ " + context.Source + " -> " + ex.Message);
+            }
+        }
+    }
+
+    private static void ReapplyAfterCardUse(ModHookContext context, string source)
+    {
+        // The native card-use path can rebuild/reflow every hand card after the
+        // card's own TrueUse has returned. Apply once to the concrete hook
+        // object, then coalesce one final pass on the following frame after the
+        // native hierarchy has settled.
+        Publish(context, source + ".Immediate", AuraCardPresentationSurface.CombatCard);
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = RuntimeOwnerId,
+            Key = "FinalCombatCardPass",
+            Source = source + ".FinalPresentation",
+            Phase = AuraSharedFramePhase.Presentation,
+            Priority = int.MaxValue,
+            EstimatedCost = 4,
+            Action = () => ReapplyActiveCombatCards(source + ".FinalPresentation")
+        });
+    }
+
+    private static void ReapplyActiveCombatCards(string source)
+    {
+        var combatCards = AuraCombatCardZoneSnapshot.Capture(
+            null,
+            new AuraCombatCardZoneSnapshotOptions
+            {
+                IncludeFightUiActive = true,
+                IncludeFightUiWait = true,
+                IncludeExecutorHand = false,
+                IncludeExecutorWait = false
+            });
+        foreach (var reference in combatCards.Cards)
+        {
+            if (reference.Config == null || reference.Root == null)
+            {
+                continue;
+            }
+
+            RequestApply(new AuraCardPresentationContext
+            {
+                Root = reference.Root,
+                Config = reference.Config,
+                Card = reference.Card,
+                Source = source,
+                Surface = AuraCardPresentationSurface.CombatCard
+            });
+        }
+    }
+
     private static void ReadPresentationObject(object? value, ref Transform? root, ref IDataConfig? config)
     {
         if (value is IDataConfig dataConfig) config ??= dataConfig;
@@ -190,9 +267,10 @@ public static class AuraCardPresentationRuntime
         lock (Gate)
         {
             if (snapshot != null) return snapshot;
-            snapshot = new KeyValuePair<string, AuraCardPresentationSubscription>[Subscriptions.Count];
-            var index = 0;
-            foreach (var pair in Subscriptions) snapshot[index++] = pair;
+            snapshot = Subscriptions
+                .OrderBy(pair => pair.Value.Priority)
+                .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             return snapshot;
         }
     }

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
@@ -42,6 +43,8 @@ internal sealed class ModHealthModSnapshot
     public string ModName { get; set; } = "";
     public string ModVersion { get; set; } = "";
     public string DirectoryName { get; set; } = "";
+    public string ModProjectId { get; set; } = "";
+    public string SharedResourceFingerprint { get; set; } = "";
     public bool Enabled { get; set; }
     public bool Loaded { get; set; }
     public bool LoadedStateKnown { get; set; }
@@ -101,6 +104,7 @@ internal static class ModHealthRuntime
         }
         var byId = new Dictionary<string, ModHealthModSnapshot>(StringComparer.OrdinalIgnoreCase);
         var registrations = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var sharedSources = new Dictionary<string, List<ModHealthModSnapshot>>(StringComparer.OrdinalIgnoreCase);
         var scannedCsv = 0;
 
         foreach (var root in roots.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
@@ -143,6 +147,23 @@ internal static class ModHealthRuntime
                     ?? new List<string>()
             };
             report.Mods.Add(snapshot);
+            var discovery = AuraSharedDiscoveryLoader.Load(root, forceRefresh: true);
+            if (discovery.Found && !discovery.Success)
+            {
+                Add(report, ModHealthSeverities.Error, "sharedresources.invalid", modId,
+                    directoryName + "/SharedResources/aura.discovery.json",
+                    "共享资源配置无效：" + discovery.Message);
+            }
+            else if (discovery.Source != null)
+            {
+                snapshot.ModProjectId = discovery.Source.ModProjectId;
+                snapshot.SharedResourceFingerprint = discovery.Source.Fingerprint;
+                if (!sharedSources.TryGetValue(snapshot.ModProjectId, out var sourceMods))
+                {
+                    sharedSources[snapshot.ModProjectId] = sourceMods = new List<ModHealthModSnapshot>();
+                }
+                sourceMods.Add(snapshot);
+            }
             if (byId.ContainsKey(modId))
             {
                 Add(report, ModHealthSeverities.Error, "modid.duplicate", modId, directoryName, "重复 ModId；游戏只会接受其中一个目录。");
@@ -199,6 +220,21 @@ internal static class ModHealthRuntime
         }
 
         ValidateDependencies(report, byId);
+        foreach (var duplicate in sharedSources.Where(pair => pair.Value.Count > 1))
+        {
+            var names = string.Join("、", duplicate.Value.Select(mod => mod.ModName).Distinct(StringComparer.OrdinalIgnoreCase));
+            var fingerprints = duplicate.Value.Select(mod => mod.SharedResourceFingerprint)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            Add(report,
+                fingerprints == 1 ? ModHealthSeverities.Warning : ModHealthSeverities.Error,
+                fingerprints == 1 ? "sharedresources.duplicate" : "sharedresources.conflict",
+                "",
+                "",
+                fingerprints == 1
+                    ? names + " 存在重复安装；共享资源只会注册一次。"
+                    : names + " 的共享资源内容互相冲突，已停止注册。\n请只保留一个版本。");
+        }
         foreach (var duplicate in registrations.Where(pair => pair.Value.Count > 1))
         {
             Add(report, ModHealthSeverities.Warning, "registration.duplicate", "", "", "多个游戏表注册了相同 ID：" + duplicate.Key + "；" + string.Join("、", duplicate.Value));
@@ -216,7 +252,10 @@ internal static class ModHealthRuntime
         var directory = Path.Combine(AuraToolsConfigService.DataRootDirectory, "Diagnostics");
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "mod-health-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
-        File.WriteAllText(path, JsonConvert.SerializeObject(report, Formatting.Indented), Encoding.UTF8);
+        AuraSharedFileStore.WriteAllText(
+            AuraToolsIds.ModId,
+            path,
+            JsonConvert.SerializeObject(report, Formatting.Indented));
         return path;
     }
 

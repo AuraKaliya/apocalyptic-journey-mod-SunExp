@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
@@ -264,7 +265,7 @@ internal static class AuraPresetLibraryService
             applicable.Select(module => module.ModuleId),
             countAgainstLimit: false);
         var movedBackup = Path.Combine(BackupDirectory, Path.GetFileName(backupPath));
-        File.Move(backupPath, UniquePath(movedBackup));
+        AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, backupPath, UniquePath(movedBackup));
         PruneBackups(20);
 
         var previous = applicable.ToDictionary(
@@ -361,17 +362,7 @@ internal static class AuraPresetLibraryService
 
     private static void WriteAtomic(string path, string text)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? DirectoryPath);
-        var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        try
-        {
-            File.WriteAllText(temporary, text);
-            File.Move(temporary, path);
-        }
-        finally
-        {
-            try { if (File.Exists(temporary)) File.Delete(temporary); } catch { }
-        }
+        AuraSharedFileStore.WriteAllText(AuraToolsIds.ModId, path, text);
     }
 
     private static void EnsureCapacity()

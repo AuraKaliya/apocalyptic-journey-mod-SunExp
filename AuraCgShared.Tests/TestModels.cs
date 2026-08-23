@@ -29,6 +29,7 @@ public sealed class AuraCgRegistryEntry
     public string Kind { get; set; } = "skill";
     public List<string> TargetRoleIds { get; set; } = new();
     public List<string> CardIds { get; set; } = new();
+    public List<string> SkillIds { get; set; } = new();
     public AuraCgMediaSpec Media { get; set; } = new();
     public AuraCgPresentationSpec DefaultPresentation { get; set; } = new();
     public int Priority { get; set; }
@@ -73,9 +74,11 @@ public sealed class AuraCgPresentationSpec
 
 public sealed class SkillCgTriggerContext
 {
+    public string TriggerKind { get; set; } = "";
     public long ActionSequence { get; set; }
     public string Action { get; set; } = "";
     public string CardId { get; set; } = "";
+    public string SkillId { get; set; } = "";
     public string EventToken { get; set; } = "";
     public string OwnerInstanceId { get; set; } = "";
     public string OwnerRoleId { get; set; } = "";
@@ -86,6 +89,7 @@ public sealed class SkillCgRequest
     public string ProviderId { get; set; } = "";
     public string OwnerModId { get; set; } = "";
     public string CardId { get; set; } = "";
+    public string TriggerKind { get; set; } = "";
     public string OwnerInstanceId { get; set; } = "";
     public string ImagePath { get; set; } = "";
     public string ImageResource { get; set; } = "";
@@ -125,6 +129,7 @@ public sealed class SkillCgRequest
             : OwnerModId + ":" + ProviderId;
 
     public string DuplicateKey => OwnerInstanceId
+                                  + "|" + TriggerKind
                                   + "|" + CardId
                                   + "|" + ImagePath
                                   + "|" + MediaType
@@ -156,6 +161,7 @@ internal sealed class SkillCgNetworkEvent
     public string OwnerModId { get; set; } = "";
     public string CgId { get; set; } = "";
     public string CardId { get; set; } = "";
+    public string TriggerKind { get; set; } = "";
     public string OwnerInstanceId { get; set; } = "";
     public long ActionSequence { get; set; }
     public string EventToken { get; set; } = "";

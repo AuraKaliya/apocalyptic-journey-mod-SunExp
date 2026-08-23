@@ -114,7 +114,7 @@ public static class AuraToolsReplaySettingsPage
         var migrationRow = CreateInlineRow(content, "LegacyMigration");
         var migrationStatus = AuraToolsUi.AddText(
             migrationRow.transform,
-            "v8/v9 仅支持只读扫描；清理不会删除统计",
+            "检测并整理旧版本回放；战斗统计会保留",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
@@ -125,7 +125,7 @@ public static class AuraToolsReplaySettingsPage
             try
             {
                 var report = ReplayLegacyMigrationService.Scan();
-                migrationStatus.text = "已扫描 " + report.Records.Count + " 条；旧 chunks "
+                migrationStatus.text = "已扫描 " + report.Records.Count + " 条；旧数据块 "
                                        + report.ChunkRowsToDelete + " 个。请查看报告后再确认清理。";
             }
             catch (Exception ex)
@@ -146,7 +146,7 @@ public static class AuraToolsReplaySettingsPage
             try
             {
                 var report = ReplayLegacyMigrationService.ApplyLatest();
-                migrationStatus.text = "已清理 " + report.ChunkRowsToDelete + " 个旧 chunks；统计已保留。";
+                migrationStatus.text = "已清理 " + report.ChunkRowsToDelete + " 个旧数据块；统计已保留。";
             }
             catch (Exception ex)
             {
@@ -175,14 +175,9 @@ public static class AuraToolsReplaySettingsPage
 
     private static GameObject CreateInlineRow(Transform parent, string name)
     {
-        var row = AuraToolsUi.CreateLayout("Replay-" + name, parent);
-        AuraUiStableId.Assign(row, "replay-settings." + name);
-        AuraToolsUi.SetFixedHeight(row, AuraToolsUi.InlineRowHeight);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 8f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        return row;
+        return AuraToolsUi.CreateSettingsRow(
+            parent,
+            "Replay-" + name,
+            "replay-settings." + name);
     }
 }

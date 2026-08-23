@@ -261,8 +261,8 @@
           "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
         },
         {
-          "id": "replay-v10-core-purity",
-          "description": "Replay v10 models, canonical hashing, validation, and projection must remain pure .NET.",
+          "id": "replay-v11-core-purity",
+          "description": "Replay v11 models, canonical hashing, validation, and projection must remain pure .NET.",
           "roots": ["AuraToolsExp-Dev/Features/MatchRecords/Replay/Core"],
           "filePattern": "*.cs",
           "deny": [
@@ -274,31 +274,24 @@
           ]
         },
         {
-          "id": "replay-v10-runtime-independence",
-          "description": "Dedicated replay presentation and export runtimes must not re-enter native combat, network, lobby, or chat lifecycles.",
-          "roots": [
-            "AuraToolsExp-Dev/Features/MatchRecords/Replay/Presentation",
-            "AuraToolsExp-Dev/Features/MatchRecords/Replay/Runtime",
-            "AuraToolsExp-Dev/Features/MatchRecords/Media"
-          ],
+          "id": "replay-v11-native-view-containment",
+          "description": "Native replay may build presentation-only FightUI objects but must not execute gameplay, RPC, AI, or network-host lifecycles.",
+          "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
           "filePattern": "*.cs",
           "deny": [
-            "\\bFightManager\\b",
-            "\\bFightInit\\b",
-            "\\bFightUI\\b",
-            "\\bEnemyManager\\b",
-            "\\bRoleTable\\b",
-            "\\bLobbyManager\\b",
-            "\\bChatUI\\b",
-            "\\bNetworkServer\\b",
-            "\\bNetworkClient\\b",
             "StartLocalHost",
-            "RpcLoadRoles"
+            "RpcLoadRoles",
+            "new\\s+FightInit\\s*\\(",
+            "\\.RunScript\\s*\\(",
+            "\\.ActionExecute\\s*\\(",
+            "NetworkServer\\.(?:Listen|Shutdown)",
+            "NetworkClient\\.(?:Connect|Shutdown)",
+            "\\.(?:Cmd|Rpc)[A-Z][A-Za-z0-9_]*\\s*\\("
           ]
         },
         {
-          "id": "replay-v10-retired-paths",
-          "description": "The v10 replay product must not restore full-screen capture, real-time listener recording, AVI fallback, or PATH encoder discovery.",
+          "id": "replay-v11-retired-paths",
+          "description": "The v11 native replay product must not restore the synthetic scene, screen capture, listener recording, AVI fallback, or PATH encoder discovery.",
           "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
           "filePattern": "*.cs",
           "deny": [
@@ -306,6 +299,10 @@
             "FindAnyObjectByType<AudioListener>",
             "\\bMjpegAviWriter\\b",
             "\\bReplayFrameSpool\\b",
+            "\\bReplaySceneRuntime\\b",
+            "\\bReplayTimelineController\\b",
+            "aura-replay-2d",
+            "native-or-silence",
             "Environment\\.GetEnvironmentVariable\\(\\\"PATH\\\"\\)",
             "falling back to built-in AVI"
           ]

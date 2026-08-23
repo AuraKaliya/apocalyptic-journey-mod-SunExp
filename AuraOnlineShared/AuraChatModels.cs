@@ -110,6 +110,8 @@ public sealed class AuraChatModSnapshot
 
     public ulong PublishedFileId { get; set; }
 
+    public string SharedResourceFingerprint { get; set; } = "";
+
     public bool Enabled { get; set; }
 
     public string MatchKey => string.IsNullOrWhiteSpace(ModId) ? ModName : ModId;

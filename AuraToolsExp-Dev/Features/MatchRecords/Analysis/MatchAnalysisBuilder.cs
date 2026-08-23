@@ -10,17 +10,17 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 
 internal static class MatchAnalysisBuilder
 {
-    internal static MatchAnalysisReport BuildV10(MatchRecord record, ReplayDocumentV10 document)
+    internal static MatchAnalysisReport BuildV11(MatchRecord record, ReplayDocumentV11 document)
     {
         var snapshot = ReadSnapshot(record.StatisticsJson);
         var turns = new Dictionary<int, MatchAnalysisTurn>();
         var cards = new Dictionary<string, MatchAnalysisCard>(StringComparer.Ordinal);
         var flows = new Dictionary<string, MatchAnalysisDamageFlow>(StringComparer.Ordinal);
         var moments = new List<MatchAnalysisMoment>();
-        var teams = (document.InitialState.Actors ?? new List<ReplayActorStateV10>())
+        var teams = (document.InitialState.Actors ?? new List<ReplayActorStateV11>())
             .Where(item => !string.IsNullOrWhiteSpace(item.InstanceId))
             .ToDictionary(item => item.InstanceId, item => item.Team ?? "Unknown", StringComparer.Ordinal);
-        var definitions = (document.Content.Definitions ?? new List<ReplayContentDefinitionV10>())
+        var definitions = (document.Content.Definitions ?? new List<ReplayContentDefinitionV11>())
             .ToDictionary(item => item.Content.Key, item => item.Display, StringComparer.Ordinal);
         var allCards = document.InitialState.Cards
             .Concat(document.Events.Where(item => item.Delta != null).SelectMany(item => item.Delta!.CardUpserts))
@@ -37,7 +37,7 @@ internal static class MatchAnalysisBuilder
             }
 
             turn.LastEventSequence = value.Sequence;
-            if (string.Equals(value.EventType, ReplayEventTypesV10.ActionCompleted, StringComparison.Ordinal))
+            if (string.Equals(value.EventType, ReplayEventTypesV11.ActionCompleted, StringComparison.Ordinal))
             {
                 turn.ActionCount++;
                 allCards.TryGetValue(value.SourceInstanceId ?? "", out var source);
@@ -62,9 +62,9 @@ internal static class MatchAnalysisBuilder
                 }
             }
 
-            foreach (var semantic in value.Semantics ?? new List<ReplaySemanticEventV10>())
+            foreach (var semantic in value.Semantics ?? new List<ReplaySemanticEventV11>())
             {
-                if (!string.Equals(semantic.Kind, ReplaySemanticKindsV10.Damage, StringComparison.Ordinal)
+                if (!string.Equals(semantic.Kind, ReplaySemanticKindsV11.Damage, StringComparison.Ordinal)
                     || semantic.Value <= 0)
                 {
                     continue;
@@ -92,7 +92,7 @@ internal static class MatchAnalysisBuilder
                         Label = semantic.Label,
                         TurnIndex = turnIndex,
                         EventSequence = value.Sequence,
-                        ElapsedMilliseconds = value.TimeTicks * 1000L / ReplayProtocolV10.TimebaseTicksPerSecond,
+                        ElapsedMilliseconds = value.TimeTicks * 1000L / ReplayProtocolV11.TimebaseTicksPerSecond,
                         Value = semantic.Value
                     });
                 }
@@ -118,10 +118,10 @@ internal static class MatchAnalysisBuilder
             KeyMoments = moments.OrderBy(item => item.EventSequence).Take(24).ToList()
         };
         report.TotalDamage = combatants.Sum(item => item.Damage);
-        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV10.Friendly).Sum(item => item.Damage);
-        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV10.Enemy).Sum(item => item.Damage);
-        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV10.Friendly).Sum(FlowDamage);
-        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV10.Enemy).Sum(FlowDamage);
+        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV11.Friendly).Sum(item => item.Damage);
+        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV11.Enemy).Sum(item => item.Damage);
+        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV11.Friendly).Sum(FlowDamage);
+        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV11.Enemy).Sum(FlowDamage);
         report.HpDamage = report.DamageFlows.Sum(item => item.HpDamage);
         report.ShieldDamage = report.DamageFlows.Sum(item => item.ShieldDamage);
         var best = orderedTurns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
@@ -137,6 +137,13 @@ internal static class MatchAnalysisBuilder
         var framed = stream.Any(item => item.Kind == MatchReplayEventKinds.ActionFrame);
         var transactional = stream.Any(item => item.Kind == MatchReplayEventKinds.ActionBegin);
         var snapshot = ReadSnapshot(record.StatisticsJson);
+        var displayNames = (snapshot?.Combatants ?? new List<CombatantDamageStat>())
+            .Where(item => item != null && !string.IsNullOrWhiteSpace(item.InstanceId))
+            .GroupBy(item => item.InstanceId, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => string.IsNullOrWhiteSpace(group.Last().DisplayName) ? "单位" : group.Last().DisplayName,
+                StringComparer.Ordinal);
         var teams = (snapshot?.Combatants ?? new List<CombatantDamageStat>())
             .Where(item => item != null && !string.IsNullOrWhiteSpace(item.InstanceId))
             .ToDictionary(item => item.InstanceId, item => item.Team.ToString(), StringComparer.Ordinal);
@@ -268,11 +275,11 @@ internal static class MatchAnalysisBuilder
                     {
                         flow.HpDamage += damage;
                     }
-                    AddMoment(moments, item, semantic);
+                    AddMoment(moments, item, semantic, displayNames);
                 }
                 else if (semantic.IsKeyEvent)
                 {
-                    AddMoment(moments, item, semantic);
+                    AddMoment(moments, item, semantic, displayNames);
                 }
             }
 
@@ -378,12 +385,16 @@ internal static class MatchAnalysisBuilder
             .ToList();
     }
 
-    private static void AddMoment(List<MatchAnalysisMoment> moments, MatchReplayEvent item, MatchSemanticEvent semantic)
+    private static void AddMoment(
+        List<MatchAnalysisMoment> moments,
+        MatchReplayEvent item,
+        MatchSemanticEvent semantic,
+        IReadOnlyDictionary<string, string> displayNames)
     {
         moments.Add(new MatchAnalysisMoment
         {
             Kind = semantic.Category,
-            Label = Describe(semantic),
+            Label = Describe(semantic, displayNames),
             TurnIndex = item.TurnIndex,
             EventSequence = item.Sequence,
             ElapsedMilliseconds = item.ElapsedMilliseconds,
@@ -406,21 +417,35 @@ internal static class MatchAnalysisBuilder
         return "Unknown";
     }
 
-    private static string Describe(MatchSemanticEvent semantic)
+    private static string Describe(
+        MatchSemanticEvent semantic,
+        IReadOnlyDictionary<string, string> displayNames)
     {
+        var actor = DisplayParticipant(displayNames, semantic.ActorId, "来源单位");
+        var target = DisplayParticipant(displayNames, semantic.TargetId, "目标单位");
         if (semantic.Category == MatchSemanticCategories.Damage)
         {
-            return (string.IsNullOrWhiteSpace(semantic.ActorId) ? "未知来源" : semantic.ActorId)
-                   + " 对 " + (string.IsNullOrWhiteSpace(semantic.TargetId) ? "目标" : semantic.TargetId)
-                   + " 造成 " + semantic.Value + " 点伤害";
+            return actor + " 对 " + target + " 造成 " + semantic.Value + " 点伤害";
         }
 
         if (semantic.Category == MatchSemanticCategories.Status && semantic.Value <= 0)
         {
-            return (string.IsNullOrWhiteSpace(semantic.TargetId) ? "单位" : semantic.TargetId) + " 离场";
+            return target + " 离场";
         }
 
         return string.IsNullOrWhiteSpace(semantic.Label) ? semantic.Action : semantic.Label;
+    }
+
+    private static string DisplayParticipant(
+        IReadOnlyDictionary<string, string> displayNames,
+        string id,
+        string fallback)
+    {
+        return !string.IsNullOrWhiteSpace(id)
+               && displayNames.TryGetValue(id, out var displayName)
+               && !string.IsNullOrWhiteSpace(displayName)
+            ? displayName
+            : fallback;
     }
 
     private static DamageMeterSnapshot? ReadSnapshot(string json)

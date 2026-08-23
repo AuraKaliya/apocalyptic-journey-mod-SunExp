@@ -36,6 +36,9 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
     private static AutoBattleUiSnapshot current = new();
     private static long generation;
     private static bool queued;
+    private static bool refreshPending;
+    private static string pendingProfile = "balanced";
+    private static string pendingModelId = "";
 
     public static event Action? Changed;
 
@@ -80,6 +83,9 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
         {
             if (queued)
             {
+                refreshPending = true;
+                pendingProfile = normalizedProfile;
+                pendingModelId = normalizedModel;
                 return;
             }
             if (!force
@@ -96,6 +102,9 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
                 return;
             }
             queued = true;
+            refreshPending = false;
+            pendingProfile = normalizedProfile;
+            pendingModelId = normalizedModel;
             requestGeneration = ++generation;
             current = new AutoBattleUiSnapshot
             {
@@ -116,6 +125,9 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
                 Work = _ => Build(normalizedProfile, normalizedModel),
                 ApplyOnMainThread = result =>
                 {
+                    string nextProfile;
+                    string nextModel;
+                    var rerun = false;
                     lock (Gate)
                     {
                         if (requestGeneration != generation)
@@ -125,11 +137,22 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
                         queued = false;
                         result.Revision = current.Revision + 1;
                         current = result;
+                        rerun = refreshPending;
+                        nextProfile = pendingProfile;
+                        nextModel = pendingModelId;
+                        refreshPending = false;
                     }
                     Changed?.Invoke();
+                    if (rerun)
+                    {
+                        RequestRefresh(nextProfile, nextModel, force: true);
+                    }
                 },
                 OnFailedOnMainThread = ex =>
                 {
+                    string nextProfile;
+                    string nextModel;
+                    var rerun = false;
                     lock (Gate)
                     {
                         if (requestGeneration != generation)
@@ -144,8 +167,36 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
                             ModelId = normalizedModel,
                             Message = "自动战斗索引读取失败：" + ex.Message
                         };
+                        rerun = refreshPending;
+                        nextProfile = pendingProfile;
+                        nextModel = pendingModelId;
+                        refreshPending = false;
                     }
                     Changed?.Invoke();
+                    if (rerun)
+                    {
+                        RequestRefresh(nextProfile, nextModel, force: true);
+                    }
+                },
+                OnCancelledOnMainThread = _ =>
+                {
+                    string nextProfile;
+                    string nextModel;
+                    var rerun = false;
+                    lock (Gate)
+                    {
+                        if (requestGeneration != generation) return;
+                        queued = false;
+                        current.Loading = false;
+                        current.Message = "自动战斗索引刷新已取消";
+                        current.Revision++;
+                        rerun = refreshPending;
+                        nextProfile = pendingProfile;
+                        nextModel = pendingModelId;
+                        refreshPending = false;
+                    }
+                    Changed?.Invoke();
+                    if (rerun) RequestRefresh(nextProfile, nextModel, force: true);
                 }
             });
         if (accepted)
@@ -169,13 +220,17 @@ internal static class AuraToolsAutoBattleUiSnapshotRuntime
     {
         lock (Gate)
         {
-            generation++;
-            queued = false;
-            current = new AutoBattleUiSnapshot
+            current.Ready = false;
+            current.Loading = true;
+            current.Revision++;
+            if (queued)
             {
-                Revision = current.Revision + 1
-            };
+                refreshPending = true;
+                pendingProfile = current.Profile;
+                pendingModelId = current.ModelId;
+            }
         }
+        Changed?.Invoke();
     }
 
     private static AutoBattleUiSnapshot Build(

@@ -10,7 +10,7 @@ of duplicating them in top-level skills.
 
 | Scenario | Examples | Authority | Sync shape |
 | --- | --- | --- | --- |
-| Initialization registration | Terrias registers roles and gameplay/content declarations; its optional-media retirement package is empty. AuraToolsExp registers CG, audio, replacement skins, card visuals, and other tool-owned extensions targeting stable content ids. Custom-start loadouts remain AuraTools-local/imported configuration. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
+| Initialization registration | Terrias runtime registers gameplay declarations. AuraToolsExp discovers loaded content MOD `SharedResources`, deduplicates physical packages by `.modproj` id, and registers content-owned voice/CG plus its own tool resources. Custom-start loadouts remain AuraTools-local/imported configuration. | Physical source `.modproj` id plus semantic `ownerModId` and stable domain id. | Idempotent discovery generation and startup manifest/provider registration. Do not use gameplay RPC. |
 | Tool configuration | AuraToolsExp reads local persistent settings and forces or overrides effective tool behavior. | Tool-local config store. | Local effective-state overlay. Do not mutate or re-own foreign registrations. |
 | Shared progression | Map state, route state, run counters, shared reward state, final role commit. | Host/server. | Client request -> server validate -> authoritative snapshot/result broadcast. |
 | Player-scoped state | Player choices, Wuna ember, damage submit, role-owned presentation request. | Bound sender/player owner. | Sender-bound command. Server binds sender from receive context before validation. |
@@ -35,9 +35,9 @@ reviews. Put detailed feature rationale in project docs; keep this reference as
 the short operational memory.
 
 - Initialization registration is a startup phase, not a gameplay sync phase.
-  AuraToolsExp may register official-content or tool-owned extensions. Terrias
-  may register MOD roles and MOD-unique content extensions. Registered content
-  keeps the registering mod's owner identity.
+  AuraToolsExp registers tool-owned extensions and content declarations found
+  through the fixed discovery contract. Terrias still registers runtime-owned
+  roles/gameplay declarations. Discovered content keeps its semantic owner.
 - Tool configuration is local effective state. Terrias-owned content declarations
   default to enabled when Terrias configures a shared feature by itself.
   AuraToolsExp reads its persistent local configuration and may override or

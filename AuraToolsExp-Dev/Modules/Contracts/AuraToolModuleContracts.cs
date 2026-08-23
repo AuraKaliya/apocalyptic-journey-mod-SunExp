@@ -35,6 +35,8 @@ public sealed class AuraToolModuleDescriptor
 
     public bool HasSettingsPage { get; set; }
 
+    public bool ShowEnableControl { get; set; } = true;
+
     public bool Experimental { get; set; }
 
     public bool RequiresRestartWhenChanged { get; set; }

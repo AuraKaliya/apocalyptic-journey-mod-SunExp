@@ -29,7 +29,7 @@ internal static class MatchReplayExportControlsPresenter
         var toolbar = AuraToolsUi.CreateRect("Toolbar", root.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f), new Vector2(760f, 62f));
         toolbar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 22f);
-        AuraToolsUi.AddPanelImage(toolbar, AuraToolsUi.Background);
+        AuraToolsUi.AddSectionImage(toolbar);
         var layout = toolbar.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(10, 10, 8, 8);
         layout.spacing = 8f;

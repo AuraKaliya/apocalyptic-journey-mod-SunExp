@@ -26,11 +26,7 @@ namespace AuraToolsExp.Dll.Features.ModSync;
 
 public static class AuraToolsModSyncRuntime
 {
-    private const string ButtonName = "AuraToolsModConfigButton";
     private const string OverlayName = "AuraToolsModConfigOverlay";
-    private const float ButtonWidth = 132f;
-    private const float ButtonHeight = 34f;
-    private const float ButtonGap = 6f;
     private const float OverlayWidth = 880f;
     private const float OverlayHeight = 560f;
     private const float ModColumnWidth = 190f;
@@ -50,7 +46,6 @@ public static class AuraToolsModSyncRuntime
     private static bool initialized;
     private static ModConfig? currentConfig;
     private static GameEntryUI? currentEntry;
-    private static GameObject? buttonRoot;
     private static GameObject? activeOverlay;
     private static Transform? activeOverlayContent;
     private static AuraChatModSyncState? currentState;
@@ -117,6 +112,7 @@ public static class AuraToolsModSyncRuntime
         try
         {
             currentEntry = snapshot.Entry;
+            AuraToolsPreparationDock.Attach(currentEntry);
             if (!IsEnabled()
                 || snapshot.Players.Count == 0
                 || PlayerManager.Instance == null)
@@ -161,76 +157,25 @@ public static class AuraToolsModSyncRuntime
 
     private static void RefreshButton()
     {
-        if (!IsEnabled() || currentState == null || currentEntry == null)
-        {
-            DestroyButton("RefreshButton:not-available");
-            return;
-        }
-
-        EnsureButton();
+        AuraToolsPreparationDock.Attach(currentEntry);
+        AuraToolsPreparationDock.Refresh();
     }
 
     private static void EnsureButton()
     {
-        if (!IsEnabled() || currentEntry == null || currentEntry.transform == null)
-        {
-            DestroyButton("EnsureButton:not-available");
-            return;
-        }
-
-        var readyButton = currentEntry.transform.Find("ForeBack/Button");
-        if (readyButton == null || readyButton.parent == null)
-        {
-            DestroyButton("EnsureButton:no-ready-button");
-            return;
-        }
-
-        if (buttonRoot == null || buttonRoot.transform.parent != readyButton.parent)
-        {
-            DestroyButton("EnsureButton:reparent");
-            buttonRoot = AuraToolsUi.CreateRect(
-                ButtonName,
-                readyButton.parent,
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(0.5f, 0.5f),
-                new Vector2(ButtonWidth, ButtonHeight));
-            AuraToolsUi.AddButtonImage(buttonRoot, new Color(0.16f, 0.13f, 0.22f, 0.98f));
-            var button = buttonRoot.AddComponent<Button>();
-            AuraUiButtonFeedback.Apply(button, buttonRoot.GetComponent<Image>(), AuraToolsUi.Accent);
-            button.onClick.AddListener(ShowOverlay);
-            AuraToolsUi.AddFillText(buttonRoot.transform, "MOD配置", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text);
-        }
-
-        PositionButton(readyButton);
-        buttonRoot.SetActive(true);
-        buttonRoot.transform.SetAsLastSibling();
-    }
-
-    private static void PositionButton(Transform readyButton)
-    {
-        if (buttonRoot == null || readyButton is not RectTransform readyRect || buttonRoot.transform is not RectTransform buttonRect)
-        {
-            return;
-        }
-
-        buttonRect.anchorMin = readyRect.anchorMin;
-        buttonRect.anchorMax = readyRect.anchorMax;
-        buttonRect.pivot = readyRect.pivot;
-        buttonRect.sizeDelta = new Vector2(ButtonWidth, ButtonHeight);
-        var yOffset = -(Mathf.Max(Mathf.Abs(readyRect.sizeDelta.y), ButtonHeight) + ButtonGap);
-        buttonRect.anchoredPosition = readyRect.anchoredPosition + new Vector2(0f, yOffset);
+        RefreshButton();
     }
 
     private static void ShowOverlay()
     {
-        if (buttonRoot == null)
+        if (!CanShowOverlay || currentEntry == null)
         {
             return;
         }
 
         DestroyOverlay("reopen");
-        var parent = ResolveUiParent() ?? buttonRoot.transform.parent;
+        var parent = ResolveUiParent()
+                     ?? currentEntry.transform.Find("ForeBack/Button")?.parent;
         if (parent == null)
         {
             return;
@@ -488,9 +433,15 @@ public static class AuraToolsModSyncRuntime
         if (hostMod != null
             && hostMod.Enabled
             && mod.Enabled
-            && !string.IsNullOrWhiteSpace(hostMod.ModVersion)
-            && !string.IsNullOrWhiteSpace(mod.ModVersion)
-            && !string.Equals(hostMod.ModVersion, mod.ModVersion, StringComparison.OrdinalIgnoreCase))
+            && ((!string.IsNullOrWhiteSpace(hostMod.ModVersion)
+                 && !string.IsNullOrWhiteSpace(mod.ModVersion)
+                 && !string.Equals(hostMod.ModVersion, mod.ModVersion, StringComparison.OrdinalIgnoreCase))
+                || (!string.IsNullOrWhiteSpace(hostMod.SharedResourceFingerprint)
+                    && !string.IsNullOrWhiteSpace(mod.SharedResourceFingerprint)
+                    && !string.Equals(
+                        hostMod.SharedResourceFingerprint,
+                        mod.SharedResourceFingerprint,
+                        StringComparison.OrdinalIgnoreCase))))
         {
             return AuraToolsUi.WarningText;
         }
@@ -1511,14 +1462,7 @@ public static class AuraToolsModSyncRuntime
 
     private static void DestroyButton(string source)
     {
-        if (buttonRoot == null)
-        {
-            return;
-        }
-
-        UiRaycastSafeDestroyRuntime.DisableAndHide(buttonRoot, "AuraTools ModSync button " + source);
-        Object.Destroy(buttonRoot);
-        buttonRoot = null;
+        AuraToolsPreparationDock.Refresh();
     }
 
     private static void DestroyOverlay(string source)

@@ -19,22 +19,20 @@ internal static class AuraToolsUi
 {
     public static AuraUiTheme Theme => AuraToolsUiTheme.Current;
 
-    private const string ButtonSpritePath = "Mods/AuraToolsExp/ui-img/button-\u4e5d\u5bab\u683c.png";
-    private const string PanelSpritePath = "Mods/AuraToolsExp/ui-img/background-\u4e5d\u5bab\u683c.png";
     public static Color Background => Theme.Background;
     public static Color Panel => Theme.Panel;
     public static Color Header => Theme.Control;
-    public static Color Row => new(0.090f, 0.086f, 0.118f, 1f);
+    public static Color Row => ToolboxVisualSpec.Row;
     public static Color RowHighlighted => Theme.ControlHighlighted;
-    public static Color CategorySelected => new(0.145f, 0.130f, 0.155f, 1f);
+    public static Color CategorySelected => ToolboxVisualSpec.RowHighlighted;
     public static Color Accent => Theme.Accent;
     public static Color AuraAccent => new(0.667f, 0.573f, 0.863f, 1f);
     public static Color Text => Theme.Text;
     public static Color MutedText => Theme.MutedText;
-    public static Color SuccessText => new(0.412f, 0.784f, 0.635f, 1f);
-    public static Color WarningText => new(0.867f, 0.667f, 0.345f, 1f);
-    public static Color ErrorText => new(0.847f, 0.451f, 0.451f, 1f);
-    public static Color ActiveRow => new(0.102f, 0.129f, 0.118f, 1f);
+    public static Color SuccessText => ToolboxVisualSpec.Success;
+    public static Color WarningText => ToolboxVisualSpec.Warning;
+    public static Color ErrorText => ToolboxVisualSpec.Error;
+    public static Color ActiveRow => ToolboxVisualSpec.RowHighlighted;
     public const int TabFontSize = 19;
     public const int SectionFontSize = 21;
     public const int ModuleTitleFontSize = 18;
@@ -46,6 +44,8 @@ internal static class AuraToolsUi
     public const float ModuleHeaderHeight = 45f;
     public const float InlineRowHeight = 50f;
     public const float ButtonHeight = 46f;
+    public const float CompactButtonHeight = 34f;
+    public const float StandardButtonHeight = 40f;
     public const float ButtonMinWidth = 120f;
     public const float TextMinHeight = 40f;
     public const float ToolbarHeight = 52f;
@@ -58,10 +58,6 @@ internal static class AuraToolsUi
     public const float ToolboxCategoryWidth = ToolboxVisualSpec.CategoryWidth;
     public const float ToolboxHeaderHeight = ToolboxVisualSpec.HeaderHeight;
     public const float ToolboxModuleRowHeight = ToolboxVisualSpec.ModuleRowHeight;
-    private static Sprite? buttonSprite;
-    private static Sprite? panelSprite;
-    private static bool buttonSpriteLoadAttempted;
-    private static bool panelSpriteLoadAttempted;
     private static GameObject? activeSelectPopup;
     private static GameObject? activeSelectAnchor;
 
@@ -84,26 +80,36 @@ internal static class AuraToolsUi
         return image;
     }
 
-    public static Image AddPanelImage(GameObject go, Color fallbackOrTint)
+    public static Image AddDecoratedReplayPanelImage(GameObject go, Color fallbackOrTint)
     {
-        var image = go.AddComponent<Image>();
-        image.sprite = GetPanelSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        var image = ToolboxSurfaceV2.ApplyDecoratedReplay(go);
         image.fillCenter = true;
-        image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
-        if (image.sprite != null)
-        {
-            AddPanelTint(go, fallbackOrTint);
-        }
-
+        image.color = image.sprite != null ? Color.white : fallbackOrTint;
         return image;
+    }
+
+    public static Image AddSettingsWindowImage(GameObject go)
+    {
+        var image = ToolboxSurfaceV2.ApplySettingsWindow(go);
+        image.fillCenter = true;
+        return image;
+    }
+
+    public static Image AddSectionImage(GameObject go)
+    {
+        var image = ToolboxSurfaceV2.ApplySection(go);
+        image.fillCenter = true;
+        return image;
+    }
+
+    public static Image AddListRowImage(GameObject go, Color color)
+    {
+        return ToolboxSurfaceV2.ApplyRow(go, color);
     }
 
     public static Image AddButtonImage(GameObject go, Color fallbackTint)
     {
-        var image = go.AddComponent<Image>();
-        image.sprite = GetButtonSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        var image = ToolboxSurfaceV2.ApplyControl(go);
         image.fillCenter = true;
         image.color = image.sprite != null ? Color.white : fallbackTint;
         return image;
@@ -130,6 +136,50 @@ internal static class AuraToolsUi
         element.preferredWidth = width;
         element.flexibleWidth = 0f;
         return element;
+    }
+
+    public static HorizontalLayoutGroup ConfigureHorizontalLayout(
+        GameObject root,
+        float spacing = 8f,
+        RectOffset? padding = null,
+        bool expandWidth = false,
+        bool expandHeight = false,
+        TextAnchor alignment = TextAnchor.MiddleLeft)
+    {
+        var layout = root.GetComponent<HorizontalLayoutGroup>()
+                     ?? root.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = padding ?? new RectOffset();
+        layout.spacing = spacing;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = expandWidth;
+        layout.childForceExpandHeight = expandHeight;
+        layout.childAlignment = alignment;
+        return layout;
+    }
+
+    public static GameObject CreateSettingsRow(
+        Transform parent,
+        string name,
+        string stableId = "",
+        float height = InlineRowHeight,
+        float spacing = 8f,
+        RectOffset? padding = null)
+    {
+        var row = CreateLayout(name, parent);
+        if (!string.IsNullOrWhiteSpace(stableId))
+        {
+            AuraUiStableId.Assign(row, stableId);
+        }
+        SetFixedHeight(row, height);
+        ConfigureHorizontalLayout(
+            row,
+            spacing,
+            padding,
+            expandWidth: false,
+            expandHeight: false,
+            alignment: TextAnchor.MiddleLeft);
+        return row;
     }
 
     public static bool SetActiveIfChanged(GameObject value, bool active)
@@ -256,7 +306,7 @@ internal static class AuraToolsUi
     {
         var root = CreateLayout("Input", parent);
         SetFixedSize(root, Mathf.Max(width, 96f), Mathf.Max(height, 36f));
-        var background = AddImage(root, Theme.Control);
+        var background = ToolboxSurfaceV2.ApplyControl(root);
         background.raycastTarget = true;
 
         var viewport = CreateRect(
@@ -321,22 +371,37 @@ internal static class AuraToolsUi
 
     public static Button AddButton(Transform parent, string label, Action action, float width = 108f, float height = ButtonHeight)
     {
-        var go = CreateLayout("Button-" + label, parent);
-        var element = EnsureLayoutElement(go);
-        var resolvedWidth = Mathf.Max(width, 48f);
-        var resolvedHeight = Mathf.Max(height, ButtonHeight);
-        element.minWidth = resolvedWidth;
-        element.preferredWidth = resolvedWidth;
-        element.minHeight = resolvedHeight;
-        element.preferredHeight = resolvedHeight;
-        element.flexibleWidth = 0f;
-        element.flexibleHeight = 0f;
-        var image = AddButtonImage(go, new Color(0.16f, 0.13f, 0.22f, 0.98f));
-        var button = go.AddComponent<Button>();
-        AuraUiButtonFeedback.Apply(button, image, Accent);
-        button.onClick.AddListener(() => action());
-        AddFillText(go.transform, label, ButtonFontSize, TextAnchor.MiddleCenter, Text);
-        return button;
+        return ToolboxTextButtonV2.Create(
+            parent,
+            label,
+            action,
+            Mathf.Max(width, 64f),
+            Mathf.Max(height, CompactButtonHeight));
+    }
+
+    public static void SetButtonState(
+        Button? button,
+        ToolboxTextButtonV2.ActionState state,
+        string reason = "")
+    {
+        if (button == null) return;
+        var view = button.GetComponent<ToolboxTextButtonV2>();
+        if (view != null)
+        {
+            view.SetActionState(state, reason);
+            return;
+        }
+        button.interactable = state == ToolboxTextButtonV2.ActionState.Ready;
+    }
+
+    public static void SetButtonAvailable(Button? button, bool available, string reason = "")
+    {
+        SetButtonState(
+            button,
+            available
+                ? ToolboxTextButtonV2.ActionState.Ready
+                : ToolboxTextButtonV2.ActionState.Unavailable,
+            reason);
     }
 
     public static void SetButtonLabel(Button? button, string label)
@@ -346,52 +411,45 @@ internal static class AuraToolsUi
         {
             text.text = label ?? "";
         }
+        var tmp = button == null ? null : button.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (tmp != null)
+        {
+            tmp.text = label ?? "";
+        }
     }
 
     public static Toggle AddToggle(Transform parent, bool value, Action<bool> changed, float size = ToggleSize)
     {
-        var root = CreateLayout("Toggle", parent);
-        var element = EnsureLayoutElement(root);
-        element.minWidth = size;
-        element.preferredWidth = size;
-        element.minHeight = size;
-        element.preferredHeight = size;
-        element.flexibleWidth = 0f;
-        element.flexibleHeight = 0f;
-
-        var background = CreateRect("Background", root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(size, size));
-        AddImage(background, new Color(0.02f, 0.02f, 0.04f, 1f));
-
-        var check = CreateRect("Checkmark", background.transform, new Vector2(0.18f, 0.18f), new Vector2(0.82f, 0.82f), new Vector2(0.5f, 0.5f), Vector2.zero);
-        AddImage(check, Accent);
-
-        var toggle = root.AddComponent<Toggle>();
-        toggle.targetGraphic = background.GetComponent<Image>();
-        toggle.graphic = check.GetComponent<Image>();
-        toggle.SetIsOnWithoutNotify(value);
+        var view = ToolboxCheckboxV2.Create(parent, value, changed, size);
+        var toggle = view.Toggle;
         var parentId = parent.GetComponent<AuraUiStableId>()?.Value;
         AuraUiStableId.Assign(
-            root,
+            view.Root,
             string.IsNullOrWhiteSpace(parentId)
-                ? "toggle." + parent.name + "." + root.transform.GetSiblingIndex()
-                : parentId + ".toggle." + root.transform.GetSiblingIndex());
-        toggle.onValueChanged.AddListener(v => changed(v));
+                ? "toggle." + parent.name + "." + view.Root.transform.GetSiblingIndex()
+                : parentId + ".toggle." + view.Root.transform.GetSiblingIndex());
         return toggle;
     }
 
-    public static InputField AddInput(Transform parent, string value, Action<string> changed, float width = 180f, float height = ButtonHeight)
+    public static InputField AddInput(
+        Transform parent,
+        string value,
+        Action<string> changed,
+        float width = 180f,
+        float height = ButtonHeight,
+        bool flexibleWidth = false)
     {
         var root = CreateLayout("Input", parent);
         var element = EnsureLayoutElement(root);
         var resolvedWidth = Mathf.Max(width, 80f);
-        var resolvedHeight = Mathf.Max(height, ButtonHeight);
-        element.minWidth = resolvedWidth;
+        var resolvedHeight = Mathf.Max(height, CompactButtonHeight);
+        element.minWidth = flexibleWidth ? Mathf.Min(160f, resolvedWidth) : resolvedWidth;
         element.preferredWidth = resolvedWidth;
         element.minHeight = resolvedHeight;
         element.preferredHeight = resolvedHeight;
-        element.flexibleWidth = 0f;
+        element.flexibleWidth = flexibleWidth ? 1f : 0f;
         element.flexibleHeight = 0f;
-        AddImage(root, new Color(0.025f, 0.022f, 0.045f, 0.98f));
+        ToolboxSurfaceV2.ApplyControl(root);
 
         var textObject = CreateRect("Text", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         var textRect = textObject.GetComponent<RectTransform>();
@@ -420,7 +478,7 @@ internal static class AuraToolsUi
         var root = CreateLayout("Dropdown", parent);
         var element = EnsureLayoutElement(root);
         var resolvedWidth = Mathf.Max(width, ButtonMinWidth);
-        var resolvedHeight = Mathf.Max(height, ButtonHeight);
+        var resolvedHeight = Mathf.Max(height, CompactButtonHeight);
         element.minWidth = resolvedWidth;
         element.preferredWidth = resolvedWidth;
         element.minHeight = resolvedHeight;
@@ -546,7 +604,7 @@ internal static class AuraToolsUi
             windowRect.offsetMin = new Vector2(10f, 8f);
             windowRect.offsetMax = new Vector2(-10f, -8f);
         }
-        ToolboxSurfaceV2.Apply(window);
+        AddSettingsWindowImage(window);
         var layout = window.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(16, 16, 12, 12);
         layout.spacing = 8f;
@@ -587,6 +645,67 @@ internal static class AuraToolsUi
         }, 42f, "×");
 
         return window;
+    }
+
+    public static void ShowConfirmation(
+        Transform parent,
+        string name,
+        string title,
+        string message,
+        string confirmLabel,
+        Action confirmed)
+    {
+        var window = CreateOverlay(
+            name,
+            parent,
+            title,
+            singleInstance: true,
+            maxWidth: 620f);
+        var overlay = window.transform.parent?.gameObject;
+        var messageText = AddText(
+            window.transform,
+            message,
+            BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Text,
+            132f,
+            1f);
+        messageText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        messageText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        var actions = CreateSettingsRow(
+            window.transform,
+            "ConfirmationActions",
+            "confirmation." + name + ".actions",
+            FooterHeight);
+        AddText(
+            actions.transform,
+            "",
+            HintFontSize,
+            TextAnchor.MiddleLeft,
+            MutedText,
+            TextMinHeight,
+            1f);
+
+        void Close()
+        {
+            CloseSelectPopup();
+            if (overlay == null)
+            {
+                return;
+            }
+            UiRaycastSafeDestroyRuntime.DisableAndHide(
+                overlay,
+                "AuraTools confirmation close");
+            Object.Destroy(overlay);
+        }
+
+        AddButton(actions.transform, "取消", Close, 88f, StandardButtonHeight);
+        AddButton(actions.transform, confirmLabel, () =>
+        {
+            confirmed();
+            Close();
+        }, 156f, StandardButtonHeight);
     }
 
     private static IEnumerator RestoreFocusNextFrame(GameObject? target)
@@ -644,7 +763,7 @@ internal static class AuraToolsUi
         }
     }
 
-    private static void ShowSelectPopup(GameObject anchor, IReadOnlyList<string> labels, int selectedIndex, Action<int> selected, float rowHeight)
+    internal static void ShowSelectPopup(GameObject anchor, IReadOnlyList<string> labels, int selectedIndex, Action<int> selected, float rowHeight)
     {
         if (activeSelectPopup != null && activeSelectAnchor == anchor)
         {
@@ -672,7 +791,7 @@ internal static class AuraToolsUi
         layerButton.onClick.AddListener(CloseSelectPopup);
 
         var popup = CreateLayout("SelectPopup", layer.transform);
-        AddPanelImage(popup, Panel);
+        AddSectionImage(popup);
 
         var popupRect = popup.GetComponent<RectTransform>();
         var anchorRect = anchor.GetComponent<RectTransform>();
@@ -799,89 +918,6 @@ internal static class AuraToolsUi
         return AuraUiComponents.ConfigureText(go, value, fontSize, HintFontSize, anchor, color);
     }
 
-    private static Sprite? GetButtonSprite()
-    {
-        if (buttonSprite != null)
-        {
-            return buttonSprite;
-        }
-
-        if (buttonSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        buttonSpriteLoadAttempted = true;
-        buttonSprite = CreateNineSliceSprite(ButtonSpritePath, new Vector4(14f, 14f, 14f, 14f), false, new Rect(17f, 16f, 135f, 49f));
-        return buttonSprite;
-    }
-
-    private static Sprite? GetPanelSprite()
-    {
-        if (panelSprite != null)
-        {
-            return panelSprite;
-        }
-
-        if (panelSpriteLoadAttempted)
-        {
-            return null;
-        }
-
-        panelSpriteLoadAttempted = true;
-        panelSprite = CreateNineSliceSprite(PanelSpritePath, new Vector4(4f, 4f, 4f, 4f), true);
-        return panelSprite;
-    }
-
-    private static Sprite? CreateNineSliceSprite(string path, Vector4 fallbackBorder, bool preferSourceBorder, Rect? sourceCrop = null)
-    {
-        try
-        {
-            var source = AuraToolsResourceCache.Load<Sprite>(path, true);
-            if (source == null || source.texture == null)
-            {
-                return null;
-            }
-
-            var texture = source.texture;
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
-            var rect = ResolveSpriteRect(source, sourceCrop);
-            var border = ResolveSpriteBorder(rect, source, fallbackBorder, preferSourceBorder);
-            return Sprite.Create(
-                texture,
-                rect,
-                new Vector2(0.5f, 0.5f),
-                100f,
-                0,
-                SpriteMeshType.FullRect,
-                border);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static void AddPanelTint(GameObject target, Color color)
-    {
-        var tint = new GameObject("PanelTint", typeof(RectTransform));
-        tint.transform.SetParent(target.transform, false);
-        tint.layer = target.layer;
-        tint.transform.SetAsFirstSibling();
-        var rect = tint.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.offsetMin = new Vector2(3f, 3f);
-        rect.offsetMax = new Vector2(-3f, -3f);
-        var layout = tint.AddComponent<LayoutElement>();
-        layout.ignoreLayout = true;
-        var image = tint.AddComponent<Image>();
-        image.color = new Color(color.r, color.g, color.b, Mathf.Min(0.62f, color.a));
-        image.raycastTarget = false;
-    }
-
     private static Transform ResolveOverlayRoot(Transform parent)
     {
         var current = parent;
@@ -899,39 +935,6 @@ internal static class AuraToolsUi
         return parent;
     }
 
-    private static Rect ResolveSpriteRect(Sprite source, Rect? sourceCrop)
-    {
-        if (sourceCrop == null)
-        {
-            return source.rect;
-        }
-
-        var crop = sourceCrop.Value;
-        var x = Mathf.Clamp(source.rect.x + crop.x, source.rect.x, source.rect.xMax);
-        var y = Mathf.Clamp(source.rect.y + crop.y, source.rect.y, source.rect.yMax);
-        var width = Mathf.Clamp(crop.width, 1f, source.rect.xMax - x);
-        var height = Mathf.Clamp(crop.height, 1f, source.rect.yMax - y);
-        return new Rect(x, y, width, height);
-    }
-
-    private static Vector4 ResolveSpriteBorder(Rect rect, Sprite source, Vector4 fallbackBorder, bool preferSourceBorder)
-    {
-        if (preferSourceBorder && source.border.sqrMagnitude > 0.01f)
-        {
-            return source.border;
-        }
-
-        var width = rect.width;
-        var height = rect.height;
-        if (width <= 0f || height <= 0f)
-        {
-            return fallbackBorder;
-        }
-
-        var x = Mathf.Clamp(width * 0.22f, 6f, fallbackBorder.x);
-        var y = Mathf.Clamp(height * 0.30f, 6f, fallbackBorder.y);
-        return new Vector4(x, y, x, y);
-    }
 }
 
 internal sealed class AuraToolsOwnedOverlay : MonoBehaviour

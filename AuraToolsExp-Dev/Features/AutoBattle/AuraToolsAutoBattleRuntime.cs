@@ -176,6 +176,7 @@ public static class AuraToolsAutoBattleRuntime
 
     internal static void NotifyModelLibraryChanged()
     {
+        AuraToolsAutoBattleUiSnapshotRuntime.Invalidate();
         controller?.NotifyModelLibraryChanged();
     }
 
@@ -194,7 +195,7 @@ public static class AuraToolsAutoBattleRuntime
             message = "请先从模型库选择一个模型";
             return false;
         }
-        if (IsModelApplicationMode(mode)
+        if (!string.Equals(mode, "off", StringComparison.Ordinal)
             && !AuraToolsAutoBattleModelRuntime
                 .PortableFoundationMeetsActivationGate(
                 settings.Profile,
@@ -203,6 +204,18 @@ public static class AuraToolsAutoBattleRuntime
         {
             status = SnapshotModelApplicationStatus();
             message = "所选模型尚不能应用：" + gateReason;
+            return false;
+        }
+        if ((string.Equals(mode, "trial", StringComparison.Ordinal)
+             || string.Equals(mode, "full", StringComparison.Ordinal))
+            && !AuraToolsAutoBattleModelRuntime
+                .FoundationActiveUseRiskAcknowledged(
+                    settings.Profile,
+                    selectedModelId,
+                    out var riskReason))
+        {
+            status = SnapshotModelApplicationStatus();
+            message = "所选模型尚不能主动接管：" + riskReason;
             return false;
         }
 
@@ -273,9 +286,9 @@ public static class AuraToolsAutoBattleRuntime
     {
         return value switch
         {
-            "shadow" => "影子评估",
-            "trial" => "实机试用",
-            "full" => "完整应用",
+            "shadow" => "观察模式",
+            "trial" => "试用",
+            "full" => "正式接管",
             _ => "关闭"
         };
     }
@@ -2200,11 +2213,25 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             : "off";
         var profile = settings.Profile;
         var selectedModelId = settings.SelectedModelId ?? "";
+        var riskFallbackReason = "";
+        if (AuraToolsAutoBattleRuntime.IsModelApplicationMode(configuredMode)
+            && !AuraToolsAutoBattleModelRuntime
+                .FoundationActiveUseRiskAcknowledged(
+                    profile,
+                    selectedModelId,
+                    out var riskReason))
+        {
+            configuredMode = "shadow";
+            riskFallbackReason = "尚未确认模型使用风险，暂时只进行观察："
+                                 + riskReason;
+        }
         var configurationKey = configuredMode
                                + "\n"
                                + profile
                                + "\n"
-                               + selectedModelId;
+                               + selectedModelId
+                               + "\n"
+                               + string.Join(",", settings.ModelRiskAcknowledgements);
         if (!force
             && string.Equals(
                 modelConfigurationKey,
@@ -2239,7 +2266,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         trainedModelMode = configuredMode;
         modelLoadPending = true;
-        lastModelDiagnostic = "模型正在后台加载";
+        lastModelDiagnostic = string.IsNullOrWhiteSpace(riskFallbackReason)
+            ? "模型正在后台加载"
+            : riskFallbackReason + "；模型正在后台加载";
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<AutoBattleResidentModelSet>
             {

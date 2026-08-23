@@ -228,6 +228,7 @@ internal sealed partial class MatchRecordDatabase
                     && ended.ToUniversalTime() < endedSinceUtc.Value) continue;
                 if (query.Length > 0
                     && !Contains(record.LevelId, query)
+                    && !Contains(record.BattleTitle, query)
                     && !Contains(record.AdventureId, query)
                     && !Contains(record.Result, query)
                     && !Contains(record.Tags, query)
@@ -738,10 +739,11 @@ internal sealed partial class MatchRecordDatabase
                            + "sha256 TEXT NOT NULL, timeline_payload BLOB NOT NULL, error_text TEXT NOT NULL);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_media_record ON replay_media(record_id, created_utc DESC);");
         MatchRecordsDatabaseMigrator.Apply(connection);
-        EnsureV10Tables(connection);
+        EnsureV11Tables(connection);
+        MigrateMissingV11DocumentsToSummaryOnly(connection);
         MatchRecordsDatabaseMigrator.Validate(connection);
         NormalizeMediaPaths(connection);
-        ReconcileV10Files(connection);
+        ReconcileV11Files(connection);
         initialized = true;
     }
 
@@ -758,6 +760,7 @@ internal sealed partial class MatchRecordDatabase
             AdventureId = query.Text(2),
             SessionId = query.Text(3),
             LevelId = query.Text(4),
+            BattleTitle = metadata.BattleTitle,
             Result = query.Text(5),
             StartedUtc = query.Text(6),
             EndedUtc = query.Text(7),
@@ -804,9 +807,19 @@ internal sealed partial class MatchRecordDatabase
     {
         return string.Equals(state, MatchReplayStates.Incomplete, StringComparison.OrdinalIgnoreCase)
             ? MatchReplayStates.Incomplete
+            : string.Equals(state, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase)
+                ? MatchReplayStates.SummaryOnly
             : string.Equals(state, MatchReplayStates.Corrupt, StringComparison.OrdinalIgnoreCase)
                 ? MatchReplayStates.Corrupt
                 : MatchReplayStates.Ready;
+    }
+
+    private static void MigrateMissingV11DocumentsToSummaryOnly(WinSqliteConnection connection)
+    {
+        connection.Execute(
+            "UPDATE battle_records SET replay_state = 'SummaryOnly' "
+            + "WHERE replay_protocol = 11 AND replay_state = 'Incomplete' "
+            + "AND NOT EXISTS (SELECT 1 FROM replay_documents d WHERE d.record_id = battle_records.record_id);");
     }
 
     private static void SaveAnalysis(WinSqliteConnection connection, MatchAnalysisReport report)
@@ -837,6 +850,7 @@ internal sealed partial class MatchRecordDatabase
     {
         return new MatchRecordMetadata
         {
+            BattleTitle = record.BattleTitle ?? "",
             IsFavorite = record.IsFavorite || string.Equals(record.Collection, MatchRecordCollections.Favorite, StringComparison.OrdinalIgnoreCase),
             Origin = record.Origin ?? MatchRecordOrigins.Auto,
             Tags = record.Tags ?? "",
@@ -884,7 +898,7 @@ internal sealed partial class MatchRecordDatabase
 
     private static void DeleteRecord(WinSqliteConnection connection, string recordId)
     {
-        DeleteReplayV10(connection, recordId);
+        DeleteReplayV11(connection, recordId);
         using (var media = connection.Prepare("DELETE FROM replay_media WHERE record_id = ?;"))
         {
             media.Bind(1, recordId);

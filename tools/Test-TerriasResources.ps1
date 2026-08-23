@@ -146,11 +146,13 @@ try {
     }
 
     $registrationPath = Join-Path $sharedRoot "aura.registration.json"
+    $entrySource = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Entry.cs") -Raw -Encoding UTF8
+    Assert-True ($entrySource -notmatch 'RegisterSharedResourcePackage|cg\.retire\.registry|retire\.registration') "Terrias Entry must not actively register optional media or retirement manifests."
     $registration = Get-Content -LiteralPath $registrationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($registration.ownerModId -eq "Terrias") "Shared package ownerModId must be Terrias."
     Assert-True ($registration.participantKind -eq "Content") "Terrias shared package must register as Content."
-    Assert-True (@($registration.resources).Count -eq 0) "Terrias retirement package must not publish optional media resources."
-    Assert-True (@($registration.defaults).Count -eq 0) "Terrias retirement package must not publish media defaults."
+    Assert-True (@($registration.resources).Count -eq 9) "Terrias must publish its nine content-owned voice/CG resources."
+    Assert-True (@($registration.defaults).Count -eq 9) "Terrias content media must provide one registered default per resource."
 
     $registrationIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $installedResources = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -187,10 +189,27 @@ try {
         }
     }
 
-    Assert-True (-not (Test-Path -LiteralPath (Join-Path $modRoot "audio.registry.json"))) "Terrias must not ship a tool-owned audio registry."
-    Assert-True (-not (Test-Path -LiteralPath (Join-Path $sharedRoot "cg.registry.json"))) "Terrias must not ship a tool-owned CG registry."
-    $cgRetirement = Get-Content -LiteralPath (Join-Path $sharedRoot "cg.retire.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ($cgRetirement.ownerModId -eq "Terrias" -and $cgRetirement.contributionId -eq "manifest" -and @($cgRetirement.entries).Count -eq 0) "Terrias legacy CG contribution retirement manifest is invalid."
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $modRoot "audio.registry.json"))) "Terrias audio registry must live under SharedResources."
+    $discovery = Get-Content -LiteralPath (Join-Path $sharedRoot "aura.discovery.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ([int]$discovery.schemaVersion -eq 1 -and $discovery.ownerModId -eq "Terrias") "Terrias shared discovery identity is invalid."
+    Assert-True (@($discovery.contributions).Count -eq 3) "Terrias discovery must declare resource, audio, and CG contributions."
+    Assert-True ((Get-Content -LiteralPath (Join-Path $modRoot "Terrias.modproj") -Raw).Trim() -eq "3741157062") "Terrias discovery source id must come from Terrias.modproj."
+
+    $audioRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "audio.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ($audioRegistry.ownerModId -eq "Terrias" -and @($audioRegistry.providers).Count -eq 9) "Terrias audio registry must own nine voice providers."
+    foreach ($provider in $audioRegistry.providers) {
+        Assert-True ($provider.ownerModId -eq "Terrias") "Terrias audio provider owner is invalid: $($provider.providerId)"
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$provider.displayName)) "Terrias audio provider displayName is missing: $($provider.providerId)"
+        Assert-True ([string]$provider.path -match '^Shared:' -and [string]$provider.path -match '/Voice/Terrias/') "Terrias audio provider path is not content-owned: $($provider.providerId)"
+    }
+
+    $cgRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "cg.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-True ($cgRegistry.ownerModId -eq "Terrias" -and @($cgRegistry.entries).Count -eq 7) "Terrias CG registry must own seven media entries."
+    foreach ($entry in $cgRegistry.entries) {
+        Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.displayName)) "Terrias CG displayName is missing: $($entry.cgId)"
+        Assert-True ([string]$entry.media.resource -match '/Terrias/') "Terrias CG resource path is not content-owned: $($entry.cgId)"
+        Assert-True ($entry.defaultActivation.consumerMode -eq "toolManaged" -and $entry.defaultActivation.consumerModId -eq "AuraToolsExp") "Terrias CG must be configured by AuraToolsExp without changing ownership: $($entry.cgId)"
+    }
     $roleRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "role.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($roleRegistry.ownerModId -eq "Terrias") "Role registry ownerModId must be Terrias."
     $roleIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -306,9 +325,7 @@ try {
     $skinRoot = Join-Path $sharedRoot "Skins"
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $skinRoot "package.json"))) "Terrias must not ship replacement-skin packages."
     $skinRetirementFiles = @(Get-ChildItem -LiteralPath $skinRoot -Recurse -File -ErrorAction SilentlyContinue)
-    Assert-True ($skinRetirementFiles.Count -eq 1 -and $skinRetirementFiles[0].Name -eq "retire.registration.json") "Terrias replacement-skin assets must be removed; only the bounded retirement manifest may remain."
-    $skinRetirement = Get-Content -LiteralPath (Join-Path $skinRoot "retire.registration.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ($skinRetirement.packageId -eq "Terrias.BundledSkins" -and [int64]$skinRetirement.packageVersion -ge 4 -and @($skinRetirement.resources).Count -eq 0) "Terrias legacy skin retirement manifest is invalid."
+    Assert-True ($skinRetirementFiles.Count -eq 0) "Completed Terrias skin retirement manifests must not remain operational."
     $visualRegistry = Get-Content -LiteralPath (Join-Path $modRoot "visual.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($visualRegistry.ownerModId -eq "Terrias") "Visual registry ownerModId must be Terrias."
     $shaderIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -328,7 +345,7 @@ try {
         throw ("Terrias resource audit failed with {0} issue(s):`n{1}" -f $failures.Count, ($details -join "`n"))
     }
 
-    Write-Host ("Terrias resource audit passed: modRefs={0}, retirementRegistrations={1}, roles={2}." -f `
+    Write-Host ("Terrias resource audit passed: modRefs={0}, sharedResources={1}, roles={2}." -f `
         $modReferences.Count,
         $registration.resources.Count,
         $roleRegistry.entries.Count)

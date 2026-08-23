@@ -30,7 +30,7 @@ namespace AuraTools.UnityUiPreview
         internal const float TabHeight = 60f;
         internal const float CategoryWidth = 168f;
         internal const float ToolboxHeaderHeight = 60f;
-        internal const float ModuleRowHeight = 96f;
+        internal const float ModuleRowHeight = 78f;
         internal const float Spacing = 8f;
 
         private static Font font;

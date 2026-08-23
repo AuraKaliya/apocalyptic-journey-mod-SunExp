@@ -10,8 +10,8 @@ using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -106,7 +106,7 @@ internal static class MatchRecordLibraryPresenter
             {
                 var since = dateRangeDays <= 0 ? (DateTime?)null : DateTime.UtcNow.AddDays(-dateRangeDays);
                 var filtered = MatchRecordStorage.Database.SearchRecords(collection, searchText, resultFilter, since)
-                    .Where(item => !compatibleOnly || CanPlayV10(item))
+                    .Where(item => !compatibleOnly || CanPlayV11(item))
                     .ToList();
                 var offset = pageIndex * MatchRecordDatabase.DefaultPageSize;
                 var items = filtered.Skip(offset).Take(MatchRecordDatabase.DefaultPageSize).ToList();
@@ -212,15 +212,12 @@ internal static class MatchRecordLibraryPresenter
         if (pendingImportPreview != null)
         {
             var preview = pendingImportPreview;
-            var dependencies = preview.ContentDependencies.Count == 0 ? "无额外内容依赖" : string.Join("、", preview.ContentDependencies.Take(4));
             AuraToolsUi.AddText(
                 body,
-                "导入预览：" + preview.LevelId + "   协议 v" + preview.ReplayProtocol + "   " + FormatBytes(preview.PackageBytes)
-                + "   兼容性 " + preview.Compatibility + (preview.Duplicate ? "   检测到重复内容" : "")
-                + "\n来源：" + Path.GetFileName(preview.Path) + "   内容依赖：" + dependencies
-                + "   隐私：" + preview.PrivacySummary
-                + (string.IsNullOrWhiteSpace(preview.Tags) ? "" : "   标签：" + preview.Tags)
-                + (string.IsNullOrWhiteSpace(preview.Notes) ? "" : "   备注：" + preview.Notes),
+                "导入预览：" + AuraToolsPlayerDisplay.LevelName(preview.LevelId)
+                + " · " + FormatBytes(preview.PackageBytes)
+                + (preview.Duplicate ? " · 已在资料库中" : " · 可以导入")
+                + "\n" + Path.GetFileName(preview.Path),
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 preview.Duplicate ? AuraToolsUi.WarningText : AuraToolsUi.MutedText,
@@ -250,15 +247,15 @@ internal static class MatchRecordLibraryPresenter
         footerLayout.childForceExpandWidth = false;
         footerLayout.childForceExpandHeight = false;
         var previous = AuraToolsUi.AddButton(footer.transform, "上一页", PreviousPage, 88f);
-        previous.interactable = pageIndex > 0;
+        AuraToolsUi.SetButtonAvailable(previous, pageIndex > 0, "已经是第一页");
         AuraToolsUi.AddText(footer.transform, "第 " + (pageIndex + 1) + " 页，共 " + page.TotalCount + " 条", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
         var next = AuraToolsUi.AddButton(footer.transform, "下一页", () => NextPage(page.NextCursor), 88f);
-        next.interactable = page.HasMore;
+        AuraToolsUi.SetButtonAvailable(next, page.HasMore, "已经是最后一页");
     }
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
-        var canPlay = CanPlayV10(item);
+        var canPlay = CanPlayV11(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
         AuraToolsUi.SetFixedHeight(row, 72f);
         AuraToolsUi.AddImage(row, AuraToolsUi.Row);
@@ -270,14 +267,16 @@ internal static class MatchRecordLibraryPresenter
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        var title = (string.IsNullOrWhiteSpace(item.LevelId) ? "未知战斗" : item.LevelId)
+        var title = (string.IsNullOrWhiteSpace(item.BattleTitle)
+                        ? AuraToolsPlayerDisplay.LevelName(item.LevelId)
+                        : item.BattleTitle)
                     + "   " + ResultLabel(item.Result)
                     + "   " + LocalTime(item.EndedUtc);
         var detail = "回合 " + item.TurnCount
                      + "   事件 " + item.EventCount
                      + "   DPT伤害 " + TotalDamage(item.StatisticsJson)
                      + "   " + FormatBytes(item.CompressedBytes)
-                     + "   " + (canPlay ? "v10 可回放" : "仅分析")
+                     + "   " + ReplayAvailabilityLabel(item)
                      + (string.IsNullOrWhiteSpace(item.Tags) ? "" : "   标签 " + item.Tags);
         ToolboxCheckboxV2.Create(
             row.transform,
@@ -298,7 +297,10 @@ internal static class MatchRecordLibraryPresenter
             canPlay ? "回放" : "仅分析",
             () => Replay(item.RecordId),
             68f);
-        replayButton.interactable = canPlay;
+        AuraToolsUi.SetButtonAvailable(
+            replayButton,
+            canPlay,
+            ReplayAvailabilityLabel(item));
         ToolboxIconButtonV2.Create(
             row.transform,
             "record.more",
@@ -394,16 +396,20 @@ internal static class MatchRecordLibraryPresenter
 
     private static void Replay(string recordId)
     {
-        if (!ReplaySceneRuntime.TryStart(recordId, 0, out var result))
-        {
-            message = result;
-            ShowReplayFailure(result);
-            return;
-        }
-
-        AuraToolsUi.CloseOwnedOverlays("Replay Document v10 launch");
-        WitchUiManager.Instance?.CloseUI("SettingUI");
-        ResetState();
+        MatchReplayLaunchCoordinator.Start(
+            recordId,
+            0,
+            () =>
+            {
+                AuraToolsUi.CloseOwnedOverlays("Replay Document v11 native launch");
+                WitchUiManager.Instance?.CloseUI("SettingUI");
+                ResetState();
+            },
+            detail =>
+            {
+                message = detail;
+                ShowReplayFailure(detail);
+            });
     }
 
     private static void ShowReplayFailure(string detail)
@@ -428,10 +434,20 @@ internal static class MatchRecordLibraryPresenter
             1f);
     }
 
-    private static bool CanPlayV10(MatchRecord item)
+    private static bool CanPlayV11(MatchRecord item)
     {
-        return item.ReplayProtocol == ReplayProtocolV10.DocumentVersion
+        return item.ReplayProtocol == ReplayProtocolV11.DocumentVersion
                && string.Equals(item.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
+    }
+
+    private static string ReplayAvailabilityLabel(MatchRecord item)
+    {
+        if (CanPlayV11(item)) return "v11 可回放";
+        if (string.Equals(item.ReplayState, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase))
+            return "仅保留对局摘要";
+        if (string.Equals(item.ReplayState, MatchReplayStates.Corrupt, StringComparison.OrdinalIgnoreCase))
+            return "记录已损坏";
+        return "回放未完成，仅可分析";
     }
 
     private static void SetSearch(string value)
@@ -617,7 +633,10 @@ internal static class MatchRecordLibraryPresenter
                 {
                     var completed = Path.Combine(MatchRecordStorage.ImportsDirectory, "Imported");
                     Directory.CreateDirectory(completed);
-                    File.Move(importedPath, UniqueLibraryPath(Path.Combine(completed, Path.GetFileName(importedPath))));
+                    AuraSharedFileStore.MoveFile(
+                        AuraToolsIds.ModId,
+                        importedPath,
+                        UniqueLibraryPath(Path.Combine(completed, Path.GetFileName(importedPath))));
                 }
                 catch (Exception ex)
                 {
@@ -743,11 +762,11 @@ internal static class MatchRecordLibraryPresenter
         footerLayout.childForceExpandWidth = false;
         footerLayout.childForceExpandHeight = false;
         var previous = AuraToolsUi.AddButton(footer.transform, "上一页", PreviousPage, 88f);
-        previous.interactable = pageIndex > 0;
+        AuraToolsUi.SetButtonAvailable(previous, pageIndex > 0, "已经是第一页");
         AuraToolsUi.AddText(footer.transform, "第 " + (pageIndex + 1) + " 页，共 " + page.TotalCount + " 条",
             AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
         var next = AuraToolsUi.AddButton(footer.transform, "下一页", () => NextPage(page.NextCursor), 88f);
-        next.interactable = page.HasMore;
+        AuraToolsUi.SetButtonAvailable(next, page.HasMore, "已经是最后一页");
     }
 
     private static void SwitchCollection(string value)

@@ -208,6 +208,7 @@ public sealed class ConfigSkillCgProvider
             {
                 ProviderId = rule.providerId,
                 OwnerModId = OwnerModId,
+                TriggerKind = trigger.TriggerKind,
                 CardId = trigger.CardId,
                 OwnerInstanceId = trigger.OwnerInstanceId,
                 ImagePath = rule.ResolvedImagePath,

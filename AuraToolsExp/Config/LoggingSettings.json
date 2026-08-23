@@ -1,14 +1,11 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "enabled": true,
   "performanceDiagnostics": false,
   "fileNamePattern": "AuraTools-{date}.log",
   "minimumLevel": "Info",
   "mirrorUnityLog": false,
   "mirrorCommandsLog": false,
-  "enabledSources": [
-    "AuraTools"
-  ],
   "unityLogTypes": [
     "Warning",
     "Error",

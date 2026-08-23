@@ -8,6 +8,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.Infrastructure;
 using ReplayMedia = AuraToolsExp.Dll.Features.MatchRecords.Media;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Replay.LegacyMigration;
@@ -118,15 +119,15 @@ internal static class ReplayLegacyMigrationService
         ScanOrphans(report, knownMedia);
         var directory = Path.Combine(MatchRecordStorage.RootDirectory, "MigrationReports");
         Directory.CreateDirectory(directory);
-        var pathValue = Path.Combine(directory, "replay-v10-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")
+        var pathValue = Path.Combine(directory, "replay-v11-legacy-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")
                                                    + "-" + report.MigrationId.Substring(0, 8) + ".json");
-        var payload = ReplayCanonicalJsonV10.SerializeUtf8(report);
-        File.WriteAllBytes(pathValue, payload);
+        var payload = ReplayCanonicalJsonV11.SerializeUtf8(report);
+        AuraSharedFileStore.WriteAllBytes(AuraToolsIds.ModId, pathValue, payload);
         latestReportPath = pathValue;
         database.SaveMigrationScan(
             report.MigrationId,
             Relative(pathValue),
-            ReplayCanonicalJsonV10.Sha256(payload),
+            ReplayCanonicalJsonV11.Sha256(payload),
             report.Records.Count,
             report.ChunkBytesToDelete);
         return report;
@@ -137,14 +138,14 @@ internal static class ReplayLegacyMigrationService
         var path = ResolveLatestReport();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            throw new FileNotFoundException("尚未生成 v8/v9 迁移扫描报告。", path);
+            throw new FileNotFoundException("尚未生成旧回放迁移扫描报告。", path);
         }
         var payload = File.ReadAllBytes(path);
         var report = AuraSharedJson.Deserialize<ReplayLegacyMigrationReport>(Encoding.UTF8.GetString(payload))
                      ?? throw new InvalidDataException("迁移扫描报告无法读取。");
         if (!MatchRecordStorage.Database.ValidateMigrationScan(
                 report.MigrationId,
-                ReplayCanonicalJsonV10.Sha256(payload)))
+                ReplayCanonicalJsonV11.Sha256(payload)))
         {
             throw new InvalidDataException("迁移扫描报告已被修改、已执行或不属于当前数据库。");
         }
@@ -192,11 +193,19 @@ internal static class ReplayLegacyMigrationService
         ReplayLegacyMigrationItem item)
     {
         var baseline = record.InitialState?.BaselineState;
+        if (record.ReplayProtocol == 10)
+        {
+            item.Classification = "SummaryOnly";
+            item.Reason = "v10 合成场景回放已退役；保留摘要、分析和已验证 MP4。";
+            item.MissingFacts.Add("native-battle-bootstrap-v11");
+            item.MissingFacts.Add("native-action-presentation-v11");
+            return;
+        }
         if (record.ReplayProtocol is not (8 or 9))
         {
             item.Classification = "SummaryOnly";
             item.Reason = "v7 及更早记录不执行命令回放。";
-            item.MissingFacts.Add("authoritative-v10-events");
+            item.MissingFacts.Add("authoritative-v11-events");
             return;
         }
         if (baseline == null)
@@ -272,7 +281,7 @@ internal static class ReplayLegacyMigrationService
         if (!string.IsNullOrWhiteSpace(latestReportPath) && File.Exists(latestReportPath)) return latestReportPath;
         var directory = Path.Combine(MatchRecordStorage.RootDirectory, "MigrationReports");
         latestReportPath = Directory.Exists(directory)
-            ? Directory.GetFiles(directory, "replay-v10-*.json", SearchOption.TopDirectoryOnly)
+            ? Directory.GetFiles(directory, "replay-v11-legacy-*.json", SearchOption.TopDirectoryOnly)
                 .OrderByDescending(item => item, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault() ?? ""
             : "";
@@ -292,7 +301,7 @@ internal static class ReplayLegacyMigrationService
         Directory.CreateDirectory(directory);
         var target = Path.Combine(directory, Path.GetFileName(full));
         if (File.Exists(target)) target = target + "." + Guid.NewGuid().ToString("N").Substring(0, 8);
-        File.Move(full, target);
+        AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, full, target);
     }
 
     private static bool TryResolveOwned(string path, out string full)
@@ -349,8 +358,8 @@ internal static class ReplayLegacyMigrationService
             var entry = archive.GetEntry("manifest.json");
             if (entry == null) return true;
             using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
-            var manifest = AuraSharedJson.Deserialize<ReplayPackageManifestV10>(reader.ReadToEnd());
-            return manifest?.PackageVersion != ReplayProtocolV10.PackageVersion;
+            var manifest = AuraSharedJson.Deserialize<ReplayPackageManifestV11>(reader.ReadToEnd());
+            return manifest?.PackageVersion != ReplayProtocolV11.PackageVersion;
         }
         catch
         {

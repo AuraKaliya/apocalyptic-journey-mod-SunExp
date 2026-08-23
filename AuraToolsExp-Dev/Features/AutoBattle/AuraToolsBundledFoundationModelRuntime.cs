@@ -11,6 +11,8 @@ using AuraCombatSimulation.Shared;
 using AuraDirector.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.Settings;
+using AuraToolsExp.Dll.Features.SharedResources;
 using AuraToolsExp.Dll.Infrastructure;
 using Witch.Mod;
 
@@ -45,6 +47,12 @@ internal sealed class BundledFoundationImportStatus
     public int OfficialTrusted { get; set; }
 
     public int PlayerValidated { get; set; }
+
+    public string SourceDirectory { get; set; } = "";
+
+    public string Trigger { get; set; } = "";
+
+    public string AutoSelectedModelId { get; set; } = "";
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
@@ -105,11 +113,18 @@ internal static class AuraToolsBundledFoundationModelRuntime
     private static string modRoot = "";
     private static CombatGameSubjectCatalog subjectCatalog = new();
     private static BundledFoundationImportStatus status = new();
+    private static bool discoverySubscribed;
+    private static bool pendingDiscoveryScan;
 
     public static void Initialize(ModConfig modConfig)
     {
         modRoot = Path.GetFullPath(modConfig?.DirectoryName ?? "");
         subjectCatalog = LoadSubjectCatalog(modRoot);
+        if (!discoverySubscribed)
+        {
+            discoverySubscribed = true;
+            AuraToolsSharedResourceDiscoveryRuntime.Changed += OnSharedResourceDiscoveryChanged;
+        }
         QueueScan("startup", out _);
     }
 
@@ -159,11 +174,17 @@ internal static class AuraToolsBundledFoundationModelRuntime
         {
             if (status.Busy)
             {
+                if (string.Equals(source, "shared-resource-discovery", StringComparison.Ordinal))
+                    pendingDiscoveryScan = true;
                 message = "Model 底模批量导入正在进行";
                 return false;
             }
             status.Stage = BundledFoundationImportStage.Queued;
             status.Message = "Model 底模批量扫描已排队";
+            status.Trigger = source;
+            status.SourceDirectory = Path.Combine(
+                modRoot,
+                ModelRelativeDirectory.Replace('/', Path.DirectorySeparatorChar));
             status.UpdatedUtc = DateTime.UtcNow;
         }
         var rootSnapshot = modRoot;
@@ -176,10 +197,15 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 Key = WorkKey,
                 Source = "AutoBattle.BundledFoundationModels." + source,
                 Kind = AuraSharedBackgroundWorkKind.Io,
-                Work = cancellation => Import(
-                    rootSnapshot,
-                    runtimeContextSnapshot,
-                    cancellation),
+                Work = cancellation =>
+                {
+                    var imported = Import(
+                        rootSnapshot,
+                        runtimeContextSnapshot,
+                        cancellation);
+                    imported.Trigger = source;
+                    return imported;
+                },
                 ApplyOnMainThread = Apply,
                 OnFailedOnMainThread = ex =>
                 {
@@ -188,6 +214,16 @@ internal static class AuraToolsBundledFoundationModelRuntime
                         "Model 底模批量扫描失败：" + ex.Message);
                     AuraToolsLog.Warn(
                         "[AutoBattle][BundledModels] scan failed: " + ex);
+                },
+                OnCancelledOnMainThread = reason =>
+                {
+                    SetStatus(
+                        BundledFoundationImportStage.Idle,
+                        "模型目录扫描已取消：" + reason);
+                    lock (Gate)
+                    {
+                        pendingDiscoveryScan = false;
+                    }
                 }
             });
         if (!queued)
@@ -199,6 +235,13 @@ internal static class AuraToolsBundledFoundationModelRuntime
 
         message = "Model 底模批量扫描已提交";
         return true;
+    }
+
+    private static void OnSharedResourceDiscoveryChanged(
+        AuraToolsSharedResourceDiscoveryResult result)
+    {
+        if (result == null || !result.Success) return;
+        QueueScan("shared-resource-discovery", out _);
     }
 
     private static BundledFoundationScanResult Scan(
@@ -263,7 +306,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 var sourceSha256 = Hash(bytes);
                 var json = new UTF8Encoding(false, true).GetString(bytes);
                 var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(json);
-                if (!CombatFoundationModelPackageProtocol.TryValidate(
+                if (!CombatFoundationModelPackageProtocol.TryValidateLoadableArtifact(
                         package,
                         out diagnostic))
                 {
@@ -441,7 +484,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
         cancellation.ThrowIfCancellationRequested();
         SetStatus(
             BundledFoundationImportStage.Registering,
-            "正在批量注册 Model 底模到共享模型库");
+            "正在将 AuraToolsExp 模型目录中的底模加入模型库");
         var registration = AuraToolsAutoBattleModelRuntime
             .RegisterBundledFoundationPackages(
                 scan.Candidates,
@@ -459,7 +502,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
         var registration = result.Registration;
         var failed = scan.Failed + registration.Failed;
         var deduplicated = scan.Deduplicated + registration.Deduplicated;
-        var message = "Model 底模批量导入完成：扫描 "
+        var message = "AuraToolsExp 模型目录扫描完成：扫描 "
                       + scan.Scanned
                       + "，官方 "
                       + scan.OfficialTrusted
@@ -473,6 +516,9 @@ internal static class AuraToolsBundledFoundationModelRuntime
                       + registration.Conflicts
                       + "，失败 "
                       + failed;
+        var autoSelectedModelId = TryAutoSelectSingleCompatibleModel(result);
+        if (!string.IsNullOrWhiteSpace(autoSelectedModelId))
+            message += "；已选择唯一兼容底模（自动战斗仍保持关闭）";
         lock (Gate)
         {
             status = new BundledFoundationImportStatus
@@ -488,6 +534,11 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 Failed = failed,
                 OfficialTrusted = scan.OfficialTrusted,
                 PlayerValidated = scan.PlayerValidated,
+                SourceDirectory = Path.Combine(
+                    modRoot,
+                    ModelRelativeDirectory.Replace('/', Path.DirectorySeparatorChar)),
+                Trigger = result.Trigger,
+                AutoSelectedModelId = autoSelectedModelId,
                 UpdatedUtc = DateTime.UtcNow
             };
         }
@@ -508,6 +559,38 @@ internal static class AuraToolsBundledFoundationModelRuntime
             settings.Profile,
             settings.SelectedModelId,
             force: true);
+        var rescan = false;
+        lock (Gate)
+        {
+            if (pendingDiscoveryScan)
+            {
+                pendingDiscoveryScan = false;
+                rescan = true;
+            }
+        }
+        if (rescan) QueueScan("shared-resource-discovery", out _);
+    }
+
+    private static string TryAutoSelectSingleCompatibleModel(
+        BundledFoundationImportResult result)
+    {
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        if (!string.IsNullOrWhiteSpace(settings.SelectedModelId)) return "";
+        var candidateIds = result.Scan.Candidates
+            .Select(candidate => candidate.Package.ModelArtifact?.ModelId
+                                 ?? candidate.Package.Model?.ModelId
+                                 ?? "")
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (candidateIds.Length != 1) return "";
+        var installed = AuraToolsAutoBattleModelRuntime.SnapshotModelLibrary(settings.Profile)
+            .FirstOrDefault(model => string.Equals(model.ModelId, candidateIds[0], StringComparison.Ordinal));
+        if (installed == null) return "";
+        settings.SelectedModelId = installed.ModelId;
+        settings.TrainedModelMode = "off";
+        AuraToolsConfigService.SaveAutoBattle();
+        return installed.ModelId;
     }
 
     private static CombatGameSubjectCatalog LoadSubjectCatalog(string root)
@@ -578,7 +661,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                    item.Id,
                    roleId,
                    StringComparison.OrdinalIgnoreCase))?.DisplayName
-               ?? roleId;
+               ?? AuraToolsPlayerDisplay.RoleName(roleId);
     }
 
     private static string ResolveFamiliarName(
@@ -589,7 +672,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                    item.Id,
                    partnerId,
                    StringComparison.OrdinalIgnoreCase))?.DisplayName
-               ?? partnerId;
+               ?? AuraToolsPlayerDisplay.PartnerName(partnerId);
     }
 
     private static string BuildCanonicalDisplayName(
@@ -660,6 +743,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
 
     private sealed class BundledFoundationImportResult
     {
+        public string Trigger { get; set; } = "";
         public BundledFoundationScanResult Scan { get; set; } = new();
 
         public BundledFoundationRegistrationSummary Registration { get; set; } =

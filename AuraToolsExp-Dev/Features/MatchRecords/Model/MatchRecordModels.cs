@@ -5,8 +5,52 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 10;
-    internal const int MinimumSupportedVersion = 10;
+    internal const int Version = 11;
+    internal const int MinimumSupportedVersion = 11;
+}
+
+internal static class MatchReplayCapabilities
+{
+    internal const string AuthoritativeFramesV1 = "authoritative-frames.v1";
+    internal const string StateProjectionV1 = "state-projection.v1";
+    internal const string PresentationTimelineV1 = "presentation-timeline.v1";
+    internal const string IndexedSeekV1 = "indexed-seek.v1";
+    internal const string AsyncFinalizationV1 = "async-finalization.v1";
+    internal const string CausalityV1 = "causality.v1";
+    internal const string RuntimeContextV1 = "runtime-context.v1";
+    internal const string CardPresentationReadyV1 = "card-presentation-ready.v1";
+    internal const string IncrementalHandV1 = "incremental-hand.v1";
+    internal const string EntityDeltaV2 = "entity-delta.v2";
+    internal const string OutcomeCuesV1 = "outcome-cues.v1";
+    internal const string PassiveHudV1 = "passive-hud.v1";
+    internal const string NativeActionPresentationV1 = "native-action-presentation.v1";
+    internal const string NativeActionPresentationV2 = "native-action-presentation.v2";
+    internal const string EnemyIntentFramesV1 = "enemy-intent-frames.v1";
+    internal const string RemotePlayerActionsV1 = "remote-player-actions.v1";
+    internal const string NativeBattleViewV1 = "native-battle-view.v1";
+    internal const string ExactDependencyManifestV1 = "exact-dependency-manifest.v1";
+
+    internal static readonly string[] Supported =
+    {
+        AuthoritativeFramesV1,
+        StateProjectionV1,
+        PresentationTimelineV1,
+        IndexedSeekV1,
+        AsyncFinalizationV1,
+        CausalityV1,
+        RuntimeContextV1,
+        CardPresentationReadyV1,
+        IncrementalHandV1,
+        EntityDeltaV2,
+        OutcomeCuesV1,
+        PassiveHudV1,
+        NativeActionPresentationV1,
+        NativeActionPresentationV2,
+        EnemyIntentFramesV1,
+        RemotePlayerActionsV1,
+        NativeBattleViewV1,
+        ExactDependencyManifestV1
+    };
 }
 
 internal static class MatchRecordCollections
@@ -19,6 +63,7 @@ internal static class MatchReplayStates
 {
     internal const string Ready = "Ready";
     internal const string Incomplete = "Incomplete";
+    internal const string SummaryOnly = "SummaryOnly";
     internal const string Corrupt = "Corrupt";
 }
 
@@ -33,8 +78,9 @@ internal static class MatchReplayEventKinds
     internal const string TurnFrame = "TurnFrame";
     internal const string ActionFrame = "ActionFrame";
     internal const string SeekCheckpoint = "SeekCheckpoint";
+    internal const string BattleResultFrame = "BattleResultFrame";
 
-    // Legacy migration labels only. Replay Document v10 never records or executes commands.
+    // Legacy migration labels only. Replay Document v11 never records or executes commands.
     internal const string ActionBegin = "ActionBegin";
     internal const string ActionEnd = "ActionEnd";
     internal const string ActionCommand = "ActionCommand";
@@ -55,6 +101,8 @@ internal sealed class MatchRecord
     public string SessionId { get; set; } = "";
 
     public string LevelId { get; set; } = "";
+
+    public string BattleTitle { get; set; } = "";
 
     public string Result { get; set; } = "";
 
@@ -151,6 +199,13 @@ internal sealed class MatchReplayEvent
     public MatchReplayActionFrame? ActionFrame { get; set; }
 
     public MatchReplaySeekCheckpoint? SeekCheckpoint { get; set; }
+
+    public MatchReplayBattleResultFrame? BattleResultFrame { get; set; }
+}
+
+internal sealed class MatchReplayBattleResultFrame
+{
+    public string Result { get; set; } = "";
 }
 
 internal static class MatchReplayActionKinds
@@ -158,6 +213,7 @@ internal static class MatchReplayActionKinds
     internal const string CardUse = "CardUse";
     internal const string SkillUse = "SkillUse";
     internal const string EnemyIntentUse = "EnemyIntentUse";
+    internal const string SystemState = "SystemState";
 }
 
 internal sealed class MatchReplayActionBoundary
@@ -272,6 +328,14 @@ internal sealed class MatchReplayCardState
 internal sealed class MatchReplayStatusState
 {
     public string InstanceId { get; set; } = "";
+
+    public string ContentOwnerModId { get; set; } = "";
+
+    public string ContentId { get; set; } = "";
+
+    public string EntityKind { get; set; } = "";
+
+    public int SlotIndex { get; set; }
 
     public int MaxHp { get; set; }
 

@@ -74,8 +74,9 @@ internal static class AuraToolsDamageMeterUi
         EnsureShell();
         if (toggleButton != null)
         {
-            SetActiveIfChanged(toggleButton, available);
-            if (available)
+            var launcherVisible = available;
+            SetActiveIfChanged(toggleButton, launcherVisible);
+            if (launcherVisible)
             {
                 toggleButton.transform.SetAsLastSibling();
             }
@@ -254,7 +255,7 @@ internal static class AuraToolsDamageMeterUi
         var image = ApplyButtonImage(toggleButton, new Color(0.14f, 0.11f, 0.18f, 0.96f));
         image.raycastTarget = true;
 
-        var label = AddFillText(toggleButton.transform, "DPS", 16, TextAnchor.MiddleCenter, AuraToolsUi.Accent);
+        var label = AddFillText(toggleButton.transform, "DPT", 16, TextAnchor.MiddleCenter, AuraToolsUi.Accent);
         label.fontStyle = FontStyle.Bold;
         var dragHandle = toggleButton.AddComponent<AuraToolsDamageMeterDragHandle>();
         dragHandle.Initialize(toggleRect, OnToggleDragged, () =>
@@ -301,7 +302,7 @@ internal static class AuraToolsDamageMeterUi
         headerLayout.childForceExpandHeight = false;
         title = AddText(
             header.transform,
-            "DPS统计（世界推演）",
+            "DPT 统计（世界推演）",
             17,
             TextAnchor.MiddleLeft,
             AuraToolsUi.Accent,
@@ -339,6 +340,7 @@ internal static class AuraToolsDamageMeterUi
         viewControlsLayout.childControlWidth = true;
         viewControlsLayout.childControlHeight = true;
         viewControlsLayout.childForceExpandWidth = false;
+        viewControlsLayout.childForceExpandHeight = false;
         AddText(viewControls.transform, "视图", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 28f, 1f);
         displayModeButton = AddButton(viewControls.transform, "表格", CycleDisplayMode, 72f, 28f);
         displayScopeButton = AddButton(viewControls.transform, "本场", CycleDisplayScope, 72f, 28f);
@@ -351,6 +353,7 @@ internal static class AuraToolsDamageMeterUi
         columnLayout.childControlWidth = true;
         columnLayout.childControlHeight = true;
         columnLayout.childForceExpandWidth = false;
+        columnLayout.childForceExpandHeight = false;
         AddText(columns.transform, "队", 11, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 20f, 0f, 28f);
         AddText(columns.transform, "角色", 11, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 20f, 1f);
         AddText(columns.transform, "当前", 11, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 20f, 0f, 62f);
@@ -388,8 +391,9 @@ internal static class AuraToolsDamageMeterUi
         var panelVisible = available && AuraToolsDamageMeterRuntime.Visible;
         if (toggleButton != null)
         {
-            SetActiveIfChanged(toggleButton, available);
-            if (available)
+            var launcherVisible = available;
+            SetActiveIfChanged(toggleButton, launcherVisible);
+            if (launcherVisible)
             {
                 toggleButton.transform.SetAsLastSibling();
             }
@@ -498,6 +502,7 @@ internal static class AuraToolsDamageMeterUi
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
 
         var team = AddText(row.transform, "", 12, TextAnchor.MiddleCenter, AuraToolsUi.Text, 30f, 0f, 28f);
         var name = AddText(row.transform, "", 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 30f, 1f);
@@ -661,48 +666,31 @@ internal static class AuraToolsDamageMeterUi
 
     internal static Image ApplyButtonImage(GameObject target, Color fallbackTint)
     {
-        var image = target.GetComponent<Image>() ?? target.AddComponent<Image>();
-        image.sprite = DamageMeterUiAssets.GetButtonSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.fillCenter = true;
-        image.color = image.sprite != null ? Color.white : fallbackTint;
-        return image;
+        return target.GetComponent<Image>()
+               ?? AuraToolsUi.AddButtonImage(target, fallbackTint);
+    }
+
+    internal static void AddModalBackdrop(GameObject overlay, Action close)
+    {
+        var backdrop = CreateRect(
+            "Backdrop",
+            overlay.transform,
+            Vector2.zero,
+            Vector2.one,
+            Vector2.zero,
+            Vector2.zero);
+        AddPanel(backdrop, new Color(0f, 0f, 0f, 0.42f));
+        var blocker = backdrop.AddComponent<Button>();
+        blocker.targetGraphic = backdrop.GetComponent<Image>();
+        blocker.onClick.AddListener(() => close());
+        backdrop.transform.SetAsFirstSibling();
     }
 
     internal static Image ApplyPanelImage(GameObject target, Color fallbackOrTint)
     {
-        var image = target.GetComponent<Image>() ?? target.AddComponent<Image>();
-        image.sprite = DamageMeterUiAssets.GetPanelSprite();
-        image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
-        image.fillCenter = true;
-        image.color = image.sprite != null ? new Color(1f, 1f, 1f, fallbackOrTint.a) : fallbackOrTint;
-        if (image.sprite != null)
-        {
-            AddPanelTint(target, fallbackOrTint);
-        }
-
-        return image;
+        return target.GetComponent<Image>()
+               ?? AuraToolsUi.AddSettingsWindowImage(target);
     }
-
-
-    private static void AddPanelTint(GameObject target, Color color)
-    {
-        var tint = new GameObject("PanelTint", typeof(RectTransform));
-        tint.transform.SetParent(target.transform, false);
-        tint.transform.SetAsFirstSibling();
-        var rect = tint.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.offsetMin = new Vector2(3f, 3f);
-        rect.offsetMax = new Vector2(-3f, -3f);
-        var layout = tint.AddComponent<LayoutElement>();
-        layout.ignoreLayout = true;
-        var image = tint.AddComponent<Image>();
-        image.color = new Color(color.r, color.g, color.b, Mathf.Min(0.62f, color.a));
-        image.raycastTarget = false;
-    }
-
     internal static void SetHeight(GameObject go, float height)
     {
         var element = go.AddComponent<LayoutElement>();

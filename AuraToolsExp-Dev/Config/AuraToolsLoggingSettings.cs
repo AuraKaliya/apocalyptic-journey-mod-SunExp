@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsLoggingSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -30,15 +30,21 @@ public sealed class AuraToolsLoggingSettings
     public bool MirrorCommandsLog { get; set; }
 
     [JsonProperty("enabledSources")]
-    public List<string> EnabledSources { get; set; } = new() { "AuraTools" };
+    private List<string>? LegacyEnabledSources { get; set; }
 
-    [JsonProperty("unityLogTypes")]
+    [JsonProperty(
+        "unityLogTypes",
+        ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> UnityLogTypes { get; set; } = new() { "Warning", "Error", "Exception", "Assert" };
 
-    [JsonProperty("includedCommandTags")]
+    [JsonProperty(
+        "includedCommandTags",
+        ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> IncludedCommandTags { get; set; } = new();
 
-    [JsonProperty("excludedCommandTags")]
+    [JsonProperty(
+        "excludedCommandTags",
+        ObjectCreationHandling = ObjectCreationHandling.Replace)]
     public List<string> ExcludedCommandTags { get; set; } = new();
 
     [JsonProperty("stackTraceMode")]
@@ -58,24 +64,40 @@ public sealed class AuraToolsLoggingSettings
         var loadedSchemaVersion = SchemaVersion;
         var shouldMigrateHighVolumeDefaults = loadedSchemaVersion < 2 && LooksLikeLegacyHighVolumeDefaults();
         var shouldMigrateWarningOnlyDefaults = loadedSchemaVersion < 3 && LooksLikeWarningOnlyDefaults();
-        SchemaVersion = Math.Max(4, SchemaVersion);
+        SchemaVersion = Math.Max(5, SchemaVersion);
         if (shouldMigrateHighVolumeDefaults || shouldMigrateWarningOnlyDefaults)
         {
             MinimumLevel = LoggingLevelNames.Info;
             MirrorUnityLog = false;
             MirrorCommandsLog = false;
-            EnabledSources = new List<string> { "AuraTools" };
             UnityLogTypes = new List<string> { "Warning", "Error", "Exception", "Assert" };
             StackTraceMode = LoggingStackTraceModes.ErrorsOnly;
             MaxQueueLength = Math.Min(MaxQueueLength <= 0 ? 1024 : MaxQueueLength, 1024);
         }
 
+        if (loadedSchemaVersion < 5 && LegacyEnabledSources is { Count: > 0 })
+        {
+            // Schema v4 required both a mirror switch and a second source
+            // switch. Preserve the previously effective result once, then
+            // retire the duplicate source gate.
+            MirrorUnityLog = MirrorUnityLog
+                             && ContainsValue(LegacyEnabledSources, "Unity");
+            MirrorCommandsLog = MirrorCommandsLog
+                                && ContainsValue(LegacyEnabledSources, "Command");
+        }
+        LegacyEnabledSources = null;
+
         FileNamePattern = string.IsNullOrWhiteSpace(FileNamePattern) ? "AuraTools-{date}.log" : FileNamePattern.Trim();
         MinimumLevel = LoggingLevelNames.Normalize(MinimumLevel);
-        EnabledSources = NormalizeList(EnabledSources, new[] { "AuraTools" });
-        UnityLogTypes = NormalizeList(UnityLogTypes, new[] { "Warning", "Error", "Exception", "Assert" });
-        IncludedCommandTags = NormalizeList(IncludedCommandTags, Array.Empty<string>());
-        ExcludedCommandTags = NormalizeList(ExcludedCommandTags, Array.Empty<string>());
+        UnityLogTypes = NormalizeListAllowEmpty(
+            UnityLogTypes,
+            new[] { "Warning", "Error", "Exception", "Assert" });
+        IncludedCommandTags = NormalizeListAllowEmpty(
+            IncludedCommandTags,
+            Array.Empty<string>());
+        ExcludedCommandTags = NormalizeListAllowEmpty(
+            ExcludedCommandTags,
+            Array.Empty<string>());
         StackTraceMode = LoggingStackTraceModes.Normalize(StackTraceMode);
         MaxQueueLength = Math.Max(128, Math.Min(65536, MaxQueueLength));
         FlushIntervalMs = Math.Max(100, Math.Min(10000, FlushIntervalMs));
@@ -86,8 +108,8 @@ public sealed class AuraToolsLoggingSettings
     {
         return MirrorUnityLog
                || MirrorCommandsLog
-               || ContainsValue(EnabledSources, "Unity")
-               || ContainsValue(EnabledSources, "Command")
+               || ContainsValue(LegacyEnabledSources, "Unity")
+               || ContainsValue(LegacyEnabledSources, "Command")
                || ContainsValue(UnityLogTypes, "Log")
                || string.Equals(StackTraceMode, LoggingStackTraceModes.All, StringComparison.OrdinalIgnoreCase)
                || MaxQueueLength >= 4096;
@@ -98,7 +120,8 @@ public sealed class AuraToolsLoggingSettings
         return string.Equals(MinimumLevel, LoggingLevelNames.Warning, StringComparison.OrdinalIgnoreCase)
                && !MirrorUnityLog
                && !MirrorCommandsLog
-               && ContainsOnlyValue(EnabledSources, "AuraTools")
+               && (LegacyEnabledSources == null
+                   || ContainsOnlyValue(LegacyEnabledSources, "AuraTools"))
                && !ContainsValue(UnityLogTypes, "Log")
                && string.Equals(StackTraceMode, LoggingStackTraceModes.ErrorsOnly, StringComparison.OrdinalIgnoreCase)
                && MaxQueueLength <= 1024;
@@ -124,28 +147,23 @@ public sealed class AuraToolsLoggingSettings
         return normalized.Count == 1 && string.Equals(normalized[0], expected, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static List<string> NormalizeList(IEnumerable<string>? values, IEnumerable<string> fallback)
+    public bool ShouldSerializeLegacyEnabledSources()
+    {
+        return false;
+    }
+
+    private static List<string> NormalizeListAllowEmpty(
+        IEnumerable<string>? values,
+        IEnumerable<string> fallbackWhenMissing)
     {
         var list = new List<string>();
-        foreach (var value in values ?? fallback)
+        foreach (var value in values ?? fallbackWhenMissing)
         {
             var text = value?.Trim() ?? "";
             if (!string.IsNullOrWhiteSpace(text)
                 && !list.Any(existing => string.Equals(existing, text, StringComparison.OrdinalIgnoreCase)))
             {
                 list.Add(text);
-            }
-        }
-
-        if (list.Count == 0)
-        {
-            foreach (var value in fallback)
-            {
-                var text = value?.Trim() ?? "";
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    list.Add(text);
-                }
             }
         }
 

@@ -17,10 +17,10 @@ public static class AudioArbiterRuntime
 
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-08-21-v14";
+    public const string CurrentBuildId = "audio-arbiter-2026-08-22-v15";
     public const int CurrentProtocolVersion = 7;
     public const int MinimumSupportedProtocolVersion = 7;
-    public const int SupportedManifestSchemaVersion = 3;
+    public const int SupportedManifestSchemaVersion = 4;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CompatibilityErrorsShown = new(StringComparer.OrdinalIgnoreCase);

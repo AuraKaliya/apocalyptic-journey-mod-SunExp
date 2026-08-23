@@ -4,6 +4,17 @@ namespace AuraShared.Core;
 
 public static class AuraSharedPaths
 {
+    public static string RootDirectory { get; set; } = Path.GetTempPath();
+
+    public static bool IsInsideDirectory(string path, string directory)
+    {
+        var fullPath = Path.GetFullPath(path ?? "");
+        var fullDirectory = Path.GetFullPath(directory ?? "")
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return fullPath.Equals(fullDirectory, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string NormalizeRelativePath(string value)
     {
         return (value ?? "").Trim().Trim('"').Replace('\\', '/').TrimStart('/');

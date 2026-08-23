@@ -35,9 +35,14 @@ namespace AuraTools.UnityUiPreview
                 var color = StatusColor(Module);
                 Marker.color = color;
                 Status.color = color;
-                Status.text = string.IsNullOrWhiteSpace(Module.Attention)
-                    ? Module.Summary
-                    : Module.Summary + "  ·  " + Module.Attention;
+                Status.text = !string.IsNullOrWhiteSpace(Module.Attention)
+                    ? Module.Attention
+                    : Module.Availability == "error"
+                        ? "当前不可用"
+                        : Module.Availability == "busy"
+                            ? "处理中"
+                            : Module.Availability == "warning" ? "部分功能不可用" : "";
+                Status.gameObject.SetActive(Status.text.Length > 0);
                 Icon.color = Module.Enabled ? PreviewTheme.Text : PreviewTheme.MutedText;
                 Checkbox.Value = Module.Enabled;
                 Checkbox.Interactable = Module.Availability != "error" && Module.Availability != "busy";
@@ -340,7 +345,7 @@ namespace AuraTools.UnityUiPreview
             PreviewUi.Fixed(root, 0f, PreviewTheme.ModuleRowHeight);
             PreviewUi.Image(root, new Color(0.063f, 0.078f, 0.227f, 1f));
             var layout = root.AddComponent<HorizontalLayoutGroup>();
-            layout.padding = new RectOffset(12, 12, 10, 10);
+            layout.padding = new RectOffset(12, 12, 8, 8);
             layout.spacing = 10f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
@@ -348,7 +353,7 @@ namespace AuraTools.UnityUiPreview
             layout.childForceExpandHeight = false;
 
             var markerRoot = PreviewUi.Rect("StatusMarker", root.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            PreviewUi.Fixed(markerRoot, 4f, 72f);
+            PreviewUi.Fixed(markerRoot, 4f, 52f);
             var marker = PreviewUi.Image(markerRoot, PreviewTheme.Disabled);
             marker.raycastTarget = false;
 
@@ -368,20 +373,17 @@ namespace AuraTools.UnityUiPreview
             copyLayout.childForceExpandWidth = true;
             copyLayout.childForceExpandHeight = false;
             var titleRoot = PreviewUi.Rect("Title", copy.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            PreviewUi.Fixed(titleRoot, 0f, 27f);
+            PreviewUi.Fixed(titleRoot, 0f, 32f);
             PreviewUi.Text(titleRoot, module.Name + (module.Experimental ? "  ·  实验" : ""), 20, TextAnchor.MiddleLeft, PreviewTheme.Text, true);
             var statusRoot = PreviewUi.Rect("Status", copy.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            PreviewUi.Fixed(statusRoot, 0f, 26f);
+            PreviewUi.Fixed(statusRoot, 0f, 24f);
             var status = PreviewUi.Text(statusRoot, "", 16, TextAnchor.MiddleLeft, PreviewTheme.MutedText, true);
-            var descriptionRoot = PreviewUi.Rect("Description", copy.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-            PreviewUi.Fixed(descriptionRoot, 0f, 23f);
-            PreviewUi.Text(descriptionRoot, module.Description, 14, TextAnchor.MiddleLeft, PreviewTheme.MutedText, true);
 
             var settingsHolder = PreviewUi.Rect("Settings", root.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             PreviewUi.Fixed(settingsHolder, 42f, 42f);
             if (module.HasSettings)
             {
-                var settings = PreviewUi.ToolboxIconButton("OpenSettings", settingsHolder.transform, "settings", () => controller.ShowToolSettings(module.Name, module.Summary, module.Description), 42f);
+                var settings = PreviewUi.ToolboxIconButton("OpenSettings", settingsHolder.transform, "settings", () => controller.ShowToolSettings(module.Name, "", ""), 42f);
                 var rect = settings.GetComponent<RectTransform>();
                 rect.anchorMin = Vector2.zero;
                 rect.anchorMax = Vector2.one;
@@ -421,6 +423,7 @@ namespace AuraTools.UnityUiPreview
                 Icon = icon,
                 Checkbox = checkbox
             };
+            enableRoot.SetActive(module.ShowEnableControl);
             row.Refresh();
             return row;
         }

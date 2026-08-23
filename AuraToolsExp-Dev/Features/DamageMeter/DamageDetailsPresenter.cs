@@ -40,10 +40,7 @@ internal static class DamageDetailsPresenter
             Vector2.one,
             Vector2.zero,
             Vector2.zero);
-        AuraToolsDamageMeterUi.AddPanel(overlay, new Color(0f, 0f, 0f, 0.35f));
-        var blocker = overlay.AddComponent<Button>();
-        blocker.targetGraphic = overlay.GetComponent<Image>();
-        blocker.onClick.AddListener(AuraToolsDamageMeterUi.CloseDetails);
+        AuraToolsDamageMeterUi.AddModalBackdrop(overlay, AuraToolsDamageMeterUi.CloseDetails);
 
         var window = AuraToolsDamageMeterUi.CreateRect(
             "Window", overlay.transform,
@@ -72,6 +69,7 @@ internal static class DamageDetailsPresenter
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         AuraToolsDamageMeterUi.AddText(header.transform, displayName + " 伤害明细", 16,
             TextAnchor.MiddleLeft, AuraToolsUi.Accent, 32f, 1f);
         AuraToolsDamageMeterUi.AddButton(header.transform, "关闭", AuraToolsDamageMeterUi.CloseDetails, 74f, 32f);
@@ -121,6 +119,8 @@ internal static class DamageDetailsPresenter
             rowLayout.spacing = 8f;
             rowLayout.childControlWidth = true;
             rowLayout.childControlHeight = true;
+            rowLayout.childForceExpandWidth = false;
+            rowLayout.childForceExpandHeight = false;
             AuraToolsDamageMeterUi.AddText(row.transform, detail.Label, 13, TextAnchor.MiddleLeft, AuraToolsUi.Text, 28f, 1f);
             AuraToolsDamageMeterUi.AddText(row.transform, ConfidenceLabel(detail.Confidence), 11,
                 TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 28f, 0f, 60f);

@@ -83,8 +83,8 @@
         description: "为世界推演配置全局或按角色的开局卡牌与遗物，并支持配置导入导出。"
       });
       Object.assign(findModule("intelligence.auto-battle"), {
-        summary: "完整应用 · foundation-package-20260810-155337232-c81434ca",
-        attention: "候选模型尚未通过高级难度 Wilson 置信下界认证"
+        summary: "完整应用",
+        attention: "候选模型尚未完成高级难度验证"
       });
     }
 
@@ -278,21 +278,23 @@
       ? `<button type="button" class="icon-button module-settings" title="设置 ${module.name}" aria-label="设置 ${module.name}"><img src="${iconRoot}settings.png" alt=""></button>`
       : "";
     const status = module.attention
-      ? `${module.summary}  ·  ${module.attention}`
-      : module.summary;
+      || (module.availability === "error"
+        ? "当前不可用"
+        : module.availability === "busy"
+          ? "处理中"
+          : module.availability === "warning" ? "部分功能不可用" : "");
     row.innerHTML = `
       <span class="status-marker" aria-hidden="true"></span>
       <span class="module-icon"><img src="${iconRoot}${module.icon}.png" alt=""></span>
       <span class="module-copy">
         <span class="module-title">${module.name}${module.experimental ? '<span class="experimental-label">· 实验</span>' : ""}</span>
-        <span class="module-status" title="${status}">${status}</span>
-        <span class="module-description" title="${module.description}">${module.description}</span>
+        ${status ? `<span class="module-status" title="${status}">${status}</span>` : ""}
       </span>
       <span class="settings-slot${module.settings ? "" : " empty"}">${settingsControl}</span>
-      <span class="enable-control"><span>启用</span><button type="button" class="toolbox-checkbox" role="checkbox" aria-label="启用 ${module.name}" aria-checked="${module.enabled}" ${module.availability === "error" || module.availability === "busy" ? "disabled" : ""}></button></span>`;
+      ${module.enableControl === false ? "" : `<span class="enable-control"><span>启用</span><button type="button" class="toolbox-checkbox" role="checkbox" aria-label="启用 ${module.name}" aria-checked="${module.enabled}" ${module.availability === "error" || module.availability === "busy" ? "disabled" : ""}></button></span>`}`;
 
     row.querySelector(".module-settings")?.addEventListener("click", event => openOverlay(module, event.currentTarget));
-    row.querySelector(".toolbox-checkbox").addEventListener("click", event => {
+    row.querySelector(".toolbox-checkbox")?.addEventListener("click", event => {
       module.enabled = !module.enabled;
       event.currentTarget.setAttribute("aria-checked", String(module.enabled));
       row.dataset.state = resolveVisualState(module);
@@ -313,7 +315,8 @@
   function openOverlay(module, trigger) {
     state.overlayTrigger = trigger;
     overlayTitle.textContent = `${module.name}设置`;
-    overlaySummary.textContent = `${module.summary}。${module.description}`;
+    overlaySummary.textContent = "";
+    overlaySummary.hidden = true;
     overlay.hidden = false;
     closeOverlayButton.focus();
   }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Features.SharedResources;
 using AuraToolsExp.Dll.Modules;
 using AuraToolsExp.Dll.Modules.Contracts;
 using AuraUi.Shared;
@@ -88,7 +89,7 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
 
         workspace = AuraToolsUi.CreateLayout("ToolboxWorkspace", panel);
         AuraUiStableId.Assign(workspace, "toolbox.workspace");
-        ToolboxSurfaceV2.Apply(workspace).raycastTarget = false;
+        ToolboxSurfaceV2.ApplyToolboxHome(workspace).raycastTarget = false;
         var workspaceElement = AuraToolsUi.EnsureLayoutElement(workspace);
         workspaceElement.flexibleWidth = 1f;
         workspaceElement.flexibleHeight = 1f;
@@ -167,6 +168,15 @@ internal sealed class ToolboxSettingsShell : MonoBehaviour
             ToolboxVisualSpec.IconButtonSize,
             "夹");
         AuraUiStableId.Assign(directoryButton.Root, "toolbox.data-directory");
+
+        var refreshResourcesButton = ToolboxIconButtonV2.Create(
+            header.transform,
+            "action.refresh",
+            "刷新共享资源",
+            () => AuraToolsSharedResourceDiscoveryRuntime.Refresh("toolbox"),
+            ToolboxVisualSpec.IconButtonSize,
+            "刷");
+        AuraUiStableId.Assign(refreshResourcesButton.Root, "toolbox.resources.refresh");
 
         var listArea = AuraToolsUi.CreateLayout("ToolboxListArea", content.transform);
         var listAreaElement = AuraToolsUi.EnsureLayoutElement(listArea);

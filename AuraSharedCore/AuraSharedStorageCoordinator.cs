@@ -277,6 +277,11 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
     public void WriteTextAtomic(string path, string text, bool createBackup)
     {
+        WriteBytesAtomic(path, new UTF8Encoding(false).GetBytes(text ?? ""), createBackup);
+    }
+
+    public void WriteBytesAtomic(string path, byte[] bytes, bool createBackup)
+    {
         var fullPath = Path.GetFullPath(path);
         if (!IsInside(fullPath, rootDirectory))
         {
@@ -285,7 +290,7 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
         var directory = Path.GetDirectoryName(fullPath) ?? rootDirectory;
         EnsurePortablePath(fullPath, "atomic-target");
-        var bytes = new UTF8Encoding(false).GetBytes(text ?? "");
+        bytes ??= Array.Empty<byte>();
         if (File.Exists(fullPath) && FileContentEquals(fullPath, bytes))
         {
             return;
@@ -728,6 +733,54 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         if (File.Exists(fullPath))
         {
             File.Delete(fullPath);
+        }
+    }
+
+    public void MoveDirectoryInsideRoot(string sourcePath, string destinationPath)
+    {
+        var source = Path.GetFullPath(sourcePath);
+        var destination = Path.GetFullPath(destinationPath);
+        if (!IsInside(source, rootDirectory) || !IsInside(destination, rootDirectory))
+        {
+            throw new InvalidDataException("Directory move target escapes shared storage.");
+        }
+        EnsurePortablePath(source, "move-directory-source");
+        EnsurePortablePath(destination, "move-directory-destination");
+        if (!Directory.Exists(source))
+            throw new DirectoryNotFoundException("Shared directory move source does not exist: " + source);
+        if (Directory.Exists(destination) || File.Exists(destination))
+            throw new IOException("Shared directory move destination already exists: " + destination);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? rootDirectory);
+        Directory.Move(source, destination);
+    }
+
+    internal void CommitStagedFileInsideRoot(string stagingPath, string destinationPath, bool overwrite)
+    {
+        var staging = Path.GetFullPath(stagingPath);
+        var destination = Path.GetFullPath(destinationPath);
+        if (!IsInside(staging, rootDirectory) || !IsInside(destination, rootDirectory))
+            throw new InvalidDataException("Staged file commit escapes shared storage.");
+        EnsurePortablePath(staging, "staged-commit-source");
+        EnsurePortablePath(destination, "staged-commit-destination");
+        if (!File.Exists(staging)) throw new FileNotFoundException("Staged file is missing.", staging);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? rootDirectory);
+        if (!File.Exists(destination))
+        {
+            File.Move(staging, destination);
+            return;
+        }
+        if (!overwrite) throw new IOException("Staged destination already exists: " + destination);
+        try
+        {
+            File.Replace(staging, destination, null, ignoreMetadataErrors: true);
+        }
+        catch (PlatformNotSupportedException)
+        {
+            ReplaceWithRollback(staging, destination);
+        }
+        catch (IOException)
+        {
+            ReplaceWithRollback(staging, destination);
         }
     }
 

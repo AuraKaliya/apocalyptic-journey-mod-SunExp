@@ -12,11 +12,13 @@ public static class AuraCgRegistryRuntime
 {
     public const string RegistryAuthorityId = "AuraCgShared";
     public const string RegistryFileName = "cg.registry.json";
-    public const int CurrentRegistrySchemaVersion = 2;
+    public const int CurrentRegistrySchemaVersion = 3;
     private static readonly object CacheGate = new();
+    private static readonly HashSet<string> ActiveDiscoverySources = new(StringComparer.OrdinalIgnoreCase);
     private static AuraCgRegistryDocument? cachedDocument;
     private static DateTime cachedDocumentUtc;
     private static long cachedRevision = -1;
+    private static long effectiveRevision;
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(2);
 
     // Same-process consumers use this notification to invalidate local derived
@@ -30,11 +32,19 @@ public static class AuraCgRegistryRuntime
         var owner = (ownerModId ?? "").Trim();
         var entries = document.Entries
             .Where(entry => entry.Enabled
+                            && IsSourceActive(entry.SourceModProjectId)
                             && (string.IsNullOrWhiteSpace(owner)
                                 || string.Equals(entry.OwnerModId, owner, StringComparison.OrdinalIgnoreCase)))
             .ToList()
             .AsReadOnly();
-        return new AuraCgRegistrySnapshot(Math.Max(0, cachedRevision), entries);
+        long effective;
+        long storage;
+        lock (CacheGate)
+        {
+            effective = Math.Max(0, effectiveRevision);
+            storage = Math.Max(0, cachedRevision);
+        }
+        return new AuraCgRegistrySnapshot(effective, storage, entries);
     }
 
     public static bool RegisterManifest(ModConfig? modConfig, string ownerModId, string manifestRelativePath = "SharedResources/cg.registry.json")
@@ -87,6 +97,7 @@ public static class AuraCgRegistryRuntime
             {
                 entry.OwnerModId = manifest.OwnerModId;
                 entry.RegistrationSourceId = manifest.ContributionId;
+                entry.SourceModProjectId = manifest.SourceModProjectId;
                 entry.Normalize(manifest.OwnerModId);
                 return entry;
             })
@@ -131,7 +142,11 @@ public static class AuraCgRegistryRuntime
                     cachedRevision = snapshot.Found ? snapshot.Revision : 0;
                     cachedDocumentUtc = DateTime.UtcNow;
                 }
-
+                if (accepted.Count > 0)
+                {
+                    AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
+                }
+                NotifyEffectiveChanged();
                 return true;
             }
             var result = AuraSharedConfigStore.WriteShared(
@@ -148,7 +163,7 @@ public static class AuraCgRegistryRuntime
                 {
                     AuraCgActivationRuntime.ApplyManifestDefaults(manifest.OwnerModId, accepted);
                 }
-                NotifyChanged(result.Revision);
+                NotifyEffectiveChanged();
                 AuraCgLog.InfoOnce(
                     "cg-manifest-registered:" + manifest.OwnerModId + ":" + manifest.ContributionId,
                     "CG registry manifest registered. owner=" + manifest.OwnerModId
@@ -186,13 +201,43 @@ public static class AuraCgRegistryRuntime
     {
         var document = GetCachedDocument();
         return document.Entries
-            .Where(entry => entry.Enabled)
+            .Where(entry => entry.Enabled && IsSourceActive(entry.SourceModProjectId))
             .Where(entry => string.IsNullOrWhiteSpace(ownerModId)
                             || string.Equals(entry.OwnerModId, ownerModId, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(entry => entry.Priority)
             .ThenBy(entry => entry.OwnerModId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    public static void SetActiveDiscoverySources(IEnumerable<string> sourceModProjectIds)
+    {
+        var next = new HashSet<string>(
+            (sourceModProjectIds ?? Array.Empty<string>())
+            .Select(value => (value ?? "").Trim())
+            .Where(value => value.Length > 0),
+            StringComparer.OrdinalIgnoreCase);
+        var changed = false;
+        lock (CacheGate)
+        {
+            if (!ActiveDiscoverySources.SetEquals(next))
+            {
+                ActiveDiscoverySources.Clear();
+                ActiveDiscoverySources.UnionWith(next);
+                changed = true;
+            }
+        }
+        if (changed) NotifyEffectiveChanged();
+    }
+
+    private static bool IsSourceActive(string sourceModProjectId)
+    {
+        var source = (sourceModProjectId ?? "").Trim();
+        if (source.Length == 0) return true;
+        lock (CacheGate)
+        {
+            return ActiveDiscoverySources.Contains(source);
+        }
     }
 
     public static void InvalidateCache()
@@ -229,11 +274,30 @@ public static class AuraCgRegistryRuntime
 
             var document = snapshot.Value ?? new AuraCgRegistryDocument();
             document.Normalize();
+            var nextRevision = snapshot.Found ? snapshot.Revision : 0;
+            if (cachedRevision >= 0 && cachedRevision != nextRevision)
+            {
+                effectiveRevision++;
+            }
+            else if (effectiveRevision == 0)
+            {
+                effectiveRevision = 1;
+            }
             cachedDocument = document;
-            cachedRevision = snapshot.Found ? snapshot.Revision : 0;
+            cachedRevision = nextRevision;
             cachedDocumentUtc = DateTime.UtcNow;
             return document;
         }
+    }
+
+    private static void NotifyEffectiveChanged()
+    {
+        long revision;
+        lock (CacheGate)
+        {
+            revision = ++effectiveRevision;
+        }
+        NotifyChanged(revision);
     }
 
     private static void NotifyChanged(long revision)
@@ -253,12 +317,23 @@ public static class AuraCgRegistryRuntime
 public sealed class AuraCgRegistrySnapshot
 {
     public AuraCgRegistrySnapshot(long revision, IReadOnlyList<AuraCgRegistryEntry> entries)
+        : this(revision, revision, entries)
+    {
+    }
+
+    public AuraCgRegistrySnapshot(
+        long revision,
+        long storageRevision,
+        IReadOnlyList<AuraCgRegistryEntry> entries)
     {
         Revision = Math.Max(0, revision);
+        StorageRevision = Math.Max(0, storageRevision);
         Entries = entries ?? Array.Empty<AuraCgRegistryEntry>();
     }
 
     public long Revision { get; }
+
+    public long StorageRevision { get; }
 
     public IReadOnlyList<AuraCgRegistryEntry> Entries { get; }
 }
@@ -363,6 +438,9 @@ public sealed class AuraCgManifest
     [JsonProperty("contributionId")]
     public string ContributionId { get; set; } = "manifest";
 
+    [JsonProperty("sourceModProjectId")]
+    public string SourceModProjectId { get; set; } = "";
+
     [JsonProperty("protocol")]
     public AuraCgProtocolManifest Protocol { get; set; } = new();
 
@@ -374,6 +452,7 @@ public sealed class AuraCgManifest
         SchemaVersion = Math.Max(1, SchemaVersion);
         OwnerModId = string.IsNullOrWhiteSpace(OwnerModId) ? fallbackOwner : OwnerModId.Trim();
         ContributionId = string.IsNullOrWhiteSpace(ContributionId) ? "manifest" : ContributionId.Trim();
+        SourceModProjectId = (SourceModProjectId ?? "").Trim();
         Protocol ??= new AuraCgProtocolManifest();
         Protocol.Normalize();
         Entries ??= new List<AuraCgRegistryEntry>();
@@ -410,6 +489,9 @@ public sealed class AuraCgRegistryEntry
     [JsonProperty("registrationSourceId")]
     public string RegistrationSourceId { get; set; } = "";
 
+    [JsonProperty("sourceModProjectId")]
+    public string SourceModProjectId { get; set; } = "";
+
     [JsonProperty("displayName")]
     public string DisplayName { get; set; } = "";
 
@@ -421,6 +503,9 @@ public sealed class AuraCgRegistryEntry
 
     [JsonProperty("cardIds")]
     public List<string> CardIds { get; set; } = new();
+
+    [JsonProperty("skillIds")]
+    public List<string> SkillIds { get; set; } = new();
 
     [JsonProperty("media")]
     public AuraCgMediaSpec Media { get; set; } = new();
@@ -454,11 +539,22 @@ public sealed class AuraCgRegistryEntry
     {
         OwnerModId = string.IsNullOrWhiteSpace(OwnerModId) ? fallbackOwner : OwnerModId.Trim();
         RegistrationSourceId = (RegistrationSourceId ?? "").Trim();
+        SourceModProjectId = (SourceModProjectId ?? "").Trim();
         CgId = (CgId ?? "").Trim();
         DisplayName = (DisplayName ?? "").Trim();
         Kind = string.IsNullOrWhiteSpace(Kind) ? "skill" : Kind.Trim();
         TargetRoleIds = CleanList(TargetRoleIds);
         CardIds = CleanList(CardIds);
+        SkillIds = CleanList(SkillIds);
+        if (string.Equals(Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)
+            && SkillIds.Count == 0
+            && CardIds.Count > 0)
+        {
+            // Bounded schema-v2 migration: skill entries formerly overloaded
+            // cardIds. Schema v3 stores the semantic trigger explicitly.
+            SkillIds = CardIds;
+            CardIds = new List<string>();
+        }
         Media ??= new AuraCgMediaSpec();
         Media.Normalize();
         DefaultPresentation ??= new AuraCgPresentationSpec();

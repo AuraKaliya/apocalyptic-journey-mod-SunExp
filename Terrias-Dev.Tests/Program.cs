@@ -399,12 +399,29 @@ internal static class Program
                 new Dictionary<string, string> { ["Tag"] = "" })
         };
         TerriasCardPresentationRouter.ResetDiagnostics();
+        AuraCardPresentationRuntime.ResetDiagnostics();
         TerriasCardInvalidationService.Invalidate(structuralCard, TerriasCardDirtyFields.Structure, "test.structure");
         request = AuraSharedFrameScheduler.TakePendingRequest();
         request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
         Equal(1, structuralCard.TransformCount, "Structural invalidation uses the native configured-type rebind exactly once");
         Equal(1, structuralCard.DataUpdateCount, "Structural rebind subsumes ordinary derived and presentation DataUpdate work");
-        Equal(1, TerriasCardPresentationRouter.ApplyCount, "Structural rebind performs one final visual presentation commit");
+        Equal(1, AuraCardPresentationRuntime.ApplyCount,
+            "Structural rebind performs one final shared visual presentation commit");
+        Equal(0, TerriasCardPresentationRouter.ApplyCount,
+            "Structural rebind does not bypass tool-owned shared presentation subscribers");
+
+        var visualCard = new CardItem
+        {
+            dataConfig = new DataConfig(
+                new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },
+                new Dictionary<string, string> { ["Tag"] = "" })
+        };
+        AuraCardPresentationRuntime.ResetDiagnostics();
+        TerriasCardInvalidationService.Invalidate(visualCard, TerriasCardDirtyFields.Visual, "test.visual");
+        request = AuraSharedFrameScheduler.TakePendingRequest();
+        request!.ExecuteSlice!(new AuraSharedFrameSliceContext());
+        Equal(1, AuraCardPresentationRuntime.ApplyCount,
+            "Visual invalidation re-enters the shared presentation lifecycle for tool-owned effects");
 
         var preMaterialized = new DataConfig(
             new Dictionary<string, string> { ["Id"] = TerriasIds.WagerCardId },

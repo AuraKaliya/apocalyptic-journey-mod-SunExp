@@ -65,8 +65,8 @@ internal static class MatchReplayVideoPlayer
         controller = window.AddComponent<MatchReplayVideoController>();
         controller.Initialize(asset, image, slider, play.GetComponentInChildren<Text>(), status);
         var timeline = controller.HasTimeline;
-        previous.interactable = timeline;
-        next.interactable = timeline;
+        AuraToolsUi.SetButtonAvailable(previous, timeline, "该视频没有结构化回合时间轴");
+        AuraToolsUi.SetButtonAvailable(next, timeline, "该视频没有结构化回合时间轴");
     }
 
     internal static void Close()

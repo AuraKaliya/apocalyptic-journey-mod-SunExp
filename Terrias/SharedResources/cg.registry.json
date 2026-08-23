@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 3,
+  "ownerModId": "Terrias",
+  "contributionId": "manifest",
+  "protocol": {
+    "minVersion": 1,
+    "preferredVersion": 3
+  },
+  "entries": [
+    {
+      "cgId": "loneer.morning-star-prayer",
+      "displayName": "Loneer - 晨星祈愿",
+      "kind": "skill",
+      "targetRoleIds": [
+        "Terrias_loneer_loneer",
+        "loneer"
+      ],
+      "skillIds": [
+        "Terrias_loneer_loneer_morning_star_prayer",
+        "loneer_morning_star_prayer"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_loneer_loneer/SkillCg/Terrias/loneer.morning-star-prayer/content.png",
+        "fallbackImage": "CG/Role/Terrias_loneer_loneer/SkillCg/Terrias/loneer.morning-star-prayer/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "slide",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "wuna.white-sun-prayer",
+      "displayName": "WuNa - 白曜圣祷",
+      "kind": "skill",
+      "targetRoleIds": [
+        "Terrias_wuna_wuna",
+        "wuna"
+      ],
+      "skillIds": [
+        "Terrias_wuna_wuna_white_sun_prayer",
+        "wuna_white_sun_prayer"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_wuna_wuna/SkillCg/Terrias/wuna.white-sun-prayer/content.png",
+        "fallbackImage": "CG/Role/Terrias_wuna_wuna/SkillCg/Terrias/wuna.white-sun-prayer/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.4,
+        "hold": 1.4,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "columbina.homesickness",
+      "displayName": "Columbina - 她的乡愁",
+      "kind": "skill",
+      "targetRoleIds": [
+        "Terrias_columbina_columbina",
+        "columbina"
+      ],
+      "skillIds": [
+        "Terrias_columbina_columbina_homesickness",
+        "columbina_homesickness"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_columbina_columbina/SkillCg/Terrias/columbina.homesickness/content.png",
+        "fallbackImage": "CG/Role/Terrias_columbina_columbina/SkillCg/Terrias/columbina.homesickness/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.4,
+        "hold": 2.1,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "skill-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "terrias.blazing-crown-collapse",
+      "displayName": "Terrias - 炽冕崩落",
+      "kind": "cardUse",
+      "targetRoleIds": [
+        "*"
+      ],
+      "cardIds": [
+        "Terrias_terrias_blazing_crown_collapse",
+        "blazing_crown_collapse"
+      ],
+      "media": {
+        "type": "sequence",
+        "resource": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/Terrias/terrias.blazing-crown-collapse/content",
+        "fallbackImage": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/Terrias/terrias.blazing-crown-collapse/content",
+        "frameSeconds": 0.054054,
+        "alphaMode": "blackKey",
+        "keyThreshold": 0.02,
+        "keySoftness": 0.1,
+        "flashAtSeconds": -1,
+        "flashDuration": 0.18,
+        "flashMode": "hybridBwPulse",
+        "flashStartFrame": 6,
+        "flashEndFrame": 20,
+        "flashPulseEveryFrames": 1,
+        "flashStrength": 0.88
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.12,
+        "hold": 0.08,
+        "fadeOut": 0.28,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 30,
+      "tags": [
+        "card-use-cg",
+        "sequence-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "loneer.feast",
+      "displayName": "Loneer - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "Terrias_loneer_loneer",
+        "loneer"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_loneer_loneer/Feast/Terrias/loneer.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_loneer_loneer/Feast/Terrias/loneer.feast/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "wuna.feast",
+      "displayName": "WuNa - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "Terrias_wuna_wuna",
+        "wuna"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_wuna_wuna/Feast/Terrias/wuna.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_wuna_wuna/Feast/Terrias/wuna.feast/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "columbina.feast",
+      "displayName": "Columbina - 美餐",
+      "kind": "feast",
+      "targetRoleIds": [
+        "Terrias_columbina_columbina",
+        "columbina"
+      ],
+      "cardIds": [
+        "*"
+      ],
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_columbina_columbina/Feast/Terrias/columbina.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_columbina_columbina/Feast/Terrias/columbina.feast/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg",
+        "terrias"
+      ],
+      "enabled": true
+    }
+  ]
+}

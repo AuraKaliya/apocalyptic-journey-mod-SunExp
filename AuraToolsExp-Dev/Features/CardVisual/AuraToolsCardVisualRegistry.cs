@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
+using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Infrastructure;
 using Newtonsoft.Json;
 using Witch.Mod;
@@ -12,7 +13,7 @@ namespace AuraToolsExp.Dll.Features.CardVisual;
 public static class AuraToolsCardVisualRegistry
 {
     private const string RegistryFileName = "card-visual.registry.json";
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 4;
     private static CardVisualRegistryDocument document = new();
 
     public static IReadOnlyList<CardFrameThemeDefinition> Themes => document.Themes;
@@ -57,6 +58,55 @@ public static class AuraToolsCardVisualRegistry
             && string.Equals(value.EffectId, effectId, StringComparison.OrdinalIgnoreCase));
     }
 
+    public static bool TryGetDefaultEffect(
+        string qualifiedCardId,
+        out CardDynamicEffectSettings settings)
+    {
+        var card = (qualifiedCardId ?? "").Trim();
+        foreach (var effect in Effects.Where(value => value.Enabled))
+        {
+            var mapping = effect.MappingPreset.FirstOrDefault(value =>
+                value.QualifiedCardIds.Contains(card, StringComparer.OrdinalIgnoreCase));
+            if (mapping == null)
+            {
+                continue;
+            }
+
+            settings = new CardDynamicEffectSettings
+            {
+                Enabled = true,
+                EffectId = effect.EffectId,
+                Parameters = new Dictionary<string, float>(mapping.Parameters, StringComparer.Ordinal)
+            };
+            return true;
+        }
+
+        settings = new CardDynamicEffectSettings { Enabled = false };
+        return false;
+    }
+
+    public static IReadOnlyDictionary<string, CardDynamicEffectSettings> DefaultEffects()
+    {
+        var result = new Dictionary<string, CardDynamicEffectSettings>(StringComparer.OrdinalIgnoreCase);
+        foreach (var effect in Effects.Where(value => value.Enabled))
+        {
+            foreach (var mapping in effect.MappingPreset)
+            {
+                foreach (var card in mapping.QualifiedCardIds)
+                {
+                    result[card] = new CardDynamicEffectSettings
+                    {
+                        Enabled = true,
+                        EffectId = effect.EffectId,
+                        Parameters = new Dictionary<string, float>(mapping.Parameters, StringComparer.Ordinal)
+                    };
+                }
+            }
+        }
+
+        return result;
+    }
+
     public static string ResolveThemeAsset(CardFrameThemeDefinition theme, string relative)
     {
         var logical = Join(theme.ResourceRoot, relative);
@@ -75,7 +125,7 @@ public static class AuraToolsCardVisualRegistry
 
     private static void Validate(CardVisualRegistryDocument value)
     {
-        if (value.SchemaVersion != 1) throw new InvalidDataException("Unsupported card visual schemaVersion=" + value.SchemaVersion);
+        if (value.SchemaVersion != 4) throw new InvalidDataException("Unsupported card visual schemaVersion=" + value.SchemaVersion);
         if (value.Protocol.MinVersion > CurrentProtocolVersion
             || value.Protocol.PreferredVersion < value.Protocol.MinVersion)
             throw new InvalidDataException("Card visual protocol is incompatible.");
@@ -103,23 +153,44 @@ public static class AuraToolsCardVisualRegistry
         foreach (var effect in value.Effects)
         {
             if (string.IsNullOrWhiteSpace(effect.EffectId)
-                || !string.Equals(effect.RendererId, "aura.card-visual.material-v1", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(effect.RendererId, "aura.card-visual.material-v2", StringComparison.OrdinalIgnoreCase)
                 || string.IsNullOrWhiteSpace(effect.BundlePath)
                 || string.IsNullOrWhiteSpace(effect.MaterialPath)
                 || (!string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(effect.TargetLayer, "frameOverlay", StringComparison.OrdinalIgnoreCase)))
+                    && !string.Equals(effect.TargetLayer, "frame", StringComparison.OrdinalIgnoreCase))
+                || string.Equals(effect.TargetLayer, "frame", StringComparison.OrdinalIgnoreCase)
+                   && !string.Equals(effect.CoverageProfile, "native-frame-v1", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
+                   && !string.Equals(effect.CoverageProfile, "native-face-v1", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("Dynamic effect protocol is invalid: " + effect.EffectId);
             }
-            if (effect.ExposedParameters.Any(pair => string.IsNullOrWhiteSpace(pair.Key) || pair.Value.Min > pair.Value.Max))
+            if (effect.MappingPreset.Any(mapping => string.IsNullOrWhiteSpace(mapping.ContentOwnerModId)
+                                                    || mapping.CardIds.Count == 0
+                                                    || mapping.CardIds.Any(id => id.Contains("*"))))
+                throw new InvalidDataException("Dynamic effect preset must use an owner and explicit card ids: " + effect.EffectId);
+            if (effect.ExposedParameters.Any(pair => string.IsNullOrWhiteSpace(pair.Key)
+                                                     || string.IsNullOrWhiteSpace(pair.Value.DisplayName)
+                                                     || pair.Value.Min > pair.Value.Max
+                                                     || pair.Value.Step <= 0f
+                                                     || pair.Value.Decimals < 0
+                                                     || pair.Value.Decimals > 4))
                 throw new InvalidDataException("Dynamic effect exposed parameter range is invalid: " + effect.EffectId);
         }
+        var duplicateEffectCard = value.Effects
+            .SelectMany(effect => effect.MappingPreset.SelectMany(mapping => mapping.QualifiedCardIds)
+                .Select(card => new { effect.EffectId, Card = card }))
+            .GroupBy(value => value.Card, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Select(value => value.EffectId)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1);
+        if (duplicateEffectCard != null)
+            throw new InvalidDataException("Dynamic effect presets map one card to multiple effects: " + duplicateEffectCard.Key);
     }
 }
 
 public sealed class CardVisualRegistryDocument
 {
-    [JsonProperty("schemaVersion")] public int SchemaVersion { get; set; } = 1;
+    [JsonProperty("schemaVersion")] public int SchemaVersion { get; set; } = 4;
     [JsonProperty("ownerModId")] public string OwnerModId { get; set; } = "";
     [JsonProperty("protocol")] public CardVisualProtocolManifest Protocol { get; set; } = new();
     [JsonProperty("themes")] public List<CardFrameThemeDefinition> Themes { get; set; } = new();
@@ -216,12 +287,15 @@ public sealed class CardDynamicEffectDefinition
     [JsonProperty("displayName")] public string DisplayName { get; set; } = "";
     [JsonProperty("rendererId")] public string RendererId { get; set; } = "";
     [JsonProperty("targetLayer")] public string TargetLayer { get; set; } = "";
+    [JsonProperty("coverageProfile")] public string CoverageProfile { get; set; } = "";
     [JsonProperty("bundlePath")] public string BundlePath { get; set; } = "";
     [JsonProperty("materialPath")] public string MaterialPath { get; set; } = "";
     [JsonProperty("textures")] public Dictionary<string, string> Textures { get; set; } = new(StringComparer.Ordinal);
     [JsonProperty("floats")] public Dictionary<string, float> Floats { get; set; } = new(StringComparer.Ordinal);
     [JsonProperty("colors")] public Dictionary<string, string> Colors { get; set; } = new(StringComparer.Ordinal);
     [JsonProperty("exposedParameters")] public Dictionary<string, CardVisualParameterRange> ExposedParameters { get; set; } = new(StringComparer.Ordinal);
+    [JsonProperty("presetVersion")] public int PresetVersion { get; set; } = 1;
+    [JsonProperty("mappingPreset")] public List<CardDynamicEffectPresetMapping> MappingPreset { get; set; } = new();
     [JsonProperty("enabled")] public bool Enabled { get; set; } = true;
 
     public void Normalize()
@@ -230,17 +304,49 @@ public sealed class CardDynamicEffectDefinition
         DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? EffectId : DisplayName.Trim();
         RendererId = RendererId?.Trim() ?? "";
         TargetLayer = TargetLayer?.Trim() ?? "";
+        CoverageProfile = CoverageProfile?.Trim() ?? "";
         BundlePath = BundlePath?.Trim() ?? "";
         MaterialPath = MaterialPath?.Trim() ?? "";
         Textures ??= new Dictionary<string, string>(StringComparer.Ordinal);
         Floats ??= new Dictionary<string, float>(StringComparer.Ordinal);
         Colors ??= new Dictionary<string, string>(StringComparer.Ordinal);
         ExposedParameters ??= new Dictionary<string, CardVisualParameterRange>(StringComparer.Ordinal);
+        PresetVersion = Math.Max(1, PresetVersion);
+        MappingPreset ??= new List<CardDynamicEffectPresetMapping>();
+        MappingPreset.ForEach(value => value.Normalize());
+    }
+}
+
+public sealed class CardDynamicEffectPresetMapping
+{
+    [JsonProperty("contentOwnerModId")] public string ContentOwnerModId { get; set; } = "";
+    [JsonProperty("cardIds")] public List<string> CardIds { get; set; } = new();
+    [JsonProperty("parameters")] public Dictionary<string, float> Parameters { get; set; } = new(StringComparer.Ordinal);
+
+    [JsonIgnore]
+    public IReadOnlyList<string> QualifiedCardIds => CardIds
+        .Select(card => ContentOwnerModId + ":" + card)
+        .ToArray();
+
+    public void Normalize()
+    {
+        ContentOwnerModId = ContentOwnerModId?.Trim() ?? "";
+        CardIds = (CardIds ?? new List<string>())
+            .Select(value => (value ?? "").Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        Parameters = new Dictionary<string, float>(Parameters ?? new Dictionary<string, float>(), StringComparer.Ordinal);
     }
 }
 
 public sealed class CardVisualParameterRange
 {
+    [JsonProperty("displayName")] public string DisplayName { get; set; } = "";
+    [JsonProperty("unit")] public string Unit { get; set; } = "";
+    [JsonProperty("order")] public int Order { get; set; }
     [JsonProperty("min")] public float Min { get; set; }
     [JsonProperty("max")] public float Max { get; set; }
+    [JsonProperty("step")] public float Step { get; set; } = 0.05f;
+    [JsonProperty("decimals")] public int Decimals { get; set; } = 2;
 }

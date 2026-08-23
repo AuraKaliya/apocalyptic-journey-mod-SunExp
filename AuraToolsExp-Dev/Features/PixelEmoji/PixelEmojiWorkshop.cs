@@ -146,6 +146,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         libraryHeaderLayout.childControlHeight = true;
         libraryHeaderLayout.childControlWidth = true;
         libraryHeaderLayout.childForceExpandWidth = false;
+        libraryHeaderLayout.childForceExpandHeight = false;
         AuraToolsUi.AddText(libraryHeader.transform, "作品库", AuraToolsUi.ModuleTitleFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Accent, 46f, 1f);
         AddCompactButton(libraryHeader.transform, "新建", NewDocument, 72f);
         ToolboxIconButtonV2.Create(
@@ -393,7 +394,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
         toolsElement.flexibleWidth = 1f;
         toolsElement.minHeight = layoutMetrics.ContentHeight;
         toolsElement.preferredHeight = layoutMetrics.ContentHeight;
-        ToolboxSurfaceV2.Apply(tools).raycastTarget = false;
+        ToolboxSurfaceV2.ApplySection(tools).raycastTarget = false;
         var layout = tools.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(10, 10, 10, 10);
         layout.spacing = 8f;
@@ -942,7 +943,7 @@ internal sealed class PixelEmojiWorkshopController : MonoBehaviour
                 continue;
             }
             var row = HorizontalRow(libraryContent, "Item-" + item.Id, 78f);
-            AuraToolsUi.AddPanelImage(row, AuraToolsUi.Row);
+            AuraToolsUi.AddListRowImage(row, AuraToolsUi.Row);
             var previewObject = AuraToolsUi.CreateLayout("Preview", row.transform);
             AuraToolsUi.SetFixedSize(previewObject, 66f, 66f);
             var previewBackground = previewObject.AddComponent<PixelEmojiCheckerboardGraphic>();

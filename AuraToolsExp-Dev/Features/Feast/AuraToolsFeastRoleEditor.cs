@@ -122,7 +122,7 @@ public static class AuraToolsFeastRoleEditor
         var card = Settings.AuraToolsUi.CreateLayout("FeastRole-" + role.Id, roleContent!);
         AuraUiStableId.Assign(card, "feast.role." + role.Id);
         Settings.AuraToolsUi.SetFixedHeight(card, 126f);
-        Settings.AuraToolsUi.AddPanelImage(
+        Settings.AuraToolsUi.AddListRowImage(
             card,
             enabledCount > 0 && roleSettings.Enabled
                 ? Settings.AuraToolsUi.ActiveRow
@@ -144,7 +144,7 @@ public static class AuraToolsFeastRoleEditor
         AuraUiStableId.Assign(roleToggle.gameObject, "feast.role." + role.Id + ".toggle");
         Settings.AuraToolsUi.AddText(
             top.transform,
-            RoleTitle(role) + "\n" + role.Id,
+            RoleTitle(role),
             Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.Text,
@@ -205,7 +205,7 @@ public static class AuraToolsFeastRoleEditor
         var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
         Settings.AuraToolsUi.AddText(
             toolbar.transform,
-            role.Id,
+            RoleTitle(role),
             Settings.AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.MutedText,
@@ -246,16 +246,17 @@ public static class AuraToolsFeastRoleEditor
             if (IsInapplicableRoleResource(entry)) reasons.Add(AuraSharedHistoryReasons.Inapplicable);
             var row = Settings.AuraToolsUi.CreateLayout("History-" + entry.QualifiedResourceId, content);
             Settings.AuraToolsUi.SetFixedHeight(row, 78f);
-            Settings.AuraToolsUi.AddPanelImage(row, Settings.AuraToolsUi.Row);
+            Settings.AuraToolsUi.AddListRowImage(row, Settings.AuraToolsUi.Row);
             var layout = row.AddComponent<HorizontalLayoutGroup>();
             layout.padding = new RectOffset(10, 10, 8, 8);
             layout.spacing = 10f;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
+            layout.childForceExpandHeight = false;
             Settings.AuraToolsUi.AddText(row.transform,
-                entry.QualifiedResourceId + "\n" + entry.Resource.OriginKind + " · "
-                + string.Join(" / ", reasons.Distinct(StringComparer.OrdinalIgnoreCase)),
+                Settings.AuraToolsPlayerDisplay.ResourceName(entry.CanonicalPath)
+                + " · " + Settings.AuraToolsPlayerDisplay.OriginKind(entry.Resource.OriginKind),
                 Settings.AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 62f, 1f);
             Settings.AuraToolsUi.AddButton(row.transform, "打开目录", () =>
             {
@@ -323,7 +324,7 @@ public static class AuraToolsFeastRoleEditor
             resourceContent!);
         AuraUiStableId.Assign(card, "feast.resource." + candidate.QualifiedCgId);
         Settings.AuraToolsUi.SetFixedHeight(card, 88f);
-        Settings.AuraToolsUi.AddPanelImage(
+        Settings.AuraToolsUi.AddListRowImage(
             card,
             enabled ? Settings.AuraToolsUi.ActiveRow : Settings.AuraToolsUi.Row);
         var layout = card.AddComponent<HorizontalLayoutGroup>();
@@ -351,8 +352,7 @@ public static class AuraToolsFeastRoleEditor
             card.transform,
             candidate.DisplayName
             + " · " + SourceLabel(candidate.SourceKind)
-            + " · " + candidate.OwnerModId
-            + "\n" + candidate.QualifiedCgId,
+            + " · " + Settings.AuraToolsPlayerDisplay.OwnerName(candidate.OwnerModId),
             Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             enabled ? Settings.AuraToolsUi.Text : Settings.AuraToolsUi.MutedText,

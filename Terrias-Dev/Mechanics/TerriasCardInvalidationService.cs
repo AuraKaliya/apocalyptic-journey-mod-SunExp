@@ -267,13 +267,13 @@ public static class TerriasCardInvalidationService
 
             if ((fields & TerriasCardDirtyFields.Visual) != 0)
             {
-                TerriasCardPresentationRouter.RequestApply(new TerriasCardPresentationContext
+                AuraCardPresentationRuntime.RequestApply(new AuraCardPresentationContext
                 {
                     Root = card.transform,
                     Config = config,
                     Card = card,
                     Source = "CardInvalidation:" + item.Source,
-                    Surface = TerriasCardPresentationSurface.CombatCard
+                    Surface = AuraCardPresentationSurface.CombatCard
                 });
             }
 

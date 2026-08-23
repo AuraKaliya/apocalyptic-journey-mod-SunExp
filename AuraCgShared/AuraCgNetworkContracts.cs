@@ -23,6 +23,8 @@ public sealed class SkillCgNetworkEvent
 
     public string CardId { get; set; } = "";
 
+    public string TriggerKind { get; set; } = "";
+
     public string OwnerInstanceId { get; set; } = "";
 
     public long ActionSequence { get; set; }

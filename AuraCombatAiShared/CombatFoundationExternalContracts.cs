@@ -1459,6 +1459,13 @@ public static class CombatFoundationModelPackageProtocol
         CombatFoundationModelPackage? package,
         out string diagnostic)
     {
+        return TryValidateLoadableArtifact(package, out diagnostic);
+    }
+
+    public static bool TryValidateLoadableArtifact(
+        CombatFoundationModelPackage? package,
+        out string diagnostic)
+    {
         if (package == null)
         {
             diagnostic = "底模包为空";
@@ -1485,40 +1492,7 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包缺少当前底模族标识";
             return false;
         }
-        var deploymentTier = ResolveDeploymentTier(package);
-        var formalPackage = string.Equals(
-            deploymentTier,
-            CombatFoundationDeploymentTier.Formal,
-            StringComparison.Ordinal);
-        var experimentalPackage = string.Equals(
-            deploymentTier,
-            CombatFoundationDeploymentTier.Experimental,
-            StringComparison.Ordinal);
-        if ((!formalPackage && !experimentalPackage)
-            || (legacy || previous) && !formalPackage)
-        {
-            diagnostic = "底模包部署等级无效";
-            return false;
-        }
-        var completionValid = formalPackage
-            ? string.Equals(
-                package.CompletionKind,
-                "training-accepted",
-                StringComparison.Ordinal)
-            : string.Equals(
-                  package.CompletionKind,
-                  "training-experimental",
-                  StringComparison.Ordinal)
-              || string.Equals(
-                  package.CompletionKind,
-                  "training-experimental-resumable",
-                  StringComparison.Ordinal)
-              || string.Equals(
-                  package.CompletionKind,
-                  "training-experimental-recovered",
-                  StringComparison.Ordinal);
         if (string.IsNullOrWhiteSpace(package.PackageId)
-            || string.IsNullOrWhiteSpace(package.JobId)
             || !string.Equals(
                 package.ModelVersion,
                 legacy
@@ -1526,10 +1500,9 @@ public static class CombatFoundationModelPackageProtocol
                     : previous
                         ? PreviousModelVersion
                         : CurrentModelVersion,
-                StringComparison.Ordinal)
-            || !completionValid)
+                StringComparison.Ordinal))
         {
-            diagnostic = "底模包缺少与部署等级匹配的训练来源";
+            diagnostic = "底模包缺少可识别的包 ID 或模型版本";
             return false;
         }
         if (package.RecoveredFromCandidateArtifact
@@ -1537,11 +1510,6 @@ public static class CombatFoundationModelPackageProtocol
                 || !ValidHash(package.RecoverySourceCandidateSha256)))
         {
             diagnostic = "历史恢复底模缺少可核验的源结果或候选模型哈希";
-            return false;
-        }
-        if (!legacy && !ValidLoadableAcceptance(package, deploymentTier))
-        {
-            diagnostic = "底模包缺少与部署等级匹配的质量证明";
             return false;
         }
         if (string.IsNullOrWhiteSpace(package.RoleId)
@@ -1553,12 +1521,6 @@ public static class CombatFoundationModelPackageProtocol
             || package.PreferredDeckSizeMaximum
                < package.PreferredDeckSizeMinimum
             || package.EnabledRewardCardPackIds == null
-            || !package.EnabledRewardCardPackIds.Contains(
-                "cardpack_1",
-                StringComparer.OrdinalIgnoreCase)
-            || !package.EnabledRewardCardPackIds.Contains(
-                "cardpack_2",
-                StringComparer.OrdinalIgnoreCase)
             || !string.Equals(
                 package.CardPoolScope,
                 BuildCardPoolScope(
@@ -1569,13 +1531,6 @@ public static class CombatFoundationModelPackageProtocol
                 StringComparison.Ordinal))
         {
             diagnostic = "底模包缺少有效的角色、使魔、奖励卡包或卡组倾向作用域";
-            return false;
-        }
-        if (package.Validation == null
-            || formalPackage && !package.Validation.Passed
-            || !ValidationRuntimeSafe(package.Validation))
-        {
-            diagnostic = "底模包没有通过运行时安全验证";
             return false;
         }
         var model = package.Model;
@@ -1715,6 +1670,140 @@ public static class CombatFoundationModelPackageProtocol
         }
         diagnostic = "";
         return true;
+    }
+
+    public static bool TryValidatePublicationEvidence(
+        CombatFoundationModelPackage? package,
+        out string diagnostic)
+    {
+        if (!TryValidateLoadableArtifact(package, out diagnostic))
+        {
+            return false;
+        }
+
+        var value = package!;
+        var legacy = value.SchemaVersion == LegacySchemaVersion;
+        var previous = value.SchemaVersion == PreviousSchemaVersion;
+        var deploymentTier = ResolveDeploymentTier(value);
+        var formalPackage = string.Equals(
+            deploymentTier,
+            CombatFoundationDeploymentTier.Formal,
+            StringComparison.Ordinal);
+        var experimentalPackage = string.Equals(
+            deploymentTier,
+            CombatFoundationDeploymentTier.Experimental,
+            StringComparison.Ordinal);
+        if ((!formalPackage && !experimentalPackage)
+            || (legacy || previous) && !formalPackage)
+        {
+            diagnostic = "底模包部署等级没有可核验的发布证据";
+            return false;
+        }
+
+        var completionValid = formalPackage
+            ? string.Equals(
+                value.CompletionKind,
+                "training-accepted",
+                StringComparison.Ordinal)
+            : string.Equals(
+                  value.CompletionKind,
+                  "training-experimental",
+                  StringComparison.Ordinal)
+              || string.Equals(
+                  value.CompletionKind,
+                  "training-experimental-resumable",
+                  StringComparison.Ordinal)
+              || string.Equals(
+                  value.CompletionKind,
+                  "training-experimental-recovered",
+                  StringComparison.Ordinal);
+        if (string.IsNullOrWhiteSpace(value.JobId) || !completionValid)
+        {
+            diagnostic = "底模包缺少与部署等级匹配的训练来源";
+            return false;
+        }
+        if (!legacy && !ValidLoadableAcceptance(value, deploymentTier))
+        {
+            diagnostic = "底模包缺少与部署等级匹配的质量证明";
+            return false;
+        }
+        if (value.Validation == null
+            || formalPackage && !value.Validation.Passed
+            || !ValidationRuntimeSafe(value.Validation))
+        {
+            diagnostic = "底模包没有通过发布所需的运行时安全证据门禁";
+            return false;
+        }
+
+        diagnostic = "";
+        return true;
+    }
+
+    public static CombatFoundationModelEvidenceAssessment AssessEvidence(
+        CombatFoundationModelPackage? package)
+    {
+        if (package == null)
+        {
+            return CombatFoundationModelEvidenceAssessment.Unverified(
+                "没有随模型提供质量证据");
+        }
+
+        var deploymentTier = ResolveDeploymentTier(package);
+        var runtimeSafetyEvidence = ValidationRuntimeSafe(package.Validation);
+        var formalEvidenceValid = package.SchemaVersion == LegacySchemaVersion
+            ? NormalizeAcceptance(package).FormalIsolationPassed
+            : ValidLoadableAcceptance(package, deploymentTier);
+        var formal = string.Equals(
+                         deploymentTier,
+                         CombatFoundationDeploymentTier.Formal,
+                         StringComparison.Ordinal)
+                     && package.Validation?.Passed == true
+                     && runtimeSafetyEvidence
+                     && formalEvidenceValid;
+        if (formal)
+        {
+            return new CombatFoundationModelEvidenceAssessment
+            {
+                QualityTier = CombatFoundationModelEvidenceTiers.Formal,
+                DisplayName = "正式",
+                FormallyCertified = true,
+                RuntimeSafetyEvidencePassed = true,
+                CapabilityRegressionDetected = false,
+                RequiresRiskAcknowledgement = false,
+                Summary = "已提供完整的正式质量证据"
+            };
+        }
+
+        var experimental = string.Equals(
+                               deploymentTier,
+                               CombatFoundationDeploymentTier.Experimental,
+                               StringComparison.Ordinal)
+                           && package.SameModelEvidenceBound
+                           && runtimeSafetyEvidence
+                           && ValidExperimentalAcceptance(package.Acceptance);
+        if (experimental)
+        {
+            var regression = string.Equals(
+                package.CapabilityStatus,
+                CapabilityStatusFail,
+                StringComparison.Ordinal);
+            return new CombatFoundationModelEvidenceAssessment
+            {
+                QualityTier = CombatFoundationModelEvidenceTiers.Experimental,
+                DisplayName = "实验",
+                RuntimeSafetyEvidencePassed = true,
+                CapabilityRegressionDetected = regression,
+                RequiresRiskAcknowledgement = true,
+                Summary = regression
+                    ? "实验质量证据检测到相对基线能力回退"
+                    : "已提供实验质量证据，但尚未达到正式认证"
+            };
+        }
+
+        return CombatFoundationModelEvidenceAssessment.Unverified(
+            package.Validation?.Passed == true
+                ? "质量证据不完整或无法绑定到当前模型"
+                : "尚未提供通过应用测试的完整质量证据");
     }
 
     public static string ResolveFoundationLineage(CombatFoundationModelPackage? package)
@@ -2167,6 +2256,44 @@ public sealed class CombatFoundationModelAcceptance
     public bool CapabilityRegressionDetected { get; set; }
 
     public string RelativeEvidenceKind { get; set; } = "";
+}
+
+public static class CombatFoundationModelEvidenceTiers
+{
+    public const string Formal = "formal";
+
+    public const string Experimental = "experimental";
+
+    public const string Unverified = "unverified";
+}
+
+public sealed class CombatFoundationModelEvidenceAssessment
+{
+    public string QualityTier { get; set; } =
+        CombatFoundationModelEvidenceTiers.Unverified;
+
+    public string DisplayName { get; set; } = "未验证";
+
+    public bool FormallyCertified { get; set; }
+
+    public bool RuntimeSafetyEvidencePassed { get; set; }
+
+    public bool CapabilityRegressionDetected { get; set; }
+
+    public bool RequiresRiskAcknowledgement { get; set; } = true;
+
+    public string Summary { get; set; } = "尚未提供完整质量证据";
+
+    public static CombatFoundationModelEvidenceAssessment Unverified(
+        string summary)
+    {
+        return new CombatFoundationModelEvidenceAssessment
+        {
+            Summary = string.IsNullOrWhiteSpace(summary)
+                ? "尚未提供完整质量证据"
+                : summary.Trim()
+        };
+    }
 }
 
 public sealed class CombatFoundationModelPackage

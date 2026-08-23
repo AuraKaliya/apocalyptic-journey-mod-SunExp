@@ -115,6 +115,7 @@ internal static class MatchRecordsDatabaseMigrator
 
 internal sealed class MatchRecordMetadata
 {
+    public string BattleTitle { get; set; } = "";
     public bool IsFavorite { get; set; }
     public string Origin { get; set; } = Model.MatchRecordOrigins.Auto;
     public string Tags { get; set; } = "";

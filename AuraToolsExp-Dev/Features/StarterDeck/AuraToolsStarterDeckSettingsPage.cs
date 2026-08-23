@@ -104,6 +104,7 @@ public static class AuraToolsStarterDeckSettingsPage
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         return row;
     }
 }

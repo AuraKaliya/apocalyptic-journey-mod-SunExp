@@ -15,6 +15,7 @@ public sealed class AuraLobbyModState
 {
     public string MatchKey { get; internal set; } = "";
     public string ModVersion { get; internal set; } = "";
+    public string SharedResourceFingerprint { get; internal set; } = "";
     public bool Enabled { get; internal set; }
 }
 
@@ -206,6 +207,7 @@ public static class AuraLobbySnapshotRuntime
                 {
                     MatchKey = mod.MatchKey,
                     ModVersion = mod.ModVersion,
+                    SharedResourceFingerprint = mod.SharedResourceFingerprint,
                     Enabled = mod.Enabled
                 }).ToArray()
             };
@@ -324,6 +326,7 @@ public static class AuraLobbySnapshotRuntime
                     .OrderBy(mod => mod.MatchKey, StringComparer.Ordinal)
                     .Select(mod => mod.MatchKey
                                    + ":" + mod.ModVersion
+                                   + ":" + mod.SharedResourceFingerprint
                                    + ":" + mod.Enabled))));
     }
 

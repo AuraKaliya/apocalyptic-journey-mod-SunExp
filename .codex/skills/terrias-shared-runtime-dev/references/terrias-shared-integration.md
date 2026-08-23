@@ -27,11 +27,11 @@ packaged `Aura.Shared.dll` copies have the same hash before finishing.
 
 ## Entry Initialization
 
-`Terrias-Dev/Entry.cs` initializes shared systems in separately named `RunStep`
+`Terrias-Dev/Entry.cs` initializes runtime-owned shared systems in separately named `RunStep`
 calls. Preserve step isolation for:
 
 - XLua assembly registration;
-- shared core and shared resource package;
+- shared core; optional media package registration is owned by AuraToolsExp discovery;
 - shared registry;
 - Terrias-required visual registry;
 - shared starter-deck ownership/application for Terrias-owned modes;
@@ -51,10 +51,12 @@ Shared resources should resolve through the shared resource layer. Audio and BGM
 providers may use `Shared:` paths; do not regress to bare local-path assumptions
 when the manifest expects shared package installation.
 
-Terrias optional-media resources are retired. AuraTools installs CG, voice,
-replacement skins, and card visuals through its own manifests and consumes
-stable Terrias content ids through shared/native catalogs. Terrias retains an
-empty versioned retirement manifest only to remove prior registrations.
+Terrias carries its optional voice/CG assets and manifests under
+`SharedResources`, with `aura.discovery.json` as the sole discovery entry.
+AuraToolsExp scans only loaded MODs, binds physical source identity to
+`Terrias.modproj`, registers the declarations through shared protocols, and
+applies local effective configuration. Terrias keeps no active media install or
+playback step and no empty retirement manifest.
 
 ## Solar Memory Touchpoints
 

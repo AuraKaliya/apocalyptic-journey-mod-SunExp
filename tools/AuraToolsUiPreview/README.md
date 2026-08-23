@@ -2,7 +2,7 @@
 
 This preview renders the production toolbox information architecture without
 starting the game. It uses the shipped toolbox icon resources, production
-module ids, matching theme tokens, and the same 144/52/84 layout metrics as the
+module ids, matching theme tokens, and the same 168/60/78 layout metrics as the
 Unity UI.
 
 Run the repeatable Playwright capture and assertions:

@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using UnityEngine;
@@ -117,11 +118,13 @@ public static class BattleRewardCardPresentationRuntime
         }
 
         TerriasPerformanceCounters.Record("RewardCardPresentation.ChoiceConfigHit");
-        TerriasCardPresentationRouter.RequestApply(
-            item.transform,
-            config,
-            source,
-            TerriasCardPresentationSurface.RewardChoice);
+        AuraCardPresentationRuntime.RequestApply(new AuraCardPresentationContext
+        {
+            Root = item.transform,
+            Config = config,
+            Source = source,
+            Surface = AuraCardPresentationSurface.RewardChoice
+        });
         TerriasLog.InfoOnceAlways(
             "RewardCardPresentation.ChoiceConfigHit." + CardConfigApi.Id(config),
             "Battle reward card presentation route hit: source="

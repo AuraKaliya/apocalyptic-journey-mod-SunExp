@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraShared.Core;
 using Newtonsoft.Json.Linq;
 using Witch.Core;
 
@@ -52,10 +53,19 @@ public static class AuraOnlineLocalModManifestBuilder
     {
         var directory = ReadString(config, "DirectoryName", "Directory", "Path", "ModPath");
         var json = ReadModConfigJson(directory);
+        var discovery = AuraSharedDiscoveryLoader.Load(directory);
         var publishedFileId = ReadULong(config, "WorkshopPublishedFileId", "WorkshopPublishedFileID", "PublishedFileId", "PublishedFileID");
         if (publishedFileId == 0UL)
         {
             publishedFileId = ReadJsonULong(json, "WorkshopPublishedFileId", "WorkshopPublishedFileID", "PublishedFileId", "PublishedFileID");
+        }
+
+        if (publishedFileId == 0UL)
+        {
+            publishedFileId = discovery.Source != null
+                              && ulong.TryParse(discovery.Source.ModProjectId, out var discoveredId)
+                ? discoveredId
+                : ReadModProjectIdFile(directory);
         }
 
         if (publishedFileId == 0UL)
@@ -80,8 +90,25 @@ public static class AuraOnlineLocalModManifestBuilder
             DirectoryName = directory,
             IsWorkshopMod = ReadBool(config, "IsWorkshopMod", false) || publishedFileId != 0UL,
             PublishedFileId = publishedFileId,
+            SharedResourceFingerprint = discovery.Source?.Fingerprint ?? "",
             Enabled = ReadBool(config, "Enabled", ReadJsonBool(json, "Enabled", true))
         };
+    }
+
+    private static ulong ReadModProjectIdFile(string directory)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return 0UL;
+            var files = Directory.GetFiles(directory, "*.modproj", SearchOption.TopDirectoryOnly);
+            if (files.Length != 1) return 0UL;
+            var text = File.ReadAllText(files[0]).Trim();
+            return ulong.TryParse(text, out var id) ? id : 0UL;
+        }
+        catch
+        {
+            return 0UL;
+        }
     }
 
     private static JObject? ReadModConfigJson(string directory)

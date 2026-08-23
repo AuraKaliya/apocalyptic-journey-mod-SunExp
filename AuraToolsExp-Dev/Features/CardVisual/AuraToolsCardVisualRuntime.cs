@@ -6,6 +6,7 @@ using System.Linq;
 using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using UnityEngine;
@@ -19,6 +20,10 @@ namespace AuraToolsExp.Dll.Features.CardVisual;
 
 public static class AuraToolsCardVisualRuntime
 {
+    internal const string ReplayThemeIdKey = "AuraReplay.CardVisual.ThemeId";
+    internal const string ReplaySkinIdKey = "AuraReplay.CardVisual.SkinId";
+    internal const string ReplayEffectIdKey = "AuraReplay.CardVisual.EffectId";
+    internal const string ReplayEffectParametersKey = "AuraReplay.CardVisual.EffectParameters";
     private static ModConfig? modConfig;
     private static IDisposable? presentationRegistration;
     private static bool initialized;
@@ -33,7 +38,7 @@ public static class AuraToolsCardVisualRuntime
             config,
             AuraToolsIds.ModId,
             "CardVisual",
-            new AuraCardPresentationSubscription { Apply = Apply });
+            new AuraCardPresentationSubscription { Priority = 1000, Apply = Apply, Reset = Reset });
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.CardVisual, Reconfigure);
         EnsureThemePresetState();
     }
@@ -48,7 +53,7 @@ public static class AuraToolsCardVisualRuntime
                 modConfig,
                 AuraToolsIds.ModId,
                 "CardVisual",
-                new AuraCardPresentationSubscription { Apply = Apply });
+                new AuraCardPresentationSubscription { Priority = 1000, Apply = Apply, Reset = Reset });
             EnsureThemePresetState();
         }
         else if (!enabled)
@@ -114,11 +119,18 @@ public static class AuraToolsCardVisualRuntime
         if (card.Length == 0) return;
         if (string.IsNullOrWhiteSpace(effectId))
         {
-            AuraToolsConfigService.CardVisual.DynamicEffects.Remove(card);
+            // An empty effect is an explicit local tombstone. Without this
+            // record a shipped default would immediately become effective
+            // again and the player could never turn it off.
+            AuraToolsConfigService.CardVisual.DynamicEffectOverrides[card] = new CardDynamicEffectSettings
+            {
+                Enabled = false,
+                EffectId = ""
+            };
         }
         else if (AuraToolsCardVisualRegistry.Effect(effectId) != null)
         {
-            AuraToolsConfigService.CardVisual.DynamicEffects[card] = new CardDynamicEffectSettings
+            AuraToolsConfigService.CardVisual.DynamicEffectOverrides[card] = new CardDynamicEffectSettings
             {
                 Enabled = true,
                 EffectId = effectId.Trim(),
@@ -130,22 +142,149 @@ public static class AuraToolsCardVisualRuntime
         ReapplyActiveCombatCards("effect-change");
     }
 
+    public static int ApplyDynamicEffectSelection(
+        IEnumerable<string> qualifiedCardIds,
+        string effectId,
+        IReadOnlyDictionary<string, float>? parameters = null)
+    {
+        var effect = string.IsNullOrWhiteSpace(effectId)
+            ? null
+            : AuraToolsCardVisualRegistry.Effect(effectId);
+        if (!string.IsNullOrWhiteSpace(effectId) && effect == null)
+        {
+            return 0;
+        }
+
+        var cards = (qualifiedCardIds ?? Array.Empty<string>())
+            .Select(value => (value ?? "").Trim())
+            .Where(value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var card in cards)
+        {
+            AuraToolsConfigService.CardVisual.DynamicEffectOverrides[card] = new CardDynamicEffectSettings
+            {
+                Enabled = effect != null,
+                EffectId = effect?.EffectId ?? "",
+                Parameters = effect == null
+                    ? new Dictionary<string, float>(StringComparer.Ordinal)
+                    : (parameters ?? new Dictionary<string, float>())
+                        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
+            };
+        }
+
+        if (cards.Length == 0)
+        {
+            return 0;
+        }
+
+        AuraToolsConfigService.SaveCardVisual();
+        ReapplyActiveCombatCards("effect-batch");
+        return cards.Length;
+    }
+
+    public static void RestoreDynamicEffectDefault(string qualifiedCardId)
+    {
+        var card = (qualifiedCardId ?? "").Trim();
+        if (card.Length == 0) return;
+        if (!AuraToolsConfigService.CardVisual.DynamicEffectOverrides.Remove(card)) return;
+        AuraToolsConfigService.SaveCardVisual();
+        ReapplyActiveCombatCards("effect-restore-default");
+    }
+
+    public static int RestoreDynamicEffectDefaults(IEnumerable<string> qualifiedCardIds)
+    {
+        var removed = 0;
+        foreach (var card in (qualifiedCardIds ?? Array.Empty<string>())
+                     .Select(value => (value ?? "").Trim())
+                     .Where(value => value.Length > 0)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (AuraToolsConfigService.CardVisual.DynamicEffectOverrides.Remove(card)) removed++;
+        }
+
+        if (removed == 0) return 0;
+        AuraToolsConfigService.SaveCardVisual();
+        ReapplyActiveCombatCards("effect-restore-default-batch");
+        return removed;
+    }
+
+    public static IReadOnlyDictionary<string, CardDynamicEffectSettings> EffectiveDynamicEffects()
+    {
+        var effective = AuraToolsCardVisualRegistry.DefaultEffects()
+            .ToDictionary(pair => pair.Key, pair => CloneEffect(pair.Value), StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in AuraToolsConfigService.CardVisual.DynamicEffectOverrides)
+        {
+            if (pair.Value.Enabled && AuraToolsCardVisualRegistry.Effect(pair.Value.EffectId) != null)
+            {
+                effective[pair.Key] = CloneEffect(pair.Value);
+            }
+            else
+            {
+                effective.Remove(pair.Key);
+            }
+        }
+
+        return effective;
+    }
+
+    internal static IReadOnlyDictionary<string, string> CaptureReplaySnapshot(IDataConfig config)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (config == null || !AuraToolsConfigService.CardVisual.Enabled) return result;
+        EnsureThemePresetState();
+        var qualifiedCard = QualifiedCard(config);
+        foreach (var pair in AuraToolsConfigService.CardVisual.Themes)
+        {
+            if (!pair.Value.Enabled || !pair.Value.Cards.TryGetValue(qualifiedCard, out var skinId)) continue;
+            if (AuraToolsCardVisualRegistry.Skin(pair.Key, skinId) == null) continue;
+            result[ReplayThemeIdKey] = pair.Key;
+            result[ReplaySkinIdKey] = skinId;
+            break;
+        }
+        var effect = ResolveDynamicEffect(qualifiedCard);
+        if (effect?.Enabled == true && AuraToolsCardVisualRegistry.Effect(effect.EffectId) != null)
+        {
+            result[ReplayEffectIdKey] = effect.EffectId;
+            result[ReplayEffectParametersKey] = AuraSharedJson.SerializeCompact(effect.Parameters);
+        }
+        return result;
+    }
+
     public static IReadOnlyList<string> SelectCards(string mode, string selector)
     {
         var text = (selector ?? "").Trim();
         if (string.IsNullOrWhiteSpace(text)) return Array.Empty<string>();
         if (string.Equals(mode, "card", StringComparison.OrdinalIgnoreCase))
         {
-            var snapshot = AuraGameDataHostApi.Resolve(DataType.Card, text);
-            return new[] { snapshot == null ? QualifyCard(InferOwner(text), text) : QualifyCard(snapshot.OwnerModId, snapshot.Id) };
+            var identity = AuraToolsContentIdentity.Parse(text);
+            var snapshot = AuraGameDataHostApi.Table(DataType.Card)
+                .FirstOrDefault(card => string.Equals(
+                                            card.Id,
+                                            identity.ContentId,
+                                            StringComparison.OrdinalIgnoreCase)
+                                        && (!identity.IsQualified
+                                            || string.Equals(
+                                                card.OwnerModId,
+                                                identity.OwnerModId,
+                                                StringComparison.OrdinalIgnoreCase)));
+            return snapshot == null
+                ? Array.Empty<string>()
+                : new[] { QualifyCard(snapshot.OwnerModId, snapshot.Id) };
         }
 
+        var target = AuraToolsContentIdentity.Parse(text);
         return AuraGameDataHostApi.Table(DataType.Card)
             .Where(card => string.Equals(mode, "pack", StringComparison.OrdinalIgnoreCase)
-                ? Field(card.Fields, "PackBelong").Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Any(value => string.Equals(value.Trim(), text, StringComparison.OrdinalIgnoreCase))
+                ? (!target.IsQualified
+                   || string.Equals(
+                       card.OwnerModId,
+                       target.OwnerModId,
+                       StringComparison.OrdinalIgnoreCase))
+                  && Field(card.Fields, "PackBelong").Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Any(value => string.Equals(value.Trim(), target.ContentId, StringComparison.OrdinalIgnoreCase))
                 : string.Equals(mode, "rarity", StringComparison.OrdinalIgnoreCase)
-                  && string.Equals(Field(card.Fields, "Rarity"), text, StringComparison.OrdinalIgnoreCase))
+                  && string.Equals(Field(card.Fields, "Rarity"), target.ContentId, StringComparison.OrdinalIgnoreCase))
             .Select(card => QualifyCard(card.OwnerModId, card.Id))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
@@ -232,15 +371,23 @@ public static class AuraToolsCardVisualRuntime
         EnsureThemePresetState();
         var cardId = ReadId(context.Config);
         if (cardId.Length == 0) return;
-        var definition = AuraGameDataHostApi.Resolve(DataType.Card, cardId);
-        var qualifiedCard = QualifyCard(definition?.OwnerModId ?? InferOwner(cardId), definition?.Id ?? cardId);
+        var qualifiedCard = QualifiedCard(context.Config);
         var root = FindVisualRoot(context.Root);
         if (root == null) return;
         var marker = root.GetComponent<AuraToolsCardVisualMarker>() ?? root.gameObject.AddComponent<AuraToolsCardVisualMarker>();
 
         CardFrameThemeDefinition? theme = null;
         CardFrameSkinDefinition? skin = null;
-        foreach (var pair in AuraToolsConfigService.CardVisual.Themes)
+        var replayThemeId = ReadRuntimeValue(context.Config, ReplayThemeIdKey);
+        var replaySkinId = ReadRuntimeValue(context.Config, ReplaySkinIdKey);
+        if (replayThemeId.Length > 0 && replaySkinId.Length > 0)
+        {
+            theme = AuraToolsCardVisualRegistry.Theme(replayThemeId);
+            skin = theme == null ? null : AuraToolsCardVisualRegistry.Skin(theme.ThemeId, replaySkinId);
+        }
+        foreach (var pair in theme == null
+                     ? AuraToolsConfigService.CardVisual.Themes
+                     : new Dictionary<string, CardFrameThemeSettings>())
         {
             if (!pair.Value.Enabled || !pair.Value.Cards.TryGetValue(qualifiedCard, out var skinId)) continue;
             theme = AuraToolsCardVisualRegistry.Theme(pair.Key);
@@ -249,9 +396,38 @@ public static class AuraToolsCardVisualRuntime
         }
 
         marker.ApplySkin(theme, skin);
-        AuraToolsConfigService.CardVisual.DynamicEffects.TryGetValue(qualifiedCard, out var effectSettings);
+        var effectSettings = ReplayEffect(context.Config) ?? ResolveDynamicEffect(qualifiedCard);
         var effect = effectSettings?.Enabled == true ? AuraToolsCardVisualRegistry.Effect(effectSettings.EffectId) : null;
         marker.ApplyEffect(effect, effectSettings);
+    }
+
+    private static void Reset(AuraCardPresentationContext context)
+    {
+        if (context.Root == null) return;
+        var root = FindVisualRoot(context.Root) ?? context.Root;
+        root.GetComponent<AuraToolsCardVisualMarker>()?.ClearAll();
+    }
+
+    private static CardDynamicEffectSettings? ResolveDynamicEffect(string qualifiedCard)
+    {
+        if (AuraToolsConfigService.CardVisual.DynamicEffectOverrides.TryGetValue(qualifiedCard, out var local))
+        {
+            return local.Enabled ? local : null;
+        }
+
+        return AuraToolsCardVisualRegistry.TryGetDefaultEffect(qualifiedCard, out var shipped)
+            ? shipped
+            : null;
+    }
+
+    private static CardDynamicEffectSettings CloneEffect(CardDynamicEffectSettings value)
+    {
+        return new CardDynamicEffectSettings
+        {
+            Enabled = value.Enabled,
+            EffectId = value.EffectId,
+            Parameters = new Dictionary<string, float>(value.Parameters, StringComparer.Ordinal)
+        };
     }
 
     private static Transform? FindVisualRoot(Transform root)
@@ -328,6 +504,44 @@ public static class AuraToolsCardVisualRuntime
     {
         return (string.IsNullOrWhiteSpace(owner) ? InferOwner(cardId) : owner.Trim()) + ":" + (cardId ?? "").Trim();
     }
+
+    private static string ReadRuntimeValue(IDataConfig config, string key)
+    {
+        if (config.Vars != null && config.Vars.TryGetValue(key, out var runtime)) return runtime?.Trim() ?? "";
+        if (config.data != null && config.data.TryGetValue(key, out var stored)) return stored?.Trim() ?? "";
+        return "";
+    }
+
+    private static string QualifiedCard(IDataConfig config)
+    {
+        var cardId = ReadId(config);
+        var definition = AuraGameDataHostApi.Resolve(DataType.Card, cardId);
+        return QualifyCard(definition?.OwnerModId ?? InferOwner(cardId), definition?.Id ?? cardId);
+    }
+
+    private static CardDynamicEffectSettings? ReplayEffect(IDataConfig config)
+    {
+        var effectId = ReadRuntimeValue(config, ReplayEffectIdKey);
+        if (effectId.Length == 0 || AuraToolsCardVisualRegistry.Effect(effectId) == null) return null;
+        var parametersJson = ReadRuntimeValue(config, ReplayEffectParametersKey);
+        Dictionary<string, float>? parameters;
+        try
+        {
+            parameters = string.IsNullOrWhiteSpace(parametersJson)
+                ? new Dictionary<string, float>(StringComparer.Ordinal)
+                : AuraSharedJson.Deserialize<Dictionary<string, float>>(parametersJson);
+        }
+        catch
+        {
+            parameters = new Dictionary<string, float>(StringComparer.Ordinal);
+        }
+        return new CardDynamicEffectSettings
+        {
+            Enabled = true,
+            EffectId = effectId,
+            Parameters = new Dictionary<string, float>(parameters ?? new Dictionary<string, float>(), StringComparer.Ordinal)
+        };
+    }
 }
 
 internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
@@ -341,7 +555,10 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
     private Texture? appliedFrameTexture;
     private Texture? appliedBackgroundTexture;
     private bool captured;
-    private Image? effectOverlay;
+    private Image? effectImageTarget;
+    private MeshRenderer? effectMeshTarget;
+    private Material? originalEffectImageMaterial;
+    private Material? originalEffectMeshMaterial;
     private Material? effectMaterial;
     private string skinSignature = "";
     private string effectSignature = "";
@@ -367,55 +584,86 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         if (backgroundImage != null && background != null) backgroundImage.sprite = appliedBackground = background;
         var frameMesh = transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>();
         var backgroundMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>();
-        if (frameMesh?.material != null && frame != null) frameMesh.material.mainTexture = appliedFrameTexture = frame.texture;
-        if (backgroundMesh?.material != null && background != null) backgroundMesh.material.mainTexture = appliedBackgroundTexture = background.texture;
+        if (frameMesh != null && frame != null)
+        {
+            appliedFrameTexture = frame.texture;
+            SetMeshTexture(frameMesh, frame.texture);
+        }
+        if (backgroundMesh != null && background != null)
+        {
+            appliedBackgroundTexture = background.texture;
+            SetMeshTexture(backgroundMesh, background.texture);
+        }
     }
 
     public void ApplyEffect(CardDynamicEffectDefinition? effect, CardDynamicEffectSettings? settings)
     {
-        var signature = effect == null ? "" : effect.EffectId + ":" + string.Join(";", settings?.Parameters.OrderBy(value => value.Key).Select(value => value.Key + "=" + value.Value) ?? Enumerable.Empty<string>());
-        var source = effect == null
+        var node = effect == null
             ? null
             : string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
-                ? transform.Find("Front/background")?.GetComponent<Image>()
-                : transform.Find("Front/FrontBack")?.GetComponent<Image>();
-        if (signature == effectSignature
-            && effectOverlay != null
-            && source?.sprite != null
-            && effectOverlay.sprite == source.sprite)
+                ? transform.Find("Front/background")
+                : transform.Find("Front/FrontBack");
+        var image = node?.GetComponent<Image>();
+        var mesh = node?.GetComponent<MeshRenderer>();
+        var preferMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>() != null;
+        var useMesh = mesh != null && (preferMesh || image == null);
+        var runtimeTexture = useMesh
+            ? (ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+                ? originalEffectMeshMaterial.mainTexture
+                : mesh?.material?.mainTexture)
+            : image?.sprite?.texture;
+        var signature = effect == null
+            ? ""
+            : effect.EffectId
+              + ":" + effect.TargetLayer
+              + ":" + effect.CoverageProfile
+              + ":" + (runtimeTexture == null ? 0 : runtimeTexture.GetInstanceID())
+              + ":" + string.Join(";", settings?.Parameters
+                  .OrderBy(value => value.Key)
+                  .Select(value => value.Key + "=" + value.Value)
+                  ?? Enumerable.Empty<string>());
+        if (signature == effectSignature && effectMaterial != null)
         {
-            return;
+            var stillAttached = useMesh
+                ? mesh != null && ReferenceEquals(mesh.sharedMaterial, effectMaterial)
+                : image != null && ReferenceEquals(image.material, effectMaterial);
+            if (stillAttached)
+            {
+                AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, runtimeTexture);
+                return;
+            }
         }
+
         ClearEffect();
         effectSignature = signature;
-        if (effect == null) return;
-        if (source == null || source.sprite == null) return;
-        effectMaterial = AuraToolsCardVisualAssets.CreateMaterial(effect, settings);
+        if (effect == null || node == null || runtimeTexture == null) return;
+        effectMaterial = AuraToolsCardVisualAssets.CreateMaterial(effect, settings, runtimeTexture);
         if (effectMaterial == null) return;
-        var go = new GameObject("AuraTools_CardVisualEffect", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        go.layer = source.gameObject.layer;
-        go.transform.SetParent(source.transform.parent, false);
-        var sourceRect = source.transform as RectTransform;
-        var rect = go.GetComponent<RectTransform>();
-        if (sourceRect != null)
+
+        if (useMesh && mesh != null)
         {
-            rect.anchorMin = sourceRect.anchorMin; rect.anchorMax = sourceRect.anchorMax;
-            rect.anchoredPosition = sourceRect.anchoredPosition; rect.sizeDelta = sourceRect.sizeDelta;
-            rect.pivot = sourceRect.pivot; rect.localScale = sourceRect.localScale; rect.localRotation = sourceRect.localRotation;
+            originalEffectMeshMaterial = mesh.material;
+            effectMeshTarget = mesh;
+            mesh.material = effectMaterial;
+            return;
         }
-        effectOverlay = go.GetComponent<Image>();
-        effectOverlay.sprite = source.sprite;
-        effectOverlay.material = effectMaterial;
-        effectOverlay.color = Color.white;
-        effectOverlay.raycastTarget = false;
-        effectOverlay.maskable = source.maskable;
-        go.transform.SetSiblingIndex(Math.Min(source.transform.GetSiblingIndex() + 1, go.transform.parent.childCount - 1));
+
+        if (image != null)
+        {
+            originalEffectImageMaterial = image.material;
+            effectImageTarget = image;
+            image.material = effectMaterial;
+            return;
+        }
+
+        Object.Destroy(effectMaterial);
+        effectMaterial = null;
     }
 
     public void ClearAll()
     {
-        RestoreSkin();
         ClearEffect();
+        RestoreSkin();
         skinSignature = "";
         effectSignature = "";
     }
@@ -424,8 +672,8 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
     {
         var frameImage = transform.Find("Front/FrontBack")?.GetComponent<Image>();
         var backgroundImage = transform.Find("Front/background")?.GetComponent<Image>();
-        var frameTexture = transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>()?.material?.mainTexture;
-        var backgroundTexture = transform.Find("Front/background")?.GetComponent<MeshRenderer>()?.material?.mainTexture;
+        var frameTexture = ReadMeshTexture(transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>());
+        var backgroundTexture = ReadMeshTexture(transform.Find("Front/background")?.GetComponent<MeshRenderer>());
         if (!captured || frameImage?.sprite != appliedFrame) originalFrame = frameImage?.sprite;
         if (!captured || backgroundImage?.sprite != appliedBackground) originalBackground = backgroundImage?.sprite;
         if (!captured || frameTexture != appliedFrameTexture) originalFrameTexture = frameTexture;
@@ -442,8 +690,8 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         if (backgroundImage != null && backgroundImage.sprite == appliedBackground) backgroundImage.sprite = originalBackground;
         var frameMesh = transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>();
         var backgroundMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>();
-        if (frameMesh?.material != null && frameMesh.material.mainTexture == appliedFrameTexture) frameMesh.material.mainTexture = originalFrameTexture;
-        if (backgroundMesh?.material != null && backgroundMesh.material.mainTexture == appliedBackgroundTexture) backgroundMesh.material.mainTexture = originalBackgroundTexture;
+        RestoreMeshTexture(frameMesh, appliedFrameTexture, originalFrameTexture);
+        RestoreMeshTexture(backgroundMesh, appliedBackgroundTexture, originalBackgroundTexture);
         appliedFrame = null;
         appliedBackground = null;
         appliedFrameTexture = null;
@@ -452,10 +700,46 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
 
     private void ClearEffect()
     {
-        if (effectOverlay != null) Object.Destroy(effectOverlay.gameObject);
+        if (effectImageTarget != null && ReferenceEquals(effectImageTarget.material, effectMaterial))
+            effectImageTarget.material = originalEffectImageMaterial;
+        if (effectMeshTarget != null && ReferenceEquals(effectMeshTarget.sharedMaterial, effectMaterial))
+            effectMeshTarget.sharedMaterial = originalEffectMeshMaterial;
         if (effectMaterial != null) Object.Destroy(effectMaterial);
-        effectOverlay = null;
+        effectImageTarget = null;
+        effectMeshTarget = null;
+        originalEffectImageMaterial = null;
+        originalEffectMeshMaterial = null;
         effectMaterial = null;
+    }
+
+    private Texture? ReadMeshTexture(MeshRenderer? mesh)
+    {
+        if (mesh == null) return null;
+        return ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+            ? originalEffectMeshMaterial.mainTexture
+            : mesh.material?.mainTexture;
+    }
+
+    private void SetMeshTexture(MeshRenderer mesh, Texture texture)
+    {
+        if (ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null)
+        {
+            originalEffectMeshMaterial.mainTexture = texture;
+            AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, texture);
+            return;
+        }
+        if (mesh.material != null) mesh.material.mainTexture = texture;
+    }
+
+    private void RestoreMeshTexture(MeshRenderer? mesh, Texture? applied, Texture? original)
+    {
+        if (mesh == null || applied == null) return;
+        var target = ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+            ? originalEffectMeshMaterial
+            : mesh.material;
+        if (target != null && ReferenceEquals(target.mainTexture, applied)) target.mainTexture = original;
+        if (ReferenceEquals(effectMeshTarget, mesh))
+            AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, original);
     }
 
     private static Sprite? LoadSprite(string path) => AuraToolsCardVisualAssets.LoadSprite(path);
@@ -499,7 +783,10 @@ internal static class AuraToolsCardVisualAssets
         return method?.Invoke(null, new object[] { texture, payload, false }) is true;
     }
 
-    public static Material? CreateMaterial(CardDynamicEffectDefinition effect, CardDynamicEffectSettings? settings)
+    public static Material? CreateMaterial(
+        CardDynamicEffectDefinition effect,
+        CardDynamicEffectSettings? settings,
+        Texture? runtimeTexture)
     {
         try
         {
@@ -521,6 +808,7 @@ internal static class AuraToolsCardVisualAssets
                 if (!effect.ExposedParameters.TryGetValue(pair.Key, out var range) || !material.HasProperty(pair.Key)) continue;
                 material.SetFloat(pair.Key, Mathf.Clamp(pair.Value, Math.Min(range.Min, range.Max), Math.Max(range.Min, range.Max)));
             }
+            ApplyRuntimeTexture(material, runtimeTexture);
             return material;
         }
         catch (Exception ex)
@@ -528,5 +816,11 @@ internal static class AuraToolsCardVisualAssets
             AuraToolsLog.Warn("[CardVisual] material load failed: " + effect.EffectId + " -> " + ex.Message);
             return null;
         }
+    }
+
+    public static void ApplyRuntimeTexture(Material? material, Texture? texture)
+    {
+        if (material == null || texture == null || !material.HasProperty("_MainTex")) return;
+        material.SetTexture("_MainTex", texture);
     }
 }

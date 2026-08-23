@@ -58,7 +58,7 @@ public sealed class LobbyStatusSettings
 public sealed class AdventureArchiveSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
@@ -66,12 +66,9 @@ public sealed class AdventureArchiveSettings
     [JsonProperty("maximumAdventures")]
     public int MaximumAdventures { get; set; } = 200;
 
-    [JsonProperty("captureSnapshots")]
-    public bool CaptureSnapshots { get; set; } = true;
-
     public void Normalize()
     {
-        SchemaVersion = Math.Max(1, SchemaVersion);
+        SchemaVersion = 2;
         MaximumAdventures = Math.Max(10, Math.Min(2000, MaximumAdventures));
     }
 }

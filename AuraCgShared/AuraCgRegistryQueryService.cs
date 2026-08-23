@@ -23,8 +23,9 @@ internal static class AuraCgRegistryQueryService
         bool consumerCanPlay)
     {
         return IsRegisteredEntry(entry, kind)
+               && MatchesTriggerKind(kind, context.TriggerKind)
                && MatchesRole(entry, context.OwnerRoleId)
-               && MatchesCard(entry, context.CardId)
+               && MatchesTarget(entry, kind, context)
                && MatchesAction(context.Action)
                && consumerCanPlay;
     }
@@ -45,6 +46,42 @@ internal static class AuraCgRegistryQueryService
         }
 
         return false;
+    }
+
+    public static bool MatchesSkill(AuraCgRegistryEntry entry, string skillId)
+    {
+        var ids = entry.SkillIds != null && entry.SkillIds.Count > 0
+            ? entry.SkillIds
+            : entry.CardIds;
+        foreach (var value in ids ?? new List<string>())
+        {
+            if (AuraSharedContentId.Matches(value, skillId, entry.OwnerModId, "careercard_"))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool MatchesTarget(
+        AuraCgRegistryEntry entry,
+        string kind,
+        SkillCgTriggerContext context)
+    {
+        return string.Equals(kind, "skill", StringComparison.OrdinalIgnoreCase)
+            ? MatchesSkill(entry, string.IsNullOrWhiteSpace(context.SkillId) ? context.CardId : context.SkillId)
+            : MatchesCard(entry, context.CardId);
+    }
+
+    private static bool MatchesTriggerKind(string registeredKind, string triggerKind)
+    {
+        if (string.IsNullOrWhiteSpace(triggerKind)) return true;
+        if (string.Equals(registeredKind, "skill", StringComparison.OrdinalIgnoreCase))
+            return string.Equals(triggerKind, "skill", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(registeredKind, "cardUse", StringComparison.OrdinalIgnoreCase))
+            return string.Equals(triggerKind, "card", StringComparison.OrdinalIgnoreCase);
+        return true;
     }
 
     public static bool MatchesAction(string action)
@@ -71,7 +108,10 @@ internal static class AuraCgRegistryQueryService
         {
             ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
             OwnerModId = entry.OwnerModId,
-            CardId = string.IsNullOrWhiteSpace(context.CardId) ? "*" : context.CardId,
+            TriggerKind = context.TriggerKind,
+            CardId = string.IsNullOrWhiteSpace(context.SkillId)
+                ? (string.IsNullOrWhiteSpace(context.CardId) ? "*" : context.CardId)
+                : context.SkillId,
             OwnerInstanceId = context.OwnerInstanceId,
             ImagePath = imagePath,
             ImageResource = imageResource,

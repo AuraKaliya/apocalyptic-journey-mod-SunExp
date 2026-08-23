@@ -46,6 +46,7 @@ internal static class AuraToolsBuiltInModules
             CardRefreshModule(),
             PixelEmojiModule(),
             AutoBattleModule(),
+            StrategyLabModule(),
             ModSyncModule(),
             LobbyStatusModule(),
             DamageStatisticsModule(),
@@ -141,9 +142,10 @@ internal static class AuraToolsBuiltInModules
                 AuraToolModuleIds.CardVisual,
                 AuraToolsConfigService.CardVisual.Enabled,
                 "主题 " + AuraToolsCardVisualRegistry.Themes.Count
-                + " 个 · 卡牌映射 " + AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)
-                + " 条",
-                AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)),
+                + " 个 · 卡框 " + AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)
+                + " 条 · 动效 " + AuraToolsCardVisualRuntime.EffectiveDynamicEffects().Count + " 条",
+                AuraToolsConfigService.CardVisual.Themes.Values.Sum(value => value.Cards.Count)
+                + AuraToolsCardVisualRuntime.EffectiveDynamicEffects().Count),
             AuraToolsCardVisualEditor.Show,
             new[] { "卡框", "卡面", "主题", "动态效果", "稀有度", "卡包" });
     }
@@ -504,8 +506,8 @@ internal static class AuraToolsBuiltInModules
             "records",
             330,
             112,
-            "冒险档案馆",
-            "按轮次保存冒险时间线、关键快照并关联战斗记录。",
+            "冒险历程",
+            "记录整轮冒险中的地点、选择、收藏变化与战斗。",
             context => AdventureArchiveRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.AdventureArchive.Enabled,
             enabled =>
@@ -517,8 +519,8 @@ internal static class AuraToolsBuiltInModules
                 AuraToolModuleIds.AdventureArchive,
                 AuraToolsConfigService.AdventureArchive.Enabled,
                 AuraToolsConfigService.AdventureArchive.Enabled
-                    ? "已保存 " + AdventureArchiveRuntime.Count + " 轮冒险"
-                    : "档案采集已关闭",
+                    ? ""
+                    : "历程记录已关闭",
                 AuraToolsConfigService.AdventureArchive.Enabled ? AdventureArchiveRuntime.Count : 0),
             AdventureArchivePage.Show,
             new[] { "冒险", "档案", "时间线", "快照", "对局" });
@@ -531,8 +533,8 @@ internal static class AuraToolsBuiltInModules
             "intelligence",
             410,
             90,
-            "战斗策略实验室",
-            "使用模型评估、学习并接管战斗决策。",
+            "自动战斗",
+            "选择战斗策略并控制自动接管方式。",
             context => AuraToolsAutoBattleRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.MatchExperience.AutoBattle.Enabled,
             enabled =>
@@ -562,8 +564,32 @@ internal static class AuraToolsBuiltInModules
                     experimental: true);
             },
             AuraToolsAutoBattleSettingsPage.Show,
-            new[] { "AI", "自动战斗", "模型", "训练", "评估" },
+            new[] { "AI", "自动战斗", "策略", "接管" },
             experimental: true);
+    }
+
+    private static IAuraToolModule StrategyLabModule()
+    {
+        return Module(
+            AuraToolModuleIds.StrategyLab,
+            "intelligence",
+            420,
+            91,
+            "策略模型实验室",
+            "管理、训练和评估自动战斗模型。",
+            null,
+            () => true,
+            _ => { },
+            () => State(
+                AuraToolModuleIds.StrategyLab,
+                true,
+                "",
+                experimental: true),
+            AuraToolsAutoBattleSettingsPage.ShowStrategyLab,
+            new[] { "AI", "模型", "训练", "评估", "开发者" },
+            experimental: true,
+            showEnableControl: false,
+            iconKey: AuraToolModuleIds.AutoBattle);
     }
 
     private static IAuraToolModule SkillCgModule()
@@ -720,7 +746,9 @@ internal static class AuraToolsBuiltInModules
         Action<UnityEngine.Transform>? showSettings,
         IReadOnlyList<string> searchTerms,
         bool experimental = false,
-        bool visible = true)
+        bool visible = true,
+        bool showEnableControl = true,
+        string? iconKey = null)
     {
         return new DelegateAuraToolModule(
             new AuraToolModuleDescriptor
@@ -731,9 +759,10 @@ internal static class AuraToolsBuiltInModules
                 InitializationOrder = initializationOrder,
                 DisplayName = title,
                 Description = description,
-                IconKey = id,
+                IconKey = string.IsNullOrWhiteSpace(iconKey) ? id : iconKey!,
                 SearchTerms = searchTerms,
                 HasSettingsPage = showSettings != null,
+                ShowEnableControl = showEnableControl,
                 Experimental = experimental,
                 Visible = visible
             },
@@ -868,9 +897,9 @@ internal static class AuraToolsBuiltInModules
     {
         return value switch
         {
-            "shadow" => "影子评估",
-            "trial" => "实机试用",
-            "full" => "完整应用",
+            "shadow" => "观察模式",
+            "trial" => "试用",
+            "full" => "正式接管",
             _ => "未应用"
         };
     }

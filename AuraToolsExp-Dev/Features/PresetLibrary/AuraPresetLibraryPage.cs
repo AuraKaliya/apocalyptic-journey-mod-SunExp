@@ -4,6 +4,7 @@ using System.Linq;
 using System.Globalization;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Modules;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -22,18 +23,24 @@ internal static class AuraPresetLibraryPage
         var window = AuraToolsUi.CreateOverlay("AuraTools.PresetLibrary", parent, "妙妙方案库", Refresh);
         overlayRoot = window.transform;
         var toolbar = Row(window.transform, "Toolbar", AuraToolsUi.ToolbarHeight);
-        nameInput = AuraToolsUi.AddInput(toolbar.transform, "我的妙妙方案", _ => { }, 220f);
-        AuraToolsUi.AddButton(toolbar.transform, "保存当前", CreateCurrent, 96f);
-        AuraToolsUi.AddButton(toolbar.transform, "导入", Import, 76f);
-        AuraToolsUi.AddButton(toolbar.transform, "Codec 审计", ShowAudit, 104f);
-        AuraToolsUi.AddButton(toolbar.transform, "打开目录", () => FileResourceUtil.OpenDirectory(AuraPresetLibraryService.DirectoryPath), 96f);
-        AuraToolsUi.AddText(toolbar.transform, "上限", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
-            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 36f);
-        maximumInput = AuraToolsUi.AddInput(toolbar.transform,
+        AuraToolsUi.AddSectionImage(toolbar);
+        nameInput = AuraToolsUi.AddInput(toolbar.transform, "我的妙妙方案", _ => { }, 180f,
+            AuraToolsUi.StandardButtonHeight, flexibleWidth: true);
+        AuraToolsUi.AddButton(toolbar.transform, "保存当前", CreateCurrent, 96f, AuraToolsUi.CompactButtonHeight);
+        AuraToolsUi.AddButton(toolbar.transform, "导入", Import, 76f, AuraToolsUi.CompactButtonHeight);
+        AuraToolsUi.AddButton(toolbar.transform, "配置范围", ShowAudit, 96f, AuraToolsUi.CompactButtonHeight);
+
+        var options = Row(window.transform, "Options", AuraToolsUi.ToolbarHeight);
+        AuraToolsUi.AddSectionImage(options);
+        AuraToolsUi.AddText(options.transform, "保留上限", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 72f);
+        maximumInput = AuraToolsUi.AddInput(options.transform,
             AuraToolsExp.Dll.Config.AuraToolsConfigService.PresetLibrary.MaximumPresets.ToString(CultureInfo.InvariantCulture), _ => { }, 58f);
-        AuraToolsUi.AddButton(toolbar.transform, "应用", ApplyMaximum, 60f);
-        statusText = AuraToolsUi.AddText(toolbar.transform, "", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
+        AuraToolsUi.AddButton(options.transform, "应用", ApplyMaximum, 60f, AuraToolsUi.CompactButtonHeight);
+        statusText = AuraToolsUi.AddText(options.transform, "", AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+        ToolboxIconButtonV2.Create(options.transform, "action.folder", "打开方案目录",
+            () => FileResourceUtil.OpenDirectory(AuraPresetLibraryService.DirectoryPath), 40f, "夹");
         content = AuraToolsUi.CreateScroll(window.transform, "PresetLibrary");
         Refresh();
     }
@@ -159,18 +166,18 @@ internal static class AuraPresetLibraryPage
     private static void ShowAudit()
     {
         if (overlayRoot == null) return;
-        var window = AuraToolsUi.CreateOverlay("AuraTools.CodecAudit", overlayRoot, "模块配置 Codec 审计");
+        var window = AuraToolsUi.CreateOverlay("AuraTools.CodecAudit", overlayRoot, "方案包含范围");
         var list = AuraToolsUi.CreateScroll(window.transform, "CodecAudit");
         foreach (var codec in AuraToolConfigCodecRegistry.All)
         {
             var audit = codec.Audit;
             var row = Row(list, "Audit-" + codec.ModuleId, 78f);
             AuraToolsUi.AddText(row.transform,
-                audit.DisplayName + " · Schema " + codec.SchemaVersion + " · " + audit.Risk
-                + "\n导出：" + audit.ExportedSurface + "　排除：" + audit.ExcludedSurface,
+                audit.DisplayName + " · 配置版本 " + codec.SchemaVersion + " · " + RiskLabel(audit.Risk)
+                + "\n包含：" + audit.ExportedSurface + "　排除：" + audit.ExcludedSurface,
                 AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, 70f, 1f);
             AuraToolsUi.AddText(row.transform,
-                audit.Dependencies.Length == 0 ? "独立" : "依赖 " + string.Join(", ", audit.Dependencies),
+                audit.Dependencies.Length == 0 ? "独立" : "依赖 " + string.Join("、", audit.Dependencies.Select(ModuleName)),
                 AuraToolsUi.HintFontSize, TextAnchor.MiddleRight, AuraToolsUi.MutedText, 70f, 0f, 180f);
         }
     }
@@ -185,13 +192,14 @@ internal static class AuraPresetLibraryPage
     {
         var row = AuraToolsUi.CreateLayout(name, parent);
         AuraToolsUi.SetFixedHeight(row, height);
-        AuraToolsUi.AddPanelImage(row, AuraToolsUi.Row);
+        AuraToolsUi.AddListRowImage(row, AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(8, 8, 4, 4);
         layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
         return row;
     }
 
@@ -204,5 +212,23 @@ internal static class AuraPresetLibraryPage
     {
         var text = (value ?? "").Trim();
         return text.Length <= maximum ? text : text.Substring(0, maximum - 3) + "...";
+    }
+
+    private static string ModuleName(string moduleId)
+    {
+        return AuraToolModuleHost.Catalog.TryGet(moduleId, out var module)
+            ? module.Descriptor.DisplayName
+            : "相关模块";
+    }
+
+    private static string RiskLabel(string value)
+    {
+        return (value ?? "").Trim().ToLowerInvariant() switch
+        {
+            "resource" => "包含资源引用",
+            "behavior" => "影响功能行为",
+            "data" => "包含本地数据",
+            _ => "普通设置"
+        };
     }
 }

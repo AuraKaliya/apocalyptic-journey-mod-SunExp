@@ -15,6 +15,7 @@
     <Compile Include="..\AuraSkinShared\Infrastructure\SkinProtocolCompatibility.cs" Link="Shared\SkinProtocolCompatibility.cs" />
     <Compile Include="..\AuraSkinShared\Services\SkinRegistry.cs" Link="Shared\SkinRegistry.cs" />
     <Compile Include="..\AuraSkinShared\Services\SkinSelectionStore.cs" Link="Shared\SkinSelectionStore.cs" />
+    <Compile Include="..\AuraSkinShared\Services\SkinScopedSelectionStore.cs" Link="Shared\SkinScopedSelectionStore.cs" />
     <Compile Include="..\AuraSkinShared\Services\SkinPackageValidationPolicy.cs" Link="Shared\SkinPackageValidationPolicy.cs" />
   </ItemGroup>
 

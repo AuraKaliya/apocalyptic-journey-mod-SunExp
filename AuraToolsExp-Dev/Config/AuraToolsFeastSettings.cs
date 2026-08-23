@@ -287,9 +287,9 @@ public sealed class FeastRoleSettings
 
     private static string MigrateTerriasCgId(string value)
     {
-        if (string.Equals(value, "Terrias:loneer.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:loneer.feast";
-        if (string.Equals(value, "Terrias:wuna.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:wuna.feast";
-        if (string.Equals(value, "Terrias:columbina.feast", StringComparison.OrdinalIgnoreCase)) return "AuraToolsExp:columbina.feast";
+        if (string.Equals(value, "AuraToolsExp:loneer.feast", StringComparison.OrdinalIgnoreCase)) return "Terrias:loneer.feast";
+        if (string.Equals(value, "AuraToolsExp:wuna.feast", StringComparison.OrdinalIgnoreCase)) return "Terrias:wuna.feast";
+        if (string.Equals(value, "AuraToolsExp:columbina.feast", StringComparison.OrdinalIgnoreCase)) return "Terrias:columbina.feast";
         return value;
     }
 

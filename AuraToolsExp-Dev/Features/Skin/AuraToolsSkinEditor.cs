@@ -122,7 +122,7 @@ public static class AuraToolsSkinEditor
         var selected = AuraToolsSkinRuntime.SelectedQualifiedSkinId(careerId);
         var card = Settings.AuraToolsUi.CreateLayout("SkinCareer-" + careerId, careerContent!);
         Settings.AuraToolsUi.SetFixedHeight(card, 104f);
-        Settings.AuraToolsUi.AddPanelImage(
+        Settings.AuraToolsUi.AddListRowImage(
             card,
             enabled > 0 ? Settings.AuraToolsUi.ActiveRow : Settings.AuraToolsUi.Row);
         var layout = card.AddComponent<HorizontalLayoutGroup>();
@@ -133,12 +133,14 @@ public static class AuraToolsSkinEditor
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
-        var selectedLabel = string.IsNullOrWhiteSpace(selected) ? "当前：默认皮肤" : "当前：" + selected;
+        var selectedDefinition = candidates.FirstOrDefault(candidate =>
+            string.Equals(candidate.QualifiedSkinId, selected, StringComparison.OrdinalIgnoreCase));
+        var selectedLabel = selectedDefinition == null ? "当前：默认皮肤" : "当前：" + selectedDefinition.Name;
         Settings.AuraToolsUi.AddText(
             card.transform,
-            RoleCatalog.GetDisplayName(careerId)
+            Settings.AuraToolsPlayerDisplay.RoleName(careerId)
             + " · 待选 " + enabled + "/" + candidates.Count
-            + "\n" + careerId + " · " + selectedLabel,
+            + "\n" + selectedLabel,
             Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.Text,
@@ -154,14 +156,14 @@ public static class AuraToolsSkinEditor
         var window = Settings.AuraToolsUi.CreateOverlay(
             "AuraTools.SkinCandidateEditor",
             parent,
-            "角色皮肤 - " + RoleCatalog.GetDisplayName(careerId),
+            "角色皮肤 - " + Settings.AuraToolsPlayerDisplay.RoleName(careerId),
             () => activeCareerId = "",
             true,
             1040f);
         var toolbar = CreateHorizontal("Toolbar", window.transform, Settings.AuraToolsUi.ToolbarHeight);
         Settings.AuraToolsUi.AddText(
             toolbar.transform,
-            careerId,
+            Settings.AuraToolsPlayerDisplay.RoleName(careerId),
             Settings.AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.MutedText,
@@ -205,7 +207,7 @@ public static class AuraToolsSkinEditor
             card,
             "skin.candidate." + candidate.QualifiedSkinId);
         Settings.AuraToolsUi.SetFixedHeight(card, 92f);
-        Settings.AuraToolsUi.AddPanelImage(
+        Settings.AuraToolsUi.AddListRowImage(
             card,
             enabled ? Settings.AuraToolsUi.ActiveRow : Settings.AuraToolsUi.Row);
         var layout = card.AddComponent<HorizontalLayoutGroup>();
@@ -228,9 +230,8 @@ public static class AuraToolsSkinEditor
         Settings.AuraToolsUi.AddText(
             card.transform,
             candidate.Name
-            + " · " + candidate.OwnerModId
-            + (selected ? " · 当前已选" : "")
-            + "\n" + candidate.QualifiedSkinId,
+            + " · " + Settings.AuraToolsPlayerDisplay.OwnerName(candidate.OwnerModId)
+            + (selected ? " · 当前已选" : ""),
             Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             enabled ? Settings.AuraToolsUi.Text : Settings.AuraToolsUi.MutedText,

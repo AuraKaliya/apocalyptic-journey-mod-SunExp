@@ -21,6 +21,7 @@ public static class AuraToolModuleIds
     public const string ModSync = "multiplayer.mod-sync";
     public const string LobbyStatus = "multiplayer.lobby-status";
     public const string AutoBattle = "intelligence.auto-battle";
+    public const string StrategyLab = "intelligence.strategy-model-lab";
     public const string FileLogging = "system.file-logging";
     public const string PresetLibrary = "system.preset-library";
     public const string ModHealth = "system.mod-health";

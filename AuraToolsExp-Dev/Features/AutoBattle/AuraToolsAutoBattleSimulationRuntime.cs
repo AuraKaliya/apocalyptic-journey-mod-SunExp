@@ -1078,7 +1078,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                                      StringComparison.Ordinal);
         if (externalPromotion
                 ? !AuraToolsAutoBattleModelRuntime
-                    .ExternalValidationMeetsGate(
+                    .ExternalPackageIsLoadable(
                         profile,
                         modelId,
                         out reason)

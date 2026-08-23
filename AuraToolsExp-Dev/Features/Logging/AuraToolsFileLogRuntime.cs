@@ -22,6 +22,7 @@ public static class AuraToolsFileLogRuntime
     private static AuraLogFileWriter? writer;
     private static bool unityLogHooked;
     private static bool quittingHooked;
+    private static string writerConfiguration = "";
 
     public static void Initialize(ModConfig config)
     {
@@ -62,6 +63,16 @@ public static class AuraToolsFileLogRuntime
                 return;
             }
 
+            var desiredWriterConfiguration = WriterConfiguration();
+            if (writer != null
+                && !string.Equals(
+                    writerConfiguration,
+                    desiredWriterConfiguration,
+                    StringComparison.Ordinal))
+            {
+                StopNoLock();
+            }
+
             if (writer != null)
             {
                 SyncHooksNoLock();
@@ -74,6 +85,7 @@ public static class AuraToolsFileLogRuntime
                     BuildLogFilePath(),
                     AuraToolsConfigService.Logging.MaxQueueLength,
                     AuraToolsConfigService.Logging.FlushIntervalMs);
+                writerConfiguration = desiredWriterConfiguration;
                 if (ShouldWrite("AuraTools", "Info", null))
                 {
                     writer.Enqueue(new AuraLogRecord(DateTime.Now, "AuraTools", "Info", null, "File logging initialized. File: " + writer.FilePath, null));
@@ -148,6 +160,7 @@ public static class AuraToolsFileLogRuntime
 
         var current = writer;
         writer = null;
+        writerConfiguration = "";
         MirrorWindows.Clear();
         LastMirrorByKey.Clear();
         CrossSourceDeduplicator.Clear();
@@ -239,17 +252,22 @@ public static class AuraToolsFileLogRuntime
     private static bool ShouldWrite(string source, string level, string? tag)
     {
         var settings = AuraToolsConfigService.Logging;
-        return SourceAllowed(settings, source)
-               && LevelRank(level) >= LevelRank(settings.MinimumLevel)
+        return LevelRank(level) >= LevelRank(settings.MinimumLevel)
                && (!string.Equals(source, "Command", StringComparison.OrdinalIgnoreCase)
                    || TagAllowed(settings, tag));
     }
 
-    private static bool SourceAllowed(AuraToolsLoggingSettings settings, string source)
+    private static string WriterConfiguration()
     {
-        var normalized = source?.Trim() ?? "";
-        return settings.EnabledSources.Count == 0
-               || settings.EnabledSources.Any(value => string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase));
+        var settings = AuraToolsConfigService.Logging;
+        return settings.FileNamePattern
+               + "|"
+               + settings.MaxQueueLength.ToString(CultureInfo.InvariantCulture)
+               + "|"
+               + settings.FlushIntervalMs.ToString(CultureInfo.InvariantCulture)
+               + "|"
+               + settings.MaxRetainedLogFiles.ToString(
+                   CultureInfo.InvariantCulture);
     }
 
     private static bool TagAllowed(AuraToolsLoggingSettings settings, string? tag)

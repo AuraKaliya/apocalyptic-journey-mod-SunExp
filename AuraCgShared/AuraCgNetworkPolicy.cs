@@ -37,6 +37,8 @@ internal static class AuraCgNetworkPolicy
                && HasBoundedIdentifier(item.CgId, maximumIdentifierLength)
                && HasBoundedIdentifier(item.ProviderId, maximumIdentifierLength)
                && HasBoundedIdentifier(item.CardId, maximumIdentifierLength)
+               && (string.Equals(item.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(item.TriggerKind, "card", StringComparison.OrdinalIgnoreCase))
                && HasBoundedIdentifier(item.OwnerInstanceId, maximumIdentifierLength);
     }
 
@@ -70,6 +72,7 @@ internal static class AuraCgNetworkPolicy
             item.SkillCgPlayId = playback.SkillCgPlayId;
             item.OwnerInstanceId = playback.OwnerStatusId;
             item.CardId = string.IsNullOrWhiteSpace(item.CardId) ? playback.CardId : item.CardId;
+            item.TriggerKind = (item.TriggerKind ?? "").Trim().ToLowerInvariant();
             item.EventToken = playback.SkillCgPlayId;
             item.ActionSequence = playback.ActionSequence;
         }

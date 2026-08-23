@@ -10,6 +10,7 @@ using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Portability;
 
@@ -21,18 +22,18 @@ internal static class MatchReplayPackageService
 
     internal static string Export(string recordId)
     {
-        var document = MatchRecordStorage.Database.LoadV10(recordId, loadAttachmentPayloads: true)
-                       ?? throw new InvalidOperationException("找不到经过验证的 Replay Document v10。");
+        var document = MatchRecordStorage.Database.LoadV11(recordId, loadAttachmentPayloads: true)
+                       ?? throw new InvalidOperationException("找不到经过验证的 Replay Document v11。");
         var record = MatchRecordStorage.Database.Get(recordId)
                      ?? throw new InvalidOperationException("找不到回放对应的对局摘要。");
         var analysis = MatchRecordStorage.Database.GetAnalysis(recordId)
-                       ?? MatchAnalysisBuilder.BuildV10(record, document);
-        var chunks = ReplayTimelineChunkerV10.Build(document.Events);
+                       ?? MatchAnalysisBuilder.BuildV11(record, document);
+        var chunks = ReplayTimelineChunkerV11.Build(document.Events);
         var skeleton = Clone(document);
         skeleton.Events.Clear();
         skeleton.Checkpoints.Clear();
         foreach (var attachment in skeleton.Attachments) attachment.Payload = Array.Empty<byte>();
-        var manifest = new ReplayPackageManifestV10
+        var manifest = new ReplayPackageManifestV11
         {
             ExportedUtc = DateTime.UtcNow.ToString("O"),
             RecordId = recordId,
@@ -40,8 +41,8 @@ internal static class MatchReplayPackageService
         };
         var payloads = new Dictionary<string, (string Kind, byte[] Payload)>(StringComparer.Ordinal)
         {
-            ["document.json.gz"] = ("Document", ReplayPayloadV10.Encode(skeleton)),
-            ["analysis/summary.json.gz"] = ("Analysis", ReplayPayloadV10.Encode(analysis))
+            ["document.json.gz"] = ("Document", ReplayPayloadV11.Encode(skeleton)),
+            ["analysis/summary.json.gz"] = ("Analysis", ReplayPayloadV11.Encode(analysis))
         };
         foreach (var chunk in chunks)
         {
@@ -50,7 +51,7 @@ internal static class MatchReplayPackageService
         for (var index = 0; index < document.Checkpoints.Count; index++)
         {
             payloads["checkpoints/" + index.ToString("D6") + ".json.gz"] =
-                ("Checkpoint", ReplayPayloadV10.Encode(document.Checkpoints[index]));
+                ("Checkpoint", ReplayPayloadV11.Encode(document.Checkpoints[index]));
         }
         foreach (var attachment in document.Attachments)
         {
@@ -64,43 +65,46 @@ internal static class MatchReplayPackageService
 
         foreach (var pair in payloads.OrderBy(item => item.Key, StringComparer.Ordinal))
         {
-            manifest.Entries.Add(new ReplayPackageEntryV10
+            manifest.Entries.Add(new ReplayPackageEntryV11
             {
                 Path = pair.Key,
                 Kind = pair.Value.Kind,
                 ByteLength = pair.Value.Payload.LongLength,
                 LogicalByteLength = pair.Value.Payload.LongLength,
-                Sha256 = ReplayCanonicalJsonV10.Sha256(pair.Value.Payload)
+                Sha256 = ReplayCanonicalJsonV11.Sha256(pair.Value.Payload)
             });
         }
 
         var name = SafeName(record.LevelId) + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".aurareplay";
         var output = UniquePath(Path.Combine(MatchRecordStorage.ExportsDirectory, name));
-        var temporary = output + ".partial";
-        try
+        using var transaction = AuraSharedFileStore.BeginWrite(
+            AuraToolsIds.ModId,
+            output,
+            overwrite: false);
+        using (var archive = new ZipArchive(
+                   transaction.Stream,
+                   ZipArchiveMode.Create,
+                   leaveOpen: true,
+                   Encoding.UTF8))
         {
-            using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            using (var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: false, Encoding.UTF8))
+            WriteEntry(archive, "manifest.json", ReplayCanonicalJsonV11.SerializeUtf8(manifest));
+            foreach (var pair in payloads.OrderBy(item => item.Key, StringComparer.Ordinal))
             {
-                WriteEntry(archive, "manifest.json", ReplayCanonicalJsonV10.SerializeUtf8(manifest));
-                foreach (var pair in payloads.OrderBy(item => item.Key, StringComparer.Ordinal))
-                {
-                    WriteEntry(archive, pair.Key, pair.Value.Payload);
-                }
+                WriteEntry(archive, pair.Key, pair.Value.Payload);
             }
-
-            using (var verifyFile = File.OpenRead(temporary))
-            using (var verifyArchive = new ZipArchive(verifyFile, ZipArchiveMode.Read, leaveOpen: false, Encoding.UTF8))
-            {
-                ReadAndValidate(verifyArchive);
-            }
-            File.Move(temporary, output);
-            return output;
         }
-        finally
+        transaction.Stream.Flush();
+        transaction.Stream.Position = 0;
+        using (var verifyArchive = new ZipArchive(
+                   transaction.Stream,
+                   ZipArchiveMode.Read,
+                   leaveOpen: true,
+                   Encoding.UTF8))
         {
-            TryDelete(temporary);
+            ReadAndValidate(verifyArchive);
         }
+        transaction.Commit();
+        return output;
     }
 
     internal static MatchRecord Import(string packagePath)
@@ -111,13 +115,13 @@ internal static class MatchReplayPackageService
         var document = parsed.Document;
         if (MatchRecordStorage.Database.ContainsContentHash(document.Header.DocumentSha256))
         {
-            throw new InvalidDataException("相同内容的 v10 回放已经存在。");
+            throw new InvalidDataException("相同内容的 v11 回放已经存在。");
         }
         if (MatchRecordStorage.Database.Get(document.Header.RecordId) != null)
         {
             document.Header.RecordId = Guid.NewGuid().ToString("N");
             document.Header.SessionId = document.Header.RecordId;
-            ReplayDocumentFinalizerV10.FinalizeAndValidate(document);
+            ReplayDocumentFinalizerV11.FinalizeAndValidate(document);
         }
         var record = new MatchRecord
         {
@@ -132,20 +136,21 @@ internal static class MatchReplayPackageService
             IsFavorite = true,
             Origin = MatchRecordOrigins.Imported,
             ReplayState = MatchReplayStates.Ready,
-            ReplayProtocol = ReplayProtocolV10.DocumentVersion,
+            ReplayProtocol = ReplayProtocolV11.DocumentVersion,
             GameBuild = document.Header.GameBuild,
             ToolBuild = document.Header.ToolBuild,
-            ModFingerprint = ReplayCanonicalJsonV10.Sha256(document.Content.Dependencies),
+            ModFingerprint = document.Header.RuntimeFingerprint,
+            RequiredCapabilities = (document.Header.RequiredCapabilities ?? new List<string>()).ToList(),
             ContentDependencies = document.Content.Dependencies.Select(item => item.OwnerModId).ToList(),
             ContentSha256 = document.Header.DocumentSha256,
             EventCount = document.Events.Count,
             TurnCount = Math.Max(1, document.Events.Count == 0 ? document.InitialState.TurnIndex : document.Events.Max(item => item.TurnIndex))
         };
-        var analysis = parsed.Analysis ?? MatchAnalysisBuilder.BuildV10(record, document);
+        var analysis = parsed.Analysis ?? MatchAnalysisBuilder.BuildV11(record, document);
         analysis.RecordId = record.RecordId;
-        if (!MatchRecordStorage.Database.SaveV10(record, document, analysis))
+        if (!MatchRecordStorage.Database.SaveV11(record, document, analysis))
         {
-            throw new IOException("v10 回放写入数据库失败。");
+            throw new IOException("v11 回放写入数据库失败。");
         }
         return record;
     }
@@ -162,9 +167,9 @@ internal static class MatchReplayPackageService
             RecordId = document.Header.RecordId,
             LevelId = document.Header.LevelId,
             PackageBytes = file.Length,
-            ReplayProtocol = ReplayProtocolV10.DocumentVersion,
+            ReplayProtocol = ReplayProtocolV11.DocumentVersion,
             Compatibility = "Compatible",
-            CompatibilityMessage = "Replay Document v10 已通过完整包验证。",
+            CompatibilityMessage = "Replay Document v11 已通过完整包验证。",
             Duplicate = MatchRecordStorage.Database.ContainsContentHash(document.Header.DocumentSha256),
             ContentSha256 = document.Header.DocumentSha256,
             ContentDependencies = document.Content.Dependencies.Select(item => item.OwnerModId).ToList(),
@@ -176,26 +181,26 @@ internal static class MatchReplayPackageService
     {
         ValidateArchive(archive);
         var manifestPayload = ReadEntry(archive, "manifest.json", MaximumEntryBytes);
-        var manifest = AuraSharedJson.Deserialize<ReplayPackageManifestV10>(Encoding.UTF8.GetString(manifestPayload))
+        var manifest = AuraSharedJson.Deserialize<ReplayPackageManifestV11>(Encoding.UTF8.GetString(manifestPayload))
                        ?? throw new InvalidDataException("回放包清单无法读取。");
         if (!string.Equals(manifest.Format, "AuraTools.MatchReplay", StringComparison.Ordinal)
-            || manifest.PackageVersion != ReplayProtocolV10.PackageVersion
-            || manifest.DocumentVersion != ReplayProtocolV10.DocumentVersion)
+            || manifest.PackageVersion != ReplayProtocolV11.PackageVersion
+            || manifest.DocumentVersion != ReplayProtocolV11.DocumentVersion)
         {
-            throw new InvalidDataException("运行时只接受 Replay Package v10；旧包必须进入迁移器。");
+            throw new InvalidDataException("运行时只接受 Replay Package v11；旧包必须进入迁移器。");
         }
         var manifestPaths = new HashSet<string>(manifest.Entries.Select(item => item.Path), StringComparer.Ordinal);
         if (manifestPaths.Count != manifest.Entries.Count
             || manifestPaths.Any(path => !SafeEntryPath(path)))
         {
-            throw new InvalidDataException("v10 回放包清单包含重复或不安全路径。");
+            throw new InvalidDataException("v11 回放包清单包含重复或不安全路径。");
         }
         var actualPaths = new HashSet<string>(
             archive.Entries.Where(item => item.FullName != "manifest.json").Select(item => item.FullName),
             StringComparer.Ordinal);
         if (!actualPaths.SetEquals(manifestPaths))
         {
-            throw new InvalidDataException("v10 回放包包含未声明或缺失的 entry。");
+            throw new InvalidDataException("v11 回放包包含未声明或缺失的 entry。");
         }
 
         var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -203,29 +208,29 @@ internal static class MatchReplayPackageService
         {
             if (entry.ByteLength < 0 || entry.ByteLength > MaximumEntryBytes)
             {
-                throw new InvalidDataException("v10 回放包 entry 大小超限：" + entry.Path);
+                throw new InvalidDataException("v11 回放包 entry 大小超限：" + entry.Path);
             }
             var payload = ReadEntry(archive, entry.Path, MaximumEntryBytes);
             if (payload.LongLength != entry.ByteLength
-                || !string.Equals(ReplayCanonicalJsonV10.Sha256(payload), entry.Sha256, StringComparison.OrdinalIgnoreCase))
+                || !string.Equals(ReplayCanonicalJsonV11.Sha256(payload), entry.Sha256, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException("v10 回放包 entry 校验失败：" + entry.Path);
+                throw new InvalidDataException("v11 回放包 entry 校验失败：" + entry.Path);
             }
             payloads[entry.Path] = payload;
         }
 
         if (!payloads.TryGetValue("document.json.gz", out var documentPayload))
         {
-            throw new InvalidDataException("v10 回放包缺少 document.json.gz。");
+            throw new InvalidDataException("v11 回放包缺少 document.json.gz。");
         }
-        var document = ReplayPayloadV10.Decode<ReplayDocumentV10>(documentPayload);
+        var document = ReplayPayloadV11.Decode<ReplayDocumentV11>(documentPayload);
         document.Events = manifest.Entries.Where(item => item.Kind == "Timeline")
             .OrderBy(item => item.Path, StringComparer.Ordinal)
-            .SelectMany(item => ReplayPayloadV10.Decode<List<ReplayTimelineEventV10>>(payloads[item.Path]))
+            .SelectMany(item => ReplayPayloadV11.Decode<List<ReplayTimelineEventV11>>(payloads[item.Path]))
             .ToList();
         document.Checkpoints = manifest.Entries.Where(item => item.Kind == "Checkpoint")
             .OrderBy(item => item.Path, StringComparer.Ordinal)
-            .Select(item => ReplayPayloadV10.Decode<ReplayCheckpointV10>(payloads[item.Path]))
+            .Select(item => ReplayPayloadV11.Decode<ReplayCheckpointV11>(payloads[item.Path]))
             .ToList();
         var attachmentPayloads = manifest.Entries.Where(item => item.Kind == "Attachment")
             .ToDictionary(
@@ -236,20 +241,20 @@ internal static class MatchReplayPackageService
         {
             if (!attachmentPayloads.TryGetValue(attachment.Sha256, out var payload))
             {
-                throw new InvalidDataException("v10 回放包缺少附件：" + attachment.Sha256);
+                throw new InvalidDataException("v11 回放包缺少附件：" + attachment.Sha256);
             }
             attachment.Payload = payload;
         }
         if (!string.Equals(document.Header.DocumentSha256, manifest.DocumentSha256, StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidDataException("v10 回放包文档哈希与清单不一致。");
+            throw new InvalidDataException("v11 回放包文档哈希与清单不一致。");
         }
-        var validation = ReplayDocumentValidatorV10.Validate(document);
-        if (!validation.IsValid) throw new InvalidDataException("v10 回放包验证失败：" + validation.Message);
+        var validation = ReplayDocumentValidatorV11.Validate(document);
+        if (!validation.IsValid) throw new InvalidDataException("v11 回放包验证失败：" + validation.Message);
         MatchAnalysisReport? analysis = null;
         if (payloads.TryGetValue("analysis/summary.json.gz", out var analysisPayload))
         {
-            analysis = ReplayPayloadV10.Decode<MatchAnalysisReport>(analysisPayload);
+            analysis = ReplayPayloadV11.Decode<MatchAnalysisReport>(analysisPayload);
         }
         return new ParsedPackage(document, analysis);
     }
@@ -319,11 +324,11 @@ internal static class MatchReplayPackageService
         stream.Write(payload, 0, payload.Length);
     }
 
-    private static ReplayDocumentV10 Clone(ReplayDocumentV10 document)
+    private static ReplayDocumentV11 Clone(ReplayDocumentV11 document)
     {
-        return Newtonsoft.Json.JsonConvert.DeserializeObject<ReplayDocumentV10>(
-                   Encoding.UTF8.GetString(ReplayCanonicalJsonV10.SerializeUtf8(document)))
-               ?? throw new InvalidDataException("v10 回放文档无法复制。");
+        return Newtonsoft.Json.JsonConvert.DeserializeObject<ReplayDocumentV11>(
+                   Encoding.UTF8.GetString(ReplayCanonicalJsonV11.SerializeUtf8(document)))
+               ?? throw new InvalidDataException("v11 回放文档无法复制。");
     }
 
     private static string NormalizeExtension(string extension)
@@ -353,12 +358,12 @@ internal static class MatchReplayPackageService
 
     private sealed class ParsedPackage
     {
-        internal ParsedPackage(ReplayDocumentV10 document, MatchAnalysisReport? analysis)
+        internal ParsedPackage(ReplayDocumentV11 document, MatchAnalysisReport? analysis)
         {
             Document = document;
             Analysis = analysis;
         }
-        internal ReplayDocumentV10 Document { get; }
+        internal ReplayDocumentV11 Document { get; }
         internal MatchAnalysisReport? Analysis { get; }
     }
 }

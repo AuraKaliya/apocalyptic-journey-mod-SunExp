@@ -95,7 +95,7 @@ internal sealed class AuraCgRegisteredRequestResolver
             .FirstOrDefault(candidate => string.Equals(candidate.CgId, item.CgId.Trim(), StringComparison.OrdinalIgnoreCase));
         if (entry == null
             || !IsSupportedNetworkKind(entry)
-            || !AuraCgRegistryQueryService.MatchesCard(entry, item.CardId)
+            || !MatchesNetworkTarget(entry, item)
             || !string.Equals(item.ProviderId.Trim(), ProviderIdentity(entry), StringComparison.Ordinal))
         {
             return null;
@@ -117,7 +117,11 @@ internal sealed class AuraCgRegisteredRequestResolver
 
         var request = CreateRequest(entry, imageResource, imagePath, new SkillCgTriggerContext
         {
+            TriggerKind = item.TriggerKind,
             CardId = item.CardId,
+            SkillId = string.Equals(item.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase)
+                ? item.CardId
+                : "",
             OwnerInstanceId = item.OwnerInstanceId,
             ActionSequence = item.ActionSequence,
             EventToken = item.EventToken
@@ -125,6 +129,18 @@ internal sealed class AuraCgRegisteredRequestResolver
         request.IssuerPlayerId = item.IssuerPlayerId;
         request.SkillCgPlayId = item.SkillCgPlayId;
         return request;
+    }
+
+    private static bool MatchesNetworkTarget(AuraCgRegistryEntry entry, SkillCgNetworkEvent item)
+    {
+        if (string.Equals(entry.Kind, "skill", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(item.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase)
+                   && AuraCgRegistryQueryService.MatchesSkill(entry, item.CardId);
+        }
+        return string.Equals(entry.Kind, "cardUse", StringComparison.OrdinalIgnoreCase)
+               && string.Equals(item.TriggerKind, "card", StringComparison.OrdinalIgnoreCase)
+               && AuraCgRegistryQueryService.MatchesCard(entry, item.CardId);
     }
 
     internal static bool MediaExists(string mediaType, string path, string bundlePath)

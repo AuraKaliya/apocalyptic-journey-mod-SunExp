@@ -155,15 +155,15 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.3 Audio 与 BGM
 
-`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、信号/阶段匹配、优先级、fallback 和必要的表现同步。AuraToolsExp 注册角色语音与卡牌音效，Terrias 不再初始化媒体 provider。请求使用 `Kind + Stage` 锚定选人提交、卡牌表现提交、低血量阈值穿越和战斗完成等稳定时点。
+`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、信号/阶段匹配、优先级、fallback 和必要的表现同步。Terrias 携带角色语音声明，AuraToolsExp 发现注册并应用玩家覆盖；通用卡牌音效仍由 AuraToolsExp 持有。Terrias 不初始化媒体 provider。请求使用 `Kind + Stage` 锚定选人提交、卡牌表现提交、低血量阈值穿越和战斗完成等稳定时点。
 
 ### 6.4 CG
 
-`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责播放、session、黑键/闪屏、网络事件和去重。AuraToolsExp 拥有 Terrias 目标的可选 CG 资源、manifest、配置和请求生成；Terrias 不保留第二条 CG 运行时或资源回退路径。
+`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责播放、session、黑键/闪屏、网络事件和去重。Terrias 在 `SharedResources` 携带自己的可选 CG 资源与 manifest；AuraToolsExp 按 `.modproj` 发现、注册并配置它们。Terrias 不保留第二条 CG 运行时或资源回退路径。
 
 ### 6.5 Skin
 
-`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。全部替换皮肤由 AuraToolsExp 的工具皮肤包提供；旧 Terrias qualified selection 会一次性迁移到 AuraToolsExp owner。
+`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。全部替换皮肤由 AuraToolsExp 的工具皮肤包提供；旧 Terrias qualified selection 会一次性迁移到 AuraToolsExp owner。共享层还提供 owner-qualified、非持久化并带释放句柄的 scoped selection，供 v11 原生回放在创建角色前恢复录制皮肤；作用域释放后立即回到玩家当前持久选择，不改写配置文件。
 
 ### 6.6 卡牌使用特效
 

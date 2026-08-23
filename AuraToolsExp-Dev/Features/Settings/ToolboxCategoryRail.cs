@@ -31,7 +31,7 @@ internal sealed class ToolboxCategoryRail : MonoBehaviour
         element.preferredWidth = AuraToolsUi.ToolboxCategoryWidth;
         element.flexibleWidth = 0f;
         element.flexibleHeight = 1f;
-        ToolboxSurfaceV2.Apply(root);
+        ToolboxSurfaceV2.ApplyToolboxHome(root);
         var layout = root.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(8, 8, 10, 10);
         layout.spacing = 4f;

@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -39,7 +39,6 @@ internal static class MatchReplayVideoExporter
         if (workerRunning) return;
         if (RecoveryQueue.Count == 0)
         {
-            AuraToolsMatchRecordsRuntime.ReleaseRuntimeDriver();
             return;
         }
         var job = RecoveryQueue.Dequeue();
@@ -70,11 +69,11 @@ internal static class MatchReplayVideoExporter
         }
 
         ReplayEncoderDependency dependency;
-        ReplayDocumentV10? document;
+        ReplayDocumentV11? document;
         try
         {
             dependency = ReplayEncoderDependency.LoadVerified();
-            document = MatchRecordStorage.Database.LoadV10(recordId);
+            document = MatchRecordStorage.Database.LoadV11(recordId);
         }
         catch (Exception ex)
         {
@@ -84,7 +83,7 @@ internal static class MatchReplayVideoExporter
 
         if (document == null)
         {
-            message = "这条记录没有经过验证的 Replay Document v10。";
+            message = "这条记录没有经过验证的 Replay Document v11。";
             return false;
         }
 
@@ -119,19 +118,34 @@ internal static class MatchReplayVideoExporter
         try
         {
             MatchRecordStorage.Database.CreateExportJob(job);
-            closeOrigin?.Invoke();
             current = job;
             workerRunning = true;
             MatchReplayExportControlsPresenter.Show();
-            if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, document)) == null)
+            var accepted = MatchReplayLaunchCoordinator.TryStartForExport(
+                recordId,
+                closeOrigin,
+                () =>
+                {
+                    if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, document)) != null)
+                        return;
+                    workerRunning = false;
+                    Fail(job, "worker-unavailable", "无法启动原生回放视频导出协程。", deleteStaging: true);
+                },
+                failure =>
+                {
+                    workerRunning = false;
+                    Fail(job, "native-replay-launch-failed", failure, deleteStaging: true);
+                },
+                out var launchMessage);
+            if (!accepted)
             {
                 workerRunning = false;
-                Fail(job, "worker-unavailable", "无法启动视频导出协程。", deleteStaging: true);
+                Fail(job, "native-replay-launch-failed", launchMessage, deleteStaging: true);
                 message = job.Message;
                 return false;
             }
 
-            message = "已创建持久化 MP4 导出任务。";
+            message = launchMessage;
             return true;
         }
         catch (Exception ex)
@@ -167,7 +181,7 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency = null,
-        ReplayDocumentV10? document = null)
+        ReplayDocumentV11? document = null)
     {
         Exception? failure = null;
         var core = ExportCore(job, settings, dependency, document);
@@ -190,7 +204,7 @@ internal static class MatchReplayVideoExporter
         {
             var committing = job.State == MatchReplayExportStates.Committing;
             Fail(job, committing ? "commit-interrupted" : "export-failed", failure.Message, deleteStaging: !committing);
-            AuraToolsLog.Warn("[MatchRecords] v10 video export failed: " + failure);
+            AuraToolsLog.Warn("[MatchRecords] v11 native video export failed: " + failure);
         }
         workerRunning = false;
         ResumePending();
@@ -200,29 +214,33 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency,
-        ReplayDocumentV10? document)
+        ReplayDocumentV11? document)
     {
-        ReplaySceneInstance? scene = null;
+        ReplayNativeRenderSurface? surface = null;
         RenderTexture? target = null;
         Texture2D? reader = null;
         ReplayFramePipeline? pipeline = null;
         var audioPath = job.TargetPath + ".audio.partial.wav";
+        var previousCaptureFramerate = Time.captureFramerate;
         try
         {
             dependency ??= ReplayEncoderDependency.LoadVerified();
-            document ??= MatchRecordStorage.Database.LoadV10(job.RecordId)
-                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v10。");
+            document ??= MatchRecordStorage.Database.LoadV11(job.RecordId)
+                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v11。");
+            if (!MatchReplayPlayer.IsActive
+                && !MatchReplayPlayer.TryStartForExport(job.RecordId, out var startMessage))
+                throw new InvalidOperationException(startMessage);
+            var readyFrames = 0;
+            while (MatchReplayPlayer.IsActive && !MatchReplayPlayer.IsReadyForExport && readyFrames++ < 900)
+                yield return null;
+            if (!MatchReplayPlayer.IsReadyForExport)
+                throw new TimeoutException("原生战斗回放视图准备超时：" + MatchReplayPlayer.PreparationStatus);
             job.AttemptCount++;
             DeleteIfExists(job.StagingPath);
             DeleteIfExists(audioPath);
             var frameCount = Math.Max(1L, (long)Math.Ceiling(
-                document.Events.Count == 0
-                    ? settings.FramesPerSecond
-                    : (document.Events.Max(item => item.TimeTicks
-                        + Math.Max(160_000L, item.Presentation.Count == 0
-                            ? 160_000L
-                            : item.Presentation.Max(cue => cue.StartOffsetTicks + cue.DurationTicks)))
-                       / (double)ReplayProtocolV10.TimebaseTicksPerSecond * settings.FramesPerSecond)) + 1L);
+                Math.Max(1000L, MatchReplayPlayer.DurationMilliseconds)
+                / 1000d * settings.FramesPerSecond) + 1L);
             job.FrameCount = frameCount;
             if (!HasFreeSpace(job.EstimatedBytes, out var available))
             {
@@ -244,7 +262,8 @@ internal static class MatchReplayVideoExporter
             target = new RenderTexture(job.Width, job.Height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             target.Create();
             reader = new Texture2D(job.Width, job.Height, TextureFormat.RGB24, mipChain: false);
-            scene = ReplaySceneRuntime.CreateExportSession(document, target, settings.IncludeUi);
+            Time.captureFramerate = job.FramesPerSecond;
+            surface = new ReplayNativeRenderSurface(target, settings.IncludeUi);
             pipeline = new ReplayFramePipeline(
                 dependency,
                 job.StagingPath,
@@ -255,9 +274,10 @@ internal static class MatchReplayVideoExporter
             for (var frameIndex = 0L; frameIndex < frameCount; frameIndex++)
             {
                 if (job.CancelRequested) throw new OperationCanceledException();
-                var timeTicks = frameIndex * ReplayProtocolV10.TimebaseTicksPerSecond / job.FramesPerSecond;
-                scene.SeekTime(timeTicks);
-                scene.Camera.Render();
+                if (frameIndex > 0)
+                    MatchReplayPlayer.AdvanceExportClock(1000f / job.FramesPerSecond);
+                yield return new WaitForEndOfFrame();
+                surface.Render();
                 var frame = CaptureFrame(target, reader, job.Width, job.Height);
                 while (!pipeline.TryEnqueue(frame))
                 {
@@ -276,7 +296,6 @@ internal static class MatchReplayVideoExporter
                     job.Message = "已渲染 " + (frameIndex + 1) + "/" + frameCount + " 帧";
                     Persist(job);
                 }
-                yield return null;
             }
 
             pipeline.Complete();
@@ -313,7 +332,7 @@ internal static class MatchReplayVideoExporter
             job.FrameCount = verification.FrameCount;
             Transition(job, MatchReplayExportStates.Committing, 0.96f, "正在原子提交已验证 MP4");
             if (File.Exists(job.TargetPath)) throw new IOException("MP4 目标文件已经存在。");
-            File.Move(job.StagingPath, job.TargetPath);
+            AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, job.StagingPath, job.TargetPath);
             var asset = new MatchMediaAsset
             {
                 MediaId = job.JobId,
@@ -341,7 +360,9 @@ internal static class MatchReplayVideoExporter
         finally
         {
             pipeline?.Dispose();
-            scene?.Dispose();
+            surface?.Dispose();
+            Time.captureFramerate = previousCaptureFramerate;
+            if (MatchReplayPlayer.IsActive) MatchReplayPlayer.Stop();
             if (target != null)
             {
                 target.Release();
@@ -422,7 +443,8 @@ internal static class MatchReplayVideoExporter
         {
             Transition(job, MatchReplayExportStates.Committing, 0.96f, "恢复已验证输出的提交");
         }
-        if (!File.Exists(job.TargetPath)) File.Move(job.StagingPath, job.TargetPath);
+        if (!File.Exists(job.TargetPath))
+            AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, job.StagingPath, job.TargetPath);
         var asset = new MatchMediaAsset
         {
             MediaId = job.JobId,
@@ -535,10 +557,10 @@ internal static class MatchReplayVideoExporter
                + (settings.IncludeUi ? ".hud" : ".clean");
     }
 
-    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV10 document, int fps)
+    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV11 document, int fps)
     {
         return document.Events
-            .Where(item => item.EventType == ReplayEventTypesV10.TurnChanged)
+            .Where(item => item.EventType == ReplayEventTypesV11.TurnChanged)
             .GroupBy(item => item.TurnIndex)
             .Select(group => group.First())
             .OrderBy(item => item.TurnIndex)
@@ -546,15 +568,15 @@ internal static class MatchReplayVideoExporter
             {
                 TurnIndex = item.TurnIndex,
                 EventSequence = item.Sequence,
-                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV10.TimebaseTicksPerSecond
+                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV11.TimebaseTicksPerSecond
             })
             .ToList();
     }
 
-    private static long EstimateOutputBytes(ReplayDocumentV10 document, int width, int height, int fps, bool includeAudio)
+    private static long EstimateOutputBytes(ReplayDocumentV11 document, int width, int height, int fps, bool includeAudio)
     {
         var durationSeconds = Math.Max(1d,
-            document.Events.Count == 0 ? 1d : document.Events.Max(item => item.TimeTicks) / (double)ReplayProtocolV10.TimebaseTicksPerSecond + 1d);
+            document.Events.Count == 0 ? 1d : document.Events.Max(item => item.TimeTicks) / (double)ReplayProtocolV11.TimebaseTicksPerSecond + 1d);
         var bitsPerSecond = width >= 1920 ? 12_000_000L : 6_000_000L;
         var waveBytes = includeAudio
             ? (long)(durationSeconds * ReplayOfflineAudioMixer.SampleRate * ReplayOfflineAudioMixer.Channels * 2d)
@@ -609,7 +631,7 @@ internal static class MatchReplayVideoExporter
                 if (known.Contains(Path.GetFullPath(path))) continue;
                 Directory.CreateDirectory(quarantine);
                 var target = Path.Combine(quarantine, Path.GetFileName(path) + ".orphan-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-                File.Move(path, target);
+                AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, path, target);
             }
             foreach (var path in Directory.GetFiles(MatchRecordStorage.MediaDirectory, "*.mp4", SearchOption.AllDirectories))
             {
@@ -617,7 +639,7 @@ internal static class MatchReplayVideoExporter
                 if (knownFinals.Contains(full) || full.EndsWith(".partial.mp4", StringComparison.OrdinalIgnoreCase)) continue;
                 Directory.CreateDirectory(quarantine);
                 var target = Path.Combine(quarantine, Path.GetFileName(path) + ".orphan-" + Guid.NewGuid().ToString("N").Substring(0, 8));
-                File.Move(path, target);
+                AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, path, target);
             }
         }
         catch (Exception ex)

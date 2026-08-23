@@ -29,7 +29,7 @@ public static class AuraToolsAudioRoleEditor
         toolbarLayout.childControlWidth = true;
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = AuraToolsUi.AddText(toolbar.transform, "提示：选择音频后会写入 AuraShared/Audio/Role/{角色ID}/LocalAudio/AuraToolsExp/。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
+        hintText = AuraToolsUi.AddText(toolbar.transform, "为每个角色选择本地播放音频。", 14, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 34f, 1f);
         AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () =>
         {
             EnsureRoleEntries(true);
@@ -135,7 +135,9 @@ public static class AuraToolsAudioRoleEditor
         bottomLayout.childForceExpandHeight = false;
 
         AuraToolsUi.AddText(bottom.transform, "\u97f3\u9891", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 52f);
-        AuraToolsUi.AddInput(bottom.transform, settings.RelativePath, value => ApplyRoleAudioPath(settings, value, false), 760f);
+        AuraToolsUi.AddInput(bottom.transform, settings.RelativePath,
+            value => ApplyRoleAudioPath(settings, value, false), 240f,
+            AuraToolsUi.StandardButtonHeight, flexibleWidth: true);
     }
 
     private static void PickRoleAudio(AudioRoleSettings settings)
@@ -241,9 +243,11 @@ public static class AuraToolsAudioRoleEditor
     private static string RoleDisplayName(AudioRoleSettings settings)
     {
         var displayName = string.IsNullOrWhiteSpace(settings.DisplayName)
-            ? RoleCatalog.GetDisplayName(settings.RoleId)
+            ? AuraToolsPlayerDisplay.RoleName(settings.RoleId)
             : settings.DisplayName.Trim();
-        return string.IsNullOrWhiteSpace(displayName) ? settings.RoleId : displayName;
+        return string.IsNullOrWhiteSpace(displayName)
+            ? AuraToolsPlayerDisplay.RoleName(settings.RoleId)
+            : displayName;
     }
 
     private static void Save()

@@ -145,6 +145,7 @@ public static class AuraChatModSyncSnapshot
                     DirectoryName = ReadString(modType, mod, "DirectoryName"),
                     IsWorkshopMod = ReadBool(modType, mod, "IsWorkshopMod", false),
                     PublishedFileId = ReadPublishedFileId(modType, mod),
+                    SharedResourceFingerprint = ReadString(modType, mod, "SharedResourceFingerprint"),
                     Enabled = ReadBool(modType, mod, "Enabled", true)
                 });
             }

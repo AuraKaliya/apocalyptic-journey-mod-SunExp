@@ -51,6 +51,9 @@ public static class TerriasCombatCardViewPool
         TerriasBattleLifecycleRouter.Register("CombatCardViewPool", new TerriasBattleLifecycleSubscription
         {
             BattleMaterialized = _ => BeginFight(),
+            OutcomeEntering = _ => EndFight("OutcomeEntering"),
+            BattleSettling = _ => EndFight("BattleSettling"),
+            BattleRestarting = _ => EndFight("BattleRestarting"),
             BattleEnded = _ => EndFight("BattleEnded")
         });
         TerriasLog.InfoAlways("Combat card view pool initialized");
@@ -72,6 +75,7 @@ public static class TerriasCombatCardViewPool
         PendingIds.Clear();
         nativeQueueWaitFrames = 0;
         materializedSinceLayout = 0;
+        TeardownHandPresentation(source);
         foreach (var active in new List<CardItem>(ActiveViews))
         {
             DestroyCardView(active);
@@ -87,6 +91,55 @@ public static class TerriasCombatCardViewPool
 
         TerriasPerformanceCounters.Record("CombatCardViewPool.Cleared");
         TerriasLog.Debug("[CombatCardViewPool] cleared from " + source + ".");
+    }
+
+    private static void TeardownHandPresentation(string source)
+    {
+        var cards = new HashSet<CardItem>();
+        foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
+            if (card != null) cards.Add(card);
+        foreach (var card in FightUI.WaitCard ?? new List<CardItem>())
+            if (card != null) cards.Add(card);
+        foreach (var card in FightUI.SelectedCard ?? new List<CardItem>())
+            if (card != null) cards.Add(card);
+        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
+        if (fightUi?.cardContainer != null)
+        {
+            foreach (var card in fightUi.cardContainer.GetComponentsInChildren<CardItem>(true))
+                if (card != null) cards.Add(card);
+        }
+
+        foreach (var card in cards)
+        {
+            if (!IsAlive(card)) continue;
+            try
+            {
+                StopContainerTween(card);
+                StopCardAnimation(card);
+                card.StopAllCoroutines();
+                SetInteraction(card, false);
+                SetCanvasAlpha(card, 0f);
+                AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
+                {
+                    Root = card.transform,
+                    Config = card.dataConfig,
+                    Card = card,
+                    Source = "CombatCardViewPool.OutcomeTeardown." + source,
+                    Surface = AuraCardPresentationSurface.CombatCard
+                });
+            }
+            catch (Exception ex)
+            {
+                TerriasLog.Debug("[CombatCardViewPool] hand teardown step failed: " + ex.Message);
+            }
+            ActiveViews.Remove(card);
+            UnityEngine.Object.Destroy(card.gameObject);
+        }
+
+        FightUI.cardItemList?.Clear();
+        FightUI.WaitCard?.Clear();
+        FightUI.SelectedCard?.Clear();
+        if (cards.Count > 0) TerriasPerformanceCounters.Record("CombatCardViewPool.OutcomeHandCleared");
     }
 
     private static bool TryMaterialize(ScriptExecutor self, DataConfig config, string source)
@@ -644,6 +697,14 @@ public static class TerriasCombatCardViewPool
 
     private static void PrepareIdle(CardItem card, string bucket, int expectedGeneration)
     {
+        AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
+        {
+            Root = card.transform,
+            Config = card.dataConfig,
+            Card = card,
+            Source = "CombatCardViewPool.PrepareIdle",
+            Surface = AuraCardPresentationSurface.CombatCard
+        });
         var marker = card.GetComponent<PooledCombatCardViewMarker>();
         if (marker == null)
         {
@@ -733,13 +794,13 @@ public static class TerriasCombatCardViewPool
     private static void ReapplyPresentationAfterBind(CardItem card, DataConfig config)
     {
         TerriasActiveCardPresentationIndex.Observe(card);
-        TerriasCardPresentationRouter.RequestApply(new TerriasCardPresentationContext
+        AuraCardPresentationRuntime.RequestApply(new AuraCardPresentationContext
         {
             Root = card.transform,
             Config = config,
             Card = card,
             Source = "CombatCardViewPool.Bind",
-            Surface = TerriasCardPresentationSurface.CombatCardInternal
+            Surface = AuraCardPresentationSurface.CombatCard
         });
         TerriasPerformanceCounters.Record("CombatCardViewPool.PresentationReapply");
     }
@@ -936,6 +997,14 @@ public static class TerriasCombatCardViewPool
     {
         if (IsAlive(card))
         {
+            AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
+            {
+                Root = card.transform,
+                Config = card.dataConfig,
+                Card = card,
+                Source = "CombatCardViewPool.Destroy",
+                Surface = AuraCardPresentationSurface.CombatCard
+            });
             ActiveViews.Remove(card);
             UnityEngine.Object.Destroy(card.gameObject);
         }

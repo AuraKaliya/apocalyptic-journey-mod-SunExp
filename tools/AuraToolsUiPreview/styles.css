@@ -14,7 +14,7 @@
   --error: #d87373;
   --category-width: 168px;
   --header-height: 60px;
-  --module-row-height: 96px;
+  --module-row-height: 78px;
   --spacing: 8px;
   font-family: "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
 }
@@ -407,7 +407,7 @@ button {
   width: 100%;
   height: var(--module-row-height);
   min-width: 0;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 0;
   background: var(--panel);
 }
@@ -419,7 +419,7 @@ button {
 
 .status-marker {
   width: 4px;
-  height: 72px;
+  height: 52px;
   background: var(--muted-text);
 }
 
@@ -441,7 +441,7 @@ button {
 
 .module-copy {
   display: grid;
-  grid-template-rows: 27px 26px 23px;
+  grid-template-rows: 32px 24px;
   min-width: 0;
 }
 
@@ -470,13 +470,6 @@ button {
   align-self: center;
   color: var(--muted-text);
   font-size: 16px;
-}
-
-.module-description {
-  align-self: center;
-  color: var(--muted-text);
-  font-size: 14px;
-  opacity: 0.86;
 }
 
 .settings-slot {

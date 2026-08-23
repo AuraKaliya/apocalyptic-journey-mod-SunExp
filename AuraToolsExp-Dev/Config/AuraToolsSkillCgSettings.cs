@@ -121,8 +121,8 @@ public sealed class AuraToolsCardUseCgSettings
 
     private static string MigrateQualifiedCgId(string value)
     {
-        return string.Equals(value, "Terrias:terrias.blazing-crown-collapse", StringComparison.OrdinalIgnoreCase)
-            ? "AuraToolsExp:terrias.blazing-crown-collapse"
+        return string.Equals(value, "AuraToolsExp:terrias.blazing-crown-collapse", StringComparison.OrdinalIgnoreCase)
+            ? "Terrias:terrias.blazing-crown-collapse"
             : value;
     }
 }
@@ -428,10 +428,10 @@ public sealed class SkillCgRuleSettings
         DisplayName = DisplayName?.Trim() ?? "";
         SourceOwnerModId = SourceOwnerModId?.Trim() ?? "";
         SourceCgId = SourceCgId?.Trim() ?? "";
-        if (string.Equals(SourceOwnerModId, "Terrias", StringComparison.OrdinalIgnoreCase)
+        if (string.Equals(SourceOwnerModId, "AuraToolsExp", StringComparison.OrdinalIgnoreCase)
             && IsMigratedTerriasCg(SourceCgId))
         {
-            SourceOwnerModId = "AuraToolsExp";
+            SourceOwnerModId = "Terrias";
         }
         Image = Image?.Trim() ?? "";
         ProviderId = ProviderId?.Trim() ?? "";

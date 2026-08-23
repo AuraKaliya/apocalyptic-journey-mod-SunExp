@@ -15,6 +15,7 @@ CoreTestSuite.tempRoot = tempRoot;
 CoreTestSuite.sourceRoot = sourceRoot;
 Directory.CreateDirectory(tempRoot);
 Directory.CreateDirectory(sourceRoot);
+AuraSharedPaths.RootDirectory = tempRoot;
 
 try
 {
@@ -223,6 +224,35 @@ try
     Assert(escapedDeleteRejected,
         "shared storage rejects file transaction paths outside its root");
 
+    var portableDestinationDirectory = transactionDirectory;
+    while (Path.Combine(portableDestinationDirectory, "replay-package.aura-replay.zip").Length < 220)
+    {
+        portableDestinationDirectory = Path.Combine(portableDestinationDirectory, "portable-segment");
+    }
+    var portableDestination = Path.Combine(portableDestinationDirectory, "replay-package.aura-replay.zip");
+    using (var fileWrite = AuraSharedFileStore.BeginWrite("Replay", portableDestination))
+    {
+        Assert(fileWrite.StagingPath.Length < portableDestination.Length
+               && fileWrite.StagingPath.Contains(
+                   Path.Combine("Transactions", "FileWrites", "Replay"),
+                   StringComparison.OrdinalIgnoreCase),
+            "file transaction stages long-path exports under the bounded shared transaction root");
+        fileWrite.Stream.Write(new byte[] { 1, 2, 3, 4 });
+        fileWrite.Commit();
+    }
+    Assert(File.ReadAllBytes(portableDestination).SequenceEqual(new byte[] { 1, 2, 3, 4 }),
+        "file transaction atomically commits bytes to the final long path");
+    string abandonedStaging;
+    using (var abandonedWrite = AuraSharedFileStore.BeginWrite(
+               "Replay",
+               Path.Combine(transactionDirectory, "abandoned.bin")))
+    {
+        abandonedStaging = abandonedWrite.StagingPath;
+        abandonedWrite.Stream.WriteByte(9);
+    }
+    Assert(!File.Exists(abandonedStaging),
+        "disposing an uncommitted file transaction removes its staging file");
+
     var sourceFile = Path.Combine(sourceRoot, "audio.wav");
     File.WriteAllText(sourceFile, "v1");
     var install = packages.Install(Request("OwnerA", "Audio", "voice", "PackA", 1, sourceFile, "Audio/Test/voice.wav"));
@@ -252,6 +282,31 @@ try
            && bootstrapSummary.Deduplicated == 1
            && bootstrapSummary.Conflicts == 1,
         "resource bootstrap aggregates multi-Mod install outcomes");
+
+    var emptyRegistration = AuraSharedBootstrapResult.FromRegistration(
+        new AuraSharedRegistrationResultV4
+        {
+            Success = true,
+            Activated = true,
+            Status = AuraSharedRegistrationStatuses.Installed,
+            ExpectedItemCount = 0,
+            ProcessedItemCount = 0
+        });
+    Assert(emptyRegistration.Success
+           && emptyRegistration.HasExplicitOutcome
+           && emptyRegistration.Responses.Count == 0,
+        "explicit successful empty registration remains successful");
+    Assert(!AuraSharedBootstrapResult.FromResponses(Array.Empty<AuraSharedInstallResponse>()).Success,
+        "legacy empty response list remains a failure");
+    Assert(!AuraSharedBootstrapResult.FromRegistration(new AuraSharedRegistrationResultV4
+        {
+            Success = true,
+            Items = new List<AuraSharedRegistrationItemResultV4>
+            {
+                new() { Success = false, Status = AuraSharedRegistrationStatuses.Invalid }
+            }
+        }).Success,
+        "explicit registration success cannot mask a failed item");
 
     File.WriteAllText(sourceFile, "different owner content");
     var crossOwnerConflict = packages.Install(Request("OwnerC", "Audio", "voice", "PackC", 2, sourceFile, "Audio/Test/voice.wav"));
@@ -359,6 +414,7 @@ try
 
     TestIdentityContracts();
     TestResourceProtocolV4();
+    TestSharedDiscoveryProtocol();
     TestQualifiedResourceIdentityConflicts();
     TestRoleRegistryContracts();
     TestSecureEnvelopeContracts();

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using AuraShared.Core;
+using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
@@ -14,7 +17,7 @@ internal static class ReplayOfflineAudioMixer
     private const int MaximumDecodedClipSamples = 32 * 1024 * 1024;
 
     internal static long MixToWave(
-        ReplayDocumentV10 document,
+        ReplayDocumentV11 document,
         long videoFrameCount,
         int framesPerSecond,
         Func<string, string> resolveAsset,
@@ -29,15 +32,15 @@ internal static class ReplayOfflineAudioMixer
         var cache = new Dictionary<string, DecodedAudio>(StringComparer.OrdinalIgnoreCase);
         var cues = new List<DecodedCue>();
         long decodedSampleCount = 0;
-        foreach (var cue in document.Events.SelectMany(item => item.Audio ?? new List<ReplayAudioCueV10>()))
+        foreach (var cue in document.Events.SelectMany(item => item.Audio ?? new List<ReplayAudioCueV11>()))
         {
+            if (string.IsNullOrWhiteSpace(cue.AssetSha256))
+                throw new InvalidDataException("v11 回放音频缺少冻结的 PCM 附件。");
             if (!cache.TryGetValue(cue.AssetSha256, out var audio))
             {
                 var path = resolveAsset(cue.AssetSha256);
                 if (!TryReadPcm16Wave(path, out var decoded))
-                {
-                    throw new InvalidDataException("回放音频附件无法解码为受支持的 PCM WAV：" + cue.AssetSha256);
-                }
+                    throw new InvalidDataException("v11 回放音频附件无法解码：" + cue.AssetSha256);
                 audio = decoded;
                 decodedSampleCount += audio.Samples.LongLength;
                 if (decodedSampleCount > 64L * 1024L * 1024L)
@@ -49,21 +52,24 @@ internal static class ReplayOfflineAudioMixer
             if (audio.Samples.Length > 0) cues.Add(new DecodedCue(cue, audio));
         }
 
-        using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        using var writer = new BinaryWriter(stream);
-        WriteHeader(writer, sampleFrames);
-        var block = new float[BlockFrames * Channels];
-        for (var blockStart = 0L; blockStart < sampleFrames; blockStart += BlockFrames)
+        using var transaction = AuraSharedFileStore.BeginWrite(AuraToolsIds.ModId, outputPath, overwrite: true);
+        using (var writer = new BinaryWriter(transaction.Stream, Encoding.UTF8, leaveOpen: true))
         {
-            var count = (int)Math.Min(BlockFrames, sampleFrames - blockStart);
-            Array.Clear(block, 0, count * Channels);
-            foreach (var cue in cues) MixBlock(block, blockStart, count, cue, sampleFrames);
-            for (var index = 0; index < count * Channels; index++)
+            WriteHeader(writer, sampleFrames);
+            var block = new float[BlockFrames * Channels];
+            for (var blockStart = 0L; blockStart < sampleFrames; blockStart += BlockFrames)
             {
-                writer.Write((short)Math.Round(Clamp(block[index]) * short.MaxValue));
+                var count = (int)Math.Min(BlockFrames, sampleFrames - blockStart);
+                Array.Clear(block, 0, count * Channels);
+                foreach (var cue in cues) MixBlock(block, blockStart, count, cue, sampleFrames);
+                for (var index = 0; index < count * Channels; index++)
+                {
+                    writer.Write((short)Math.Round(Clamp(block[index]) * short.MaxValue));
+                }
             }
+            writer.Flush();
         }
-        stream.Flush(true);
+        transaction.Commit();
         return sampleFrames;
     }
 
@@ -206,12 +212,12 @@ internal static class ReplayOfflineAudioMixer
 
     private readonly struct DecodedCue
     {
-        internal DecodedCue(ReplayAudioCueV10 cue, DecodedAudio audio)
+        internal DecodedCue(ReplayAudioCueV11 cue, DecodedAudio audio)
         {
             Cue = cue;
             Audio = audio;
         }
-        internal ReplayAudioCueV10 Cue { get; }
+        internal ReplayAudioCueV11 Cue { get; }
         internal DecodedAudio Audio { get; }
     }
 
