@@ -72,7 +72,7 @@ public static class AuraToolsMatchRecordsRuntime
         ApplyModuleActivation();
         if (!Enabled && MatchReplayPlayer.IsActive)
         {
-            MatchReplayPlayer.Stop();
+            MatchReplayPlayer.StopForModuleDisabled();
         }
     }
 

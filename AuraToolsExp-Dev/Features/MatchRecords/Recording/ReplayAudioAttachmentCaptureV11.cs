@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using AuraShared.Core;
+using AuraToolsExp.Dll.GameApi;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using UnityEngine;
 
@@ -23,18 +24,25 @@ internal sealed class ReplayAudioAttachmentCaptureV11
     internal void Request(
         AudioClip? clip,
         string usage,
-        Action<ReplayAttachmentV11?> completion)
+        Action<ReplayAudioCaptureResult> completion)
     {
-        if (clip == null || clip.samples <= 0 || clip.channels is < 1 or > 2 || clip.frequency <= 0)
+        if (clip == null)
         {
-            completion?.Invoke(null);
+            completion?.Invoke(ReplayAudioCaptureResult.Failed("clip-missing", "the native playback clip is null"));
+            return;
+        }
+        if (clip.samples <= 0 || clip.channels is < 1 or > 2 || clip.frequency <= 0)
+        {
+            completion?.Invoke(ReplayAudioCaptureResult.Failed(
+                "clip-shape-invalid",
+                Describe(clip)));
             return;
         }
 
         var key = Key(clip);
         if (completed.TryGetValue(key, out var cached))
         {
-            completion?.Invoke(cached);
+            completion?.Invoke(ReplayAudioCaptureResult.Succeeded(cached));
             return;
         }
         if (pending.TryGetValue(key, out var existing))
@@ -44,7 +52,9 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         }
         if ((long)clip.samples * clip.channels > 32L * 1024L * 1024L)
         {
-            completion?.Invoke(null);
+            completion?.Invoke(ReplayAudioCaptureResult.Failed(
+                "clip-too-large",
+                Describe(clip)));
             return;
         }
 
@@ -65,10 +75,13 @@ internal sealed class ReplayAudioAttachmentCaptureV11
             IsCancelled = () => state.Cancelled,
             ExecuteSlice = _ => state.ReadSlice(),
             OnCompleted = _ => QueueFinalize(state),
-            OnCancelled = _ => Complete(state, null),
-            OnFailed = (_, _) => Complete(state, null)
+            OnCancelled = _ => Complete(state, ReplayAudioCaptureResult.Failed("capture-cancelled", state.Description)),
+            OnFailed = (_, ex) => Complete(state, ReplayAudioCaptureResult.Failed("frame-read-failed", ex.Message))
         });
-        if (!queued) Complete(state, null);
+        if (!queued)
+        {
+            Complete(state, ReplayAudioCaptureResult.Failed("frame-scheduler-rejected", state.Description));
+        }
     }
 
     internal void Cancel()
@@ -76,9 +89,10 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         foreach (var state in pending.Values)
         {
             state.Cancelled = true;
-            state.Finish(null);
+            state.Finish(ReplayAudioCaptureResult.Failed("capture-cancelled", state.Description));
         }
         pending.Clear();
+        completed.Clear();
         Drained = null;
     }
 
@@ -86,7 +100,12 @@ internal sealed class ReplayAudioAttachmentCaptureV11
     {
         if (state.Cancelled)
         {
-            Complete(state, null);
+            Complete(state, ReplayAudioCaptureResult.Failed("capture-cancelled", state.Description));
+            return;
+        }
+        if (state.FailureCode.Length > 0)
+        {
+            Complete(state, ReplayAudioCaptureResult.Failed(state.FailureCode, state.FailureMessage));
             return;
         }
         var chunks = state.DetachChunks();
@@ -99,10 +118,13 @@ internal sealed class ReplayAudioAttachmentCaptureV11
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
                 Work = cancellation => BuildAttachment(state, chunks, cancellation),
                 IsStillCurrent = () => !state.Cancelled,
-                ApplyOnMainThread = attachment => Complete(state, attachment),
-                OnFailedOnMainThread = _ => Complete(state, null)
+                ApplyOnMainThread = attachment => Complete(state, ReplayAudioCaptureResult.Succeeded(attachment)),
+                OnFailedOnMainThread = ex => Complete(state, ReplayAudioCaptureResult.Failed("pcm-finalize-failed", ex.Message))
             });
-        if (!accepted) Complete(state, null);
+        if (!accepted)
+        {
+            Complete(state, ReplayAudioCaptureResult.Failed("background-scheduler-rejected", state.Description));
+        }
     }
 
     private static ReplayAttachmentV11 BuildAttachment(
@@ -110,15 +132,12 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         IReadOnlyList<byte[]> chunks,
         CancellationToken cancellation)
     {
-        var payload = new byte[checked(44 + state.PcmBytes)];
-        WriteWaveHeader(payload, state.PcmBytes, state.Channels, state.Frequency);
-        var offset = 44;
-        foreach (var chunk in chunks)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            Buffer.BlockCopy(chunk, 0, payload, offset, chunk.Length);
-            offset += chunk.Length;
-        }
+        foreach (var _ in chunks) cancellation.ThrowIfCancellationRequested();
+        var payload = ReplayPcm16WaveContractV11.BuildPayload(
+            chunks,
+            state.SampleFrames,
+            state.Channels,
+            state.Frequency);
         var hash = ReplayCanonicalJsonV11.Sha256(payload);
         return new ReplayAttachmentV11
         {
@@ -135,12 +154,12 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         };
     }
 
-    private void Complete(CaptureState state, ReplayAttachmentV11? attachment)
+    private void Complete(CaptureState state, ReplayAudioCaptureResult result)
     {
         if (!pending.TryGetValue(state.Key, out var current) || !ReferenceEquals(current, state)) return;
         pending.Remove(state.Key);
-        if (attachment != null) completed[state.Key] = attachment;
-        state.Finish(attachment);
+        if (result.Attachment != null) completed[state.Key] = result.Attachment;
+        state.Finish(result);
         if (pending.Count == 0) Drained?.Invoke();
     }
 
@@ -149,48 +168,27 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         return clip.GetInstanceID() + "|" + clip.samples + "|" + clip.channels + "|" + clip.frequency;
     }
 
-    private static void WriteWaveHeader(byte[] target, int dataBytes, int channels, int frequency)
+    private static string Describe(AudioClip clip)
     {
-        WriteAscii(target, 0, "RIFF");
-        WriteInt32(target, 4, 36 + dataBytes);
-        WriteAscii(target, 8, "WAVEfmt ");
-        WriteInt32(target, 16, 16);
-        WriteInt16(target, 20, 1);
-        WriteInt16(target, 22, channels);
-        WriteInt32(target, 24, frequency);
-        WriteInt32(target, 28, frequency * channels * 2);
-        WriteInt16(target, 32, channels * 2);
-        WriteAscii(target, 36, "data");
-        WriteInt32(target, 40, dataBytes);
-    }
-
-    private static void WriteAscii(byte[] target, int offset, string value)
-    {
-        var bytes = System.Text.Encoding.ASCII.GetBytes(value);
-        Buffer.BlockCopy(bytes, 0, target, offset, bytes.Length);
-    }
-
-    private static void WriteInt16(byte[] target, int offset, int value)
-    {
-        target[offset] = (byte)value;
-        target[offset + 1] = (byte)(value >> 8);
-    }
-
-    private static void WriteInt32(byte[] target, int offset, int value)
-    {
-        target[offset] = (byte)value;
-        target[offset + 1] = (byte)(value >> 8);
-        target[offset + 2] = (byte)(value >> 16);
-        target[offset + 3] = (byte)(value >> 24);
+        return "clip=" + (clip.name ?? "<unnamed>")
+               + ", samples=" + clip.samples
+               + ", channels=" + clip.channels
+               + ", frequency=" + clip.frequency
+               + ", loadType=" + clip.loadType;
     }
 
     private sealed class CaptureState
     {
         private const int MaximumValuesPerSlice = 65_536;
+        private const int MaximumConsecutiveEmptyProviderReads = 120;
         private readonly AudioClip clip;
         private readonly List<byte[]> chunks = new();
-        private readonly List<Action<ReplayAttachmentV11?>> completions = new();
+        private readonly List<Action<ReplayAudioCaptureResult>> completions = new();
+        private AudioClipPcmReadApi.AudioClipPcmReader? pcmReader;
         private int offsetFrames;
+        private int loadWaitSlices;
+        private int emptyProviderReads;
+        private bool loadRequested;
 
         internal CaptureState(string key, long generation, AudioClip clip, string usage)
         {
@@ -201,6 +199,7 @@ internal sealed class ReplayAudioAttachmentCaptureV11
             SampleFrames = clip.samples;
             Channels = clip.channels;
             Frequency = clip.frequency;
+            Description = Describe(clip);
         }
 
         internal string Key { get; }
@@ -209,10 +208,13 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         internal int SampleFrames { get; }
         internal int Channels { get; }
         internal int Frequency { get; }
+        internal string Description { get; }
         internal int PcmBytes { get; private set; }
         internal bool Cancelled { get; set; }
+        internal string FailureCode { get; private set; } = "";
+        internal string FailureMessage { get; private set; } = "";
 
-        internal void Add(Action<ReplayAttachmentV11?> completion)
+        internal void Add(Action<ReplayAudioCaptureResult> completion)
         {
             if (completion != null) completions.Add(completion);
         }
@@ -220,25 +222,114 @@ internal sealed class ReplayAudioAttachmentCaptureV11
         internal bool ReadSlice()
         {
             if (Cancelled || offsetFrames >= SampleFrames) return true;
+            if (clip.loadState == AudioDataLoadState.Failed)
+            {
+                Fail("clip-load-failed", Description);
+                return true;
+            }
+            if (clip.loadState == AudioDataLoadState.Unloaded && !loadRequested)
+            {
+                loadRequested = true;
+                if (!clip.LoadAudioData())
+                {
+                    Fail("clip-load-rejected", Description);
+                    return true;
+                }
+            }
+            if (clip.loadState != AudioDataLoadState.Loaded)
+            {
+                loadWaitSlices++;
+                if (loadWaitSlices > 240)
+                {
+                    Fail("clip-load-timeout", Description + ", state=" + clip.loadState);
+                    return true;
+                }
+                return false;
+            }
+            if (ReplayAudioCapturePolicy.SelectReadPath(
+                    clip.loadType == AudioClipLoadType.Streaming)
+                == ReplayAudioReadPath.UnitySampleProvider)
+            {
+                return ReadStreamingSlice();
+            }
             var maximumFrames = Math.Max(1, MaximumValuesPerSlice / Channels);
             var frames = Math.Min(maximumFrames, SampleFrames - offsetFrames);
             var samples = new float[checked(frames * Channels)];
-            if (AudioClipGetData?.Invoke(clip, new object[] { samples, offsetFrames }) is not true)
+            if (AudioClipGetData == null)
             {
-                Cancelled = true;
+                Fail("get-data-unavailable", Description);
                 return true;
             }
-            var pcm = new byte[checked(samples.Length * 2)];
-            for (var index = 0; index < samples.Length; index++)
+            try
             {
-                var value = (short)Math.Round(Math.Max(-1f, Math.Min(1f, samples[index])) * short.MaxValue);
+                if (AudioClipGetData.Invoke(clip, new object[] { samples, offsetFrames }) is not true)
+                {
+                    Fail("get-data-returned-false", Description + ", offset=" + offsetFrames);
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                var cause = ex is TargetInvocationException { InnerException: not null }
+                    ? ex.InnerException
+                    : ex;
+                Fail("get-data-threw", Description + ", error=" + cause.Message);
+                return true;
+            }
+            AppendSamples(samples, samples.Length);
+            offsetFrames += frames;
+            return offsetFrames >= SampleFrames;
+        }
+
+        private bool ReadStreamingSlice()
+        {
+            if (pcmReader == null
+                && !AudioClipPcmReadApi.TryCreate(clip, out pcmReader, out var createFailure))
+            {
+                Fail("sample-provider-create-failed", Description + ", error=" + createFailure);
+                return true;
+            }
+
+            var maximumFrames = Math.Max(1, MaximumValuesPerSlice / Channels);
+            var frames = Math.Min(maximumFrames, SampleFrames - offsetFrames);
+            var samples = new float[checked(frames * Channels)];
+            var consumedFrames = 0;
+            var readFailure = "sample provider is unavailable";
+            if (pcmReader == null
+                || !pcmReader.TryRead(samples, frames, out consumedFrames, out readFailure))
+            {
+                Fail("sample-provider-read-failed", Description + ", error=" + readFailure);
+                return true;
+            }
+            if (consumedFrames == 0)
+            {
+                emptyProviderReads++;
+                if (emptyProviderReads > MaximumConsecutiveEmptyProviderReads)
+                {
+                    Fail("sample-provider-stalled", Description + ", offset=" + offsetFrames);
+                    return true;
+                }
+                return false;
+            }
+
+            emptyProviderReads = 0;
+            AppendSamples(samples, checked(consumedFrames * Channels));
+            offsetFrames += consumedFrames;
+            return offsetFrames >= SampleFrames;
+        }
+
+        private void AppendSamples(float[] samples, int valueCount)
+        {
+            var pcm = new byte[checked(valueCount * 2)];
+            for (var index = 0; index < valueCount; index++)
+            {
+                var value = (short)Math.Round(
+                    Math.Max(-1f, Math.Min(1f, samples[index])) * short.MaxValue);
                 pcm[index * 2] = (byte)value;
                 pcm[index * 2 + 1] = (byte)(value >> 8);
             }
             chunks.Add(pcm);
             PcmBytes = checked(PcmBytes + pcm.Length);
-            offsetFrames += frames;
-            return offsetFrames >= SampleFrames;
         }
 
         internal IReadOnlyList<byte[]> DetachChunks()
@@ -248,14 +339,47 @@ internal sealed class ReplayAudioAttachmentCaptureV11
             return result;
         }
 
-        internal void Finish(ReplayAttachmentV11? attachment)
+        internal void Finish(ReplayAudioCaptureResult result)
         {
+            pcmReader?.Dispose();
+            pcmReader = null;
             foreach (var completion in completions.ToArray())
             {
-                try { completion(attachment); } catch { }
+                try { completion(result); } catch { }
             }
             completions.Clear();
             chunks.Clear();
         }
+
+        private void Fail(string code, string message)
+        {
+            FailureCode = code;
+            FailureMessage = message;
+        }
+    }
+}
+
+internal sealed class ReplayAudioCaptureResult
+{
+    internal ReplayAttachmentV11? Attachment { get; private set; }
+
+    internal string FailureCode { get; private set; } = "";
+
+    internal string Message { get; private set; } = "";
+
+    internal bool Success => Attachment != null;
+
+    internal static ReplayAudioCaptureResult Succeeded(ReplayAttachmentV11 attachment)
+    {
+        return new ReplayAudioCaptureResult { Attachment = attachment };
+    }
+
+    internal static ReplayAudioCaptureResult Failed(string code, string message)
+    {
+        return new ReplayAudioCaptureResult
+        {
+            FailureCode = string.IsNullOrWhiteSpace(code) ? "unknown" : code.Trim(),
+            Message = message ?? ""
+        };
     }
 }

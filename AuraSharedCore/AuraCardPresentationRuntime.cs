@@ -80,8 +80,6 @@ public static class AuraCardPresentationRuntime
                 AfterAttackCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.AttackCardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
                 AfterCommonCardUse = context => ReapplyAfterCardUse(context, AuraCardLifecycleRouter.CommonCardItemTrueUse),
                 AfterAttackCardUse = context => ReapplyAfterCardUse(context, AuraCardLifecycleRouter.AttackCardItemTrueUse),
-                AfterFightUiCreateCardItem = context => Publish(context, AuraCardLifecycleRouter.FightUiCreateCardItem, AuraCardPresentationSurface.CombatCard),
-                AfterFightUiCreateCardItemInternal = context => Publish(context, AuraCardLifecycleRouter.FightUiCreateCardItemInternal, AuraCardPresentationSurface.CombatCard),
                 AfterCardChoiceItemInitialize = context => Publish(context, AuraCardLifecycleRouter.CardChoiceItemInitialize, AuraCardPresentationSurface.RewardChoice),
                 AfterDictItemInit = context => Publish(context, AuraCardLifecycleRouter.DictItemInit, AuraCardPresentationSurface.Dictionary),
                 AfterDictionaryShowItemInit = context => Publish(context, AuraCardLifecycleRouter.DictionaryShowItemInit, AuraCardPresentationSurface.Dictionary),
@@ -122,7 +120,14 @@ public static class AuraCardPresentationRuntime
 
     public static void RequestApply(AuraCardPresentationContext context)
     {
-        if (context?.Config == null) return;
+        if (context?.Config == null || context.Root == null) return;
+        if (context.Surface == AuraCardPresentationSurface.CombatCard
+            && !IsExactCombatContext(context))
+        {
+            AuraSharedLog.Warn(RuntimeOwnerId,
+                "Rejected non-exact combat card presentation context: " + context.Source);
+            return;
+        }
         foreach (var pair in Snapshot())
         {
             try
@@ -143,39 +148,21 @@ public static class AuraCardPresentationRuntime
         AuraCardPresentationSurface surface,
         bool setCardStyle = false)
     {
-        Transform? root = null;
-        IDataConfig? config = null;
-        var card = context.Target as CardItem;
-        if (setCardStyle && context.Arguments != null)
-        {
-            foreach (var argument in context.Arguments)
-            {
-                root ??= argument as Transform;
-                config ??= argument as IDataConfig;
-            }
-        }
+        var candidates = new List<AuraCardPresentationBindingCandidate>();
+        if (setCardStyle)
+            candidates.Add(ExplicitSetCardStylePair(context.Arguments));
         else
         {
-            ReadPresentationObject(context.Target, ref root, ref config);
+            candidates.Add(Candidate(context.Target));
             foreach (var argument in context.Arguments ?? Array.Empty<object>())
-            {
-                ReadPresentationObject(argument, ref root, ref config);
-                card ??= argument as CardItem;
-            }
+                candidates.Add(Candidate(argument));
         }
-
-        if (card?.dataConfig != null)
-        {
-            root = card.transform;
-            config = card.dataConfig;
-        }
-
-        if (config == null) return;
+        if (!AuraCardPresentationBindingPolicy.TrySelectExact(candidates, out var binding)) return;
         RequestApply(new AuraCardPresentationContext
         {
-            Root = root,
-            Config = config,
-            Card = card,
+            Root = binding.Root as Transform,
+            Config = binding.Config as IDataConfig,
+            Card = binding.Card as CardItem,
             Source = source,
             Surface = surface
         });
@@ -246,18 +233,66 @@ public static class AuraCardPresentationRuntime
         }
     }
 
-    private static void ReadPresentationObject(object? value, ref Transform? root, ref IDataConfig? config)
+    private static AuraCardPresentationBindingCandidate ExplicitSetCardStylePair(object[]? arguments)
     {
-        if (value is IDataConfig dataConfig) config ??= dataConfig;
-        if (value is Item item)
+        var root = (arguments ?? Array.Empty<object>()).OfType<Transform>().FirstOrDefault();
+        var config = (arguments ?? Array.Empty<object>()).OfType<IDataConfig>().FirstOrDefault();
+        return new AuraCardPresentationBindingCandidate
         {
-            root ??= item.transform;
-            config ??= item.dataConfig;
-        }
-        else if (value is UnityEngine.Component component)
+            Root = root,
+            Config = config,
+            ExplicitPair = root != null && config != null
+        };
+    }
+
+    private static AuraCardPresentationBindingCandidate Candidate(object? value)
+    {
+        if (value is CardItem card && card.dataConfig != null)
         {
-            root ??= component.transform;
+            var id = ReadInstanceId(card.dataConfig);
+            return new AuraCardPresentationBindingCandidate
+            {
+                Root = card.transform,
+                Config = card.dataConfig,
+                Card = card,
+                RootInstanceId = id,
+                ConfigInstanceId = id,
+                SameSource = true
+            };
         }
+        if (value is Item item && item.dataConfig != null)
+        {
+            var id = ReadInstanceId(item.dataConfig);
+            return new AuraCardPresentationBindingCandidate
+            {
+                Root = item.transform,
+                Config = item.dataConfig,
+                RootInstanceId = id,
+                ConfigInstanceId = id,
+                SameSource = true
+            };
+        }
+        return new AuraCardPresentationBindingCandidate
+        {
+            Root = (value as UnityEngine.Component)?.transform,
+            Config = value as IDataConfig
+        };
+    }
+
+    private static string ReadInstanceId(IDataConfig config)
+    {
+        try { return (config?.InstanceID ?? "").Trim(); }
+        catch { return ""; }
+    }
+
+    private static bool IsExactCombatContext(AuraCardPresentationContext context)
+    {
+        var card = context.Card;
+        if (card == null || card.dataConfig == null || !ReferenceEquals(context.Root, card.transform)) return false;
+        if (ReferenceEquals(context.Config, card.dataConfig)) return true;
+        var expected = ReadInstanceId(card.dataConfig);
+        var actual = ReadInstanceId(context.Config!);
+        return expected.Length > 0 && string.Equals(expected, actual, StringComparison.Ordinal);
     }
 
     private static KeyValuePair<string, AuraCardPresentationSubscription>[] Snapshot()

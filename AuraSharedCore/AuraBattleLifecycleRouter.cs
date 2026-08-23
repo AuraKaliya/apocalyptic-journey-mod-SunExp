@@ -7,13 +7,6 @@ using Witch.UI.Window;
 
 namespace AuraShared.Core;
 
-public enum AuraBattleOutcome
-{
-    Win,
-    Escape,
-    Loss
-}
-
 public sealed class AuraBattleOutcomeContext
 {
     public AuraBattleOutcome Outcome { get; internal set; }
@@ -39,6 +32,7 @@ public sealed class AuraBattleLifecycleSubscription
     public Action<AuraBattleOutcomeContext>? OutcomeEntering { get; set; }
     public Action<AuraBattleOutcomeContext>? BattleSettling { get; set; }
     public Action<AuraBattleOutcomeContext>? BattleEnded { get; set; }
+    public Action<AuraBattleOutcomeContext>? BattleFinalized { get; set; }
 }
 
 public static class AuraBattleLifecycleRouter
@@ -64,7 +58,6 @@ public static class AuraBattleLifecycleRouter
     private static bool initialized;
     private static long pendingRestartSessionId;
     private static string signalStatusId = "";
-    private static AuraBattleOutcome? enteredOutcome;
 
     public static long CurrentBattleSessionId => AuraLifecycleSessionRuntime.CurrentBattleSessionId;
 
@@ -115,6 +108,7 @@ public static class AuraBattleLifecycleRouter
         registry.AfterRouted(FightInitInit, context =>
         {
             EnsureBattleSession();
+            AuraBattleLifecycleStateRuntime.Activate(CurrentBattleSessionId);
             RegisterSignalLane("FightInit.Init");
             DispatchOneShot(context, FightInitInit, "BattleMaterialized", h => h.Subscription.BattleMaterialized);
         }, "BattleMaterialized");
@@ -148,8 +142,8 @@ public static class AuraBattleLifecycleRouter
     private static void BeginBattleSession()
     {
         ClearSignalLane();
-        enteredOutcome = null;
         AuraLifecycleSessionRuntime.RestartBattleSession();
+        AuraBattleLifecycleStateRuntime.Begin(CurrentBattleSessionId);
         AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
     }
 
@@ -233,26 +227,29 @@ public static class AuraBattleLifecycleRouter
         {
             return;
         }
-        if (DispatchOutcomeOneShot(context, source, "OutcomeEntering", outcome, h => h.Subscription.OutcomeEntering))
-        {
-            enteredOutcome = outcome;
-        }
+        AuraBattleLifecycleStateRuntime.EnterOutcome(CurrentBattleSessionId, outcome);
+        DispatchOutcomeOneShot(context, source, "OutcomeEntering", outcome, h => h.Subscription.OutcomeEntering);
     }
 
     private static void DispatchSettling(ModHookContext context, string source, AuraBattleOutcome outcome)
     {
-        if (enteredOutcome != outcome) return;
+        if (AuraBattleLifecycleStateRuntime.Current.Outcome != outcome) return;
+        AuraBattleLifecycleStateRuntime.EnterSettling(CurrentBattleSessionId, outcome);
         DispatchOutcomeOneShot(context, source, "BattleSettling", outcome, h => h.Subscription.BattleSettling);
     }
 
     private static void DispatchEnded(ModHookContext context, string source, AuraBattleOutcome outcome)
     {
-        if (enteredOutcome != outcome) return;
+        if (AuraBattleLifecycleStateRuntime.Current.Outcome != outcome) return;
+        var sessionId = CurrentBattleSessionId;
+        AuraBattleLifecycleStateRuntime.EnterEnded(sessionId, outcome);
         if (!DispatchOutcomeOneShot(context, source, "BattleEnded", outcome, h => h.Subscription.BattleEnded)) return;
+        AuraBattleLifecycleStateRuntime.EnterFinalized(sessionId, outcome);
+        DispatchOutcomeOneShot(context, source, "BattleFinalized", outcome, h => h.Subscription.BattleFinalized);
         ClearSignalLane();
         AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
         AuraLifecycleSessionRuntime.EndBattleSession();
-        enteredOutcome = null;
+        AuraBattleLifecycleStateRuntime.End(sessionId);
     }
 
     private static bool DispatchOutcomeOneShot(
@@ -288,6 +285,7 @@ public static class AuraBattleLifecycleRouter
         }
 
         lock (Gate) pendingRestartSessionId = interruptedSessionId;
+        AuraBattleLifecycleStateRuntime.EnterRestarting(interruptedSessionId);
         ClearSignalLane();
         Dispatch(context, FightManagerClearFightUi, h => h.Subscription.BattleRestarting);
         AuraLifecycleOperationLedger.ClearScopePrefix("battle:");

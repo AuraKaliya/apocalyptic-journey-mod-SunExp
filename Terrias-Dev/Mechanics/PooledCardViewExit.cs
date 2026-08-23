@@ -38,4 +38,16 @@ public static class PooledCardViewExit
 
         return PooledCardExitKind.Unsupported;
     }
+
+    public static bool RequiresHandLayout(PooledCardExitKind kind)
+    {
+        return kind == PooledCardExitKind.Burn
+               || kind == PooledCardExitKind.MoveToDiscard
+               || kind == PooledCardExitKind.MoveToDrawPile;
+    }
+
+    public static bool UsesDetachedExitLayer(PooledCardExitKind kind)
+    {
+        return RequiresHandLayout(kind);
+    }
 }

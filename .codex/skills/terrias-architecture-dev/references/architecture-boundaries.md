@@ -80,6 +80,12 @@ Battle semantics use one routed owner per native boundary. Features consume
 `OutcomeEntering/BattleSettling/BattleEnded`. Do not restore the retired
 `FightStarted` or `PlayerRoundStarted` aliases.
 
+`AuraBattleLifecycleStateRuntime` is the authoritative phase gate. Combat
+presentation producers accept work only while it reports `Active`.
+`BattleFinalized` runs after every `BattleEnded` subscriber and is the terminal
+snapshot boundary; do not seal replay or another terminal projection from the
+unordered cleanup phase itself.
+
 ## Dependency Direction
 
 `Scripting` may depend on `GameApi`, `Mechanics`, and `Infrastructure`.

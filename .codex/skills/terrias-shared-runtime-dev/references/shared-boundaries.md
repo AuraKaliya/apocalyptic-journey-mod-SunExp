@@ -153,6 +153,12 @@ Classify multiplayer behavior before choosing an RPC shape:
   are not progression state. They may be synchronized, but they still need
   lifecycle cleanup and duplicate suppression.
 
+Battle terminal ordering is a shared lifecycle contract. `OutcomeEntering`
+closes transient producers, `BattleSettling` prepares the authoritative result,
+`BattleEnded` lets every consumer release queues and Unity objects, and
+`BattleFinalized` is the ordered post-cleanup snapshot barrier. Consumers must
+not infer this ordering from registration order.
+
 Shared components that advance state must identify the authority writer. Client
 presentation is allowed; shared progression, registry mutation, and shared
 runtime state should be host/server-authoritative.

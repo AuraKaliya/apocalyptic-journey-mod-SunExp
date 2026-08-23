@@ -44,6 +44,8 @@ internal static class MatchReplayPlayer
     private static string playbackIssue = "";
     private static string preparationStatus = "";
     private static string preparedKindsDescription = "";
+    private static string preparedScene = "";
+    private static string preparedAdapter = "";
     private static string lastStartFailure = "";
     private static int failedEventCount;
     private static PendingVisualProjection? pendingVisualProjection;
@@ -72,7 +74,11 @@ internal static class MatchReplayPlayer
               events[events.Count - 1],
               AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.PresentationMode);
     internal static IReadOnlyList<MatchReplayEvent> Events => events;
-    internal static bool IsReadyForExport => IsActive && runtimeReady && externalClock && !seeking;
+    internal static bool IsReadyForExport => IsActive
+                                             && runtimeReady
+                                             && externalClock
+                                             && !seeking
+                                             && !HasBlockingError;
     internal static string PlaybackHealth => playbackHealth;
     internal static string PlaybackIssue => playbackIssue;
     internal static string PreparationStatus => preparationStatus;
@@ -82,37 +88,121 @@ internal static class MatchReplayPlayer
     internal static int CurrentTurn => runtimeReady ? ReadModel.CurrentTurn : 1;
     internal static int TurnCount => record?.TurnCount ?? 0;
 
-    internal static bool TryStart(string recordId, out string message)
+    internal static bool TryPrepareInteractive(
+        string recordId,
+        long startSequence,
+        out string message)
     {
-        return TryStartCore(recordId, true, 0, out message);
+        return TryPrepareCore(recordId, true, startSequence, true, out message);
     }
 
-    internal static bool TryStartAtSequence(string recordId, long eventSequence, out string message)
+    internal static bool TryPrepareForExport(
+        string recordId,
+        bool returnToLibrary,
+        out string message)
     {
-        return TryStartCore(recordId, true, eventSequence, out message);
+        return TryPrepareCore(recordId, false, 0, returnToLibrary, out message);
     }
 
     internal static bool TryStartForExport(string recordId, out string message)
     {
-        return TryStartCore(recordId, false, 0, out message);
+        if (!TryPrepareForExport(recordId, false, out message))
+        {
+            return false;
+        }
+
+        return TryActivatePrepared(out message);
     }
 
-    private static bool TryStartCore(string recordId, bool showControls, long startSequence, out string message)
+    internal static void CommitOrigin()
+    {
+        MatchReplaySessionState.CommitOrigin();
+    }
+
+    internal static bool TryActivatePrepared(out string message)
+    {
+        message = "";
+        if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Prepared)
+        {
+            message = "回放原生视图尚未准备完成。";
+            return false;
+        }
+
+        try
+        {
+            if (FightManager.Instance == null)
+            {
+                throw new InvalidOperationException("Prepared replay FightManager is unavailable.");
+            }
+
+            MatchReplayFightSandboxInitializer.Activate(FightManager.Instance);
+            var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI")
+                          ?? throw new InvalidOperationException("Prepared FightUI is unavailable.");
+            if (!externalClock && nativeDocument != null)
+            {
+                nativeAudio = new ReplayNativeAudioPlayer(nativeDocument, fightUi.transform);
+            }
+
+            MatchReplayPresentationDirector.ShowTurn(ReadModel.CurrentTurn, ResolveRecordedPlayerId());
+            if (controlsVisible)
+            {
+                MatchReplayControlsPresenter.Show();
+            }
+
+            runtimeReady = true;
+            MatchReplaySessionState.MarkActive();
+            preparationStatus = "";
+            if (pendingStartIndex > 0)
+            {
+                var target = pendingStartIndex;
+                pendingStartIndex = 0;
+                SeekToIndex(target);
+            }
+
+            AuraToolsLog.Info("[MatchRecords] v" + record?.ReplayProtocol + " replay started: record=" + record?.RecordId
+                              + ", events=" + events.Count
+                              + ", kinds=" + preparedKindsDescription
+                              + ", compatibility=" + playbackHealth
+                              + ", mode=native-view-projection"
+                              + ", scene=" + preparedScene
+                              + ", adapter=" + preparedAdapter + ".");
+            RefreshControls();
+            message = "开始回放。";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            var failure = "无法显示已准备的回放：" + ex.Message;
+            lastStartFailure = failure;
+            AuraToolsLog.Error("[MatchRecords] replay activation failed: " + ex.Message, ex);
+            BeginStop(MatchReplayExitKind.RuntimeFailed, failure);
+            message = failure;
+            return false;
+        }
+    }
+
+    internal static void FailCommittedStart(string detail)
+    {
+        BeginStop(MatchReplayExitKind.RuntimeFailed, detail);
+    }
+
+    private static bool TryPrepareCore(
+        string recordId,
+        bool showControls,
+        long startSequence,
+        bool returnToLibrary,
+        out string message)
     {
         message = "";
         lastStartFailure = "";
-        if (IsActive)
-        {
-            return Reject(recordId, "already-active", "已有对局正在回放。", out message);
-        }
-
-        if (resetting
-            || MatchReplaySessionState.IsExiting)
+        if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Idle)
         {
             return Reject(
                 recordId,
-                "previous-replay-exiting",
-                "上一场回放仍在退出并重建主菜单，请稍候再试。",
+                MatchReplaySessionState.IsExiting ? "previous-replay-exiting" : "already-active",
+                MatchReplaySessionState.IsExiting
+                    ? "上一场回放仍在退出并恢复对局记录页面，请稍候再试。"
+                    : "已有对局正在准备或回放。",
                 out message);
         }
 
@@ -130,6 +220,7 @@ internal static class MatchReplayPlayer
             return Reject(recordId, "network-active", "请先离开联机大厅；原生回放不会启动或复用网络会话。", out message);
         }
 
+        var lifecycleStarted = false;
         try
         {
             if (!ReplayNativeDocumentAdapter.TryLoad(recordId, out var nativeLoad, out var loadMessage))
@@ -138,7 +229,7 @@ internal static class MatchReplayPlayer
             }
             var loaded = nativeLoad.Record;
             var decoded = nativeLoad.Events;
-            nativeDocument = nativeLoad.Document;
+            var loadedDocument = nativeLoad.Document;
 
             var metadataCompatibility = MatchReplayCompatibility.Evaluate(loaded);
             if (!metadataCompatibility.CanPlay)
@@ -170,7 +261,17 @@ internal static class MatchReplayPlayer
                 return Reject(recordId, "baseline-missing", "回放缺少初始状态基线。", out message);
             }
 
+            if (!MatchReplaySessionState.TryBeginPreparation(
+                    recordId,
+                    returnToLibrary,
+                    out var lifecycleMessage))
+            {
+                return Reject(recordId, "lifecycle-busy", lifecycleMessage, out message);
+            }
+            lifecycleStarted = true;
+
             record = loaded;
+            nativeDocument = loadedDocument;
             events = decoded;
             timeline = MatchReplayPresentationSchedule.Build(
                 decoded,
@@ -196,17 +297,12 @@ internal static class MatchReplayPlayer
             preparationStatus = "正在构造只读原生战斗视图";
             preparedKindsDescription = quality.DescribeCounts();
             failedEventCount = 0;
-            MatchReplaySessionState.IsPlayback = true;
             MatchReplayUiLifecycle.PrepareForReplayView();
             MatchReplayEnvironmentScope.CaptureAndInstallRoleTable(record.InitialState);
-            if (showControls)
-            {
-                MatchReplayControlsPresenter.Show();
-            }
+            PrepareNativeView();
+            MatchReplaySessionState.MarkPrepared();
 
-            CompletePreparation();
-
-            message = runtimeReady ? "开始回放。" : preparationStatus;
+            message = "回放原生视图已准备完成。";
             return true;
         }
         catch (Exception ex)
@@ -214,7 +310,10 @@ internal static class MatchReplayPlayer
             var failure = "无法开始回放：" + ex.Message;
             message = failure;
             AuraToolsLog.Error("[MatchRecords] replay initialization failed: record=" + recordId + ", error=" + ex.Message, ex);
-            Stop();
+            if (lifecycleStarted)
+            {
+                BeginStop(MatchReplayExitKind.StartFailed, failure);
+            }
             lastStartFailure = failure;
             return false;
         }
@@ -238,6 +337,22 @@ internal static class MatchReplayPlayer
             return;
         }
 
+        if (HasBlockingError)
+        {
+            if (externalClock)
+            {
+                return;
+            }
+            BeginStop(MatchReplayExitKind.RuntimeFailed, playbackIssue);
+            return;
+        }
+
+        if (!externalClock && IsFinished)
+        {
+            BeginStop(MatchReplayExitKind.Completed);
+            return;
+        }
+
         FreezeBattleRuntime();
         if (externalClock || seeking)
         {
@@ -257,9 +372,15 @@ internal static class MatchReplayPlayer
         ExecuteDueEvents(maximum: 16);
         FlushPendingVisualProjection();
         SyncAudio();
+        if (HasBlockingError)
+        {
+            BeginStop(MatchReplayExitKind.RuntimeFailed, playbackIssue);
+            return;
+        }
         if (eventIndex >= events.Count && playbackClock >= DurationMilliseconds)
         {
-            paused = true;
+            BeginStop(MatchReplayExitKind.Completed);
+            return;
         }
 
         RefreshControls();
@@ -359,34 +480,98 @@ internal static class MatchReplayPlayer
 
     internal static void Stop()
     {
+        BeginStop(MatchReplayExitKind.Cancelled);
+    }
+
+    internal static void StopForModuleDisabled()
+    {
+        BeginStop(MatchReplayExitKind.ModuleDisabled);
+    }
+
+    internal static void StopAfterExport(bool completed, string detail)
+    {
+        BeginStop(
+            completed ? MatchReplayExitKind.ExportCompleted : MatchReplayExitKind.ExportFailed,
+            detail);
+    }
+
+    private static void BeginStop(MatchReplayExitKind kind, string detail = "")
+    {
         if (resetting) return;
         if (record == null && !MatchReplaySessionState.IsPlayback)
         {
             MatchReplayControlsPresenter.Close();
+            MatchReplayReturnCoordinator.Clear();
             return;
         }
         resetting = true;
         paused = true;
-        MatchReplaySessionState.IsExiting = true;
+        var exitDecision = MatchReplaySessionState.BeginExit(kind, detail);
         var cleanupFailures = 0;
         UiTransitionGuardRuntime.BeginTransition(null, AuraToolsIds.ModId, "Match replay stop", 8);
         RunCleanupStep("controls", MatchReplayControlsPresenter.Close, ref cleanupFailures);
-        RunCleanupStep("failure-notification", MatchReplayFailurePresenter.Dismiss, ref cleanupFailures);
         RunCleanupStep("presentation", MatchReplayPresentationDirector.Reset, ref cleanupFailures);
         ResetPlaybackState();
-        RunCleanupStep("native-view", MatchReplayNativeViewRuntime.Dispose, ref cleanupFailures);
         RunCleanupStep(
             "native-presentation-ui",
-            () => MatchReplayUiLifecycle.ForceCloseReplayOwnedPresentationUis("Match replay stop"),
+            () => MatchReplayUiLifecycle.CloseReplayOwnedPresentationUis("Match replay stop"),
             ref cleanupFailures);
+        RunCleanupStep("native-view", MatchReplayNativeViewRuntime.Dispose, ref cleanupFailures);
         RunCleanupStep("environment", MatchReplayEnvironmentScope.Restore, ref cleanupFailures);
-        RunCleanupStep("ui-ownership", MatchReplayUiLifecycle.ReleaseReplayOwnership, ref cleanupFailures);
         UiTransitionGuardRuntime.ScrubNow(null, AuraToolsIds.ModId, "Match replay stop");
         UiTransitionGuardRuntime.RecoverNativeInput(null, AuraToolsIds.ModId, "Match replay stop", 8);
-        MatchReplaySessionState.IsPlayback = false;
-        MatchReplaySessionState.IsExiting = false;
+        var cleanup = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
+            CompleteStopAfterUnityDestroy(exitDecision, cleanupFailures));
+        if (cleanup == null)
+        {
+            AuraToolsLog.Error(
+                "[MatchRecords] replay teardown finalizer could not be scheduled.",
+                new InvalidOperationException("Match-record runtime coroutine driver is unavailable."));
+        }
+    }
+
+    private static System.Collections.IEnumerator CompleteStopAfterUnityDestroy(
+        MatchReplayExitDecision exitDecision,
+        int cleanupFailures)
+    {
+        // Object.Destroy and GraphicRegistry removal become terminal at the next
+        // Unity frame boundary. The session remains Exiting until those owned
+        // objects have actually disappeared.
+        yield return null;
+        try
+        {
+            MatchReplayNativeViewRuntime.CompleteDispose();
+            if (MatchReplayUiLifecycle.ReplayOwnedPresentationUiCount != 0)
+            {
+                throw new InvalidOperationException(
+                    "Replay-owned native UI remained registered after teardown.");
+            }
+        }
+        catch (Exception ex)
+        {
+            cleanupFailures++;
+            AuraToolsLog.Error("[MatchRecords] replay teardown terminal check failed", ex);
+        }
+
+        RunCleanupStep(
+            "ui-ownership",
+            MatchReplayUiLifecycle.ReleaseReplayOwnership,
+            ref cleanupFailures);
+
+        MatchReplaySessionState.CompleteExit();
         resetting = false;
         AuraToolsLog.Debug("[MatchRecords] native replay cleanup completed: failures=" + cleanupFailures + ".");
+        if (exitDecision.ReturnToLibrary)
+        {
+            var message = cleanupFailures == 0
+                ? exitDecision.Message
+                : exitDecision.Message + " 清理校验发现 " + cleanupFailures + " 个错误，请查看日志。";
+            MatchReplayReturnCoordinator.ReturnToLibrary(message);
+        }
+        else
+        {
+            MatchReplayReturnCoordinator.Clear();
+        }
     }
 
     private static void RunCleanupStep(string name, Action action, ref int failureCount)
@@ -428,6 +613,8 @@ internal static class MatchReplayPlayer
         playbackIssue = "";
         preparationStatus = "";
         preparedKindsDescription = "";
+        preparedScene = "";
+        preparedAdapter = "";
         failedEventCount = 0;
         pendingVisualProjection = null;
     }
@@ -662,36 +849,18 @@ internal static class MatchReplayPlayer
         }
     }
 
-    private static void CompletePreparation()
+    private static void PrepareNativeView()
     {
         if (record?.InitialState.BaselineState == null)
         {
             throw new InvalidOperationException("Replay baseline is unavailable during preparation.");
         }
 
-        var scene = MatchReplayEnvironmentScope.InstallPresentationScene(record.InitialState.BackgroundScene);
+        preparedScene = MatchReplayEnvironmentScope.InstallPresentationScene(record.InitialState.BackgroundScene);
         MatchReplayNativeViewRuntime.Create();
         MatchReplayNativeViewRuntime.ApplySkinSelections(nativeDocument?.NativeBattle.SkinSelections);
         InitializeView();
-        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
-        if (!externalClock && nativeDocument != null && fightUi != null)
-            nativeAudio = new ReplayNativeAudioPlayer(nativeDocument, fightUi.transform);
-        runtimeReady = true;
-        preparationStatus = "";
-        if (pendingStartIndex > 0)
-        {
-            var target = pendingStartIndex;
-            pendingStartIndex = 0;
-            SeekToIndex(target);
-        }
-
-        AuraToolsLog.Info("[MatchRecords] v" + record.ReplayProtocol + " replay started: record=" + record.RecordId
-                          + ", events=" + events.Count
-                          + ", kinds=" + preparedKindsDescription
-                          + ", compatibility=" + playbackHealth
-                           + ", mode=native-view-projection"
-                          + ", scene=" + scene + ".");
-        RefreshControls();
+        preparationStatus = "回放原生视图已准备，等待界面切换";
     }
 
     private static void SyncAudio()
@@ -717,7 +886,7 @@ internal static class MatchReplayPlayer
         }
 
         MatchReplayEnvironmentScope.RestoreInitialRoleTable(record.InitialState.RoleTableJson);
-        var initializer = MatchReplayFightSandboxInitializer.Initialize(FightManager.Instance, record.InitialState);
+        preparedAdapter = MatchReplayFightSandboxInitializer.Initialize(FightManager.Instance, record.InitialState);
         FreezeBattleRuntime();
         var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
         if (FightPlayer.Instance == null
@@ -737,10 +906,9 @@ internal static class MatchReplayPlayer
         pendingVisualProjection = null;
         ReadModel.Reset(record.InitialState.BaselineState);
         ProjectCurrent(restoreCards: true, restoreRoleTable: true);
-        MatchReplayPresentationDirector.ShowTurn(ReadModel.CurrentTurn, ResolveRecordedPlayerId());
         eventIndex = 0;
         playbackClock = 0f;
-        AuraToolsLog.Debug("[MatchRecords] replay projection view initialized: adapter=" + initializer + ".");
+        AuraToolsLog.Debug("[MatchRecords] replay projection view prepared: adapter=" + preparedAdapter + ".");
     }
 
     private static void ProjectCurrent(

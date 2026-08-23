@@ -27,6 +27,9 @@ internal static class MatchReplayCardPresentationData
 
         var data = RestoreValues(state.Data);
         var vars = RestoreValues(state.Vars);
+        if (!data.ContainsKey("Tag")) data["Tag"] = "";
+        vars["Tag"] = data["Tag"];
+        if (!vars.ContainsKey("SpecialTag")) vars["SpecialTag"] = "";
         if (!string.IsNullOrWhiteSpace(state.CardId))
         {
             data["Id"] = state.CardId;

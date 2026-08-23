@@ -194,6 +194,11 @@ internal static class ReplayFactCaptureV11
     {
         var stableId = Read(config.data, "Id");
         var values = CaptureDisplayValues(config.data, config.Vars);
+        ReplayCardPresentationContractV11.SetValue(
+            values,
+            ReplayCardPresentationContractV11.TagKey,
+            ReadPresentValue(config.data, config.Vars, ReplayCardPresentationContractV11.TagKey),
+            preserveEmpty: true);
         foreach (var pair in AuraToolsCardVisualRuntime.CaptureReplaySnapshot(config))
         {
             values.RemoveAll(value => string.Equals(value.Key, pair.Key, StringComparison.Ordinal));
@@ -228,6 +233,15 @@ internal static class ReplayFactCaptureV11
         }
 
         return result;
+    }
+
+    private static string ReadPresentValue(
+        IDictionary<string, string>? data,
+        IDictionary<string, string>? vars,
+        string key)
+    {
+        if (vars != null && vars.TryGetValue(key, out var runtime)) return runtime ?? "";
+        return data != null && data.TryGetValue(key, out var stored) ? stored ?? "" : "";
     }
 
     internal static string Read(IDictionary<string, string>? values, string key)

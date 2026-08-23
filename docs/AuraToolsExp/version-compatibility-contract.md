@@ -57,7 +57,31 @@ AuraToolsExp 自有 RPC 只在房间内所有玩家都启用了 AuraToolsExp 时
 协商，也没有降级播放器。v11 使用原生战斗视图并要求录制时游戏、Aura 和内容
 MOD 的运行时指纹匹配；不匹配时只能查看摘要、分析和已验证 MP4。v10 合成场景
 文档单向切换为 `SummaryOnly`，保留摘要、分析和 MP4，删除旧文档与播放器。
-v8/v9 和更早记录只进入授权清理报告。分析报告仍是可重建的派生缓存。
+v11 音频只从实际播放 `AudioClip` 冻结 PCM，并在 `BattleFinalized` 终局屏障后封存；
+验证失败的文档以不可播放的 `Rejected` 诊断草稿随摘要保留。v8/v9 和更早记录只
+进入授权清理报告。分析报告仍是可重建的派生缓存。
+v11 的可播放初态从 `BattleMaterialized` 开始，必须包含本地玩家、owner-qualified
+敌方实体和有效 ActiveActor。数据库 v5 对可无歧义恢复的早期空基线 v11 做一次性
+重建；其余记录退出 `Ready`，运行时不提供从后续 delta 猜测初态的兼容播放器。
+数据库 v6 对哈希有效且唯一缺少卡牌 `Tag` 的 v11 文档补入显式空字符串并重新最终化；
+`.aurareplay` 导入也只在原始文档哈希通过后接受这项有界迁移。缺少其它卡牌表现字段、
+存在其它校验错误或原始哈希不匹配时仍拒绝，不保留双版本读取路径。
+数据库 v7 将旧写入器遗漏 `bitsPerSample` 的内容寻址 WAV 确定性重建为规范 PCM16：生成
+新 SHA、重写附件/cue/事件链/检查点/文档哈希并归档无引用旧文件。数据库与
+`.aurareplay` 均先验证原始哈希；不能证明仅缺失该字段的音频不进入迁移。
+
+### 卡牌视觉
+
+CardVisual 当前协议范围固定为 7/7，渲染器为
+`aura.card-visual.material-v5`，覆盖契约为 `frame/native-frame-v4`。静态卡框映射与动态
+效果映射彼此独立：默认静态映射展开完整日耀/晨星卡包，动态效果只映射【炽冕崩落】
+和四张【星辰序曲】。VisualBundle 必须由游戏同版本 Unity `6000.0.46f1`、
+StandaloneWindows64 与 URP `17.0.4` 构建，并同时提供 UI Image 和 URP Mesh 材质。原生
+卡框节点同时存在 Image/Mesh 时必须选择游戏实际写入的 Image；只有没有 Image 的表面才
+使用 Mesh。两个材质都必须声明 `RenderPipeline=UniversalPipeline` 并提供约定的命名
+Pass；运行时还要求已启用 SRP。旧 renderer/coverage、缺失材质、不兼容或不支持的 shader
+直接拒绝应用，不使用旧 bundle fallback。发布构建必须在真实 Direct3D11 设备上通过
+ScreenSpaceCamera Canvas 像素读回，`NullGfx`、紫色像素和空白像素均不合格。
 
 ### 配置与模型
 

@@ -41,10 +41,21 @@ Ordinary startup never reapplies a preset to an initialized theme. A deliberate
 reset command may replace that theme's map and update its applied preset
 version. A card may belong to at most one frame theme at a time.
 
-The shipped Terrias defaults bind `Terrias_terrias_blazing_crown_collapse` to
-the solar frame and `foil-holo`, and bind the four
-`Terrias_terrias_stellar_overture_*` cards to the morning-star frame and
-`stardust`.
+The shipped Terrias defaults keep frame skins and dynamic effects as two
+independent maps:
+
+- the solar frame preset expands the entire
+  `Terrias_terrias_cardpack_solar_ember_crown_canopy` pack;
+- the morning-star frame preset expands the entire
+  `Terrias_terrias_cardpack_morning_star_overture` pack and explicitly keeps
+  the four generated `Terrias_terrias_stellar_overture_*` cards in that frame
+  theme even when they are outside the native pack catalog;
+- `foil-holo` applies only to `Terrias_terrias_blazing_crown_collapse`;
+- `stardust` applies only to the four
+  `Terrias_terrias_stellar_overture_*` cards.
+
+Never infer the dynamic-effect map from a frame theme or reduce the full-pack
+frame preset to the five cards that carry effects.
 
 ## Runtime Rules
 
@@ -53,6 +64,10 @@ the solar frame and `foil-holo`, and bind the four
   reusing a pooled card view.
 - Keep visual-only overlays non-blocking for raycasts and directly adjacent to
   their source frame/face layer.
+- A combat presentation callback is valid only when one candidate owns the
+  exact visual root, `IDataConfig`, and `ICard`. Never combine a root observed
+  on one callback/object with config or card data from another. Reject stale
+  pooled views when instance identities disagree.
 - Dynamic parameters are accepted only when declared by the effect's exposed
   range map and are clamped before material application.
 - Load the AuraTools VisualBundle through the tool-owned bundle cache so Skill
@@ -63,14 +78,41 @@ the solar frame and `foil-holo`, and bind the four
   so native hand reflow cannot leave a pooled card on its base skin.
 - Lightweight Terrias card-view rebinding must call the shared presentation
   lifecycle, not the Terrias-only router. Pool prepare/destroy emits a shared
-  reset; bind emits a shared apply. The v4 dynamic-effect renderer uses the
-  `frame` target with `native-frame-v1`: clone the effect material onto the
-  actual `Front/FrontBack` Image or MeshRenderer and bind the current frame
-  texture. Do not restore the retired detached `frameOverlay` or white
-  full-card `cardFront` surface; both change the native sprite UV/mask contract.
+  reset; bind emits a shared apply. The v7 dynamic-effect renderer uses the
+  `frame` target with `native-frame-v4`: clone the effect material onto the
+  exact card's actual `Front/FrontBack` renderer and bind the current frame
+  texture. Native `ICard.SetCardStyle` writes this node's `Image`; therefore an
+  `Image` always wins when the same node also retains a legacy `MeshRenderer`.
+  Mesh is valid only when no Image exists. A combat card root never performs descendant-wide
+  searches; a non-combat root may resolve only its deterministic direct
+  `CardItem` child. Do not restore the retired detached `frameOverlay`, white
+  full-card `cardFront` surface, or breadth-first fallback; they respectively
+  break native UV/masks or can skin a neighboring pooled card.
+- `aura.card-visual.material-v5` has two explicit URP material contracts. Unity UI
+  `Image` uses `AuraToolsExp/Materials/CardFrameEffectUI`; `MeshRenderer` uses
+  `AuraToolsExp/Materials/CardFrameEffectURP`. Both shaders must declare
+  `RenderPipeline=UniversalPipeline`, expose their required named pass, and
+  resolve under an active scriptable render pipeline. Missing, incompatible,
+  unsupported, or zero-pass shaders fail closed instead of producing a purple
+  fallback material or silently darkening the card. The UI shader has no
+  built-in `UI/Default` fallback.
+- Build `auratools_visuals` with Unity `6000.0.46f1`, StandaloneWindows64, and
+  URP `17.0.4`. The build project must bind a real URP Pipeline Asset before
+  `BuildAssetBundles`; otherwise Unity's scriptable stripper can serialize the
+  URP shader with zero D3D11 programs even when import reported no errors. The
+  builder must fail on shader compiler errors, zero compiled D3D11 programs,
+  missing post-build materials, wrong pipeline/pass tags, and package both
+  materials. Building under `-nographics` is insufficient: use Direct3D11 and
+  render the bundled UI material through a real ScreenSpaceCamera Canvas into
+  a RenderTexture, then reject magenta or empty readback pixels. Never retain
+  or ship the retired Unity 2022 bundle after a failed rebuild.
 - Replay card instances carry a read-only snapshot of their effective theme,
   skin, effect id, and clamped parameter map in runtime Vars. Applying that
-  snapshot uses the same v4 renderer and never rewrites current player config.
+  snapshot uses the same v7 renderer and never rewrites current player config.
+- A pooled card exit leaves the live hand hierarchy before its animation. Burn,
+  discard, and draw-pile exits all repair sibling/sorting indexes and coalesce
+  one native hand layout; do not limit reflow to move exits while burn suppresses
+  the native `cardcontainer` callback.
 - Outcome entry, battle settling, restart, and battle end all perform an
   idempotent hand-view teardown. A settlement screen must not retain pooled
   hand cards behind or below the result UI.

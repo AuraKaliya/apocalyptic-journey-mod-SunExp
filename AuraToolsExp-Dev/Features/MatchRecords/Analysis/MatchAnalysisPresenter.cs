@@ -11,7 +11,6 @@ using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
-using WitchUiManager = Witch.UI.UIManager;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 
@@ -226,7 +225,7 @@ internal static class MatchAnalysisPresenter
     {
         if (!MatchReplayVideoExporter.TryStart(
                 recordId,
-                () => CloseForPlayback("Video export launch"),
+                MatchRecordLibraryPresenter.CaptureReturnState(recordId),
                 out var result))
         {
             message = result;
@@ -239,7 +238,7 @@ internal static class MatchAnalysisPresenter
         MatchReplayLaunchCoordinator.Start(
             record!.RecordId,
             sequence,
-            () => CloseForPlayback("Replay Document v11 native launch"),
+            MatchRecordLibraryPresenter.CaptureReturnState(record.RecordId),
             detail =>
             {
                 message = detail;
@@ -259,18 +258,6 @@ internal static class MatchAnalysisPresenter
             CanReplay,
             "当前记录仅保留摘要，不能进行结构化回放");
         return button;
-    }
-
-    private static void CloseForPlayback(string reason)
-    {
-        if (host != null)
-        {
-            AuraToolsUi.CloseOverlay(host, OverlayName, reason);
-            AuraToolsUi.CloseOverlay(host, "AuraToolsMatchRecordLibrary", reason);
-        }
-
-        WitchUiManager.Instance?.CloseUI("SettingUI");
-        Reset();
     }
 
     private static void AddTab(Transform parent, string label, string value)

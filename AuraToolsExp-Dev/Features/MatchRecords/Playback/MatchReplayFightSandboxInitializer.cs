@@ -42,7 +42,6 @@ internal static class MatchReplayFightSandboxInitializer
                           ?? throw new InvalidOperationException("FightUI could not be created.");
             fightUi.gameObject.SetActive(false);
             fightUi.Init();
-            manager.ResetWaitCount();
 
             // FightType.Init suppresses enemy action selection during object construction. We
             // instantiate no FightUnit and return to None before control reaches another frame.
@@ -61,20 +60,6 @@ internal static class MatchReplayFightSandboxInitializer
 
             stage = "create-enemy-views";
             CreateEnemyViews(manager, initialState);
-
-            stage = "activate-fight-ui";
-            if (GameApp.Instance?.NowBackground != null)
-            {
-                GameApp.Instance.NowBackground.transform.SetAsLastSibling();
-            }
-
-            fightUi.StatusList = manager.statuses.Values
-                .Where(status => status != null)
-                .ToList();
-            fightUi.gameObject.SetActive(true);
-            FightUI.IsReset = false;
-            fightUi.ResetButtonCheck();
-            MatchReplaySkillPresenter.Initialize(fightUi);
 
             if (manager.statuses.Count == 0)
             {
@@ -96,6 +81,29 @@ internal static class MatchReplayFightSandboxInitializer
             manager.StopAllCoroutines();
             manager.ActionQueue?.Clear();
         }
+    }
+
+    internal static void Activate(FightManager manager)
+    {
+        if (manager == null)
+        {
+            throw new InvalidOperationException("Fight runtime is unavailable during replay activation.");
+        }
+
+        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI")
+                      ?? throw new InvalidOperationException("Prepared FightUI is unavailable during replay activation.");
+        if (GameApp.Instance?.NowBackground != null)
+        {
+            GameApp.Instance.NowBackground.transform.SetAsLastSibling();
+        }
+
+        fightUi.StatusList = manager.statuses.Values
+            .Where(status => status != null)
+            .ToList();
+        fightUi.gameObject.SetActive(true);
+        FightUI.IsReset = false;
+        fightUi.ResetButtonCheck();
+        MatchReplaySkillPresenter.Initialize(fightUi);
     }
 
     private static void CreatePlayerViews(FightManager manager)
@@ -125,6 +133,7 @@ internal static class MatchReplayFightSandboxInitializer
             var prefab = ResourceLoader.Load("Model/player");
             var instance = prefab == null ? null : Object.Instantiate(prefab) as GameObject;
             if (instance == null) throw new InvalidOperationException("Native player presentation prefab is unavailable.");
+            MatchReplayNativeViewRuntime.OwnPresentationRoot(instance);
             Singleton<TempDataManager>.Instance.RoleStatusMap[id] = new List<string>();
             instance.transform.localScale = Vector3.one;
             FightObject player;
@@ -139,11 +148,21 @@ internal static class MatchReplayFightSandboxInitializer
                 player = instance.AddComponent<OtherPlayer>();
                 ((OtherPlayer)player).Init(id);
             }
-            manager.statuses[id] = player.Status as StatusManager;
-            player.Status.animatedState = IStatusManager.AnimatedState.Idle;
+            var status = instance.GetComponent<StatusManager>()
+                         ?? throw new InvalidOperationException(
+                             "Native player status component was not created: " + id);
+            // FightPlayer.Status resolves through FightManager.statuses. Seed the native
+            // dictionary from the concrete component before reading that virtual property,
+            // exactly as the native game role loader does.
+            var registeredStatus = MatchReplayNativeStatusRegistration.Register(
+                manager.statuses,
+                id,
+                status,
+                () => player.Status as StatusManager);
+            registeredStatus.animatedState = IStatusManager.AnimatedState.Idle;
             player.InitBound();
             var x = origin + (count - 1 - index - (count - 1) / 2f) * spacing;
-            player.Status.SetPosition(new Vector3(
+            registeredStatus.SetPosition(new Vector3(
                 x,
                 scene.ground_y - instance.transform.Find("bottom").localPosition.y,
                 0f));
@@ -273,6 +292,7 @@ internal static class MatchReplayFightSandboxInitializer
             {
                 throw new InvalidOperationException("Enemy presentation prefab is unavailable.");
             }
+            MatchReplayNativeViewRuntime.OwnPresentationRoot(instance);
 
             var enemy = instance.AddComponent<Enemy>();
             enemy.Init(
@@ -319,6 +339,7 @@ internal static class MatchReplayFightSandboxInitializer
             var prefab = ResourceLoader.Load("Model/AncientDragonStatue");
             var instance = prefab == null ? null : Object.Instantiate(prefab) as GameObject;
             if (instance == null) throw new InvalidOperationException("Partner presentation prefab is unavailable.");
+            MatchReplayNativeViewRuntime.OwnPresentationRoot(instance);
             instance.transform.localScale = Vector3.one;
             var partner = instance.AddComponent<Partner>();
             partner.Init(new DataConfig(recorded.ContentId, DataType.FightParent), manager.SumOfEnemyPositive, index);

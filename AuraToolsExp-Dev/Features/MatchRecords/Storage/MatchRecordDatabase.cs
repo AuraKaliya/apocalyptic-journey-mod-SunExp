@@ -740,6 +740,9 @@ internal sealed partial class MatchRecordDatabase
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_media_record ON replay_media(record_id, created_utc DESC);");
         MatchRecordsDatabaseMigrator.Apply(connection);
         EnsureV11Tables(connection);
+        MigrateEmptyBootstrapV11Documents(connection);
+        MigrateReplayCardPresentationV11Documents(connection);
+        MigrateReplayPcm16WaveV11Documents(connection);
         MigrateMissingV11DocumentsToSummaryOnly(connection);
         MatchRecordsDatabaseMigrator.Validate(connection);
         NormalizeMediaPaths(connection);

@@ -20,10 +20,18 @@ internal static class MatchReplayNativeViewRuntime
     private static List<DataConfig> previousNascent = new();
     private static List<DataConfig> previousFightCards = new();
     private static readonly List<System.IDisposable> skinScopes = new();
+    private static readonly List<GameObject> ownedPresentationRoots = new();
+    private static readonly List<GameObject> retiringRoots = new();
+    private static readonly HashSet<int> retiringRootIds = new();
 
     internal static FightManager Create()
     {
         if (replayFightManager != null) return replayFightManager;
+        if (retiringRoots.Any(root => root != null))
+        {
+            throw new System.InvalidOperationException(
+                "The previous replay still owns native presentation objects.");
+        }
         previousFightManager = FightManager.Instance;
         CaptureCardState();
         managerRoot = new GameObject("AuraToolsReplayNativeFightManager");
@@ -32,6 +40,16 @@ internal static class MatchReplayNativeViewRuntime
         replayFightManager.IsFake = true;
         replayFightManager.fightType = FightType.None;
         return replayFightManager;
+    }
+
+    internal static void OwnPresentationRoot(GameObject root)
+    {
+        if (root == null || ownedPresentationRoots.Contains(root))
+        {
+            return;
+        }
+
+        ownedPresentationRoots.Add(root);
     }
 
     internal static void ApplySkinSelections(IEnumerable<ReplayScopedSkinSelectionV11>? selections)
@@ -58,7 +76,7 @@ internal static class MatchReplayNativeViewRuntime
             foreach (var status in replayFightManager.statuses?.Values.ToArray() ?? System.Array.Empty<StatusManager>())
             {
                 var owner = status?.fatherObject;
-                if (owner != null && owner.gameObject != null) Object.Destroy(owner.gameObject);
+                if (owner != null && owner.gameObject != null) OwnPresentationRoot(owner.gameObject);
             }
             replayFightManager.statuses?.Clear();
             replayFightManager.enemyManager?.enemyList?.Clear();
@@ -66,8 +84,32 @@ internal static class MatchReplayNativeViewRuntime
             replayFightManager.eventList?.Clear();
             replayFightManager.targetList?.Clear();
         }
-        WitchUiManager.Instance?.CloseUI("FightUI");
-        if (managerRoot != null) Object.Destroy(managerRoot);
+
+        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
+        if (fightUi != null && fightUi.gameObject != null)
+        {
+            MatchReplayUiLifecycle.ForceDestroyRoot(
+                fightUi.gameObject,
+                "Match replay native view dispose");
+        }
+
+        foreach (var root in ownedPresentationRoots.Where(root => root != null).Distinct().ToArray())
+        {
+            retiringRootIds.Add(root.GetInstanceID());
+            retiringRoots.Add(root);
+            MatchReplayTweenCleanup.KillTree(root);
+            root.SetActive(false);
+            Object.Destroy(root);
+        }
+        ownedPresentationRoots.Clear();
+
+        if (managerRoot != null)
+        {
+            retiringRootIds.Add(managerRoot.GetInstanceID());
+            retiringRoots.Add(managerRoot);
+            managerRoot.SetActive(false);
+            Object.Destroy(managerRoot);
+        }
         FightManager.Instance = previousFightManager;
         foreach (var scope in skinScopes) scope.Dispose();
         skinScopes.Clear();
@@ -75,6 +117,27 @@ internal static class MatchReplayNativeViewRuntime
         previousFightManager = null;
         managerRoot = null;
         RestoreCardState();
+    }
+
+    internal static void CompleteDispose()
+    {
+        var alive = retiringRoots
+            .Where(root => root != null)
+            .Select(root => root.name + "#" + root.GetInstanceID())
+            .ToArray();
+        var replayPlayer = FightPlayer.Instance;
+        var replayPlayerAlive = replayPlayer != null
+                                && replayPlayer.gameObject != null
+                                && retiringRootIds.Contains(replayPlayer.gameObject.GetInstanceID());
+        retiringRoots.Clear();
+        retiringRootIds.Clear();
+        if (alive.Length > 0 || replayPlayerAlive)
+        {
+            throw new System.InvalidOperationException(
+                "Replay native object teardown did not reach its terminal state: roots="
+                + (alive.Length == 0 ? "none" : string.Join("|", alive))
+                + ", replayPlayerAlive=" + replayPlayerAlive + ".");
+        }
     }
 
     private static void CaptureCardState()

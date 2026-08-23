@@ -146,7 +146,7 @@ public static class RelicScripts
             if (level >= 4)
             {
                 self.SetStatus("Self");
-                self.DrawCount("1");
+                CombatCardApi.TryDrawPlayerCards(self, 1, "Relic.SolarPhaseDial");
             }
 
             if (level >= 8)
@@ -221,7 +221,7 @@ public static class RelicScripts
             if (ExecutorApi.GetVar(self, "TerriasCradleDone", "0") == "0" && current > last)
             {
                 self.SetStatus("Self");
-                self.DrawCount("2");
+                CombatCardApi.TryDrawPlayerCards(self, 2, "Relic.CoronationThrone");
                 self.ChangePower("2");
                 ExecutorApi.SetVar(self, "TerriasCradleDone", "1");
                 UpdateRelicShow(self);

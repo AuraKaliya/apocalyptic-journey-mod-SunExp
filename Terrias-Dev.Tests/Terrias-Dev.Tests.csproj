@@ -16,6 +16,7 @@
     <Compile Include="..\AuraSharedCore\AuraSharedDictionary.cs" Link="Source\AuraSharedDictionary.cs" />
     <Compile Include="..\AuraSharedCore\AuraCombatCardZoneSnapshot.cs" Link="Source\AuraCombatCardZoneSnapshot.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Source\AuraFeatureSwitchRuntime.cs" />
+    <Compile Include="..\AuraSharedCore\AuraBattleLifecycleStateRuntime.cs" Link="Source\AuraBattleLifecycleStateRuntime.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\DictionaryUtil.cs" Link="Source\DictionaryUtil.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs" Link="Source\TerriasContentIdCompatibility.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasIds.cs" Link="Source\TerriasIds.cs" />
@@ -26,6 +27,8 @@
     <Compile Include="..\Terrias-Dev\GameApi\ScriptDelegateApi.cs" Link="Source\ScriptDelegateApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\RuntimeMemberApi.cs" Link="Source\RuntimeMemberApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CombatCardViewPoolApi.cs" Link="Source\CombatCardViewPoolApi.cs" />
+    <Compile Include="..\Terrias-Dev\GameApi\CombatCardApi.cs" Link="Source\CombatCardApi.cs" />
+    <Compile Include="..\Terrias-Dev\GameApi\FightUiCardTerminalApi.cs" Link="Source\FightUiCardTerminalApi.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs" Link="Source\CombatCardViewPoolCatalog.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PooledCardViewExit.cs" Link="Source\PooledCardViewExit.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CardConfigApi.cs" Link="Source\CardConfigApi.cs" />

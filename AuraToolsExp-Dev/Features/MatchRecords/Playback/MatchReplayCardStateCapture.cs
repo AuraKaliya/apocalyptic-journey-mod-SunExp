@@ -133,7 +133,6 @@ internal static class MatchReplayCardStateCapture
         {
             var config = item.Config;
             manager.FightcardList.Add(config);
-            manager.CardTagCheck(config);
             switch (item.State.Zone)
             {
                 case Draw:
@@ -478,7 +477,6 @@ internal static class MatchReplayCardStateCapture
             }
 
             manager.FightcardList.Add(config);
-            manager.CardTagCheck(config);
             switch (state.Zone)
             {
                 case Draw:

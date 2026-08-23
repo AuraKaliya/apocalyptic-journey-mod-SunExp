@@ -82,17 +82,27 @@ internal static class MatchReplayHookAdapter
         Register("before:AudioManager.PlayEffect", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "AudioManager.PlayEffect",
-            context => MatchReplayRecorder.CaptureNativeAudio(context.Arguments, "Effect"),
+            context => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Effect"),
+            "MatchRecords.Replay.Audio.Effect"));
+        Register("after:AudioManager.PlayEffect", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "AudioManager.PlayEffect",
+            context => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Effect"),
             "MatchRecords.Replay.Audio.Effect"));
         Register("before:AudioManager.PlayVocal", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "AudioManager.PlayVocal",
-            context => MatchReplayRecorder.CaptureNativeAudio(context.Arguments, "Vocal"),
+            context => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Vocal"),
             "MatchRecords.Replay.Audio.Vocal"));
-        Register("before:AudioManager.PlayBGMList", AuraToolsHookRegistry.BeforeRouted(
+        Register("after:AudioManager.PlayVocal", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "AudioManager.PlayVocal",
+            context => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Vocal"),
+            "MatchRecords.Replay.Audio.Vocal"));
+        Register("after:AudioManager.PlayBGMList", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "AudioManager.PlayBGMList",
-            context => MatchReplayRecorder.CaptureNativeBgm(context.Arguments),
+            context => MatchReplayRecorder.CaptureNativeBgm(context.Target, context.Arguments),
             "MatchRecords.Replay.Audio.Bgm"));
         Register("card-lifecycle", AuraCardLifecycleRouter.Register(
             modConfig,
@@ -113,12 +123,12 @@ internal static class MatchReplayHookAdapter
             "MatchRecords.Replay",
             new AuraBattleLifecycleSubscription
             {
-                BattleInitializing = _ => MatchReplayRecorder.StartFromCurrentFight(),
-                BattleMaterialized = _ => MatchReplayRecorder.StartFromCurrentFight(),
+                BattleMaterialized = _ => MatchReplayRecorder.CommitMaterializedBaseline(),
                 PlayerRoundReady = _ => MatchReplayRecorder.StartTurn(),
                 BattleRestarting = _ => MatchReplayRecorder.Abort(),
-                BattleSettling = outcome => MatchReplayRecorder.Complete(DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
-                BattleEnded = _ => MatchReplayRecorder.Complete("Ended")
+                BattleSettling = outcome => MatchReplayRecorder.PrepareCompletion(
+                    DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
+                BattleFinalized = _ => MatchReplayRecorder.CompleteAfterCleanup("Ended")
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));

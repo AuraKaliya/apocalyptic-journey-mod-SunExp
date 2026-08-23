@@ -75,7 +75,7 @@ public static class ColumbinaMechanics
         if (LunarReactionRules.Crossed(before, after, 75))
         {
             TargetApi.SetStatusForTarget(executor, source, "Self");
-            executor.DrawCount("1");
+            CombatCardApi.TryDrawPlayerCards(executor, 1, "Columbina.Gravity75");
         }
 
         if (after >= 100)

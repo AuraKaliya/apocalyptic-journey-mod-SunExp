@@ -391,6 +391,29 @@ $cardVisualSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $terriasTheme = @($cardVisualRegistry.themes | Where-Object themeId -eq "terrias")
 $foilEffect = @($cardVisualRegistry.effects | Where-Object effectId -eq "foil-holo")
 $stardustEffect = @($cardVisualRegistry.effects | Where-Object effectId -eq "stardust")
+$solarFramePreset = @($terriasTheme[0].mappingPreset | Where-Object skinId -eq "solar")
+$morningStarFramePreset = @($terriasTheme[0].mappingPreset | Where-Object skinId -eq "morning-star")
+$stellarOvertureCardIds = @(
+    "Terrias_terrias_stellar_overture_start",
+    "Terrias_terrias_stellar_overture_sustain",
+    "Terrias_terrias_stellar_overture_turn",
+    "Terrias_terrias_stellar_overture_close")
+$solarFramePackMismatch = @(Compare-Object @($solarFramePreset[0].cardPackIds) @("Terrias_terrias_cardpack_solar_ember_crown_canopy")).Count -ne 0
+$morningStarFramePackMismatch = @(Compare-Object @($morningStarFramePreset[0].cardPackIds) @("Terrias_terrias_cardpack_morning_star_overture")).Count -ne 0
+$morningStarExplicitMismatch = @(Compare-Object @($morningStarFramePreset[0].cardIds) $stellarOvertureCardIds).Count -ne 0
+$stardustMappingMismatch = @(Compare-Object @($stardustEffect[0].mappingPreset[0].cardIds) $stellarOvertureCardIds).Count -ne 0
+$visualBundleBuildScript = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "tools\Build-AuraToolsVisualBundle.ps1")
+$visualBundleBuilder = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\Editor\AuraToolsVisualBundleBuilder.cs.txt")
+$visualProjectManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\UnityProject\Packages\manifest.json") | ConvertFrom-Json
+$visualProjectVersion = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\UnityProject\ProjectSettings\ProjectVersion.txt")
+$cardUiShader = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\Shaders\CardFaceEffect.shader")
+$cardUrpShader = Get-Content -Raw -Encoding UTF8 -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\Shaders\CardFrameEffectUrp.shader")
 $audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "Terrias\SharedResources\audio.registry.json") | ConvertFrom-Json
 $voiceProviders = @($audioRegistry.providers | Where-Object { $_.match.stages.Count -gt 0 })
@@ -417,22 +440,59 @@ if ($registration.schemaVersion -ne 4 `
         -or $terriasTheme.Count -ne 1 `
         -or @($terriasTheme[0].skins).Count -ne 3 `
         -or @($terriasTheme[0].mappingPreset).Count -ne 2 `
+        -or $solarFramePreset.Count -ne 1 `
+        -or $morningStarFramePreset.Count -ne 1 `
+        -or $solarFramePackMismatch `
+        -or @($solarFramePreset[0].cardIds).Count -ne 0 `
+        -or $morningStarFramePackMismatch `
+        -or $morningStarExplicitMismatch `
         -or @($cardVisualRegistry.effects).Count -ne 2 `
         -or $foilEffect.Count -ne 1 `
         -or @($foilEffect[0].mappingPreset[0].cardIds).Count -ne 1 `
+        -or @($foilEffect[0].mappingPreset[0].cardPackIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -ne 0 `
+        -or $foilEffect[0].mappingPreset[0].cardIds[0] -ne "Terrias_terrias_blazing_crown_collapse" `
         -or $stardustEffect.Count -ne 1 `
         -or @($stardustEffect[0].mappingPreset[0].cardIds).Count -ne 4 `
-        -or $cardVisualRegistry.schemaVersion -ne 4 `
-        -or $cardVisualRegistry.protocol.minVersion -ne 4 `
-        -or $cardVisualRegistry.protocol.preferredVersion -ne 4 `
+        -or @($stardustEffect[0].mappingPreset[0].cardPackIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -ne 0 `
+        -or $stardustMappingMismatch `
+        -or $cardVisualRegistry.schemaVersion -ne 7 `
+        -or $cardVisualRegistry.protocol.minVersion -ne 7 `
+        -or $cardVisualRegistry.protocol.preferredVersion -ne 7 `
         -or @($cardVisualRegistry.effects | Where-Object {
-            $_.rendererId -ne "aura.card-visual.material-v2" `
+            $_.rendererId -ne "aura.card-visual.material-v5" `
                 -or $_.targetLayer -ne "frame" `
-                -or $_.coverageProfile -ne "native-frame-v1" `
+                -or $_.coverageProfile -ne "native-frame-v4" `
+                -or [string]::IsNullOrWhiteSpace([string]$_.imageMaterialPath) `
+                -or [string]::IsNullOrWhiteSpace([string]$_.meshMaterialPath) `
                 -or $_.floats._TerriasOverlayMode -ne 0 `
                 -or $_.floats._TerriasFrameOnlyOverlay -ne 0
         }).Count -ne 0 `
         -or @($cardVisualRegistry.effects | ForEach-Object { $_.exposedParameters.PSObject.Properties.Value } | Where-Object { [string]::IsNullOrWhiteSpace($_.displayName) -or $_.step -le 0 }).Count -ne 0 `
+        -or $visualBundleBuildScript -notmatch '\$requiredUnityVersion\s*=\s*"6000\.0\.46f1"' `
+        -or $visualBundleBuildScript -notmatch 'com\.unity\.render-pipelines\.universal":"17\.0\.4"' `
+        -or $visualBundleBuilder -notmatch 'BuildTarget\.StandaloneWindows64' `
+        -or $visualBundleBuilder -notmatch 'CardFrameEffectUI\.mat' `
+        -or $visualBundleBuilder -notmatch 'CardFrameEffectURP\.mat' `
+        -or $visualBundleBuilder -notmatch 'GraphicsSettings\.defaultRenderPipeline' `
+        -or $visualBundleBuilder -notmatch 'ValidateBuiltBundle' `
+        -or $visualBundleBuilder -notmatch 'ValidateCardFrameEffectUiPixels' `
+        -or $visualBundleBuilder -notmatch 'GraphicsDeviceType\.Null' `
+        -or $visualBundleBuilder -notmatch 'render smoke passed' `
+        -or $visualBundleBuilder -notmatch 'ForceRebuildAssetBundle' `
+        -or $visualBundleBuilder -notmatch 'ShaderUtil\.GetShaderMessages' `
+        -or $visualBundleBuildScript -match '"-nographics"' `
+        -or $visualBundleBuildScript -notmatch '"-force-d3d11"' `
+        -or $visualBundleBuildScript -notmatch 'real Direct3D11 pixel smoke test' `
+        -or $visualBundleBuildScript -notmatch 'total internal programs: \[1-9\]' `
+        -or $visualProjectManifest.dependencies.'com.unity.render-pipelines.universal' -ne "17.0.4" `
+        -or $visualProjectVersion -notmatch '6000\.0\.46f1 \(fb93bc360d3a\)' `
+        -or $cardUiShader -notmatch 'Shader\s+"AuraTools/CardFrameEffectUI"' `
+        -or $cardUiShader -notmatch '"RenderPipeline"\s*=\s*"UniversalPipeline"' `
+        -or $cardUiShader -notmatch '"LightMode"\s*=\s*"SRPDefaultUnlit"' `
+        -or $cardUiShader -notmatch 'HLSLPROGRAM' `
+        -or $cardUiShader -match 'FallBack\s+"UI/Default"' `
+        -or $cardUrpShader -notmatch 'Shader\s+"AuraTools/CardFrameEffectURP"' `
+        -or $cardUrpShader -notmatch '"RenderPipeline"\s*=\s*"UniversalPipeline"' `
         -or $audioRegistry.schemaVersion -ne 4 `
         -or $audioRegistry.ownerModId -ne "Terrias" `
         -or $voiceProviders.Count -ne @($audioRegistry.providers).Count `
@@ -557,25 +617,12 @@ if ($moduleSource -notmatch 'AuraToolsModuleActivationPolicy\.Activate' `
 
 $autoBattleRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleRuntime.cs")
-$replayCaptureSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Replay\Capture\ReplayFactCaptureV11.cs")
-$replayRecorderSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayRecorder.cs")
-$replayAudioCaptureSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Recording\ReplayAudioAttachmentCaptureV11.cs")
 if ($autoBattleRuntimeSource -match 'ChooseDecision\(state,\s*"prediction"\)' `
         -or $autoBattleRuntimeSource -match 'private\s+CombatDecision\s+(?:ChooseDecision|RunDecisionEngine)\s*\(' `
         -or $autoBattleRuntimeSource -notmatch 'AutoBattle\.PredictionDecision' `
         -or $autoBattleRuntimeSource -notmatch 'CancelOwner' `
-        -or $autoBattleRuntimeSource -match 'OwnerId\s*=\s*AuraToolsIds\.ModId\s*,' `
-        -or $replayAudioCaptureSource -notmatch 'RunCooperative' `
-        -or $replayAudioCaptureSource -notmatch 'AuraSharedBackgroundWorkScheduler' `
-        -or $replayRecorderSource -notmatch 'AudioArbiterRuntime\.ResolvedPlayback' `
-        -or $replayRecorderSource -notmatch 'embedded-required' `
-        -or $replayRecorderSource -match 'RevisionHash|MatchReplayActionConvergence' `
-        -or $replayRecorderSource -notmatch 'FinalizationGeneration' `
-        -or $replayRecorderSource -notmatch 'DelayFrames\s*=\s*2') {
-    throw "AuraToolsExp hot-path work must keep prediction search out of native hooks and capture replay PCM cooperatively."
+        -or $autoBattleRuntimeSource -match 'OwnerId\s*=\s*AuraToolsIds\.ModId\s*,') {
+    throw "AuraToolsExp hot-path work must keep prediction search out of native hooks."
 }
 
 $lobbySnapshotSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

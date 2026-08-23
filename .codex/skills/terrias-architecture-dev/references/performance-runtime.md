@@ -52,6 +52,11 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
   schedule it with `TerriasFrameScheduler.RunOnceNextFrame`.
 - Keep one forced initial sync when moving visual or UI code to cached/deferred
   paths.
+- A battle-end cleanup must close producers as well as consumers. For combat
+  cards, reject new Terrias draw/grant work after `OutcomeEntering`, clear the
+  native `FightUI.createCardQueue`, invalidate pool generations, and then clear
+  card views. A test that only finds an `EndFight` method or lifecycle token is
+  not evidence that the asynchronous queue is closed.
 - Keep combat-card diagnostics unregistered while the effective shared
   diagnostics feature is off. Runtime disable disposes routed subscribers; the
   game exposes no supported native hook-removal API, so a dispatcher installed

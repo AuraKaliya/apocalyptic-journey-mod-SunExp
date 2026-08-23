@@ -18,6 +18,7 @@ namespace Terrias.Dll.Hooks.Ui;
 public static class TerriasCombatCardViewPool
 {
     private const string PoolRootName = "Terrias.CombatCardViewPool";
+    private const string ExitRootName = "Terrias.CombatCardExitLayer";
     private static readonly AuraSharedObjectPool<string, CardItem> Pool =
         new(TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity, IsAlive);
     private static readonly HashSet<CardItem> ActiveViews = new();
@@ -28,6 +29,7 @@ public static class TerriasCombatCardViewPool
     private static int nativeQueueWaitFrames;
     private static int materializedSinceLayout;
     private static Transform? poolRoot;
+    private static Transform? exitRoot;
     private static bool initialized;
     private static bool handOrderFailureLogged;
 
@@ -65,6 +67,7 @@ public static class TerriasCombatCardViewPool
         generation++;
         handOrderFailureLogged = false;
         EnsurePoolRoot();
+        EnsureExitRoot(UIManager.Instance?.GetUI<FightUI>("FightUI"));
         TerriasPerformanceCounters.Record("CombatCardViewPool.BattleMaterialized");
     }
 
@@ -88,6 +91,11 @@ public static class TerriasCombatCardViewPool
             UnityEngine.Object.Destroy(poolRoot.gameObject);
             poolRoot = null;
         }
+        if (exitRoot != null)
+        {
+            UnityEngine.Object.Destroy(exitRoot.gameObject);
+            exitRoot = null;
+        }
 
         TerriasPerformanceCounters.Record("CombatCardViewPool.Cleared");
         TerriasLog.Debug("[CombatCardViewPool] cleared from " + source + ".");
@@ -95,6 +103,8 @@ public static class TerriasCombatCardViewPool
 
     private static void TeardownHandPresentation(string source)
     {
+        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
+        FightUiCardTerminalApi.CloseDrawProduction(fightUi, source);
         var cards = new HashSet<CardItem>();
         foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
             if (card != null) cards.Add(card);
@@ -102,7 +112,6 @@ public static class TerriasCombatCardViewPool
             if (card != null) cards.Add(card);
         foreach (var card in FightUI.SelectedCard ?? new List<CardItem>())
             if (card != null) cards.Add(card);
-        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
         if (fightUi?.cardContainer != null)
         {
             foreach (var card in fightUi.cardContainer.GetComponentsInChildren<CardItem>(true))
@@ -144,6 +153,11 @@ public static class TerriasCombatCardViewPool
 
     private static bool TryMaterialize(ScriptExecutor self, DataConfig config, string source)
     {
+        if (!AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation)
+        {
+            TerriasPerformanceCounters.Record("CombatCardViewPool.MaterializeRejectedTerminal");
+            return false;
+        }
         var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
         if (fightUi?.cardContainer == null
             || FightUI.cardItemList.Count + fightUi.createCardQueue.Count + Pending.Count >= fightUi.CardTopCount)
@@ -183,6 +197,15 @@ public static class TerriasCombatCardViewPool
 
     private static void DrainPending()
     {
+        if (!AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation)
+        {
+            Pending.Clear();
+            PendingIds.Clear();
+            nativeQueueWaitFrames = 0;
+            materializedSinceLayout = 0;
+            TerriasPerformanceCounters.Record("CombatCardViewPool.PendingDiscardedTerminal");
+            return;
+        }
         if (Pending.Count == 0)
         {
             nativeQueueWaitFrames = 0;
@@ -249,6 +272,11 @@ public static class TerriasCombatCardViewPool
 
     private static bool MaterializeNow(PendingMaterialization request, FightUI fightUi)
     {
+        if (!AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation)
+        {
+            TerriasPerformanceCounters.Record("CombatCardViewPool.MaterializeRejectedTerminal");
+            return false;
+        }
         var self = request.Executor;
         var config = request.Config;
         CardItem? card = null;
@@ -365,6 +393,11 @@ public static class TerriasCombatCardViewPool
 
     private static void NativeFallback(PendingMaterialization request, string reason)
     {
+        if (!AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation)
+        {
+            TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallbackRejectedTerminal");
+            return;
+        }
         try
         {
             request.Executor.GetCardFromDeck(request.Config);
@@ -478,12 +511,21 @@ public static class TerriasCombatCardViewPool
         FightUI.WaitCard.Remove(card);
         FightUI.SelectedCard.Remove(card);
         SetInteraction(card, false);
-        if (marker.PendingExitKind == PooledCardExitKind.MoveToDiscard
-            || marker.PendingExitKind == PooledCardExitKind.MoveToDrawPile)
+        var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
+        if (PooledCardViewExit.UsesDetachedExitLayer(marker.PendingExitKind))
         {
+            DetachForExit(card, fightUi);
+        }
+        if (PooledCardViewExit.RequiresHandLayout(marker.PendingExitKind))
+        {
+            if (fightUi != null)
+            {
+                RepairHandOrderImmediately(fightUi, "ExitCommit." + marker.PendingExitKind);
+            }
             FightUiCardLayoutApi.RequestHandLayout(
-                UIManager.Instance?.GetUI<FightUI>("FightUI"),
-                "CombatCardViewPool.NativeMoveExit");
+                fightUi,
+                "CombatCardViewPool.ExitCommit." + marker.PendingExitKind);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ExitLayoutRequested." + marker.PendingExitKind);
         }
 
         var animator = card.GetComponent<PooledCardExitAnimator>()
@@ -658,6 +700,41 @@ public static class TerriasCombatCardViewPool
         root.transform.SetAsFirstSibling();
         poolRoot = root.transform;
         return poolRoot;
+    }
+
+    private static Transform? EnsureExitRoot(FightUI? fightUi)
+    {
+        if (exitRoot != null) return exitRoot;
+        if (fightUi?.cardContainer == null) return null;
+        var parent = fightUi.cardContainer.transform.parent ?? fightUi.transform;
+        var existing = parent.Find(ExitRootName);
+        if (existing != null)
+        {
+            exitRoot = existing;
+            return exitRoot;
+        }
+
+        var root = new GameObject(ExitRootName, typeof(RectTransform));
+        root.transform.SetParent(parent, false);
+        root.transform.SetSiblingIndex(Math.Min(
+            parent.childCount - 1,
+            fightUi.cardContainer.transform.GetSiblingIndex() + 1));
+        exitRoot = root.transform;
+        return exitRoot;
+    }
+
+    private static void DetachForExit(CardItem card, FightUI? fightUi)
+    {
+        var parent = EnsureExitRoot(fightUi);
+        if (parent == null) return;
+        card.transform.SetParent(parent, true);
+        card.transform.SetAsLastSibling();
+        var sortingGroup = card.GetComponent<SortingGroup>();
+        if (sortingGroup != null)
+        {
+            sortingGroup.sortingOrder = Math.Max(sortingGroup.sortingOrder, 100);
+        }
+        TerriasPerformanceCounters.Record("CombatCardViewPool.ExitDetached");
     }
 
     private static void ActivateForUse(

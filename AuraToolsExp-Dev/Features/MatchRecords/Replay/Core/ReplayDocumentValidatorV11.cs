@@ -104,7 +104,9 @@ internal static class ReplayDocumentValidatorV11
 
         ValidateHeader(document, result);
         ValidateNativeBattle(document, result);
+        ValidatePlayableBootstrap(document, result);
         ValidateContent(document, result);
+        ValidateCardPresentation(document, result);
         ValidateIdentities(document, result);
         ValidateTimeline(document, result);
         ValidateCheckpoints(document, result);
@@ -204,6 +206,29 @@ internal static class ReplayDocumentValidatorV11
             {
                 result.Errors.Add("attachment metadata or hash is invalid: " + attachment.Sha256);
             }
+            if (string.Equals(attachment.MediaType, "audio/wav", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(attachment.Extension, ".wav", StringComparison.OrdinalIgnoreCase))
+            {
+                if (attachment.SampleRate <= 0
+                    || attachment.Channels is < 1 or > 2
+                    || attachment.SampleFrames < 0)
+                {
+                    result.Errors.Add("PCM WAV attachment metadata is invalid: " + attachment.Sha256);
+                }
+                if (attachment.Payload.Length > 0)
+                {
+                    if (!ReplayPcm16WaveContractV11.TryRead(attachment.Payload, out var wave, out var waveError))
+                    {
+                        result.Errors.Add("PCM WAV attachment is invalid: " + attachment.Sha256 + " (" + waveError + ")");
+                    }
+                    else if (wave.SampleRate != attachment.SampleRate
+                             || wave.Channels != attachment.Channels
+                             || wave.SampleFrames != attachment.SampleFrames)
+                    {
+                        result.Errors.Add("PCM WAV attachment metadata does not match its payload: " + attachment.Sha256);
+                    }
+                }
+            }
         }
 
         var knownAssets = new HashSet<string>(attachments.Select(item => item.Sha256), StringComparer.OrdinalIgnoreCase);
@@ -251,6 +276,12 @@ internal static class ReplayDocumentValidatorV11
             {
                 result.Errors.Add("audio cue exceeds its attachment sample range");
             }
+            if (assetsByHash.TryGetValue(cue.AssetSha256, out audioAsset)
+                && (!string.Equals(audioAsset.MediaType, "audio/wav", StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(audioAsset.Extension, ".wav", StringComparison.OrdinalIgnoreCase)))
+            {
+                result.Errors.Add("audio cue attachment is not canonical PCM WAV: " + cue.AssetSha256);
+            }
         }
     }
 
@@ -272,6 +303,20 @@ internal static class ReplayDocumentValidatorV11
             result.Errors.Add("native battle skin selection snapshot is invalid");
     }
 
+    private static void ValidatePlayableBootstrap(ReplayDocumentV11 document, ReplayValidationResultV11 result)
+    {
+        foreach (var error in ReplayPlayableBootstrapContractV11.ValidateState(document.InitialState))
+            result.Errors.Add(error);
+        if (!string.Equals(document.InitialState?.LevelId, document.Header?.LevelId, StringComparison.Ordinal))
+            result.Errors.Add("initial logical state level does not match the document header");
+    }
+
+    private static void ValidateCardPresentation(ReplayDocumentV11 document, ReplayValidationResultV11 result)
+    {
+        foreach (var error in ReplayCardPresentationContractV11.ValidateDocument(document))
+            result.Errors.Add(error);
+    }
+
     private static bool IsSafeNativeAudioId(string value)
     {
         var id = (value ?? "").Trim().Replace('\\', '/');
@@ -286,13 +331,18 @@ internal static class ReplayDocumentValidatorV11
 
     private static void ValidateTimeline(ReplayDocumentV11 document, ReplayValidationResultV11 result)
     {
+        var timeline = document.Events ?? new List<ReplayTimelineEventV11>();
+        if (!timeline.Any(value => string.Equals(value.EventType, ReplayEventTypesV11.ActionCompleted, StringComparison.Ordinal)))
+            result.Errors.Add("native replay timeline has no completed action");
+        if (!timeline.Any(value => string.Equals(value.EventType, ReplayEventTypesV11.BattleCompleted, StringComparison.Ordinal)))
+            result.Errors.Add("native replay timeline has no battle completion event");
         var engine = new ReplayProjectionEngine();
         engine.Reset(document.InitialState);
         var expectedSequence = 1L;
         var previousTime = 0L;
         var previousChain = "";
         var eventIds = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var value in document.Events ?? new List<ReplayTimelineEventV11>())
+        foreach (var value in timeline)
         {
             if (value.Sequence != expectedSequence++) result.Errors.Add("event sequence is not contiguous");
             if (value.TimeTicks < previousTime) result.Errors.Add("event time moved backwards at " + value.Sequence);

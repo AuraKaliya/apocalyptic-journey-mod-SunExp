@@ -29,6 +29,7 @@ public static class AuraToolsSettingsRuntime
     private static GameObject? activePanel;
     private static Transform? activePanelHost;
     private static Transform? activeTabParent;
+    private static SettingUI? activeSetting;
     private static readonly AuraToolsPanelBuildState PanelBuildState = new();
     private static bool loggedHookRegistration;
     private static bool loggedInjectionSuccess;
@@ -67,9 +68,21 @@ public static class AuraToolsSettingsRuntime
         activePanel = null;
         activePanelHost = null;
         activeTabParent = null;
+        activeSetting = null;
         PanelBuildState.Reset();
     }
 
+    internal static Transform OpenForReplayReturn(SettingUI setting)
+    {
+        if (setting == null || setting.gameObject == null)
+            throw new InvalidOperationException("SettingUI is unavailable while returning from replay.");
+
+        InjectSettings(setting, "replay-return");
+        var panel = activePanel ?? throw new InvalidOperationException(
+            "AuraTools settings panel was not created for replay return.");
+        ShowAuraPanel();
+        return panel.transform;
+    }
     private static void InjectSettings(ModHookContext context)
     {
         try
@@ -91,6 +104,7 @@ public static class AuraToolsSettingsRuntime
     {
         try
         {
+            activeSetting = setting;
             var parent = ResolveTabParent(setting);
             activeTabParent = parent;
             var panelHost = ResolvePanelHost(setting, parent);
@@ -118,15 +132,26 @@ public static class AuraToolsSettingsRuntime
 
     private static void ClearPanel(ModHookContext context)
     {
+        if (!OwnsLifecycle(context))
+        {
+            return;
+        }
+
         ClosePanel(context);
         activePanel = null;
         activePanelHost = null;
         activeTabParent = null;
+        activeSetting = null;
         PanelBuildState.Reset();
     }
 
     private static void ClosePanel(ModHookContext context)
     {
+        if (!OwnsLifecycle(context))
+        {
+            return;
+        }
+
         HideActivePanel();
         AuraToolsUi.CloseOwnedOverlays("SettingUI disabled");
         UiTransitionGuardRuntime.BeginTransition(
@@ -138,6 +163,12 @@ public static class AuraToolsSettingsRuntime
             null,
             AuraToolsIds.ModId,
             "SettingUI disabled");
+    }
+
+    private static bool OwnsLifecycle(ModHookContext context)
+    {
+        return context.Target is SettingUI setting && activeSetting != null
+               && ReferenceEquals(setting, activeSetting);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)

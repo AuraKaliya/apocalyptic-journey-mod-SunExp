@@ -90,6 +90,41 @@ internal sealed partial class MatchRecordDatabase
             throw new InvalidDataException("Replay Document v11 is invalid: " + validation.Message);
         }
 
+        return SaveDocumentV11(
+            record,
+            document,
+            analysis,
+            chunkTargetBytes,
+            MatchReplayStates.Ready,
+            "Ready");
+    }
+
+    internal bool SaveRejectedV11(
+        MatchRecord record,
+        ReplayDocumentV11 document,
+        MatchAnalysisReport? analysis = null,
+        int chunkTargetBytes = ReplayTimelineChunkerV11.DefaultTargetBytes)
+    {
+        return SaveDocumentV11(
+            record,
+            document,
+            analysis,
+            chunkTargetBytes,
+            MatchReplayStates.SummaryOnly,
+            "Rejected");
+    }
+
+    private bool SaveDocumentV11(
+        MatchRecord record,
+        ReplayDocumentV11 document,
+        MatchAnalysisReport? analysis,
+        int chunkTargetBytes,
+        string replayState,
+        string documentState)
+    {
+        if (record == null) throw new ArgumentNullException(nameof(record));
+        if (document == null) throw new ArgumentNullException(nameof(document));
+
         if (!string.Equals(record.RecordId, document.Header.RecordId, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Replay record id does not match its v11 document.");
@@ -116,7 +151,7 @@ internal sealed partial class MatchRecordDatabase
                 }
 
                 record.ReplayProtocol = ReplayProtocolV11.DocumentVersion;
-                record.ReplayState = MatchReplayStates.Ready;
+                record.ReplayState = replayState;
                 record.LevelId = document.Header.LevelId;
                 record.BattleTitle = document.Header.BattleTitle;
                 record.EventCount = document.Events.Count;
@@ -137,7 +172,7 @@ internal sealed partial class MatchRecordDatabase
                     insert.Bind(6, record.StartedUtc ?? "");
                     insert.Bind(7, record.EndedUtc ?? "");
                     insert.Bind(8, NormalizeCollection(record.Collection));
-                    insert.Bind(9, MatchReplayStates.Ready);
+                    insert.Bind(9, replayState);
                     insert.Bind(10, ReplayProtocolV11.DocumentVersion);
                     insert.Bind(11, record.GameBuild ?? "");
                     insert.Bind(12, record.ToolBuild ?? "");
@@ -155,19 +190,20 @@ internal sealed partial class MatchRecordDatabase
                            "INSERT INTO replay_documents(record_id, document_version, document_state, document_sha256, "
                            + "initial_state_sha256, final_state_sha256, event_chain_sha256, renderer_profile, "
                            + "event_count, checkpoint_count, attachment_count, compressed_bytes, document_payload) "
-                           + "VALUES(?, 11, 'Ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"))
+                           + "VALUES(?, 11, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);"))
                 {
                     insert.Bind(1, record.RecordId);
-                    insert.Bind(2, document.Header.DocumentSha256);
-                    insert.Bind(3, document.Header.InitialLogicalStateSha256);
-                    insert.Bind(4, document.Header.FinalLogicalStateSha256);
-                    insert.Bind(5, document.Header.FinalEventChainSha256);
-                    insert.Bind(6, document.Header.RenderProfileId ?? "");
-                    insert.Bind(7, document.Events.Count);
-                    insert.Bind(8, document.Checkpoints.Count);
-                    insert.Bind(9, document.Attachments.Count);
-                    insert.Bind(10, record.CompressedBytes);
-                    insert.Bind(11, documentPayload);
+                    insert.Bind(2, documentState);
+                    insert.Bind(3, document.Header.DocumentSha256);
+                    insert.Bind(4, document.Header.InitialLogicalStateSha256);
+                    insert.Bind(5, document.Header.FinalLogicalStateSha256);
+                    insert.Bind(6, document.Header.FinalEventChainSha256);
+                    insert.Bind(7, document.Header.RenderProfileId ?? "");
+                    insert.Bind(8, document.Events.Count);
+                    insert.Bind(9, document.Checkpoints.Count);
+                    insert.Bind(10, document.Attachments.Count);
+                    insert.Bind(11, record.CompressedBytes);
+                    insert.Bind(12, documentPayload);
                     insert.Execute();
                 }
 
@@ -691,6 +727,478 @@ internal sealed partial class MatchRecordDatabase
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_export_jobs_state ON replay_export_jobs(state, created_utc);");
     }
 
+    private void MigrateEmptyBootstrapV11Documents(WinSqliteConnection connection)
+    {
+        const string migrationId = "replay-v11-empty-bootstrap-to-materialized-baseline";
+        using (var applied = connection.Prepare(
+                   "SELECT 1 FROM replay_migrations WHERE migration_id=? AND state='Applied' LIMIT 1;"))
+        {
+            applied.Bind(1, migrationId);
+            if (applied.Read()) return;
+        }
+
+        var plans = new List<MaterializedBaselineMigrationPlan>();
+        using (var query = connection.Prepare(
+                   "SELECT d.record_id FROM replay_documents d "
+                   + "JOIN battle_records b ON b.record_id=d.record_id "
+                   + "WHERE d.document_version=11 AND d.document_state='Ready' AND b.replay_state='Ready' "
+                   + "ORDER BY b.sequence;"))
+        {
+            while (query.Read())
+            {
+                var recordId = query.Text(0);
+                try
+                {
+                    var document = LoadStoredV11Document(connection, recordId);
+                    if (ReplayPlayableBootstrapContractV11.ValidateState(document.InitialState).Count == 0)
+                    {
+                        var validation = ReplayDocumentValidatorV11.Validate(document);
+                        if (!validation.IsValid)
+                            plans.Add(MaterializedBaselineMigrationPlan.Rejected(recordId, validation.Message));
+                        continue;
+                    }
+                    var migration = ReplayMaterializedBaselineMigrationV11.Rebase(document);
+                    plans.Add(migration.Success && migration.Changed && migration.Document != null
+                        ? MaterializedBaselineMigrationPlan.Migrated(recordId, migration)
+                        : MaterializedBaselineMigrationPlan.Rejected(recordId, migration.Message));
+                }
+                catch (Exception ex)
+                {
+                    plans.Add(MaterializedBaselineMigrationPlan.Corrupt(recordId, ex.Message));
+                }
+            }
+        }
+
+        var unreferencedFiles = new List<string>();
+        connection.Execute("BEGIN IMMEDIATE;");
+        try
+        {
+            foreach (var plan in plans)
+            {
+                if (plan.Kind == MaterializedBaselineMigrationKind.Migrated && plan.Document != null)
+                    ApplyMaterializedBaselineMigration(connection, plan, migrationId);
+                else
+                    ReclassifyUnplayableBootstrap(connection, plan, migrationId);
+            }
+
+            using (var unreferenced = connection.Prepare(
+                       "SELECT file_path FROM replay_assets WHERE NOT EXISTS("
+                       + "SELECT 1 FROM replay_asset_refs r WHERE r.asset_sha256=replay_assets.asset_sha256);"))
+            {
+                while (unreferenced.Read()) unreferencedFiles.Add(ResolveStoredPath(unreferenced.Text(0)));
+            }
+            connection.Execute(
+                "DELETE FROM replay_assets WHERE NOT EXISTS(SELECT 1 FROM replay_asset_refs r "
+                + "WHERE r.asset_sha256=replay_assets.asset_sha256);");
+
+            using (var migration = connection.Prepare(
+                       "INSERT OR REPLACE INTO replay_migrations(migration_id, state, scanned_utc, applied_utc, "
+                       + "report_path, report_sha256, record_count, chunk_bytes) "
+                       + "VALUES(?, 'Applied', ?, ?, '', '', ?, ?);"))
+            {
+                var now = DateTime.UtcNow.ToString("O");
+                migration.Bind(1, migrationId);
+                migration.Bind(2, now);
+                migration.Bind(3, now);
+                migration.Bind(4, plans.Count);
+                migration.Bind(5, plans.Where(value => value.Document != null)
+                    .Sum(value => value.DocumentBytes));
+                migration.Execute();
+            }
+            connection.Execute("COMMIT;");
+        }
+        catch
+        {
+            TryRollback(connection);
+            throw;
+        }
+
+        foreach (var path in unreferencedFiles.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (File.Exists(path)) AuraSharedFileStore.DeleteFile(AuraToolsIds.ModId, path);
+            }
+            catch
+            {
+                // ReconcileV11Files quarantines any exact unregistered file that survives cleanup.
+            }
+        }
+        if (plans.Count > 0)
+        {
+            AuraToolsLog.Info(
+                "[MatchRecords] materialized-baseline migration applied: migrated="
+                + plans.Count(value => value.Kind == MaterializedBaselineMigrationKind.Migrated)
+                + ", rejected="
+                + plans.Count(value => value.Kind == MaterializedBaselineMigrationKind.Rejected)
+                + ", corrupt="
+                + plans.Count(value => value.Kind == MaterializedBaselineMigrationKind.Corrupt)
+                + ", removedAssets="
+                + unreferencedFiles.Count
+                + ".");
+        }
+    }
+
+    private static ReplayDocumentV11 LoadStoredV11Document(WinSqliteConnection connection, string recordId)
+    {
+        ReplayDocumentV11 document;
+        string storedDocumentHash;
+        using (var query = connection.Prepare(
+                   "SELECT document_payload, document_sha256 FROM replay_documents WHERE record_id=? LIMIT 1;"))
+        {
+            query.Bind(1, recordId);
+            if (!query.Read()) throw new InvalidDataException("Replay document disappeared during migration: " + recordId);
+            document = ReplayPayloadV11.Decode<ReplayDocumentV11>(query.Blob(0));
+            storedDocumentHash = query.Text(1);
+        }
+
+        var chunks = new List<ReplayTimelineChunkV11>();
+        using (var query = connection.Prepare(
+                   "SELECT chunk_index, first_sequence, last_sequence, first_time_ticks, last_time_ticks, sha256, payload "
+                   + "FROM replay_timeline_chunks WHERE record_id=? ORDER BY chunk_index;"))
+        {
+            query.Bind(1, recordId);
+            while (query.Read())
+            {
+                chunks.Add(new ReplayTimelineChunkV11
+                {
+                    ChunkIndex = (int)query.Int64(0),
+                    FirstSequence = query.Int64(1),
+                    LastSequence = query.Int64(2),
+                    FirstTimeTicks = query.Int64(3),
+                    LastTimeTicks = query.Int64(4),
+                    Sha256 = query.Text(5),
+                    Payload = query.Blob(6)
+                });
+            }
+        }
+        document.Events = ReplayTimelineChunkerV11.Decode(chunks).ToList();
+        var actualDocumentHash = ReplayCanonicalJsonV11.DocumentHash(document);
+        if (!string.Equals(actualDocumentHash, document.Header.DocumentSha256, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(actualDocumentHash, storedDocumentHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Stored replay document hash is invalid before migration: " + recordId);
+        }
+        return document;
+    }
+
+    private void MigrateReplayCardPresentationV11Documents(WinSqliteConnection connection)
+    {
+        const string migrationId = "replay-v11-card-presentation-empty-tag";
+        using (var applied = connection.Prepare(
+                   "SELECT 1 FROM replay_migrations WHERE migration_id=? AND state='Applied' LIMIT 1;"))
+        {
+            applied.Bind(1, migrationId);
+            if (applied.Read()) return;
+        }
+
+        var plans = new List<CardPresentationMigrationPlan>();
+        using (var query = connection.Prepare(
+                   "SELECT d.record_id FROM replay_documents d "
+                   + "JOIN battle_records b ON b.record_id=d.record_id "
+                   + "WHERE d.document_version=11 AND d.document_state='Ready' AND b.replay_state='Ready' "
+                   + "ORDER BY b.sequence;"))
+        {
+            while (query.Read())
+            {
+                var recordId = query.Text(0);
+                try
+                {
+                    var document = LoadStoredV11Document(connection, recordId);
+                    var repaired = ReplayCardPresentationContractV11.NormalizeDocument(document);
+                    var validation = repaired > 0
+                        ? ReplayDocumentFinalizerV11.FinalizeAndValidate(document)
+                        : ReplayDocumentValidatorV11.Validate(document);
+                    plans.Add(validation.IsValid
+                        ? CardPresentationMigrationPlan.Ready(recordId, document, repaired)
+                        : CardPresentationMigrationPlan.Rejected(recordId, validation.Message));
+                }
+                catch (Exception ex)
+                {
+                    plans.Add(CardPresentationMigrationPlan.Corrupt(recordId, ex.Message));
+                }
+            }
+        }
+
+        connection.Execute("BEGIN IMMEDIATE;");
+        try
+        {
+            foreach (var plan in plans)
+            {
+                if (plan.Kind == CardPresentationMigrationKind.Ready && plan.Document != null)
+                {
+                    if (plan.RepairedCards > 0)
+                        ApplyCardPresentationMigration(connection, plan, migrationId);
+                }
+                else
+                {
+                    ReclassifyCardPresentationDocument(connection, plan, migrationId);
+                }
+            }
+
+            using var migration = connection.Prepare(
+                "INSERT OR REPLACE INTO replay_migrations(migration_id, state, scanned_utc, applied_utc, "
+                + "report_path, report_sha256, record_count, chunk_bytes) "
+                + "VALUES(?, 'Applied', ?, ?, '', '', ?, ?);");
+            var now = DateTime.UtcNow.ToString("O");
+            migration.Bind(1, migrationId);
+            migration.Bind(2, now);
+            migration.Bind(3, now);
+            migration.Bind(4, plans.Count(value => value.RepairedCards > 0));
+            migration.Bind(5, plans.Sum(value => value.DocumentBytes));
+            migration.Execute();
+            connection.Execute("COMMIT;");
+        }
+        catch
+        {
+            TryRollback(connection);
+            throw;
+        }
+
+        var repairedRecords = plans.Count(value => value.RepairedCards > 0);
+        if (repairedRecords > 0 || plans.Any(value => value.Kind != CardPresentationMigrationKind.Ready))
+        {
+            AuraToolsLog.Info(
+                "[MatchRecords] card-presentation migration applied: repairedRecords="
+                + repairedRecords
+                + ", repairedCards="
+                + plans.Sum(value => value.RepairedCards)
+                + ", rejected="
+                + plans.Count(value => value.Kind == CardPresentationMigrationKind.Rejected)
+                + ", corrupt="
+                + plans.Count(value => value.Kind == CardPresentationMigrationKind.Corrupt)
+                + ".");
+        }
+    }
+
+    private static void ApplyCardPresentationMigration(
+        WinSqliteConnection connection,
+        CardPresentationMigrationPlan plan,
+        string migrationId)
+    {
+        var document = plan.Document!;
+        var chunks = ReplayTimelineChunkerV11.Build(document.Events);
+        var skeleton = CloneWithoutTransientPayload(document);
+        skeleton.Events.Clear();
+        var documentPayload = ReplayPayloadV11.Encode(skeleton);
+        var compressedBytes = chunks.Sum(value => (long)value.Payload.Length) + documentPayload.LongLength;
+        plan.DocumentBytes = compressedBytes;
+
+        using (var delete = connection.Prepare("DELETE FROM replay_timeline_chunks WHERE record_id=?;"))
+        {
+            delete.Bind(1, plan.RecordId);
+            delete.Execute();
+        }
+        foreach (var chunk in chunks)
+        {
+            using var insert = connection.Prepare(
+                "INSERT INTO replay_timeline_chunks(record_id, chunk_index, first_sequence, last_sequence, "
+                + "first_time_ticks, last_time_ticks, sha256, payload) VALUES(?, ?, ?, ?, ?, ?, ?, ?);");
+            insert.Bind(1, plan.RecordId);
+            insert.Bind(2, chunk.ChunkIndex);
+            insert.Bind(3, chunk.FirstSequence);
+            insert.Bind(4, chunk.LastSequence);
+            insert.Bind(5, chunk.FirstTimeTicks);
+            insert.Bind(6, chunk.LastTimeTicks);
+            insert.Bind(7, chunk.Sha256);
+            insert.Bind(8, chunk.Payload);
+            insert.Execute();
+        }
+
+        using (var update = connection.Prepare(
+                   "UPDATE replay_documents SET document_state='Ready', document_sha256=?, initial_state_sha256=?, "
+                   + "final_state_sha256=?, event_chain_sha256=?, renderer_profile=?, event_count=?, checkpoint_count=?, "
+                   + "attachment_count=?, compressed_bytes=?, document_payload=? WHERE record_id=?;"))
+        {
+            update.Bind(1, document.Header.DocumentSha256);
+            update.Bind(2, document.Header.InitialLogicalStateSha256);
+            update.Bind(3, document.Header.FinalLogicalStateSha256);
+            update.Bind(4, document.Header.FinalEventChainSha256);
+            update.Bind(5, document.Header.RenderProfileId ?? "");
+            update.Bind(6, document.Events.Count);
+            update.Bind(7, document.Checkpoints.Count);
+            update.Bind(8, document.Attachments.Count);
+            update.Bind(9, compressedBytes);
+            update.Bind(10, documentPayload);
+            update.Bind(11, plan.RecordId);
+            update.Execute();
+        }
+
+        var record = GetRecordForMigration(connection, plan.RecordId);
+        record.EventCount = document.Events.Count;
+        record.TurnCount = Math.Max(document.InitialState.TurnIndex,
+            document.Events.Count == 0 ? 1 : document.Events.Max(value => value.TurnIndex));
+        record.CompressedBytes = compressedBytes;
+        record.ContentSha256 = document.Header.DocumentSha256;
+        record.CaptureDiagnostics.Add(migrationId + ": repairedCards=" + plan.RepairedCards);
+        using var recordUpdate = connection.Prepare(
+            "UPDATE battle_records SET replay_state='Ready', event_count=?, turn_count=?, compressed_bytes=?, "
+            + "metadata_payload=? WHERE record_id=?;");
+        recordUpdate.Bind(1, record.EventCount);
+        recordUpdate.Bind(2, record.TurnCount);
+        recordUpdate.Bind(3, compressedBytes);
+        recordUpdate.Bind(4, MatchReplayPayload.Encode(CreateMetadata(record)));
+        recordUpdate.Bind(5, plan.RecordId);
+        recordUpdate.Execute();
+    }
+
+    private static void ReclassifyCardPresentationDocument(
+        WinSqliteConnection connection,
+        CardPresentationMigrationPlan plan,
+        string migrationId)
+    {
+        var record = GetRecordForMigration(connection, plan.RecordId);
+        var state = plan.Kind == CardPresentationMigrationKind.Corrupt
+            ? MatchReplayStates.Corrupt
+            : MatchReplayStates.SummaryOnly;
+        var documentState = plan.Kind == CardPresentationMigrationKind.Corrupt ? "Corrupt" : "Rejected";
+        record.CaptureDiagnostics.Add(migrationId + ": " + plan.Message);
+        using (var update = connection.Prepare(
+                   "UPDATE battle_records SET replay_state=?, metadata_payload=? WHERE record_id=?;"))
+        {
+            update.Bind(1, state);
+            update.Bind(2, MatchReplayPayload.Encode(CreateMetadata(record)));
+            update.Bind(3, plan.RecordId);
+            update.Execute();
+        }
+        using var document = connection.Prepare(
+            "UPDATE replay_documents SET document_state=? WHERE record_id=?;");
+        document.Bind(1, documentState);
+        document.Bind(2, plan.RecordId);
+        document.Execute();
+    }
+
+    private void ApplyMaterializedBaselineMigration(
+        WinSqliteConnection connection,
+        MaterializedBaselineMigrationPlan plan,
+        string migrationId)
+    {
+        var document = plan.Document!;
+        var chunks = ReplayTimelineChunkerV11.Build(document.Events);
+        var skeleton = CloneWithoutTransientPayload(document);
+        skeleton.Events.Clear();
+        var documentPayload = ReplayPayloadV11.Encode(skeleton);
+        var compressedBytes = chunks.Sum(value => (long)value.Payload.Length) + documentPayload.LongLength;
+        plan.DocumentBytes = compressedBytes;
+
+        using (var delete = connection.Prepare("DELETE FROM replay_timeline_chunks WHERE record_id=?;"))
+        {
+            delete.Bind(1, plan.RecordId);
+            delete.Execute();
+        }
+        foreach (var chunk in chunks)
+        {
+            using var insert = connection.Prepare(
+                "INSERT INTO replay_timeline_chunks(record_id, chunk_index, first_sequence, last_sequence, "
+                + "first_time_ticks, last_time_ticks, sha256, payload) VALUES(?, ?, ?, ?, ?, ?, ?, ?);");
+            insert.Bind(1, plan.RecordId);
+            insert.Bind(2, chunk.ChunkIndex);
+            insert.Bind(3, chunk.FirstSequence);
+            insert.Bind(4, chunk.LastSequence);
+            insert.Bind(5, chunk.FirstTimeTicks);
+            insert.Bind(6, chunk.LastTimeTicks);
+            insert.Bind(7, chunk.Sha256);
+            insert.Bind(8, chunk.Payload);
+            insert.Execute();
+        }
+
+        using (var delete = connection.Prepare("DELETE FROM replay_asset_refs WHERE record_id=?;"))
+        {
+            delete.Bind(1, plan.RecordId);
+            delete.Execute();
+        }
+        foreach (var attachment in document.Attachments)
+        {
+            using var insert = connection.Prepare(
+                "INSERT INTO replay_asset_refs(record_id, asset_sha256, usage, required) VALUES(?, ?, ?, ?);");
+            insert.Bind(1, plan.RecordId);
+            insert.Bind(2, attachment.Sha256);
+            insert.Bind(3, attachment.Usage ?? "");
+            insert.Bind(4, attachment.Required ? 1 : 0);
+            insert.Execute();
+        }
+
+        using (var update = connection.Prepare(
+                   "UPDATE replay_documents SET document_state='Ready', document_sha256=?, initial_state_sha256=?, "
+                   + "final_state_sha256=?, event_chain_sha256=?, renderer_profile=?, event_count=?, checkpoint_count=?, "
+                   + "attachment_count=?, compressed_bytes=?, document_payload=? WHERE record_id=?;"))
+        {
+            update.Bind(1, document.Header.DocumentSha256);
+            update.Bind(2, document.Header.InitialLogicalStateSha256);
+            update.Bind(3, document.Header.FinalLogicalStateSha256);
+            update.Bind(4, document.Header.FinalEventChainSha256);
+            update.Bind(5, document.Header.RenderProfileId ?? "");
+            update.Bind(6, document.Events.Count);
+            update.Bind(7, document.Checkpoints.Count);
+            update.Bind(8, document.Attachments.Count);
+            update.Bind(9, compressedBytes);
+            update.Bind(10, documentPayload);
+            update.Bind(11, plan.RecordId);
+            update.Execute();
+        }
+
+        var record = GetRecordForMigration(connection, plan.RecordId);
+        record.EventCount = document.Events.Count;
+        record.TurnCount = Math.Max(document.InitialState.TurnIndex,
+            document.Events.Count == 0 ? 1 : document.Events.Max(value => value.TurnIndex));
+        record.CompressedBytes = compressedBytes;
+        record.ContentSha256 = document.Header.DocumentSha256;
+        record.RequiredCapabilities = document.Header.RequiredCapabilities.ToList();
+        record.ContentDependencies = document.Content.Dependencies.Select(value => value.OwnerModId).ToList();
+        record.CaptureDiagnostics.Add(
+            migrationId + ": rebased from event " + plan.AnchorSequence
+            + ", removed prelude events=" + plan.RemovedPreludeEvents
+            + ", removed attachments=" + plan.RemovedAttachments);
+        record.InitialState ??= new MatchReplayInitialState();
+        record.InitialState.LevelId = document.Header.LevelId;
+        record.InitialState.BackgroundScene = document.NativeBattle.BackgroundScene;
+        record.InitialState.MapMode = document.NativeBattle.MapMode;
+        record.InitialState.MapLevel = document.NativeBattle.MapLevel;
+        record.InitialState.DiceJson = document.NativeBattle.DiceJson;
+        record.InitialState.RoleQueue = (byte[])document.NativeBattle.RoleQueue.Clone();
+        record.InitialState.TemporaryRoles = (byte[])document.NativeBattle.TemporaryRoles.Clone();
+        record.InitialState.EnemyPositive = document.NativeBattle.EnemyPositive;
+        record.InitialState.EnemyHp = document.NativeBattle.EnemyHp;
+        record.InitialState.RoleTableJson = document.NativeBattle.RoleTableJson;
+        record.InitialState.BaselineState = null;
+        using var recordUpdate = connection.Prepare(
+            "UPDATE battle_records SET replay_state='Ready', event_count=?, turn_count=?, compressed_bytes=?, "
+            + "initial_payload=?, metadata_payload=? WHERE record_id=?;");
+        recordUpdate.Bind(1, record.EventCount);
+        recordUpdate.Bind(2, record.TurnCount);
+        recordUpdate.Bind(3, compressedBytes);
+        recordUpdate.Bind(4, MatchReplayPayload.Encode(record.InitialState));
+        recordUpdate.Bind(5, MatchReplayPayload.Encode(CreateMetadata(record)));
+        recordUpdate.Bind(6, plan.RecordId);
+        recordUpdate.Execute();
+    }
+
+    private static void ReclassifyUnplayableBootstrap(
+        WinSqliteConnection connection,
+        MaterializedBaselineMigrationPlan plan,
+        string migrationId)
+    {
+        var record = GetRecordForMigration(connection, plan.RecordId);
+        var state = plan.Kind == MaterializedBaselineMigrationKind.Corrupt
+            ? MatchReplayStates.Corrupt
+            : MatchReplayStates.SummaryOnly;
+        var documentState = plan.Kind == MaterializedBaselineMigrationKind.Corrupt ? "Corrupt" : "Rejected";
+        record.CaptureDiagnostics.Add(migrationId + ": " + plan.Message);
+        using (var update = connection.Prepare(
+                   "UPDATE battle_records SET replay_state=?, metadata_payload=? WHERE record_id=?;"))
+        {
+            update.Bind(1, state);
+            update.Bind(2, MatchReplayPayload.Encode(CreateMetadata(record)));
+            update.Bind(3, plan.RecordId);
+            update.Execute();
+        }
+        using var document = connection.Prepare(
+            "UPDATE replay_documents SET document_state=? WHERE record_id=?;");
+        document.Bind(1, documentState);
+        document.Bind(2, plan.RecordId);
+        document.Execute();
+    }
+
     private static bool ReplayDocumentTableIsV11(WinSqliteConnection connection)
     {
         using var query = connection.Prepare(
@@ -701,14 +1209,25 @@ internal sealed partial class MatchRecordDatabase
     private void ReconcileV11Files(WinSqliteConnection connection)
     {
         var knownAssets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        using (var query = connection.Prepare("SELECT asset_sha256, file_path FROM replay_assets;"))
+        using (var query = connection.Prepare(
+                   "SELECT asset_sha256, file_path, media_type, byte_length, sample_rate, channels, sample_frames "
+                   + "FROM replay_assets;"))
         {
             while (query.Read())
             {
                 var hash = query.Text(0);
                 var path = ResolveStoredPath(query.Text(1));
                 knownAssets.Add(Path.GetFullPath(path));
-                if (File.Exists(path)) continue;
+                var valid = File.Exists(path);
+                if (valid && string.Equals(query.Text(2), "audio/wav", StringComparison.OrdinalIgnoreCase))
+                {
+                    valid = new FileInfo(path).Length == query.Int64(3)
+                            && TryReadPcmWaveFileHeader(path, out var wave)
+                            && wave.SampleRate == query.Int64(4)
+                            && wave.Channels == query.Int64(5)
+                            && wave.SampleFrames == query.Int64(6);
+                }
+                if (valid) continue;
                 using (var corruptDocuments = connection.Prepare(
                            "UPDATE replay_documents SET document_state='Corrupt' WHERE record_id IN "
                            + "(SELECT record_id FROM replay_asset_refs WHERE asset_sha256=?);"))
@@ -982,6 +1501,119 @@ internal sealed partial class MatchRecordDatabase
                     ?? throw new InvalidDataException("Replay Document v11 could not be cloned.");
         foreach (var attachment in clone.Attachments) attachment.Payload = Array.Empty<byte>();
         return clone;
+    }
+
+    private enum MaterializedBaselineMigrationKind
+    {
+        Migrated,
+        Rejected,
+        Corrupt
+    }
+
+    private enum CardPresentationMigrationKind
+    {
+        Ready,
+        Rejected,
+        Corrupt
+    }
+
+    private sealed class CardPresentationMigrationPlan
+    {
+        internal string RecordId { get; private set; } = "";
+        internal CardPresentationMigrationKind Kind { get; private set; }
+        internal ReplayDocumentV11? Document { get; private set; }
+        internal int RepairedCards { get; private set; }
+        internal long DocumentBytes { get; set; }
+        internal string Message { get; private set; } = "";
+
+        internal static CardPresentationMigrationPlan Ready(
+            string recordId,
+            ReplayDocumentV11 document,
+            int repairedCards)
+        {
+            return new CardPresentationMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = CardPresentationMigrationKind.Ready,
+                Document = document,
+                RepairedCards = repairedCards
+            };
+        }
+
+        internal static CardPresentationMigrationPlan Rejected(string recordId, string message)
+        {
+            return new CardPresentationMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = CardPresentationMigrationKind.Rejected,
+                Message = string.IsNullOrWhiteSpace(message) ? "card presentation cannot be migrated" : message
+            };
+        }
+
+        internal static CardPresentationMigrationPlan Corrupt(string recordId, string message)
+        {
+            return new CardPresentationMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = CardPresentationMigrationKind.Corrupt,
+                Message = string.IsNullOrWhiteSpace(message) ? "card presentation document is corrupt" : message
+            };
+        }
+    }
+
+    private sealed class MaterializedBaselineMigrationPlan
+    {
+        internal string RecordId { get; private set; } = "";
+
+        internal MaterializedBaselineMigrationKind Kind { get; private set; }
+
+        internal ReplayDocumentV11? Document { get; private set; }
+
+        internal long AnchorSequence { get; private set; }
+
+        internal int RemovedPreludeEvents { get; private set; }
+
+        internal int RemovedAttachments { get; private set; }
+
+        internal long DocumentBytes { get; set; }
+
+        internal string Message { get; private set; } = "";
+
+        internal static MaterializedBaselineMigrationPlan Migrated(
+            string recordId,
+            ReplayMaterializedBaselineMigrationResultV11 result)
+        {
+            return new MaterializedBaselineMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = MaterializedBaselineMigrationKind.Migrated,
+                Document = result.Document,
+                AnchorSequence = result.AnchorSequence,
+                RemovedPreludeEvents = result.RemovedPreludeEvents,
+                RemovedAttachments = result.RemovedAttachments,
+                Message = result.Message
+            };
+        }
+
+        internal static MaterializedBaselineMigrationPlan Rejected(string recordId, string message)
+        {
+            return new MaterializedBaselineMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = MaterializedBaselineMigrationKind.Rejected,
+                Message = string.IsNullOrWhiteSpace(message) ? "empty bootstrap cannot be migrated" : message
+            };
+        }
+
+        internal static MaterializedBaselineMigrationPlan Corrupt(string recordId, string message)
+        {
+            return new MaterializedBaselineMigrationPlan
+            {
+                RecordId = recordId,
+                Kind = MaterializedBaselineMigrationKind.Corrupt,
+                Message = string.IsNullOrWhiteSpace(message) ? "empty bootstrap document is corrupt" : message
+            };
+        }
     }
 
     private readonly struct AttachmentMove

@@ -32,6 +32,9 @@ internal static class MatchReplayRecorder
     private static readonly object Gate = new();
     private static readonly List<string> Diagnostics = new();
     private static readonly ReplayAudioAttachmentCaptureV11 AudioCapture = new();
+    private static readonly ReplayNativeAudioCallTracker NativeAudioCalls = new();
+    private static readonly MatchReplayBaselineGate BaselineGate = new();
+    private static readonly MatchReplayTerminalGate TerminalGate = new();
     private static MatchRecord? activeRecord;
     private static ReplayDocumentV11? activeDocument;
     private static ReplayContentCatalogBuilderV11? catalog;
@@ -44,10 +47,8 @@ internal static class MatchReplayRecorder
     private static bool firstPlayerRoundSeen;
     private static string lastAudioCueKey = "";
     private static long lastAudioStartSample = long.MinValue;
-    private static string lastBgmResourceId = "";
+    private static int lastBgmClipInstanceId;
     private static ReplayAudioCueV11? activeBgmCue;
-    private static bool completionPrepared;
-    private static string pendingCompletionResult = "";
 
     internal static bool IsRecording
     {
@@ -130,18 +131,32 @@ internal static class MatchReplayRecorder
                 }
             };
             catalog = new ReplayContentCatalogBuilderV11();
+            BaselineGate.Arm();
             AudioArbiterRuntime.ResolvedPlayback += OnResolvedPlayback;
-            startedTimestamp = Stopwatch.GetTimestamp();
         }
     }
 
-    internal static void StartFromCurrentFight()
+    internal static void CommitMaterializedBaseline()
     {
         if (FightManager.Instance == null) return;
         lock (Gate)
         {
-            if (activeDocument == null) Start(new object[] { FightManager.Instance.level ?? "" });
-            EnsureBaselineNoLock();
+            if (!BaselineGate.TryCommit(CaptureMaterializedBaselineNoLock)) return;
+            startedTimestamp = Stopwatch.GetTimestamp();
+            catalog!.RegisterBackground(
+                activeRecord!.LevelId,
+                GameApp.Instance?.NowBackground?.name ?? activeRecord.LevelId,
+                GameApp.Instance?.NowBackground);
+            CaptureLevelNativeBgmNoLock();
+            AuraToolsLog.Debug(
+                "[MatchRecords] materialized replay baseline committed: actors="
+                + lastState!.Actors.Count
+                + ", enemies="
+                + lastState.Actors.Count(value =>
+                    string.Equals(value.EntityKind, ReplayEntityKindsV11.Enemy, StringComparison.Ordinal))
+                + ", cards="
+                + lastState.Cards.Count
+                + ".");
         }
     }
 
@@ -150,7 +165,7 @@ internal static class MatchReplayRecorder
         if (target == null) return;
         lock (Gate)
         {
-            if (!EnsureBaselineNoLock()) return;
+            if (!CanCaptureTimelineNoLock()) return;
             BeginActionNoLock(ReplayFactCaptureV11.CaptureActionSource(target, catalog!));
         }
     }
@@ -174,7 +189,7 @@ internal static class MatchReplayRecorder
     {
         lock (Gate)
         {
-            if (!EnsureBaselineNoLock()) return;
+            if (!CanCaptureTimelineNoLock()) return;
             var intent = ReplayIntentCaptureV11.CaptureExecuting(target, arguments, catalog!);
             if (intent == null) return;
             var definition = catalog!.Manifest.Definitions.FirstOrDefault(item => item.Content.Key == intent.Content.Key);
@@ -220,7 +235,7 @@ internal static class MatchReplayRecorder
 
         lock (Gate)
         {
-            if (!EnsureBaselineNoLock()) return;
+            if (!CanCaptureTimelineNoLock()) return;
             var config = context.CardData;
             var stableId = ReplayFactCaptureV11.Read(config.data, "Id");
             var content = catalog!.Register("Card", config, stableId);
@@ -288,38 +303,54 @@ internal static class MatchReplayRecorder
         }
     }
 
-    internal static void CaptureNativeAudio(object[]? arguments, string bus)
+    internal static void BeginNativeAudioCapture(object[]? arguments, string bus)
     {
-        var resourceId = ExtractNativeResourceIds(arguments).FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(resourceId)) return;
-        if (string.Equals(bus, "Effect", StringComparison.OrdinalIgnoreCase)
-            && !resourceId.StartsWith("Sounds/", StringComparison.OrdinalIgnoreCase))
-        {
-            resourceId = "Sounds/" + resourceId;
-        }
+        var clip = arguments?.OfType<AudioClip>().FirstOrDefault();
+        if (clip != null) return;
         lock (Gate)
         {
-            var cue = RecordNativeAudioCueNoLock(resourceId, bus, bus);
-            var clip = arguments?.OfType<AudioClip>().FirstOrDefault() ?? ResolveNativeClip(resourceId);
-            AttachAudioNoLock(cue, clip, "Native." + bus);
+            if (activeDocument == null || lastState == null) return;
+            NativeAudioCalls.BeginSymbolic(
+                bus,
+                (arguments ?? Array.Empty<object>()).OfType<string>().ToList());
         }
     }
 
-    internal static void CaptureNativeBgm(object[]? arguments)
+    internal static void EndNativeAudioCapture(object[]? arguments, string bus)
     {
-        var resourceId = ExtractNativeResourceIds(arguments).FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(resourceId)) return;
+        var clip = arguments?.OfType<AudioClip>().FirstOrDefault();
         lock (Gate)
         {
-            RecordNativeBgmNoLock(resourceId, arguments?.OfType<AudioClip>().FirstOrDefault());
+            if (clip != null && activeDocument != null && lastState != null)
+            {
+                var observed = NativeAudioCalls.ObserveClip(bus, clip.name, clip.GetInstanceID());
+                var resourceId = NormalizeObservedAudioResource(observed.ResourceId, bus);
+                RecordActualAudioNoLock(
+                    clip,
+                    resourceId,
+                    bus,
+                    bus,
+                    "Witch",
+                    "native:" + resourceId,
+                    "Native." + bus);
+                return;
+            }
+            NativeAudioCalls.EndSymbolic(bus);
         }
     }
 
-    internal static void CaptureCurrentBgm()
+    internal static void CaptureNativeBgm(object? target, object[]? arguments)
     {
+        var manager = target as AudioManager ?? AudioManager.Instance;
+        var clip = manager?.bgmSource?.clip;
+        if (clip == null) return;
+        var resourceId = NormalizeNativeResourceId(
+            manager?.NowBGMName
+            ?? (arguments ?? Array.Empty<object>()).OfType<string>().FirstOrDefault()
+            ?? clip.name);
         lock (Gate)
         {
-            if (activeDocument != null) CaptureLevelNativeBgmNoLock();
+            RecordNativeBgmNoLock(resourceId, clip);
         }
     }
 
@@ -331,7 +362,7 @@ internal static class MatchReplayRecorder
     {
         lock (Gate)
         {
-            if (!EnsureBaselineNoLock()) return;
+            if (!CanCaptureTimelineNoLock()) return;
             FlushActionNoLock();
             if (firstPlayerRoundSeen) turnIndex++;
             else firstPlayerRoundSeen = true;
@@ -348,25 +379,47 @@ internal static class MatchReplayRecorder
         }
     }
 
-    internal static void Complete(string result)
+    internal static void PrepareCompletion(string result)
+    {
+        lock (Gate)
+        {
+            if (activeDocument == null
+                || activeRecord == null
+                || TerminalGate.SettlementPrepared)
+            {
+                return;
+            }
+
+            if (CanCaptureTimelineNoLock()) FlushActionNoLock();
+            else RecordMissingBaselineDiagnosticNoLock();
+            TerminalGate.Prepare(result);
+        }
+    }
+
+    internal static void CompleteAfterCleanup(string result)
     {
         CompletionSnapshot? completion;
         lock (Gate)
         {
             if (activeDocument == null
                 || activeRecord == null
-                || completionPrepared)
+                || TerminalGate.TerminalFrameSealed)
             {
                 return;
             }
 
-            EnsureBaselineNoLock();
-            FlushActionNoLock();
-            if (lastState != null && catalog != null)
+            if (!TerminalGate.SettlementPrepared)
             {
-                var finalState = ReplayFactCaptureV11.CaptureState(turnIndex, catalog);
+                if (CanCaptureTimelineNoLock()) FlushActionNoLock();
+                else RecordMissingBaselineDiagnosticNoLock();
+                TerminalGate.Prepare(result);
+            }
+
+            if (CanCaptureTimelineNoLock())
+            {
+                var finalState = ReplayFactCaptureV11.CaptureState(turnIndex, catalog!);
                 if (!string.Equals(
-                        ReplayProjectionStateV11.Hash(lastState),
+                        ReplayProjectionStateV11.Hash(lastState!),
                         ReplayProjectionStateV11.Hash(finalState),
                         StringComparison.Ordinal))
                 {
@@ -376,24 +429,21 @@ internal static class MatchReplayRecorder
                         TurnIndex = turnIndex,
                         EventType = ReplayEventTypesV11.StateChanged,
                         ActorId = finalState.ActiveActorId,
-                        Delta = ReplayProjectionStateV11.CreateDelta(lastState, finalState)
+                        Delta = ReplayProjectionStateV11.CreateDelta(lastState!, finalState)
                     });
                     lastState = finalState;
                 }
             }
 
-            AddEventNoLock(new ReplayTimelineEventV11
+            if (CanCaptureTimelineNoLock()) AddEventNoLock(new ReplayTimelineEventV11
             {
                 TimeTicks = ElapsedTicks(),
                 TurnIndex = turnIndex,
                 EventType = ReplayEventTypesV11.BattleCompleted,
                 ActorId = lastState?.ActiveActorId ?? ""
             });
-            completionPrepared = true;
-            pendingCompletionResult = string.IsNullOrWhiteSpace(result)
-                ? "Unknown"
-                : result.Trim();
-            if (AudioCapture.PendingCount > 0)
+            TerminalGate.SealTerminalFrame(result);
+            if (!TerminalGate.CanDetach(AudioCapture.PendingCount))
             {
                 AudioCapture.Drained -= OnAudioCapturesDrained;
                 AudioCapture.Drained += OnAudioCapturesDrained;
@@ -418,9 +468,7 @@ internal static class MatchReplayRecorder
         var document = activeDocument;
         document.Content = catalog?.Manifest ?? new ReplayContentManifestV11();
         document.Attachments = catalog?.Attachments ?? new List<ReplayAttachmentV11>();
-        record.Result = pendingCompletionResult.Length == 0
-            ? "Unknown"
-            : pendingCompletionResult;
+        record.Result = TerminalGate.Result.Length == 0 ? "Unknown" : TerminalGate.Result;
         record.EndedUtc = DateTime.UtcNow.ToString("O");
         record.TurnCount = Math.Max(1, turnIndex);
         record.EventCount = document.Events.Count;
@@ -467,26 +515,46 @@ internal static class MatchReplayRecorder
             .Select(item => item.ToString("x2")));
     }
 
-    private static bool EnsureBaselineNoLock()
+    private static bool CaptureMaterializedBaselineNoLock()
     {
         if (activeDocument == null || activeRecord == null || catalog == null || FightManager.Instance == null)
         {
             return false;
         }
 
-        if (lastState != null) return true;
         turnIndex = 1;
-        lastState = ReplayFactCaptureV11.CaptureState(turnIndex, catalog);
+        var captured = ReplayFactCaptureV11.CaptureState(turnIndex, catalog);
+        var bootstrapErrors = ReplayPlayableBootstrapContractV11.ValidateState(captured);
+        if (bootstrapErrors.Count > 0)
+        {
+            if (Diagnostics.Count < 32)
+                Diagnostics.Add("materialized replay baseline is not playable: " + string.Join("; ", bootstrapErrors));
+            return false;
+        }
+
+        lastState = captured;
         activeDocument.InitialState = ReplayProjectionStateV11.Clone(lastState);
         var nativeBaseline = MatchReplayStateCapture.CaptureProjectionSnapshot(turnIndex);
         nativeBaseline.RoleTableJson = activeRecord.InitialState.RoleTableJson;
         activeRecord.InitialState.BaselineState = nativeBaseline;
-        catalog.RegisterBackground(
-            activeRecord.LevelId,
-            GameApp.Instance?.NowBackground?.name ?? activeRecord.LevelId,
-            GameApp.Instance?.NowBackground);
-        CaptureLevelNativeBgmNoLock();
         return true;
+    }
+
+    private static bool CanCaptureTimelineNoLock()
+    {
+        return BaselineGate.CanCaptureTimeline
+               && activeDocument != null
+               && activeRecord != null
+               && catalog != null
+               && lastState != null
+               && FightManager.Instance != null;
+    }
+
+    private static void RecordMissingBaselineDiagnosticNoLock()
+    {
+        const string message = "BattleMaterialized did not produce a playable replay baseline.";
+        if (!Diagnostics.Contains(message, StringComparer.Ordinal) && Diagnostics.Count < 32)
+            Diagnostics.Add(message);
     }
 
     private static bool IsReplayDependencyAssembly(string name)
@@ -505,7 +573,9 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             AudioCapture.Drained -= OnAudioCapturesDrained;
-            completion = completionPrepared ? DetachCompletionNoLock() : null;
+            completion = TerminalGate.CanDetach(AudioCapture.PendingCount)
+                ? DetachCompletionNoLock()
+                : null;
         }
         if (completion != null)
             QueueFinalization(completion.Record, completion.Document, completion.Diagnostics);
@@ -515,25 +585,37 @@ internal static class MatchReplayRecorder
     {
         if (activeRecord == null) return;
         var level = AuraGameDataHostApi.Resolve(DataType.Level, activeRecord.LevelId);
-        if (level == null || !level.Fields.TryGetValue("BGM", out var configured)) return;
-        var resourceId = (configured ?? "")
+        var configured = "";
+        if (level != null && level.Fields.TryGetValue("BGM", out var levelBgm)) configured = levelBgm ?? "";
+        var manager = AudioManager.Instance;
+        var clip = manager?.bgmSource?.clip;
+        if (clip == null) return;
+        var resourceId = string.Join(",", new[] { configured, manager?.NowBGMName ?? "", clip.name ?? "" })
             .Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(value => NormalizeNativeResourceId(value))
             .FirstOrDefault(value => value.Length > 0);
-        if (!string.IsNullOrWhiteSpace(resourceId)) RecordNativeBgmNoLock(resourceId);
+        if (!string.IsNullOrWhiteSpace(resourceId) && clip != null)
+        {
+            RecordNativeBgmNoLock(resourceId, clip);
+        }
     }
 
-    private static void RecordNativeBgmNoLock(string resourceId, AudioClip? capturedClip = null)
+    private static void RecordNativeBgmNoLock(
+        string resourceId,
+        AudioClip capturedClip,
+        string ownerModId = "Witch",
+        string providerId = "")
     {
         var normalized = NormalizeNativeResourceId(resourceId);
         if (normalized.Length == 0
             || activeDocument == null
             || lastState == null
-            || string.Equals(normalized, lastBgmResourceId, StringComparison.OrdinalIgnoreCase))
+            || capturedClip == null
+            || capturedClip.GetInstanceID() == lastBgmClipInstanceId)
             return;
         try
         {
-            lastBgmResourceId = normalized;
+            lastBgmClipInstanceId = capturedClip.GetInstanceID();
             var timelineTicks = nextSequence == 0 ? 0 : ElapsedTicks();
             var startSample = timelineTicks * ReplayOfflineAudioMixer.SampleRate / ReplayProtocolV11.TimebaseTicksPerSecond;
             if (activeBgmCue != null)
@@ -546,8 +628,8 @@ internal static class MatchReplayRecorder
                 AssetSha256 = "",
                 NativeResourceId = normalized,
                 ResolutionPolicy = "embedded-required",
-                OwnerModId = "Witch",
-                ProviderId = "native:" + normalized,
+                OwnerModId = string.IsNullOrWhiteSpace(ownerModId) ? "Witch" : ownerModId.Trim(),
+                ProviderId = string.IsNullOrWhiteSpace(providerId) ? "native:" + normalized : providerId.Trim(),
                 Kind = "BattleBgm",
                 StartSample = startSample,
                 SourceOffsetSample = 0,
@@ -559,7 +641,7 @@ internal static class MatchReplayRecorder
                 Bus = "Bgm"
             };
             activeBgmCue = cue;
-            AttachAudioNoLock(cue, capturedClip ?? ResolveNativeClip(normalized), "BattleBgm");
+            AttachAudioNoLock(cue, capturedClip, "BattleBgm");
             AddEventNoLock(new ReplayTimelineEventV11
             {
                 TimeTicks = timelineTicks,
@@ -575,61 +657,26 @@ internal static class MatchReplayRecorder
         }
     }
 
-    private static ReplayAudioCueV11? RecordNativeAudioCueNoLock(string resourceId, string bus, string kind)
-    {
-        var normalized = NormalizeNativeResourceId(resourceId);
-        if (normalized.Length == 0 || activeDocument == null || lastState == null) return null;
-        var startSample = ElapsedTicks()
-                          * ReplayOfflineAudioMixer.SampleRate
-                          / ReplayProtocolV11.TimebaseTicksPerSecond;
-        var key = (bus ?? "") + "|" + normalized;
-        if (string.Equals(key, lastAudioCueKey, StringComparison.OrdinalIgnoreCase)
-            && Math.Abs(startSample - lastAudioStartSample) <= ReplayOfflineAudioMixer.SampleRate / 20)
-            return null;
-        lastAudioCueKey = key;
-        lastAudioStartSample = startSample;
-        var cue = new ReplayAudioCueV11
-        {
-            NativeResourceId = normalized,
-            ResolutionPolicy = "embedded-required",
-            OwnerModId = "Witch",
-            ProviderId = "native:" + normalized,
-            Kind = kind ?? "NativeAudio",
-            StartSample = startSample,
-            GainQ16 = 65_536,
-            Bus = string.IsNullOrWhiteSpace(bus) ? "Effect" : (bus ?? "Effect").Trim()
-        };
-        if (activeAction != null)
-        {
-            activeAction.Audio.Add(cue);
-        }
-        else
-        {
-            AddEventNoLock(new ReplayTimelineEventV11
-            {
-                TimeTicks = ElapsedTicks(),
-                TurnIndex = turnIndex,
-                EventType = ReplayEventTypesV11.StateChanged,
-                ActorId = lastState.ActiveActorId,
-                Audio = new List<ReplayAudioCueV11> { cue }
-            });
-        }
-        return cue;
-    }
-
     private static void AttachAudioNoLock(ReplayAudioCueV11? cue, AudioClip? clip, string usage)
     {
         if (cue == null) return;
-        AudioCapture.Request(clip, usage, attachment =>
+        AudioCapture.Request(clip, usage, result =>
         {
             lock (Gate)
             {
-                if (attachment == null || catalog == null)
+                if (!result.Success || result.Attachment == null || catalog == null)
                 {
                     if (Diagnostics.Count < 32)
-                        Diagnostics.Add("required replay audio could not be captured: " + usage);
+                    {
+                        Diagnostics.Add("required replay audio capture failed ["
+                                        + result.FailureCode
+                                        + "]: "
+                                        + usage
+                                        + (result.Message.Length == 0 ? "" : "; " + result.Message));
+                    }
                     return;
                 }
+                var attachment = result.Attachment;
                 cue.AssetSha256 = catalog.RegisterAttachment(attachment);
                 cue.ResolutionPolicy = "embedded-required";
                 if (clip != null)
@@ -644,88 +691,90 @@ internal static class MatchReplayRecorder
         });
     }
 
-    private static AudioClip? ResolveNativeClip(string resourceId)
-    {
-        var normalized = NormalizeNativeResourceId(resourceId);
-        if (normalized.Length == 0) return null;
-        foreach (var candidate in new[]
-                 {
-                     normalized,
-                     normalized.StartsWith("Sounds/", StringComparison.OrdinalIgnoreCase) ? normalized : "Sounds/" + normalized,
-                     normalized.StartsWith("BGM/", StringComparison.OrdinalIgnoreCase) ? normalized : "BGM/" + normalized,
-                     normalized.StartsWith("Sounds/BGM/", StringComparison.OrdinalIgnoreCase) ? normalized : "Sounds/BGM/" + normalized
-                 }.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            try
-            {
-                var clip = AuraToolsResourceCache.Load<AudioClip>(candidate);
-                if (clip != null) return clip;
-            }
-            catch
-            {
-            }
-        }
-        return null;
-    }
-
     private static void OnResolvedPlayback(ResolvedSoundPlayback playback)
     {
         if (playback?.Clip is not AudioClip clip) return;
         lock (Gate)
         {
             if (activeDocument == null || lastState == null) return;
-            var startSample = ElapsedTicks() * ReplayOfflineAudioMixer.SampleRate / ReplayProtocolV11.TimebaseTicksPerSecond;
-            var key = (playback.Bus ?? "Effect") + "|resolved|" + clip.GetInstanceID();
-            if (string.Equals(key, lastAudioCueKey, StringComparison.Ordinal)
-                && Math.Abs(startSample - lastAudioStartSample) <= ReplayOfflineAudioMixer.SampleRate / 20)
+            if (string.Equals(playback.Bus, "Bgm", StringComparison.OrdinalIgnoreCase))
+            {
+                var bgmIdentity = NativeAudioCalls.ObserveClip("Bgm", clip.name, clip.GetInstanceID());
+                RecordNativeBgmNoLock(
+                    bgmIdentity.ResourceId,
+                    clip,
+                    playback.OwnerModId,
+                    playback.ProviderId);
                 return;
-            lastAudioCueKey = key;
-            lastAudioStartSample = startSample;
-            var cue = new ReplayAudioCueV11
-            {
-                OwnerModId = playback.OwnerModId ?? "",
-                ProviderId = playback.ProviderId ?? "",
-                Kind = playback.Request?.Kind ?? "ResolvedAudio",
-                StartSample = startSample,
-                GainQ16 = (int)Math.Round(Math.Max(0f, playback.VolumeMultiplier) * 65_536f),
-                Bus = string.IsNullOrWhiteSpace(playback.Bus) ? "Effect" : playback.Bus ?? "Effect",
-                ResolutionPolicy = "embedded-required"
-            };
-            if (activeAction != null) activeAction.Audio.Add(cue);
-            else
-            {
-                AddEventNoLock(new ReplayTimelineEventV11
-                {
-                    TimeTicks = ElapsedTicks(),
-                    TurnIndex = turnIndex,
-                    EventType = ReplayEventTypesV11.StateChanged,
-                    ActorId = lastState.ActiveActorId,
-                    Audio = new List<ReplayAudioCueV11> { cue }
-                });
             }
-            AttachAudioNoLock(cue, clip, "Resolved." + cue.Kind);
+            RecordActualAudioNoLock(
+                clip,
+                "",
+                playback.Bus,
+                playback.Request?.Kind ?? "ResolvedAudio",
+                playback.OwnerModId,
+                playback.ProviderId,
+                "Resolved." + (playback.Request?.Kind ?? "ResolvedAudio"),
+                playback.VolumeMultiplier);
         }
     }
 
-    private static IEnumerable<string> ExtractNativeResourceIds(object[]? arguments)
+    private static void RecordActualAudioNoLock(
+        AudioClip clip,
+        string nativeResourceId,
+        string? bus,
+        string? kind,
+        string? ownerModId,
+        string? providerId,
+        string usage,
+        float volumeMultiplier = 1f)
     {
-        foreach (var argument in arguments ?? Array.Empty<object>())
+        if (clip == null || activeDocument == null || lastState == null) return;
+        var normalizedBus = string.IsNullOrWhiteSpace(bus) ? "Effect" : bus!.Trim();
+        var startSample = ElapsedTicks()
+                          * ReplayOfflineAudioMixer.SampleRate
+                          / ReplayProtocolV11.TimebaseTicksPerSecond;
+        var key = normalizedBus + "|clip|" + clip.GetInstanceID();
+        if (string.Equals(key, lastAudioCueKey, StringComparison.Ordinal)
+            && Math.Abs(startSample - lastAudioStartSample) <= ReplayOfflineAudioMixer.SampleRate / 20)
+            return;
+        lastAudioCueKey = key;
+        lastAudioStartSample = startSample;
+        var cue = new ReplayAudioCueV11
         {
-            if (argument is string text)
+            NativeResourceId = NormalizeNativeResourceId(nativeResourceId),
+            ResolutionPolicy = "embedded-required",
+            OwnerModId = ownerModId ?? "",
+            ProviderId = providerId ?? "",
+            Kind = string.IsNullOrWhiteSpace(kind) ? "NativeAudio" : kind!.Trim(),
+            StartSample = startSample,
+            GainQ16 = (int)Math.Round(Math.Max(0f, volumeMultiplier) * 65_536f),
+            Bus = normalizedBus
+        };
+        if (activeAction != null) activeAction.Audio.Add(cue);
+        else
+        {
+            AddEventNoLock(new ReplayTimelineEventV11
             {
-                var value = NormalizeNativeResourceId(text);
-                if (value.Length > 0) yield return value;
-                continue;
-            }
-            if (argument is IEnumerable<string> values)
-            {
-                foreach (var textValue in values)
-                {
-                    var value = NormalizeNativeResourceId(textValue);
-                    if (value.Length > 0) yield return value;
-                }
-            }
+                TimeTicks = ElapsedTicks(),
+                TurnIndex = turnIndex,
+                EventType = ReplayEventTypesV11.StateChanged,
+                ActorId = lastState.ActiveActorId,
+                Audio = new List<ReplayAudioCueV11> { cue }
+            });
         }
+        AttachAudioNoLock(cue, clip, usage);
+    }
+
+    private static string NormalizeObservedAudioResource(string resourceId, string bus)
+    {
+        var normalized = NormalizeNativeResourceId(resourceId);
+        if (normalized.Length == 0) return "";
+        return string.Equals(bus, "Effect", StringComparison.OrdinalIgnoreCase)
+               && !normalized.StartsWith("Sounds/", StringComparison.OrdinalIgnoreCase)
+               && !normalized.StartsWith("Clip/", StringComparison.OrdinalIgnoreCase)
+            ? "Sounds/" + normalized
+            : normalized;
     }
 
     private static string NormalizeNativeResourceId(string value)
@@ -926,14 +975,20 @@ internal static class MatchReplayRecorder
             if (!canStoreReplay)
             {
                 record.CaptureDiagnostics = diagnostics.Concat(validation.Errors).Distinct(StringComparer.Ordinal).ToList();
-                var storedSummary = database.SaveSummaryV11(record, analysis);
+                var storedSummary = database.SaveRejectedV11(
+                    record,
+                    document,
+                    analysis,
+                    AuraToolsConfigService.MatchExperience.MatchRecords.Replay.ChunkTargetBytes);
+                var rejectedRemoved = storedSummary ? database.EnforceAutoLimit(limit) : 0;
                 return new FinalizationResult
                 {
                     Stored = storedSummary,
                     RecordId = record.RecordId,
                     ReplayReady = false,
+                    Removed = rejectedRemoved,
                     Message = storedSummary
-                        ? "对局摘要已保存；v11 回放验证失败：" + string.Join("; ", record.CaptureDiagnostics)
+                        ? "对局摘要和受限诊断草稿已保存；v11 回放验证失败：" + string.Join("; ", record.CaptureDiagnostics)
                         : "v11 回放和摘要均未保存。"
                 };
             }
@@ -1007,6 +1062,8 @@ internal static class MatchReplayRecorder
         AudioArbiterRuntime.ResolvedPlayback -= OnResolvedPlayback;
         AudioCapture.Drained -= OnAudioCapturesDrained;
         AudioCapture.Cancel();
+        NativeAudioCalls.Reset();
+        BaselineGate.Reset();
         activeRecord = null;
         activeDocument = null;
         catalog = null;
@@ -1019,10 +1076,9 @@ internal static class MatchReplayRecorder
         firstPlayerRoundSeen = false;
         lastAudioCueKey = "";
         lastAudioStartSample = long.MinValue;
-        lastBgmResourceId = "";
+        lastBgmClipInstanceId = 0;
         activeBgmCue = null;
-        completionPrepared = false;
-        pendingCompletionResult = "";
+        TerminalGate.Reset();
         Diagnostics.Clear();
     }
 

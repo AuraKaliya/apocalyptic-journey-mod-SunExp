@@ -55,7 +55,7 @@ internal static class ReplayOfflineAudioMixer
         using var transaction = AuraSharedFileStore.BeginWrite(AuraToolsIds.ModId, outputPath, overwrite: true);
         using (var writer = new BinaryWriter(transaction.Stream, Encoding.UTF8, leaveOpen: true))
         {
-            WriteHeader(writer, sampleFrames);
+            writer.Write(ReplayPcm16WaveContractV11.BuildHeader(sampleFrames, Channels, SampleRate));
             var block = new float[BlockFrames * Channels];
             for (var blockStart = 0L; blockStart < sampleFrames; blockStart += BlockFrames)
             {
@@ -141,69 +141,19 @@ internal static class ReplayOfflineAudioMixer
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
         try
         {
-            using var stream = File.OpenRead(path);
-            using var reader = new BinaryReader(stream);
-            if (new string(reader.ReadChars(4)) != "RIFF") return false;
-            reader.ReadInt32();
-            if (new string(reader.ReadChars(4)) != "WAVE") return false;
-            short format = 0;
-            short bits = 0;
-            var sampleRate = 0;
-            var channels = 0;
-            byte[] data = Array.Empty<byte>();
-            while (stream.Position + 8 <= stream.Length)
-            {
-                var chunk = new string(reader.ReadChars(4));
-                var length = reader.ReadInt32();
-                if (length < 0 || stream.Position + length > stream.Length) return false;
-                if (chunk == "fmt ")
-                {
-                    format = reader.ReadInt16();
-                    channels = reader.ReadInt16();
-                    sampleRate = reader.ReadInt32();
-                    reader.ReadInt32();
-                    reader.ReadInt16();
-                    bits = reader.ReadInt16();
-                    stream.Position += Math.Max(0, length - 16);
-                }
-                else if (chunk == "data") data = reader.ReadBytes(length);
-                else stream.Position += length;
-                if ((length & 1) != 0 && stream.Position < stream.Length) stream.Position++;
-            }
-            if (format != 1 || bits != 16 || sampleRate <= 0 || channels is < 1 or > 2
-                || data.Length % 2 != 0 || data.Length / 2 > MaximumDecodedClipSamples)
-            {
-                return false;
-            }
-            var samples = new float[data.Length / 2];
-            for (var index = 0; index < samples.Length; index++)
-            {
-                samples[index] = BitConverter.ToInt16(data, index * 2) / 32768f;
-            }
-            result = new DecodedAudio(samples, sampleRate, channels);
+            var payload = File.ReadAllBytes(path);
+            if (!ReplayPcm16WaveContractV11.TryRead(payload, out var wave, out _)) return false;
+            var samples = ReplayPcm16WaveContractV11.DecodeSamples(
+                payload,
+                wave,
+                MaximumDecodedClipSamples);
+            result = new DecodedAudio(samples, wave.SampleRate, wave.Channels);
             return true;
         }
         catch
         {
             return false;
         }
-    }
-
-    private static void WriteHeader(BinaryWriter writer, long sampleFrames)
-    {
-        var dataBytes = checked((int)(sampleFrames * Channels * 2));
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
-        writer.Write(36 + dataBytes);
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write((short)Channels);
-        writer.Write(SampleRate);
-        writer.Write(SampleRate * Channels * 2);
-        writer.Write((short)(Channels * 2));
-        writer.Write((short)16);
-        writer.Write(System.Text.Encoding.ASCII.GetBytes("data"));
-        writer.Write(dataBytes);
     }
 
     private static float Clamp(float value) => Math.Max(-1f, Math.Min(1f, value));

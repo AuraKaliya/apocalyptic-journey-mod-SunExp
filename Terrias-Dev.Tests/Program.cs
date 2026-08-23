@@ -38,6 +38,7 @@ internal static class Program
         TestSunCardPackSelectionMigration();
         TestCardGrantRequest();
         TestCombatCardViewPoolCatalog();
+        TestCombatCardTerminalBoundary();
         TestPerformanceSettings();
         TestCardMutationService();
         TestRuntimeCardAttachmentService();
@@ -1177,6 +1178,14 @@ internal static class Program
         Equal(PooledCardExitKind.Unsupported,
             PooledCardViewExit.ClassifyThrowTarget("Canvas/FightUI/FutureSpecialZone"),
             "Unknown future card exits fail closed instead of being treated as discard");
+        True(PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.Burn)
+             && PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.MoveToDiscard)
+             && PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.MoveToDrawPile)
+             && !PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.Unsupported),
+            "Every supported pooled card exit, including burn, commits one authoritative hand layout");
+        True(PooledCardViewExit.UsesDetachedExitLayer(PooledCardExitKind.Burn)
+             && !PooledCardViewExit.UsesDetachedExitLayer(PooledCardExitKind.Unsupported),
+            "Supported exit animations leave the live hand hierarchy before sibling and sorting repair");
 
         var close = new DataConfig(new Dictionary<string, string>
         {
@@ -1237,6 +1246,45 @@ internal static class Program
         ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "false");
         Equal(false, (bool)readDefaultOnFlag.Invoke(null, new object[] { "PoolFlagTest" })!,
             "An explicit textual false disables a default-on local presentation feature");
+    }
+
+    private static void TestCombatCardTerminalBoundary()
+    {
+        AuraBattleLifecycleStateRuntime.ResetForTests();
+        const long sessionId = 81;
+        AuraBattleLifecycleStateRuntime.Begin(sessionId);
+        AuraBattleLifecycleStateRuntime.Activate(sessionId);
+        var executor = new ScriptExecutor();
+
+        True(CombatCardApi.TryDrawPlayerCards(executor, 2, "test.active")
+             && executor.DrawCountCalls == 1
+             && executor.LastDrawCount == 2,
+            "active battle draw production routes through the guarded native executor boundary");
+
+        AuraBattleLifecycleStateRuntime.EnterOutcome(sessionId, AuraBattleOutcome.Win);
+        False(CombatCardApi.TryDrawPlayerCards(executor, 1, "test.lethal-followup"),
+            "draw production is rejected after the authoritative outcome boundary");
+        Equal(1, executor.DrawCountCalls,
+            "post-lethal draw rejection never reaches the native executor");
+        var deckCount = FightCardManager.Instance.cardList.Count;
+        var lateGrant = CardApi.GrantCardToHand(executor, CardGrantRequest.ToHand("spark"));
+        False(lateGrant.Success
+              || lateGrant.FailureStep != "terminal-barrier"
+              || FightCardManager.Instance.cardList.Count != deckCount,
+            "post-lethal generated-card grants are rejected before mutating the native deck or hand");
+
+        var fightUi = new FightUI { NeedUpdateCardMsg = true, started = true };
+        fightUi.createCardQueue.Enqueue(new DataConfig(new Dictionary<string, string> { ["Id"] = "late-one" }));
+        fightUi.createCardQueue.Enqueue(new DataConfig(new Dictionary<string, string> { ["Id"] = "late-two" }));
+        CardItem.canUse = true;
+        Equal(2, FightUiCardTerminalApi.CloseDrawProduction(fightUi, "test.settling"),
+            "terminal cleanup reports every queued late draw");
+        Equal(0, fightUi.createCardQueue.Count,
+            "terminal cleanup closes the native asynchronous draw producer queue");
+        False(fightUi.NeedUpdateCardMsg || CardItem.canUse,
+            "terminal cleanup disables pending hand refresh and card interaction");
+
+        AuraBattleLifecycleStateRuntime.End(sessionId);
     }
 
     private static void TestPerformanceSettings()
@@ -1530,6 +1578,9 @@ internal static class Program
 
     private static void TestCardGrantRequest()
     {
+        AuraBattleLifecycleStateRuntime.ResetForTests();
+        AuraBattleLifecycleStateRuntime.Begin(71);
+        AuraBattleLifecycleStateRuntime.Activate(71);
         var request = CardGrantRequest.ToHand("spark")
             .WithRuntimeTags("Burnout", "Burnout", "Nihility");
         Equal("Burnout,Nihility", request.RuntimeTags, "CardGrantRequest deduplicates runtime tags");
@@ -1592,6 +1643,7 @@ internal static class Program
         FightCardManager.Instance.usedCardList.Clear();
         True(CardApi.AddCardToDiscardPile(executor, TerriasIds.ForgottenCardId), "CardApi can create a combat card directly in the discard pile");
         Equal(TerriasIds.ForgottenCardId, CardConfigApi.Id(FightCardManager.Instance.usedCardList.Single()), "Discard-pile grants preserve the resolved card id");
+        AuraBattleLifecycleStateRuntime.End(71);
     }
 
     private static void TestCardMutationService()

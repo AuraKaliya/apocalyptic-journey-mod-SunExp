@@ -323,7 +323,7 @@ public static class CardScripts
         }
 
         self.SetStatus("Self");
-        self.DrawCount("1");
+        CombatCardApi.TryDrawPlayerCards(self, 1, "Card.LuckyJackpotB");
     }
 
     private static void UseGildedButterfly(ScriptExecutor self)
@@ -388,7 +388,7 @@ public static class CardScripts
         switch (verifiedSnapshot.Tier)
         {
             case GoldenPotentialTier.K:
-                self.DrawCount("3");
+                CombatCardApi.TryDrawPlayerCards(self, 3, "Card.BlankCheck.K");
                 self.ChangePower("1");
                 break;
             case GoldenPotentialTier.M:
@@ -529,7 +529,7 @@ public static class CardScripts
         {
             self.AddBuff(TerriasIds.SolarRadiance, discarded.ToString());
         }
-        self.DrawCount("3");
+        CombatCardApi.TryDrawPlayerCards(self, 3, "Card.SolarPhaseTuning");
     }
 
     private static void UseSolarCoronation(ScriptExecutor self)
@@ -568,7 +568,7 @@ public static class CardScripts
         }
         else
         {
-            self.DrawCount("1");
+            CombatCardApi.TryDrawPlayerCards(self, 1, "Card.RadiantOath");
         }
     }
 
@@ -638,7 +638,7 @@ public static class CardScripts
     {
         self.SetStatus("Self");
         self.AddBuff(TerriasIds.SolarRadiance, "1");
-        self.DrawCount("1");
+        CombatCardApi.TryDrawPlayerCards(self, 1, "Card.SolarReturn");
     }
 
     private static void UseSolarOriginCore(ScriptExecutor self)
@@ -794,7 +794,7 @@ public static class CardScripts
         var draw = converted / 5;
         if (draw > 0)
         {
-            self.DrawCount(draw.ToString());
+            CombatCardApi.TryDrawPlayerCards(self, draw, "Card.EmberCycle");
         }
     }
 

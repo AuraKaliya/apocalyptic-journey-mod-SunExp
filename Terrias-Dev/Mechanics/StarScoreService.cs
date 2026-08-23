@@ -285,7 +285,7 @@ public static class StarScoreService
     private static void UseStart(ScriptExecutor self)
     {
         self.SetStatus("Self");
-        self.DrawCount("2");
+        CombatCardApi.TryDrawPlayerCards(self, 2, "StarScore.Opening");
     }
 
     private static void UseSustain(ScriptExecutor self)
@@ -457,7 +457,7 @@ public static class StarScoreService
         foreach (var target in ExecutorApi.FriendlyTargets(self, includeSelf: true))
         {
             ExecutorApi.SetStatusForTarget(self, target, "Self");
-            self.DrawCount(count.ToString());
+            CombatCardApi.TryDrawPlayerCards(self, count, "StarScore.FriendlyParty");
         }
     }
 

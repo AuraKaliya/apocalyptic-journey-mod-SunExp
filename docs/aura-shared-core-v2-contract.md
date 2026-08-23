@@ -151,12 +151,21 @@ contribution。物理来源由 MOD 根目录唯一 `.modproj` 数字 id 绑定�
 
 | 类别 | 当前能力 | 约束 |
 | --- | --- | --- |
-| Hook/生命周期 | routed hook、exactly-once Battle phase、Card router、类型化 CardAction transaction、battle lease、session/ledger | 订阅必须可释放；持久内容不能把 battle listener 标记写进 Vars；单步失败不得中断无关步骤 |
+| Hook/生命周期 | routed hook、exactly-once Battle phase、`AuraBattleLifecycleStateRuntime`、`BattleFinalized`、Card router、类型化 CardAction transaction、battle lease、session/ledger | 只有 Active 可生产战斗表现；Outcome 后先关生产者、再清队列，终局快照只能在全部 BattleEnded 清理后的 Finalized 屏障生成 |
 | 主线程调度 | `AuraSharedFrameScheduler`、`AuraSharedFrameStepRunner` | Unity/Witch/Mirror/UI 工作只在主线程执行；遵守 phase、预算和分片 |
 | 后台工作 | `AuraSharedBackgroundWorkScheduler` | 仅纯 CPU、文件 I/O 和不可变快照；按 owner 限流，完成回主线程 |
 | 网络基础 | RPC sender/authority、authoritative sync、payload budget、secure envelope | 不携带 Terrias 内容语义；状态变化仍由领域权威验证 |
 | 性能基础 | resource cache、object pool、combat card-zone snapshot | 容量有界；不得缓存业务所有权策略 |
 | 通用工具 | identity、JSON、diagnostics、log store、带有效状态变更通知的 feature switch | owner/domain identity 必须稳定且可诊断；变更回调在锁外执行 |
+
+`AuraCardPresentationRuntime` 的战斗卡发布要求单个候选同时拥有精确 visual root、
+`IDataConfig` 与 `ICard`，并校验配置/卡牌实例身份。共享层不得把不同回调或不同对象的
+部分 root、config、card 拼成一次请求，也不得从一个 `FightUI.CreateCardItem` 外层调用
+推断其内部新建卡牌；内部 `CardItem.Init`/显式 `SetCardStyle` 才是可绑定上下文。
+池准备和销毁发 reset，bind 发 apply；身份不一致时拒绝并诊断，由拥有者下一次精确
+bind 重试。池化卡牌的退出动画必须先离开 live hand hierarchy；Burn、弃牌和回抽都在
+删除手牌条目后修复 sibling/SortingGroup 顺序，并通过 owner-qualified key 合并一次原生
+手牌布局，不能因抑制原生 `cardcontainer` 而漏掉焚毁后的 reflow。
 
 后台调度不得修改进程级 CLR thread-pool 上限，也不得在 worker 线程访问 Unity 对象。
 模块级后台任务必须使用独立 owner id；activation lease释放时调用

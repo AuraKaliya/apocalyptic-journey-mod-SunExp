@@ -194,42 +194,18 @@ internal sealed class ReplayNativeAudioPlayer : IDisposable
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
         try
         {
-            using var stream = File.OpenRead(path);
-            using var reader = new BinaryReader(stream);
-            if (new string(reader.ReadChars(4)) != "RIFF") return null;
-            reader.ReadInt32();
-            if (new string(reader.ReadChars(4)) != "WAVE") return null;
-            short format = 0;
-            short bits = 0;
-            var frequency = 0;
-            var channels = 0;
-            byte[] data = Array.Empty<byte>();
-            while (stream.Position + 8 <= stream.Length)
-            {
-                var kind = new string(reader.ReadChars(4));
-                var length = reader.ReadInt32();
-                if (length < 0 || stream.Position + length > stream.Length) return null;
-                if (kind == "fmt ")
-                {
-                    format = reader.ReadInt16();
-                    channels = reader.ReadInt16();
-                    frequency = reader.ReadInt32();
-                    reader.ReadInt32();
-                    reader.ReadInt16();
-                    bits = reader.ReadInt16();
-                    stream.Position += Math.Max(0, length - 16);
-                }
-                else if (kind == "data") data = reader.ReadBytes(length);
-                else stream.Position += length;
-                if ((length & 1) != 0 && stream.Position < stream.Length) stream.Position++;
-            }
-            if (format != 1 || bits != 16 || frequency <= 0 || channels is < 1 or > 2 || data.Length % 2 != 0)
-                return null;
-            var samples = new float[data.Length / 2];
-            for (var index = 0; index < samples.Length; index++)
-                samples[index] = BitConverter.ToInt16(data, index * 2) / 32768f;
-            var frames = samples.Length / channels;
-            var clip = AudioClip.Create("ReplayAudio_" + sha256.Substring(0, Math.Min(12, sha256.Length)), frames, channels, frequency, false);
+            var payload = File.ReadAllBytes(path);
+            if (!ReplayPcm16WaveContractV11.TryRead(payload, out var wave, out _)) return null;
+            var samples = ReplayPcm16WaveContractV11.DecodeSamples(
+                payload,
+                wave,
+                maximumSampleValues: 64 * 1024 * 1024);
+            var clip = AudioClip.Create(
+                "ReplayAudio_" + sha256.Substring(0, Math.Min(12, sha256.Length)),
+                checked((int)wave.SampleFrames),
+                wave.Channels,
+                wave.SampleRate,
+                false);
             return AudioClipSetData?.Invoke(clip, new object[] { samples, 0 }) is true ? clip : null;
         }
         catch

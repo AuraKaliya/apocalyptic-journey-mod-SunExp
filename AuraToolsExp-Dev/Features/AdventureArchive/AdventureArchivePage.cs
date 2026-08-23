@@ -229,7 +229,7 @@ internal static class AdventureArchivePage
                 MatchReplayLaunchCoordinator.Start(
                     record.RecordId,
                     0,
-                    () => AuraToolsUi.CloseOwnedOverlays("Replay Document v11 native launch"),
+                    MatchRecordLibraryPresenter.CaptureReturnState(record.RecordId),
                     result => SetStatus("无法播放：" + result));
             }, 64f, AuraToolsUi.CompactButtonHeight);
             AuraToolsUi.SetButtonAvailable(

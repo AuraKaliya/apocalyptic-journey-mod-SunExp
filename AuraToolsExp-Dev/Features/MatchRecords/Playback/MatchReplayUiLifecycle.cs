@@ -23,35 +23,12 @@ internal static class MatchReplayUiLifecycle
 {
     private static readonly MatchReplayManagedUiOwnership ManagedUiOwnership = new();
 
-    internal static List<GameObject> SnapshotTransitionRoots()
-    {
-        return SnapshotOriginTransitionRoots()
-            .Concat(FindReplayOwnedPresentationUis().Select(ui => ui.gameObject))
-            .Where(root => root != null)
-            .Distinct()
-            .ToList();
-    }
-
-    internal static List<GameObject> SnapshotOriginTransitionRoots()
-    {
-        return FindSettings()
-            .Select(setting => setting.gameObject)
-            .Concat(Object.FindObjectsByType<AuraToolsOwnedOverlay>(
-                    FindObjectsInactive.Include,
-                FindObjectsSortMode.None)
-                .Where(marker => marker != null && marker.gameObject != null)
-                .Select(marker => marker.gameObject))
-            .Where(root => root != null)
-            .Distinct()
-            .ToList();
-    }
-
     internal static void PrepareForReplayView()
     {
         // This only removes leftovers from an already completed replay. Native UI
         // created for the current replay is captured below and closed with the
         // replay-owned native view.
-        ForceCloseReplayOwnedPresentationUis("Match replay host prepare");
+        CloseReplayOwnedPresentationUis("Match replay host prepare");
 
         var manager = WitchUiManager.Instance
                       ?? throw new InvalidOperationException("UIManager is unavailable at replay host preparation.");
@@ -64,43 +41,11 @@ internal static class MatchReplayUiLifecycle
                            + ManagedUiOwnership.BaselineCount + ".");
     }
 
-    internal static List<GameObject> SnapshotReplayOwnedPresentationRoots()
-    {
-        return FindReplayOwnedPresentationUis()
-            .Where(ui => ui != null && ui.gameObject != null)
-            .Select(ui => ui.gameObject)
-            .Distinct()
-            .ToList();
-    }
-
     internal static int ReplayOwnedPresentationUiCount => FindReplayOwnedPresentationUis().Count;
 
     internal static int SettingUiCount => NativeSettingUiCacheApi.FindInstances().Count;
 
-    internal static void RequestCloseReplayOwnedPresentationUis(string source)
-    {
-        var replayOwned = FindReplayOwnedPresentationUis();
-        var selfClosing = replayOwned
-            .Where(ui => MatchReplayManagedUiOwnership.IsSelfClosingPresentation(ui.gameObject.name))
-            .ToList();
-        var requested = replayOwned.Except(selfClosing).ToList();
-        foreach (var ui in requested)
-        {
-            RequestCloseNativeUi(ui, source);
-        }
-
-        AuraToolsLog.Debug("[MatchRecords] replay-owned presentation UI close requested: source=" + source
-                           + ", count=" + requested.Count
-                           + ", names=" + (requested.Count == 0
-                               ? "none"
-                               : string.Join("|", requested.Select(ui => ui.gameObject.name)))
-                           + ", selfClosingAwaited=" + (selfClosing.Count == 0
-                               ? "none"
-                               : string.Join("|", selfClosing.Select(ui => ui.gameObject.name)))
-                           + ".");
-    }
-
-    internal static void ForceCloseReplayOwnedPresentationUis(string source)
+    internal static void CloseReplayOwnedPresentationUis(string source)
     {
         var replayOwned = FindReplayOwnedPresentationUis();
         foreach (var ui in replayOwned)
@@ -121,22 +66,7 @@ internal static class MatchReplayUiLifecycle
         ManagedUiOwnership.Reset();
     }
 
-    internal static void RequestCloseOriginUi(string source)
-    {
-        AuraToolsSettingsRuntime.ReleaseForReplayTransition();
-        AuraToolsUi.CloseOwnedOverlays(source);
-
-        var settings = FindSettings();
-        foreach (var setting in settings)
-        {
-            RequestCloseNativeUi(setting, source);
-        }
-
-        AuraToolsLog.Debug("[MatchRecords] replay UI boundary close requested: source=" + source
-                           + ", settings=" + settings.Count + ".");
-    }
-
-    internal static void ForceCloseOriginUi(string source)
+    internal static void CloseOriginUi(string source)
     {
         AuraToolsSettingsRuntime.ReleaseForReplayTransition();
         AuraToolsUi.CloseOwnedOverlays(source);
@@ -146,38 +76,8 @@ internal static class MatchReplayUiLifecycle
             ForceDestroyNativeUi(setting, source);
         }
 
-        AuraToolsLog.Warn("[MatchRecords] replay UI boundary force-closed: source=" + source
-                          + ", settings=" + settings.Count + ".");
-    }
-
-    internal static void RequestCloseNativeUi(UIBase ui, string source)
-    {
-        if (ui == null || ui.gameObject == null)
-        {
-            return;
-        }
-
-        var root = ui.gameObject;
-        ClearSelectionWithin(root);
-        UiRaycastSafeDestroyRuntime.DisableRaycasts(root, source, AuraToolsLog.Debug);
-        try
-        {
-            var manager = WitchUiManager.Instance;
-            if (manager != null && ReferenceEquals(manager.Find(root.name), ui))
-            {
-                manager.CloseUI(root.name);
-            }
-            else
-            {
-                ui.Close();
-            }
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[MatchRecords] native UI close degraded; forcing root: ui="
-                              + root.name + ", source=" + source + ", error=" + ex.Message);
-            ForceDestroyRoot(root, source + " native-close-fallback");
-        }
+        AuraToolsLog.Debug("[MatchRecords] replay origin UI closed: source=" + source
+                           + ", settings=" + settings.Count + ".");
     }
 
     internal static void ForceDestroyRoot(GameObject root, string source)
@@ -218,8 +118,7 @@ internal static class MatchReplayUiLifecycle
         return manager.GetAllUI()
             .Where(ui => ui != null && ui.gameObject != null)
             .Where(ui => ManagedUiOwnership.IsReplayPresentationOwned(
-                ui.gameObject.GetInstanceID(),
-                ui.gameObject.name))
+                ui.gameObject.GetInstanceID()))
             .Distinct()
             .ToList();
     }

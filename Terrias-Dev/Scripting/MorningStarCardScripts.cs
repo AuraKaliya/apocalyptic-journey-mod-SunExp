@@ -83,7 +83,7 @@ public static class MorningStarCardScripts
     {
         self.SetStatus("Self");
         var existing = CurrentHandConfigs(self);
-        self.DrawCount("3");
+        CombatCardApi.TryDrawPlayerCards(self, 3, "MorningStar.StarMap");
         AttachMorningStarSealToNewHandCards(self, existing);
         CardApi.SelectAndBurnHandCards(self, 3);
     }
@@ -93,7 +93,7 @@ public static class MorningStarCardScripts
         StarScoreService.ClearCurrentNotes(self);
         self.SetStatus("Self");
         self.AddBuff(TerriasIds.StarBlessing, "1");
-        self.DrawCount("1");
+        CombatCardApi.TryDrawPlayerCards(self, 1, "MorningStar.BlankStarScore");
     }
 
     private static void UseMeterRewrite(ScriptExecutor self)
@@ -128,7 +128,7 @@ public static class MorningStarCardScripts
 
         self.SetStatus("Self");
         self.AddBuff(TerriasIds.Resonance, cleared.ToString());
-        self.DrawCount(cleared.ToString());
+        CombatCardApi.TryDrawPlayerCards(self, cleared, "MorningStar.RestMark");
     }
 
     private static void UseMorningStarStage(ScriptExecutor self)

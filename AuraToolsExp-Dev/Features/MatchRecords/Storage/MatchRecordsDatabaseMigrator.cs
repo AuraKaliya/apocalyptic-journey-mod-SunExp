@@ -8,7 +8,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 internal static class MatchRecordsDatabaseMigrator
 {
-    internal const int CurrentVersion = 4;
+    internal const int CurrentVersion = 7;
 
     internal static void BackupBeforeUpgrade(string databasePath)
     {

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
+using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
@@ -357,6 +358,16 @@ public static class CardApi
         if (string.IsNullOrWhiteSpace(resolved))
         {
             return Fail(resolved, null, "resolve", "unknown cardId=" + cardId, warnings);
+        }
+
+        if (!AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation)
+        {
+            return Fail(
+                resolved,
+                null,
+                "terminal-barrier",
+                "battle terminal barrier is closed",
+                warnings);
         }
 
         var cards = FightCardManager.Instance?.cardList;

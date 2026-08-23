@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -27,33 +26,9 @@ internal sealed class MatchReplayManagedUiOwnership
         IsCaptured = true;
     }
 
-    internal bool IsReplayOwned(int instanceId, string? uiName)
+    internal bool IsReplayPresentationOwned(int instanceId)
     {
-        if (IsTransportSupport(uiName))
-        {
-            return true;
-        }
-
         return IsCaptured && !baseline.Contains(instanceId);
-    }
-
-    internal bool IsReplayPresentationOwned(int instanceId, string? uiName)
-    {
-        return !IsTransportSupport(uiName) && IsReplayOwned(instanceId, uiName);
-    }
-
-    internal static bool IsTransportSupport(string? uiName)
-    {
-        return false;
-    }
-
-    internal static bool IsSelfClosingPresentation(string? uiName)
-    {
-        // TitleUI owns its own short presentation lifetime. Requesting Close()
-        // while that coroutine is already completing can race its terminal
-        // callbacks; the replay menu barrier still tracks and force-cleans it
-        // if the native lifecycle fails to finish.
-        return string.Equals(uiName, "TitleUI", StringComparison.Ordinal);
     }
 
     internal void Reset()

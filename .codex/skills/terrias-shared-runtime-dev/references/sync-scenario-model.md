@@ -123,8 +123,9 @@ Use this order unless a feature has a stronger local reason:
    ledgers, duplicate windows, and stale UI overlays.
 5. Action or event hook: local owner may generate a command or presentation
    request; remote observation hooks must not create a new authoritative event.
-6. Battle end or mode exit: commit authoritative state, broadcast snapshots,
-   persist player-scoped results, and clear short-lived state.
+6. Battle end or mode exit: close transient producers at `OutcomeEntering`,
+   prepare results at `BattleSettling`, clear queues/objects at `BattleEnded`,
+   then publish or persist terminal snapshots from `BattleFinalized`.
 7. Bulk transfer: expire incomplete transfers, enforce active-buffer caps, and
    validate checksum before applying the payload.
 

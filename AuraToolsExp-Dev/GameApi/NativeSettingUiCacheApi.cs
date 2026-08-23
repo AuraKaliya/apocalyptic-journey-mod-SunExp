@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Witch.UI;
 using Witch.UI.Window;
 using WitchUiManager = Witch.UI.UIManager;
 
@@ -26,11 +27,6 @@ internal static class NativeSettingUiCacheApi
             .ToList();
     }
 
-    internal static SettingUI? GetRegistered()
-    {
-        return WitchUiManager.Instance?.GetUI<SettingUI>(SettingUiName);
-    }
-
     internal static SettingUI PrewarmAndHideFresh()
     {
         var manager = WitchUiManager.Instance
@@ -49,7 +45,25 @@ internal static class NativeSettingUiCacheApi
         var setting = manager.ShowUI<SettingUI>(SettingUiName)
                       ?? throw new InvalidOperationException(
                           "The native SettingUI preload returned no instance.");
-        setting.Hide();
+        var animationType = setting.animationType;
+        try
+        {
+            // Establish the same cached-hidden state synchronously. Leaving a fade-out
+            // tween alive while Show() is called again can execute its stale completion
+            // callback against the newly opened settings instance.
+            setting.animationType = UIBase.AnimationType.None;
+            setting.Hide();
+        }
+        finally
+        {
+            setting.animationType = animationType;
+        }
+
+        if (setting.gameObject.activeSelf)
+        {
+            throw new InvalidOperationException(
+                "The rebuilt SettingUI cache did not reach its hidden terminal state.");
+        }
         return setting;
     }
 }

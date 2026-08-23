@@ -9,7 +9,7 @@ internal static class MatchReplayLaunchCoordinator
     internal static void Start(
         string recordId,
         long eventSequence,
-        Action closeOrigin,
+        MatchRecordLibraryViewState returnState,
         Action<string> failed)
     {
         if (!CanLaunch(out var blocker))
@@ -18,38 +18,45 @@ internal static class MatchReplayLaunchCoordinator
             return;
         }
 
-        MatchReplayFailurePresenter.Dismiss();
-        UiTransitionGuardRuntime.BeginTransition(
-            null,
-            AuraToolsIds.ModId,
-            "Match replay launch",
-            8);
-        closeOrigin?.Invoke();
-        MatchReplayUiLifecycle.RequestCloseOriginUi("Match replay launch");
+        if (!MatchReplayPlayer.TryPrepareInteractive(recordId, eventSequence, out var preparation))
+        {
+            failed?.Invoke(preparation);
+            return;
+        }
+
+        var originCommitted = false;
         try
         {
+            MatchReplayReturnCoordinator.Arm(returnState);
+            MatchReplayPlayer.CommitOrigin();
+            originCommitted = true;
+            UiTransitionGuardRuntime.BeginTransition(
+                null,
+                AuraToolsIds.ModId,
+                "Match replay launch commit",
+                8);
+            MatchReplayUiLifecycle.CloseOriginUi("Match replay launch commit");
             UiTransitionGuardRuntime.RunAfterGuard(
                 null,
                 AuraToolsIds.ModId,
-                "Match replay launch",
-                () =>
-                {
-                    var started = eventSequence <= 0
-                        ? MatchReplayPlayer.TryStart(recordId, out var result)
-                        : MatchReplayPlayer.TryStartAtSequence(recordId, eventSequence, out result);
-                    if (!started) failed?.Invoke(result);
-                },
+                "Match replay launch activate",
+                () => MatchReplayPlayer.TryActivatePrepared(out _),
                 2);
         }
         catch (Exception ex)
         {
-            failed?.Invoke("无法开始回放：" + ex.Message);
+            var detail = "无法提交回放界面切换：" + ex.Message;
+            MatchReplayPlayer.FailCommittedStart(detail);
+            if (!originCommitted)
+            {
+                failed?.Invoke(detail);
+            }
         }
     }
 
     internal static bool TryStartForExport(
         string recordId,
-        Action closeOrigin,
+        MatchRecordLibraryViewState returnState,
         Action started,
         Action<string> failed,
         out string message)
@@ -59,46 +66,66 @@ internal static class MatchReplayLaunchCoordinator
             return false;
         }
 
+        if (!MatchReplayPlayer.TryPrepareForExport(recordId, true, out message))
+        {
+            return false;
+        }
+
+        var originCommitted = false;
         try
         {
-            MatchReplayFailurePresenter.Dismiss();
+            MatchReplayReturnCoordinator.Arm(returnState);
+            MatchReplayPlayer.CommitOrigin();
+            originCommitted = true;
             UiTransitionGuardRuntime.BeginTransition(
                 null,
                 AuraToolsIds.ModId,
-                "Match replay video export launch",
+                "Match replay video export commit",
                 8);
-            closeOrigin?.Invoke();
-            MatchReplayUiLifecycle.RequestCloseOriginUi("Match replay video export launch");
+            MatchReplayUiLifecycle.CloseOriginUi("Match replay video export commit");
             UiTransitionGuardRuntime.RunAfterGuard(
                 null,
                 AuraToolsIds.ModId,
-                "Match replay video export launch",
+                "Match replay video export activate",
                 () =>
                 {
-                    if (!MatchReplayPlayer.TryStartForExport(recordId, out var result))
+                    if (!MatchReplayPlayer.TryActivatePrepared(out var activation))
                     {
-                        failed?.Invoke(result);
+                        failed?.Invoke(activation);
                         return;
                     }
+
                     started?.Invoke();
                 },
                 2);
-            message = "正在关闭原界面并准备战斗回放。";
+            message = "回放视图已准备，正在进入视频导出。";
             return true;
         }
         catch (Exception ex)
         {
-            message = "无法开始视频导出：" + ex.Message;
-            failed?.Invoke(message);
+            message = "无法提交视频导出界面切换：" + ex.Message;
+            MatchReplayPlayer.FailCommittedStart(message);
+            if (!originCommitted)
+            {
+                failed?.Invoke(message);
+            }
             return false;
         }
     }
 
     private static bool CanLaunch(out string message)
     {
-        if (MatchReplaySessionState.IsExiting)
+        if (MatchReplayReturnCoordinator.IsReturning)
         {
-            message = "上一场回放仍在退出并重建主菜单，请稍候再试。";
+            message = "上一场回放正在恢复对局记录页面，请稍候再试。";
+            return false;
+        }
+
+        if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Idle)
+        {
+            message = MatchReplaySessionState.IsExiting
+                ? "上一场回放仍在退出并恢复对局记录页面，请稍候再试。"
+                : "已有对局正在准备或回放。";
             return false;
         }
 

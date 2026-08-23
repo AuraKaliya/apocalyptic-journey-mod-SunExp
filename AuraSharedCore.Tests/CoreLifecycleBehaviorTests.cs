@@ -29,8 +29,36 @@ internal static partial class CoreTestSuite
         AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
     
         AuraLifecycleSessionRuntime.EndBattleSession();
+        AuraBattleLifecycleStateRuntime.ResetForTests();
         var firstEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
+        AuraBattleLifecycleStateRuntime.Begin(firstEpoch);
+        Assert(AuraBattleLifecycleStateRuntime.CurrentPhase == AuraBattleLifecyclePhase.Initializing
+               && !AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation,
+            "battle lifecycle keeps combat presentation closed during initialization");
+        AuraBattleLifecycleStateRuntime.Activate(firstEpoch);
+        Assert(AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation,
+            "battle lifecycle opens combat presentation only for the active phase");
+        AuraBattleLifecycleStateRuntime.EnterOutcome(firstEpoch, AuraBattleOutcome.Win);
+        Assert(AuraBattleLifecycleStateRuntime.HasEnteredOutcome
+               && !AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation
+               && AuraBattleLifecycleStateRuntime.Current.Outcome == AuraBattleOutcome.Win,
+            "outcome entry atomically closes every transient combat producer");
+        AuraBattleLifecycleStateRuntime.Activate(firstEpoch);
+        Assert(AuraBattleLifecycleStateRuntime.CurrentPhase == AuraBattleLifecyclePhase.OutcomeEntering,
+            "an out-of-order active signal cannot reopen producers after outcome entry");
+        AuraBattleLifecycleStateRuntime.EnterSettling(firstEpoch, AuraBattleOutcome.Win);
+        AuraBattleLifecycleStateRuntime.EnterEnded(firstEpoch, AuraBattleOutcome.Win);
+        AuraBattleLifecycleStateRuntime.EnterFinalized(firstEpoch, AuraBattleOutcome.Win);
+        Assert(AuraBattleLifecycleStateRuntime.CurrentPhase == AuraBattleLifecyclePhase.Finalized,
+            "battle finalization exposes an ordered post-cleanup terminal barrier");
+        AuraBattleLifecycleStateRuntime.End(firstEpoch);
+        Assert(AuraBattleLifecycleStateRuntime.CurrentPhase == AuraBattleLifecyclePhase.None,
+            "battle lifecycle state is cleared after terminal subscribers complete");
         var secondEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
+        AuraBattleLifecycleStateRuntime.Begin(secondEpoch);
+        Assert(AuraBattleLifecycleStateRuntime.Current.SessionId == secondEpoch
+               && AuraBattleLifecycleStateRuntime.CurrentPhase == AuraBattleLifecyclePhase.Initializing,
+            "a restarted battle replaces the interrupted terminal state with the new session epoch");
         Assert(secondEpoch > firstEpoch,
             "RestartBattleSession should advance the epoch even while the previous battle session is active");
         Assert(AuraLifecycleSessionRuntime.IsBattleSessionActive,
@@ -72,6 +100,43 @@ internal static partial class CoreTestSuite
         Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "marker", "BuffA"),
             "different effect category can claim");
         AuraLifecycleOperationLedger.ClearScopePrefix("test-battle:");
+
+        var containerRoot = new object();
+        var newCardConfig = new object();
+        Assert(!AuraCardPresentationBindingPolicy.TrySelectExact(new[]
+        {
+            new AuraCardPresentationBindingCandidate { Root = containerRoot },
+            new AuraCardPresentationBindingCandidate { Config = newCardConfig }
+        }, out _),
+            "card presentation never combines a multi-card container root with a separate card config");
+        var exactRoot = new object();
+        var exactConfig = new object();
+        Assert(AuraCardPresentationBindingPolicy.TrySelectExact(new[]
+        {
+            new AuraCardPresentationBindingCandidate
+            {
+                Root = exactRoot,
+                Config = exactConfig,
+                SameSource = true,
+                RootInstanceId = "card-instance",
+                ConfigInstanceId = "card-instance"
+            }
+        }, out var exactBinding)
+               && ReferenceEquals(exactBinding.Root, exactRoot)
+               && ReferenceEquals(exactBinding.Config, exactConfig),
+            "card presentation accepts an exact root/config pair from one card instance");
+        Assert(!AuraCardPresentationBindingPolicy.TrySelectExact(new[]
+        {
+            new AuraCardPresentationBindingCandidate
+            {
+                Root = exactRoot,
+                Config = newCardConfig,
+                SameSource = true,
+                RootInstanceId = "old-instance",
+                ConfigInstanceId = "new-instance"
+            }
+        }, out _),
+            "pooled card presentation rejects stale root/config instance identities");
     }
     
     public static void TestIdentityContracts()

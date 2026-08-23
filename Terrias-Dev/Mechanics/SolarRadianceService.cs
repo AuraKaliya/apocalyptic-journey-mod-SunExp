@@ -79,7 +79,7 @@ public static class SolarRadianceService
         {
             effectCount++;
             executor.SetStatus("Self");
-            executor.DrawCount("1");
+            CombatCardApi.TryDrawPlayerCards(executor, 1, "SolarCrown.Tier2");
         }
 
         if (tier >= 3)

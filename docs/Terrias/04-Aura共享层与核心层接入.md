@@ -88,6 +88,12 @@ Terrias 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明�
 
 Aura 核心层只理解稳定 identity、协议、资源、事务和生命周期，不理解“日耀回忆”“白曜”“无尽深渊奖励”等业务含义。
 
+`AuraBattleLifecycleStateRuntime` 是战斗阶段的唯一只读状态：只有 `Active` 接受新的
+战斗表现；`OutcomeEntering` 起关闭生产者，`BattleSettling`/`BattleEnded` 清理，
+`BattleFinalized` 在全部结束订阅者完成后供记录器封存终局。Terrias 的抽牌统一经过
+`CombatCardApi`，对象池终局清理同时关闭 `FightUI.createCardQueue`，不得只销毁当前
+卡牌而让异步生产队列重新补牌。
+
 ## 4. Terrias 启动时的共享接入
 
 `Entry.Initialize` 当前共享相关步骤为：

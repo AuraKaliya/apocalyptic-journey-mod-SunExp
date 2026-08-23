@@ -15,19 +15,20 @@ using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
-using WitchUiManager = Witch.UI.UIManager;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords;
 
 internal static class MatchRecordLibraryPresenter
 {
     private const string OverlayName = "AuraToolsMatchRecordLibrary";
-    private const string ReplayFailureOverlayName = "AuraToolsMatchReplayFailure";
     private const string AdventureCollection = "Adventures";
     private static Transform? host;
     private static Transform? body;
+    private static Transform? recordScrollContent;
+    private static MatchRecordLibraryScrollState? pendingScrollRestore;
     private static string collection = MatchRecordCollections.Auto;
     private static readonly List<long> Cursors = new() { 0 };
     private static int pageIndex;
@@ -47,22 +48,21 @@ internal static class MatchRecordLibraryPresenter
 
     internal static void Show(Transform parent)
     {
+        Show(parent, null, "");
+    }
+
+    internal static void Show(
+        Transform parent,
+        MatchRecordLibraryViewState? returnState,
+        string returnMessage)
+    {
         host = parent;
-        collection = MatchRecordCollections.Auto;
-        Cursors.Clear();
-        Cursors.Add(0);
-        pageIndex = 0;
-        message = "";
+        RestoreState(returnState);
+        message = returnMessage ?? "";
         armedDeleteId = "";
         clearArmed = false;
         pendingImportPath = "";
         pendingImportPreview = null;
-        searchText = "";
-        resultFilter = "";
-        dateRangeDays = 0;
-        compatibleOnly = false;
-        SelectedIds.Clear();
-        editingId = "";
         var window = AuraToolsUi.CreateOverlay(
             OverlayName,
             parent,
@@ -87,10 +87,13 @@ internal static class MatchRecordLibraryPresenter
             return;
         }
 
+        var viewState = pendingScrollRestore ?? CaptureScrollState();
+        pendingScrollRestore = null;
+        recordScrollContent = null;
         AuraToolsUi.ClearChildren(body);
         if (collection == AdventureCollection)
         {
-            BuildAdventureView();
+            BuildAdventureView(viewState);
             return;
         }
 
@@ -226,6 +229,7 @@ internal static class MatchRecordLibraryPresenter
         }
 
         var scroll = AuraToolsUi.CreateScroll(body, "MatchRecordRows");
+        recordScrollContent = scroll;
         if (page.Items.Count == 0)
         {
             AuraToolsUi.AddText(scroll, "这里还没有可回放的对局。", AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 72f, 1f);
@@ -251,12 +255,14 @@ internal static class MatchRecordLibraryPresenter
         AuraToolsUi.AddText(footer.transform, "第 " + (pageIndex + 1) + " 页，共 " + page.TotalCount + " 条", AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
         var next = AuraToolsUi.AddButton(footer.transform, "下一页", () => NextPage(page.NextCursor), 88f);
         AuraToolsUi.SetButtonAvailable(next, page.HasMore, "已经是最后一页");
+        RestoreScrollState(scroll, viewState);
     }
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
         var canPlay = CanPlayV11(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
+        AuraUiStableId.Assign(row, "match-record." + item.RecordId);
         AuraToolsUi.SetFixedHeight(row, 72f);
         AuraToolsUi.AddImage(row, AuraToolsUi.Row);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
@@ -300,7 +306,7 @@ internal static class MatchRecordLibraryPresenter
         AuraToolsUi.SetButtonAvailable(
             replayButton,
             canPlay,
-            ReplayAvailabilityLabel(item));
+            ReplayAvailabilityDetail(item));
         ToolboxIconButtonV2.Create(
             row.transform,
             "record.more",
@@ -396,42 +402,16 @@ internal static class MatchRecordLibraryPresenter
 
     private static void Replay(string recordId)
     {
+        var returnState = CaptureReturnState(recordId);
         MatchReplayLaunchCoordinator.Start(
             recordId,
             0,
-            () =>
-            {
-                AuraToolsUi.CloseOwnedOverlays("Replay Document v11 native launch");
-                WitchUiManager.Instance?.CloseUI("SettingUI");
-                ResetState();
-            },
+            returnState,
             detail =>
             {
                 message = detail;
-                ShowReplayFailure(detail);
+                Build();
             });
-    }
-
-    private static void ShowReplayFailure(string detail)
-    {
-        if (host == null)
-        {
-            return;
-        }
-
-        var window = AuraToolsUi.CreateOverlay(
-            ReplayFailureOverlayName,
-            host,
-            "无法开始对局回放",
-            maxWidth: 680f);
-        AuraToolsUi.AddText(
-            window.transform,
-            detail,
-            AuraToolsUi.BodyFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.WarningText,
-            96f,
-            1f);
     }
 
     private static bool CanPlayV11(MatchRecord item)
@@ -444,10 +424,18 @@ internal static class MatchRecordLibraryPresenter
     {
         if (CanPlayV11(item)) return "v11 可回放";
         if (string.Equals(item.ReplayState, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase))
-            return "仅保留对局摘要";
+            return item.CaptureDiagnostics.Count > 0 ? "回放捕获失败" : "仅保留对局摘要";
         if (string.Equals(item.ReplayState, MatchReplayStates.Corrupt, StringComparison.OrdinalIgnoreCase))
             return "记录已损坏";
         return "回放未完成，仅可分析";
+    }
+
+    private static string ReplayAvailabilityDetail(MatchRecord item)
+    {
+        var label = ReplayAvailabilityLabel(item);
+        return item.CaptureDiagnostics.Count == 0
+            ? label
+            : label + "；诊断草稿已保留：" + string.Join("；", item.CaptureDiagnostics);
     }
 
     private static void SetSearch(string value)
@@ -700,7 +688,7 @@ internal static class MatchRecordLibraryPresenter
         Build();
     }
 
-    private static void BuildAdventureView()
+    private static void BuildAdventureView(MatchRecordLibraryScrollState? viewState)
     {
         if (body == null) return;
         DamageHistoryPage<OutOfRunDamageHistoryRecord> page;
@@ -736,6 +724,7 @@ internal static class MatchRecordLibraryPresenter
         }
 
         var scroll = AuraToolsUi.CreateScroll(body, "AdventureRows");
+        recordScrollContent = scroll;
         if (page.Items.Count == 0)
         {
             AuraToolsUi.AddText(scroll, "这里还没有冒险结算统计。", AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, AuraToolsUi.MutedText, 72f, 1f);
@@ -767,6 +756,108 @@ internal static class MatchRecordLibraryPresenter
             AuraToolsUi.HintFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
         var next = AuraToolsUi.AddButton(footer.transform, "下一页", () => NextPage(page.NextCursor), 88f);
         AuraToolsUi.SetButtonAvailable(next, page.HasMore, "已经是最后一页");
+        RestoreScrollState(scroll, viewState);
+    }
+
+    internal static MatchRecordLibraryViewState CaptureReturnState(string focusRecordId)
+    {
+        if (host == null || body == null)
+        {
+            return new MatchRecordLibraryViewState
+            {
+                FocusRecordId = focusRecordId ?? "",
+                Scroll = new MatchRecordLibraryScrollState
+                {
+                    AnchorId = string.IsNullOrWhiteSpace(focusRecordId)
+                        ? ""
+                        : "match-record." + focusRecordId
+                }
+            }.CloneNormalized();
+        }
+
+        return new MatchRecordLibraryViewState
+        {
+            Collection = collection,
+            Cursors = Cursors.ToList(),
+            PageIndex = pageIndex,
+            SearchText = searchText,
+            ResultFilter = resultFilter,
+            DateRangeDays = dateRangeDays,
+            CompatibleOnly = compatibleOnly,
+            SelectedIds = new HashSet<string>(SelectedIds, StringComparer.Ordinal),
+            EditingId = editingId,
+            EditingTags = editingTags,
+            EditingNotes = editingNotes,
+            FocusRecordId = focusRecordId ?? "",
+            Scroll = CaptureScrollState()
+        }.CloneNormalized();
+    }
+
+    private static void RestoreState(MatchRecordLibraryViewState? returnState)
+    {
+        var state = (returnState ?? new MatchRecordLibraryViewState()).CloneNormalized();
+        collection = state.Collection;
+        Cursors.Clear();
+        Cursors.AddRange(state.Cursors);
+        pageIndex = state.PageIndex;
+        searchText = state.SearchText;
+        resultFilter = state.ResultFilter;
+        dateRangeDays = state.DateRangeDays;
+        compatibleOnly = state.CompatibleOnly;
+        SelectedIds.Clear();
+        foreach (var selectedId in state.SelectedIds)
+        {
+            SelectedIds.Add(selectedId);
+        }
+        editingId = state.EditingId;
+        editingTags = state.EditingTags;
+        editingNotes = state.EditingNotes;
+        pendingScrollRestore = state.Scroll?.Clone();
+        if (pendingScrollRestore != null
+            && !string.IsNullOrWhiteSpace(state.FocusRecordId))
+        {
+            pendingScrollRestore.AnchorId = "match-record." + state.FocusRecordId;
+        }
+    }
+
+    private static MatchRecordLibraryScrollState? CaptureScrollState()
+    {
+        if (recordScrollContent == null)
+        {
+            return null;
+        }
+
+        var snapshot = AuraUiViewState.CaptureForContent(recordScrollContent);
+        return snapshot == null
+            ? null
+            : new MatchRecordLibraryScrollState
+            {
+                FocusedId = snapshot.FocusedId,
+                AnchorId = snapshot.AnchorId,
+                AnchorOffsetY = snapshot.AnchorOffsetY,
+                NormalizedFallback = snapshot.NormalizedFallback
+            };
+    }
+
+    private static void RestoreScrollState(
+        Transform content,
+        MatchRecordLibraryScrollState? state)
+    {
+        if (state == null)
+        {
+            return;
+        }
+
+        AuraUiViewState.RestoreAfterLayout(
+            content,
+            new AuraUiViewStateSnapshot
+            {
+                FocusedId = state.FocusedId,
+                AnchorId = state.AnchorId,
+                AnchorOffsetY = state.AnchorOffsetY,
+                NormalizedFallback = state.NormalizedFallback
+            },
+            "AuraTools.MatchRecords.Return");
     }
 
     private static void SwitchCollection(string value)
@@ -879,6 +970,8 @@ internal static class MatchRecordLibraryPresenter
     {
         host = null;
         body = null;
+        recordScrollContent = null;
+        pendingScrollRestore = null;
         message = "";
         armedDeleteId = "";
         clearArmed = false;

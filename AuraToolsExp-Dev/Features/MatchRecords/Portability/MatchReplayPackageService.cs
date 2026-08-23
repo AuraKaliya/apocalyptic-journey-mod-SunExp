@@ -249,8 +249,22 @@ internal static class MatchReplayPackageService
         {
             throw new InvalidDataException("v11 回放包文档哈希与清单不一致。");
         }
-        var validation = ReplayDocumentValidatorV11.Validate(document);
-        if (!validation.IsValid) throw new InvalidDataException("v11 回放包验证失败：" + validation.Message);
+        var actualDocumentHash = ReplayCanonicalJsonV11.DocumentHash(document);
+        if (!string.Equals(actualDocumentHash, document.Header.DocumentSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("v11 回放包文档哈希无效。");
+        }
+        if (!ReplayPcm16WaveContractV11.TryNormalizeLegacyAttachments(
+                document,
+                out var repairedPcmAttachments,
+                out var pcmMigrationError))
+            throw new InvalidDataException("v11 回放包 PCM 迁移失败：" + pcmMigrationError);
+        var repairedCards = ReplayCardPresentationContractV11.NormalizeDocument(document);
+        var validation = repairedCards > 0 || repairedPcmAttachments > 0
+            ? ReplayDocumentFinalizerV11.FinalizeAndValidate(document)
+            : ReplayDocumentValidatorV11.Validate(document);
+        if (!validation.IsValid)
+            throw new InvalidDataException("v11 回放包验证失败：" + validation.Message);
         MatchAnalysisReport? analysis = null;
         if (payloads.TryGetValue("analysis/summary.json.gz", out var analysisPayload))
         {

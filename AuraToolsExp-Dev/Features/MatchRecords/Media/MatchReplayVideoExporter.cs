@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
@@ -60,7 +61,10 @@ internal static class MatchReplayVideoExporter
         }
     }
 
-    internal static bool TryStart(string recordId, Action closeOrigin, out string message)
+    internal static bool TryStart(
+        string recordId,
+        MatchRecordLibraryViewState returnState,
+        out string message)
     {
         if (workerRunning || current != null && !IsTerminal(current.State))
         {
@@ -120,12 +124,12 @@ internal static class MatchReplayVideoExporter
             MatchRecordStorage.Database.CreateExportJob(job);
             current = job;
             workerRunning = true;
-            MatchReplayExportControlsPresenter.Show();
             var accepted = MatchReplayLaunchCoordinator.TryStartForExport(
                 recordId,
-                closeOrigin,
+                returnState,
                 () =>
                 {
+                    MatchReplayExportControlsPresenter.Show();
                     if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, document)) != null)
                         return;
                     workerRunning = false;
@@ -206,6 +210,17 @@ internal static class MatchReplayVideoExporter
             Fail(job, committing ? "commit-interrupted" : "export-failed", failure.Message, deleteStaging: !committing);
             AuraToolsLog.Warn("[MatchRecords] v11 native video export failed: " + failure);
         }
+        if (MatchReplayPlayer.IsActive)
+        {
+            var completed = failure == null
+                            && string.Equals(
+                                job.State,
+                                MatchReplayExportStates.Ready,
+                                StringComparison.Ordinal);
+            MatchReplayPlayer.StopAfterExport(
+                completed,
+                completed ? job.Message : failure?.Message ?? job.Message);
+        }
         workerRunning = false;
         ResumePending();
     }
@@ -275,7 +290,20 @@ internal static class MatchReplayVideoExporter
             {
                 if (job.CancelRequested) throw new OperationCanceledException();
                 if (frameIndex > 0)
+                {
                     MatchReplayPlayer.AdvanceExportClock(1000f / job.FramesPerSecond);
+                    if (MatchReplayPlayer.HasBlockingError)
+                    {
+                        throw new InvalidOperationException(
+                            string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
+                                ? "原生回放投影在视频导出期间失败。"
+                                : MatchReplayPlayer.PlaybackIssue);
+                    }
+                }
+                if (!MatchReplayPlayer.IsActive)
+                {
+                    throw new InvalidOperationException("原生回放会话在视频导出完成前退出。");
+                }
                 yield return new WaitForEndOfFrame();
                 surface.Render();
                 var frame = CaptureFrame(target, reader, job.Width, job.Height);
@@ -362,7 +390,6 @@ internal static class MatchReplayVideoExporter
             pipeline?.Dispose();
             surface?.Dispose();
             Time.captureFramerate = previousCaptureFramerate;
-            if (MatchReplayPlayer.IsActive) MatchReplayPlayer.Stop();
             if (target != null)
             {
                 target.Release();

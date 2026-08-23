@@ -366,6 +366,14 @@
           "deny": ["\\bGetTable\\s*\\("]
         },
         {
+          "id": "combat-card-draw-entrypoint",
+          "description": "Terrias combat draws must pass through the terminal-aware CombatCardApi.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["^Terrias-Dev/GameApi/CombatCardApi\\.cs$"],
+          "deny": ["\\.\\s*DrawCount\\s*\\("]
+        },
+        {
           "id": "terrias-retired-battle-runtime-paths",
           "description": "Terrias must not restore persistent Vars hook tokens, the old action router, or the permanent Projection poller.",
           "roots": ["Terrias-Dev"],

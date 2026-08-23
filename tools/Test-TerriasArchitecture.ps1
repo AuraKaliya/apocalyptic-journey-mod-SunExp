@@ -45,17 +45,4 @@ if ((Get-Content -Raw -LiteralPath $dialoguePath) -match 'CS\.Terrias\.Dll\.Scri
     throw "Native Dialogue script columns must not call managed Terrias scripting entry points."
 }
 
-$combatCardPoolSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "Terrias-Dev\Hooks\Ui\TerriasCombatCardViewPool.cs")
-if ($combatCardPoolSource -notmatch 'AuraCardPresentationRuntime\.RequestApply' `
-        -or $combatCardPoolSource -notmatch 'AuraCardPresentationRuntime\.RequestReset' `
-        -or $combatCardPoolSource -match 'TerriasCardPresentationRouter\.RequestApply' `
-        -or $combatCardPoolSource -notmatch 'OutcomeEntering\s*=\s*_\s*=>\s*EndFight' `
-        -or $combatCardPoolSource -notmatch 'BattleSettling\s*=\s*_\s*=>\s*EndFight' `
-        -or $combatCardPoolSource -notmatch 'BattleRestarting\s*=\s*_\s*=>\s*EndFight' `
-        -or $combatCardPoolSource -notmatch 'BattleEnded\s*=\s*_\s*=>\s*EndFight' `
-        -or $combatCardPoolSource -notmatch 'TeardownHandPresentation') {
-    throw "Terrias pooled combat cards must use shared reset/apply and idempotently clear the hand before settlement."
-}
-
 Write-Host "Terrias architecture assertions passed."

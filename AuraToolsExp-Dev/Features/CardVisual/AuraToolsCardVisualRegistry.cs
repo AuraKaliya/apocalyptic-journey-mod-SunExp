@@ -13,7 +13,9 @@ namespace AuraToolsExp.Dll.Features.CardVisual;
 public static class AuraToolsCardVisualRegistry
 {
     private const string RegistryFileName = "card-visual.registry.json";
-    public const int CurrentProtocolVersion = 4;
+    public const int CurrentProtocolVersion = 7;
+    public const string CurrentRendererId = "aura.card-visual.material-v5";
+    public const string CurrentFrameCoverageProfile = "native-frame-v4";
     private static CardVisualRegistryDocument document = new();
 
     public static IReadOnlyList<CardFrameThemeDefinition> Themes => document.Themes;
@@ -125,7 +127,8 @@ public static class AuraToolsCardVisualRegistry
 
     private static void Validate(CardVisualRegistryDocument value)
     {
-        if (value.SchemaVersion != 4) throw new InvalidDataException("Unsupported card visual schemaVersion=" + value.SchemaVersion);
+        if (value.SchemaVersion != CurrentProtocolVersion)
+            throw new InvalidDataException("Unsupported card visual schemaVersion=" + value.SchemaVersion);
         if (value.Protocol.MinVersion > CurrentProtocolVersion
             || value.Protocol.PreferredVersion < value.Protocol.MinVersion)
             throw new InvalidDataException("Card visual protocol is incompatible.");
@@ -153,13 +156,14 @@ public static class AuraToolsCardVisualRegistry
         foreach (var effect in value.Effects)
         {
             if (string.IsNullOrWhiteSpace(effect.EffectId)
-                || !string.Equals(effect.RendererId, "aura.card-visual.material-v2", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(effect.RendererId, CurrentRendererId, StringComparison.OrdinalIgnoreCase)
                 || string.IsNullOrWhiteSpace(effect.BundlePath)
-                || string.IsNullOrWhiteSpace(effect.MaterialPath)
+                || string.IsNullOrWhiteSpace(effect.ImageMaterialPath)
+                || string.IsNullOrWhiteSpace(effect.MeshMaterialPath)
                 || (!string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
                     && !string.Equals(effect.TargetLayer, "frame", StringComparison.OrdinalIgnoreCase))
                 || string.Equals(effect.TargetLayer, "frame", StringComparison.OrdinalIgnoreCase)
-                   && !string.Equals(effect.CoverageProfile, "native-frame-v1", StringComparison.OrdinalIgnoreCase)
+                   && !string.Equals(effect.CoverageProfile, CurrentFrameCoverageProfile, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
                    && !string.Equals(effect.CoverageProfile, "native-face-v1", StringComparison.OrdinalIgnoreCase))
             {
@@ -190,7 +194,7 @@ public static class AuraToolsCardVisualRegistry
 
 public sealed class CardVisualRegistryDocument
 {
-    [JsonProperty("schemaVersion")] public int SchemaVersion { get; set; } = 4;
+    [JsonProperty("schemaVersion")] public int SchemaVersion { get; set; } = AuraToolsCardVisualRegistry.CurrentProtocolVersion;
     [JsonProperty("ownerModId")] public string OwnerModId { get; set; } = "";
     [JsonProperty("protocol")] public CardVisualProtocolManifest Protocol { get; set; } = new();
     [JsonProperty("themes")] public List<CardFrameThemeDefinition> Themes { get; set; } = new();
@@ -289,7 +293,8 @@ public sealed class CardDynamicEffectDefinition
     [JsonProperty("targetLayer")] public string TargetLayer { get; set; } = "";
     [JsonProperty("coverageProfile")] public string CoverageProfile { get; set; } = "";
     [JsonProperty("bundlePath")] public string BundlePath { get; set; } = "";
-    [JsonProperty("materialPath")] public string MaterialPath { get; set; } = "";
+    [JsonProperty("imageMaterialPath")] public string ImageMaterialPath { get; set; } = "";
+    [JsonProperty("meshMaterialPath")] public string MeshMaterialPath { get; set; } = "";
     [JsonProperty("textures")] public Dictionary<string, string> Textures { get; set; } = new(StringComparer.Ordinal);
     [JsonProperty("floats")] public Dictionary<string, float> Floats { get; set; } = new(StringComparer.Ordinal);
     [JsonProperty("colors")] public Dictionary<string, string> Colors { get; set; } = new(StringComparer.Ordinal);
@@ -306,7 +311,8 @@ public sealed class CardDynamicEffectDefinition
         TargetLayer = TargetLayer?.Trim() ?? "";
         CoverageProfile = CoverageProfile?.Trim() ?? "";
         BundlePath = BundlePath?.Trim() ?? "";
-        MaterialPath = MaterialPath?.Trim() ?? "";
+        ImageMaterialPath = ImageMaterialPath?.Trim() ?? "";
+        MeshMaterialPath = MeshMaterialPath?.Trim() ?? "";
         Textures ??= new Dictionary<string, string>(StringComparer.Ordinal);
         Floats ??= new Dictionary<string, float>(StringComparer.Ordinal);
         Colors ??= new Dictionary<string, string>(StringComparer.Ordinal);

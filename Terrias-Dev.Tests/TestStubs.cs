@@ -329,6 +329,10 @@ public sealed class ScriptExecutor
 
     public bool ThrowOnDelivery { get; set; }
 
+    public int DrawCountCalls { get; private set; }
+
+    public int LastDrawCount { get; private set; }
+
     public List<CardItem> HandCard { get; } = new();
 
     public List<CardItem> WaitCard { get; } = new();
@@ -382,6 +386,18 @@ public sealed class ScriptExecutor
             throw new InvalidOperationException("delivery failed");
         }
     }
+
+    public void DrawCount(string value)
+    {
+        DrawCountCalls++;
+        LastDrawCount = int.TryParse(value, out var parsed) ? parsed : 0;
+    }
+
+    public void ResetDrawDiagnostics()
+    {
+        DrawCountCalls = 0;
+        LastDrawCount = 0;
+    }
 }
 
 public sealed class FightCardManager
@@ -395,6 +411,18 @@ public sealed class FightCardManager
     public Dictionary<DataConfig, HashSet<string>> CardTags { get; } = new();
     public int RefreshTagCount { get; private set; }
 
+    public int RandomIndexCount { get; private set; }
+
+    public bool HasCard()
+    {
+        return cardList.Count > 0;
+    }
+
+    public void RandomIndex()
+    {
+        RandomIndexCount++;
+    }
+
     public void RefreshTag(IDataConfig config)
     {
         RefreshTagCount++;
@@ -407,6 +435,7 @@ public sealed class FightCardManager
     public void ResetDiagnostics()
     {
         RefreshTagCount = 0;
+        RandomIndexCount = 0;
     }
 }
 
@@ -421,6 +450,7 @@ public sealed class RoleTable
 
 public sealed class CardItem
 {
+    public static bool canUse = true;
     private readonly int instanceId = Guid.NewGuid().GetHashCode();
 
     public DataConfig? dataConfig { get; set; }
@@ -772,12 +802,42 @@ namespace Terrias.Dll.Mechanics
     }
 }
 
+namespace Witch.UI
+{
+    using Witch.UI.Window;
+
+    public sealed class UIManager
+    {
+        public static UIManager Instance { get; } = new();
+
+        public FightUI? FightUi { get; set; }
+
+        public T? GetUI<T>(string name) where T : class
+        {
+            return FightUi as T;
+        }
+    }
+}
+
 namespace Witch.UI.Window
 {
-    public static class FightUI
+    public sealed class FightUI
     {
         public static List<CardItem> cardItemList { get; } = new();
 
         public static List<CardItem> WaitCard { get; } = new();
+
+        public Queue<DataConfig> createCardQueue { get; } = new();
+
+        public bool NeedUpdateCardMsg { get; set; }
+
+        public bool started { get; set; }
+
+        public int CreatedCardCount { get; private set; }
+
+        public void CreateCardItem(int count)
+        {
+            CreatedCardCount += Math.Max(0, count);
+        }
     }
 }

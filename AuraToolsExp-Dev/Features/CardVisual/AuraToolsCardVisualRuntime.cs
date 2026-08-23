@@ -10,6 +10,7 @@ using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
@@ -372,7 +373,7 @@ public static class AuraToolsCardVisualRuntime
         var cardId = ReadId(context.Config);
         if (cardId.Length == 0) return;
         var qualifiedCard = QualifiedCard(context.Config);
-        var root = FindVisualRoot(context.Root);
+        var root = FindVisualRoot(context.Root, context.Surface);
         if (root == null) return;
         var marker = root.GetComponent<AuraToolsCardVisualMarker>() ?? root.gameObject.AddComponent<AuraToolsCardVisualMarker>();
 
@@ -404,7 +405,7 @@ public static class AuraToolsCardVisualRuntime
     private static void Reset(AuraCardPresentationContext context)
     {
         if (context.Root == null) return;
-        var root = FindVisualRoot(context.Root) ?? context.Root;
+        var root = FindVisualRoot(context.Root, context.Surface) ?? context.Root;
         root.GetComponent<AuraToolsCardVisualMarker>()?.ClearAll();
     }
 
@@ -430,18 +431,14 @@ public static class AuraToolsCardVisualRuntime
         };
     }
 
-    private static Transform? FindVisualRoot(Transform root)
+    private static Transform? FindVisualRoot(Transform root, AuraCardPresentationSurface surface)
     {
         if (root.Find("Front/background") != null || root.Find("Front/FrontBack") != null) return root;
-        var queue = new Queue<Transform>();
-        queue.Enqueue(root);
-        var scanned = 0;
-        while (queue.Count > 0 && scanned++ < 96)
-        {
-            var value = queue.Dequeue();
-            if (value.Find("Front/background") != null || value.Find("Front/FrontBack") != null) return value;
-            for (var index = 0; index < value.childCount; index++) queue.Enqueue(value.GetChild(index));
-        }
+        if (surface == AuraCardPresentationSurface.CombatCard) return null;
+        var cardRoot = root.Find("CardItem");
+        if (cardRoot != null
+            && (cardRoot.Find("Front/background") != null || cardRoot.Find("Front/FrontBack") != null))
+            return cardRoot;
         return null;
     }
 
@@ -605,8 +602,8 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
                 : transform.Find("Front/FrontBack");
         var image = node?.GetComponent<Image>();
         var mesh = node?.GetComponent<MeshRenderer>();
-        var preferMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>() != null;
-        var useMesh = mesh != null && (preferMesh || image == null);
+        var targetKind = CardVisualRenderTargetPolicy.Resolve(image != null, mesh != null);
+        var useMesh = targetKind == CardVisualRenderTargetKind.Mesh;
         var runtimeTexture = useMesh
             ? (ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
                 ? originalEffectMeshMaterial.mainTexture
@@ -617,6 +614,7 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
             : effect.EffectId
               + ":" + effect.TargetLayer
               + ":" + effect.CoverageProfile
+              + ":" + targetKind
               + ":" + (runtimeTexture == null ? 0 : runtimeTexture.GetInstanceID())
               + ":" + string.Join(";", settings?.Parameters
                   .OrderBy(value => value.Key)
@@ -637,10 +635,10 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         ClearEffect();
         effectSignature = signature;
         if (effect == null || node == null || runtimeTexture == null) return;
-        effectMaterial = AuraToolsCardVisualAssets.CreateMaterial(effect, settings, runtimeTexture);
+        effectMaterial = AuraToolsCardVisualAssets.CreateMaterial(effect, settings, runtimeTexture, useMesh);
         if (effectMaterial == null) return;
 
-        if (useMesh && mesh != null)
+        if (targetKind == CardVisualRenderTargetKind.Mesh && mesh != null)
         {
             originalEffectMeshMaterial = mesh.material;
             effectMeshTarget = mesh;
@@ -648,7 +646,7 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
             return;
         }
 
-        if (image != null)
+        if (targetKind == CardVisualRenderTargetKind.Image && image != null)
         {
             originalEffectImageMaterial = image.material;
             effectImageTarget = image;
@@ -786,12 +784,31 @@ internal static class AuraToolsCardVisualAssets
     public static Material? CreateMaterial(
         CardDynamicEffectDefinition effect,
         CardDynamicEffectSettings? settings,
-        Texture? runtimeTexture)
+        Texture? runtimeTexture,
+        bool useMesh)
     {
         try
         {
-            var source = AuraToolsVisualBundleRuntime.LoadAsset<Material>(effect.BundlePath, effect.MaterialPath);
-            if (source == null) return null;
+            var materialPath = useMesh ? effect.MeshMaterialPath : effect.ImageMaterialPath;
+            var source = AuraToolsVisualBundleRuntime.LoadAsset<Material>(effect.BundlePath, materialPath);
+            if (source == null)
+                throw new InvalidDataException("material asset is missing: " + materialPath);
+            if (source.shader == null || !source.shader.isSupported || source.passCount <= 0)
+                throw new InvalidDataException(
+                    "shader is unsupported for " + (useMesh ? "MeshRenderer" : "Image")
+                    + ": " + (source.shader?.name ?? "<missing>"));
+            if (string.Equals(source.shader.name, "Hidden/InternalErrorShader", StringComparison.Ordinal))
+                throw new InvalidDataException("material resolved to Unity's internal error shader: " + materialPath);
+            if (!GraphicsSettings.isScriptableRenderPipelineEnabled)
+                throw new InvalidDataException("the active game renderer is not a scriptable render pipeline");
+            var renderPipeline = source.GetTag("RenderPipeline", false, "");
+            if (!string.Equals(renderPipeline, "UniversalPipeline", StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    "material does not declare the UniversalPipeline contract: " + materialPath);
+            var requiredPass = useMesh ? "CardFrameEffectURP" : "Default";
+            if (source.FindPass(requiredPass) < 0)
+                throw new InvalidDataException(
+                    "material is missing the required " + requiredPass + " pass: " + materialPath);
             var material = new Material(source) { name = "AuraTools_CardVisual_" + effect.EffectId };
             foreach (var pair in effect.Floats)
                 if (material.HasProperty(pair.Key)) material.SetFloat(pair.Key, pair.Value);

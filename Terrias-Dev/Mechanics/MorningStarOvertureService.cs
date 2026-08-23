@@ -164,7 +164,7 @@ public static class MorningStarOvertureService
         }
 
         executor.SetStatus("Self");
-        executor.DrawCount(stage.ToString());
+        CombatCardApi.TryDrawPlayerCards(executor, stage, "MorningStar.StageRoundStart");
     }
 
     private static void EnsureRoundHooks(ScriptExecutor? self)
