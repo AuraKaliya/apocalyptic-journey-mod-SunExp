@@ -2,8 +2,8 @@
   "schemaVersion": 4,
   "ownerModId": "Terrias",
   "audioProtocol": {
-    "minVersion": 7,
-    "preferredVersion": 7
+    "minVersion": 8,
+    "preferredVersion": 8
   },
   "defaults": {
     "sync": true,
@@ -86,7 +86,7 @@
       "cooldownSeconds": 0.2,
       "match": {
         "stages": [
-          "PresentationCommitted"
+          "Committed"
         ],
         "careerIds": [
           "wuna",
@@ -96,10 +96,7 @@
           "wuna",
           "Terrias_wuna_wuna"
         ],
-        "cardIds": [
-          "Terrias_wuna_wuna_white_sun_prayer",
-          "*wuna_white_sun_prayer"
-        ]
+        "skillSlot": 1
       },
       "ownerModId": "Terrias",
       "displayName": "乌娜·白曜圣祷",
@@ -116,7 +113,7 @@
       "cooldownSeconds": 0.2,
       "match": {
         "stages": [
-          "PresentationCommitted"
+          "Committed"
         ],
         "careerIds": [
           "wuna",
@@ -126,10 +123,7 @@
           "wuna",
           "Terrias_wuna_wuna"
         ],
-        "cardIds": [
-          "Terrias_wuna_wuna_grave_song",
-          "*wuna_grave_song"
-        ]
+        "skillSlot": 2
       },
       "ownerModId": "Terrias",
       "displayName": "乌娜·墓歌",
@@ -247,7 +241,7 @@
       "cooldownSeconds": 0.2,
       "match": {
         "stages": [
-          "PresentationCommitted"
+          "Committed"
         ],
         "careerIds": [
           "columbina",
@@ -257,10 +251,7 @@
           "columbina",
           "Terrias_columbina_columbina"
         ],
-        "cardIds": [
-          "Terrias_columbina_columbina_eternal_tide",
-          "*columbina_eternal_tide"
-        ]
+        "skillSlot": 1
       },
       "ownerModId": "Terrias",
       "displayName": "哥伦比娅·永恒潮汐"
@@ -280,7 +271,7 @@
       "cooldownSeconds": 0.2,
       "match": {
         "stages": [
-          "PresentationCommitted"
+          "Committed"
         ],
         "careerIds": [
           "columbina",
@@ -290,10 +281,7 @@
           "columbina",
           "Terrias_columbina_columbina"
         ],
-        "cardIds": [
-          "Terrias_columbina_columbina_homesickness",
-          "*columbina_homesickness"
-        ]
+        "skillSlot": 2
       },
       "ownerModId": "Terrias",
       "displayName": "哥伦比娅·她的乡愁"

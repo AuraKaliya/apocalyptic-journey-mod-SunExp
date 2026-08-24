@@ -71,7 +71,7 @@ flowchart LR
 ### 3.3 更多次元和内部模板
 
 - `polymorph`、`witch_projection`、`heart_change`、`spirit_ball` 是公开入口卡；
-- `polymorph_role_template`、`projection_role_template`、`spirit_card_template` 是锁定模板卡；
+- `polymorph_role_template`、`projection_role_template`、`projection_basic_action`、`spirit_card_template` 是锁定模板/运行时保障卡；
 - 它们的业务由百变、投影、心变和精灵服务承担，CardScripts 只提供入口。
 
 #### 百变会话与冷却

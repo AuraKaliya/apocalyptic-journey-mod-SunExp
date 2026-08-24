@@ -35,6 +35,7 @@ internal sealed partial class AudioArbiterContractTests
         Equal(0, provider.priority, "provider priority default");
         Null(provider.match, "provider match default");
         Null(provider.suppressOriginal, "provider suppression default");
+        Null(new AudioProviderMatch().skillSlot, "skill-slot match default");
     }
     
     private void VerifyConstants()

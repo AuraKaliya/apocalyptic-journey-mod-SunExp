@@ -21,6 +21,8 @@ public sealed class ProjectionOtherObj : Partner
 
     public string OwnerPlayerId { get; private set; } = "";
 
+    internal CombatAutoTurnResult? LastAutoTurnResult { get; private set; }
+
     public override string Type => "Projection";
 
     public bool InitProjection(
@@ -104,6 +106,7 @@ public sealed class ProjectionOtherObj : Partner
 
     public override IEnumerator DoAction()
     {
+        LastAutoTurnResult = null;
         FightManager.Instance?.ChangeUnit(FightType.Partner);
         if (!CompanionAuthorityService.IsAuthoritative())
         {
@@ -160,6 +163,7 @@ public sealed class ProjectionOtherObj : Partner
             runner.Step(Time.unscaledTime);
             yield return null;
         }
+        LastAutoTurnResult = runner.Result;
 
         if (Status.CurHp > 0
             && Status.state != IStatusManager.State.Dead
@@ -285,6 +289,14 @@ public sealed class ProjectionOtherObj : Partner
 
     private void CompleteSkippedTurn(string source)
     {
+        LastAutoTurnResult = new CombatAutoTurnResult
+        {
+            Reason = string.Equals(source, "NoAction", StringComparison.Ordinal)
+                ? CombatAgentCompletionReason.NoLegalAction
+                : CombatAgentCompletionReason.FatalExecutionFailure,
+            Forced = true,
+            Message = "projection turn skipped: " + source
+        };
         cardState?.CompleteTurn(Status);
         battleState?.AdvanceTurn();
         ProjectionSummonService.BroadcastTurnCompleted(

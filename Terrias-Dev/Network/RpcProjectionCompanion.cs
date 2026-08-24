@@ -24,6 +24,18 @@ public sealed class ProjectionCompanionSnapshot
 
     public long CompletedTurnSequence { get; set; }
 
+    public int SummonRoundSequence { get; set; }
+
+    public string SummonTurnToken { get; set; } = "";
+
+    public long SummonTurnOrder { get; set; }
+
+    public long SummonTurnRevision { get; set; }
+
+    public ProjectionSummonTurnTransactionState SummonTurnState { get; set; }
+
+    public string SummonTurnDetail { get; set; } = "";
+
     public bool Active { get; set; } = true;
 
     public string RoleId { get; set; } = "";
@@ -171,6 +183,77 @@ public sealed class RpcProjectionSummonResult : RpcCommandBase
     public override void RpcExecute()
     {
         ProjectionSummonService.ApplySummonResult(Result, "RpcProjectionSummonResult");
+    }
+}
+
+[Serializable]
+public sealed class ProjectionSummonTurnSnapshot
+{
+    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int BattleEpoch { get; set; }
+    public string Token { get; set; } = "";
+    public int RoundSequence { get; set; }
+    public long Order { get; set; }
+    public long Revision { get; set; }
+    public ProjectionSummonTurnTransactionState State { get; set; }
+    public string StatusId { get; set; } = "";
+    public string Generation { get; set; } = "";
+    public string Detail { get; set; } = "";
+
+    public ProjectionSummonTurnTransaction ToTransaction()
+    {
+        return new ProjectionSummonTurnTransaction
+        {
+            Token = Token,
+            RoundSequence = RoundSequence,
+            Order = Order,
+            Revision = Revision,
+            State = State,
+            StatusId = StatusId,
+            Generation = Generation,
+            Detail = Detail
+        };
+    }
+}
+
+[Serializable]
+public sealed class RpcProjectionSummonTurnState : RpcCommandBase
+{
+    public ProjectionSummonTurnSnapshot Snapshot { get; set; } = new();
+
+    public RpcProjectionSummonTurnState()
+    {
+    }
+
+    public RpcProjectionSummonTurnState(ProjectionSummonTurnSnapshot snapshot)
+    {
+        Snapshot = snapshot ?? new ProjectionSummonTurnSnapshot();
+    }
+
+    public override void RpcExecute()
+    {
+        if (CompanionAuthorityService.IsAuthoritative())
+        {
+            // The listen-server host applied this transition before sending
+            // the RPC. Reapplying its own queued frame can only create stale
+            // diagnostics and is never an authority repair path.
+            return;
+        }
+        if (Snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
+            || Snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch)
+        {
+            TerriasLog.Warn("[PartnerTurn] incompatible summon-turn snapshot ignored: protocol="
+                            + Snapshot.ProtocolVersion
+                            + ", epoch="
+                            + Snapshot.BattleEpoch
+                            + ", localEpoch="
+                            + CompanionAuthorityService.BattleEpoch);
+            return;
+        }
+
+        ProjectionTurnCoordinator.ApplyAuthoritativeTransaction(
+            Snapshot.ToTransaction(),
+            "RpcProjectionSummonTurnState");
     }
 }
 

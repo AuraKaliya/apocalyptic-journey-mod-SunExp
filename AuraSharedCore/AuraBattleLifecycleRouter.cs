@@ -27,6 +27,7 @@ public sealed class AuraBattleLifecycleSubscription
     public Action<ModHookContext>? PlayerTurnEntering { get; set; }
     public Action<ModHookContext>? PlayerRoundStarting { get; set; }
     public Action<ModHookContext>? PlayerRoundReady { get; set; }
+    public Action<ModHookContext>? PlayerTurnCompleted { get; set; }
     public Action<ModHookContext>? BattleRestarting { get; set; }
     public Action<ModHookContext>? BattleRestarted { get; set; }
     public Action<AuraBattleOutcomeContext>? OutcomeEntering { get; set; }
@@ -43,6 +44,7 @@ public static class AuraBattleLifecycleRouter
     public const string FightInitInit = "FightInit.Init";
     public const string FightPlayerTurnInit = "Fight_PlayerTurn.Init";
     public const string FightManagerDoAllAction = "FightManager.DOAllAction";
+    public const string FightManagerUserCodeEndPlayerTurn = "FightManager.UserCode_EndPlayerturn";
     public const string FightManagerClearFightUi = "FightManager.UserCode_ClearFightui";
     public const string FightWinInit = "Fight_Win.Init";
     public const string FightEscapeInit = "Fight_Escape.Init";
@@ -127,6 +129,9 @@ public static class AuraBattleLifecycleRouter
         registry.AfterRouted(FightPlayerTurnInit,
             context => Dispatch(context, FightPlayerTurnInit, h => h.Subscription.PlayerRoundReady),
             "PlayerRoundReady");
+        registry.AfterRouted(FightManagerUserCodeEndPlayerTurn,
+            context => Dispatch(context, FightManagerUserCodeEndPlayerTurn, h => h.Subscription.PlayerTurnCompleted),
+            "PlayerTurnCompleted");
 
         registry.BeforeRouted(FightWinInit, context => DispatchOutcomeEntering(context, FightWinInit, AuraBattleOutcome.Win), "OutcomeEntering.Win");
         registry.BeforeRouted(FightEscapeInit, context => DispatchOutcomeEntering(context, FightEscapeInit, AuraBattleOutcome.Escape), "OutcomeEntering.Escape");

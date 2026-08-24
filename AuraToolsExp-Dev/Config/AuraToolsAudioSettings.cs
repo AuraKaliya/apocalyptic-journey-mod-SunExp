@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 5;
+    public int SchemaVersion { get; set; } = 6;
 
     [JsonProperty("battleBgm")]
     public AudioFeatureSettings BattleBgm { get; set; } = AudioFeatureSettings.CreateBattleBgmDefault();
@@ -22,7 +22,7 @@ public sealed class AuraToolsAudioSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(5, SchemaVersion);
+        SchemaVersion = Math.Max(6, SchemaVersion);
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
         Voice ??= new AuraToolsVoiceSettings();
@@ -89,6 +89,9 @@ public sealed class AuraToolsVoiceBindingSettings
     [JsonProperty("actionId")]
     public string ActionId { get; set; } = "";
 
+    [JsonProperty("skillSlot")]
+    public int? SkillSlot { get; set; }
+
     [JsonProperty("resourcePath")]
     public string ResourcePath { get; set; } = "";
 
@@ -111,6 +114,7 @@ public sealed class AuraToolsVoiceBindingSettings
         Signal = Signal?.Trim() ?? "";
         Stage = Stage?.Trim() ?? "";
         ActionId = ActionId?.Trim() ?? "";
+        if (SkillSlot.HasValue && SkillSlot.Value <= 0) SkillSlot = null;
         ResourcePath = (ResourcePath?.Trim() ?? "")
             .Replace("/Voice/AuraToolsExp/", "/Voice/Terrias/");
         if (CooldownSeconds.HasValue) CooldownSeconds = Math.Max(0f, CooldownSeconds.Value);

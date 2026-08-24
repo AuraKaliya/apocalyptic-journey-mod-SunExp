@@ -18,7 +18,7 @@ public static class EndlessAbyssSettlementBarrierEventKinds
 [Serializable]
 public sealed class RpcEndlessAbyssSettlementBarrier : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 2;
 
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 

@@ -161,7 +161,7 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.3 Audio 与 BGM
 
-`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、信号/阶段匹配、优先级、fallback 和必要的表现同步。Terrias 携带角色语音声明，AuraToolsExp 发现注册并应用玩家覆盖；通用卡牌音效仍由 AuraToolsExp 持有。Terrias 不初始化媒体 provider。请求使用 `Kind + Stage` 锚定选人提交、卡牌表现提交、低血量阈值穿越和战斗完成等稳定时点。
+`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、信号/阶段匹配、优先级、fallback 和必要的表现同步。Terrias 携带角色语音声明，AuraToolsExp 发现注册并应用玩家覆盖；通用卡牌音效仍由 AuraToolsExp 持有。Terrias 不初始化媒体 provider。请求使用 `Kind + Stage` 锚定选人提交、卡牌表现提交、技能事务提交、低血量阈值穿越和战斗完成等稳定时点。技能语音协议 v8 只消费 `AuraSkillActionTransactionRouter.Committed`，并由角色 Career 行中的 `Skill1..N` 将实际 `SkillDataId` 解析成一基 `SkillSlot`；Provider 绑定角色与序号，不再把技能伪装成 `CardUse/cardIds`。
 
 ### 6.4 CG
 
@@ -185,7 +185,7 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 7.1 Routed Hook
 
-`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。`AuraBattleLifecycleRouter` 以原生方法边界和 EventCenter 信号推导 `BattleInitializing/Materialized/Opening`、`FightStartSignaled/Ready`、玩家回合及 outcome 三阶段，并由 session phase ledger 保证一次性阶段 exactly-once；`AuraCardActionTransactionRouter` 与 `AuraSkillActionTransactionRouter` 分别统一卡牌和技能事务。Terrias 的 Buff/status/other-object 路由只保留内容侧语义分发。
+`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。`AuraBattleLifecycleRouter` 以原生方法边界和 EventCenter 信号推导 `BattleInitializing/Materialized/Opening`、`FightStartSignaled/Ready`、玩家回合及 outcome 三阶段，并由 session phase ledger 保证一次性阶段 exactly-once；`PlayerTurnCompleted` 对应各端实际执行完 `FightManager.UserCode_EndPlayerturn` 的提交边界，可用于同一原生行动协程内的有界续段。`AuraCardActionTransactionRouter` 与 `AuraSkillActionTransactionRouter` 分别统一卡牌和技能事务。Terrias 的 Buff/status/other-object 路由只保留内容侧语义分发。
 
 `AuraBattleLeaseLedger` 让持久卡牌、遗物、祝福和职业 executor 在每个 battle session 重新注册，同时避免把 battle-only hook/token 写入 DataConfig Vars。好处是减少重复宿主注册、统一异常边界并允许订阅释放；业务过滤和 Buff 依赖仍属于 Terrias，不能塞进通用 dispatcher。
 

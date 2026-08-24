@@ -18,6 +18,8 @@ internal sealed partial class AudioArbiterContractTests
             RoleId = "role-1",
             StatusInstanceId = "status-1",
             CardId = "card-1",
+            SkillId = "skill-1",
+            SkillSlot = 2,
             BuffId = "buff-1",
             EffectName = "effect-1",
             ActionName = "action-1",
@@ -167,6 +169,8 @@ internal sealed partial class AudioArbiterContractTests
         public string RoleId => "role-1";
         public string StatusInstanceId => "status-1";
         public string CardId => "card-1";
+        public string SkillId => "skill-1";
+        public int SkillSlot => 2;
         public string BuffId => "buff-1";
         public string EffectName => "effect-1";
         public string ActionName => "action-1";

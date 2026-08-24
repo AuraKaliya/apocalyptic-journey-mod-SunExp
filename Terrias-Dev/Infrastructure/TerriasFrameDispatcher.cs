@@ -8,6 +8,28 @@ public static class TerriasFrameDispatcher
     private static Func<string, Action, bool>? runOnceNextFrame;
     private static Func<string, int, Action, bool>? runOnceAfterFrames;
 
+    public static bool HasNextFrameDispatcher
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return runOnceNextFrame != null;
+            }
+        }
+    }
+
+    public static bool HasDelayedDispatcher
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return runOnceAfterFrames != null;
+            }
+        }
+    }
+
     public static void Register(Func<string, Action, bool> dispatcher)
     {
         if (dispatcher == null)

@@ -47,9 +47,14 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
             return;
         }
 
+        MarkLocalCommitStarted();
+        EndlessAbyssSettlementBarrierRuntime.CommitLocalPlayer(settlementUi, "barrier-force");
+    }
+
+    public void MarkLocalCommitStarted()
+    {
         localCommitStarted = true;
         Refresh();
-        EndlessAbyssSettlementBarrierRuntime.CommitLocalPlayer(settlementUi, "barrier-force");
     }
 
     public void Refresh()
@@ -116,7 +121,6 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
         }
 
         nextRefreshAt = Time.unscaledTime + 0.2f;
-        EndlessAbyssSettlementBarrierRuntime.Tick();
         Refresh();
     }
 

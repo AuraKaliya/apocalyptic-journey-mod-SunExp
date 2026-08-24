@@ -17,6 +17,8 @@ public static class ProjectionRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        ProjectionTurnCoordinator.ConfigureAuthoritativePublisher(
+            ProjectionSummonService.BroadcastTurnTransaction);
         ProjectionAttachmentPresenter.Initialize();
         automationRegistration ??= CombatActionAutomationRegistry.Register(
             TerriasIds.ModId,
@@ -35,6 +37,8 @@ public static class ProjectionRuntime
         {
             BattleOpening = context => BeginBattle("BattleOpening"),
             PlayerRoundReady = context => ProjectionTurnCoordinator.BeginPlayerRound("PlayerRoundReady"),
+            PlayerTurnCompleted = context => ProjectionTurnCoordinator.CompletePlayerTurnWithPendingProjections(
+                "PlayerTurnCompleted"),
             BattleRestarting = context => ClearBattle("BattleRestarting"),
             OutcomeEntering = context => ClearBattle("OutcomeEntering." + context.Outcome)
         });

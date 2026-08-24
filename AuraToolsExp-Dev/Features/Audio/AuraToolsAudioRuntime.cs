@@ -251,6 +251,7 @@ public static class AuraToolsAudioRuntime
     private static void RegisterVoiceProviders(ModConfig config)
     {
         var desired = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var migratedBindings = false;
         if (AuraToolsConfigService.Audio.Voice.Enabled)
         {
             foreach (var contribution in AuraAudioRegistryRuntime.GetSnapshot().Contributions)
@@ -271,6 +272,7 @@ public static class AuraToolsAudioRuntime
                     var providerId = provider.providerId.Trim();
                     var qualifiedId = owner + ":" + providerId;
                     var settings = EnsureVoiceBinding(qualifiedId, provider);
+                    migratedBindings |= MigrateSkillVoiceBinding(provider, settings);
                     if (!settings.Enabled) continue;
                     var signal = string.IsNullOrWhiteSpace(settings.Signal) ? provider.kind : settings.Signal;
                     var stage = string.IsNullOrWhiteSpace(settings.Stage)
@@ -288,6 +290,7 @@ public static class AuraToolsAudioRuntime
                     var cooldown = settings.CooldownSeconds ?? provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f;
                     var threshold = settings.HpRatioThreshold ?? provider.match?.hpRatioCrossDown;
                     var signature = Signature(audioPath, string.Join(";", variants), signal, stage, settings.ActionId,
+                        settings.SkillSlot,
                         gain, cooldown, threshold, settings.Enabled);
                     desired.Add(qualifiedId);
                     if (RegisteredVoiceProviders.TryGetValue(qualifiedId, out var current)
@@ -330,6 +333,11 @@ public static class AuraToolsAudioRuntime
             AudioArbiterRuntime.UnregisterSoundProvider(config, registered.OwnerModId, registered.ProviderId);
             RegisteredVoiceProviders.Remove(qualifiedId);
         }
+
+        if (migratedBindings)
+        {
+            AuraToolsConfigService.PersistVoiceMigration();
+        }
     }
 
     private static AuraToolsVoiceBindingSettings EnsureVoiceBinding(
@@ -345,12 +353,53 @@ public static class AuraToolsAudioRuntime
                 Signal = provider.kind,
                 Stage = provider.match?.stages?.FirstOrDefault() ?? "",
                 ActionId = FirstActionId(provider),
+                SkillSlot = provider.match?.skillSlot,
                 HpRatioThreshold = provider.match?.hpRatioCrossDown
             };
             settings.Normalize(qualifiedProviderId);
             bindings[qualifiedProviderId] = settings;
         }
         return settings;
+    }
+
+    private static bool MigrateSkillVoiceBinding(
+        AudioProviderManifest provider,
+        AuraToolsVoiceBindingSettings settings)
+    {
+        if (!string.Equals(provider.kind, SoundEventKinds.SkillVoice, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var configuredSkills = ResolveProviderSkills(provider)
+            .Select(skill => new AuraToolsVoiceSkillDescriptor
+            {
+                Id = skill.Id,
+                Slot = skill.Slot
+            });
+        return AuraToolsVoiceSkillBindingMigration.Migrate(
+            settings,
+            provider.kind,
+            provider.match?.stages?.FirstOrDefault() ?? AudioSignalStages.Committed,
+            provider.match?.skillSlot,
+            configuredSkills);
+    }
+
+    private static IReadOnlyList<RoleSkillInfo> ResolveProviderSkills(AudioProviderManifest provider)
+    {
+        foreach (var roleId in (provider.match?.roleIds ?? Array.Empty<string>())
+                     .Concat(provider.match?.careerIds ?? Array.Empty<string>())
+                     .Where(value => !string.IsNullOrWhiteSpace(value))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var skills = RoleCatalog.GetRoleSkills(roleId);
+            if (skills.Count > 0)
+            {
+                return skills;
+            }
+        }
+
+        return Array.Empty<RoleSkillInfo>();
     }
 
     private static string FirstActionId(AudioProviderManifest provider)
@@ -386,8 +435,16 @@ public static class AuraToolsAudioRuntime
         var match = provider.match ?? new AudioProviderMatch();
         if (!MatchesAny(match.careerIds, AudioArbiterRuntime.ReadString(request, "CareerId"))) return false;
         if (!MatchesAny(match.roleIds, AudioArbiterRuntime.ReadString(request, "RoleId"))) return false;
+        var isSkillVoice = string.Equals(signal, SoundEventKinds.SkillVoice, StringComparison.OrdinalIgnoreCase);
+        if (isSkillVoice
+            && (!settings.SkillSlot.HasValue
+                || settings.SkillSlot.Value <= 0
+                || AudioArbiterRuntime.ReadInt(request, "SkillSlot", 0) != settings.SkillSlot.Value))
+        {
+            return false;
+        }
         var actionId = settings.ActionId;
-        if (!string.IsNullOrWhiteSpace(actionId))
+        if (!isSkillVoice && !string.IsNullOrWhiteSpace(actionId))
         {
             var actual = string.Equals(signal, SoundEventKinds.BattleCompleted, StringComparison.OrdinalIgnoreCase)
                 ? AudioArbiterRuntime.ReadString(request, "BattleResult")

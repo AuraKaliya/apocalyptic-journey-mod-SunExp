@@ -77,8 +77,8 @@ after-value。`GameApi/MatchReplayNativePresentationApi` 是原生动作和特�
 - 玩家能量、牌堆计数和当前回合。
 
 卡牌状态额外冻结有效主题、卡框、动态效果和参数。播放时通过
-`AuraCardPresentationRuntime` 和 CardVisual v7 的
-`aura.card-visual.material-v5 + frame/native-frame-v4` 渲染，不会读取后来修改的
+`AuraCardPresentationRuntime` 和 CardVisual v9 的
+`aura.card-visual.material-v7 + frame/native-frame-v5` 渲染，不会读取后来修改的
 本地映射。战斗卡只接受同一候选同时提供的精确 visual root、`IDataConfig` 和
 `ICard`，不会把相邻池化卡牌的 root 与当前卡牌数据拼接。
 

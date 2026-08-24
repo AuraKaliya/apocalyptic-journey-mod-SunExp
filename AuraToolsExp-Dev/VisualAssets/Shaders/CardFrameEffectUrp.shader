@@ -41,12 +41,12 @@ Shader "AuraTools/CardFrameEffectURP"
             ZWrite Off
             ZTest LEqual
 
-            HLSLPROGRAM
+            CGPROGRAM
             #pragma target 3.5
             #pragma vertex Vert
             #pragma fragment Frag
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "UnityCG.cginc"
 
             struct Attributes
             {
@@ -60,37 +60,31 @@ Shader "AuraTools/CardFrameEffectURP"
                 float2 uv : TEXCOORD0;
             };
 
-            TEXTURE2D(_MainTex);
-            SAMPLER(sampler_MainTex);
-            TEXTURE2D(_NoiseTex);
-            SAMPLER(sampler_NoiseTex);
-            TEXTURE2D(_FoilTex);
-            SAMPLER(sampler_FoilTex);
-
-            CBUFFER_START(UnityPerMaterial)
-                float4 _MainTex_ST;
-                float _TerriasEffectMode;
-                float _TerriasOverlayMode;
-                float _TerriasFrameOnlyOverlay;
-                float _TerriasFoilMode;
-                float _TerriasFlowSpeed;
-                float _TerriasFlowScale;
-                float _TerriasEffectIntensity;
-                float _TerriasRainbowStrength;
-                float _TerriasStardustDensity;
-                float _TerriasStardustTwinkle;
-                float _TerriasStardustTwinkleSpeed;
-                half4 _TerriasHoloColorA;
-                half4 _TerriasHoloColorB;
-                half4 _TerriasHoloColorC;
-                half4 _TerriasStardustColorA;
-                half4 _TerriasStardustColorB;
-            CBUFFER_END
+            sampler2D _MainTex;
+            sampler2D _NoiseTex;
+            sampler2D _FoilTex;
+            float4 _MainTex_ST;
+            float _TerriasEffectMode;
+            float _TerriasOverlayMode;
+            float _TerriasFrameOnlyOverlay;
+            float _TerriasFoilMode;
+            float _TerriasFlowSpeed;
+            float _TerriasFlowScale;
+            float _TerriasEffectIntensity;
+            float _TerriasRainbowStrength;
+            float _TerriasStardustDensity;
+            float _TerriasStardustTwinkle;
+            float _TerriasStardustTwinkleSpeed;
+            half4 _TerriasHoloColorA;
+            half4 _TerriasHoloColorB;
+            half4 _TerriasHoloColorC;
+            half4 _TerriasStardustColorA;
+            half4 _TerriasStardustColorB;
 
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                output.positionHCS = TransformObjectToHClip(input.positionOS.xyz);
+                output.positionHCS = UnityObjectToClipPos(input.positionOS);
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
                 return output;
             }
@@ -114,9 +108,8 @@ Shader "AuraTools/CardFrameEffectURP"
 
             half3 ApplyFoil(half3 baseColor, float2 uv, float mask, float time, half3 noise)
             {
-                half3 foilTexture = SAMPLE_TEXTURE2D(
+                half3 foilTexture = tex2D(
                     _FoilTex,
-                    sampler_FoilTex,
                     uv * float2(1.55, 0.82) + float2(time * 0.035, -time * 0.018)).rgb;
                 float axis = uv.x * 0.84 - uv.y * 0.54 + noise.b * 0.12 + time * 0.045;
                 half3 rainbow = HoloRamp(axis * max(_TerriasFlowScale, 0.1) * 4.2)
@@ -147,10 +140,9 @@ Shader "AuraTools/CardFrameEffectURP"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                half4 frame = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, input.uv);
-                half3 noise = SAMPLE_TEXTURE2D(
+                half4 frame = tex2D(_MainTex, input.uv);
+                half3 noise = tex2D(
                     _NoiseTex,
-                    sampler_NoiseTex,
                     input.uv * 4.0 + float2(_Time.y * 0.03, -_Time.y * 0.02)).rgb;
                 float mask = saturate(frame.a);
                 float time = _Time.y * _TerriasFlowSpeed;
@@ -159,7 +151,7 @@ Shader "AuraTools/CardFrameEffectURP"
                     : ApplyFoil(frame.rgb, input.uv, mask, time, noise);
                 return half4(color, frame.a);
             }
-            ENDHLSL
+            ENDCG
         }
     }
 }

@@ -17,7 +17,7 @@ internal sealed partial class AudioArbiterContractTests
         Equal("career-source", career.SourceName, "career request source");
         Equal("", career.EventId, "career request does not invent event id");
     
-        var combat = AudioRequestFactory.CreateCombatActionBatch(new AudioCombatActionObservation
+        var cardUse = AudioRequestFactory.CreateCardUse(new AudioCombatActionObservation
         {
             CardId = "card",
             CareerId = "career",
@@ -27,26 +27,37 @@ internal sealed partial class AudioArbiterContractTests
             ActionName = "action",
             SourceName = "combat-source"
         }, "play-id");
-        Equal("play-id", combat.CardUse.EventId, "card-use request keeps network play id");
-        Equal(SoundEventKinds.CardUse, combat.CardUse.Kind, "card-use request kind");
-        Equal(AudioSignalStages.PresentationCommitted, combat.CardUse.Stage, "card-use request stage");
-        Equal("card", combat.CardUse.CardId, "card-use request card");
-        Equal("career", combat.CardUse.CareerId, "card-use request career");
-        Equal("role", combat.CardUse.RoleId, "card-use request role");
-        Equal("status", combat.CardUse.StatusInstanceId, "card-use request status");
-        Equal("effect", combat.CardUse.EffectName, "card-use request effect");
-        Equal("action", combat.CardUse.ActionName, "card-use request action");
-        Equal("combat-source", combat.CardUse.SourceName, "card-use request source");
-        Equal("", combat.SkillVoice.EventId, "skill voice does not reuse authoritative card event id");
-        Equal(SoundEventKinds.SkillVoice, combat.SkillVoice.Kind, "skill voice request kind");
-        Equal(AudioSignalStages.PresentationCommitted, combat.SkillVoice.Stage, "skill voice request stage");
-        Equal("card", combat.SkillVoice.CardId, "skill voice request card");
-        Equal("career", combat.SkillVoice.CareerId, "skill voice request career");
-        Equal("role", combat.SkillVoice.RoleId, "skill voice request role");
-        Equal("status", combat.SkillVoice.StatusInstanceId, "skill voice request status");
-        Equal("effect", combat.SkillVoice.EffectName, "skill voice request effect");
-        Equal("action", combat.SkillVoice.ActionName, "skill voice request action");
-        Equal("combat-source", combat.SkillVoice.SourceName, "skill voice request source");
+        Equal("play-id", cardUse.EventId, "card-use request keeps network play id");
+        Equal(SoundEventKinds.CardUse, cardUse.Kind, "card-use request kind");
+        Equal(AudioSignalStages.PresentationCommitted, cardUse.Stage, "card-use request stage");
+        Equal("card", cardUse.CardId, "card-use request card");
+        Equal("career", cardUse.CareerId, "card-use request career");
+        Equal("role", cardUse.RoleId, "card-use request role");
+        Equal("status", cardUse.StatusInstanceId, "card-use request status");
+        Equal("effect", cardUse.EffectName, "card-use request effect");
+        Equal("action", cardUse.ActionName, "card-use request action");
+        Equal("combat-source", cardUse.SourceName, "card-use request source");
+
+        var skillVoice = AudioRequestFactory.CreateSkillVoice(new AudioSkillActionObservation
+        {
+            SkillId = "skill",
+            SkillSlot = 2,
+            CareerId = "career",
+            RoleId = "role",
+            StatusInstanceId = "status",
+            SourceName = "skill-source"
+        }, "skill-transaction");
+        Equal("skill-transaction", skillVoice.EventId, "skill voice keeps transaction id");
+        Equal(SoundEventKinds.SkillVoice, skillVoice.Kind, "skill voice request kind");
+        Equal(AudioSignalStages.Committed, skillVoice.Stage, "skill voice request stage");
+        Equal("skill", skillVoice.SkillId, "skill voice request skill id");
+        Equal(2, skillVoice.SkillSlot, "skill voice request configured slot");
+        Equal("", skillVoice.CardId, "skill voice no longer impersonates a card event");
+        Equal("career", skillVoice.CareerId, "skill voice request career");
+        Equal("role", skillVoice.RoleId, "skill voice request role");
+        Equal("status", skillVoice.StatusInstanceId, "skill voice request status");
+        Equal("skill-source", skillVoice.SourceName, "skill voice request source");
+        Equal(true, skillVoice.IsLocalOwner, "skill voice originates from local owner transaction");
     
         var buff = AudioRequestFactory.CreateBuffApplied(new AudioBuffObservation
         {
@@ -340,6 +351,8 @@ internal sealed partial class AudioArbiterContractTests
         Equal("role-1", request.RoleId, scope + " role");
         Equal("status-1", request.StatusInstanceId, scope + " status");
         Equal("card-1", request.CardId, scope + " card");
+        Equal("skill-1", request.SkillId, scope + " skill id");
+        Equal(2, request.SkillSlot, scope + " skill slot");
         Equal("buff-1", request.BuffId, scope + " buff");
         Equal("effect-1", request.EffectName, scope + " effect");
         Equal("action-1", request.ActionName, scope + " action");

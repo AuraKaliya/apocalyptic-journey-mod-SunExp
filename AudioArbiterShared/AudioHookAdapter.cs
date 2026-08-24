@@ -18,6 +18,8 @@ internal sealed class AudioHookCallbacks
 
     public Action<AuraCardActionContext>? CombatActionBefore { get; set; }
 
+    public Action<AuraSkillActionContext>? SkillActionCommitted { get; set; }
+
     public Action<ModHookContext>? NativeEffectBefore { get; set; }
 
     public Action<ModHookContext>? BuffApplied { get; set; }
@@ -116,8 +118,25 @@ internal sealed class AudioHookAdapter : IDisposable
             }
         }
 
+        try
+        {
+            if (RegisterSkillAction())
+            {
+                registered++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+        catch (Exception ex)
+        {
+            skipped++;
+            warn?.Invoke("Skill transaction registration failed -> " + ex.Message);
+        }
+
         info?.Invoke("Hooks registered by owner=" + ownerModId
-                     + ", definitions=" + AudioHookCatalog.All.Count
+                     + ", definitions=" + (AudioHookCatalog.All.Count + 1)
                      + ", registered=" + registered
                      + ", skipped=" + skipped);
     }
@@ -193,5 +212,27 @@ internal sealed class AudioHookAdapter : IDisposable
                              + ", handler=" + definition.HandlerId);
                 return false;
         }
+    }
+
+    private bool RegisterSkillAction()
+    {
+        if (callbacks.SkillActionCommitted == null)
+        {
+            warn?.Invoke("Skill transaction registration skipped: callback missing.");
+            return false;
+        }
+
+        routedRegistrations.Add(AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            ownerModId,
+            ownerModId + ".Audio.SkillVoice",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.Committed,
+                Handler = callbacks.SkillActionCommitted
+            },
+            info,
+            warn));
+        return true;
     }
 }

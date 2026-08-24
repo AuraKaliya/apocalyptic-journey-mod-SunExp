@@ -61,6 +61,34 @@ internal sealed class AudioHookContextMapper
         };
     }
 
+    public AudioSkillActionObservation? MapSkillAction(AuraSkillActionContext context)
+    {
+        if (context == null
+            || string.IsNullOrWhiteSpace(context.SkillDataId)
+            || !gameStateReader.IsLocalOwnerStatus(context.OwnerStatus as StatusManager, context.OwnerStatusId))
+        {
+            return null;
+        }
+
+        var careerId = gameStateReader.ReadCurrentCareerId();
+        var roleId = string.IsNullOrWhiteSpace(context.OwnerRoleId) ? careerId : context.OwnerRoleId;
+        var slot = gameStateReader.ReadSkillSlot(roleId, careerId, context.SkillDataId);
+        if (slot <= 0)
+        {
+            return null;
+        }
+
+        return new AudioSkillActionObservation
+        {
+            SkillId = context.SkillDataId,
+            SkillSlot = slot,
+            CareerId = careerId,
+            RoleId = roleId,
+            StatusInstanceId = context.OwnerStatusId,
+            SourceName = "SkillItem.TrueUse.Committed"
+        };
+    }
+
     public AudioBuffObservation? MapBuffApplied(ModHookContext context)
     {
         var config = ReadArgument<BuffItemConfig>(context, 0);

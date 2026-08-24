@@ -16,6 +16,7 @@ internal sealed partial class AudioArbiterContractTests
         VerifyFileFormatProbe();
         VerifyHookCatalog();
         VerifyRequestFactory();
+        VerifySkillSlotResolver();
         VerifyLowHealthCoordinator();
         VerifyPropertyReader();
         VerifyRequestProjection();

@@ -20,6 +20,7 @@ public enum ProjectionSummonFailureCode
     OwnerAlreadyHasProjection,
     FriendlySeatsFull,
     SeatReservationExpired,
+    TurnTransactionUnavailable,
     SpawnFailed,
     Cancelled
 }
@@ -93,6 +94,7 @@ public static class ProjectionSummonFailureCatalog
             ProjectionSummonFailureCode.OwnerAlreadyHasProjection => New(code, ProjectionSummonFailureCategory.Capacity, true, false, true, "投影位置已被占用。"),
             ProjectionSummonFailureCode.FriendlySeatsFull => New(code, ProjectionSummonFailureCategory.Capacity, true, false, true, "友方角色位置已达到4人上限。"),
             ProjectionSummonFailureCode.SeatReservationExpired => New(code, ProjectionSummonFailureCategory.Synchronization, true, false, true, "投影位置预约已失效。"),
+            ProjectionSummonFailureCode.TurnTransactionUnavailable => New(code, ProjectionSummonFailureCategory.Synchronization, true, false, true, "当前玩家阶段已关闭，投影卡牌已返还。"),
             ProjectionSummonFailureCode.SpawnFailed => New(code, ProjectionSummonFailureCategory.Runtime, true, false, true, "投影召唤失败，请稍后重试。"),
             ProjectionSummonFailureCode.Cancelled => New(code, ProjectionSummonFailureCategory.Cancelled, true, false, true, "投影同步已取消。"),
             _ => New(code, ProjectionSummonFailureCategory.Runtime, true, false, true, "投影召唤失败，请稍后重试。")

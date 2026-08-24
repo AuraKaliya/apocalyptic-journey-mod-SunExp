@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Infrastructure;
@@ -296,6 +297,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
     private sealed class RendererBinding
     {
         private readonly Material burnMaterial;
+        private readonly AuraPresentationMaterialLeaseState materialLease = new();
         private MeshRenderer? renderer;
         private Material? originalMaterial;
 
@@ -318,6 +320,10 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             SetIfPresent("_Fade", 50f);
             SetIfPresent("_canvasScale", canvasScale);
             SetIfPresent("_startY", startY);
+            materialLease.Bind(
+                renderer.GetInstanceID(),
+                MaterialInstanceId(originalMaterial),
+                MaterialInstanceId(burnMaterial));
             renderer.sharedMaterial = burnMaterial;
             return true;
         }
@@ -331,9 +337,26 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         {
             if (renderer != null)
             {
-                renderer.sharedMaterial = originalMaterial;
+                var targetInstanceId = renderer.GetInstanceID();
+                var detach = materialLease.PlanDetach(
+                    targetInstanceId,
+                    MaterialInstanceId(renderer.sharedMaterial));
+                if (detach.RestoreOriginal)
+                {
+                    renderer.sharedMaterial = originalMaterial;
+                }
+                else if (detach.BlockedByForeignMaterial)
+                {
+                    TerriasLog.WarnOnce(
+                        "pooled-card-exit-material-detach-blocked:"
+                        + targetInstanceId
+                        + ":"
+                        + materialLease.AppliedMaterialInstanceId,
+                        "[CombatCardViewPool] exit animation skipped stale material restoration because a newer presentation owner is active");
+                }
             }
 
+            materialLease.Clear();
             renderer = null;
             originalMaterial = null;
         }
@@ -353,6 +376,11 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             {
                 burnMaterial.SetFloat(property, value);
             }
+        }
+
+        private static int MaterialInstanceId(Material? material)
+        {
+            return material == null ? 0 : material.GetInstanceID();
         }
     }
 

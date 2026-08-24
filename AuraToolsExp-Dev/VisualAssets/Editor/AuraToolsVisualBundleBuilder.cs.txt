@@ -122,12 +122,13 @@ public static class AuraToolsVisualBundleBuilder
                 ImageMaterialPath,
                 "AuraTools/CardFrameEffectUI",
                 "Default");
-            ValidateBuiltMaterial(
+            var meshMaterial = ValidateBuiltMaterial(
                 bundle,
                 MeshMaterialPath,
                 "AuraTools/CardFrameEffectURP",
                 "CardFrameEffectURP");
             ValidateCardFrameEffectUiPixels(imageMaterial);
+            ValidateCardFrameEffectUrpPixels(meshMaterial);
         }
         finally
         {
@@ -262,6 +263,166 @@ public static class AuraToolsVisualBundleBuilder
                 UnityEngine.Object.DestroyImmediate(target);
             }
         }
+    }
+
+    private static void ValidateCardFrameEffectUrpPixels(Material source)
+    {
+        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null)
+            throw new InvalidOperationException(
+                "CardFrameEffectURP render validation requires a real graphics device, not NullGfx.");
+
+        var previousActive = RenderTexture.active;
+        RenderTexture target = null;
+        Texture2D sourceTexture = null;
+        Texture2D readback = null;
+        Material material = null;
+        Material nativeMaterial = null;
+        Mesh mesh = null;
+        GameObject cameraObject = null;
+        GameObject canvasObject = null;
+        GameObject meshObject = null;
+        try
+        {
+            target = new RenderTexture(128, 128, 24, RenderTextureFormat.ARGB32)
+            {
+                name = "AuraTools_CardFrameEffectURP_SmokeTarget"
+            };
+            if (!target.Create())
+                throw new InvalidOperationException("CardFrameEffectURP smoke RenderTexture could not be created.");
+
+            cameraObject = new GameObject("AuraTools_CardFrameEffectURP_SmokeCamera", typeof(Camera));
+            var camera = cameraObject.GetComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = Color.black;
+            camera.orthographic = true;
+            camera.orthographicSize = 1f;
+            camera.nearClipPlane = 0.01f;
+            camera.farClipPlane = 100f;
+            camera.transform.position = new Vector3(0f, 0f, -10f);
+            camera.targetTexture = target;
+
+            canvasObject = new GameObject(
+                "AuraTools_CardFrameEffectURP_SmokeWorldCanvas",
+                typeof(RectTransform),
+                typeof(Canvas));
+            canvasObject.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+
+            meshObject = new GameObject(
+                "AuraTools_CardFrameEffectURP_SmokeMesh",
+                typeof(MeshFilter),
+                typeof(MeshRenderer));
+            meshObject.transform.SetParent(canvasObject.transform, false);
+            mesh = new Mesh { name = "AuraTools_CardFrameEffectURP_SmokeQuad" };
+            mesh.vertices = new[]
+            {
+                new Vector3(-0.75f, -0.75f, 0f),
+                new Vector3(0.75f, -0.75f, 0f),
+                new Vector3(0.75f, 0.75f, 0f),
+                new Vector3(-0.75f, 0.75f, 0f)
+            };
+            mesh.uv = new[]
+            {
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(0f, 1f)
+            };
+            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.RecalculateBounds();
+            meshObject.GetComponent<MeshFilter>().sharedMesh = mesh;
+
+            sourceTexture = new Texture2D(2, 2, TextureFormat.RGBA32, false, false)
+            {
+                name = "AuraTools_CardFrameEffectURP_SmokeSource"
+            };
+            sourceTexture.SetPixels(new[] { Color.white, Color.white, Color.white, Color.white });
+            sourceTexture.Apply(false, false);
+
+            var renderer = meshObject.GetComponent<MeshRenderer>();
+            material = CreateCardFrameEffectUrpSmokeMaterial(source, sourceTexture, "Initial");
+            renderer.sharedMaterial = material;
+            readback = new Texture2D(1, 1, TextureFormat.RGBA32, false, false);
+            var pixel = ReadCenterPixel(camera, target, readback);
+            ValidatePixel("CardFrameEffectURP render smoke", pixel);
+            Debug.Log(
+                "CardFrameEffectURP render smoke passed: rgba=" + pixel
+                + ", graphics=" + SystemInfo.graphicsDeviceType + ".");
+
+            var nativeShader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (nativeShader == null || !nativeShader.isSupported)
+                throw new InvalidDataException("CardFrameEffectURP lease smoke cannot resolve the native URP Unlit shader.");
+            nativeMaterial = new Material(nativeShader)
+            {
+                name = "AuraTools_CardFrameEffectURP_SmokeNativeMaterial",
+                mainTexture = sourceTexture
+            };
+            if (nativeMaterial.HasProperty("_BaseMap")) nativeMaterial.SetTexture("_BaseMap", sourceTexture);
+            renderer.sharedMaterial = nativeMaterial;
+            UnityEngine.Object.DestroyImmediate(material);
+            material = null;
+            var restoredPixel = ReadCenterPixel(camera, target, readback);
+            ValidatePixel("CardFrameEffectURP restored material smoke", restoredPixel);
+
+            material = CreateCardFrameEffectUrpSmokeMaterial(source, sourceTexture, "Rebound");
+            renderer.sharedMaterial = material;
+            var reboundPixel = ReadCenterPixel(camera, target, readback);
+            ValidatePixel("CardFrameEffectURP rebound material smoke", reboundPixel);
+            Debug.Log(
+                "CardFrameEffectURP material lease smoke passed: restored=" + restoredPixel
+                + ", rebound=" + reboundPixel
+                + ", graphics=" + SystemInfo.graphicsDeviceType + ".");
+        }
+        finally
+        {
+            RenderTexture.active = previousActive;
+            if (meshObject != null) UnityEngine.Object.DestroyImmediate(meshObject);
+            if (canvasObject != null) UnityEngine.Object.DestroyImmediate(canvasObject);
+            if (cameraObject != null) UnityEngine.Object.DestroyImmediate(cameraObject);
+            if (material != null) UnityEngine.Object.DestroyImmediate(material);
+            if (nativeMaterial != null) UnityEngine.Object.DestroyImmediate(nativeMaterial);
+            if (mesh != null) UnityEngine.Object.DestroyImmediate(mesh);
+            if (sourceTexture != null) UnityEngine.Object.DestroyImmediate(sourceTexture);
+            if (readback != null) UnityEngine.Object.DestroyImmediate(readback);
+            if (target != null)
+            {
+                target.Release();
+                UnityEngine.Object.DestroyImmediate(target);
+            }
+        }
+    }
+
+    private static Material CreateCardFrameEffectUrpSmokeMaterial(
+        Material source,
+        Texture sourceTexture,
+        string suffix)
+    {
+        var material = new Material(source)
+        {
+            name = "AuraTools_CardFrameEffectURP_SmokeMaterial_" + suffix
+        };
+        material.SetTexture("_MainTex", sourceTexture);
+        material.SetTexture("_NoiseTex", sourceTexture);
+        material.SetTexture("_FoilTex", sourceTexture);
+        material.SetFloat("_TerriasEffectIntensity", 0f);
+        material.SetFloat("_TerriasOverlayMode", 0f);
+        return material;
+    }
+
+    private static Color ReadCenterPixel(Camera camera, RenderTexture target, Texture2D readback)
+    {
+        camera.Render();
+        RenderTexture.active = target;
+        readback.ReadPixels(new Rect(64f, 64f, 1f, 1f), 0, 0, false);
+        readback.Apply(false, false);
+        return readback.GetPixel(0, 0);
+    }
+
+    private static void ValidatePixel(string scope, Color pixel)
+    {
+        var magenta = pixel.r > 0.8f && pixel.g < 0.2f && pixel.b > 0.8f;
+        var empty = pixel.r < 0.1f && pixel.g < 0.1f && pixel.b < 0.1f;
+        if (magenta || empty)
+            throw new InvalidDataException(scope + " produced an invalid center pixel: " + pixel);
     }
 
     private static Material EnsureMaterial(string shaderPath, string materialPath, string name)

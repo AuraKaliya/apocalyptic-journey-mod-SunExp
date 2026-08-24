@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using Witch.Core;
 using Witch.UI.Window;
@@ -24,6 +25,19 @@ internal sealed class AudioGameStateReader
     public string ReadCurrentCareerId()
     {
         return ReadDataId(RoleTable.Instance?.Career ?? GameEntryUI.career);
+    }
+
+    public int ReadSkillSlot(string roleId, string careerId, string skillId)
+    {
+        try
+        {
+            var row = AuraGameDataHostApi.CopyRow(DataType.Career, roleId, careerId);
+            return AudioSkillSlotResolver.Resolve(row, skillId);
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     public string ReadStatusRoleId(StatusManager? status, bool fallbackToCurrent = true)

@@ -61,6 +61,7 @@ public sealed class AudioProviderMatch
     public string[]? careerIds;
     public string[]? roleIds;
     public string[]? cardIds;
+    public int? skillSlot;
     public string[]? buffIds;
     public string[]? effectNames;
     public string[]? actionNames;
@@ -142,6 +143,10 @@ public sealed class SoundPlaybackRequest
 
     public string CardId { get; set; } = "";
 
+    public string SkillId { get; set; } = "";
+
+    public int SkillSlot { get; set; }
+
     public string BuffId { get; set; } = "";
 
     public string EffectName { get; set; } = "";
@@ -192,6 +197,8 @@ public sealed class SoundPlaybackRequest
             RoleId = AudioPropertyReader.ReadString(request, nameof(RoleId)),
             StatusInstanceId = AudioPropertyReader.ReadString(request, nameof(StatusInstanceId)),
             CardId = AudioPropertyReader.ReadString(request, nameof(CardId)),
+            SkillId = AudioPropertyReader.ReadString(request, nameof(SkillId)),
+            SkillSlot = AudioPropertyReader.ReadInt(request, nameof(SkillSlot), 0),
             BuffId = AudioPropertyReader.ReadString(request, nameof(BuffId)),
             EffectName = AudioPropertyReader.ReadString(request, nameof(EffectName)),
             ActionName = AudioPropertyReader.ReadString(request, nameof(ActionName)),

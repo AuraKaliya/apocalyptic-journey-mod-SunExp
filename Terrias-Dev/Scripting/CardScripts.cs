@@ -29,6 +29,7 @@ public static class CardScripts
         [TerriasIds.PolymorphRoleTemplateShortId] = InitCommonCard,
         [TerriasIds.ProjectionCardShortId] = InitCommonCard,
         [TerriasIds.ProjectionRoleTemplateShortId] = InitCommonCard,
+        [TerriasIds.ProjectionBasicActionShortId] = InitProjectionBasicAction,
         [TerriasIds.SpiritBallCardShortId] = InitSpiritBall,
         [TerriasIds.SpiritCardTemplateShortId] = InitSpiritCard,
         [TerriasIds.SpiritWithdrawCardShortId] = InitSpiritWithdraw,
@@ -79,6 +80,7 @@ public static class CardScripts
         [TerriasIds.PolymorphRoleTemplateShortId] = UsePolymorphRoleCard,
         [TerriasIds.ProjectionCardShortId] = UseProjection,
         [TerriasIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard,
+        [TerriasIds.ProjectionBasicActionShortId] = UseProjectionBasicAction,
         [TerriasIds.SpiritBallCardShortId] = UseSpiritBall,
         [TerriasIds.SpiritCardTemplateShortId] = UseSpiritCard,
         [TerriasIds.SpiritWithdrawCardShortId] = UseSpiritWithdraw,
@@ -273,6 +275,15 @@ public static class CardScripts
         ExecutorApi.SetBaseScript(self, "AttackCardItem", canSelf: false);
     }
 
+    private static void InitProjectionBasicAction(ScriptExecutor self)
+    {
+        InitTargetedAttackCard(self);
+        ExecutorApi.AddDamageDescription(
+            self,
+            "1",
+            TerriasIds.ProjectionBasicActionDamage);
+    }
+
     private static void InitGoldDreamCommon(ScriptExecutor self)
     {
         InitCommonCard(self);
@@ -437,6 +448,14 @@ public static class CardScripts
         ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, 2, "Target");
         self.SetStatus("Self");
         self.AddBuff(TerriasIds.SolarRadiance, "1");
+        RestorePrimaryTargetForAnimation(self, target);
+    }
+
+    private static void UseProjectionBasicAction(ScriptExecutor self)
+    {
+        var target = ExecutorApi.PrimaryTarget(self);
+        ExecutorApi.SetStatusForTarget(self, target, "Target");
+        ExecutorApi.DealDamage(self, TerriasIds.ProjectionBasicActionDamage);
         RestorePrimaryTargetForAnimation(self, target);
     }
 

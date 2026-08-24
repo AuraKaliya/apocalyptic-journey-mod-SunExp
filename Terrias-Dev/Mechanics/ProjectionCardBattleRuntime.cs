@@ -67,13 +67,24 @@ internal sealed class ProjectionCardBattleState
             return null;
         }
 
-        var cards = recipe.Cards
+        var actorDeck = ProjectionActorDeckProjection.Build(
+            recipe,
+            ProjectionDeckCapabilityInspector.Inspect,
+            new ProjectionDeckCardRecipe(TerriasIds.ProjectionBasicActionCardId));
+        if (!actorDeck.Success || actorDeck.EffectiveRecipe == null)
+        {
+            reason = actorDeck.FailureReason;
+            return null;
+        }
+
+        var effectiveRecipe = actorDeck.EffectiveRecipe;
+        var cards = effectiveRecipe.Cards
             .Select((entry, index) => ProjectionCardInstance.CreateBaseline(
                 entry,
                 CombatActorCardZone.DrawPile,
                 index))
             .ToList();
-        var random = new System.Random(recipe.ShuffleSeed);
+        var random = new System.Random(effectiveRecipe.ShuffleSeed);
         for (var index = cards.Count - 1; index > 0; index--)
         {
             var swap = random.Next(index + 1);
@@ -90,14 +101,30 @@ internal sealed class ProjectionCardBattleState
         }
 
         reason = "";
-        TerriasLog.Info("[ProjectionCards] initialized fresh role deck: actor="
+        TerriasLog.InfoAlways("[ProjectionCards] actor-safe role deck initialized: actor="
             + actorId
-            + ", cards="
+            + ", sourceCards="
+            + recipe.Cards.Count
+            + ", actorCards="
             + cards.Count
+            + ", rejected="
+            + actorDeck.RejectedCards.Count
+            + ", basicAction="
+            + actorDeck.UsesBasicAction
             + ", initialHand="
             + Math.Min(ProjectionDeckRecipe.DefaultDrawCount, cards.Count)
-            + ", hash="
-            + recipe.Hash.Substring(0, 12));
+            + ", sourceHash="
+            + recipe.Hash.Substring(0, 12)
+            + ", actorHash="
+            + effectiveRecipe.Hash.Substring(0, 12)
+            + (actorDeck.RejectedCards.Count == 0
+                ? ""
+                : ", rejectedIds=" + string.Join(
+                    ",",
+                    actorDeck.RejectedCards
+                        .Select(card => card.CardId)
+                        .Distinct(StringComparer.Ordinal)
+                        .Take(12))));
         return new ProjectionCardBattleState(
             cards,
             ProjectionDeckRecipe.DefaultMaxPower,
@@ -150,6 +177,7 @@ internal sealed class ProjectionCardBattleState
     public CombatStateObservation Observe(ProjectionOtherObj projection)
     {
         targetSetsByCandidate.Clear();
+        QuarantineUnusableHandCards(projection.Status);
         var state = new CombatStateObservation
         {
             BattleSessionId = AuraShared.Core.AuraBattleLifecycleRouter.CurrentBattleSessionId,
@@ -203,28 +231,75 @@ internal sealed class ProjectionCardBattleState
 
         foreach (var card in cards.Where(card => card.Zone == CombatActorCardZone.Hand))
         {
-            if (!card.TryPrepare(projection.Status, out var prepareReason))
+            if (!card.TryPrepare(projection.Status, out _))
             {
-                TerriasLog.Warn("[ProjectionCards] skipped unavailable baseline card: "
-                    + card.CardId
-                    + "; "
-                    + prepareReason);
                 continue;
             }
             card.Refresh(projection.Status, revision);
             AddCardActions(state, projection.Status, card, enemies, friendlyStatuses);
         }
-        state.Actions.Add(new CombatActionObservation
+        var endTurn = new CombatActionObservation
         {
             CandidateId = "projection:end-turn",
             SourceId = "projection:end-turn",
             DisplayName = "End turn",
             Kind = CombatActionKind.EndTurn,
             RuntimeId = -1,
-            Legal = true
-        });
+            Legal = false
+        };
+        var legalNonEndActions = state.Actions.Count(action =>
+            action != null
+            && action.Legal
+            && action.Kind != CombatActionKind.EndTurn);
+        endTurn.Legal = ProjectionActorTurnPolicy.CanEndTurn(legalNonEndActions);
+        endTurn.RejectionReason = endTurn.Legal
+            ? ""
+            : "projection must play an available actor-safe card before ending its turn";
+        state.Actions.Add(endTurn);
         state.Fingerprint = BuildFingerprint(state);
         return state;
+    }
+
+    private void QuarantineUnusableHandCards(IStatusManager? actor)
+    {
+        var remainingPasses = Math.Max(1, cards.Count + 1);
+        while (remainingPasses-- > 0)
+        {
+            var rejected = cards
+                .Where(card => card.Zone == CombatActorCardZone.Hand)
+                .Select(card => new
+                {
+                    Card = card,
+                    Prepared = card.TryPrepare(actor, out var reason),
+                    Reason = reason
+                })
+                .Where(result => !result.Prepared)
+                .ToArray();
+            if (rejected.Length == 0)
+            {
+                return;
+            }
+
+            foreach (var result in rejected)
+            {
+                result.Card.LeaveHand();
+                result.Card.Zone = CombatActorCardZone.ExhaustPile;
+                TerriasLog.WarnOnce(
+                    "projection-card-runtime-quarantine:"
+                    + result.Card.CardId
+                    + ":"
+                    + result.Card.RuntimeId,
+                    "[ProjectionCards] actor-safe deck card quarantined after runtime initialization failure: "
+                    + result.Card.CardId
+                    + "; "
+                    + result.Reason);
+                TerriasPerformanceCounters.Record("ProjectionCards.ActorDeckRuntimeQuarantined");
+            }
+
+            ReindexZones();
+            Draw(rejected.Length, actor);
+            revision++;
+        }
     }
 
     public CombatAgentPreflightResult Preflight(
@@ -623,9 +698,6 @@ internal sealed class ProjectionCardBattleState
             Semantics = semantics,
             SemanticSource = "projection-card-runtime"
         };
-        action.Features["projectionActor"] = 1d;
-        action.Features["targetCount"] = targetRuntimeIds.Length;
-        action.Features["headlessSupported"] = card.HeadlessSupported(out _) ? 1d : 0d;
         targetSetsByCandidate[candidateId] = targetRuntimeIds;
         state.Actions.Add(action);
     }
@@ -1143,22 +1215,9 @@ internal sealed class ProjectionCardInstance
                 return false;
             }
         }
-        var unsupported = new[]
-        {
-            "ChooseCard", "SelectCard", "DeckUI", "FightUI.",
-            "FightCardManager", "FightPlayer", "GetCard(", "CreateCard(",
-            "BurnCard(", "ThrowCard(", "ChangeCard", "TransformCard",
-            "CurPowerCount", "ChangePower(", "GainPower("
-        };
-        var token = unsupported.FirstOrDefault(value =>
-            scriptScan.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
-        if (token != null)
-        {
-            reason = "projection card requires player-only behavior: " + token;
-            return false;
-        }
-        reason = "";
-        return true;
+        return ProjectionCardExecutionPolicy.IsHeadlessScriptSurfaceSafe(
+            scriptScan,
+            out reason);
     }
 
     public void Execute(
@@ -1343,87 +1402,6 @@ internal sealed class ProjectionCardInstance
     }
 }
 
-internal static class ProjectionWrappedCardPolicy
-{
-    private static readonly HashSet<string> SafeTerriasCards = new(
-        new[]
-        {
-            "spark",
-            "scorching_canopy_card",
-            "radiant_flame_slash",
-            "ember_cloak_card",
-            "draw_flame",
-            "solar_prayer",
-            "burning_star_hex",
-            "crown_radiance",
-            "canopy_return",
-            "solar_coronation",
-            "blazing_crown_collapse",
-            "solar_ignition",
-            "scorching_flow_reclaim",
-            "impurity_purge",
-            "eclipse_hex",
-            "solar_scorching_light",
-            "burning_calamity",
-            "burning_crown_oath",
-            "morning_light_bulwark",
-            "gathered_flame_shield",
-            "gathered_flame_cycle",
-            "solar_eclipse",
-            "smoke_erosion",
-            "afterglow_omen_card",
-            "solar_phase_tuning",
-            "radiant_oath",
-            "solar_return",
-            "solar_origin_core",
-            "ember_tower"
-        },
-        StringComparer.OrdinalIgnoreCase);
-
-    public static bool IsHeadlessSafe(string cardId, string script)
-    {
-        const string safePrefix = "CS.Terrias.Dll.Scripting.CardScripts.";
-        if (string.IsNullOrWhiteSpace(script)
-            || script.IndexOf(
-                safePrefix,
-                StringComparison.Ordinal) < 0)
-        {
-            return false;
-        }
-
-        for (var index = script.IndexOf("CS.", StringComparison.Ordinal);
-             index >= 0;
-             index = script.IndexOf("CS.", index + 3, StringComparison.Ordinal))
-        {
-            if (script.IndexOf(safePrefix, index, StringComparison.Ordinal) != index)
-            {
-                return false;
-            }
-        }
-
-        var localId = TerriasContentIdCompatibility.LocalId(cardId);
-        return SafeTerriasCards.Contains(localId);
-    }
-
-    public static bool IsLifecycleSafe(string cardId, string script)
-    {
-        if (string.IsNullOrWhiteSpace(script))
-        {
-            return true;
-        }
-        return ProjectionCardExecutionPolicy.Resolve(null, cardId, script).LifecycleSafe;
-    }
-
-    public static bool IsProjectionStateCard(string cardId)
-    {
-        return string.Equals(cardId, "solar_phase_tuning", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cardId, "radiant_oath", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cardId, "solar_return", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cardId, "solar_origin_core", StringComparison.OrdinalIgnoreCase)
-               || string.Equals(cardId, "ember_tower", StringComparison.OrdinalIgnoreCase);
-    }
-}
-
 internal sealed class ProjectionCombatAgentPort : ICombatAgentRuntimePort
 {
     private readonly ProjectionOtherObj projection;
@@ -1491,14 +1469,20 @@ internal sealed class ProjectionCombatAgentPort : ICombatAgentRuntimePort
     public void CompleteTurn(CombatAutoTurnResult result)
     {
         state.CompleteTurn(projection.Status);
-        TerriasLog.Info("[ProjectionCards] actor turn completed: status="
+        TerriasLog.InfoAlways("[ProjectionCards] actor turn completed: status="
             + projection.InstanceId
             + ", reason="
             + result.Reason
             + ", forced="
             + result.Forced
             + ", actions="
-            + result.CommittedActions);
+            + result.CommittedActions
+            + ", failures="
+            + result.ConsecutiveFailures
+            + ", message="
+            + (string.IsNullOrWhiteSpace(result.Message)
+                ? "<none>"
+                : result.Message.Replace('\r', ' ').Replace('\n', ' ')));
     }
 }
 
@@ -1511,19 +1495,16 @@ internal sealed class ProjectionCardAutomationProvider : ICombatActionAutomation
     {
         descriptor = new CombatActionAutomationDescriptor();
         if (action == null
-            || !action.SourceId.StartsWith("projection-card:", StringComparison.Ordinal))
+            || !ProjectionActionAutomationPolicy.DeclaresHeadlessExecutionRoute(
+                action.SourceId))
         {
             return false;
         }
-        var supported = action.Features.TryGetValue("headlessSupported", out var value)
-                        && value > 0.5d;
         descriptor = new CombatActionAutomationDescriptor
         {
-            HeadlessSupported = supported,
+            HeadlessSupported = true,
             FailureScope = CombatAgentFailureScope.Turn,
-            Reason = supported
-                ? ""
-                : "projection card requires unsupported player interaction"
+            Reason = ""
         };
         return true;
     }

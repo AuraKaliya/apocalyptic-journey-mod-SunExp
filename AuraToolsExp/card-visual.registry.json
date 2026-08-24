@@ -1,9 +1,9 @@
 {
-  "schemaVersion": 7,
+  "schemaVersion": 9,
   "ownerModId": "AuraToolsExp",
   "protocol": {
-    "minVersion": 7,
-    "preferredVersion": 7
+    "minVersion": 9,
+    "preferredVersion": 9
   },
   "themes": [
     {
@@ -61,9 +61,9 @@
     {
       "effectId": "foil-holo",
       "displayName": "箔光幻彩",
-      "rendererId": "aura.card-visual.material-v5",
+      "rendererId": "aura.card-visual.material-v7",
       "targetLayer": "frame",
-      "coverageProfile": "native-frame-v4",
+      "coverageProfile": "native-frame-v5",
       "bundlePath": "Mods/AuraToolsExp/ModResource/VisualBundles/auratools_visuals",
       "imageMaterialPath": "AuraToolsExp/Materials/CardFrameEffectUI",
       "meshMaterialPath": "AuraToolsExp/Materials/CardFrameEffectURP",
@@ -105,9 +105,9 @@
     {
       "effectId": "stardust",
       "displayName": "晨星尘辉",
-      "rendererId": "aura.card-visual.material-v5",
+      "rendererId": "aura.card-visual.material-v7",
       "targetLayer": "frame",
-      "coverageProfile": "native-frame-v4",
+      "coverageProfile": "native-frame-v5",
       "bundlePath": "Mods/AuraToolsExp/ModResource/VisualBundles/auratools_visuals",
       "imageMaterialPath": "AuraToolsExp/Materials/CardFrameEffectUI",
       "meshMaterialPath": "AuraToolsExp/Materials/CardFrameEffectURP",

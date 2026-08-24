@@ -78,17 +78,23 @@ frame preset to the five cards that carry effects.
   so native hand reflow cannot leave a pooled card on its base skin.
 - Lightweight Terrias card-view rebinding must call the shared presentation
   lifecycle, not the Terrias-only router. Pool prepare/destroy emits a shared
-  reset; bind emits a shared apply. The v7 dynamic-effect renderer uses the
-  `frame` target with `native-frame-v4`: clone the effect material onto the
-  exact card's actual `Front/FrontBack` renderer and bind the current frame
-  texture. Native `ICard.SetCardStyle` writes this node's `Image`; therefore an
-  `Image` always wins when the same node also retains a legacy `MeshRenderer`.
-  Mesh is valid only when no Image exists. A combat card root never performs descendant-wide
+  reset; bind emits a shared apply. Temporary materials form an ownership
+  stack: native material, Aura card effect, then card-exit animation. Pooling,
+  teardown, and destruction must unwind that stack in reverse order. A material
+  owner may restore or release only while its exact material still owns the
+  renderer; it must never reattach a stale or destroyed material over a newer
+  owner. Card-visual protocol v9 uses the `frame`
+  target with `native-frame-v5`: select the whole native presentation mode
+  exactly as `ICard.SetCardStyle` does. If `Front/background` owns a
+  `MeshRenderer`, mutate only the matching `Front/FrontBack.MeshRenderer`; a
+  coexisting legacy `Image` must remain untouched. Otherwise mutate only the
+  matching `Image`. Static skins, dynamic effects, material leases, and reset
+  all share this one selection. A combat card root never performs descendant-wide
   searches; a non-combat root may resolve only its deterministic direct
   `CardItem` child. Do not restore the retired detached `frameOverlay`, white
   full-card `cardFront` surface, or breadth-first fallback; they respectively
   break native UV/masks or can skin a neighboring pooled card.
-- `aura.card-visual.material-v5` has two explicit URP material contracts. Unity UI
+- `aura.card-visual.material-v7` has two explicit URP material contracts. Unity UI
   `Image` uses `AuraToolsExp/Materials/CardFrameEffectUI`; `MeshRenderer` uses
   `AuraToolsExp/Materials/CardFrameEffectURP`. Both shaders must declare
   `RenderPipeline=UniversalPipeline`, expose their required named pass, and
@@ -108,7 +114,7 @@ frame preset to the five cards that carry effects.
   or ship the retired Unity 2022 bundle after a failed rebuild.
 - Replay card instances carry a read-only snapshot of their effective theme,
   skin, effect id, and clamped parameter map in runtime Vars. Applying that
-  snapshot uses the same v7 renderer and never rewrites current player config.
+  snapshot uses the same v9/native-frame-v5 renderer and never rewrites current player config.
 - A pooled card exit leaves the live hand hierarchy before its animation. Burn,
   discard, and draw-pile exits all repair sibling/sorting indexes and coalesce
   one native hand layout; do not limit reflow to move exits while burn suppresses

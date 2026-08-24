@@ -161,7 +161,7 @@
 | `Terrias_terrias_spirit_ball` | 精灵球 | 技能牌 | 3 | 1 | 对一名可捕获敌人进行捕获检定：基础成功率为10%，目标每损失1%生命，成功率提高0.8%，最高90%。成功时获得对应的【精灵卡】。 |
 | `Terrias_terrias_witch_projection` | 拜托了 | 技能牌 | 3 | 1 | 获得一张【另一个我】，作为友方单位加入战斗。 |
 
-### 角色、系统与模式专用牌（17 张）
+### 角色、系统与模式专用牌（18 张）
 
 这些牌包括角色主动技能、星谱派生牌、无尽诅咒、动态模板和特殊奖励。它们没有常规 `PackBelong`，不应按普通卡包掉落理解。
 
@@ -175,6 +175,7 @@
 | `Terrias_terrias_lucky_jackpot_b` | 幸运大奖B | 技能牌 | 0 | 打出时进行检定：结果达到95时，获得1个4阶遗物；否则抽1张牌。焚毁。 |
 | `Terrias_terrias_polymorph_role_template` | 百变化身 | 衍生牌 | 0 | 百变：目标角色 |
 | `Terrias_terrias_projection_role_template` | 另一个我 | 衍生牌 | 0 | 啧......真拿你没办法。 |
+| `Terrias_terrias_projection_basic_action` | 投影·基础行动 | 衍生牌 | 1 | 当权威牌组中没有 Actor-safe 卡牌时，作为投影的可循环单体攻击。 |
 | `Terrias_terrias_spirit_card_template` | 精灵 | 衍生牌 | 0 | 召唤这张卡记录的精灵。若已有精灵，将其换下并生成对应精灵卡加入手牌；每次换下后，该卡耗费+1。 |
 | `Terrias_terrias_stellar_overture_close` | 星辰序曲·合 | 衍生牌 | 0 | 造成{0}点伤害，数值为10+自身Buff种类数+目标Buff种类数。推进{Terrias_terrias_star_score}：合。 |
 | `Terrias_terrias_stellar_overture_start` | 星辰序曲·启 | 衍生牌 | 0 | 抽2张牌。推进{Terrias_terrias_star_score}：启。 |

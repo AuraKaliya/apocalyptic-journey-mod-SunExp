@@ -25,7 +25,6 @@ public static class EndlessAbyssEvacuationRuntime
         RegisterAfter(modConfig, "MapSelectUI.Start", ResumePendingSettlement);
         RegisterAfter(modConfig, "MapSelectUI.ShowMap", ResumePendingSettlement);
         RegisterBefore(modConfig, "GameExitUI.ReturnAsync", ArmFinalization);
-        RegisterAfter(modConfig, "GameExitUI.OnDestroy", ObserveReturnCompleted);
         RegisterBefore(modConfig, "GameApp.ReturnToMenu", FinalizeBeforeMenuReturn);
     }
 
@@ -335,11 +334,6 @@ public static class EndlessAbyssEvacuationRuntime
         }
     }
 
-    private static void ObserveReturnCompleted(ModHookContext context)
-    {
-        EndlessAbyssSettlementBarrierRuntime.ObserveReturnCompleted();
-    }
-
     private static void FinalizeBeforeMenuReturn(ModHookContext context)
     {
         if (!finalizationArmed || !EndlessSeaRunStateStore.IsEvacuating())
@@ -348,19 +342,41 @@ public static class EndlessAbyssEvacuationRuntime
         }
 
         finalizationArmed = false;
+        FinalizeSettlementState("EndlessAbyssEvacuation.GameApp.ReturnToMenu");
+        EndlessAbyssSettlementBarrierRuntime.CommitBeforeNetworkTeardown();
+        EndlessAbyssSettlementBarrierRuntime.Clear("GameApp.ReturnToMenu");
+    }
+
+    internal static void FinalizeWithoutSettlementUi(string source)
+    {
+        if (EndlessSeaRunStateStore.IsEvacuating())
+        {
+            finalizationArmed = false;
+            FinalizeSettlementState(source);
+        }
+
+        EndlessAbyssSettlementBarrierRuntime.CommitBeforeNetworkTeardown();
+        EndlessAbyssSettlementBarrierRuntime.Clear(source);
+        GameApp.Instance?.ReturnToMenu();
+    }
+
+    private static void FinalizeSettlementState(string source)
+    {
         var resolution = EndlessAbyssEvacuationService.CaptureStored();
-        EndlessSeaRunStateStore.MarkEnded("EndlessAbyssEvacuation.GameApp.ReturnToMenu");
-        EndlessAbyssEvacuationService.PersistCurrentSave("EndlessAbyssEvacuation.GameApp.ReturnToMenu");
-        EndlessSeaNetworkSync.BroadcastSnapshot("EndlessAbyssEvacuation.GameApp.ReturnToMenu");
+        EndlessSeaRunStateStore.MarkEnded(source);
+        EndlessAbyssEvacuationService.PersistCurrentSave(source);
+        EndlessSeaNetworkSync.BroadcastSnapshot(source);
         AuraModeOutcomeRuntime.Clear(
             TerriasIds.ModId,
             TerriasIds.EndlessAbyssSemanticModeId,
             resolution.RunId);
-        TerriasLog.Info("[EndlessAbyssEvacuation] finalized before menu return: runId="
-                       + resolution.RunId
-                       + ", token="
-                       + resolution.Token
-                       + ".");
+        TerriasLog.Info("[EndlessAbyssEvacuation] finalized settlement state: runId="
+                        + resolution.RunId
+                        + ", token="
+                        + resolution.Token
+                        + ", source="
+                        + source
+                        + ".");
         lastPresentedToken = "";
     }
 

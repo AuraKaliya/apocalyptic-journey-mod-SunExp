@@ -1,10 +1,7 @@
 using System;
 using System.Collections.Generic;
-using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
-using Terrias.Dll.Mechanics;
-using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
@@ -12,17 +9,16 @@ namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryMapItemAnimationRuntime
 {
-    private const string SecondSunMapFallbackAnimation = "AnimationLib/\u707e\u5384\u5148\u5146";
-    private const string SaintWunaMapFallbackAnimation = "AnimationLib/\u5931\u5fc3\u9b54\u5973";
-    private const string GenericFightMapFallbackAnimation = "AnimationLib/\u707e\u5384\u5148\u5146";
-
-    private static readonly Dictionary<MapTree.Node, AnimationRestore> PendingRestores = new();
-    private static readonly Dictionary<string, bool> MapPreviewFrameCache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<MapTree.Node, SolarMemoryMapPreviewOverride> PendingRestores = new();
+    private static int restoreGeneration;
 
     public static void Initialize(ModConfig modConfig)
     {
         RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);
         RegisterAfter(modConfig, "MapItem.Init", RestoreMapItemAnimation);
+        RegisterBefore(modConfig, "MapSelectUI.Start", _ => RestoreAll("MapSelectUI.Start"));
+        RegisterBefore(modConfig, "GameEntryUI.Init", _ => Reset("GameEntryUI.Init"));
+        RegisterBefore(modConfig, "GameApp.ReturnToMenu", _ => Reset("GameApp.ReturnToMenu"));
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
@@ -39,39 +35,38 @@ public static class SolarMemoryMapItemAnimationRuntime
     {
         try
         {
+            RestoreAll("before-next-map-item");
             if (!SolarMemoryModeRuntime.IsSolarMemoryRun()
                 || context.Arguments == null
                 || context.Arguments.Length == 0
                 || context.Arguments[0] is not MapTree.Node node
-                || !TryResolveEnemyRow(node, out var enemyId, out var row))
+                || !SolarMemoryMapPreviewApi.TryApplyAnimationOverride(node, out var applied, out var reason)
+                || applied == null)
             {
                 return;
             }
 
-            var original = DictionaryUtil.Get(row, "Animation");
-            var fallbackAnimation = ResolveFallbackAnimation(node, original);
-            if (string.IsNullOrWhiteSpace(fallbackAnimation))
+            PendingRestores[node] = applied;
+            var generation = ++restoreGeneration;
+            if (TerriasFrameDispatcher.HasNextFrameDispatcher)
             {
-                return;
+                TerriasFrameDispatcher.RunOnceNextFrame(
+                    "SolarMemoryMapItemAnimation.Restore." + generation,
+                    () => Restore(node, applied, "next-frame"));
             }
-
-            if (string.Equals(original, fallbackAnimation, StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            PendingRestores[node] = new AnimationRestore(row, original);
-            row["Animation"] = fallbackAnimation;
-            TerriasLog.Info("[SolarMemoryMapItem] applied safe map animation fallback for "
-                + enemyId
-                + "; original="
-                + original
-                + "; fallback="
-                + fallbackAnimation
-                + ".");
+            TerriasLog.Info("[SolarMemoryMapItem] applied validated native map animation fallback for "
+                            + applied.EnemyId
+                            + "; original="
+                            + applied.OriginalAnimation
+                            + "; fallback="
+                            + applied.FallbackAnimation
+                            + "; reason="
+                            + reason
+                            + ".");
         }
         catch (Exception ex)
         {
+            RestoreAll("prepare-failure");
             TerriasLog.Error("Solar memory map item animation prepare failed", ex);
         }
     }
@@ -88,154 +83,47 @@ public static class SolarMemoryMapItemAnimationRuntime
                 return;
             }
 
-            restore.Row["Animation"] = restore.Animation;
-            PendingRestores.Remove(node);
-            TerriasLog.Debug("[SolarMemoryMapItem] restored map animation fallback.");
+            Restore(node, restore, "MapItem.Init.after");
         }
         catch (Exception ex)
         {
+            RestoreAll("restore-failure");
             TerriasLog.Error("Solar memory map item animation restore failed", ex);
         }
     }
 
-    private static bool TryResolveEnemyRow(MapTree.Node node, out string enemyId, out IDictionary<string, string> row)
+    private static void Restore(MapTree.Node node, SolarMemoryMapPreviewOverride restore, string source)
     {
-        enemyId = "";
-        row = null!;
-        if (node.data == null || !string.Equals(DictionaryUtil.Get(node.data, "Type"), "Fight", StringComparison.Ordinal))
+        if (!PendingRestores.TryGetValue(node, out var current)
+            || !ReferenceEquals(current, restore))
         {
-            return false;
+            return;
         }
 
-        var levelId = DictionaryUtil.Get(node.data, "NodeId");
-        var level = ConfigRow(DataType.Level, levelId);
-        var enemyIds = DictionaryUtil.Get(level, "EnemyIds")
-            .Replace(" ", "")
-            .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-        if (enemyIds.Length == 0)
-        {
-            return false;
-        }
-
-        var bestHp = int.MinValue;
-        foreach (var id in enemyIds)
-        {
-            var candidate = EnemyRow(id);
-            if (candidate == null)
-            {
-                continue;
-            }
-
-            var hp = DictionaryUtil.GetInt(candidate, "Hp", 0);
-            if (hp <= bestHp)
-            {
-                continue;
-            }
-
-            bestHp = hp;
-            enemyId = id;
-            row = candidate;
-        }
-
-        return row != null;
+        PendingRestores.Remove(node);
+        restore.Restore();
+        TerriasLog.Debug("[SolarMemoryMapItem] restored native map animation fallback from " + source + ".");
     }
 
-    private static string ResolveFallbackAnimation(MapTree.Node node, string originalAnimation)
+    private static void RestoreAll(string source)
     {
-        var levelId = DictionaryUtil.Get(node.data, "NodeId");
-        if (IsLevel(levelId, TerriasIds.SolarBossSecondSunLevelId, "level_second_sun_last_day"))
+        if (PendingRestores.Count == 0)
         {
-            return SecondSunMapFallbackAnimation;
+            return;
         }
 
-        if (IsLevel(levelId, TerriasIds.SolarBossSaintWunaLevelId, "level_saint_wuna"))
+        foreach (var restore in new List<SolarMemoryMapPreviewOverride>(PendingRestores.Values))
         {
-            return SaintWunaMapFallbackAnimation;
+            restore.Restore();
         }
 
-        if (!HasMapPreviewFrames(originalAnimation))
-        {
-            return GenericFightMapFallbackAnimation;
-        }
-
-        return "";
+        PendingRestores.Clear();
+        TerriasLog.Debug("[SolarMemoryMapItem] restored all pending map animation overrides from " + source + ".");
     }
 
-    private static bool HasMapPreviewFrames(string animationPath)
+    private static void Reset(string source)
     {
-        if (string.IsNullOrWhiteSpace(animationPath))
-        {
-            return false;
-        }
-
-        if (MapPreviewFrameCache.TryGetValue(animationPath, out var cached))
-        {
-            return cached;
-        }
-
-        var result = false;
-        try
-        {
-            if ((TerriasResourceCache.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
-            {
-                result = true;
-            }
-            else
-            {
-                result = (TerriasResourceCache.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[SolarMemoryMapItem] map animation probe failed: "
-                + animationPath
-                + " -> "
-                + ex.Message);
-            result = false;
-        }
-
-        MapPreviewFrameCache[animationPath] = result;
-        return result;
-    }
-
-    private static bool IsLevel(string actual, string fullId, string shortId)
-    {
-        return string.Equals(actual, fullId, StringComparison.Ordinal)
-            || string.Equals(actual, shortId, StringComparison.Ordinal);
-    }
-
-    private static IDictionary<string, string>? EnemyRow(string fullEnemyId)
-    {
-        var row = ConfigRow(DataType.Enemy, fullEnemyId);
-        if (row != null)
-        {
-            return row;
-        }
-
-        var shortId = TerriasContentIdCompatibility.LocalId(fullEnemyId);
-        return ConfigRow(DataType.Enemy, shortId);
-    }
-
-    private static IDictionary<string, string>? ConfigRow(DataType type, string id)
-    {
-        if (string.IsNullOrWhiteSpace(id))
-        {
-            return null;
-        }
-
-        return TerriasConfigIndex.Row(type, id);
-    }
-
-    private readonly struct AnimationRestore
-    {
-        public AnimationRestore(IDictionary<string, string> row, string animation)
-        {
-            Row = row;
-            Animation = animation;
-        }
-
-        public IDictionary<string, string> Row { get; }
-
-        public string Animation { get; }
+        RestoreAll(source);
+        SolarMemoryMapPreviewApi.ClearProbeCache();
     }
 }

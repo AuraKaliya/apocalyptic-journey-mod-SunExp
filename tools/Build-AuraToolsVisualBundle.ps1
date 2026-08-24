@@ -74,6 +74,12 @@ try {
     if ($logText -notmatch 'CardFrameEffectUI render smoke passed: rgba=.*graphics=Direct3D11') {
         throw "AuraTools CardFrameEffectUI did not pass the real Direct3D11 pixel smoke test. See $log"
     }
+    if ($logText -notmatch 'CardFrameEffectURP render smoke passed: rgba=.*graphics=Direct3D11') {
+        throw "AuraTools CardFrameEffectURP did not pass the real MeshRenderer Direct3D11 pixel smoke test. See $log"
+    }
+    if ($logText -notmatch 'CardFrameEffectURP material lease smoke passed: restored=.*rebound=.*graphics=Direct3D11') {
+        throw "AuraTools CardFrameEffectURP did not pass the pooled material detach/rebind smoke test. See $log"
+    }
 }
 finally {
     $env:AURATOOLS_VISUAL_BUNDLE_OUTPUT = $envBefore

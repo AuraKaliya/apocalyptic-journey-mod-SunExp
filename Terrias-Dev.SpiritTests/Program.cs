@@ -121,7 +121,8 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 16
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 19
+       && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
        && SpiritSystemContract.CollectionVersion == 7
        && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,

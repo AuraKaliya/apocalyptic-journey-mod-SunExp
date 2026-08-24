@@ -213,6 +213,7 @@
     "caption.projection.failure.OwnerAlreadyHasProjection": { "zh-Hans": "拜托了：投影位置已被占用。", "zh-Hant": "拜託了：投影位置已被佔用。", "en": "Lend Me a Hand: The projection slot is already occupied.", "ja": "お願い：投影枠はすでに使用されています。" },
     "caption.projection.failure.FriendlySeatsFull": { "zh-Hans": "拜托了：友方角色位置已达到4人上限。", "zh-Hant": "拜託了：友方角色位置已達到4人上限。", "en": "Lend Me a Hand: All four friendly unit slots are occupied.", "ja": "お願い：味方ユニット枠が4人上限に達しています。" },
     "caption.projection.failure.SeatReservationExpired": { "zh-Hans": "拜托了：投影位置预约已失效。", "zh-Hant": "拜託了：投影位置預約已失效。", "en": "Lend Me a Hand: The projection slot reservation expired.", "ja": "お願い：投影枠の予約が失効しました。" },
+    "caption.projection.failure.TurnTransactionUnavailable": { "zh-Hans": "拜托了：当前玩家阶段已关闭，投影卡牌已返还。", "zh-Hant": "拜託了：當前玩家階段已關閉，投影卡牌已返還。", "en": "Lend Me a Hand: The player phase is closed; the projection card was returned.", "ja": "お願い：プレイヤーフェーズが終了したため、投影カードを返却しました。" },
     "caption.projection.failure.SpawnFailed": { "zh-Hans": "拜托了：投影召唤失败，请稍后重试。", "zh-Hant": "拜託了：投影召喚失敗，請稍後重試。", "en": "Lend Me a Hand: Projection summon failed. Try again later.", "ja": "お願い：投影の召喚に失敗しました。後でもう一度お試しください。" },
     "caption.projection.failure.Cancelled": { "zh-Hans": "拜托了：投影同步已取消。", "zh-Hant": "拜託了：投影同步已取消。", "en": "Lend Me a Hand: Projection synchronization was cancelled.", "ja": "お願い：投影の同期はキャンセルされました。" },
     "caption.spirit.reason": { "zh-Hans": "精灵：{reason}", "zh-Hant": "精靈：{reason}", "en": "Spirit: {reason}", "ja": "精霊：{reason}" },

@@ -219,6 +219,37 @@ public static class TerriasUiPool
         return true;
     }
 
+    public static void ClearAll(string source, string logPrefix)
+    {
+        var destroyed = 0;
+        foreach (var stack in Pools.Values)
+        {
+            while (stack.Count > 0)
+            {
+                var go = stack.Pop();
+                if (go == null)
+                {
+                    continue;
+                }
+
+                UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, TerriasLog.Debug);
+                Object.Destroy(go);
+                destroyed++;
+            }
+        }
+
+        Pools.Clear();
+        if (poolRoot != null)
+        {
+            Object.Destroy(poolRoot);
+            poolRoot = null;
+        }
+
+        TerriasPerformanceCounters.Record("UiPool.Cleared");
+        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(2, source + ":pool-clear", TerriasLog.Debug);
+        TerriasLog.Debug(logPrefix + " cleared " + destroyed + " pooled UI object(s) from " + source + ".");
+    }
+
     private static void RestoreReusableTree(GameObject go)
     {
         foreach (var graphic in go.GetComponentsInChildren<Graphic>(true))

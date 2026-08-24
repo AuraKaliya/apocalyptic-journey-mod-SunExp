@@ -1,9 +1,9 @@
 # 投影、精灵与心变机制完整说明
 
-> - 文档状态：当前实现基线（2026-08-12）
+> - 文档状态：当前实现基线（2026-08-25）
 > - 适用范围：Terrias、AuraToolsExp、AuraCombatAiShared 以及游戏主体 Partner 战斗流程
-> - 伙伴联机协议：`14`
-> - 投影牌组模型：`projection-role-deck-v2`
+> - 伙伴联机协议：`19`
+> - 投影牌组模型：`projection-role-deck-v3`
 
 ## 1. 文档目的
 
@@ -42,8 +42,11 @@
 
 ```mermaid
 flowchart LR
-    P["Player 阶段"] --> Q["原生 ActionQueue"]
-    Q --> PJ["投影 Partner 行动"]
+    P["Player 阶段"] --> NP{"本轮新召唤投影？"}
+    NP -- "是" --> SC["召唤轮投影续段"]
+    NP -- "否" --> Q["原生 ActionQueue 后续"]
+    SC --> Q
+    Q --> PJ["既有 Partner 行动"]
     PJ --> SP["精灵 Partner 行动"]
     SP --> E["Enemy 阶段"]
     E --> N["下一轮"]
@@ -51,7 +54,24 @@ flowchart LR
     HC["受心变影响的 Enemy"] -. "保持 Enemy 身份，只改写目标" .-> E
 ```
 
-`ProjectionTurnCoordinator` 在伙伴生成时将其插入第一个 Enemy 之前。投影和精灵之间不使用额外隐藏锚点，也不在玩家回合结束后另起 Terrias 私有回合。
+`ProjectionTurnCoordinator` 在伙伴生成时将其插入第一个 Enemy 之前，供下一轮及以后由原生队列执行。由于宿主在进入玩家阶段前已冻结本轮 `DOAllAction` 的不可变快照，本轮新投影不能只依赖 live `ActionQueue` 插入。
+
+投影召唤请求通过主机身份、协议和请求一致性校验后，先以召唤 `token` 在当前轮创建
+`Reserved` 事务，再读取牌组、占用槽位和生成 Unity Actor。生成完成后事务绑定
+`statusId/generation` 并进入 `Ready`；任一失败路径进入 `Failed`。该预留早于实体生成，
+所以牌组同步重试、客机请求和玩家结束提交不会越过召唤事务。
+
+所有玩家的结束提交经 `FightManager.UserCode_EndPlayerturn` 到达本机后，协调器只要发现
+本轮仍有 `Reserved/Ready` 事务，就将 `FightPlayer.isEnd` 恢复为 false，保持原生
+`DOAllAction` 的玩家单元不退出。主机按 `round + order + token` 顺序等待事务就绪并执行
+投影 `DoAction()`；客机不自行决策，只等待主机广播的 `Completed/Failed` 版本。所有事务
+终结后才释放原生屏障并继续既有 Partner 与 Enemy。该续段不是新回合，不重复触发玩家
+阶段，也不补跑既有伙伴；实体生成后的 `fightType` 不再参与召唤轮归属推断。
+
+投影和精灵之间不使用额外隐藏锚点，也不创建另一套 Terrias 私有回合循环。权威事务
+快照携带 `battleEpoch/token/round/order/revision/state`，投影公开快照同时携带同一事务身份
+用于状态查询修复。重复、过期、倒退或同 revision 冲突的快照均被拒绝。战斗结束、重开
+或进入下一轮时清理事务；若开放事务跨轮，会输出常驻错误而不是静默丢弃。
 
 如果两种伙伴同时存在，它们都会处于第一个 Enemy 之前；伙伴之间沿用当前注册到 `ActionQueue` 的顺序，不额外声明固定的“投影先于精灵”或“精灵先于投影”规则。
 
@@ -90,6 +110,7 @@ Terrias 负责：
 
 - 创建投影和精灵对象并接入原生 Partner 队列。
 - 把投影牌局转换为共享 AI 可以观察的行动候选。
+- 在仍有合法 Actor-safe 卡牌时禁止投影主动结束回合。
 - 执行投影卡牌并保证效果落在投影自身牌局。
 - 规划与执行精灵意图。
 - 对心变敌人的原生脚本目标进行重写。
@@ -168,19 +189,19 @@ sequenceDiagram
     Host-->>Card: 广播公开投影结果
 ```
 
-主机缺少远程 `RoleTable` 时先返回可重试的非终态结果，客机以同一 token 重试，不返卡也不创建投影；主机连续收到 6 次同 token 请求仍无牌组时，才以明确的 `RoleDeckTimedOut` 终态关闭事务并返卡。哈希不一致只记诊断日志，主机仍以自己的 `RoleTable` 配方创建投影。协议、权限、席位或生成失败等确定性终态错误按分类处理；发送结果不确定时不会盲目返卡。系统不会退回到主机牌组，也不会启动完整牌组分块上传。
+主机缺少远程 `RoleTable` 时保留已经建立的 `Reserved` 回合事务并返回可重试的非终态结果，客机以同一 token 重试，不返卡也不创建投影；若玩家已提交结束，该事务会继续持有当前轮屏障。主机连续收到 6 次同 token 请求仍无牌组时，以明确的 `RoleDeckTimedOut/Failed` 终态关闭事务并返卡；若客户端断线导致重试完全停止，主机侧 30 秒命令 TTL 同样会关闭孤儿预留。哈希不一致只记诊断日志，主机仍以自己的 `RoleTable` 配方创建投影。协议、权限、席位或生成失败等确定性终态错误按分类处理；发送结果不确定时不会盲目返卡。系统不会退回到主机牌组，也不会启动完整牌组分块上传。
 
 ### 6.3 复制内容
 
 | 类型 | 复制内容 |
 | --- | --- |
 | 单位状态 | 主机可见的最大生命、当前生命、护盾、攻击 |
-| 牌组构成 | `RoleTable.cardList` 中最多 512 张已注册卡牌的 id 与数量 |
+| 牌组构成 | `RoleTable.cardList` 中最多 512 张已注册卡牌经 Actor-safe 能力投影后的 id 与数量 |
 | 卡牌定义 | 主机本地注册表中的原始数据、费用、标签和脚本 |
 | 永久附件 | `RoleTable.enchasedDict` 中可解析的附件 id |
 | 投影资源 | 固定 3 点能量上限与每回合 5 张抽牌数 |
 
-召唤时只创建轻量卡牌记录。卡牌进入手牌并参与 AI 候选时，才从主机注册表实例化独立 `DataConfig`；投影弃牌、抽牌、焚毁和修改费用不会回写玩家牌组。
+召唤时先使用主机注册表的只读定义对完整配方执行一次 Actor-safe 能力投影；需要玩家 UI、玩家手牌/能量或未声明 `CS.*` 包装能力的卡不会进入投影抽牌堆。若结果为空，则使用隐藏的【投影·基础行动】作为唯一循环牌。完成能力投影后只创建轻量卡牌记录；卡牌进入手牌并参与 AI 候选时，才实例化独立 `DataConfig`。投影弃牌、抽牌、焚毁和修改费用不会回写玩家牌组。
 
 ### 6.4 不复制的内容
 
@@ -204,7 +225,7 @@ sequenceDiagram
 
 - 使用固定 3 点能量；
 - 从独立牌组确定性洗牌后获得最多 5 张初始手牌；
-- 可以主动选择结束，也可能因无合法动作或保护条件而强制结束。
+- 从 Actor-safe 牌组行动；原牌组全部不安全时使用【投影·基础行动】，不再生成由不安全卡占满的死手牌。
 
 后续回合：
 
@@ -222,14 +243,15 @@ sequenceDiagram
 1. `ProjectionCardBattleState` 观察投影自身、友方、敌方、能量和手牌。
 2. 为每张合法手牌和目标组合生成 `CombatActionObservation`。
 3. `CombatDecisionEngine` 使用 `terrias-projection` 快速决策配置选择行动。
-4. 共享 Runner 检查该行动是否声明支持无 UI 执行。
-5. Terrias 再检查卡牌实例、费用、目标和脚本安全性。
+4. 共享 Runner 根据稳定的 `projection-card:<cardId>` 执行路由确认该行动由投影无 UI 运行时接管。
+5. Terrias 以当前卡牌实例和附件为唯一权威，再检查费用、目标和脚本安全性。
 6. 扣除投影能量，以投影 `Status` 作为脚本 `Self` 执行卡牌。
 7. 处理附加物、连击、额外使用次数、逐次衰减和使用后区域移动。
 8. 等待 `FightUI` 动画及 `WaitCard` 完成结算，再开始下一次决策。
 9. 只广播公开单位状态与行动表现，不广播内部牌组。
 
 投影不会通过模拟点击玩家手牌或点击结束回合按钮完成行动。
+无 UI 执行能力不写入 AI 候选特征：决策边界可以复制、净化和重建候选，执行路由仍由稳定 `SourceId` 声明，具体卡牌能力始终由运行时实例预检决定。
 
 ### 6.7 无 UI 卡牌安全边界
 
@@ -438,12 +460,12 @@ AI 主动结束回合和保护性强制结束都会直接调用 Actor 端口完�
 
 伙伴请求和快照会校验：
 
-- `ProtocolVersion = 16`；
+- `ProtocolVersion = 19`；
 - 当前 `BattleEpoch`；
 - 请求发送者是否存在于房间；
 - 发送者是否拥有请求中的玩家状态；
 - 投影卡牌模型版本与基础牌组诊断 hash；
-- 去重 token、spawn generation、state revision、action sequence 和 completed-turn sequence。
+- 去重 token、召唤轮 order/revision/state、spawn generation、state revision、action sequence 和 completed-turn sequence。
 
 ### 9.3 投影快照
 
@@ -452,11 +474,16 @@ AI 主动结束回合和保护性强制结束都会直接调用 Actor 端口完�
 - 拥有者、角色、投影 status id 和显示槽信息；
 - 当前生命、攻击、护盾和伙伴进度；
 - 投影卡牌模型版本、战斗 epoch、token、spawn generation；
-- `StateRevision`、`ActionSequence`、`CompletedTurnSequence` 与 active tombstone。
+- `StateRevision`、`ActionSequence`、`CompletedTurnSequence`、`SummonRoundSequence`、
+  `SummonTurnToken/Order/Revision/State` 与 active tombstone。
 
 投影内部牌组只存在于主机，不向其他客户端广播。客户端只根据公开快照创建表现镜像。每张卡牌只发送一个合并行动帧，包含卡牌 id、目标 id 集合、行动后公开状态和独立序号；客户端缓存表现用卡牌定义，避免每次重新实例化。
 
-召唤成功发送结果与 spawn 快照；每张卡牌发送一个行动帧；每回合发送一个完成快照；死亡发送 tombstone。`StateRevision` 对所有公开变化逐行动单调递增，其他序号各自单调；客户端只接受同 generation 的更新 revision，并拒绝 tombstone 后的晚到 active 帧。
+请求通过身份校验后先发送 `Reserved`，Actor 完成初始化后发送 `Ready`，召唤轮行动后发送
+`Completed`，确定性失败发送 `Failed`；公开投影快照携带同一事务状态用于丢包后的状态查询
+修复。每张卡牌发送一个行动帧；每回合发送一个完成快照；死亡发送 tombstone。
+`StateRevision` 与事务 revision 各自单调；客户端拒绝倒退、同 revision 冲突以及 tombstone
+后的晚到 active 帧。
 
 ### 9.4 精灵快照
 
@@ -485,7 +512,8 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 
 ### 9.6 客机回合等待
 
-- 投影客机按 `CompletedTurnSequence` 消费完成事件；完成帧即使先于本地 `Partner.DoAction` 到达，也会立即满足当前调用。
+- 召唤当轮由客机按 `token + round + order + revision` 等待主机事务终态；后续原生 Partner
+  回合按 `CompletedTurnSequence` 消费完成事件。完成帧即使先于本地调用到达，也会立即满足。
 - 等待超过 2 秒没有进展时，客机按限频请求主机重发当前公开状态；等待不再依赖固定 50 秒的下一回合猜测。
 - 连续 12 秒仍无法获得权威进展时，只软释放本地这一次 Partner 队列调用，不执行 AI、不提交伤害；后续权威帧仍按序号合并。
 - 精灵客机等待权威 `TurnIndex` 推进，最长 15 秒。
@@ -505,16 +533,17 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 8. 心变只改写原生行动目标，不替换卡池和行动次数。
 9. 联机只有主机执行伙伴决策、卡牌和目标改写。
 10. 任意异常都必须能够结束当前 Actor 回合，不能阻塞整个战斗队列。
+11. 召唤请求一经主机接受，必须在 Actor 生成前预留同轮事务；存在合法 Actor-safe 卡牌时投影不得主动 EndTurn。
 
 ## 11. 典型场景
 
 ### 11.1 非主机玩家召唤投影
 
-客机只发送角色、拥有者、token 和基础牌组诊断 hash。主机从该客机对应的 `GameServer.RoleTables[playerId]` 创建牌组；即使主机本人的牌组完全不同，也不会被投影读取。若主机尚未收到该角色表，客机以同一 token 最多完成 6 次主机确认重试，之后由主机终态返卡；hash 不一致不阻止主机使用权威配方。
+客机只发送角色、拥有者、token 和基础牌组诊断 hash。主机验证发送者后立即用该 token 预留当前召唤轮，再从该客机对应的 `GameServer.RoleTables[playerId]` 创建牌组；即使主机本人的牌组完全不同，也不会被投影读取。若主机尚未收到该角色表，客机以同一 token 最多完成 6 次主机确认重试，之后由主机以 `Failed` 终态释放屏障并返卡；hash 不一致不阻止主机使用权威配方。
 
-### 11.2 投影抽到需要选牌窗口的卡
+### 11.2 拥有者牌组包含需要选牌窗口的卡
 
-该卡仍存在于投影牌局，但预检会判定其不支持无 UI 执行。Runner 屏蔽对应来源并继续寻找其他合法动作；没有其他动作时结束回合，而不是打开玩家窗口或永久等待。
+这类卡在权威牌组构造时即被排除，不进入洗牌、初始手牌或后续抽牌。投影仍保留其余 Actor-safe 卡的数量和永久附件；若没有任何安全牌，则改用可循环的【投影·基础行动】。运行时若一张已通过静态能力检查的卡仍因定义漂移而初始化失败，会被一次性隔离到焚毁区并立即补抽，而不是每回合重复抽到、报警和静默结束。
 
 ### 11.3 投影和精灵同时在场
 
@@ -560,6 +589,7 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 
 - 继承宿主 `Partner` 或使用等价的原生伙伴接入；
 - 通过 `ProjectionTurnCoordinator.RegisterCompanion` 插入队列；
+- 若要求“召唤当轮行动”，必须在实体生成前创建主机权威事务，并以权威终态接入玩家结束提交点；不能假定修改 live `ActionQueue` 会改变宿主已冻结的当前轮快照；
 - 明确是否进入正式横向槽、固定附着槽或其他独立表现层；
 - 使用稳定 owner id、actor id、协议版本和权威端；
 - 提供死亡、战斗结束、重开和联机超时清理；
@@ -577,12 +607,12 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 | 共享 Runner 行为测试 | `AuraCombatAiShared.Tests/CombatAgentRuntimeBehaviorTests.cs` |
 | AuraToolsExp 平级消费者 | `AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs` |
 | 投影对象与 Partner 回合 | `Terrias-Dev/Mechanics/ProjectionOtherObj.cs` |
-| 投影独立牌局与卡牌适配 | `Terrias-Dev/Mechanics/ProjectionCardBattleRuntime.cs` |
+| 投影独立牌局与卡牌适配 | `Terrias-Dev/Mechanics/ProjectionCardBattleRuntime.cs`、`ProjectionActorDeckProjection.cs`、`ProjectionDeckCapabilityInspector.cs` |
 | 投影执行能力与目标声明 | `ProjectionCardExecutionPolicy.cs`、`ProjectionCardTargetPolicy.cs`、`ProjectionScripts.RegisterCardCapability` |
-| 投影事务、序号与客机回合门 | `Terrias-Dev/Mechanics/ProjectionProtocolState.cs` |
+| 投影请求、序号与客机回合门 | `Terrias-Dev/Mechanics/ProjectionProtocolState.cs` |
 | 投影召唤与公开状态 | `Terrias-Dev/Mechanics/ProjectionSummonService.cs` |
 | 权威 RoleTable 牌组配方 | `Terrias-Dev/Mechanics/ProjectionRoleDeckService.cs`、`ProjectionDeckRecipe.cs` |
-| Partner 队列接入 | `Terrias-Dev/Mechanics/ProjectionTurnCoordinator.cs` |
+| Partner 队列与召唤轮权威事务 | `Terrias-Dev/Mechanics/ProjectionTurnCoordinator.cs`、`ProjectionSummonTurnTransactionLedger.cs` |
 | 精灵对象与 Partner 回合 | `Terrias-Dev/Mechanics/SpiritOtherObj.cs` |
 | 精灵冻结、召唤和同步 | `Terrias-Dev/Mechanics/SpiritBattleDeploymentService.cs`、`SpiritSummonService.cs` |
 | 精灵固定附着 UI | `Terrias-Dev/Hooks/Visual/SpiritAttachmentPresenter.cs` |
@@ -597,8 +627,8 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 
 ### 14.1 自动化验证
 
-- 共享 Runner：无合法动作、失败隔离、重复状态、超时、已提交失败和深复制。
-- Terrias C#：Partner 队列、RoleTable 来源、配方 hash、错误分类、召唤事务、序号时钟、tombstone 与客机回合门。
+- 共享 Runner：无合法动作、失败隔离、重复状态、超时、已提交失败、深复制，以及候选特征净化后仍可按稳定路由完成权威预检和出牌。
+- Terrias C#：Partner 队列、`Reserved → Ready → Completed/Failed` 权威事务、阶段先结束/生成先完成两种顺序、快照倒退与冲突拒绝、Actor-safe 牌组投影、基础行动、RoleTable 来源、配方 hash、错误分类、序号时钟、tombstone 与客机回合门。
 - 精灵专项：档案、注册表、意图和运行时行为。
 - 共享兼容：Aura.Shared 公共 API、三方消费者构建和 DLL 打包一致性。
 - 网络：RPC sender authority、协议版本和服务端请求边界。
@@ -606,9 +636,9 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 ### 14.2 Unity 实机验证
 
 1. 主机和客机使用完全不同牌组，验证客机投影只使用客机 `RoleTable` 中的卡牌。
-2. 验证投影使用固定 3 能量与最多 5 张初始手牌，召唤卡和战斗临时牌不会混入。
+2. 验证投影使用固定 3 能量与最多 5 张 Actor-safe 初始手牌；不安全卡不进入牌局，全部不安全时每轮可使用【投影·基础行动】。
 3. 验证玩家牌局不受投影弃牌、抽牌、焚毁和能量变化影响。
-4. 验证投影自动结束后 Enemy 阶段能够继续。
+4. 在玩家阶段召唤投影，分别验证“Actor 先生成”和“结束提交先到达”两种顺序；投影都必须在本轮既有 Partner/Enemy 之前自主出牌至少一次，下一轮只走原生队列且不重复行动。
 5. 验证投影与精灵同时存在时位置、血条、意图和行动顺序。
 6. 验证精灵 hover 面板、缩放、分辨率变化和拥有者死亡。
 7. 验证心变的伤害、治疗、Self、单目标和多目标行动。
@@ -620,7 +650,7 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 
 ## 15. 当前边界与后续关注点
 
-- 投影的无 UI 卡牌支持采用明确声明制。未进入安全策略的第三方包装卡会被跳过，这是保护玩家牌局的预期行为。
+- 投影的无 UI 卡牌支持采用明确声明制。未进入安全策略的第三方包装卡会在权威牌组构造时被过滤，不再进入手牌；全空时使用专用基础行动。这是保护玩家牌局同时保证投影可行动的最终契约。
 - 主机缺少召唤者 `RoleTable` 时先返回可重试非终态结果，连续 6 次主机确认仍缺失后终态返卡；牌组诊断 hash 不一致不阻止权威配方，不发送完整牌组作为降级数据。
 - 正式横向友方布局最多处理 4 个显示槽，高玩家数量与投影并存时需要继续做实机布局验证。
 - 权威牌组严格按 `ownerPlayerId` 读取 `GameServer.RoleTables`。仍需实机验证普通模式与日耀回忆模式都在开战前完成原生 RoleTable 提交。

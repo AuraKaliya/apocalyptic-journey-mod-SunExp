@@ -11,6 +11,7 @@ using UnityEngine;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace AuraToolsExp.Dll.Features.StarterDeck;
 
@@ -21,26 +22,30 @@ internal static class StarterDeckApplicationCoordinator
     private const string RelicsAppliedKey = "AuraTools.CustomStart.RelicsApplied";
     private const string RelicsAppliedRoleKey = RelicsAppliedKey + ".Role";
     private const string RelicsAppliedIdsKey = RelicsAppliedKey + ".Ids";
+    private const string RelicsAppliedModeKey = RelicsAppliedKey + ".Mode";
     private const string Owner = "AuraTools.StarterDeck";
-    private const string Scope = "AuraTools.WorldSimulation";
-    private const string Mode = "AuraTools.WorldSimulation";
-    private const string LegacyMode = "aura-world-simulation";
     private static int lastForeignRoleTableSkipLogFrame = -100000;
 
     internal static void Apply(RoleTable? roleTable, ModHookContext context, string source)
     {
-        if (!AuraToolsConfigService.MatchExperience.StarterDeck.Enabled || roleTable == null)
+        if (roleTable == null)
+        {
+            return;
+        }
+
+        if (!IsLocalPlayerRoleTable(roleTable, source))
         {
             return;
         }
 
         if (!IsWorldSimulationRun())
         {
+            ReconcileIneligibleLoadout(roleTable, source);
             AuraToolsLog.Info("[CustomStart] skipped: not a confirmed world-simulation run. source=" + source + ".");
             return;
         }
 
-        if (!IsLocalPlayerRoleTable(roleTable, source))
+        if (!AuraToolsConfigService.MatchExperience.StarterDeck.Enabled)
         {
             return;
         }
@@ -107,16 +112,17 @@ internal static class StarterDeckApplicationCoordinator
         var claim = new StarterDeckClaim
         {
             Owner = Owner,
-            Scope = Scope,
-            ModeId = Mode,
+            Scope = AuraModeRunIdentity.NativeWorldSimulationModeId,
+            ModeId = AuraModeRunIdentity.NativeWorldSimulationModeId,
             Source = "local:custom-start",
             State = StarterDeckArbiterRuntime.StateApplied,
             AppliedKey = CardsAppliedKey,
             AppliedModeKey = CardsAppliedKey + ".Mode",
-            AppliedMode = LegacyMode,
-            LegacyMode = LegacyMode,
+            AppliedMode = AuraModeRunIdentity.NativeWorldSimulationModeId,
+            LegacyMode = "",
             DeckSize = deck.Count,
-            SourceName = "AuraTools.WorldSimulation.CustomStart.Cards"
+            SourceName = "AuraTools.WitchWorldSimulation.CustomStart.Cards",
+            MarkLegacyCardPackApplied = false
         };
         if (!StarterDeckArbiterRuntime.ApplyDeck(roleTable, deck, claim, sync: false))
         {
@@ -189,6 +195,7 @@ internal static class StarterDeckApplicationCoordinator
         roleTable.SpecialVarMap[RelicsAppliedKey] = "1";
         roleTable.SpecialVarMap[RelicsAppliedRoleKey] = roleId;
         roleTable.SpecialVarMap[RelicsAppliedIdsKey] = string.Join("|", resolvedIds);
+        roleTable.SpecialVarMap[RelicsAppliedModeKey] = AuraModeRunIdentity.NativeWorldSimulationModeId;
         AuraToolsLog.Info("[CustomStart] replaced equipped starter relics; role=" + roleId
                           + ", original=" + original.Count
                           + ", applied=" + resolvedIds.Count
@@ -230,19 +237,85 @@ internal static class StarterDeckApplicationCoordinator
 
     private static bool IsWorldSimulationRun()
     {
-        var modeType = ReadLobbyModeType();
-        if (!string.IsNullOrWhiteSpace(modeType))
-        {
-            return string.Equals(modeType, "Normal", StringComparison.OrdinalIgnoreCase);
-        }
-
         try
         {
-            return string.Equals(MapManager.Instance?.ModeMapManager?.GetType().Name, "NormalMapManager", StringComparison.OrdinalIgnoreCase);
+            var saveInfo = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
+            var runIdentity = "";
+            if (saveInfo?.GameVars != null)
+            {
+                saveInfo.GameVars.TryGetValue(AuraModeRunIdentity.RunIdentityKey, out runIdentity);
+            }
+
+            return AuraModeRunIdentity.IsNativeWorldSimulation(
+                saveInfo?.modeType ?? "",
+                runIdentity,
+                AuraModeRuntime.Current(AuraToolsIds.ModId, refresh: true),
+                saveInfo?.Name ?? "");
         }
         catch
         {
             return false;
+        }
+    }
+
+    private static void ReconcileIneligibleLoadout(RoleTable roleTable, string source)
+    {
+        var vars = roleTable.SpecialVarMap;
+        if (vars == null)
+        {
+            return;
+        }
+
+        var removedRelics = 0;
+        if (vars.TryGetValue(RelicsAppliedKey, out var relicsApplied)
+            && relicsApplied == "1"
+            && vars.TryGetValue(RelicsAppliedIdsKey, out var appliedRelicIds))
+        {
+            var ids = new HashSet<string>(
+                (appliedRelicIds ?? "")
+                    .Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => StarterRelicCatalog.ResolveRelicId(id))
+                    .Where(id => !string.IsNullOrWhiteSpace(id)),
+                StringComparer.OrdinalIgnoreCase);
+            for (var i = roleTable.relicList.Count - 1; i >= 0; i--)
+            {
+                var id = StarterRelicCatalog.ResolveRelicId(ReadDataId(roleTable.relicList[i]));
+                if (ids.Contains(id))
+                {
+                    roleTable.relicList.RemoveAt(i);
+                    removedRelics++;
+                }
+            }
+        }
+
+        vars.Remove(RelicsAppliedKey);
+        vars.Remove(RelicsAppliedRoleKey);
+        vars.Remove(RelicsAppliedIdsKey);
+        vars.Remove(RelicsAppliedModeKey);
+
+        if (vars.TryGetValue(StarterDeckArbiterRuntime.OwnerKey, out var owner)
+            && string.Equals(owner, Owner, StringComparison.OrdinalIgnoreCase))
+        {
+            vars.Remove(StarterDeckArbiterRuntime.OwnerKey);
+            vars.Remove(StarterDeckArbiterRuntime.ScopeKey);
+            vars.Remove(StarterDeckArbiterRuntime.StateKey);
+            vars.Remove(StarterDeckArbiterRuntime.SourceKey);
+            vars.Remove(StarterDeckArbiterRuntime.ModeKey);
+            vars.Remove(StarterDeckArbiterRuntime.CardsKey);
+            vars.Remove(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey);
+            vars.Remove(StarterDeckArbiterRuntime.LegacyCardPackAppliedKey + ".Mode");
+        }
+
+        vars.Remove(CardsAppliedKey);
+        vars.Remove(CardsAppliedRoleKey);
+        vars.Remove(CardsAppliedKey + ".Mode");
+        if (removedRelics > 0)
+        {
+            AuraToolsLog.Info("[CustomStart] reconciled "
+                              + removedRelics
+                              + " tool-applied relic(s) from an ineligible mode; source="
+                              + source
+                              + ".");
         }
     }
 
@@ -279,12 +352,6 @@ internal static class StarterDeckApplicationCoordinator
     {
         try { return Time.frameCount; }
         catch { return int.MaxValue; }
-    }
-
-    private static string ReadLobbyModeType()
-    {
-        try { return LobbyManager.Instance?.CurrentLobbyModeType ?? ""; }
-        catch { return ""; }
     }
 
     private static string ReadDataId(IDataConfig? dataConfig)

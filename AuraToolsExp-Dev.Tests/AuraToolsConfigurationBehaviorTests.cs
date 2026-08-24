@@ -276,7 +276,7 @@ internal static partial class AuraToolsTestSuite
         var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
         audio.Normalize();
-        Assert(audio.SchemaVersion == 5
+        Assert(audio.SchemaVersion == 6
                && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
                && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3"
                && audio.Voice.Enabled
@@ -298,6 +298,70 @@ internal static partial class AuraToolsTestSuite
                && migratedVoice.ProviderId == "Terrias:Terrias.Wuna.BattleWin"
                && migratedVoice.ResourcePath.Contains("/Voice/Terrias/"),
             "voice bindings migrate once from tool-owned ids and paths to Terrias content ownership");
+        var legacySkillBinding = new AuraToolsVoiceBindingSettings
+        {
+            Signal = "SkillVoice",
+            Stage = "PresentationCommitted",
+            ActionId = "*wuna_white_sun_prayer"
+        };
+        var wunaSkills = new[]
+        {
+            new AuraToolsVoiceSkillDescriptor
+            {
+                Id = "Terrias_wuna_wuna_white_sun_prayer",
+                Slot = 1
+            },
+            new AuraToolsVoiceSkillDescriptor
+            {
+                Id = "Terrias_wuna_wuna_grave_song",
+                Slot = 2
+            }
+        };
+        Assert(AuraToolsVoiceSkillBindingMigration.Migrate(
+                   legacySkillBinding,
+                   "SkillVoice",
+                   "Committed",
+                   2,
+                   wunaSkills)
+               && legacySkillBinding.SkillSlot == 1
+               && legacySkillBinding.ActionId == ""
+               && legacySkillBinding.Stage == "Committed",
+            "skill voice binding migrates legacy card/action id to the configured role skill ordinal");
+        var manifestSkillBinding = new AuraToolsVoiceBindingSettings();
+        Assert(AuraToolsVoiceSkillBindingMigration.Migrate(
+                   manifestSkillBinding,
+                   "SkillVoice",
+                   "Committed",
+                   2,
+                   wunaSkills)
+               && manifestSkillBinding.SkillSlot == 2,
+            "new skill voice binding adopts a manifest ordinal that exists in role configuration");
+        var boundedSkillBinding = new AuraToolsVoiceBindingSettings
+        {
+            SkillSlot = 2,
+            ActionId = "retired"
+        };
+        Assert(AuraToolsVoiceSkillBindingMigration.Migrate(
+                   boundedSkillBinding,
+                   "SkillVoice",
+                   "Committed",
+                   2,
+                   wunaSkills.Take(1))
+               && boundedSkillBinding.SkillSlot == null
+               && boundedSkillBinding.ActionId == "",
+            "skill voice binding rejects an ordinal beyond the role's configured skill count");
+        var deferredSkillBinding = new AuraToolsVoiceBindingSettings
+        {
+            ActionId = "legacy_skill"
+        };
+        Assert(!AuraToolsVoiceSkillBindingMigration.Migrate(
+                   deferredSkillBinding,
+                   "SkillVoice",
+                   "Committed",
+                   1,
+                   Array.Empty<AuraToolsVoiceSkillDescriptor>())
+               && deferredSkillBinding.ActionId == "legacy_skill",
+            "skill voice migration waits for authoritative role data without using the legacy id at runtime");
         Assert(AuraToolsConfigSchemaPolicy.IsNewer(
                    storedEnvelopeVersion: 2,
                    storedValue: new AuraToolsAudioSettings(),
@@ -306,7 +370,7 @@ internal static partial class AuraToolsTestSuite
                    storedEnvelopeVersion: 1,
                    storedValue: new AuraToolsAudioSettings
                    {
-                        SchemaVersion = 6
+                        SchemaVersion = 7
                    },
                    supportedValue: new AuraToolsAudioSettings())
                && !AuraToolsConfigSchemaPolicy.IsNewer(

@@ -7,12 +7,14 @@ changes.
 
 ## Current Decompile Snapshot
 
-- Current root: `开发参考资料\反编译文件夹v1.0.24591395`
-- Status: complete local decompile snapshot as of 2026-08-07. All 253
+- Current root: `开发参考资料\反编译文件夹v1.0.24831968`
+- Status: complete local decompile snapshot as of 2026-08-25. All 253
   assemblies, including `Live2D.Cubism.dll`, were frozen and decompiled
   successfully with `ilspycmd 9.1.0.7988`. Input fingerprints and per-assembly
   results are recorded under
-  `artifacts/game-reference/1.0.24591395/`.
+  `artifacts/game-reference/1.0.24831968/`. The focused Witch/Witch.Core API
+  comparison against `1.0.24605918` reports no breaking or additive API drift;
+  both assemblies require behavior review because their binaries changed.
 - Use for: game flow, official script shape, UI manager behavior, map/event
   generation, card use flow, event listener APIs, Mirror/network types, and
   comparable official implementation patterns.
@@ -28,50 +30,50 @@ matches the game build being investigated. Move old folder notes to
 Script executor and official CSV script shape:
 
 ```powershell
-rg -n "ScriptExecutor|RunImmediately|AddBuff|AddDescription" "开发参考资料\反编译文件夹v1.0.24591395\AllScripts"
-rg -n "class ScriptExecutor|class VisualScriptExecutor|IScriptExecutor" "开发参考资料\反编译文件夹v1.0.24591395\Witch" "开发参考资料\反编译文件夹v1.0.24591395\Witch.Core"
+rg -n "ScriptExecutor|RunImmediately|AddBuff|AddDescription" "开发参考资料\反编译文件夹v1.0.24831968\AllScripts"
+rg -n "class ScriptExecutor|class VisualScriptExecutor|IScriptExecutor" "开发参考资料\反编译文件夹v1.0.24831968\Witch" "开发参考资料\反编译文件夹v1.0.24831968\Witch.Core"
 ```
 
 Card use, card UI, and action flow:
 
 ```powershell
-rg -n "class CommonCardItem|class AttackCardItem|TrueUse|RunScript|ActionAfter" "开发参考资料\反编译文件夹v1.0.24591395\AllScripts" "开发参考资料\反编译文件夹v1.0.24591395\Witch"
+rg -n "class CommonCardItem|class AttackCardItem|TrueUse|RunScript|ActionAfter" "开发参考资料\反编译文件夹v1.0.24831968\AllScripts" "开发参考资料\反编译文件夹v1.0.24831968\Witch"
 ```
 
 EventList fields and official option scripts:
 
 ```powershell
-rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent|InitScript|EntryScript" "开发参考资料\反编译文件夹v1.0.24591395\AllScripts" "开发参考资料\反编译文件夹v1.0.24591395\Witch"
+rg -n "EventList|Choice1|Choice2|EndEvent|ContinueEvent|InitScript|EntryScript" "开发参考资料\反编译文件夹v1.0.24831968\AllScripts" "开发参考资料\反编译文件夹v1.0.24831968\Witch"
 ```
 
 Map generation, map selection, and visible map nodes:
 
 ```powershell
-rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode|TypeGenerate|RandomGenerate|NodeDice" "开发参考资料\反编译文件夹v1.0.24591395"
+rg -n "MapSelectUI|NormalMapManager|MapManager|SelectNode|TypeGenerate|RandomGenerate|NodeDice" "开发参考资料\反编译文件夹v1.0.24831968"
 ```
 
 Event listener registration and cleanup:
 
 ```powershell
-rg -n "AddEventListener|RemoveEventListener|EventCenter|EventDispose|EventListener" "开发参考资料\反编译文件夹v1.0.24591395"
+rg -n "AddEventListener|RemoveEventListener|EventCenter|EventDispose|EventListener" "开发参考资料\反编译文件夹v1.0.24831968"
 ```
 
 UI overlay, raycast, and transition behavior:
 
 ```powershell
-rg -n "CanvasGroup|GraphicRaycaster|raycastTarget|upperCanvasTf|GraphicRegistry|SetActive" "开发参考资料\反编译文件夹v1.0.24591395\Witch" "开发参考资料\反编译文件夹v1.0.24591395\Assembly-CSharp"
+rg -n "CanvasGroup|GraphicRaycaster|raycastTarget|upperCanvasTf|GraphicRegistry|SetActive" "开发参考资料\反编译文件夹v1.0.24831968\Witch" "开发参考资料\反编译文件夹v1.0.24831968\Assembly-CSharp"
 ```
 
 Mirror and network shape:
 
 ```powershell
-rg -n "NetworkBehaviour|Command|ClientRpc|TargetRpc|NetworkWriter|NetworkReader|OnSerialize|OnDeserialize" "开发参考资料\反编译文件夹v1.0.24591395\Mirror" "开发参考资料\反编译文件夹v1.0.24591395\Witch"
+rg -n "NetworkBehaviour|Command|ClientRpc|TargetRpc|NetworkWriter|NetworkReader|OnSerialize|OnDeserialize" "开发参考资料\反编译文件夹v1.0.24831968\Mirror" "开发参考资料\反编译文件夹v1.0.24831968\Witch"
 ```
 
 Live2D model, motion, rendering, and parameter APIs:
 
 ```powershell
-rg -n "CubismModel|CubismMotion|CubismRenderer|CubismParameter" "开发参考资料\反编译文件夹v1.0.24591395\Live2D.Cubism"
+rg -n "CubismModel|CubismMotion|CubismRenderer|CubismParameter" "开发参考资料\反编译文件夹v1.0.24831968\Live2D.Cubism"
 ```
 
 ## Versioned Correction Notes

@@ -13,9 +13,9 @@ namespace AuraToolsExp.Dll.Features.CardVisual;
 public static class AuraToolsCardVisualRegistry
 {
     private const string RegistryFileName = "card-visual.registry.json";
-    public const int CurrentProtocolVersion = 7;
-    public const string CurrentRendererId = "aura.card-visual.material-v5";
-    public const string CurrentFrameCoverageProfile = "native-frame-v4";
+    public const int CurrentProtocolVersion = 9;
+    public const string CurrentRendererId = "aura.card-visual.material-v7";
+    public const string CurrentFrameCoverageProfile = "native-frame-v5";
     private static CardVisualRegistryDocument document = new();
 
     public static IReadOnlyList<CardFrameThemeDefinition> Themes => document.Themes;

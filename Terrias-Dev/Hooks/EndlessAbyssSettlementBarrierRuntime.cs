@@ -17,18 +17,22 @@ public static class EndlessAbyssSettlementBarrierRuntime
 {
     private const int HostWaitSeconds = 15;
     private const int ForcedCommitGraceSeconds = 2;
+    private const int HostTickDelayFrames = 6;
     private static readonly HashSet<string> ExpectedRemotePlayers = new(StringComparer.Ordinal);
     private static readonly HashSet<string> CommittedPlayers = new(StringComparer.Ordinal);
     private static readonly HashSet<string> AppliedEvents = new(StringComparer.Ordinal);
+    private static readonly EndlessAbyssSettlementLocalCommit LocalCommit = new();
 
     private static string settlementToken = "";
-    private static string pendingLocalCommitToken = "";
     private static bool hostReady;
     private static bool forceCommitSent;
     private static bool closingSent;
     private static bool hostCloseScheduled;
     private static long hostDeadlineUtcTicks;
     private static long forcedCommitDeadlineUtcTicks;
+    private static int hostTickGeneration;
+    private static int hostTickSequence;
+    private static bool hostTickScheduled;
     private static GameExitUI? settlementUi;
     private static EndlessAbyssSettlementBarrierView? view;
 
@@ -99,12 +103,12 @@ public static class EndlessAbyssSettlementBarrierRuntime
         if (ui == null
             || string.IsNullOrWhiteSpace(settlementToken)
             || !TerriasNetworkRuntime.IsClientOnly()
-            || !string.IsNullOrWhiteSpace(pendingLocalCommitToken))
+            || LocalCommit.IsArmed)
         {
             return;
         }
 
-        pendingLocalCommitToken = settlementToken;
+        LocalCommit.Arm(settlementToken, isClientOnly: true);
         MarkExpectedDisconnect();
         TerriasLog.Info("[EndlessAbyssSettlement] local commit entered: token="
                         + settlementToken
@@ -121,14 +125,12 @@ public static class EndlessAbyssSettlementBarrierRuntime
             return;
         }
 
-        pendingLocalCommitToken = settlementToken;
+        LocalCommit.Arm(settlementToken, TerriasNetworkRuntime.IsClientOnly());
     }
 
-    public static void ObserveReturnCompleted()
+    public static void CommitBeforeNetworkTeardown()
     {
-        var token = pendingLocalCommitToken;
-        pendingLocalCommitToken = "";
-        if (string.IsNullOrWhiteSpace(token) || !TerriasNetworkRuntime.IsClientOnly())
+        if (!LocalCommit.TryTakeBeforeNetworkTeardown(out var token))
         {
             return;
         }
@@ -187,7 +189,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
                 MarkExpectedDisconnect();
                 if (TerriasNetworkRuntime.IsClientOnly())
                 {
-                    view?.ForceCommit();
+                    ForceLocalCommit("rpc-force-commit");
                 }
                 break;
             case EndlessAbyssSettlementBarrierEventKinds.Closing:
@@ -196,7 +198,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
                 MarkExpectedDisconnect();
                 if (TerriasNetworkRuntime.IsClientOnly())
                 {
-                    view?.ForceCommit();
+                    ForceLocalCommit("rpc-closing");
                 }
                 else
                 {
@@ -222,6 +224,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
             TerriasFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyssSettlement.Evaluate." + command.CommandToken,
                 EvaluateHostBarrier);
+            EnsureHostTickLoop();
         }
     }
 
@@ -232,15 +235,17 @@ public static class EndlessAbyssSettlementBarrierRuntime
             return;
         }
 
-        RefreshExpectedRemotePlayers();
-        if (AllRemotePlayersCommitted())
-        {
-            BeginClosing("all-players-committed");
-            return;
-        }
-
         var now = DateTime.UtcNow.Ticks;
-        if (!forceCommitSent && hostDeadlineUtcTicks > 0 && now >= hostDeadlineUtcTicks)
+        RefreshExpectedRemotePlayers();
+        var action = EndlessAbyssSettlementBarrierPolicy.Evaluate(
+            hostReady,
+            closingSent,
+            AllRemotePlayersCommitted(),
+            forceCommitSent,
+            hostDeadlineUtcTicks,
+            forcedCommitDeadlineUtcTicks,
+            now);
+        if (action == EndlessAbyssSettlementBarrierAction.ForceCommit)
         {
             forceCommitSent = true;
             forcedCommitDeadlineUtcTicks = DateTime.UtcNow.AddSeconds(ForcedCommitGraceSeconds).Ticks;
@@ -252,9 +257,11 @@ public static class EndlessAbyssSettlementBarrierRuntime
             return;
         }
 
-        if (forceCommitSent && forcedCommitDeadlineUtcTicks > 0 && now >= forcedCommitDeadlineUtcTicks)
+        if (action == EndlessAbyssSettlementBarrierAction.Close)
         {
-            BeginClosing("forced-commit-grace-expired");
+            BeginClosing(AllRemotePlayersCommitted()
+                ? "all-players-committed"
+                : "forced-commit-grace-expired");
         }
     }
 
@@ -277,6 +284,44 @@ public static class EndlessAbyssSettlementBarrierRuntime
     {
         Tick();
         view?.Refresh();
+    }
+
+    private static void EnsureHostTickLoop()
+    {
+        if (TerriasNetworkRuntime.IsClientOnly()
+            || !hostReady
+            || closingSent
+            || hostTickScheduled)
+        {
+            return;
+        }
+
+        if (!TerriasFrameDispatcher.HasDelayedDispatcher)
+        {
+            TerriasLog.WarnOnce(
+                "EndlessAbyssSettlement.HostTickUnavailable",
+                "[EndlessAbyssSettlement] host tick scheduler is unavailable; settlement cannot enter a recursive immediate fallback.");
+            return;
+        }
+
+        hostTickScheduled = true;
+        var generation = hostTickGeneration;
+        var sequence = ++hostTickSequence;
+        TerriasFrameDispatcher.RunOnceAfterFrames(
+            "EndlessAbyssSettlement.HostTick." + generation + "." + sequence,
+            HostTickDelayFrames,
+            () =>
+            {
+                hostTickScheduled = false;
+                if (generation != hostTickGeneration || closingSent || !hostReady)
+                {
+                    return;
+                }
+
+                Tick();
+                view?.Refresh();
+                EnsureHostTickLoop();
+            });
     }
 
     private static void BeginClosing(string source)
@@ -308,15 +353,17 @@ public static class EndlessAbyssSettlementBarrierRuntime
             8,
             () =>
             {
-                var ui = settlementUi;
+                var ui = settlementUi
+                         ?? Witch.UI.UIManager.Instance?.GetUI<GameExitUI>("GameExitUI");
                 if (ui == null)
                 {
-                    TerriasLog.Warn("[EndlessAbyssSettlement] host close skipped: settlement UI unavailable.");
-                    hostCloseScheduled = false;
+                    TerriasLog.Warn("[EndlessAbyssSettlement] host settlement UI unavailable; finalizing through the runtime owner.");
+                    EndlessAbyssEvacuationRuntime.FinalizeWithoutSettlementUi(
+                        "EndlessAbyssSettlementBarrier.host-close");
                     return;
                 }
 
-                pendingLocalCommitToken = settlementToken;
+                LocalCommit.Arm(settlementToken, isClientOnly: false);
                 TerriasLog.Info("[EndlessAbyssSettlement] host closing after client barrier: ready="
                                 + CommittedRemoteCount
                                 + "/"
@@ -324,6 +371,22 @@ public static class EndlessAbyssSettlementBarrierRuntime
                                 + ".");
                 ui.ReturnAsync();
             });
+    }
+
+    private static void ForceLocalCommit(string source)
+    {
+        var ui = settlementUi
+                 ?? Witch.UI.UIManager.Instance?.GetUI<GameExitUI>("GameExitUI");
+        if (ui == null)
+        {
+            TerriasLog.Warn("[EndlessAbyssSettlement] forced local commit skipped: settlement UI unavailable; source="
+                            + source
+                            + ".");
+            return;
+        }
+
+        view?.MarkLocalCommitStarted();
+        CommitLocalPlayer(ui, source);
     }
 
     private static bool AllRemotePlayersCommitted()
@@ -366,13 +429,15 @@ public static class EndlessAbyssSettlementBarrierRuntime
     private static void Reset(string token)
     {
         settlementToken = token ?? "";
-        pendingLocalCommitToken = "";
+        LocalCommit.Clear();
         hostReady = false;
         forceCommitSent = false;
         closingSent = false;
         hostCloseScheduled = false;
         hostDeadlineUtcTicks = 0L;
         forcedCommitDeadlineUtcTicks = 0L;
+        hostTickGeneration++;
+        hostTickScheduled = false;
         settlementUi = null;
         view = null;
         ExpectedRemotePlayers.Clear();

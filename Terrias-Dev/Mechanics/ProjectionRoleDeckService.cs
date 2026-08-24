@@ -9,7 +9,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionRoleDeckService
 {
-    public const string CardModelVersion = "projection-role-deck-v2";
+    public const string CardModelVersion = "projection-role-deck-v3";
 
     public static bool TryCaptureLocal(out ProjectionDeckRecipe? recipe, out string reason)
     {

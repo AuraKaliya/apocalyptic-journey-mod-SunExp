@@ -52,6 +52,7 @@ public static class AuraToolsVoiceSettingsPage
                         Signal = provider.kind,
                         Stage = provider.match?.stages?.FirstOrDefault() ?? "",
                         ActionId = FirstActionId(provider),
+                        SkillSlot = provider.match?.skillSlot,
                         HpRatioThreshold = provider.match?.hpRatioCrossDown
                     };
                     settings.Normalize(qualifiedId);
@@ -104,7 +105,7 @@ public static class AuraToolsVoiceSettingsPage
             220f);
 
         var controls = Row(block.transform, "Controls", 40f);
-        var target = TargetName(entry.Provider);
+        var target = TargetName(entry);
         if (!string.IsNullOrWhiteSpace(target))
         {
             AuraToolsUi.AddText(
@@ -132,6 +133,14 @@ public static class AuraToolsVoiceSettingsPage
             value => binding.GainDb = value);
         NumberField(controls, "间隔", binding.CooldownSeconds ?? entry.Provider.cooldownSeconds ?? entry.Defaults.cooldownSeconds,
             value => binding.CooldownSeconds = value);
+        if (string.Equals(entry.Provider.kind, SoundEventKinds.SkillVoice, StringComparison.OrdinalIgnoreCase))
+        {
+            NumberField(
+                controls,
+                "技能序号",
+                binding.SkillSlot ?? entry.Provider.match?.skillSlot,
+                value => binding.SkillSlot = NormalizeSkillSlot(entry.Provider, value));
+        }
         if (string.Equals(entry.Provider.kind, SoundEventKinds.LowHealth, StringComparison.OrdinalIgnoreCase))
         {
             NumberField(
@@ -182,8 +191,18 @@ public static class AuraToolsVoiceSettingsPage
         return row.transform;
     }
 
-    private static string TargetName(AudioProviderManifest provider)
+    private static string TargetName(VoiceEntry entry)
     {
+        var provider = entry.Provider;
+        if (string.Equals(provider.kind, SoundEventKinds.SkillVoice, StringComparison.OrdinalIgnoreCase))
+        {
+            var slot = entry.Settings.SkillSlot ?? provider.match?.skillSlot;
+            var skill = ResolveProviderSkills(provider).FirstOrDefault(value => value.Slot == slot);
+            return slot.HasValue
+                ? "技能" + slot.Value + "·" + (skill?.DisplayName ?? skill?.Id ?? "未配置")
+                : "技能序号未配置";
+        }
+
         var card = (provider.match?.cardIds ?? Array.Empty<string>())
             .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && !value.Contains("*"));
         if (!string.IsNullOrWhiteSpace(card)) return AuraToolsPlayerDisplay.CardName(card);
@@ -193,6 +212,31 @@ public static class AuraToolsVoiceSettingsPage
         var result = provider.match?.battleResults?.FirstOrDefault();
         if (string.Equals(result, "Win", StringComparison.OrdinalIgnoreCase)) return "胜利时";
         return "";
+    }
+
+    private static int? NormalizeSkillSlot(AudioProviderManifest provider, float? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var slot = (int)Math.Round(value.Value);
+        return ResolveProviderSkills(provider).Any(skill => skill.Slot == slot) ? slot : null;
+    }
+
+    private static IReadOnlyList<RoleSkillInfo> ResolveProviderSkills(AudioProviderManifest provider)
+    {
+        foreach (var roleId in (provider.match?.roleIds ?? Array.Empty<string>())
+                     .Concat(provider.match?.careerIds ?? Array.Empty<string>())
+                     .Where(value => !string.IsNullOrWhiteSpace(value))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var skills = RoleCatalog.GetRoleSkills(roleId);
+            if (skills.Count > 0) return skills;
+        }
+
+        return Array.Empty<RoleSkillInfo>();
     }
 
     private static string FirstActionId(AudioProviderManifest provider)

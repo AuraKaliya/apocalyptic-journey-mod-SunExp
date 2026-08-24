@@ -128,14 +128,7 @@ public static class TerriasCombatCardViewPool
                 card.StopAllCoroutines();
                 SetInteraction(card, false);
                 SetCanvasAlpha(card, 0f);
-                AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
-                {
-                    Root = card.transform,
-                    Config = card.dataConfig,
-                    Card = card,
-                    Source = "CombatCardViewPool.OutcomeTeardown." + source,
-                    Surface = AuraCardPresentationSurface.CombatCard
-                });
+                ResetPresentation(card, "OutcomeTeardown." + source);
             }
             catch (Exception ex)
             {
@@ -774,14 +767,6 @@ public static class TerriasCombatCardViewPool
 
     private static void PrepareIdle(CardItem card, string bucket, int expectedGeneration)
     {
-        AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
-        {
-            Root = card.transform,
-            Config = card.dataConfig,
-            Card = card,
-            Source = "CombatCardViewPool.PrepareIdle",
-            Surface = AuraCardPresentationSurface.CombatCard
-        });
         var marker = card.GetComponent<PooledCombatCardViewMarker>();
         if (marker == null)
         {
@@ -789,7 +774,7 @@ public static class TerriasCombatCardViewPool
         }
 
         marker.ForceState(PooledCardViewState.Resetting);
-        card.GetComponent<PooledCardExitAnimator>()?.ResetVisual();
+        ResetPresentation(card, "PrepareIdle");
         FightUI.cardItemList.Remove(card);
         FightUI.WaitCard.Remove(card);
         FightUI.SelectedCard.Remove(card);
@@ -1070,18 +1055,27 @@ public static class TerriasCombatCardViewPool
         return card != null && card.gameObject != null;
     }
 
+    private static void ResetPresentation(CardItem card, string source)
+    {
+        // Presentation materials are layered as native -> Aura effect -> exit
+        // animation. Unwind them in strict reverse order before the view can be
+        // pooled or destroyed.
+        card.GetComponent<PooledCardExitAnimator>()?.ResetVisual();
+        AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
+        {
+            Root = card.transform,
+            Config = card.dataConfig,
+            Card = card,
+            Source = "CombatCardViewPool." + source,
+            Surface = AuraCardPresentationSurface.CombatCard
+        });
+    }
+
     private static void DestroyCardView(CardItem card)
     {
         if (IsAlive(card))
         {
-            AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
-            {
-                Root = card.transform,
-                Config = card.dataConfig,
-                Card = card,
-                Source = "CombatCardViewPool.Destroy",
-                Surface = AuraCardPresentationSurface.CombatCard
-            });
+            ResetPresentation(card, "Destroy");
             ActiveViews.Remove(card);
             UnityEngine.Object.Destroy(card.gameObject);
         }

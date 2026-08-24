@@ -26,6 +26,21 @@ internal sealed class AudioCombatActionObservation
     public string SourceName { get; set; } = "";
 }
 
+internal sealed class AudioSkillActionObservation
+{
+    public string SkillId { get; set; } = "";
+
+    public int SkillSlot { get; set; }
+
+    public string CareerId { get; set; } = "";
+
+    public string RoleId { get; set; } = "";
+
+    public string StatusInstanceId { get; set; } = "";
+
+    public string SourceName { get; set; } = "";
+}
+
 internal sealed class AudioBuffObservation
 {
     public string BuffId { get; set; } = "";

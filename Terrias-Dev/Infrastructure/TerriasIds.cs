@@ -256,6 +256,8 @@ public static class TerriasIds
     public const string ProjectionCardShortId = "witch_projection";
     public const string ProjectionRoleTemplateShortId = "projection_role_template";
     public const string ProjectionRoleTemplateCardId = "Terrias_terrias_projection_role_template";
+    public const string ProjectionBasicActionShortId = "projection_basic_action";
+    public const string ProjectionBasicActionCardId = "Terrias_terrias_projection_basic_action";
     public const string ProjectionRoleCardMarker = "TerriasProjectionRoleCard";
     public const string ProjectionRoleIdKey = "TerriasProjectionRoleId";
     public const string ProjectionRoleNameKey = "TerriasProjectionRoleName";
@@ -263,6 +265,7 @@ public static class TerriasIds
     public const string ProjectionOwnerStatusIdKey = "TerriasProjectionOwnerStatusId";
     public const string ProjectionStatusIdPrefix = "sp";
     public const string ProjectionBaseCardIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/help_me";
+    public const int ProjectionBasicActionDamage = 8;
     public const string SpiritBallCardShortId = "spirit_ball";
     public const string SpiritBallCardId = "Terrias_terrias_spirit_ball";
     public const string SpiritCardTemplateShortId = "spirit_card_template";

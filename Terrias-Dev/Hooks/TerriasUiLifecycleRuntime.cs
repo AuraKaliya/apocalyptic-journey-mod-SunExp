@@ -56,6 +56,10 @@ public static class TerriasUiLifecycleRuntime
     private static void ResetForGameEntry(string source)
     {
         CloseAll(source);
+        // Pooled rows retain references to the generated nine-slice sprites.
+        // Retire the pool before destroying those sprites so no later run can
+        // reactivate a renderer whose resource generation is already gone.
+        TerriasUiPool.ClearAll(source, "[TerriasUiLifecycle]");
         FrameSpriteCache.Clear();
         TerriasUiSprites.Clear();
         TerriasResourceCache.ClearCategory("visual.effect-texture");

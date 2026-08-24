@@ -287,6 +287,18 @@ public static class AuraToolsConfigService
             () => SaveModule(Audio, Root.Audio.ConfigFile));
     }
 
+    public static void PersistVoiceMigration()
+    {
+        Audio.Normalize();
+        lock (Gate)
+        {
+            if (SaveModuleSettingNoNotify(AuraToolModuleIds.Voice, Audio.Voice, out _))
+            {
+                SaveModule(Audio, Root.Audio.ConfigFile);
+            }
+        }
+    }
+
     public static void SaveCardVisual()
     {
         CardVisual.Normalize();

@@ -417,6 +417,20 @@ $cardUrpShader = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $audioRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "Terrias\SharedResources\audio.registry.json") | ConvertFrom-Json
 $voiceProviders = @($audioRegistry.providers | Where-Object { $_.match.stages.Count -gt 0 })
+$skillVoiceProviders = @($audioRegistry.providers | Where-Object kind -eq "SkillVoice")
+$expectedSkillVoiceSlots = @{
+    "Terrias.Wuna.WhiteSunPrayer" = 1
+    "Terrias.Wuna.GraveSong" = 2
+    "Terrias.Columbina.EternalTide" = 1
+    "Terrias.Columbina.Homesickness" = 2
+}
+$skillVoiceMismatch = @($skillVoiceProviders | Where-Object {
+    -not $expectedSkillVoiceSlots.ContainsKey([string]$_.providerId) `
+        -or [int]$_.match.skillSlot -ne [int]$expectedSkillVoiceSlots[[string]$_.providerId] `
+        -or @($_.match.stages).Count -ne 1 `
+        -or [string]$_.match.stages[0] -ne "Committed" `
+        -or $null -ne $_.match.cardIds
+}).Count -ne 0
 $visualBundle = Join-Path $repoRoot "AuraToolsExp\ModResource\VisualBundles\auratools_visuals"
 if ($registration.schemaVersion -ne 4 `
         -or $registration.ownerModId -ne "AuraToolsExp" `
@@ -455,13 +469,13 @@ if ($registration.schemaVersion -ne 4 `
         -or @($stardustEffect[0].mappingPreset[0].cardIds).Count -ne 4 `
         -or @($stardustEffect[0].mappingPreset[0].cardPackIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count -ne 0 `
         -or $stardustMappingMismatch `
-        -or $cardVisualRegistry.schemaVersion -ne 7 `
-        -or $cardVisualRegistry.protocol.minVersion -ne 7 `
-        -or $cardVisualRegistry.protocol.preferredVersion -ne 7 `
+        -or $cardVisualRegistry.schemaVersion -ne 9 `
+        -or $cardVisualRegistry.protocol.minVersion -ne 9 `
+        -or $cardVisualRegistry.protocol.preferredVersion -ne 9 `
         -or @($cardVisualRegistry.effects | Where-Object {
-            $_.rendererId -ne "aura.card-visual.material-v5" `
+            $_.rendererId -ne "aura.card-visual.material-v7" `
                 -or $_.targetLayer -ne "frame" `
-                -or $_.coverageProfile -ne "native-frame-v4" `
+                -or $_.coverageProfile -ne "native-frame-v5" `
                 -or [string]::IsNullOrWhiteSpace([string]$_.imageMaterialPath) `
                 -or [string]::IsNullOrWhiteSpace([string]$_.meshMaterialPath) `
                 -or $_.floats._TerriasOverlayMode -ne 0 `
@@ -476,6 +490,10 @@ if ($registration.schemaVersion -ne 4 `
         -or $visualBundleBuilder -notmatch 'GraphicsSettings\.defaultRenderPipeline' `
         -or $visualBundleBuilder -notmatch 'ValidateBuiltBundle' `
         -or $visualBundleBuilder -notmatch 'ValidateCardFrameEffectUiPixels' `
+        -or $visualBundleBuilder -notmatch 'ValidateCardFrameEffectUrpPixels' `
+        -or $visualBundleBuilder -notmatch 'material lease smoke passed' `
+        -or $visualBundleBuilder -notmatch 'typeof\(MeshFilter\)' `
+        -or $visualBundleBuilder -notmatch 'typeof\(MeshRenderer\)' `
         -or $visualBundleBuilder -notmatch 'GraphicsDeviceType\.Null' `
         -or $visualBundleBuilder -notmatch 'render smoke passed' `
         -or $visualBundleBuilder -notmatch 'ForceRebuildAssetBundle' `
@@ -483,6 +501,8 @@ if ($registration.schemaVersion -ne 4 `
         -or $visualBundleBuildScript -match '"-nographics"' `
         -or $visualBundleBuildScript -notmatch '"-force-d3d11"' `
         -or $visualBundleBuildScript -notmatch 'real Direct3D11 pixel smoke test' `
+        -or $visualBundleBuildScript -notmatch 'real MeshRenderer Direct3D11 pixel smoke test' `
+        -or $visualBundleBuildScript -notmatch 'pooled material detach/rebind smoke test' `
         -or $visualBundleBuildScript -notmatch 'total internal programs: \[1-9\]' `
         -or $visualProjectManifest.dependencies.'com.unity.render-pipelines.universal' -ne "17.0.4" `
         -or $visualProjectVersion -notmatch '6000\.0\.46f1 \(fb93bc360d3a\)' `
@@ -493,9 +513,15 @@ if ($registration.schemaVersion -ne 4 `
         -or $cardUiShader -match 'FallBack\s+"UI/Default"' `
         -or $cardUrpShader -notmatch 'Shader\s+"AuraTools/CardFrameEffectURP"' `
         -or $cardUrpShader -notmatch '"RenderPipeline"\s*=\s*"UniversalPipeline"' `
+        -or $cardUrpShader -notmatch 'CGPROGRAM' `
+        -or $cardUrpShader -notmatch 'UnityCG\.cginc' `
         -or $audioRegistry.schemaVersion -ne 4 `
         -or $audioRegistry.ownerModId -ne "Terrias" `
+        -or $audioRegistry.audioProtocol.minVersion -ne 8 `
+        -or $audioRegistry.audioProtocol.preferredVersion -ne 8 `
         -or $voiceProviders.Count -ne @($audioRegistry.providers).Count `
+        -or $skillVoiceProviders.Count -ne 4 `
+        -or $skillVoiceMismatch `
         -or -not (Test-Path -LiteralPath $visualBundle -PathType Leaf) `
         -or (Get-Item -LiteralPath $visualBundle).Length -le 0) {
     throw "AuraToolsExp shared resource and CG ownership contract is invalid."

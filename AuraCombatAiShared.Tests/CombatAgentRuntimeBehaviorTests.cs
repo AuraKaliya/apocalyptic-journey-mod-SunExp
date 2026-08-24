@@ -9,6 +9,7 @@ internal static class CombatAgentRuntimeBehaviorTests
         ConsecutiveDecisionFailuresCannotStallTurn();
         CommittedActionTimeoutIsNeverReplayed();
         HeadlessDeclarationRejectsUnsupportedAction();
+        NormalizedDecisionKeepsStableHeadlessRoute();
         ActorCardSnapshotIsDeepAndValidated();
     }
 
@@ -208,6 +209,99 @@ internal static class CombatAgentRuntimeBehaviorTests
             !clone.Validate(out var reason)
             && reason.Contains("unique", StringComparison.Ordinal),
             "agent actor snapshot rejects duplicate instance ids");
+    }
+
+    private static void NormalizedDecisionKeepsStableHeadlessRoute()
+    {
+        var provider = new StableProjectionRouteProvider();
+        using var registration = CombatActionAutomationRegistry.Register(
+            "tests",
+            "stable-projection-route",
+            provider,
+            priority: 100);
+        var state = new CombatStateObservation
+        {
+            Fingerprint = "normalized-headless-route",
+            CurrentPower = 1,
+            MaxPower = 1,
+            HandCount = 1,
+            IsPlayerActionWindow = true,
+            Player = new CombatUnitObservation
+            {
+                RuntimeId = 42,
+                Kind = CombatTargetKind.Friendly,
+                CurrentHp = 10,
+                MaxHp = 10
+            },
+            Enemies =
+            {
+                new CombatUnitObservation
+                {
+                    RuntimeId = 10,
+                    Kind = CombatTargetKind.Enemy,
+                    CurrentHp = 10,
+                    MaxHp = 10
+                }
+            },
+            Actions =
+            {
+                new CombatActionObservation
+                {
+                    CandidateId = "projection:card:100:10",
+                    SourceId = "projection-card:safe-strike",
+                    DisplayName = "Safe strike",
+                    RuntimeId = 100,
+                    TargetRuntimeId = 10,
+                    TargetKind = CombatTargetKind.Enemy,
+                    Kind = CombatActionKind.PlayCard,
+                    Cost = 1,
+                    Legal = true,
+                    Semantics = new CombatActionSemantics { Damage = 5d },
+                    Features = { ["headlessSupported"] = 1d }
+                },
+                new CombatActionObservation
+                {
+                    CandidateId = "projection:end-turn",
+                    SourceId = "projection:end-turn",
+                    Kind = CombatActionKind.EndTurn,
+                    Legal = false,
+                    RejectionReason = "a legal actor-safe card remains"
+                }
+            }
+        };
+        var port = new FakeAgentPort(state);
+        var runner = CreateRunner(
+            port,
+            new CombatDecisionEngineSource(new CombatDecisionEngine(
+                useRuntimeRegistries: false)),
+            new CombatAutoTurnProfile
+            {
+                RequireDeclaredHeadlessActions = true,
+                DecisionProfile = new CombatDecisionProfile
+                {
+                    Id = "normalized-headless-route",
+                    SearchQuality = "fast",
+                    SearchBudgetMode = "fixed",
+                    SearchSimulationBudget = 16,
+                    SearchMinimumSimulations = 8,
+                    SearchTimeBudgetMilliseconds = 50
+                }
+            });
+
+        var status = runner.Step(0d);
+
+        CombatAiTestFixtures.Assert(
+            status == CombatAutoTurnStepStatus.Running
+            && port.Executed.Count == 1
+            && port.Executed[0].SourceId == "projection-card:safe-strike",
+            "agent commits a declared actor-safe action selected through the normalized decision boundary");
+        CombatAiTestFixtures.Assert(
+            provider.ObservedSelectedAction
+            && !provider.SelectedActionContainedLegacyCapabilityFeature,
+            "headless route declaration remains valid after private capability features are sanitized");
+        CombatAiTestFixtures.Assert(
+            runner.Result == null,
+            "a successful normalized actor action does not consume the consecutive-failure path");
     }
 
     private static CombatAutoTurnRunner CreateRunner(
@@ -411,7 +505,10 @@ internal static class CombatAgentRuntimeBehaviorTests
                         TargetKind = action.TargetKind,
                         Kind = action.Kind,
                         Legal = action.Legal,
-                        Semantics = action.Semantics
+                        Semantics = action.Semantics,
+                        Features = new Dictionary<string, double>(
+                            action.Features,
+                            StringComparer.OrdinalIgnoreCase)
                     }).ToList()
             };
         }
@@ -431,6 +528,36 @@ internal static class CombatAgentRuntimeBehaviorTests
                 Reason = "test action requires visible player input"
             };
             return action.Kind == CombatActionKind.PlayCard;
+        }
+    }
+
+    private sealed class StableProjectionRouteProvider : ICombatActionAutomationProvider
+    {
+        public bool ObservedSelectedAction { get; private set; }
+
+        public bool SelectedActionContainedLegacyCapabilityFeature { get; private set; }
+
+        public bool TryDescribe(
+            CombatStateObservation state,
+            CombatActionObservation action,
+            out CombatActionAutomationDescriptor descriptor)
+        {
+            var declared = action.SourceId.StartsWith(
+                "projection-card:",
+                StringComparison.Ordinal);
+            if (declared)
+            {
+                ObservedSelectedAction = true;
+                SelectedActionContainedLegacyCapabilityFeature =
+                    action.Features.ContainsKey("headlessSupported");
+            }
+            descriptor = new CombatActionAutomationDescriptor
+            {
+                HeadlessSupported = declared,
+                FailureScope = CombatAgentFailureScope.Turn,
+                Reason = declared ? "" : "not a projection card route"
+            };
+            return declared;
         }
     }
 }

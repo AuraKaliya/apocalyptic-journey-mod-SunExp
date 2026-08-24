@@ -2,19 +2,6 @@ using System;
 
 namespace AudioArbiter.Shared;
 
-internal readonly struct AudioCombatRequestBatch
-{
-    public AudioCombatRequestBatch(SoundPlaybackRequest cardUse, SoundPlaybackRequest skillVoice)
-    {
-        CardUse = cardUse ?? throw new ArgumentNullException(nameof(cardUse));
-        SkillVoice = skillVoice ?? throw new ArgumentNullException(nameof(skillVoice));
-    }
-
-    public SoundPlaybackRequest CardUse { get; }
-
-    public SoundPlaybackRequest SkillVoice { get; }
-}
-
 internal static class AudioRequestFactory
 {
     public static SoundPlaybackRequest CreateCareerSelected(AudioCareerObservation observation)
@@ -30,12 +17,12 @@ internal static class AudioRequestFactory
         };
     }
 
-    public static AudioCombatRequestBatch CreateCombatActionBatch(
+    public static SoundPlaybackRequest CreateCardUse(
         AudioCombatActionObservation observation,
         string cardUseEventId)
     {
         if (observation == null) throw new ArgumentNullException(nameof(observation));
-        var cardUse = new SoundPlaybackRequest
+        return new SoundPlaybackRequest
         {
             EventId = cardUseEventId ?? "",
             Kind = SoundEventKinds.CardUse,
@@ -48,19 +35,26 @@ internal static class AudioRequestFactory
             ActionName = observation.ActionName,
             SourceName = observation.SourceName
         };
-        var skillVoice = new SoundPlaybackRequest
+    }
+
+    public static SoundPlaybackRequest CreateSkillVoice(
+        AudioSkillActionObservation observation,
+        string transactionId)
+    {
+        if (observation == null) throw new ArgumentNullException(nameof(observation));
+        return new SoundPlaybackRequest
         {
+            EventId = transactionId ?? "",
             Kind = SoundEventKinds.SkillVoice,
-            Stage = AudioSignalStages.PresentationCommitted,
-            CardId = observation.CardId,
+            Stage = AudioSignalStages.Committed,
+            SkillId = observation.SkillId,
+            SkillSlot = observation.SkillSlot,
             CareerId = observation.CareerId,
             RoleId = observation.RoleId,
             StatusInstanceId = observation.StatusInstanceId,
-            EffectName = observation.EffectName,
-            ActionName = observation.ActionName,
-            SourceName = observation.SourceName
+            SourceName = observation.SourceName,
+            IsLocalOwner = true
         };
-        return new AudioCombatRequestBatch(cardUse, skillVoice);
     }
 
     public static SoundPlaybackRequest CreateBuffApplied(AudioBuffObservation observation)

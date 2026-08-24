@@ -42,6 +42,7 @@
     <Compile Include="..\AuraSharedCore\AuraAuthoritativeSyncRuntime.cs" Link="Core\AuraAuthoritativeSyncRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPayloadBudget.cs" Link="Core\AuraSharedPayloadBudget.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedObjectPool.cs" Link="Core\AuraSharedObjectPool.cs" />
+    <Compile Include="..\AuraSharedCore\AuraPresentationMaterialLeaseState.cs" Link="Core\AuraPresentationMaterialLeaseState.cs" />
     <Compile Include="..\AuraSharedCore\AuraCardPresentationBindingPolicy.cs" Link="Core\AuraCardPresentationBindingPolicy.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyModels.cs" Link="Journey\AuraJourneyModels.cs" />
     <Compile Include="..\AuraJourneyShared\AuraJourneyRouteModels.cs" Link="Journey\AuraJourneyRouteModels.cs" />
@@ -53,6 +54,7 @@
     <Compile Include="..\AuraModeShared\AuraModeModels.cs" Link="Mode\AuraModeModels.cs" />
     <Compile Include="..\AuraModeShared\AuraModeOutcomeRuntime.cs" Link="Mode\AuraModeOutcomeRuntime.cs" />
     <Compile Include="..\AuraModeShared\AuraModePolicyEvaluator.cs" Link="Mode\AuraModePolicyEvaluator.cs" />
+    <Compile Include="..\AuraModeShared\AuraModeRunIdentity.cs" Link="Mode\AuraModeRunIdentity.cs" />
     <Compile Include="..\AuraOnlineShared\*.cs" Exclude="..\AuraOnlineShared\AuraLobbySnapshotRuntime.cs;..\AuraOnlineShared\AuraOnlineHostModSyncSession.cs;..\AuraOnlineShared\AuraOnlineLocalModManifestBuilder.cs" Link="Online\%(Filename)%(Extension)" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorModels.cs" Link="Director\AuraDirectorModels.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorPlanCompiler.cs" Link="Director\AuraDirectorPlanCompiler.cs" />

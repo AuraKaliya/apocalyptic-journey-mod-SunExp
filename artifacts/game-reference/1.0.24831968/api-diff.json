@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "baselinePath": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\开发参考资料\\Managed快照\\v1.0.24605918",
+  "currentPath": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\开发参考资料\\Managed快照\\v1.0.24831968",
+  "generatedAtUtc": "2026-08-24T17:15:20.0507912+00:00",
+  "breakingCount": 0,
+  "additiveCount": 0,
+  "behaviorReviewCount": 2,
+  "assemblies": [
+    {
+      "fileName": "Witch.Core.dll",
+      "status": "Changed",
+      "baselineSha256": "11FAE31C95C7F56356A7CF92E3D92588DE7BFC31B653CC94E7184274C56E60B6",
+      "currentSha256": "EDE56686110573070F9E062C8EFC51AC9D60E2AFD9B436590A028B72FDC06295",
+      "baselineSize": 184832,
+      "currentSize": 184832,
+      "baselineTypeCount": 141,
+      "currentTypeCount": 141,
+      "breakingCount": 0,
+      "additiveCount": 0,
+      "behaviorReview": true,
+      "removedTypes": [],
+      "addedTypes": [],
+      "changedTypeShapes": [],
+      "removedMembers": [],
+      "addedMembers": []
+    },
+    {
+      "fileName": "Witch.dll",
+      "status": "Changed",
+      "baselineSha256": "C8D9B8B0E3B553B01464F6F3909A3C360C19B83BDD7AC0488F18B29631872B68",
+      "currentSha256": "CD829F84F5A52A6B53973C676BF3DF4618A15F479A23BBA35B82E6802C6CDC83",
+      "baselineSize": 3085312,
+      "currentSize": 3086336,
+      "baselineTypeCount": 1191,
+      "currentTypeCount": 1191,
+      "breakingCount": 0,
+      "additiveCount": 0,
+      "behaviorReview": true,
+      "removedTypes": [],
+      "addedTypes": [],
+      "changedTypeShapes": [],
+      "removedMembers": [],
+      "addedMembers": []
+    }
+  ]
+}

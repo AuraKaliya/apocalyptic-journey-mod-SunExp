@@ -17,9 +17,9 @@ public static class AudioArbiterRuntime
 
     private const string GlobalObjectName = "AudioArbiter.Global";
     private const string ComponentFullName = "AudioArbiter.Shared.AudioArbiterRuntime+AudioArbiterComponent";
-    public const string CurrentBuildId = "audio-arbiter-2026-08-22-v15";
-    public const int CurrentProtocolVersion = 7;
-    public const int MinimumSupportedProtocolVersion = 7;
+    public const string CurrentBuildId = "audio-arbiter-2026-08-24-v16";
+    public const int CurrentProtocolVersion = 8;
+    public const int MinimumSupportedProtocolVersion = 8;
     public const int SupportedManifestSchemaVersion = 4;
 
     private static readonly HashSet<string> ReuseLogOwners = new(StringComparer.OrdinalIgnoreCase);
@@ -368,6 +368,7 @@ public static class AudioArbiterRuntime
                     FightStartAfter = OnFightStartAfter,
                     CareerDetailShown = OnCareerDetailShown,
                     CombatActionBefore = OnCombatActionBefore,
+                    SkillActionCommitted = OnSkillActionCommitted,
                     NativeEffectBefore = OnEffectSoundBefore,
                     BuffApplied = OnBuffInitAfter,
                     VocalState = OnStatusVocalAfter,
@@ -927,9 +928,20 @@ public static class AudioArbiterRuntime
                 observation.ActionName,
                 observation.EffectName,
                 Time.unscaledTime);
-            var requests = AudioRequestFactory.CreateCombatActionBatch(observation, eventId);
-            RequestSoundInternal(requests.CardUse, syncRemote: true);
-            RequestSoundInternal(requests.SkillVoice, syncRemote: true);
+            RequestSoundInternal(AudioRequestFactory.CreateCardUse(observation, eventId), syncRemote: true);
+        }
+
+        private void OnSkillActionCommitted(AuraSkillActionContext context)
+        {
+            var observation = hookContextMapper.MapSkillAction(context);
+            if (observation == null)
+            {
+                return;
+            }
+
+            RequestSoundInternal(
+                AudioRequestFactory.CreateSkillVoice(observation, context.TransactionId),
+                syncRemote: true);
         }
 
         private void OnEffectSoundBefore(ModHookContext context)

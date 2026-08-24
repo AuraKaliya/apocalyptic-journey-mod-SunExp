@@ -34,6 +34,8 @@
              Link="Config\AuraToolsConfigModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraTools*Settings.cs"
              Link="Config\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsVoiceSkillBindingMigration.cs"
+             Link="Config\AuraToolsVoiceSkillBindingMigration.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\SafeBox\AuraToolsSafeBoxDataCompatibility.cs"
              Link="SafeBox\AuraToolsSafeBoxDataCompatibility.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiCore.cs"
@@ -44,6 +46,8 @@
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CardVisual\CardVisualRenderTargetPolicy.cs"
              Link="CardVisual\CardVisualRenderTargetPolicy.cs" />
+    <Compile Include="..\AuraSharedCore\AuraPresentationMaterialLeaseState.cs"
+             Link="Shared\AuraPresentationMaterialLeaseState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\ModSync\AuraToolsModSyncRequestTracker.cs"
              Link="ModSync\AuraToolsModSyncRequestTracker.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Feast\FeastRoleResourceIdentity.cs"

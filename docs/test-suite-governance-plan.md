@@ -107,14 +107,14 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
 
 | 项目 | 规模 | 调整决定 |
 | --- | ---: | --- |
-| `AudioArbiterShared.Tests` | 7 个文件，`Program.cs` 38 行 | 已按 manifest/file policy、request/network、provider、coordination 和夹具拆分，447 条断言不变 |
+| `AudioArbiterShared.Tests` | 8 个文件，`Program.cs` 保持薄入口 | 已按 manifest/file policy、request/network、provider、技能序号、coordination 和夹具拆分，当前 475 条断言 |
 | `AuraCgShared.Tests` | 839 行 | 保留；当前规模可接受 |
 | `AuraSkinShared.Tests` | 2 个文件，326 行，36 条断言 | 覆盖安装前置失败、路径逃逸、协议范围和可释放运行时皮肤作用域 |
 | `AuraSharedCore.Tests` | 11 个文件，`Program.cs` 407 行 | 已按 game data、资源协议、领域、存储恢复、生命周期和夹具拆分；1,243 条断言覆盖终局生产关闭与 Finalized 屏障 |
 | `AuraSharedCompatibility.Tests` | 366 行 | 保留为公共 API 兼容权威测试 |
 | `AuraDirectorDetour.Tests` | 241 行 | 保留；PowerShell 私有源码锚点已退休，当前验证 hold/re-entry、fail-open、指纹 gate 和安装所有权 |
 | `AuraCombatAiShared.Tests` | 10 个领域文件，`Program.cs` 15 行 | 已按决策、仿真、策略价值、战役、Foundation、协议工件和夹具拆分 |
-| `AuraToolsExp-Dev.Tests` | 31 个文件，`Program.cs` 75 行 | 已按配置、共享功能、对局回放/媒体/数据库、伤害统计、历史、安全箱/初始牌组和夹具拆分；1,284 条行为断言包含实际 Clip 关联、终局封存和 Rejected 草稿 |
+| `AuraToolsExp-Dev.Tests` | 32 个文件，`Program.cs` 80 行 | 已按配置、共享功能、卡牌视觉原生 Renderer 契约与材质租约、对局回放/媒体/数据库、伤害统计、历史、安全箱/初始牌组和夹具拆分；当前 1,340 条行为断言 |
 | `AuraToolsExp.NativeReward.Tests` | 5 个文件，`Program.cs` 436 行 | 已按角色语义、内容规则、运行时验收和夹具拆分 |
 | `Terrias-Dev.ElementalTests` | 162 行 | 保留为功能专项 |
 | `Terrias-Dev.FamiliarTests` | 189 行 | 保留为功能专项 |
@@ -220,7 +220,7 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
 ## 本轮验证记录
 
 - 正式共享矩阵除 Foundation worker/归档维护外的 19 个步骤全部通过：Core
-  1,243、CG 171、Skin 36、Audio 447、Combat AI 537、AuraToolsExp 1,284 条
+  1,246、CG 171、Skin 36、Audio 475、Combat AI 537、AuraToolsExp 1,340 条
   行为断言，以及知识、训练工件、仿真、架构、网络、Director、Native Reward、
   consumer 和 packaging 验证。
 - 公共 API compatibility baseline 4,951 项通过；Terrias、SanGuoShaExp、

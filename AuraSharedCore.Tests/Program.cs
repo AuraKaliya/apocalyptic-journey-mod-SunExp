@@ -19,6 +19,69 @@ AuraSharedPaths.RootDirectory = tempRoot;
 
 try
 {
+    var materialLease = new AuraPresentationMaterialLeaseState();
+    materialLease.Bind(
+        targetInstanceId: 10,
+        originalMaterialInstanceId: 20,
+        appliedMaterialInstanceId: 30);
+    Assert(materialLease.Owns(10, 30),
+        "presentation material lease owns only its exact renderer/material pair");
+    var foreignMaterialPlan = materialLease.PlanDetach(10, 40);
+    Assert(foreignMaterialPlan.BlockedByForeignMaterial
+           && !foreignMaterialPlan.RestoreOriginal
+           && !foreignMaterialPlan.ReleaseApplied,
+        "a stale presentation owner cannot overwrite or release a newer material layer");
+    var ownedMaterialPlan = materialLease.PlanDetach(10, 30);
+    Assert(ownedMaterialPlan.RestoreOriginal
+           && ownedMaterialPlan.ReleaseApplied
+           && !ownedMaterialPlan.BlockedByForeignMaterial,
+        "the active presentation owner may unwind and release its own material");
+    materialLease.Clear();
+    materialLease.Bind(
+        targetInstanceId: 10,
+        originalMaterialInstanceId: 0,
+        appliedMaterialInstanceId: 50);
+    var destroyedTargetPlan = materialLease.PlanDetach(0, 0);
+    Assert(!destroyedTargetPlan.RestoreOriginal
+           && destroyedTargetPlan.ReleaseApplied
+           && !destroyedTargetPlan.BlockedByForeignMaterial,
+        "destroying a presentation target releases its applied material without restoring a dead renderer");
+
+    Assert(AuraModeRunIdentity.IsNativeWorldSimulation(
+            AuraModeRunIdentity.NativeWorldSimulationModeType,
+            AuraModeRunIdentity.NativeWorldSimulationModeId,
+            null),
+        "native world-simulation identity requires explicit provenance and permits no active custom mode");
+    Assert(!AuraModeRunIdentity.IsNativeWorldSimulation(
+            AuraModeRunIdentity.NativeWorldSimulationModeType,
+            "",
+            null),
+        "normal-hosted runs without explicit provenance fail closed");
+    Assert(!AuraModeRunIdentity.IsNativeWorldSimulation(
+            AuraModeRunIdentity.NativeWorldSimulationModeType,
+            AuraModeRunIdentity.NativeWorldSimulationModeId,
+            new AuraActiveModeSnapshot
+            {
+                Status = AuraModeStates.Active,
+                ModeId = "Terrias:solar-memory",
+                OwnerModId = "Terrias",
+                Run = new AuraModeRunBinding { SaveSlotId = "SolarRun" }
+            },
+            "SolarRun"),
+        "an active custom mode overrides native-host structural similarity");
+    Assert(AuraModeRunIdentity.IsNativeWorldSimulation(
+            AuraModeRunIdentity.NativeWorldSimulationModeType,
+            AuraModeRunIdentity.NativeWorldSimulationModeId,
+            new AuraActiveModeSnapshot
+            {
+                Status = AuraModeStates.Active,
+                ModeId = "Terrias:solar-memory",
+                OwnerModId = "Terrias",
+                Run = new AuraModeRunBinding { SaveSlotId = "RetiredSolarRun" }
+            },
+            "Normal123"),
+        "a stale custom-mode snapshot from another save does not block explicit native provenance");
+
     var compactJson = AuraSharedJson.SerializeCompact(new
     {
         protocol = "jsonl-test",

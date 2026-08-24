@@ -20,6 +20,7 @@ public sealed class TerriasBattleLifecycleSubscription
     public Action<ModHookContext>? PlayerTurnEntering { get; set; }
     public Action<ModHookContext>? PlayerRoundStarting { get; set; }
     public Action<ModHookContext>? PlayerRoundReady { get; set; }
+    public Action<ModHookContext>? PlayerTurnCompleted { get; set; }
     public Action<ModHookContext>? BattleRestarting { get; set; }
     public Action<ModHookContext>? BattleRestarted { get; set; }
     public Action<AuraBattleOutcomeContext>? OutcomeEntering { get; set; }
@@ -98,6 +99,7 @@ public static class TerriasBattleLifecycleRouter
                 PlayerTurnEntering = subscription.PlayerTurnEntering,
                 PlayerRoundStarting = subscription.PlayerRoundStarting,
                 PlayerRoundReady = subscription.PlayerRoundReady,
+                PlayerTurnCompleted = subscription.PlayerTurnCompleted,
                 BattleRestarting = subscription.BattleRestarting,
                 BattleRestarted = subscription.BattleRestarted,
                 OutcomeEntering = subscription.OutcomeEntering,

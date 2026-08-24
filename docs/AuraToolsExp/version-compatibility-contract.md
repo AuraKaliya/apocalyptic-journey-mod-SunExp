@@ -72,16 +72,24 @@ v11 的可播放初态从 `BattleMaterialized` 开始，必须包含本地玩家
 
 ### 卡牌视觉
 
-CardVisual 当前协议范围固定为 7/7，渲染器为
-`aura.card-visual.material-v5`，覆盖契约为 `frame/native-frame-v4`。静态卡框映射与动态
+CardVisual 当前协议范围固定为 9/9，渲染器为
+`aura.card-visual.material-v7`，覆盖契约为 `frame/native-frame-v5`。静态卡框映射与动态
 效果映射彼此独立：默认静态映射展开完整日耀/晨星卡包，动态效果只映射【炽冕崩落】
 和四张【星辰序曲】。VisualBundle 必须由游戏同版本 Unity `6000.0.46f1`、
 StandaloneWindows64 与 URP `17.0.4` 构建，并同时提供 UI Image 和 URP Mesh 材质。原生
-卡框节点同时存在 Image/Mesh 时必须选择游戏实际写入的 Image；只有没有 Image 的表面才
-使用 Mesh。两个材质都必须声明 `RenderPipeline=UniversalPipeline` 并提供约定的命名
-Pass；运行时还要求已启用 SRP。旧 renderer/coverage、缺失材质、不兼容或不支持的 shader
-直接拒绝应用，不使用旧 bundle fallback。发布构建必须在真实 Direct3D11 设备上通过
-ScreenSpaceCamera Canvas 像素读回，`NullGfx`、紫色像素和空白像素均不合格。
+卡框节点同时存在 Image/Mesh 时必须复刻原生 `ICard.SetCardStyle`：若
+`Front/background` 存在 MeshRenderer，只修改对应的 `Front/FrontBack.MeshRenderer`；
+否则只修改 Image。主题、动态材质、租约和恢复不得双写。两个材质都必须声明
+`RenderPipeline=UniversalPipeline` 并提供约定的命名
+Pass；运行时还要求已启用 SRP。Mesh shader 使用游戏内其它稳定 Mesh 特效同源的
+`UnityCG.cginc` 顶点/采样契约，同时继续显式声明 UniversalPipeline 与 SRPDefaultUnlit，
+避免把构建器专用的 URP include/常量缓冲布局带入游戏卡牌 Mesh。旧 renderer/coverage、
+缺失材质、不兼容或不支持的 shader 直接拒绝应用，不使用旧 bundle fallback。发布构建
+必须在真实 Direct3D11 设备上分别通过 ScreenSpaceCamera Canvas Image 与 WorldSpace Canvas
+内 `MeshFilter + MeshRenderer` 的像素读回；Mesh 路径还必须依次通过“动态材质 → 恢复
+原生材质并销毁动态材质 → 重新绑定新动态材质”的租约 smoke。运行时租约按 Renderer 与
+Material 的 Unity InstanceID 记账，恢复完成前不得销毁动态材质；任一路径出现 `NullGfx`、
+紫色像素、空白像素或池化卡残留上一张卡的材质均不合格。
 
 ### 配置与模型
 

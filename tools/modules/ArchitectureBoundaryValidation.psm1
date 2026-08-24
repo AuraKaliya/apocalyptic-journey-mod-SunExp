@@ -32,7 +32,10 @@ function Get-RuleFiles {
     $excludePatterns = Get-OptionalValues -Object $Rule -Name "excludePathRegex"
     return @($files | Sort-Object FullName -Unique | Where-Object {
         $relative = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace("\", "/")
-        -not @($excludePatterns | Where-Object { $relative -match [string]$_ }).Count
+        $generated = $relative -match '(^|/)(?:bin|obj)/' `
+            -or $relative -match '/VisualAssets/UnityProject/'
+        -not $generated `
+            -and -not @($excludePatterns | Where-Object { $relative -match [string]$_ }).Count
     })
 }
 

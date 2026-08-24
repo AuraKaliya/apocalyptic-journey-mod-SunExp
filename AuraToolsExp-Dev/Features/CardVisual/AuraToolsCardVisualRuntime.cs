@@ -376,6 +376,7 @@ public static class AuraToolsCardVisualRuntime
         var root = FindVisualRoot(context.Root, context.Surface);
         if (root == null) return;
         var marker = root.GetComponent<AuraToolsCardVisualMarker>() ?? root.gameObject.AddComponent<AuraToolsCardVisualMarker>();
+        marker.BindDiagnostic(qualifiedCard, context.Surface);
 
         CardFrameThemeDefinition? theme = null;
         CardFrameSkinDefinition? skin = null;
@@ -552,41 +553,65 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
     private Texture? appliedFrameTexture;
     private Texture? appliedBackgroundTexture;
     private bool captured;
+    private CardVisualRenderTargetKind skinTargetKind;
     private Image? effectImageTarget;
     private MeshRenderer? effectMeshTarget;
     private Material? originalEffectImageMaterial;
     private Material? originalEffectMeshMaterial;
     private Material? effectMaterial;
+    private readonly AuraPresentationMaterialLeaseState effectMaterialLease = new();
     private string skinSignature = "";
     private string effectSignature = "";
+    private string diagnosticCardId = "";
+    private AuraCardPresentationSurface diagnosticSurface;
+
+    public void BindDiagnostic(string cardId, AuraCardPresentationSurface surface)
+    {
+        diagnosticCardId = cardId ?? "";
+        diagnosticSurface = surface;
+    }
 
     public void ApplySkin(CardFrameThemeDefinition? theme, CardFrameSkinDefinition? skin)
     {
-        CaptureNativeState();
-        var signature = theme == null || skin == null ? "" : theme.ThemeId + ":" + skin.SkinId;
-        if (signature != skinSignature)
+        var frameNode = transform.Find("Front/FrontBack");
+        var targetKind = ResolveNativeTargetKind(frameNode, "skin");
+        var signature = theme == null || skin == null
+            ? ""
+            : theme.ThemeId + ":" + skin.SkinId + ":" + targetKind;
+        if (signature != skinSignature || targetKind != skinTargetKind)
         {
             RestoreSkin();
-            CaptureNativeState();
+            ResetSkinCapture();
+            skinTargetKind = targetKind;
             skinSignature = signature;
         }
+        CaptureNativeState();
         if (theme == null || skin == null) return;
+        if (targetKind == CardVisualRenderTargetKind.None)
+        {
+            WarnMissingNativeTarget("skin", frameNode);
+            return;
+        }
         var frame = LoadSprite(AuraToolsCardVisualRegistry.ResolveThemeAsset(theme, skin.Frame));
         var background = string.IsNullOrWhiteSpace(skin.Background)
             ? null
             : LoadSprite(AuraToolsCardVisualRegistry.ResolveThemeAsset(theme, skin.Background));
         var frameImage = transform.Find("Front/FrontBack")?.GetComponent<Image>();
         var backgroundImage = transform.Find("Front/background")?.GetComponent<Image>();
-        if (frameImage != null && frame != null) frameImage.sprite = appliedFrame = frame;
-        if (backgroundImage != null && background != null) backgroundImage.sprite = appliedBackground = background;
         var frameMesh = transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>();
         var backgroundMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>();
-        if (frameMesh != null && frame != null)
+        if (targetKind == CardVisualRenderTargetKind.Image)
+        {
+            if (frameImage != null && frame != null) frameImage.sprite = appliedFrame = frame;
+            if (backgroundImage != null && background != null) backgroundImage.sprite = appliedBackground = background;
+            return;
+        }
+        if (targetKind == CardVisualRenderTargetKind.Mesh && frameMesh != null && frame != null)
         {
             appliedFrameTexture = frame.texture;
             SetMeshTexture(frameMesh, frame.texture);
         }
-        if (backgroundMesh != null && background != null)
+        if (targetKind == CardVisualRenderTargetKind.Mesh && backgroundMesh != null && background != null)
         {
             appliedBackgroundTexture = background.texture;
             SetMeshTexture(backgroundMesh, background.texture);
@@ -595,36 +620,44 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
 
     public void ApplyEffect(CardDynamicEffectDefinition? effect, CardDynamicEffectSettings? settings)
     {
-        var node = effect == null
-            ? null
-            : string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
-                ? transform.Find("Front/background")
-                : transform.Find("Front/FrontBack");
+        if (effect == null)
+        {
+            if (ClearEffect())
+            {
+                effectSignature = "";
+            }
+            return;
+        }
+        var node = string.Equals(effect.TargetLayer, "face", StringComparison.OrdinalIgnoreCase)
+            ? transform.Find("Front/background")
+            : transform.Find("Front/FrontBack");
         var image = node?.GetComponent<Image>();
         var mesh = node?.GetComponent<MeshRenderer>();
-        var targetKind = CardVisualRenderTargetPolicy.Resolve(image != null, mesh != null);
+        var targetKind = ResolveNativeTargetKind(node, "effect");
         var useMesh = targetKind == CardVisualRenderTargetKind.Mesh;
         var runtimeTexture = useMesh
-            ? (ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+            ? (SameUnityObject(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
                 ? originalEffectMeshMaterial.mainTexture
                 : mesh?.material?.mainTexture)
             : image?.sprite?.texture;
-        var signature = effect == null
-            ? ""
-            : effect.EffectId
-              + ":" + effect.TargetLayer
-              + ":" + effect.CoverageProfile
-              + ":" + targetKind
-              + ":" + (runtimeTexture == null ? 0 : runtimeTexture.GetInstanceID())
-              + ":" + string.Join(";", settings?.Parameters
-                  .OrderBy(value => value.Key)
-                  .Select(value => value.Key + "=" + value.Value)
-                  ?? Enumerable.Empty<string>());
+        var signature = effect.EffectId
+                        + ":" + effect.TargetLayer
+                        + ":" + effect.CoverageProfile
+                        + ":" + targetKind
+                        + ":" + (runtimeTexture == null ? 0 : runtimeTexture.GetInstanceID())
+                        + ":" + string.Join(";", settings?.Parameters
+                            .OrderBy(value => value.Key)
+                            .Select(value => value.Key + "=" + value.Value)
+                            ?? Enumerable.Empty<string>());
         if (signature == effectSignature && effectMaterial != null)
         {
             var stillAttached = useMesh
-                ? mesh != null && ReferenceEquals(mesh.sharedMaterial, effectMaterial)
-                : image != null && ReferenceEquals(image.material, effectMaterial);
+                ? mesh != null && effectMaterialLease.Owns(
+                    mesh.GetInstanceID(),
+                    MaterialInstanceId(mesh.sharedMaterial))
+                : image != null && effectMaterialLease.Owns(
+                    image.GetInstanceID(),
+                    MaterialInstanceId(image.material));
             if (stillAttached)
             {
                 AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, runtimeTexture);
@@ -632,9 +665,17 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
             }
         }
 
-        ClearEffect();
+        if (!ClearEffect())
+        {
+            return;
+        }
         effectSignature = signature;
-        if (effect == null || node == null || runtimeTexture == null) return;
+        if (targetKind == CardVisualRenderTargetKind.None)
+        {
+            WarnMissingNativeTarget("effect", node);
+            return;
+        }
+        if (node == null || runtimeTexture == null) return;
         effectMaterial = AuraToolsCardVisualAssets.CreateMaterial(effect, settings, runtimeTexture, useMesh);
         if (effectMaterial == null) return;
 
@@ -642,7 +683,11 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         {
             originalEffectMeshMaterial = mesh.material;
             effectMeshTarget = mesh;
-            mesh.material = effectMaterial;
+            effectMaterialLease.Bind(
+                mesh.GetInstanceID(),
+                MaterialInstanceId(originalEffectMeshMaterial),
+                MaterialInstanceId(effectMaterial));
+            mesh.sharedMaterial = effectMaterial;
             return;
         }
 
@@ -650,6 +695,10 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         {
             originalEffectImageMaterial = image.material;
             effectImageTarget = image;
+            effectMaterialLease.Bind(
+                image.GetInstanceID(),
+                MaterialInstanceId(originalEffectImageMaterial),
+                MaterialInstanceId(effectMaterial));
             image.material = effectMaterial;
             return;
         }
@@ -660,22 +709,33 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
 
     public void ClearAll()
     {
-        ClearEffect();
+        if (!ClearEffect())
+        {
+            return;
+        }
         RestoreSkin();
+        ResetSkinCapture();
         skinSignature = "";
         effectSignature = "";
     }
 
     private void CaptureNativeState()
     {
+        if (skinTargetKind == CardVisualRenderTargetKind.None) return;
         var frameImage = transform.Find("Front/FrontBack")?.GetComponent<Image>();
         var backgroundImage = transform.Find("Front/background")?.GetComponent<Image>();
         var frameTexture = ReadMeshTexture(transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>());
         var backgroundTexture = ReadMeshTexture(transform.Find("Front/background")?.GetComponent<MeshRenderer>());
-        if (!captured || frameImage?.sprite != appliedFrame) originalFrame = frameImage?.sprite;
-        if (!captured || backgroundImage?.sprite != appliedBackground) originalBackground = backgroundImage?.sprite;
-        if (!captured || frameTexture != appliedFrameTexture) originalFrameTexture = frameTexture;
-        if (!captured || backgroundTexture != appliedBackgroundTexture) originalBackgroundTexture = backgroundTexture;
+        if (skinTargetKind == CardVisualRenderTargetKind.Image)
+        {
+            if (!captured || frameImage?.sprite != appliedFrame) originalFrame = frameImage?.sprite;
+            if (!captured || backgroundImage?.sprite != appliedBackground) originalBackground = backgroundImage?.sprite;
+        }
+        else if (skinTargetKind == CardVisualRenderTargetKind.Mesh)
+        {
+            if (!captured || frameTexture != appliedFrameTexture) originalFrameTexture = frameTexture;
+            if (!captured || backgroundTexture != appliedBackgroundTexture) originalBackgroundTexture = backgroundTexture;
+        }
         captured = true;
     }
 
@@ -684,60 +744,186 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         if (!captured) return;
         var frameImage = transform.Find("Front/FrontBack")?.GetComponent<Image>();
         var backgroundImage = transform.Find("Front/background")?.GetComponent<Image>();
-        if (frameImage != null && frameImage.sprite == appliedFrame) frameImage.sprite = originalFrame;
-        if (backgroundImage != null && backgroundImage.sprite == appliedBackground) backgroundImage.sprite = originalBackground;
         var frameMesh = transform.Find("Front/FrontBack")?.GetComponent<MeshRenderer>();
         var backgroundMesh = transform.Find("Front/background")?.GetComponent<MeshRenderer>();
-        RestoreMeshTexture(frameMesh, appliedFrameTexture, originalFrameTexture);
-        RestoreMeshTexture(backgroundMesh, appliedBackgroundTexture, originalBackgroundTexture);
+        if (skinTargetKind == CardVisualRenderTargetKind.Image)
+        {
+            if (frameImage != null && frameImage.sprite == appliedFrame) frameImage.sprite = originalFrame;
+            if (backgroundImage != null && backgroundImage.sprite == appliedBackground) backgroundImage.sprite = originalBackground;
+        }
+        else if (skinTargetKind == CardVisualRenderTargetKind.Mesh)
+        {
+            RestoreMeshTexture(frameMesh, appliedFrameTexture, originalFrameTexture);
+            RestoreMeshTexture(backgroundMesh, appliedBackgroundTexture, originalBackgroundTexture);
+        }
         appliedFrame = null;
         appliedBackground = null;
         appliedFrameTexture = null;
         appliedBackgroundTexture = null;
     }
 
-    private void ClearEffect()
+    private void ResetSkinCapture()
     {
-        if (effectImageTarget != null && ReferenceEquals(effectImageTarget.material, effectMaterial))
-            effectImageTarget.material = originalEffectImageMaterial;
-        if (effectMeshTarget != null && ReferenceEquals(effectMeshTarget.sharedMaterial, effectMaterial))
-            effectMeshTarget.sharedMaterial = originalEffectMeshMaterial;
-        if (effectMaterial != null) Object.Destroy(effectMaterial);
+        captured = false;
+        skinTargetKind = CardVisualRenderTargetKind.None;
+        originalFrame = null;
+        originalBackground = null;
+        originalFrameTexture = null;
+        originalBackgroundTexture = null;
+        appliedFrame = null;
+        appliedBackground = null;
+        appliedFrameTexture = null;
+        appliedBackgroundTexture = null;
+    }
+
+    private bool ClearEffect()
+    {
+        var targetInstanceId = effectMeshTarget != null
+            ? effectMeshTarget.GetInstanceID()
+            : effectImageTarget != null
+                ? effectImageTarget.GetInstanceID()
+                : 0;
+        var currentMaterialInstanceId = effectMeshTarget != null
+            ? MaterialInstanceId(effectMeshTarget.sharedMaterial)
+            : effectImageTarget != null
+                ? MaterialInstanceId(effectImageTarget.material)
+                : 0;
+        var detach = effectMaterialLease.PlanDetach(
+            targetInstanceId,
+            currentMaterialInstanceId);
+        if (detach.BlockedByForeignMaterial)
+        {
+            AuraToolsLog.WarnOnce(
+                "card-visual-material-detach-blocked:"
+                + targetInstanceId
+                + ":"
+                + effectMaterialLease.AppliedMaterialInstanceId,
+                "[CardVisual] dynamic material reset deferred because a newer presentation material owns the native renderer: card="
+                + (diagnosticCardId.Length == 0 ? "<unknown>" : diagnosticCardId)
+                + ", surface="
+                + diagnosticSurface);
+            return false;
+        }
+        if (detach.RestoreOriginal)
+        {
+            if (effectMeshTarget != null)
+            {
+                effectMeshTarget.sharedMaterial = originalEffectMeshMaterial;
+            }
+            else if (effectImageTarget != null)
+            {
+                effectImageTarget.material = originalEffectImageMaterial;
+            }
+        }
+
+        if ((detach.ReleaseApplied || !effectMaterialLease.IsActive) && effectMaterial != null)
+            Object.Destroy(effectMaterial);
+        effectMaterialLease.Clear();
         effectImageTarget = null;
         effectMeshTarget = null;
         originalEffectImageMaterial = null;
         originalEffectMeshMaterial = null;
         effectMaterial = null;
+        return true;
     }
 
     private Texture? ReadMeshTexture(MeshRenderer? mesh)
     {
         if (mesh == null) return null;
-        return ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+        return SameUnityObject(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
             ? originalEffectMeshMaterial.mainTexture
-            : mesh.material?.mainTexture;
+            : mesh.sharedMaterial?.mainTexture;
     }
 
     private void SetMeshTexture(MeshRenderer mesh, Texture texture)
     {
-        if (ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null)
+        if (SameUnityObject(effectMeshTarget, mesh) && originalEffectMeshMaterial != null)
         {
             originalEffectMeshMaterial.mainTexture = texture;
             AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, texture);
             return;
         }
-        if (mesh.material != null) mesh.material.mainTexture = texture;
+        var material = mesh.material;
+        if (material != null) material.mainTexture = texture;
     }
 
     private void RestoreMeshTexture(MeshRenderer? mesh, Texture? applied, Texture? original)
     {
         if (mesh == null || applied == null) return;
-        var target = ReferenceEquals(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
+        var target = SameUnityObject(effectMeshTarget, mesh) && originalEffectMeshMaterial != null
             ? originalEffectMeshMaterial
             : mesh.material;
-        if (target != null && ReferenceEquals(target.mainTexture, applied)) target.mainTexture = original;
-        if (ReferenceEquals(effectMeshTarget, mesh))
+        if (target != null && SameUnityObject(target.mainTexture, applied)) target.mainTexture = original;
+        if (SameUnityObject(effectMeshTarget, mesh))
             AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, original);
+    }
+
+    private static bool SameUnityObject(Object? left, Object? right)
+    {
+        return left != null
+               && right != null
+               && left.GetInstanceID() == right.GetInstanceID();
+    }
+
+    private static int MaterialInstanceId(Material? material)
+    {
+        return material == null ? 0 : material.GetInstanceID();
+    }
+
+    private CardVisualRenderTargetKind ResolveNativeTargetKind(Transform? targetNode, string purpose)
+    {
+        var backgroundNode = transform.Find("Front/background");
+        var backgroundHasMesh = backgroundNode?.GetComponent<MeshRenderer>() != null;
+        var frameHasImage = targetNode?.GetComponent<Image>() != null;
+        var frameHasMesh = targetNode?.GetComponent<MeshRenderer>() != null;
+        var kind = CardVisualRenderTargetPolicy.Resolve(
+            backgroundHasMesh,
+            frameHasImage,
+            frameHasMesh);
+        var nodeName = targetNode == null ? "<missing>" : targetNode.name;
+        AuraSharedLog.InfoOnce(
+            "AuraTools",
+            "card-visual-native-target:"
+            + diagnosticCardId
+            + ":"
+            + purpose
+            + ":"
+            + kind,
+            "[CardVisual] native renderer resolved: card="
+            + (diagnosticCardId.Length == 0 ? "<unknown>" : diagnosticCardId)
+            + ", surface="
+            + diagnosticSurface
+            + ", purpose="
+            + purpose
+            + ", node="
+            + nodeName
+            + ", backgroundMesh="
+            + backgroundHasMesh
+            + ", targetImage="
+            + frameHasImage
+            + ", targetMesh="
+            + frameHasMesh
+            + ", selected="
+            + kind,
+            mirrorCommands: false);
+        return kind;
+    }
+
+    private void WarnMissingNativeTarget(string purpose, Transform? targetNode)
+    {
+        AuraToolsLog.WarnOnce(
+            "card-visual-native-target-missing:"
+            + diagnosticCardId
+            + ":"
+            + purpose,
+            "[CardVisual] native renderer contract rejected card="
+            + (diagnosticCardId.Length == 0 ? "<unknown>" : diagnosticCardId)
+            + ", surface="
+            + diagnosticSurface
+            + ", purpose="
+            + purpose
+            + ", node="
+            + (targetNode == null ? "<missing>" : targetNode.name));
     }
 
     private static Sprite? LoadSprite(string path) => AuraToolsCardVisualAssets.LoadSprite(path);

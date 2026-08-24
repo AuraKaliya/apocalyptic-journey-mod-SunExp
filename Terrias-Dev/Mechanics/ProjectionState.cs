@@ -1,3 +1,5 @@
+using System;
+
 namespace Terrias.Dll.Mechanics;
 
 public sealed class ProjectionState
@@ -10,7 +12,10 @@ public sealed class ProjectionState
         int slotIndex,
         string ownerPlayerId = "",
         string generation = "",
-        long initialStateRevision = 1L)
+        long initialStateRevision = 1L,
+        int summonRoundSequence = 0,
+        string summonTurnToken = "",
+        long summonTurnOrder = 0)
     {
         StatusId = statusId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
@@ -20,6 +25,9 @@ public sealed class ProjectionState
         SlotIndex = slotIndex;
         Replication = new ProjectionReplicationClock(generation, initialStateRevision);
         RemoteTurnGate = new ProjectionRemoteTurnGate();
+        SummonRoundSequence = Math.Max(0, summonRoundSequence);
+        SummonTurnToken = summonTurnToken ?? "";
+        SummonTurnOrder = Math.Max(0L, summonTurnOrder);
     }
 
     public string StatusId { get; }
@@ -37,6 +45,12 @@ public sealed class ProjectionState
     public ProjectionReplicationClock Replication { get; }
 
     public ProjectionRemoteTurnGate RemoteTurnGate { get; }
+
+    public int SummonRoundSequence { get; }
+
+    public string SummonTurnToken { get; }
+
+    public long SummonTurnOrder { get; }
 
     public bool IsSuspended { get; private set; }
 

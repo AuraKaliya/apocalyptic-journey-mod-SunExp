@@ -15,6 +15,7 @@ internal static class AudioManifestMatchPolicy
         var careerIds = ToSet(match.careerIds);
         var roleIds = ToSet(match.roleIds);
         var cardIds = ToSet(match.cardIds);
+        var skillSlot = match.skillSlot;
         var buffIds = ToSet(match.buffIds);
         var effectNames = ToSet(match.effectNames);
         var actionNames = ToSet(match.actionNames);
@@ -52,6 +53,12 @@ internal static class AudioManifestMatchPolicy
             }
 
             if (cardIds.Count > 0 && !MatchesAnyId(cardIds, AudioPropertyReader.ReadString(request, "CardId")))
+            {
+                return false;
+            }
+
+            if (skillSlot.HasValue
+                && AudioPropertyReader.ReadInt(request, "SkillSlot", 0) != skillSlot.Value)
             {
                 return false;
             }

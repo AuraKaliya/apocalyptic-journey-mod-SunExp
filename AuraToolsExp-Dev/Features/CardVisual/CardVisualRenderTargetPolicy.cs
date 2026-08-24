@@ -9,9 +9,25 @@ internal enum CardVisualRenderTargetKind
 
 internal static class CardVisualRenderTargetPolicy
 {
-    internal static CardVisualRenderTargetKind Resolve(bool hasImage, bool hasMesh)
+    internal static CardVisualRenderTargetKind Resolve(
+        bool backgroundHasMesh,
+        bool frameHasImage,
+        bool frameHasMesh)
     {
-        if (hasImage) return CardVisualRenderTargetKind.Image;
-        return hasMesh ? CardVisualRenderTargetKind.Mesh : CardVisualRenderTargetKind.None;
+        // This intentionally mirrors Witch.ICard.SetCardStyle. The native game
+        // selects the whole card presentation mode from Front/background and
+        // then writes the matching component on Front/FrontBack. A legacy
+        // Image may coexist with the live MeshRenderer on combat cards; its
+        // mere presence must never switch the card to the UI material path.
+        if (backgroundHasMesh)
+        {
+            return frameHasMesh
+                ? CardVisualRenderTargetKind.Mesh
+                : CardVisualRenderTargetKind.None;
+        }
+
+        return frameHasImage
+            ? CardVisualRenderTargetKind.Image
+            : CardVisualRenderTargetKind.None;
     }
 }

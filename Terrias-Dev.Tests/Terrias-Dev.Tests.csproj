@@ -17,6 +17,7 @@
     <Compile Include="..\AuraSharedCore\AuraCombatCardZoneSnapshot.cs" Link="Source\AuraCombatCardZoneSnapshot.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Source\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraBattleLifecycleStateRuntime.cs" Link="Source\AuraBattleLifecycleStateRuntime.cs" />
+    <Compile Include="..\AuraSharedCore\AuraPresentationMaterialLeaseState.cs" Link="Source\AuraPresentationMaterialLeaseState.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\DictionaryUtil.cs" Link="Source\DictionaryUtil.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasContentIdCompatibility.cs" Link="Source\TerriasContentIdCompatibility.cs" />
     <Compile Include="..\Terrias-Dev\Infrastructure\TerriasIds.cs" Link="Source\TerriasIds.cs" />
@@ -67,15 +68,25 @@
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritStatusBarText.cs" Link="Source\SpiritStatusBarText.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PolymorphCooldownSnapshotPolicy.cs" Link="Source\PolymorphCooldownSnapshotPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionTurnQueuePolicy.cs" Link="Source\ProjectionTurnQueuePolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionSummonTurnTransactionLedger.cs" Link="Source\ProjectionSummonTurnTransactionLedger.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionSummonTurnBarrierPolicy.cs" Link="Source\ProjectionSummonTurnBarrierPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PartnerTurnOrderPolicy.cs" Link="Source\PartnerTurnOrderPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\FriendlyRoleSeatPolicy.cs" Link="Source\FriendlyRoleSeatPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionDeckRecipe.cs" Link="Source\ProjectionDeckRecipe.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionActorDeckProjection.cs" Link="Source\ProjectionActorDeckProjection.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionActorTurnPolicy.cs" Link="Source\ProjectionActorTurnPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionActionAutomationPolicy.cs" Link="Source\ProjectionActionAutomationPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionCardExecutionPolicy.cs" Link="Source\ProjectionCardExecutionPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionWrappedCardPolicy.cs" Link="Source\ProjectionWrappedCardPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionProtocolState.cs" Link="Source\ProjectionProtocolState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryMapPreviewPolicy.cs" Link="Source\SolarMemoryMapPreviewPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\DimensionShopRandom.cs" Link="Source\DimensionShopRandom.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs" Link="Source\EndlessSeaNodeKind.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs" Link="Source\EndlessAbyssEnemyScalingService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssEvacuationDepth.cs" Link="Source\EndlessAbyssEvacuationDepth.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssSettlementBarrierPolicy.cs" Link="Source\EndlessAbyssSettlementBarrierPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssSettlementLocalCommit.cs" Link="Source\EndlessAbyssSettlementLocalCommit.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs" Link="Source\SolarMemoryFixedNodeSpec.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs" Link="Source\SolarMemoryMapSyncRepairService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs" Link="Source\SolarMemoryContentIsolationService.cs" />

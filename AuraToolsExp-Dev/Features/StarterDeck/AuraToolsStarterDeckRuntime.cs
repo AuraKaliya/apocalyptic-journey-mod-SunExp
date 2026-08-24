@@ -18,6 +18,7 @@ public static class AuraToolsStarterDeckRuntime
     {
         StarterDeckCardCatalog.Initialize();
         StarterRelicCatalog.Initialize();
+        WorldSimulationRunProvenanceRuntime.Initialize(modConfig);
         StarterDeckHookAdapter.Initialize(modConfig);
     }
 

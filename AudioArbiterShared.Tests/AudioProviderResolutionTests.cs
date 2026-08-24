@@ -157,6 +157,7 @@ internal sealed partial class AudioArbiterContractTests
                 careerIds = new[] { "career" },
                 roleIds = new[] { "role" },
                 cardIds = new[] { "*card-1" },
+                skillSlot = 2,
                 buffIds = new[] { "buff-1" },
                 effectNames = new[] { "effect-1" },
                 actionNames = new[] { "action-1" },
@@ -181,6 +182,9 @@ internal sealed partial class AudioArbiterContractTests
         request.CardId = "other";
         Equal(false, condition(request), "card mismatch rejected");
         request.CardId = "card-1";
+        request.SkillSlot = 1;
+        Equal(false, condition(request), "skill slot mismatch rejected");
+        request.SkillSlot = 2;
         request.IsLocalOwner = false;
         Equal(false, condition(request), "non-owner local request rejected");
         request.IsRemote = true;

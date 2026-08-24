@@ -49,6 +49,7 @@ internal static class Program
         TestSolarMemoryFixedNodeCatalog();
         TestSolarMemoryMapSyncRepair();
         TestSolarMemoryContentIsolation();
+        TestSolarMemoryMapPreviewPolicy();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestSpiritManagementSelectionState();
@@ -58,9 +59,12 @@ internal static class Program
         TestPolymorphCooldownSnapshots();
         TestSpiritProfileIdentityResolver();
         TestProjectionTurnQueuePolicy();
+        TestProjectionSummonTurnTransactionLedger();
         TestPartnerTurnOrderPolicy();
         TestFriendlyRoleSeatPolicy();
         TestProjectionDeckRecipe();
+        TestProjectionActorDeckProjection();
+        TestProjectionCardExecutionPolicy();
         TestProjectionProtocolState();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
@@ -69,10 +73,117 @@ internal static class Program
         TestDimensionShopRandom();
         TestEndlessAbyssEnemyScaling();
         TestEndlessAbyssEvacuationDepth();
+        TestEndlessAbyssSettlementBarrierPolicy();
+        TestEndlessAbyssSettlementLocalCommit();
         TestWitchArchiveSelectionPolicy();
         TestWitchArchiveTextLoader();
 
         Console.WriteLine("Terrias C# tests passed: " + assertions + " assertions.");
+    }
+
+    private static void TestProjectionSummonTurnTransactionLedger()
+    {
+        True(ProjectionSummonTurnBarrierPolicy.ShouldAcquire(1, 1, 1, false, true),
+            "an accepted summon acquires the player-turn barrier without consulting local FightType");
+        False(ProjectionSummonTurnBarrierPolicy.ShouldAcquire(1, 0, 1, false, true),
+            "the summon barrier waits for native player-turn completion");
+        False(ProjectionSummonTurnBarrierPolicy.ShouldAcquire(1, 1, 0, false, true),
+            "a round without open summon transactions leaves the native flow untouched");
+        var ledger = new ProjectionSummonTurnTransactionLedger();
+        ledger.BeginRound(1);
+        True(ledger.Reserve("", 1, out var missingReason) == null,
+            "summon-turn transactions reject missing command tokens");
+        True(missingReason.Contains("token", StringComparison.Ordinal),
+            "missing summon-turn tokens return an explicit reason");
+
+        var first = ledger.Reserve("summon-a", 1, out _)!;
+        Equal(ProjectionSummonTurnTransactionState.Reserved, first.State,
+            "the host reserves the same-round action before spawning its projection");
+        Equal(1, ledger.OpenCount(1),
+            "a reserved summon holds the player-turn completion barrier");
+        var duplicate = ledger.Reserve("summon-a", 1, out _)!;
+        Equal(first.Order, duplicate.Order,
+            "replayed summon commands reuse the authoritative transaction order");
+
+        True(ledger.TryMarkReady(
+                "summon-a",
+                "sp0",
+                "generation-a",
+                out var ready,
+                out _),
+            "spawn completion binds the reserved transaction to its projection actor");
+        Equal(ProjectionSummonTurnTransactionState.Ready, ready.State,
+            "a bound summon is ready for the current-round action");
+        True(ledger.TryClaimReady(1, out var claimed)
+             && claimed.Token == "summon-a",
+            "the authority claims the ready transaction in deterministic order");
+        False(ledger.TryClaimReady(1, out _),
+            "one ready transaction cannot execute twice while claimed");
+        True(ledger.TryMarkCompleted("summon-a", out var completed, out _),
+            "a projection card action completes the summon-turn transaction");
+        Equal(ProjectionSummonTurnTransactionState.Completed, completed.State,
+            "completed transactions are terminal");
+        Equal(0, ledger.OpenCount(1),
+            "the native player-turn barrier releases after terminal completion");
+
+        var second = ledger.Reserve("summon-b", 1, out _)!;
+        True(ledger.TryMarkFailed("summon-b", "spawn failed", out var failed, out _),
+            "spawn failure resolves a reserved transaction without deadlocking the round");
+        Equal(ProjectionSummonTurnTransactionState.Failed, failed.State,
+            "failed summon-turn transactions are terminal");
+        Equal("spawn failed", failed.Detail,
+            "failed summon-turn transactions retain their authoritative diagnostic detail");
+        Equal(0, ledger.OpenCount(1),
+            "failed transactions also release the native barrier");
+        True(first.Order < second.Order,
+            "authoritative transaction order remains monotonic");
+
+        var remote = new ProjectionSummonTurnTransactionLedger();
+        remote.BeginRound(1);
+        True(remote.TryApplyAuthoritative(first, out _),
+            "clients accept the authoritative reservation snapshot");
+        True(remote.TryApplyAuthoritative(ready, out _),
+            "clients advance the reservation to ready from a newer snapshot");
+        var conflictingReady = ready.Clone();
+        conflictingReady.StatusId = "sp-conflict";
+        False(remote.TryApplyAuthoritative(conflictingReady, out var conflictReason),
+            "same-revision transaction snapshots cannot rewrite the authoritative actor identity");
+        True(conflictReason.Contains("conflicts", StringComparison.Ordinal),
+            "same-revision transaction conflicts are diagnosable");
+        False(remote.TryApplyAuthoritative(first, out var staleReason),
+            "clients reject stale transaction snapshots");
+        True(staleReason.Contains("stale", StringComparison.Ordinal),
+            "stale transaction rejection is diagnosable");
+        True(remote.TryApplyAuthoritative(completed, out _),
+            "clients release their barrier only after the host completion snapshot");
+        Equal(0, remote.OpenCount(1),
+            "remote completion closes the same transaction exactly once");
+
+        var earlyCompletion = new ProjectionSummonTurnTransactionLedger();
+        earlyCompletion.BeginRound(1);
+        True(earlyCompletion.TryApplyAuthoritative(completed, out _),
+            "a completion snapshot arriving before local reservation state is immediately consumable");
+        Equal(0, earlyCompletion.OpenCount(1),
+            "an early authoritative completion never opens a local barrier");
+        False(earlyCompletion.TryApplyAuthoritative(ready, out _),
+            "a late ready snapshot cannot reopen an already completed transaction");
+
+        var malformedReady = ready.Clone();
+        malformedReady.StatusId = "";
+        False(new ProjectionSummonTurnTransactionLedger().TryApplyAuthoritative(
+                malformedReady,
+                out var malformedReason),
+            "ready snapshots without an actor identity fail closed");
+        True(malformedReason.Contains("identity", StringComparison.Ordinal),
+            "malformed ready snapshot rejection is diagnosable");
+
+        ledger.Reserve("stale-open", 1, out _);
+        var stale = ledger.BeginRound(2);
+        True(stale.Count == 1 && stale[0].Token == "stale-open",
+            "a round transition exposes rather than silently discarding an unresolved transaction");
+        ledger.Clear();
+        Equal(0, ledger.OpenCount(2),
+            "battle cleanup clears every summon-turn transaction");
     }
 
     private static void TestBuffPresentationDependencies()
@@ -830,6 +941,112 @@ internal static class Program
             "invalid companion slots never consume a formal role seat");
     }
 
+    private static void TestProjectionActorDeckProjection()
+    {
+        True(ProjectionActionAutomationPolicy.DeclaresHeadlessExecutionRoute(
+                "projection-card:Terrias_terrias_solar_return"),
+            "projection card automation is declared by its stable runtime route rather than an AI feature");
+        False(ProjectionActionAutomationPolicy.DeclaresHeadlessExecutionRoute(
+                "projection-card:"),
+            "an empty projection-card source cannot claim the autonomous execution route");
+        False(ProjectionActionAutomationPolicy.DeclaresHeadlessExecutionRoute(
+                "projection:end-turn"),
+            "projection end-turn is not misdeclared as a card execution route");
+        False(ProjectionActorTurnPolicy.CanEndTurn(1),
+            "an autonomous projection cannot end while an actor-safe action is legal");
+        True(ProjectionActorTurnPolicy.CanEndTurn(0),
+            "an autonomous projection may end only after no legal card action remains");
+        var source = new ProjectionDeckRecipe(new[]
+        {
+            new ProjectionDeckCardRecipe("safe-a"),
+            new ProjectionDeckCardRecipe("unsafe-a"),
+            new ProjectionDeckCardRecipe("safe-a"),
+            new ProjectionDeckCardRecipe("unsafe-b")
+        });
+        var basic = new ProjectionDeckCardRecipe("projection-basic");
+        var inspected = 0;
+        var filtered = ProjectionActorDeckProjection.Build(
+            source,
+            card =>
+            {
+                inspected++;
+                return card.CardId.StartsWith("safe", StringComparison.Ordinal)
+                    ? ProjectionDeckCardCapability.Safe()
+                    : ProjectionDeckCardCapability.Reject("player-only");
+            },
+            basic);
+        True(filtered.Success && !filtered.UsesBasicAction,
+            "actor deck keeps the authoritative safe subset without injecting the basic action");
+        True(filtered.EffectiveRecipe!.Cards.Select(card => card.CardId)
+                .SequenceEqual(new[] { "safe-a", "safe-a" }),
+            "actor deck preserves duplicate safe cards while removing unsafe recipes before shuffle");
+        Equal(2, filtered.RejectedCards.Count,
+            "actor deck reports every removed unsafe recipe once");
+        Equal(3, inspected,
+            "actor deck inspects duplicate card-and-attachment recipes only once");
+
+        var allUnsafe = ProjectionActorDeckProjection.Build(
+            new ProjectionDeckRecipe(new[]
+            {
+                new ProjectionDeckCardRecipe("unsafe-a"),
+                new ProjectionDeckCardRecipe("unsafe-b")
+            }),
+            card => card.CardId == "projection-basic"
+                ? ProjectionDeckCardCapability.Safe()
+                : ProjectionDeckCardCapability.Reject("unsupported"),
+            basic);
+        True(allUnsafe.Success && allUnsafe.UsesBasicAction,
+            "an empty actor-safe projection receives the explicit basic action contract");
+        True(allUnsafe.EffectiveRecipe!.Cards.Select(card => card.CardId)
+                .SequenceEqual(new[] { "projection-basic" }),
+            "the basic action is the only executable card when every owner card is unsafe");
+
+        var brokenBasic = ProjectionActorDeckProjection.Build(
+            new ProjectionDeckRecipe(new[] { new ProjectionDeckCardRecipe("unsafe") }),
+            _ => ProjectionDeckCardCapability.Reject("missing definition"),
+            basic);
+        False(brokenBasic.Success,
+            "summon initialization fails closed when even the required basic action is unavailable");
+        True(brokenBasic.FailureReason.Contains("basic action", StringComparison.Ordinal),
+            "failed basic action projection returns an explicit initialization reason");
+        False(ProjectionActorDeckProjection.Build(null, _ => ProjectionDeckCardCapability.Safe(), basic).Success,
+            "a missing authoritative role deck is not silently replaced by the basic action");
+    }
+
+    private static void TestProjectionCardExecutionPolicy()
+    {
+        const string cardScript = "CS.Terrias.Dll.Scripting.CardScripts.Init(self, id);"
+                                  + "CS.Terrias.Dll.Scripting.CardScripts.Use(self, id);";
+        Equal(
+            ProjectionCardExecutionMode.ActorSafe,
+            ProjectionCardExecutionPolicy.Resolve(
+                null,
+                TerriasIds.ProjectionBasicActionCardId,
+                cardScript).Mode,
+            "projection basic action is an explicit actor-safe Terrias card");
+        Equal(
+            ProjectionCardExecutionMode.Unsupported,
+            ProjectionCardExecutionPolicy.Resolve(
+                null,
+                "Terrias_terrias_gilded_butterfly",
+                cardScript).Mode,
+            "an undeclared player-hand mutation card is rejected before entering the actor deck");
+        Equal(
+            ProjectionCardExecutionMode.ActorSafe,
+            ProjectionCardExecutionPolicy.Resolve(
+                null,
+                "official_card",
+                "self.Damage(5);").Mode,
+            "a native card without a custom C# bridge retains actor-safe compatibility");
+        False(
+            ProjectionCardExecutionPolicy.IsHeadlessScriptSurfaceSafe(
+                "FightPlayer.Instance.ChangePower(1);",
+                out var reason),
+            "player-only runtime tokens are rejected during actor-deck projection");
+        True(reason.Contains("FightPlayer", StringComparison.Ordinal),
+            "actor-deck rejection identifies the player-only dependency");
+    }
+
     private static void TestProjectionDeckRecipe()
     {
         var first = new ProjectionDeckRecipe(new[]
@@ -1011,6 +1228,41 @@ internal static class Program
         True(rejected.Matched && !rejected.Accepted, "matching host rejection resolves the pending role commit as rejected");
     }
 
+    private static void TestSolarMemoryMapPreviewPolicy()
+    {
+        var valid = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "Mods/Terrias/valid",
+            SolarMemoryMapPreviewPolicy.SaintWunaFallbackAnimation,
+            SolarMemoryMapPreviewPolicy.GenericFightFallbackAnimation
+        };
+        Equal("", SolarMemoryMapPreviewPolicy.ResolveFallback(
+                TerriasIds.SolarBossSaintWunaLevelId,
+                "Mods/Terrias/valid",
+                valid.Contains),
+            "map preview keeps an original animation that the native Texture2D loader can read");
+        Equal(SolarMemoryMapPreviewPolicy.SaintWunaFallbackAnimation,
+            SolarMemoryMapPreviewPolicy.ResolveFallback(
+                TerriasIds.SolarBossSaintWunaLevelId,
+                "Mods/Terrias/unreadable",
+                valid.Contains),
+            "Saint Wuna map preview selects its validated native fallback");
+
+        valid.Remove(SolarMemoryMapPreviewPolicy.SaintWunaFallbackAnimation);
+        Equal(SolarMemoryMapPreviewPolicy.GenericFightFallbackAnimation,
+            SolarMemoryMapPreviewPolicy.ResolveFallback(
+                TerriasIds.SolarBossSaintWunaLevelId,
+                "Mods/Terrias/unreadable",
+                valid.Contains),
+            "map preview uses the validated generic fallback when the fixed fallback is unavailable");
+        valid.Clear();
+        Equal("", SolarMemoryMapPreviewPolicy.ResolveFallback(
+                TerriasIds.SolarBossSaintWunaLevelId,
+                "Mods/Terrias/unreadable",
+                valid.Contains),
+            "map preview refuses to install an unvalidated fallback");
+    }
+
     private static void TestEndlessAbyssEnemyScaling()
     {
         var config = new EndlessAbyssEnemyScalingConfig();
@@ -1055,6 +1307,40 @@ internal static class Program
         Equal(39, EndlessAbyssEvacuationDepth.Calculate(7, 3), "Endless Abyss evacuation projects floor and node progress into native depth");
         Equal(0, EndlessAbyssEvacuationDepth.Calculate(0, -3), "Endless Abyss evacuation normalizes invalid floor and level values");
         Equal(int.MaxValue, EndlessAbyssEvacuationDepth.Calculate(int.MaxValue, int.MaxValue), "Endless Abyss evacuation depth saturates instead of overflowing");
+    }
+
+    private static void TestEndlessAbyssSettlementBarrierPolicy()
+    {
+        Equal(EndlessAbyssSettlementBarrierAction.None,
+            EndlessAbyssSettlementBarrierPolicy.Evaluate(false, false, false, false, 10, 0, 10),
+            "settlement barrier does not advance before the host commits");
+        Equal(EndlessAbyssSettlementBarrierAction.Close,
+            EndlessAbyssSettlementBarrierPolicy.Evaluate(true, false, true, false, 100, 0, 1),
+            "settlement barrier closes immediately after every expected player commits");
+        Equal(EndlessAbyssSettlementBarrierAction.ForceCommit,
+            EndlessAbyssSettlementBarrierPolicy.Evaluate(true, false, false, false, 10, 0, 10),
+            "settlement barrier publishes force-commit at the authoritative deadline");
+        Equal(EndlessAbyssSettlementBarrierAction.Close,
+            EndlessAbyssSettlementBarrierPolicy.Evaluate(true, false, false, true, 10, 20, 20),
+            "settlement barrier closes after the force-commit grace period");
+        Equal(EndlessAbyssSettlementBarrierAction.None,
+            EndlessAbyssSettlementBarrierPolicy.Evaluate(true, true, true, true, 10, 20, 30),
+            "settlement barrier cannot reopen an already closing session");
+    }
+
+    private static void TestEndlessAbyssSettlementLocalCommit()
+    {
+        var commit = new EndlessAbyssSettlementLocalCommit();
+        commit.Arm("settlement-1", isClientOnly: true);
+        True(commit.IsArmed, "client settlement commit remembers its teardown token");
+        True(commit.TryTakeBeforeNetworkTeardown(out var token) && token == "settlement-1",
+            "client settlement commit emits exactly once before network teardown");
+        False(commit.TryTakeBeforeNetworkTeardown(out _),
+            "client settlement commit cannot emit twice");
+
+        commit.Arm("host-settlement", isClientOnly: false);
+        False(commit.TryTakeBeforeNetworkTeardown(out _),
+            "host settlement close does not impersonate a remote player ACK");
     }
 
     private static void TestSolarMemoryIsolationIds()
@@ -1169,6 +1455,39 @@ internal static class Program
 
     private static void TestCombatCardViewPoolCatalog()
     {
+        var cardEffectLease = new AuraPresentationMaterialLeaseState();
+        cardEffectLease.Bind(
+            targetInstanceId: 10,
+            originalMaterialInstanceId: 100,
+            appliedMaterialInstanceId: 200);
+        var exitAnimationLease = new AuraPresentationMaterialLeaseState();
+        exitAnimationLease.Bind(
+            targetInstanceId: 10,
+            originalMaterialInstanceId: 200,
+            appliedMaterialInstanceId: 300);
+        var currentMaterial = 300;
+        var exitDetach = exitAnimationLease.PlanDetach(10, currentMaterial);
+        True(exitDetach.RestoreOriginal,
+            "pooled exit reset first restores the live Aura card-effect material");
+        currentMaterial = exitAnimationLease.OriginalMaterialInstanceId;
+        exitAnimationLease.Clear();
+        var effectDetach = cardEffectLease.PlanDetach(10, currentMaterial);
+        True(effectDetach.RestoreOriginal && effectDetach.ReleaseApplied,
+            "shared card reset then restores the native material and releases the dynamic effect");
+        currentMaterial = cardEffectLease.OriginalMaterialInstanceId;
+        Equal(100, currentMaterial,
+            "dynamic effect and burn-animation leases unwind to the native pooled-card material in LIFO order");
+
+        var staleExitLease = new AuraPresentationMaterialLeaseState();
+        staleExitLease.Bind(
+            targetInstanceId: 10,
+            originalMaterialInstanceId: 200,
+            appliedMaterialInstanceId: 300);
+        var staleDetach = staleExitLease.PlanDetach(10, 100);
+        True(staleDetach.BlockedByForeignMaterial
+             && !staleDetach.RestoreOriginal,
+            "a stale exit animation cannot reattach a destroyed dynamic material after another owner reset the renderer");
+
         Equal(PooledCardExitKind.MoveToDiscard,
             PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DiscardTargetPath),
             "Native discard visuals retain their discard destination adapter");

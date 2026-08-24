@@ -17,6 +17,7 @@ public static class ProjectionSummonService
     private const double TransactionLifetimeSeconds = 30d;
     private const int MaximumAttempts = 12;
     private const int RetryWakeFrames = 30;
+    private const int HostReservationPollFrames = 30;
     private static readonly object NetworkSync = new();
     private static readonly Dictionary<string, ProjectionSummonResultSnapshot> TerminalResults =
         new(StringComparer.Ordinal);
@@ -268,6 +269,28 @@ public static class ProjectionSummonService
                 "ProjectionSummonService.ResolveNetworkSummon.TokenConflict");
             return;
         }
+        if (!ProjectionTurnCoordinator.TryReserveAuthoritative(
+                token,
+                "ProjectionSummonService.ResolveNetworkSummon",
+                out var turnTransaction,
+                out var turnReason))
+        {
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                ProjectionSummonFailureCode.TurnTransactionUnavailable,
+                turnReason,
+                "ProjectionSummonService.ResolveNetworkSummon.TurnTransactionRejected");
+            return;
+        }
+        ScheduleTurnReservationExpiry(
+            token,
+            roleId,
+            ownerStatusId,
+            ownerPlayerId,
+            battleEpoch);
         if (!ProjectionRoleDeckService.TryCaptureAuthoritative(
                 ownerPlayerId,
                 ownerStatusId,
@@ -287,6 +310,10 @@ public static class ProjectionSummonService
                 deckRecipeHash);
             if (waitAttempt >= 6)
             {
+                ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+                    token,
+                    deckReason,
+                    "ProjectionSummonService.ResolveNetworkSummon.RoleDeckTimeout");
                 RejectSummon(
                     roleId,
                     ownerStatusId,
@@ -335,6 +362,10 @@ public static class ProjectionSummonService
                     StringComparison.Ordinal)
                 ? ProjectionSummonFailureCode.FriendlySeatsFull
                 : ProjectionSummonFailureCode.OwnerAlreadyHasProjection;
+            ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+                token,
+                seatReason,
+                "ProjectionSummonService.ResolveNetworkSummon.SeatReject");
             RejectSummon(
                 roleId,
                 ownerStatusId,
@@ -354,6 +385,10 @@ public static class ProjectionSummonService
                 out slotIndex))
         {
             FriendlyRoleSeatLedger.Release(token);
+            ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+                token,
+                "projection seat reservation expired",
+                "ProjectionSummonService.ResolveNetworkSummon.SeatClaimRejected");
             RejectSummon(
                 roleId,
                 ownerStatusId,
@@ -364,6 +399,7 @@ public static class ProjectionSummonService
                 "ProjectionSummonService.ResolveNetworkSummon.SeatClaimRejected");
             return;
         }
+
         if (!TrySummonLocal(
                 ownerStatusId,
                 role!,
@@ -371,8 +407,14 @@ public static class ProjectionSummonService
                 token: token,
                 preferredOwnerPlayerId: ownerPlayerId,
                 slotIndex: slotIndex,
-                recipe: recipe))
+                recipe: recipe,
+                summonRoundSequence: turnTransaction.RoundSequence,
+                summonTurnOrder: turnTransaction.Order))
         {
+            ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+                token,
+                "projection spawn failed",
+                "ProjectionSummonService.ResolveNetworkSummon.SpawnRejected");
             RejectSummon(
                 roleId,
                 ownerStatusId,
@@ -385,6 +427,33 @@ public static class ProjectionSummonService
         }
 
         var state = ProjectionStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
+        if (state?.Projection == null
+            || !ProjectionTurnCoordinator.TryMarkReadyAuthoritative(
+                token,
+                state.StatusId,
+                state.Replication.Generation,
+                "ProjectionSummonService.ResolveNetworkSummon"))
+        {
+            ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+                token,
+                "projection turn transaction could not bind the spawned actor",
+                "ProjectionSummonService.ResolveNetworkSummon.ReadyRejected");
+            if (state?.Projection?.Status != null)
+            {
+                ProjectionStateStore.Retire(
+                    state.Projection.Status,
+                    "ProjectionSummonService.ResolveNetworkSummon.ReadyRejected");
+            }
+            RejectSummon(
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                token,
+                ProjectionSummonFailureCode.SpawnFailed,
+                "projection turn transaction could not bind the spawned actor",
+                "ProjectionSummonService.ResolveNetworkSummon.ReadyRejected");
+            return;
+        }
         var accepted = new ProjectionSummonResultSnapshot
         {
             ServerProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
@@ -425,6 +494,8 @@ public static class ProjectionSummonService
                 + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
             return;
         }
+
+        ApplyTurnTransaction(snapshot, source);
 
         var role = PolymorphRoleRegistry.Find(snapshot.RoleId);
         if (role == null || string.IsNullOrWhiteSpace(snapshot.StatusId))
@@ -543,7 +614,7 @@ public static class ProjectionSummonService
             manager.statusData[projection.InstanceId] = new StatusDataTransfer(status);
         }
 
-        ProjectionTurnCoordinator.RegisterProjection(projection, source);
+        ProjectionTurnCoordinator.RegisterCompanion(projection, source);
 
         // The internal Status remains available to ScriptExecutor through
         // FightManager.statuses, but is not a formal friendly target or HUD row.
@@ -556,7 +627,9 @@ public static class ProjectionSummonService
         string token = "",
         string preferredOwnerPlayerId = "",
         int slotIndex = -1,
-        ProjectionDeckRecipe? recipe = null)
+        ProjectionDeckRecipe? recipe = null,
+        int summonRoundSequence = 0,
+        long summonTurnOrder = 0)
     {
         var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
@@ -588,7 +661,9 @@ public static class ProjectionSummonService
             null,
             ownerPlayerId,
             recipe,
-            string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token);
+            string.IsNullOrWhiteSpace(token) ? Guid.NewGuid().ToString("N") : token,
+            summonRoundSequence,
+            summonTurnOrder);
         return spawned;
     }
 
@@ -601,7 +676,9 @@ public static class ProjectionSummonService
         ProjectionCompanionSnapshot? snapshot = null,
         string ownerPlayerId = "",
         ProjectionDeckRecipe? recipe = null,
-        string generation = "")
+        string generation = "",
+        int authoritativeSummonRoundSequence = 0,
+        long authoritativeSummonTurnOrder = 0)
     {
         try
         {
@@ -643,6 +720,14 @@ public static class ProjectionSummonService
                 return false;
             }
 
+            var summonRoundSequence = snapshot?.SummonRoundSequence
+                                      ?? Math.Max(0, authoritativeSummonRoundSequence);
+            var summonTurnToken = snapshot != null
+                                  && !string.IsNullOrWhiteSpace(snapshot.SummonTurnToken)
+                ? snapshot.SummonTurnToken
+                : generation;
+            var summonTurnOrder = snapshot?.SummonTurnOrder
+                                  ?? Math.Max(0L, authoritativeSummonTurnOrder);
             ProjectionStateStore.Register(new ProjectionState(
                 projection.InstanceId,
                 ownerStatusId,
@@ -651,7 +736,10 @@ public static class ProjectionSummonService
                 slotIndex,
                 projection.OwnerPlayerId,
                 snapshot?.Generation ?? generation,
-                snapshot == null ? 1L : 0L));
+                snapshot == null ? 1L : 0L,
+                summonRoundSequence,
+                summonTurnToken,
+                summonTurnOrder));
             if (snapshot == null)
             {
                 projection.Status.UpdateStatus(true);
@@ -779,6 +867,76 @@ public static class ProjectionSummonService
         }
     }
 
+    private static void ScheduleTurnReservationExpiry(
+        string token,
+        string roleId,
+        string ownerStatusId,
+        string ownerPlayerId,
+        int battleEpoch,
+        double deadline = double.NaN)
+    {
+        var normalizedToken = token ?? "";
+        var effectiveDeadline = double.IsNaN(deadline)
+            ? Time.unscaledTimeAsDouble + TransactionLifetimeSeconds
+            : deadline;
+        TerriasFrameDispatcher.RunOnceAfterFrames(
+            "Projection.SummonTurnExpiry." + normalizedToken,
+            HostReservationPollFrames,
+            () => ExpireTurnReservation(
+                normalizedToken,
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                battleEpoch,
+                effectiveDeadline));
+    }
+
+    private static void ExpireTurnReservation(
+        string token,
+        string roleId,
+        string ownerStatusId,
+        string ownerPlayerId,
+        int battleEpoch,
+        double deadline)
+    {
+        if (!CompanionAuthorityService.IsAuthoritative()
+            || battleEpoch != CompanionAuthorityService.BattleEpoch
+            || !ProjectionTurnCoordinator.TryGetTransaction(token, out var transaction)
+            || transaction.State != ProjectionSummonTurnTransactionState.Reserved)
+        {
+            return;
+        }
+        if (Time.unscaledTimeAsDouble < deadline)
+        {
+            ScheduleTurnReservationExpiry(
+                token,
+                roleId,
+                ownerStatusId,
+                ownerPlayerId,
+                battleEpoch,
+                deadline);
+            return;
+        }
+        lock (NetworkSync)
+        {
+            if (TerminalResults.ContainsKey(token)) return;
+        }
+
+        const string detail = "projection summon turn reservation expired before actor readiness";
+        ProjectionTurnCoordinator.TryMarkFailedAuthoritative(
+            token,
+            detail,
+            "ProjectionSummonService.TurnReservationExpiry");
+        RejectSummon(
+            roleId,
+            ownerStatusId,
+            ownerPlayerId,
+            token,
+            ProjectionSummonFailureCode.RoleDeckTimedOut,
+            detail,
+            "ProjectionSummonService.TurnReservationExpiry");
+    }
+
     private static void BroadcastSummonResult(ProjectionSummonResultSnapshot result, string source)
     {
         ApplySummonResult(result, source + ".Local");
@@ -856,6 +1014,34 @@ public static class ProjectionSummonService
     private static bool BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
     {
         return TerriasNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+    }
+
+    public static void BroadcastTurnTransaction(
+        ProjectionSummonTurnTransaction transaction,
+        string source)
+    {
+        if (transaction == null
+            || !CompanionAuthorityService.IsAuthoritative()
+            || !TerriasNetworkRuntime.IsMultiplayerSession())
+        {
+            return;
+        }
+
+        TerriasNetworkRuntime.Send(
+            new RpcProjectionSummonTurnState(new ProjectionSummonTurnSnapshot
+            {
+                ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
+                BattleEpoch = CompanionAuthorityService.BattleEpoch,
+                Token = transaction.Token,
+                RoundSequence = transaction.RoundSequence,
+                Order = transaction.Order,
+                Revision = transaction.Revision,
+                State = transaction.State,
+                StatusId = transaction.StatusId,
+                Generation = transaction.Generation,
+                Detail = transaction.Detail
+            }),
+            "ProjectionSummonTurn." + source);
     }
 
     public static void BroadcastRuntimeState(ProjectionOtherObj projection, string source)
@@ -953,6 +1139,10 @@ public static class ProjectionSummonService
         var state = CompanionBattleStateStore.Find(projection.InstanceId);
         var projectionState = ProjectionStateStore.Find(projection.InstanceId);
         var replication = projectionState?.Replication;
+        var turnToken = projectionState?.SummonTurnToken ?? replication?.Generation ?? "";
+        var hasTurnTransaction = ProjectionTurnCoordinator.TryGetTransaction(
+            turnToken,
+            out var turnTransaction);
         return new ProjectionCompanionSnapshot
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
@@ -962,6 +1152,16 @@ public static class ProjectionSummonService
             StateRevision = replication?.StateRevision ?? 0L,
             ActionSequence = replication?.ActionSequence ?? 0L,
             CompletedTurnSequence = replication?.CompletedTurnSequence ?? 0L,
+            SummonRoundSequence = projectionState?.SummonRoundSequence ?? 0,
+            SummonTurnToken = hasTurnTransaction ? turnTransaction.Token : turnToken,
+            SummonTurnOrder = hasTurnTransaction
+                ? turnTransaction.Order
+                : projectionState?.SummonTurnOrder ?? 0L,
+            SummonTurnRevision = hasTurnTransaction ? turnTransaction.Revision : 0L,
+            SummonTurnState = hasTurnTransaction
+                ? turnTransaction.State
+                : default,
+            SummonTurnDetail = hasTurnTransaction ? turnTransaction.Detail : "",
             Active = replication?.Active ?? true,
             RoleId = projection.RoleId,
             OwnerPlayerId = projection.OwnerPlayerId,
@@ -975,6 +1175,38 @@ public static class ProjectionSummonService
             MaxMagic = state?.Stats.MaxMagic ?? 1,
             CurrentMagic = state?.Stats.CurrentMagic ?? 0
         };
+    }
+
+    private static void ApplyTurnTransaction(
+        ProjectionCompanionSnapshot snapshot,
+        string source)
+    {
+        if (CompanionAuthorityService.IsAuthoritative()
+            || snapshot == null
+            || string.IsNullOrWhiteSpace(snapshot.SummonTurnToken)
+            || snapshot.SummonRoundSequence <= 0
+            || snapshot.SummonTurnOrder <= 0
+            || snapshot.SummonTurnRevision <= 0
+            || !Enum.IsDefined(
+                typeof(ProjectionSummonTurnTransactionState),
+                snapshot.SummonTurnState))
+        {
+            return;
+        }
+
+        ProjectionTurnCoordinator.ApplyAuthoritativeTransaction(
+            new ProjectionSummonTurnTransaction
+            {
+                Token = snapshot.SummonTurnToken,
+                RoundSequence = snapshot.SummonRoundSequence,
+                Order = snapshot.SummonTurnOrder,
+                Revision = snapshot.SummonTurnRevision,
+                State = snapshot.SummonTurnState,
+                StatusId = snapshot.StatusId,
+                Generation = snapshot.Generation,
+                Detail = snapshot.SummonTurnDetail
+            },
+            source + ".CompanionSnapshot");
     }
 
     private static void ApplySnapshot(ProjectionOtherObj projection, ProjectionCompanionSnapshot snapshot, string source)

@@ -17,6 +17,8 @@ internal static class AudioNetworkEventMapper
             RoleId = request.RoleId,
             StatusInstanceId = request.StatusInstanceId,
             CardId = request.CardId,
+            SkillId = request.SkillId,
+            SkillSlot = request.SkillSlot,
             BuffId = request.BuffId,
             EffectName = request.EffectName,
             ActionName = request.ActionName,

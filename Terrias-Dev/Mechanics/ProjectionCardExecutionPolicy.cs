@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
@@ -45,6 +46,19 @@ public static class ProjectionCardExecutionPolicy
         string cardId,
         string script)
     {
+        return Resolve(
+            config?.data,
+            config?.Vars,
+            cardId,
+            script);
+    }
+
+    internal static ProjectionCardExecutionDeclaration Resolve(
+        IEnumerable<KeyValuePair<string, string>>? data,
+        IEnumerable<KeyValuePair<string, string>>? vars,
+        string cardId,
+        string script)
+    {
         var canonical = TerriasContentIdCompatibility.Canonicalize(cardId);
         lock (SyncRoot)
         {
@@ -54,20 +68,20 @@ public static class ProjectionCardExecutionPolicy
             }
         }
 
-        var declared = DictionaryUtil.Get(
-            config?.Vars,
+        var declared = Read(
+            vars,
             "TerriasProjectionExecutionMode",
-            DictionaryUtil.Get(config?.data, "TerriasProjectionExecutionMode"));
+            Read(data, "TerriasProjectionExecutionMode"));
         if (Enum.TryParse(declared, true, out ProjectionCardExecutionMode parsed))
         {
             return new ProjectionCardExecutionDeclaration
             {
                 CardId = canonical,
                 Mode = parsed,
-                LifecycleSafe = DictionaryUtil.Get(
-                        config?.Vars,
+                LifecycleSafe = Read(
+                        vars,
                         "TerriasProjectionLifecycleSafe",
-                        DictionaryUtil.Get(config?.data, "TerriasProjectionLifecycleSafe"))
+                        Read(data, "TerriasProjectionLifecycleSafe"))
                     .Equals("True", StringComparison.OrdinalIgnoreCase)
             };
         }
@@ -82,6 +96,7 @@ public static class ProjectionCardExecutionPolicy
                 LifecycleSafe = true
             };
         }
+        script ??= "";
         if (script.IndexOf("CS.", StringComparison.Ordinal) < 0
             || ProjectionWrappedCardPolicy.IsHeadlessSafe(cardId, script))
         {
@@ -98,5 +113,43 @@ public static class ProjectionCardExecutionPolicy
             Mode = ProjectionCardExecutionMode.Unsupported,
             LifecycleSafe = false
         };
+    }
+
+    internal static bool IsHeadlessScriptSurfaceSafe(string script, out string reason)
+    {
+        var unsupported = new[]
+        {
+            "ChooseCard", "SelectCard", "DeckUI", "FightUI.",
+            "FightCardManager", "FightPlayer", "GetCard(", "CreateCard(",
+            "BurnCard(", "ThrowCard(", "ChangeCard", "TransformCard",
+            "CurPowerCount", "ChangePower(", "GainPower("
+        };
+        var token = unsupported.FirstOrDefault(value =>
+            (script ?? "").IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0);
+        if (token != null)
+        {
+            reason = "projection card requires player-only behavior: " + token;
+            return false;
+        }
+        reason = "";
+        return true;
+    }
+
+    private static string Read(
+        IEnumerable<KeyValuePair<string, string>>? source,
+        string key,
+        string fallback = "")
+    {
+        if (source != null)
+        {
+            foreach (var pair in source)
+            {
+                if (string.Equals(pair.Key, key, StringComparison.Ordinal))
+                {
+                    return pair.Value ?? "";
+                }
+            }
+        }
+        return fallback ?? "";
     }
 }
