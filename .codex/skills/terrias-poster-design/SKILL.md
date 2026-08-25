@@ -53,5 +53,5 @@ skill covers full topic posters with text, references, and presentation copy.
 Run after editing this skill:
 
 ```powershell
-python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\terrias-poster-design
+py -X utf8 C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\terrias-poster-design
 ```

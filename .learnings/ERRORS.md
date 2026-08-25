@@ -7227,3 +7227,46 @@ on the Windows PowerShell .NET Framework runtime.
 
 Run this gate with `pwsh -NoProfile -File`; the same gate then passed all 523
 source-file boundary checks.
+
+---
+# ERR-20260825-003: Skill validator used an ambiguous Python runtime
+
+**Logged**: 2026-08-25
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+Invoking `quick_validate.py` through bare `python` selected an MSYS Python that
+did not provide PyYAML. The bundled workspace Python also lacked PyYAML, and
+without explicit UTF-8 a Chinese path in one skill could be decoded through the
+Windows GBK locale.
+
+## Resolution
+
+Run the validator through the Windows Python launcher with explicit UTF-8:
+`py -X utf8 .../quick_validate.py <skill-path>`. The selected project-machine
+Python provides PyYAML, avoids PATH ambiguity, and reads mixed English/Chinese
+skill references deterministically. The Terrias skill-evolution validation
+command now records this invocation.
+
+---
+# ERR-20260825-004: Ripgrep received unexpanded Windows wildcard paths
+
+**Logged**: 2026-08-25
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+Two review commands passed paths such as `.codex/skills/terrias-*/SKILL.md`
+directly to `rg`. PowerShell did not expand those wildcard directory segments,
+so ripgrep received an invalid Windows path and returned OS error 123.
+
+## Resolution
+
+Pass the existing parent directory to ripgrep and filter files with `-g`, for
+example `rg <pattern> .codex/skills -g 'SKILL.md' -g '*.md'`. This keeps path
+resolution inside one tool and avoids shell-dependent wildcard expansion.

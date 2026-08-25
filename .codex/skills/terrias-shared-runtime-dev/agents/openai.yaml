@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Shared Runtime Dev"
   short_description: "Maintain Aura shared runtime and content/tool boundaries."
-  default_prompt: "Use $terrias-shared-runtime-dev for Terrias or AuraToolsExp work touching Aura shared runtimes, shared DLL packaging, shared resources, Journey, Skin, Audio, CG, Online, RPC authority, shared release gates, or the content-mod/tool-mod/shared-foundation boundary."
+  default_prompt: "Use $terrias-shared-runtime-dev for Terrias or AuraToolsExp work touching Aura shared runtimes, shared mutable Unity/runtime ownership, pooled presentation generations, shared DLL packaging, resources, Journey, Skin, Audio, CG, Online, RPC authority, release gates, or the content-mod/tool-mod/shared-foundation boundary."

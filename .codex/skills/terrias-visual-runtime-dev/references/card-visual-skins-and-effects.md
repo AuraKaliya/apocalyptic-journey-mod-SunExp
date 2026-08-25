@@ -60,8 +60,10 @@ frame preset to the five cards that carry effects.
 ## Runtime Rules
 
 - Keep resource ids and card ids stable and owner-qualified.
-- Restore original sprites, textures, and materials when disabling a mapping or
-  reusing a pooled card view.
+- Restore native sprites, textures, and materials through the authoritative
+  presentation lifecycle when disabling a mapping or reusing a pooled card
+  view. Consumers must not cache independent "original" values for the same
+  target.
 - Keep visual-only overlays non-blocking for raycasts and directly adjacent to
   their source frame/face layer.
 - A combat presentation callback is valid only when one candidate owns the
@@ -78,15 +80,16 @@ frame preset to the five cards that carry effects.
   so native hand reflow cannot leave a pooled card on its base skin.
 - Lightweight Terrias card-view rebinding must call the shared presentation
   lifecycle, not the Terrias-only router. Pool prepare/destroy emits a shared
-  reset; bind emits a shared apply. `AuraPresentationMaterialCoordinator` is
-  the only temporary-material owner and keys each stack by view root,
-  generation, and Renderer: native material, Aura card effect, then card-exit
-  animation. A lower owner may request release out of order, but it remains
-  pending until the top drains the stack in LIFO order. Pooling requires an
-  empty stack for that generation; an externally changed or dirty stack
-  destroys the view instead of reattaching stale material or returning it idle.
-  Card-visual protocol v9 uses the `frame`
-  target with `native-frame-v5`: select the whole native presentation mode
+  reset; bind emits a shared apply.
+- `AuraPresentationMaterialCoordinator` is the only temporary-material owner
+  for the current combat card Renderer. Its current stack is native material,
+  Aura card effect, then card-exit animation. Pool return requires that view
+  generation to be clean. The generic acquire, pending release, LIFO drain,
+  rollback, external-mutation, and quarantine contract lives in
+  `terrias-shared-runtime-dev/references/shared-mutable-runtime-ownership.md`;
+  do not duplicate or weaken it in either consumer.
+- Card-visual protocol v9 uses the `frame` target with `native-frame-v5`:
+  select the whole native presentation mode
   exactly as `ICard.SetCardStyle` does. If `Front/background` owns a
   `MeshRenderer`, mutate only the matching `Front/FrontBack.MeshRenderer`; a
   coexisting legacy `Image` must remain untouched. Otherwise mutate only the

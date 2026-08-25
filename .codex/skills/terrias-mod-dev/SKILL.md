@@ -26,7 +26,8 @@ Use the smallest specialist set that covers the task:
   technical-debt cleanup. It rejects temporary stopgaps and makes migration plus
   removal of the retired implementation part of completion.
 - `terrias-architecture-dev`: C# layer boundaries, `GameApi` split, handler
-  registries, Managed compatibility, hook containment, or architecture tests.
+  registries, Managed compatibility, hook containment, synthetic Partner/status
+  integration, ScriptExecutor locality routing, or architecture tests.
 - `terrias-solar-memory-dev`: Solar Memory mode, journey, map node pools,
   preparation flow, finale, fixed bosses, multiplayer role commit, and sync
   repair.
@@ -72,6 +73,10 @@ Use the smallest specialist set that covers the task:
    - Map-event authoring checklist: `references/solar-event-expansion.md`
    - Validation expectations: `references/validation-rules.md`
    - For C# architecture refactors, also use `terrias-architecture-dev`.
+   - For synthetic combat objects, native owner/status indexes, or
+     ScriptExecutor local/remote routing, use
+     `terrias-architecture-dev/references/native-synthetic-runtime-objects.md`
+     through `terrias-architecture-dev`.
    - For Solar Memory work, also use `terrias-solar-memory-dev`.
    - For shared runtime work, initialization registration, AuraToolsExp local
      config overrides, cross-mod sync, payload guard, timing, or duplicate
@@ -183,7 +188,7 @@ tools\Test-TerriasCSharp.ps1
 Run architecture assertions:
 
 ```powershell
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 ```
 
 List the machine-readable Terrias validation inventory or run a focused

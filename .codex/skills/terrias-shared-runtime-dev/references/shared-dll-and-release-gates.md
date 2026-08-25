@@ -18,6 +18,25 @@ Important consumers include:
 After shared runtime changes, all packaged `Aura.Shared.dll` copies should have
 the same hash as the built shared runtime DLL.
 
+## Public API Cutover
+
+Treat a compatibility-baseline change as evidence of a reviewed public cutover,
+not as a way to repair a red gate.
+
+1. Inspect the reflected API diff and state which additions, changes, or
+   removals are intentional.
+2. Migrate every supported product consumer and remove the superseded runtime
+   path before accepting the new baseline.
+3. Build the main consumers against the new shared assembly.
+4. Rebuild packaged artifacts, run the packaging gate, and verify that every
+   shipped `Aura.Shared.dll` hash matches the built shared runtime.
+5. Use a focused residual search as one-time migration evidence when useful,
+   but do not preserve a permanent private-symbol/source-token scan after the
+   public contract and consumers already enforce the final state.
+
+Do not recapture a baseline before understanding an unexpected diff. A green
+baseline with an unbuilt consumer is not compatibility evidence.
+
 ## Release Matrix
 
 `tools/shared-release-matrix.json` is the schema-v2 shared gate inventory. Each

@@ -51,6 +51,11 @@ manifests change.
      AuraCgShared, shared resources, and AuraTools consumption.
    - `references/runtime-visual-ui-and-performance.md`: UI visuals, animated
      icons, Wuna orbit fire, Star Score HUD, resource caches, and performance.
+   - Through `terrias-shared-runtime-dev`, load
+     `terrias-shared-runtime-dev/references/shared-mutable-runtime-ownership.md`
+     when Terrias and
+     AuraToolsExp temporarily mutate the same Renderer/material, or when a
+     pooled visual root has generation-scoped cleanup.
 4. Keep declarations data-driven where possible. Put visual selection in
    registries and catalogs; put Unity object mutation in `Hooks/Visual` or
    `Hooks/Ui`; put reusable matching and rules in `Mechanics`.
@@ -75,6 +80,9 @@ manifests change.
   Terrias-only implementation and must not be generalized or split.
 - Keep Star Score card-use feedback distinct from the generic AuraTools card
   dynamic-effect feature, even if their shaders share implementation ideas.
+- Do not let card effects, exit animations, themes, or pooled views keep
+  independent "original" materials for the same Renderer. Route temporary
+  ownership and dirty-view decisions through the shared coordinator contract.
 - Card visuals use explicit owner-qualified card ids at runtime. Card-pack and
   rarity choices are editor batch expansion only; do not restore runtime pack,
   rarity, icon-prefix, suffix, wildcard, or default-whitelist matching.
@@ -92,7 +100,7 @@ Run the affected checks serially:
 ```powershell
 tools\Build-TerriasDll.ps1
 tools\Build-AuraToolsExpDll.ps1
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
 tools\Build-TerriasVisualBundle.ps1 # Terrias-required visual assets
 tools\Build-AuraToolsVisualBundle.ps1 # AuraTools CG/card-visual assets

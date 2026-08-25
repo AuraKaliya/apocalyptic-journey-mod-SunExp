@@ -90,6 +90,11 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 - Load `terrias-shared-runtime-dev/references/sync-scenario-model.md` before
   choosing network event shape, RPC authority fields, duplicate suppression, or
   payload limits.
+- Load
+  `terrias-architecture-dev/references/native-synthetic-runtime-objects.md`
+  through `terrias-architecture-dev` when a synthetic Partner/status or
+  ScriptExecutor owner must behave like a native combat object. Do not infer
+  native equivalence from one manager registration or visible UI presence.
 - Keep player preparation and deck choices player-scoped in multiplayer.
 - When a non-host settlement reports failure, first check whether the code calls
   host-only role persistence, shared progression writers, or native APIs that

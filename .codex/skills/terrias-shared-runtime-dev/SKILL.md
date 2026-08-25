@@ -1,6 +1,6 @@
 ---
 name: terrias-shared-runtime-dev
-description: Project-local skill for editing or reviewing Terrias and AuraToolsExp integration with Aura shared runtimes and cross-mod components, including the content-mod/tool-mod/shared-foundation boundary, AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
+description: Project-local skill for editing or reviewing Terrias and AuraToolsExp integration with Aura shared runtimes and cross-mod components, including the content-mod/tool-mod/shared-foundation boundary, AuraSharedCore, shared resources, shared mutable Unity/runtime ownership, pooled presentation generations, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
 ---
 
 # Terrias Shared Runtime Dev
@@ -27,6 +27,8 @@ visual resources.
    - `AuraLogShared` logging surfaces.
    - `StarterDeckArbiterShared`.
    - `UiRaycastSafetyShared` or `UiTransitionGuardShared`.
+   - Shared mutable Unity/runtime targets, temporary ownership stacks, pooled
+     view generations, or cross-consumer cleanup obligations.
    - Shared DLL packaging or consumer project references.
    - Initialization registration, registered defaults, or effective tool
      configuration overrides.
@@ -45,6 +47,9 @@ visual resources.
 3. Load `references/shared-boundaries.md` for Core/domain/adapter rules,
    content/tool ownership, shared presentation protocols, and multiplayer
    authority classification. Load
+   `references/shared-mutable-runtime-ownership.md` when sibling consumers
+   mutate the same Renderer, material, Sprite, pooled view, overlay, or other
+   temporary runtime property. Load
    `references/content-tool-shared-boundary.md` when deciding whether a
    reusable runtime belongs in Terrias, AuraToolsExp, or shared infrastructure,
    or when applying the content/tool configuration precedence model.
@@ -102,6 +107,13 @@ visual resources.
   resource preload, logging, pooling, or multiplayer presentation behavior,
   promote the semantic-free part to a shared component instead of making
   Terrias the implicit base framework.
+- When sibling consumers temporarily mutate the same mutable target, one shared
+  coordinator owns the baseline, logical generation, release ordering, and
+  dirty-state decision. Consumers must not capture and restore independent
+  "original" values for that target.
+- A deferred or skipped cleanup must leave a durable pending obligation with a
+  named owner and deterministic drain trigger. A warning followed by return is
+  not a valid handoff.
 - Put cross-mod presentation protocols, such as Skill CG playback and card UI
   lifecycle, in the shared domain component. Content MODs may declare their
   own optional media; AuraToolsExp discovers/configures it and observes stable

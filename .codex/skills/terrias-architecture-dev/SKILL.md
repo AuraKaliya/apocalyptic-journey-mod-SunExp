@@ -1,6 +1,6 @@
 ---
 name: terrias-architecture-dev
-description: Project-local skill for refactoring or reviewing Terrias C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, Terrias Network/RPC placement and local sender binding, architecture tests, DLL validation, and checks that Terrias internals do not become AuraToolsExp's implicit shared framework for Witch's Apocalyptic Journey.
+description: Project-local skill for refactoring or reviewing Terrias C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, synthetic Partner/status objects, ScriptExecutor local/remote routing, event registration wrappers, Terrias Network/RPC placement and local sender binding, architecture tests, DLL validation, and checks that Terrias internals do not become AuraToolsExp's implicit shared framework for Witch's Apocalyptic Journey.
 ---
 
 # Terrias Architecture Dev
@@ -19,6 +19,8 @@ content workflow and validation.
    - Hook/runtime lifecycle code under `Hooks`.
    - IDs, logging, field ids, or parsing under `Infrastructure`.
    - Network/RPC code under `Network`.
+   - Synthetic native combat objects, owner/status indexes, or ScriptExecutor
+     identity and locality routing.
 2. Inspect the local architecture gate before editing:
    - `tools/Test-TerriasArchitecture.ps1`
    - `tools/architecture-boundary-rules.json`
@@ -28,7 +30,11 @@ content workflow and validation.
 3. Load `references/architecture-boundaries.md` for placement and dependency
    rules. Load `references/compatibility-and-hooks.md` when Managed signatures,
    event registration, lifecycle hooks, or Terrias-local RPC sender binding are
-   involved. Load `terrias-shared-runtime-dev/references/sync-scenario-model.md`
+   involved. Load `references/native-synthetic-runtime-objects.md` when a
+   Projection, Spirit, Partner-derived status, or other synthetic combat object
+   must participate in native ownership, queues, ScriptExecutor behavior, or
+   local/remote routing. Load
+   `terrias-shared-runtime-dev/references/sync-scenario-model.md`
    through `terrias-shared-runtime-dev` when event shape, RPC authority fields,
    timing, or duplicate suppression are involved.
    Load `references/performance-runtime.md` when touching frame scheduling,
@@ -53,6 +59,14 @@ content workflow and validation.
   deterministic fallback.
 - Use named/logged lifecycle steps so one failed setup action does not abort
   unrelated initialization.
+- A synthetic native object must satisfy every owner map, manager, queue,
+  executor route, presentation registration, and cleanup index used by its
+  native object type. Creating the object or adding one manager entry is not
+  sufficient.
+- Scope temporary ScriptExecutor identity changes and restore the exact original
+  object and collection references on success and exception. Do not invent or
+  overwrite native executor-wide routing flags to compensate for one missing
+  owner/status route.
 - Use `TerriasRpcAuthorityRuntime` for server-bound Terrias RPC sender binding.
   Remote commands must not authorize from payload-provided identity.
 - For Network event shape, authority fields, ordering, payload limits, and
@@ -76,7 +90,7 @@ Run these serially:
 
 ```powershell
 tools\Build-TerriasDll.ps1
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

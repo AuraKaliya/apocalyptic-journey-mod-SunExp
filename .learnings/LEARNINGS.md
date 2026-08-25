@@ -129,12 +129,15 @@ Terrias and shared-runtime validation.
 - Related Files: tools/Test-TerriasArchitecture.ps1
 - Tags: powershell, validation, workflow
 - Pattern-Key: tooling.one_validation_per_command
-- Recurrence-Count: 2
+- Recurrence-Count: 3
 - First-Seen: 2026-08-21
-- Last-Seen: 2026-08-21
+- Last-Seen: 2026-08-25
 
 The same mistake recurred in a final diff-plus-retired-token audit; keep these
 as separate tool calls even when both are read-only.
+It recurred again while validating the poster skill by chaining
+`quick_validate.py` and `git diff --check`; run each validation as its own tool
+call even when the first command is expected to finish immediately.
 
 ---
 ## [LRN-20260821-PCM] best_practice
@@ -169,5 +172,164 @@ payload only on a worker.
 - Recurrence-Count: 1
 - First-Seen: 2026-08-21
 - Last-Seen: 2026-08-21
+
+---
+
+## [LRN-20260825-001] best_practice
+
+**Logged**: 2026-08-25T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Nested temporary mutations of one shared runtime target require one
+generation-aware authoritative owner rather than consumer-local "original"
+snapshots.
+
+### Details
+AuraTools card effects and Terrias exit animation both mutated the same pooled
+Renderer. Each consumer captured a different material as its baseline, so an
+out-of-order release could later restore an already superseded or destroyed
+material. The symptom appeared at pool reuse, but the first incorrect owner was
+the duplicated restoration authority.
+
+### Suggested Action
+Classify the mutation model first. For nested temporary mutations, key one
+coordinator by physical root, logical generation, and exact target/property;
+record out-of-order release as pending, drain in LIFO order, and quarantine a
+target whose rollback or baseline cannot be proved. Do not apply this stack
+model to persistent selection, aggregation, or authoritative snapshots.
+
+### Metadata
+- Source: runtime_log_and_fix
+- Related Files: AuraSharedCore/AuraPresentationMaterialCoordinator.cs, .codex/skills/terrias-shared-runtime-dev/references/shared-mutable-runtime-ownership.md
+- Tags: shared-runtime, ownership, unity, pooling, material
+- Pattern-Key: shared.mutable_target.single_generation_owner
+- Recurrence-Count: 1
+- First-Seen: 2026-08-25
+- Last-Seen: 2026-08-25
+
+### Resolution
+- **Resolved**: 2026-08-25T00:00:00+08:00
+- **Notes**: Distilled into the shared mutable runtime ownership reference and enforced by Core plus cross-consumer behavior tests.
+
+---
+
+## [LRN-20260825-002] best_practice
+
+**Logged**: 2026-08-25T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+A deferred or skipped cleanup branch is valid only when responsibility is
+durably transferred and later drained.
+
+### Details
+Repeated logs said material restoration was deferred or skipped because a newer
+owner was active, but the old implementation had no durable pending obligation,
+successor owner, wake-up event, or convergence assertion. The warning described
+abandoned cleanup as though it were a safe delay.
+
+### Suggested Action
+For every defer, skip, sent, or handled branch, identify the new owner, pending
+record, drain trigger, and final postcondition. If any is absent, repair the
+ownership model instead of adding another warning, timeout, or retry.
+
+### Metadata
+- Source: runtime_log_and_fix
+- Related Files: .codex/skills/terrias-complete-solution-gate/SKILL.md, .codex/skills/terrias-shared-runtime-dev/references/shared-mutable-runtime-ownership.md
+- Tags: lifecycle, cleanup, responsibility, diagnostics
+- Pattern-Key: lifecycle.deferred_work_requires_durable_obligation
+- Recurrence-Count: 1
+- First-Seen: 2026-08-25
+- Last-Seen: 2026-08-25
+
+### Resolution
+- **Resolved**: 2026-08-25T00:00:00+08:00
+- **Notes**: Added to the highest-priority solution gate and the shared ownership reference.
+
+---
+
+## [LRN-20260825-003] knowledge_gap
+
+**Logged**: 2026-08-25T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+A synthetic combat object is not native-equivalent until every owner index,
+manager, queue, executor route, presentation surface, and cleanup path agrees
+on its identity.
+
+### Details
+Projection status objects existed, acted, damaged enemies, and completed turns,
+but their Partner statuses were absent from the actual owner's native
+`RoleStatusMap`. `ForEachObject` selected each target as executor status and
+`TrySendOnlineEvent` treated the projection self as non-local, sent the event,
+and skipped local Buff mutation. A high-level successful turn therefore hid a
+missing target-side effect.
+
+### Suggested Action
+Audit the complete native-equivalence surface for synthetic objects. For the
+current Partner runtime, register the status exactly once under its real owner,
+repair stale/duplicate mappings, and clean every owner list on failure or
+teardown. Never invent an executor-wide `Vars["Online"]` override to fix one
+object's locality; preserve a native pre-existing value unchanged.
+
+### Metadata
+- Source: runtime_log_decompile_and_fix
+- Related Files: Terrias-Dev/Mechanics/CompanionNativeStatusRouting.cs, .codex/skills/terrias-architecture-dev/references/native-synthetic-runtime-objects.md
+- Tags: native-integration, projection, partner, scriptexecutor, multiplayer
+- Pattern-Key: native.synthetic_object.complete_owner_and_locality_surface
+- Recurrence-Count: 1
+- First-Seen: 2026-08-25
+- Last-Seen: 2026-08-25
+
+### Resolution
+- **Resolved**: 2026-08-25T00:00:00+08:00
+- **Notes**: Distilled into the native synthetic runtime object reference and covered by Terrias owner-route and execution-scope behavior tests.
+
+---
+
+## [LRN-20260825-004] best_practice
+
+**Logged**: 2026-08-25T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Lifecycle and native-routing regressions require interleaving and target/locality
+matrices; top-level success and isolated happy paths are insufficient.
+
+### Details
+The pool defect required a dynamic-effect, exit-animation, out-of-order-release,
+reuse sequence. The Projection defect allowed multiple successful actions and
+enemy effects while missing the self-local Buff path. Tests that asserted only
+one acquire/release or one completed actor turn would preserve both defects.
+
+### Suggested Action
+Test release permutations, duplicate operations, partial failure, rollback,
+external mutation, destroyed targets, and generation conflicts for lifecycle
+state machines. For synthetic execution, separately prove local self mutation,
+non-local target RPC routing, failed-init cleanup, and exact context restoration
+on exception. Keep architecture gates limited to placement and dependencies.
+
+### Metadata
+- Source: regression_design
+- Related Files: AuraSharedCore.Tests/CorePresentationMaterialCoordinatorTests.cs, Terrias-Dev.Tests/Program.cs, .codex/skills/terrias-mod-dev/references/validation-rules.md
+- Tags: tests, interleaving, locality, failure-paths, behavior
+- Pattern-Key: tests.lifecycle_and_locality_matrix_over_top_level_success
+- Recurrence-Count: 1
+- First-Seen: 2026-08-25
+- Last-Seen: 2026-08-25
+
+### Resolution
+- **Resolved**: 2026-08-25T00:00:00+08:00
+- **Notes**: Added to the validation impact and behavior matrices; the implementation already has focused state-machine and routing regression coverage.
 
 ---

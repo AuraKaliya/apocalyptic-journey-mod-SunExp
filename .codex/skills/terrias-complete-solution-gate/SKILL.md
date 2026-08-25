@@ -18,6 +18,14 @@ schedule pressure or implementation difficulty.
   a candidate solution.
 - Define one authoritative runtime, data model, protocol, lifecycle, and release
   contract for the affected capability.
+- Treat `deferred`, `skipped`, `sent`, and `handled` branches as responsibility
+  transfers, not successful completion. Name the successor owner, durable
+  pending state, wake-up/drain trigger, and final postcondition. Without all
+  four, the work was abandoned rather than deferred.
+- Before adding a repair snapshot, relay, fallback writer, or compensating
+  state channel, prove that the existing native/shared authoritative path
+  cannot represent the required behavior. Repair missing ownership or routing
+  in that path when it can.
 - Include legacy cleanup in the same plan: inventory and remove superseded code
   paths, adapters, fallbacks, feature flags, schema branches, configuration,
   generated artifacts, tests, documentation, assets, and release claims that no
@@ -37,6 +45,10 @@ Do not propose or implement any of these as the solution:
   readiness check without removing the underlying lifecycle dependency;
 - adding another fallback, shim, special case, manual repair step, or hidden
   feature flag that leaves the failed architecture intact;
+- logging cleanup as deferred or skipped without recording an obligation that
+  a named owner will deterministically drain;
+- adding a second material, Buff, status, presentation, or network snapshot
+  channel to mask a missing owner/index/route in the authoritative path;
 - patching only the downstream symptom when an upstream shared failure causes it;
 - indefinitely supporting parallel old/new writers, players, schemas, protocols,
   media formats, or configuration sources;
@@ -53,8 +65,13 @@ and leaves no temporary branch behind at completion.
 
 1. State the user-visible final contract and non-negotiable invariants.
 2. Trace the complete failure chain and identify the earliest incorrect owner.
+   Inspect the return-value semantics of every `defer`, `skip`, `send`, or
+   `handled` branch and determine whether work executed, transferred, or was
+   silently abandoned.
 3. Design the single target architecture at that owner and all affected
-   boundaries; do not start from the smallest patch.
+   boundaries; do not start from the smallest patch. When integrating a native
+   runtime object, inventory every owner map, manager, queue, executor route,
+   presentation surface, and cleanup index that establishes native identity.
 4. Inventory the legacy surface that the target replaces, including stored data,
    source, configuration, tests, documentation, shipped artifacts, and orphaned
    files.
@@ -75,6 +92,8 @@ A solution is complete only when all of the following are true:
 - superseded runtime and data paths have been removed rather than disabled;
 - orphaned files, rows, settings, registrations, and generated artifacts have a
   deterministic reconciliation or cleanup result;
+- every deferred responsibility has either drained to its declared postcondition
+  or been explicitly abandoned by a terminal lifecycle cleanup contract;
 - tests exercise the real failure boundary and fail on contract drift;
 - source, shipped binaries, manifests, configuration UI, and documentation
   describe the same final behavior;

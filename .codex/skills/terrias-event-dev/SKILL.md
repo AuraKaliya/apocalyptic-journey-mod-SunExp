@@ -79,7 +79,7 @@ Run full validation:
 
 ```powershell
 tools\Build-TerriasDll.ps1
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

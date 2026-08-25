@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Skill Evolution"
   short_description: "Distill Terrias traces and remove stale skill anchors."
-  default_prompt: "Use $terrias-skill-evolution to analyze Terrias development traces, update project skills, tune triggers, split references, remove stale old-repository assumptions, and add durable validation."
+  default_prompt: "Use $terrias-skill-evolution to trace Terrias incidents to their earliest incorrect owner, graduate only recurrent decision-changing lessons, update project skills and references, remove stale assumptions, and attach durable validation."

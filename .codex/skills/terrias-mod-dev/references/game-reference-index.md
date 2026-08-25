@@ -34,6 +34,19 @@ rg -n "ScriptExecutor|RunImmediately|AddBuff|AddDescription" "开发参考资料
 rg -n "class ScriptExecutor|class VisualScriptExecutor|IScriptExecutor" "开发参考资料\反编译文件夹v1.0.24831968\Witch" "开发参考资料\反编译文件夹v1.0.24831968\Witch.Core"
 ```
 
+Native Partner ownership and per-target local/remote execution:
+
+```powershell
+rg -n "RegisterPartnerOwner|RoleStatusMap" "开发参考资料\反编译文件夹v1.0.24831968\Witch\PatternManager.cs" "开发参考资料\反编译文件夹v1.0.24831968\Witch\ScriptExecutor.cs"
+rg -n "ForEachObject|TrySendOnlineEvent" "开发参考资料\反编译文件夹v1.0.24831968\Witch.Core\ForEachObject.cs" "开发参考资料\反编译文件夹v1.0.24831968\Witch\ScriptExecutor.cs"
+```
+
+Interpret return values from their callers and downstream branches; a method
+named `Try*` may report that work was routed or sent rather than locally
+applied. For synthetic objects, load the native synthetic runtime object
+reference through `terrias-architecture-dev` before changing executor flags or
+adding a parallel effect channel.
+
 Card use, card UI, and action flow:
 
 ```powershell

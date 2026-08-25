@@ -16,10 +16,16 @@ references for detailed context.
 ## Workflow
 
 1. Collect evidence:
+   - the runtime symptom and an asymmetry matrix: what worked, what was absent,
+     which owner/target/lifecycle branch differed, and what the top-level result
+     claimed;
+   - the newest applicable decompile call chain for host behavior, plus current
+     `Managed/` signatures for compilation;
    - recent commits: `git log --oneline -n 20 -- .codex/skills Terrias-Dev Terrias tools docs`
    - changed files and tests from relevant commits;
    - current validation failures or manual debugging notes;
-   - user corrections and repeated assistant mistakes.
+   - user corrections, repeated assistant mistakes, and discarded repair
+     directions whose semantics were disproved.
    - test ownership, call graph, duplicate coverage, source-snapshot assertions,
      and whether a test belongs to a product or an archived prototype.
 2. Classify each lesson:
@@ -27,6 +33,8 @@ references for detailed context.
    - Rule: concise SKILL.md hard rule.
    - Reference: detailed explanation loaded only when needed.
    - Script/test: deterministic check for fragile behavior.
+   - Manual acceptance: Unity, host lifecycle, rendering, or real multiplayer
+     evidence that cannot be established by local automated tests.
    - Asset/template: reusable output resource.
    - Staleness cleanup: old repository paths, old mode names, retired workflow
      assumptions, or memory-derived anchors that no longer match this repo.
@@ -35,6 +43,8 @@ references for detailed context.
    - move verbose body content into `references/`;
    - add a focused sub-skill when one domain has its own workflow;
    - add or update validation when a rule is easy to check.
+   Before promoting a lesson, apply the graduation gate below. Leave incident
+   detail in `.learnings` when it does not qualify as operational guidance.
 4. Use `references/evolution-log-pattern.md` when drafting a reusable evidence
    packet or patch proposal for a skill update. Use
    `references/stale-anchor-registry.md` when recording old repository roots,
@@ -51,9 +61,33 @@ references for detailed context.
    - avoid duplicated rules across skills; route instead.
 7. Validate skill metadata and representative project checks.
 
+## Graduation Gate
+
+Promote an incident into an operational skill only when all answers are yes:
+
+- Recurrence: does it describe a class of future tasks rather than one id,
+  version, log line, protocol number, or implementation name?
+- Decision impact: would this rule have changed the earlier diagnosis, design,
+  ownership choice, or validation plan before the failed repair was written?
+- Scope: does it name where the rule applies and a meaningful counterexample or
+  non-applicable case so it does not become a universal ban?
+- Enforcement: can the durable invariant live in a behavior test, script,
+  compatibility/release gate, or explicit manual acceptance check?
+
+If the lesson explains history but fails this gate, keep it as a learning or
+postmortem fact. Do not enlarge `SKILL.md` merely to preserve the story.
+
 ## Distillation Rules
 
 - Capture only durable lessons likely to recur.
+- Require a counterfactual: name the earlier wrong decision the distilled rule
+  would have prevented. A rule that would not change a future decision is
+  documentation, not skill guidance.
+- Keep the incident, the generalized invariant, and the enforcement mechanism
+  distinct. Do not copy a postmortem paragraph into a top-level skill.
+- Preserve the rule's applicability boundary. For example, a nested temporary
+  mutation may require stack ownership while a persistent selection or
+  authoritative snapshot requires a different conflict model.
 - Do not preserve one-off implementation details unless they prevent a known
   regression.
 - Do not promote memory-derived or old-repository facts into current skills
@@ -104,8 +138,8 @@ references for detailed context.
 Run:
 
 ```powershell
- .codex\skills\terrias-skill-evolution\scripts\audit-terrias-skill-staleness.ps1
-python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
+pwsh -NoProfile -File .codex\skills\terrias-skill-evolution\scripts\audit-terrias-skill-staleness.ps1
+py -X utf8 C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
 ```
 
 Run this for every changed or newly created skill. Then run representative

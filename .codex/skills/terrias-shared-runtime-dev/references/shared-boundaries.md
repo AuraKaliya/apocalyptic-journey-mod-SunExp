@@ -27,6 +27,14 @@ edited as if they belonged to the current mod.
 Conflict policy must be explicit. Do not treat two applicable artifacts as a
 technical error unless the domain contract says so.
 
+Classify mutable runtime conflicts before choosing an implementation. Persistent
+selection uses precedence, replicated state uses an authoritative versioned
+snapshot, additive contributions use aggregation, and nested temporary
+mutations may require an ownership stack. When sibling consumers temporarily
+mutate the same Unity/runtime property, load
+`shared-mutable-runtime-ownership.md`; do not let each consumer capture and
+restore its own baseline.
+
 ## Initialization Registration And Tool Overrides
 
 Use a strict owner/tool split for cross-mod shared features.

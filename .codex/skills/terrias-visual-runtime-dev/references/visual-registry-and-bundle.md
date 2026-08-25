@@ -35,6 +35,23 @@ Use `tools/Build-TerriasVisualBundle.ps1` after changing:
 Do not treat source edits under `VisualAssets` as shipped behavior until the
 bundle has been rebuilt.
 
+## Generated Project Source Of Truth
+
+Generated Unity projects and their ignored `ProjectSettings` or package caches
+are disposable build outputs, not release contracts. The tracked VisualBundle
+builder and tracked source templates are authoritative.
+
+- Aggregate gates should validate the tracked builder's exact Unity, render
+  pipeline, package, shader, and target declarations.
+- The builder must deterministically regenerate local Unity metadata before
+  launching Unity. Do not require a developer's ignored cache to be current
+  before the builder runs.
+- When an aggregate ownership/bundle gate fails, print or inspect its individual
+  predicates before changing runtime code; one summary message may cover
+  unrelated metadata, resource, and ownership checks.
+- A local generated project may be synchronized for diagnosis, but the durable
+  repair belongs in the tracked generator, source template, or validator.
+
 ## Runtime Loading
 
 Use the existing cache and loader boundaries:
@@ -57,6 +74,6 @@ shaders, and visual runtime helpers. For bundle changes, run:
 
 ```powershell
 tools\Build-TerriasVisualBundle.ps1
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

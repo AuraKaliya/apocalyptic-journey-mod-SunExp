@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Architecture Dev"
   short_description: "Maintain Terrias C# boundaries without leaking shared foundations."
-  default_prompt: "Use $terrias-architecture-dev for Terrias C# architecture refactors, GameApi facades, Features and Hooks boundaries, performance surfaces, RPC authority, Managed compatibility, architecture gates, and checks that Terrias internals are not becoming AuraToolsExp's implicit shared framework."
+  default_prompt: "Use $terrias-architecture-dev for Terrias C# architecture refactors, GameApi facades, synthetic native combat objects, ScriptExecutor owner/locality routing, Features and Hooks boundaries, performance surfaces, RPC authority, Managed compatibility, architecture gates, and shared-framework boundary checks."

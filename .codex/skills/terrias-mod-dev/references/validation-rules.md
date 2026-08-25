@@ -11,10 +11,12 @@ fixed repository-wide chain for every Terrias or shared edit.
 | Terrias resources or registries | `tools/Test-TerriasResources.ps1` |
 | Terrias C# behavior | `tools/Build-TerriasDll.ps1` plus the focused C# or domain tests |
 | Terrias architecture, hooks, or CSV entry boundaries | add `tools/Test-TerriasArchitecture.ps1` |
+| Synthetic Partner/status object or ScriptExecutor locality | Terrias C# behavior tests plus Architecture; add the shared `network` profile only when the custom RPC/authority contract changes |
 | One Terrias feature domain | `tools/Test-TerriasGate.ps1 -Profile <domain>` |
 | One shared domain's internal behavior | `tools/Build-AuraSharedRuntime.ps1` plus that domain's behavior suite |
 | Shared public API, schema, or compatibility range | add `tools/Test-SharedRuntimeCompatibility.ps1` and affected main-consumer builds |
 | Shared Core storage or resource protocol | `tools/Test-AuraSharedCore.ps1` and the focused domain suite |
+| Shared mutable presentation target or pooled generation contract | Core coordinator state-machine tests plus focused integration in every real consumer; add main-consumer builds, compatibility, and packaging only when the public shared surface changes |
 | Shared RPC sender authority, payload, dedupe, or lifecycle | `tools/Test-SharedReleaseGate.ps1 -Profile network` |
 | RPC command registration or transport boundary scanner | `tools/Test-NetworkRpcAuthority.ps1` |
 | Combat AI shared behavior | `tools/Test-SharedReleaseGate.ps1 -Profile combat-ai` |
@@ -27,6 +29,25 @@ fixed repository-wide chain for every Terrias or shared edit.
 
 Commands that write `Terrias.Aura.dll`, `Entry.dll`, or `Aura.Shared.dll` must
 run serially when they share an output path.
+
+## Behavior Matrices
+
+For lifecycle and native-integration defects, a large assertion count is not a
+substitute for covering the branch that failed.
+
+Shared mutable/pool tests should cover nested ownership, out-of-order release,
+duplicate release, partial write and rollback failure, external mutation,
+destroyed targets, cross-generation reuse, the post-reset clean gate, and at
+least two real consumers of the same target.
+
+Synthetic native-object tests should cover owner registration and migration,
+failed-init cleanup, local self effects, an enemy or other non-local target that
+still takes the native RPC branch, exact ScriptExecutor context restoration on
+success and exception, and preservation rather than invention of native routing
+Vars.
+
+Test an interleaving or target/locality matrix when the runtime symptom depends
+on ordering. Do not reduce it to isolated one-method happy paths.
 
 ## Ownership
 
@@ -68,12 +89,17 @@ changed hooks, UI layout/raycast behavior, animation fallback, multiplayer
 timing, and Managed signature compatibility. Run in-game verification when the
 change depends on Unity objects or host lifecycle order.
 
+Use a fresh runtime log for manual acceptance. A top-level completed action or
+clean exception count does not prove each effect branch: require observable
+evidence for the local self path, the non-local/network target path, generation
+cleanup, and the next reuse after the failure-prone interleaving.
+
 ## Focused Commands
 
 ```powershell
 tools\Build-TerriasDll.ps1
 tools\Test-TerriasCSharp.ps1
-tools\Test-TerriasArchitecture.ps1
+pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasResources.ps1
 tools\Test-TerriasGate.ps1 -List
 tools\Test-TerriasGate.ps1 -Profile elemental
