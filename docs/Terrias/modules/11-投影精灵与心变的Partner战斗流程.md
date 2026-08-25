@@ -144,7 +144,7 @@ Terrias 的真实友方名单包含：
 - 当前存活的投影；
 - 当前存活的精灵。
 
-该名单用于伙伴规划、效果目标和心变的有益行动改写。`RoleStatusMap` 只是玩家与状态的归属路由，可能包含敌方状态，因此不能被当作阵营名单。投影和精灵作为合成 `Partner`，必须像宿主 `PatternManager` 创建的原生 Partner 一样，把 status id 唯一注册到实际 `OwnerPlayerId` 对应的列表；该注册只恢复 `ForEachObject/TrySendOnlineEvent` 的原生事件归属，不增加 HUD 行或友方席位。生成、重绑和每次投影出牌前会幂等修复路由，死亡、撤销及战斗清理必须从所有 owner 列表移除该 id。
+该名单用于伙伴规划、效果目标和心变的有益行动改写。`RoleStatusMap` 是原生执行 locality 路由，可能包含敌方状态，既不能被当作阵营名单，也不能作为 Terrias semantic owner 存储。投影和精灵是服务端权威的合成 `Partner`：`OwnerPlayerId/OwnerStatusId` 只表示召唤归属，status id 必须唯一注册到服务端下发的 `ExecutionRoutePlayerId`。该路由让 `ForEachObject/TrySendOnlineEvent` 在主机执行合成单位自身效果，不增加 HUD 行或友方席位。生成、重绑和每次投影出牌前会幂等修复路由，死亡、撤销及战斗清理必须从所有 route 列表移除该 id。
 
 ### 5.3 位置规则
 
@@ -163,7 +163,7 @@ Terrias 的真实友方名单包含：
 
 - 注册到 `FightManager.statuses`，使脚本和目标解析可以找到它；
 - 注册到 `ProjectionStateStore` 与 `CompanionBattleStateStore`；
-- 注册到拥有者的原生 `RoleStatusMap` 事件路由；
+- 注册到主机 `ExecutionRoutePlayerId` 的原生 `RoleStatusMap` 事件路由；
 - 进入原生 Partner 行动队列；
 - 进入正式友方横向编队；
 - 由主机读取召唤者的权威 `RoleTable`，建立独立牌组。
@@ -250,11 +250,12 @@ sequenceDiagram
 7. 扣除投影能量，在有界执行作用域内把投影 `Status` 绑定为脚本 `Self`，绑定目标并清空旧 `status`，退出时精确恢复 executor 原状态。
 8. 处理附加物、连击、额外使用次数、逐次衰减和使用后区域移动。
 9. 等待 `FightUI` 动画及 `WaitCard` 完成结算，再开始下一次决策。
-10. 只广播公开单位状态与行动表现，不广播内部牌组。
+10. 权威状态只走 `ProjectionCompanionSnapshot`；行动表现只走不含 HP、攻防、魔力或
+    BUFF 的 `ProjectionActionFrameSnapshot`，不广播内部牌组，也不允许表现事件反写状态。
 
 执行作用域不得伪造 `Vars["Online"]`。宿主 `ForEachObject` 只有在目标不属于本地
-`RoleStatusMap` 且不是收到的在线事件时才发送 RPC 并跳过本地变更；正确的 status 归属让
-投影对自身施加 BUFF 时走本地分支，同时仍让敌方或其他非本地目标沿用宿主 RPC。用全局
+`RoleStatusMap` 且不是收到的在线事件时才发送 RPC 并跳过本地变更；正确的 execution route 让
+投影对自身施加 BUFF 时在主机走本地分支，并由原生 `UpdateBuff` 镜像，同时仍让敌方或其他非本地目标沿用宿主 RPC。用全局
 `Online` 标记强迫本地执行会吞掉其它目标的原生网络分发，因此不属于支持路径。
 
 投影不会通过模拟点击玩家手牌或点击结束回合按钮完成行动。

@@ -121,7 +121,7 @@ public static class SpiritRuntime
         if (context.Target is not CardItem card
             || !SpiritCardFactory.IsSpiritCard(card.dataConfig)
             || !SpiritStateStore.HasForOwner(
-                CompanionOwnershipService.ResolveOwnerPlayerId(FightPlayer.Instance?.Status?.InstanceId ?? ""),
+                CompanionOwnershipService.ResolveSemanticOwnerPlayerId(FightPlayer.Instance?.Status?.InstanceId ?? ""),
                 FightPlayer.Instance?.Status?.InstanceId ?? ""))
         {
             return;

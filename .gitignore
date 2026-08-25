@@ -130,8 +130,9 @@ env/
 # remain tracked; these rules prevent accidental addition of new binaries.
 /Terrias/Scripts/
 /AuraToolsExp/Scripts/
-/SanGuoShaExp/Scripts/
+/TestMods/SanGuoShaExp/Scripts/
 /TestMods/*.dll
+/artifacts/shared-release/
 
 # Trainer executables are normally rebuilt. The Simulation Viewer is an
 # intentional shipped surface and remains addable.

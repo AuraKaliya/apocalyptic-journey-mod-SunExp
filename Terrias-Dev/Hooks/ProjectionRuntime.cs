@@ -92,7 +92,7 @@ public static class ProjectionRuntime
         }
 
         var owner = FightPlayer.Instance?.Status;
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(owner?.InstanceId ?? "");
+        var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(owner?.InstanceId ?? "");
         if (owner != null
             && (!FriendlyRoleSeatLedger.CanReserve(ownerPlayerId, owner.InstanceId, out var reason)))
         {

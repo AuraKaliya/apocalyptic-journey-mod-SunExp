@@ -13,10 +13,16 @@ Important consumers include:
 
 - `Terrias-Dev/Terrias.Dll.csproj`
 - `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj`
-- `SanGuoShaExp-Dev/SanGuoShaExp.Dll.csproj`
 
-After shared runtime changes, all packaged `Aura.Shared.dll` copies should have
-the same hash as the built shared runtime DLL.
+`tools/shared-consumers.json` is the single consumer inventory. SanGuoShaExp is
+an explicit-only archived consumer under `TestMods`; it is not a product or
+shared release consumer.
+
+Product projects compile against the canonical shared build but do not write
+package directories from MSBuild targets. After validation,
+`Publish-MainSharedConsumers.ps1` stages Entry and Aura.Shared for both product
+packages, verifies source/stage hashes, commits each file with rollback, and
+verifies final hashes. All product copies must match the canonical DLL.
 
 ## Public API Cutover
 

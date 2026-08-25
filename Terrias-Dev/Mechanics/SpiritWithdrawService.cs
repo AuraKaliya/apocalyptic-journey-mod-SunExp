@@ -70,7 +70,7 @@ public static class SpiritWithdrawService
             return;
         }
 
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, sender.PlayerId);
+        var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(ownerStatusId, sender.PlayerId);
         var state = SpiritStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
         var spirit = state?.Spirit;
         var status = spirit?.Status;

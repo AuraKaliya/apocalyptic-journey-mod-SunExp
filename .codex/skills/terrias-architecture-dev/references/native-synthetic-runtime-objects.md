@@ -49,9 +49,15 @@ Therefore a synthetic Partner missing from the correct owner list can produce
 enemy damage and a successful actor turn while silently missing its own local
 Buff mutation.
 
+The native map is an execution-locality table, not a semantic ownership model.
+Owner-authoritative native equivalents use their semantic owner as the route.
+Server-authoritative independent companions keep semantic owner, simulation
+authority, and execution route separate; their route is the server-issued host
+player id on every peer.
+
 For current synthetic Partner-derived objects:
 
-- register the status exactly once under the actual owner;
+- register the status exactly once under the declared execution route;
 - remove duplicates and stale entries under previous owners during repair;
 - make repeated registration idempotent without reordering an already correct
   list;
@@ -87,7 +93,7 @@ refresh/draw/drop, attachment pre-use/use, and main use where applicable.
 
 Log state transitions, not every frame. Useful fields include:
 
-- synthetic status id and expected owner Role id;
+- synthetic status id, semantic owner id, and execution-route Role id;
 - current owner-map membership and duplicate/stale owner count;
 - self id, per-target status id, and target category;
 - expected locality or RPC branch;
@@ -100,7 +106,7 @@ retains its native remote/network route.
 
 ## Behavior Test Matrix
 
-- correct registration, idempotent re-registration, stale-owner migration, and
+- correct registration, idempotent re-registration, stale-route migration, and
   duplicate repair;
 - failed initialization rollback and all lifecycle cleanup paths;
 - synthetic self classified as local for owner-scoped mutation;

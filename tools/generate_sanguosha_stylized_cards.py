@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = ROOT / "SanGuoShaExp" / "ModResource" / "Images"
+SOURCE_DIR = ROOT / "TestMods" / "SanGuoShaExp" / "ModResource" / "Images"
 OFFICIAL_REFERENCE_DIR = ROOT / "tools" / "previews" / "sanguosha_cached_refs"
 PREVIEW_DIR = ROOT / "tools" / "previews" / "sanguosha_stylized_batch"
 ACCEPTED_SHA = (

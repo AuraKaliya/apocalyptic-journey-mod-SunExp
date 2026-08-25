@@ -1,6 +1,8 @@
 param(
     [string]$Configuration = "Release",
-    [string]$ManagedPath = ""
+    [string]$ManagedPath = "",
+    [switch]$SkipSharedBuild,
+    [switch]$SkipPublish
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,19 +12,31 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
 }
 
-$projects = @(
-    "Terrias-Dev\Terrias.Dll.csproj",
-    "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
-    "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
-)
+Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
 
-foreach ($project in $projects) {
-    $projectPath = Join-Path $repoRoot $project
-    Write-Host "Building main shared runtime consumer: $project"
-    dotnet build $projectPath -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
+if (-not $SkipSharedBuild) {
+    & (Join-Path $repoRoot "tools\Build-AuraSharedRuntime.ps1") `
+        -Configuration $Configuration `
+        -ManagedPath $ManagedPath
+}
+
+$consumers = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)
+
+foreach ($consumer in $consumers) {
+    $projectPath = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$consumer.projectPath)
+    Write-Host "Building main shared runtime consumer: $($consumer.id)"
+    dotnet build $projectPath `
+        -c $Configuration `
+        /p:ManagedPath="$ManagedPath" `
+        /p:BuildProjectReferences=false `
+        /v:minimal
     if ($LASTEXITCODE -ne 0) {
-        throw "Main shared runtime consumer build failed: $project"
+        throw "Main shared runtime consumer build failed: $($consumer.id)"
     }
 }
 
-Write-Host "Main shared runtime consumers built successfully: $($projects.Count) projects."
+if (-not $SkipPublish) {
+    & (Join-Path $repoRoot "tools\Publish-MainSharedConsumers.ps1") -Configuration $Configuration
+}
+
+Write-Host "Main shared runtime consumers built successfully: $($consumers.Count) projects."

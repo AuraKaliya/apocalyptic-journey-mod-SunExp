@@ -68,6 +68,7 @@ internal static class Program
         TestProjectionNativeStatusRouting();
         TestProjectionScriptExecutionScope();
         TestProjectionProtocolState();
+        TestEndlessSeaReplicationClock();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
@@ -87,39 +88,55 @@ internal static class Program
     {
         var routes = new Dictionary<string, List<string>>(StringComparer.Ordinal)
         {
-            ["owner-a"] = new List<string> { "native-a", "projection-1", "projection-1" },
-            ["owner-b"] = new List<string> { "native-b" }
+            ["semantic-owner"] = new List<string> { "native-owner", "projection-1", "projection-1" },
+            ["authority-host"] = new List<string> { "native-host" }
         };
 
-        True(CompanionNativeStatusRouting.Register(routes, "owner-b", "projection-1"),
-            "projection companions register into the native status-event routing table");
-        False(routes["owner-a"].Contains("projection-1"),
-            "re-registering a projection removes stale owner routes and duplicates");
-        Equal(1, routes["owner-b"].Count(value => value == "projection-1"),
-            "one projection status has exactly one authoritative native owner route");
-        var stableOwnerOrder = routes["owner-b"].ToArray();
-        True(CompanionNativeStatusRouting.Register(routes, "owner-b", "projection-1")
-             && routes["owner-b"].SequenceEqual(stableOwnerOrder),
+        True(CompanionNativeStatusRouting.Register(routes, "authority-host", "projection-1"),
+            "server-authoritative companions register under the host execution route");
+        False(routes["semantic-owner"].Contains("projection-1"),
+            "semantic ownership does not control native ScriptExecutor locality");
+        Equal(1, routes["authority-host"].Count(value => value == "projection-1"),
+            "one projection status has exactly one native execution route");
+        var stableOwnerOrder = routes["authority-host"].ToArray();
+        True(CompanionNativeStatusRouting.Register(routes, "authority-host", "projection-1")
+             && routes["authority-host"].SequenceEqual(stableOwnerOrder),
             "repairing an already-correct projection route is idempotent and preserves native status order");
-        True(CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1"),
-            "projection native routing can verify its owner/status invariant");
+        True(CompanionNativeStatusRouting.Contains(routes, "authority-host", "projection-1"),
+            "projection native routing can verify its authority/status invariant");
         var executorVars = new Dictionary<string, string>(StringComparer.Ordinal);
         var projectionWouldSendRemote =
-            !CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1")
+            !CompanionNativeStatusRouting.Contains(routes, "authority-host", "projection-1")
             && !executorVars.ContainsKey("Online");
+        var semanticOwnerWouldExecuteProjection =
+            CompanionNativeStatusRouting.Contains(routes, "semantic-owner", "projection-1");
         var enemyWouldSendRemote =
-            !CompanionNativeStatusRouting.Contains(routes, "owner-b", "enemy-1")
+            !CompanionNativeStatusRouting.Contains(routes, "authority-host", "enemy-1")
             && !executorVars.ContainsKey("Online");
         False(projectionWouldSendRemote,
-            "the native ForEachObject gate now applies projection self BUFFs locally");
+            "the host applies projection self BUFFs locally before native replication");
+        False(semanticOwnerWouldExecuteProjection,
+            "a remote semantic owner never becomes the projection simulation authority");
         True(enemyWouldSendRemote,
             "the same native gate still dispatches non-local target effects through the game's RPC");
         Equal(1, CompanionNativeStatusRouting.Remove(routes, "projection-1"),
             "projection cleanup removes the authoritative route exactly once");
-        False(CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1"),
+        False(CompanionNativeStatusRouting.Contains(routes, "authority-host", "projection-1"),
             "a removed projection no longer participates in native status routing");
         False(CompanionNativeStatusRouting.Register(routes, "", "projection-2"),
             "projection routing rejects missing owner identity");
+    }
+
+    private static void TestEndlessSeaReplicationClock()
+    {
+        var clock = new Terrias.Dll.Application.EndlessSeaReplicationClock();
+        False(clock.CanAccept("", 1), "endless sea replication rejects an unbound host session");
+        True(clock.Commit("host-a", 3), "endless sea replication accepts its first authority generation");
+        False(clock.CanAccept("host-a", 2), "endless sea replication rejects stale generations in one session");
+        True(clock.Commit("host-a", 3), "endless sea replication accepts an idempotent equal generation");
+        True(clock.Commit("host-b", 1), "a new host session resets the generation domain");
+        Equal("host-b", clock.Session, "the committed host session becomes authoritative");
+        Equal(1, clock.Generation, "the new host session owns its own generation counter");
     }
 
     private static void TestProjectionScriptExecutionScope()

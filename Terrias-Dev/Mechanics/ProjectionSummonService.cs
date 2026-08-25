@@ -122,7 +122,7 @@ public static class ProjectionSummonService
         if (transaction.ShouldExpire(now, MaximumAttempts, TransactionLifetimeSeconds))
         {
             transaction.SetTerminal();
-            var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(transaction.OwnerStatusId);
+            var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(transaction.OwnerStatusId);
             ApplySummonResult(
                 CreateResult(
                     transaction.Token,
@@ -256,7 +256,7 @@ public static class ProjectionSummonService
             return;
         }
 
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, sender.PlayerId);
+        var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(ownerStatusId, sender.PlayerId);
         if (!RoleDeckWaitRequestMatches(token, roleId, ownerPlayerId, ownerStatusId, deckRecipeHash))
         {
             RejectSummon(
@@ -485,6 +485,7 @@ public static class ProjectionSummonService
 
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
+            || (snapshot.Active && string.IsNullOrWhiteSpace(snapshot.ExecutionRoutePlayerId))
             || !string.Equals(
                 snapshot.CardModelVersion,
                 ProjectionRoleDeckService.CardModelVersion,
@@ -634,7 +635,7 @@ public static class ProjectionSummonService
         int summonRoundSequence = 0,
         long summonTurnOrder = 0)
     {
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
+        var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         if (ProjectionStateStore.HasForOwner(ownerPlayerId, ownerStatusId))
         {
             return false;
@@ -716,7 +717,16 @@ public static class ProjectionSummonService
                 ownerPlayerId = snapshot.OwnerPlayerId;
             }
             var projection = gameObject.AddComponent<ProjectionOtherObj>();
-            if (!projection.InitProjection(role, ownerStatusId, slotIndex, stats, statusId, ownerPlayerId))
+            var executionRoutePlayerId = snapshot?.ExecutionRoutePlayerId
+                                         ?? CompanionExecutionRouteApi.ResolveAuthoritativePlayerId(ownerPlayerId);
+            if (!projection.InitProjection(
+                    role,
+                    ownerStatusId,
+                    slotIndex,
+                    stats,
+                    statusId,
+                    ownerPlayerId,
+                    executionRoutePlayerId))
             {
                 UnityEngine.Object.Destroy(gameObject);
                 PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.projection.initialize_failed"));
@@ -1073,6 +1083,16 @@ public static class ProjectionSummonService
         BroadcastRuntimeState(projection, source);
     }
 
+    public static void CommitAction(ProjectionOtherObj projection)
+    {
+        var state = ProjectionStateStore.Find(projection?.InstanceId ?? "");
+        if (state == null || !CompanionAuthorityService.IsAuthoritative())
+        {
+            return;
+        }
+        state.Replication.CommitAction();
+    }
+
     public static void BroadcastExternalStateChange(ProjectionOtherObj projection, string source)
     {
         var state = ProjectionStateStore.Find(projection.InstanceId);
@@ -1168,6 +1188,7 @@ public static class ProjectionSummonService
             Active = replication?.Active ?? true,
             RoleId = projection.RoleId,
             OwnerPlayerId = projection.OwnerPlayerId,
+            ExecutionRoutePlayerId = projection.ExecutionRoutePlayerId,
             OwnerStatusId = projection.OwnerStatusId,
             StatusId = projection.InstanceId,
             SlotIndex = state?.SlotIndex ?? -1,

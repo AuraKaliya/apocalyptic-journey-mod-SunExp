@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.Application;
 using System.Collections;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
@@ -26,6 +27,11 @@ public static class Entry
         RunStep("shared game data", RegisterSharedGameData);
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => TerriasRpcAuthorityRuntime.Initialize(modConfig));
+        RunStep("semantic status ownership", () =>
+            TerriasStatusOwnershipPolicy.ConfigureSemanticOwnerResolver(statusId =>
+                CompanionOwnershipService.Find(statusId)?.SemanticOwnerPlayerId));
+        RunStep("endless sea application network", EndlessSeaNetworkAdapter.Initialize);
+        RunStep("endless sea state projection", EndlessSeaStateProjectionRuntime.Initialize);
         RunStep("localization catalog", () => TerriasTextCatalog.Load(modConfig));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));

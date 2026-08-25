@@ -21,6 +21,8 @@ public sealed class ProjectionOtherObj : Partner
 
     public string OwnerPlayerId { get; private set; } = "";
 
+    public string ExecutionRoutePlayerId { get; private set; } = "";
+
     internal CombatAutoTurnResult? LastAutoTurnResult { get; private set; }
 
     public override string Type => "Projection";
@@ -31,7 +33,8 @@ public sealed class ProjectionOtherObj : Partner
         int slotIndex,
         CompanionStats stats,
         string statusId = "",
-        string ownerPlayerId = "")
+        string ownerPlayerId = "",
+        string executionRoutePlayerId = "")
     {
         if (role == null)
         {
@@ -40,9 +43,12 @@ public sealed class ProjectionOtherObj : Partner
 
         RoleId = role.Id;
         OwnerStatusId = ownerStatusId ?? "";
-        OwnerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(
+        OwnerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(
             OwnerStatusId,
             ownerPlayerId);
+        ExecutionRoutePlayerId = string.IsNullOrWhiteSpace(executionRoutePlayerId)
+            ? CompanionExecutionRouteApi.ResolveAuthoritativePlayerId(OwnerPlayerId)
+            : executionRoutePlayerId.Trim();
         dataConfig = ProjectionSummonService.CreateProjectionDataConfig(role, stats);
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
@@ -63,7 +69,8 @@ public sealed class ProjectionOtherObj : Partner
             OwnerStatusId,
             slotIndex,
             stats,
-            OwnerPlayerId);
+            OwnerPlayerId,
+            ExecutionRoutePlayerId);
         gameObject.name = "TerriasProjection:" + RoleId + ":" + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this)
                      as StatusManager;

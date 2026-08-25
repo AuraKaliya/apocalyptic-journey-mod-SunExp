@@ -1,6 +1,7 @@
 {
   "schemaVersion": 2,
   "name": "AuraShared release gate",
+  "consumerManifest": "tools/shared-consumers.json",
   "steps": [
     {
       "id": "shared-runtime-build",
@@ -257,9 +258,10 @@
       "category": "integration",
       "cost": "slow",
       "impactTags": ["consumer", "public-api", "product-build"],
-      "profiles": ["consumer", "full-release"],
+      "profiles": ["consumer", "packaging", "full-release"],
       "enabled": true,
-      "passConfiguration": true
+      "passConfiguration": true,
+      "arguments": { "SkipSharedBuild": true }
     },
     {
       "id": "shared-dll-packaging",
@@ -281,12 +283,5 @@
     "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
     "lockOrder": ["Resource", "Registry", "WriteMutex"]
   },
-  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Decision", "CombatAI", "Director", "GameData", "Log", "Journey", "Mode"],
-  "releaseScenarios": [
-    "Terrias only",
-    "Terrias + AuraToolsExp",
-    "AuraToolsExp skin + Terrias",
-    "SanGuoShaExp + Terrias",
-    "Terrias + SanGuoShaExp + AuraToolsExp"
-  ]
+  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Decision", "CombatAI", "Director", "GameData", "Log", "Journey", "Mode"]
 }

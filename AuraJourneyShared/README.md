@@ -52,7 +52,7 @@ Examples:
 
 ```text
 Terrias:solar-memory
-SanGuoShaExp:lord-trial
+TestMods/SanGuoShaExp:lord-trial (archived compatibility example)
 ```
 
 Short ids such as `solar-memory` are accepted only as compatibility input.

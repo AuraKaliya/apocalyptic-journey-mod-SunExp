@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
 
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
@@ -78,12 +79,11 @@ if ($RunTests) {
 }
 
 $expectedOutputs = @(
-    "Terrias\Scripts\Entry.dll",
-    "Terrias\Scripts\Aura.Shared.dll",
-    "SanGuoShaExp\Scripts\Entry.dll",
-    "SanGuoShaExp\Scripts\Aura.Shared.dll",
-    "AuraToolsExp\Scripts\Entry.dll",
-    "AuraToolsExp\Scripts\Aura.Shared.dll",
+    foreach ($consumer in @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)) {
+        $package = ([string]$consumer.packagePath).Replace('/', '\')
+        "$package\Entry.dll"
+        "$package\Aura.Shared.dll"
+    }
     "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.Worker.exe",
     "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.ControlCenter.exe"
 )

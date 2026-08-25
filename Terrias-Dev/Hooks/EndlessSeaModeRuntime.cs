@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.Application;
 using Data.Save;
 using Terrias.Dll.Hooks.Ui;
 using Terrias.Dll.Infrastructure;
@@ -138,7 +139,7 @@ public static class EndlessSeaModeRuntime
             }
 
             var manager = MapManager.Instance?.ModeMapManager as NormalMapManager;
-            EndlessSeaNetworkSync.ApplyPendingProjection(mapSelect, manager, "MapSelectUI.ShowMap");
+            EndlessSeaStateProjectionRuntime.ApplyPending(mapSelect, manager, "MapSelectUI.ShowMap");
             EndlessSeaMapViewPresenter.ApplySlots(mapSelect, manager, CurrentFloor(), applyAllSlots: false, sync: false, "MapSelectUI.ShowMap");
             EndlessSeaMapViewPresenter.SetLayerTitle(mapSelect, CurrentFloor());
         }
@@ -202,7 +203,7 @@ public static class EndlessSeaModeRuntime
             EndlessSeaMapBuilder.EnsureFloorMapState(manager, nextFloor, "NormalMapManager.ReadyToChangeMap", forceRebuild: true);
             EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "NormalMapManager.ReadyToChangeMap");
             TerriasLog.Info("[EndlessSeaMode] advanced to floor " + nextFloor + ".");
-            EndlessSeaNetworkSync.BroadcastSnapshot("NormalMapManager.ReadyToChangeMap");
+            EndlessSeaApplicationService.BroadcastSnapshot("NormalMapManager.ReadyToChangeMap");
         }
         catch (Exception ex)
         {
@@ -222,7 +223,7 @@ public static class EndlessSeaModeRuntime
 
             if (IsClientOnlyPlayer())
             {
-                EndlessSeaNetworkSync.RequestSnapshot(source + ":client-map-panels");
+                EndlessSeaApplicationService.RequestSnapshot(source + ":client-map-panels");
                 return;
             }
 
@@ -240,7 +241,7 @@ public static class EndlessSeaModeRuntime
                 EndlessAbyssShockService.TryEnqueueStealthFloorShock(floor, source);
             }
 
-            EndlessSeaNetworkSync.BroadcastSnapshot(source + ":abyss-panels");
+            EndlessSeaApplicationService.BroadcastSnapshot(source + ":abyss-panels");
 
             if (EndlessAbyssShockPanel.TryOpenPending(
                     () => EndlessAbyssMilestonePromptService.TryOpen(source + ":after-shock"),
@@ -356,7 +357,7 @@ public static class EndlessSeaModeRuntime
                 TerriasLog.Debug("[EndlessSeaMapSync] synced client save node after RpcNextMap.");
             }
 
-            EndlessSeaNetworkSync.RequestSnapshot("EndlessSea.MapManager.RpcNextMap:after");
+            EndlessSeaApplicationService.RequestSnapshot("EndlessSea.MapManager.RpcNextMap:after");
         }
         catch (Exception ex)
         {

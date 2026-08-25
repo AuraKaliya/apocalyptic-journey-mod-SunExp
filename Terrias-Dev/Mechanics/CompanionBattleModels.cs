@@ -83,9 +83,11 @@ public sealed class CompanionEntityIdentity
 {
     public string StatusId { get; set; } = "";
 
-    public string OwnerPlayerId { get; set; } = "";
+    public string SemanticOwnerPlayerId { get; set; } = "";
 
-    public string OwnerStatusId { get; set; } = "";
+    public string SemanticOwnerStatusId { get; set; } = "";
+
+    public string ExecutionRoutePlayerId { get; set; } = "";
 
     public string RoleId { get; set; } = "";
 
@@ -199,13 +201,17 @@ public sealed class CompanionBattleState
         int slotIndex,
         CompanionStats stats,
         string ownerPlayerId = "",
+        string executionRoutePlayerId = "",
         string entityKind = "ProjectionAttachment")
     {
         Identity = new CompanionEntityIdentity
         {
             StatusId = statusId ?? "",
-            OwnerPlayerId = ownerPlayerId ?? "",
-            OwnerStatusId = ownerStatusId ?? "",
+            SemanticOwnerPlayerId = ownerPlayerId ?? "",
+            SemanticOwnerStatusId = ownerStatusId ?? "",
+            ExecutionRoutePlayerId = string.IsNullOrWhiteSpace(executionRoutePlayerId)
+                ? ownerPlayerId ?? ""
+                : executionRoutePlayerId.Trim(),
             RoleId = roleId ?? "",
             SlotIndex = slotIndex,
             EntityKind = string.IsNullOrWhiteSpace(entityKind) ? "Companion" : entityKind.Trim()
@@ -219,9 +225,11 @@ public sealed class CompanionBattleState
 
     public string RoleId => Identity.RoleId;
 
-    public string OwnerStatusId => Identity.OwnerStatusId;
+    public string OwnerStatusId => Identity.SemanticOwnerStatusId;
 
-    public string OwnerPlayerId => Identity.OwnerPlayerId;
+    public string OwnerPlayerId => Identity.SemanticOwnerPlayerId;
+
+    public string ExecutionRoutePlayerId => Identity.ExecutionRoutePlayerId;
 
     public string EntityKind => Identity.EntityKind;
 

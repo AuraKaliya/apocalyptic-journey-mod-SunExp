@@ -124,6 +124,9 @@ visual resources.
   duplicate suppression.
 - Keep all packaged `Aura.Shared.dll` copies hash-identical after shared runtime
   builds.
+- Read product/test classification from `tools/shared-consumers.json`. Product
+  projects must not copy Entry or Aura.Shared from MSBuild targets; only the
+  staged `Publish-MainSharedConsumers.ps1` transaction writes product packages.
 - Keep archived prototypes under `TestMods` outside product and shared release
   validation. Run `tools/Test-TestMods.ps1` only when a task explicitly targets
   those prototypes.

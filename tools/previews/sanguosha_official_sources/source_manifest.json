@@ -13,7 +13,7 @@
       227,
       292
     ],
-    "output": "SanGuoShaExp/ModResource/Images/杀.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/杀.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -31,7 +31,7 @@
       227,
       292
     ],
-    "output": "SanGuoShaExp/ModResource/Images/闪.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/闪.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -49,7 +49,7 @@
       227,
       292
     ],
-    "output": "SanGuoShaExp/ModResource/Images/桃.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/桃.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -67,7 +67,7 @@
       227,
       292
     ],
-    "output": "SanGuoShaExp/ModResource/Images/酒.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/酒.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -85,7 +85,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/决斗.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/决斗.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -103,7 +103,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/无中生有.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/无中生有.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -121,7 +121,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/过河拆桥.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/过河拆桥.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -139,7 +139,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/顺手牵羊.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/顺手牵羊.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -157,7 +157,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/南蛮入侵.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/南蛮入侵.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -175,7 +175,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/万箭齐发.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/万箭齐发.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -193,7 +193,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/桃园结义.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/桃园结义.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -211,7 +211,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/无懈可击.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/无懈可击.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -229,7 +229,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/闪电.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/闪电.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -247,7 +247,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/五谷丰登.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/五谷丰登.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -265,7 +265,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/铁索连环.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/铁索连环.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -283,7 +283,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/火攻.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/火攻.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -301,7 +301,7 @@
       182,
       160
     ],
-    "output": "SanGuoShaExp/ModResource/Images/兵粮寸断.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/兵粮寸断.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -319,7 +319,7 @@
       200,
       218
     ],
-    "output": "SanGuoShaExp/ModResource/Images/藤甲.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/藤甲.png",
     "note": "",
     "crop_mode": "art_only_no_text"
   },
@@ -337,7 +337,7 @@
       230,
       205
     ],
-    "output": "SanGuoShaExp/ModResource/Images/古锭刀.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/古锭刀.png",
     "note": "Sanguosha guide Wiki image API",
     "crop_mode": "art_only_no_text"
   },
@@ -355,7 +355,7 @@
       151,
       155
     ],
-    "output": "SanGuoShaExp/ModResource/Images/乐不思蜀.png",
+    "output": "TestMods/SanGuoShaExp/ModResource/Images/乐不思蜀.png",
     "note": "User-provided card-face reference",
     "crop_mode": "art_only_no_text"
   }

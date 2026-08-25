@@ -5,7 +5,6 @@ using Data.Save;
 using Newtonsoft.Json;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
-using Terrias.Dll.Network;
 using Witch;
 using Witch.Core;
 
@@ -50,6 +49,14 @@ public sealed class EndlessAbyssShockResult
     public List<string> AppliedOptions { get; } = new();
 }
 
+public sealed class EndlessAbyssShockResolution
+{
+    public EndlessAbyssShockRequest Request { get; set; } = new();
+    public List<string> Options { get; set; } = new();
+    public string Source { get; set; } = "";
+    public string Token { get; set; } = "";
+}
+
 public static class EndlessAbyssShockService
 {
     private const string StealthTrigger = "stealth-floor";
@@ -58,6 +65,8 @@ public static class EndlessAbyssShockService
     private static readonly object ResolutionTokenSync = new();
     private static readonly HashSet<string> ProcessedResolutionTokens = new(StringComparer.Ordinal);
     private static readonly Queue<string> ProcessedResolutionTokenOrder = new();
+
+    public static event Action<EndlessAbyssShockResolution, string>? ResolutionCommitted;
 
     public static bool TryEnqueueStealthFloorShock(int floor, string source)
     {
@@ -240,7 +249,7 @@ public static class EndlessAbyssShockService
         }
 
         var result = new EndlessAbyssShockResult { Success = true };
-        var seedBase = request.Key + ":" + source + ":" + TerriasNetworkRuntime.LocalPlayerId();
+        var seedBase = request.Key + ":" + source + ":" + PlayerApi.LocalNetworkPlayerId();
         foreach (var option in selected)
         {
             ApplyOption(option, result, source, seedBase);
@@ -261,7 +270,7 @@ public static class EndlessAbyssShockService
         PlayerApi.ShowCaption(result.Message);
         if (broadcast)
         {
-            BroadcastResolution(request, selected, source);
+            PublishResolution(request, selected, source);
         }
 
         return result;
@@ -315,13 +324,8 @@ public static class EndlessAbyssShockService
         }
     }
 
-    private static void BroadcastResolution(EndlessAbyssShockRequest request, IReadOnlyList<string> selected, string source)
+    private static void PublishResolution(EndlessAbyssShockRequest request, IReadOnlyList<string> selected, string source)
     {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsClientOnly())
-        {
-            return;
-        }
-
         var safeSource = source ?? "";
         var resolution = new EndlessAbyssShockResolution
         {
@@ -330,10 +334,7 @@ public static class EndlessAbyssShockService
             Source = safeSource,
             Token = Guid.NewGuid().ToString("N")
         };
-        var snapshot = EndlessSeaStateSnapshot.Capture(safeSource + ":shock-resolution");
-        TerriasNetworkRuntime.Send(
-            new RpcEndlessAbyssShockResolution(resolution, snapshot, safeSource),
-            safeSource);
+        ResolutionCommitted?.Invoke(resolution, safeSource);
     }
 
     private static bool IsKnownOption(string option)

@@ -410,7 +410,7 @@ public static class ElementalCrystalChallengeService
 
         var companion = CompanionOwnershipService.Find(sourceStatusId);
         return companion != null
-            && string.Equals(companion.OwnerPlayerId, sender.PlayerId, StringComparison.Ordinal);
+            && string.Equals(companion.SemanticOwnerPlayerId, sender.PlayerId, StringComparison.Ordinal);
     }
 
     private static void ExpireOldestIfNeeded()

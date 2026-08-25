@@ -19,6 +19,7 @@ public sealed class SpiritCompanionSnapshot
     public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
     public string OwnerPlayerId { get; set; } = "";
+    public string ExecutionRoutePlayerId { get; set; } = "";
     public string StatusId { get; set; } = "";
     public bool Accepted { get; set; }
     public int MaxHp { get; set; }

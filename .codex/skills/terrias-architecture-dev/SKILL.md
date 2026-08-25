@@ -15,6 +15,7 @@ content workflow and validation.
    - CSV-callable `Scripting` entry point.
    - Game-facing wrapper or compatibility facade under `GameApi`.
    - Reusable service under `Mechanics`.
+   - Use-case transaction and adapter port under `Application`.
    - Non-CSV feature runtime under `Features`.
    - Hook/runtime lifecycle code under `Hooks`.
    - IDs, logging, field ids, or parsing under `Infrastructure`.
@@ -69,6 +70,13 @@ content workflow and validation.
   owner/status route.
 - Use `TerriasRpcAuthorityRuntime` for server-bound Terrias RPC sender binding.
   Remote commands must not authorize from payload-provided identity.
+- Keep `Application` between domain/game services and adapters. `Mechanics`
+  returns decisions or domain events; it must not reference Application ports.
+  `Network`, `Hooks`, `Features`, and `Scripting` may call Application but may
+  not depend on one another without an explicit, expiring architecture-ledger
+  entry.
+- Run the Roslyn semantic architecture gate. Regex scans are supplemental and
+  do not establish dependency direction.
 - For Network event shape, authority fields, ordering, payload limits, and
   duplicate suppression, use the shared sync scenario reference instead of
   duplicating those rules here.

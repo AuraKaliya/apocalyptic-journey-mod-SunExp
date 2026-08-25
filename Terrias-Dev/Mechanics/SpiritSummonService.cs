@@ -147,6 +147,7 @@ public static class SpiritSummonService
 
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
+            || (snapshot.Accepted && string.IsNullOrWhiteSpace(snapshot.ExecutionRoutePlayerId))
             || !string.Equals(snapshot.RegistryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal)
             || !string.Equals(snapshot.TrainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal))
         {
@@ -272,7 +273,7 @@ public static class SpiritSummonService
         SpiritCardBattleState? incomingBattleState = null,
         ScriptExecutor? preferredExecutor = null)
     {
-        var ownerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
+        var ownerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(ownerStatusId, preferredOwnerPlayerId);
         var outgoing = SpiritStateStore.FindByOwner(ownerPlayerId, ownerStatusId);
         if (outgoing != null)
         {
@@ -383,7 +384,16 @@ public static class SpiritSummonService
                 stats.SetCurrentMagic(networkState.CurrentMagic);
             }
 
-            if (!spirit.InitSpirit(snapshot, ownerStatusId, -1, stats, ownerPlayerId, statusId))
+            var executionRoutePlayerId = networkState?.ExecutionRoutePlayerId
+                                         ?? CompanionExecutionRouteApi.ResolveAuthoritativePlayerId(ownerPlayerId);
+            if (!spirit.InitSpirit(
+                    snapshot,
+                    ownerStatusId,
+                    -1,
+                    stats,
+                    ownerPlayerId,
+                    statusId,
+                    executionRoutePlayerId))
             {
                 UnityEngine.Object.Destroy(root);
                 PlayerApi.ShowCaption(TerriasTextCatalog.Get("caption.spirit.initialize_failed"));
@@ -613,6 +623,7 @@ public static class SpiritSummonService
             CapturedEnemy = spirit.Snapshot,
             OwnerStatusId = spirit.OwnerStatusId,
             OwnerPlayerId = spirit.OwnerPlayerId,
+            ExecutionRoutePlayerId = spirit.ExecutionRoutePlayerId,
             StatusId = spirit.InstanceId,
             MaxHp = status?.MaxHp ?? spirit.MaxHp,
             CurrentHp = status?.CurHp ?? spirit.CurHp,

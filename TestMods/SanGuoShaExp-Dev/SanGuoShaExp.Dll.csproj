@@ -6,7 +6,7 @@
     <AssemblyName>SanGuoShaExp.Aura</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
-    <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
+    <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\..\Managed</ManagedPath>
     <DllPath>$(ManagedPath)</DllPath>
     <ModScriptsPath>..\SanGuoShaExp\Scripts</ModScriptsPath>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
@@ -24,7 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AuraSharedRuntime-Dev\Aura.Shared.csproj" Private="true" ReferenceOutputAssembly="true" />
+    <ProjectReference Include="..\..\AuraSharedRuntime-Dev\Aura.Shared.csproj" Private="true" ReferenceOutputAssembly="true" />
   </ItemGroup>
 
   <ItemGroup>
@@ -89,7 +89,7 @@
 
   <Target Name="CopyAuraSharedDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
-    <Copy SourceFiles="..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="..\..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
   </Target>
 
 </Project>

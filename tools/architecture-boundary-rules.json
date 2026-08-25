@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "ruleSets": {
     "shared": {
       "scanRules": [
@@ -89,7 +89,6 @@
             "AuraModeShared",
             "AuraSkinShared",
             "AuraToolsExp-Dev",
-            "SanGuoShaExp-Dev",
             "Terrias-Dev"
           ],
           "filePattern": "*.cs",
@@ -186,8 +185,7 @@
           "description": "Product mods must subscribe through their routed registry or a typed shared router rather than installing native hooks directly.",
           "roots": [
             "AuraToolsExp-Dev",
-            "Terrias-Dev",
-            "SanGuoShaExp-Dev"
+            "Terrias-Dev"
           ],
           "filePattern": "*.cs",
           "deny": [
@@ -310,10 +308,72 @@
       ]
     },
     "terrias": {
+      "semanticLayers": {
+        "projectRoot": "Terrias-Dev",
+        "maxExceptions": 64,
+        "layers": [
+          {
+            "id": "Infrastructure",
+            "roots": ["Terrias-Dev/Infrastructure"],
+            "namespacePrefix": "Terrias.Dll.Infrastructure",
+            "allowedDependencies": []
+          },
+          {
+            "id": "GameApi",
+            "roots": ["Terrias-Dev/GameApi"],
+            "namespacePrefix": "Terrias.Dll.GameApi",
+            "allowedDependencies": ["Infrastructure"]
+          },
+          {
+            "id": "Mechanics",
+            "roots": ["Terrias-Dev/Mechanics"],
+            "namespacePrefix": "Terrias.Dll.Mechanics",
+            "allowedDependencies": ["GameApi", "Infrastructure"]
+          },
+          {
+            "id": "Application",
+            "roots": ["Terrias-Dev/Application"],
+            "namespacePrefix": "Terrias.Dll.Application",
+            "allowedDependencies": ["Mechanics", "GameApi", "Infrastructure"]
+          },
+          {
+            "id": "Scripting",
+            "roots": ["Terrias-Dev/Scripting"],
+            "namespacePrefix": "Terrias.Dll.Scripting",
+            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+          },
+          {
+            "id": "Network",
+            "roots": ["Terrias-Dev/Network"],
+            "namespacePrefix": "Terrias.Dll.Network",
+            "allowedDependencies": ["Application", "Infrastructure"]
+          },
+          {
+            "id": "Hooks",
+            "roots": ["Terrias-Dev/Hooks"],
+            "namespacePrefix": "Terrias.Dll.Hooks",
+            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+          },
+          {
+            "id": "Features",
+            "roots": ["Terrias-Dev/Features"],
+            "namespacePrefix": "Terrias.Dll.Features",
+            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+          },
+          {
+            "id": "Entry",
+            "files": ["Terrias-Dev/Entry.cs"],
+            "namespacePrefix": "Terrias.Dll",
+            "allowedDependencies": ["Application", "Features", "Hooks", "Network", "Scripting", "Mechanics", "GameApi", "Infrastructure"]
+          }
+        ]
+      },
       "namespaceRules": [
         { "root": "Terrias-Dev/Infrastructure", "prefix": "Terrias.Dll.Infrastructure" },
         { "root": "Terrias-Dev/GameApi", "prefix": "Terrias.Dll.GameApi" },
         { "root": "Terrias-Dev/Mechanics", "prefix": "Terrias.Dll.Mechanics" },
+        { "root": "Terrias-Dev/Application", "prefix": "Terrias.Dll.Application" },
+        { "root": "Terrias-Dev/Network", "prefix": "Terrias.Dll.Network" },
         { "root": "Terrias-Dev/Hooks", "prefix": "Terrias.Dll.Hooks" },
         { "root": "Terrias-Dev/Features", "prefix": "Terrias.Dll.Features" },
         { "root": "Terrias-Dev/Scripting", "prefix": "Terrias.Dll.Scripting" }

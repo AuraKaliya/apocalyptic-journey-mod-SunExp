@@ -75,7 +75,10 @@ and bulk-transfer requirements, load the shared sync scenario model through
 
 ## Build Output
 
-The project builds as internal assembly `Terrias.Aura` and copies the result to
-`Terrias/Scripts/Entry.dll`. Source edits alone do not change shipped behavior.
-Build and C# regression tests must run serially because both can write the same
-DLL output.
+The project builds as internal assembly `Terrias.Aura`. Product projects no
+longer copy package DLLs from MSBuild targets. `Build-TerriasDll.ps1` runs the
+main consumer transaction and `Publish-MainSharedConsumers.ps1` publishes the
+validated Entry/Aura.Shared pair to Terrias and AuraToolsExp. Source edits or a
+direct `.csproj` build alone do not change shipped behavior. Product builds and
+C# regression tests remain serial because the product transaction writes the
+same package outputs.

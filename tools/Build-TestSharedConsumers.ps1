@@ -10,21 +10,23 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
 }
 
-$projects = @(
-    "TestMods\SkinExp-Dev\SkinExp.Dll.csproj",
-    "TestMods\BackgroundAudioReplaceExp-Dev\BackgroundAudioReplaceExp.Dll.csproj",
-    "TestMods\CardUseCialloExp-Dev\CardUseCialloExp.Dll.csproj",
-    "TestMods\ChatExp-Dev\ChatExp.Dll.csproj",
-    "TestMods\SkillCGExp-Dev\SkillCGExp.Dll.csproj"
-)
+Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
+& (Join-Path $repoRoot "tools\Build-AuraSharedRuntime.ps1") `
+    -Configuration $Configuration `
+    -ManagedPath $ManagedPath
+$consumers = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification test -DefaultOnly)
 
-foreach ($project in $projects) {
-    $projectPath = Join-Path $repoRoot $project
-    Write-Host "Building test shared runtime consumer: $project"
-    dotnet build $projectPath -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
+foreach ($consumer in $consumers) {
+    $projectPath = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$consumer.projectPath)
+    Write-Host "Building test shared runtime consumer: $($consumer.id)"
+    dotnet build $projectPath `
+        -c $Configuration `
+        /p:ManagedPath="$ManagedPath" `
+        /p:BuildProjectReferences=false `
+        /v:minimal
     if ($LASTEXITCODE -ne 0) {
-        throw "Test shared runtime consumer build failed: $project"
+        throw "Test shared runtime consumer build failed: $($consumer.id)"
     }
 }
 
-Write-Host "Test shared runtime consumers built successfully: $($projects.Count) projects."
+Write-Host "Test shared runtime consumers built successfully: $($consumers.Count) projects."

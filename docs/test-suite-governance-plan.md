@@ -84,7 +84,7 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
 | `Test-MainSharedFramework.ps1` | 已删除 | 消费者构建由 `Build-MainSharedConsumers.ps1` 直接承担 |
 | `Test-NetworkRpcAuthority.ps1` | 146 行通用 RPC 安全扫描 | 检查 payload 身份授权、裸 transport，以及同一注册块内的 server-bound marker predicate/sender 绑定 |
 | `Test-SharedArchitectureGuidelines.ps1` | 9 行声明式规则包装器 | 已只保留共享产品独立性与 Core 依赖方向 |
-| `Test-SharedDllPackaging.ps1` | 55 行项目引用和 DLL 哈希验证 | 保留为唯一 DLL 分发权威门禁 |
+| `Test-SharedDllPackaging.ps1` | 清单驱动的项目引用、单写入者和 DLL 哈希验证 | 保留为唯一 DLL 分发权威门禁 |
 | `Test-SharedReleaseGate.ps1` | 矩阵编排器 | 保留；必须显式选择 profile/tag/step，完整发布能力由 `-Profile full-release` 保留 |
 | `Test-SharedRuntimeCompatibility.ps1` | 58 行公共 API compatibility 包装器 | 只保留反射公共 API baseline；源码 snippet 已删除 |
 | `Test-SharedWriteEntrypoints.ps1` | 9 行声明式规则包装器 | 与共享架构共用规则文件，独占共享写入口边界 |
@@ -223,8 +223,9 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
   CG 175、Skin 36、Audio 475、Combat AI 680、AuraToolsExp 1,340 条行为断言，
   以及知识、Foundation worker、训练工件、仿真、架构、网络、Director、
   Native Reward、consumer 和 packaging 验证。
-- 公共 API compatibility baseline 5,042 项通过；Terrias、SanGuoShaExp、
-  AuraToolsExp 三个正式消费者构建通过，分发的 `Aura.Shared.dll` 哈希一致。
+- 公共 API compatibility baseline 通过；Terrias、AuraToolsExp 两个正式消费者由
+  `tools/shared-consumers.json` 驱动构建，分发的 `Aura.Shared.dll` 哈希一致；
+  SanGuoShaExp 只保留显式 TestMods 构建。
 - Terrias `full-release` profile 14 个显式步骤全部通过：732 条主 C# 断言、
   Architecture、Content、Resources、Events、Spirit 三层、Columbina、Elemental、
   Familiar、Branding 和 shipped DLL 构建。

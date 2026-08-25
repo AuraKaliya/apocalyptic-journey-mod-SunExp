@@ -44,9 +44,7 @@ public static class ProjectionCardPresentationService
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             Generation = state?.Replication.Generation ?? "",
-            StateRevision = (state?.Replication.StateRevision ?? 0L) + 1L,
             ActionSequence = actionSequence,
-            CompletedTurnSequence = state?.Replication.CompletedTurnSequence ?? 0L,
             ProjectionStatusId = projection.InstanceId,
             CardId = DictionaryUtil.Get(card.data, "Id"),
             TargetStatusIds = (targets ?? Array.Empty<IStatusManager>())
@@ -69,28 +67,19 @@ public static class ProjectionCardPresentationService
         {
             return;
         }
-        state.Replication.CommitAction();
-        var battle = CompanionBattleStateStore.Find(projection.InstanceId);
         var snapshot = new ProjectionActionFrameSnapshot
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             Generation = state.Replication.Generation,
-            StateRevision = state.Replication.StateRevision,
             ActionSequence = state.Replication.ActionSequence,
-            CompletedTurnSequence = state.Replication.CompletedTurnSequence,
             ProjectionStatusId = projection.InstanceId,
             CardId = DictionaryUtil.Get(card.data, "Id"),
             TargetStatusIds = (targets ?? Array.Empty<IStatusManager>())
                 .Where(target => target != null)
                 .Select(target => target.InstanceId)
                 .Distinct(StringComparer.Ordinal)
-                .ToList(),
-            MaxHp = projection.MaxHp,
-            CurrentHp = projection.CurHp,
-            Attack = projection.Attack,
-            Armor = projection.Defend,
-            CurrentMagic = battle?.Stats.CurrentMagic ?? 0
+                .ToList()
         };
         if (TerriasNetworkRuntime.IsMultiplayerSession())
         {
@@ -142,27 +131,6 @@ public static class ProjectionCardPresentationService
                 || !state.Replication.MatchesActiveGeneration(snapshot.Generation))
             {
                 return;
-            }
-            var publicStateAdvanced = state.Replication.TryApplyRemote(
-                snapshot.Generation,
-                snapshot.StateRevision,
-                snapshot.ActionSequence,
-                snapshot.CompletedTurnSequence,
-                true);
-            state.RemoteTurnGate.Observe(
-                snapshot.CompletedTurnSequence,
-                snapshot.ActionSequence,
-                snapshot.StateRevision,
-                UnityEngine.Time.unscaledTimeAsDouble);
-            if (publicStateAdvanced)
-            {
-                projection.MaxHp = Math.Max(1, snapshot.MaxHp);
-                projection.CurHp = Math.Max(0, Math.Min(projection.MaxHp, snapshot.CurrentHp));
-                projection.Attack = snapshot.Attack;
-                projection.Defend = Math.Max(0, snapshot.Armor);
-                var battle = CompanionBattleStateStore.Find(snapshot.ProjectionStatusId);
-                battle?.Stats.SetCurrentMagic(snapshot.CurrentMagic);
-                projection.Status.UpdateStatus(true);
             }
         }
         var card = authoritativeCard ?? Materialize(snapshot.CardId);

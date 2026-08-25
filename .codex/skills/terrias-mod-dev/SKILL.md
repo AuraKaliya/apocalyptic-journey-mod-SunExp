@@ -87,8 +87,8 @@ Use the smallest specialist set that covers the task:
    - CSV script columns should call `CS.Terrias.Dll.Scripting.*` entry points.
    - Put card, buff, relic, role, boss, and event behavior in the matching `Terrias-Dev/Scripting/*Scripts.cs` file.
    - Put shared game-facing wrappers in `Terrias-Dev/GameApi/`, reusable
-     implementation code in `Terrias-Dev/Mechanics/`, and IDs/utilities in
-     `Terrias-Dev/Infrastructure/`.
+     implementation code in `Terrias-Dev/Mechanics/`, use-case transactions in
+     `Terrias-Dev/Application/`, and IDs/utilities in `Terrias-Dev/Infrastructure/`.
    - Treat `Terrias-Dev/Mechanics` as a mostly flat service/model directory
      unless the current repository already has a stable sub-domain grouping.
    - Put runtime hook and UI integration code in `Terrias-Dev/Hooks/`.
@@ -161,7 +161,10 @@ Elemental, Familiar, or Spirit validation.
 - Runtime visual declarations should be centralized in `Terrias/visual.registry.json`
   and the visual runtime skill, not hidden in feature-specific hard-coded paths.
 - New `MapTree.Node` instances must receive a valid deterministic `NodeDice` before entering map lists or sync arrays.
-- Rebuild `Terrias/Scripts/Entry.dll` after every C# compatibility or hook change; source edits alone do not change shipped behavior.
+- Rebuild the product consumer transaction after every C# compatibility or
+  hook change. It compiles Terrias and AuraToolsExp against one canonical
+  `Aura.Shared.dll`, then publishes both packages together; source edits or a
+  direct `.csproj` build alone do not change shipped behavior.
 - Data/Text CSV rows, icon paths, and localized descriptions should be updated in the same change.
 - Old dynamic helper calls are not allowed in CSV script columns; use C# entry points.
 

@@ -4,11 +4,30 @@ using System.Linq;
 using Data.Save;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
-using Terrias.Dll.Network;
 using Witch;
 using Witch.Core;
 
 namespace Terrias.Dll.Mechanics;
+
+public static class EndlessAbyssMilestoneRewardKind
+{
+    public const string Relic = "relic";
+    public const string OtherDimensionCard = "other-dimension-card";
+    public const string RemoveBurnout = "remove-burnout";
+    public const string AddExtinction = "add-extinction";
+}
+
+public sealed class EndlessAbyssMilestoneResolution
+{
+    public int Floor { get; set; }
+    public string Kind { get; set; } = "";
+    public string RelicId { get; set; } = "";
+    public string CardId { get; set; } = "";
+    public string CardInstanceId { get; set; } = "";
+    public string CardBaseId { get; set; } = "";
+    public string Source { get; set; } = "";
+    public string Token { get; set; } = "";
+}
 
 public sealed class EndlessAbyssRelicOption
 {
@@ -108,7 +127,7 @@ public static class EndlessAbyssMilestoneRewardService
             Source = "GrantRelic",
             Token = Guid.NewGuid().ToString("N")
         };
-        return ApplyResolution(resolution, "EndlessAbyssMilestone.GrantRelic", broadcast: false, out message);
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.GrantRelic", out message);
     }
 
     public static bool GrantRandomOtherDimensionCard(int floor, out string message)
@@ -146,7 +165,7 @@ public static class EndlessAbyssMilestoneRewardService
             Source = "GrantOtherDimensionCard",
             Token = Guid.NewGuid().ToString("N")
         };
-        return ApplyResolution(resolution, "EndlessAbyssMilestone.OtherDimensionCard", broadcast: false, out message);
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.OtherDimensionCard", out message);
     }
 
     public static bool RemoveBurnout(int floor, IDataConfig card, out string message)
@@ -157,7 +176,7 @@ public static class EndlessAbyssMilestoneRewardService
             EndlessAbyssMilestoneRewardKind.RemoveBurnout,
             card,
             "RemoveBurnout");
-        return ApplyResolution(resolution, "EndlessAbyssMilestone.RemoveBurnout", broadcast: false, out message);
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.RemoveBurnout", out message);
     }
 
     public static bool AddExtinction(int floor, IDataConfig card, out string message)
@@ -168,7 +187,7 @@ public static class EndlessAbyssMilestoneRewardService
             EndlessAbyssMilestoneRewardKind.AddExtinction,
             card,
             "AddExtinction");
-        return ApplyResolution(resolution, "EndlessAbyssMilestone.AddExtinction", broadcast: false, out message);
+        return ApplyResolution(resolution, "EndlessAbyssMilestone.AddExtinction", out message);
     }
 
     public static bool ApplyNetworkResolution(EndlessAbyssMilestoneResolution? resolution, string source)
@@ -178,13 +197,12 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        return ApplyResolution(resolution, source, broadcast: false, out _);
+        return ApplyResolution(resolution, source, out _);
     }
 
     private static bool ApplyResolution(
         EndlessAbyssMilestoneResolution resolution,
         string source,
-        bool broadcast,
         out string message)
     {
         message = "";
@@ -205,11 +223,6 @@ public static class EndlessAbyssMilestoneRewardService
                 EndlessAbyssMilestoneRewardKind.AddExtinction => ApplyAddExtinctionResolution(floor, resolution, out message),
                 _ => UnknownResolution(resolution, out message)
             };
-
-            if (success && broadcast)
-            {
-                BroadcastResolution(resolution, source);
-            }
 
             return success;
         }
@@ -367,19 +380,6 @@ public static class EndlessAbyssMilestoneRewardService
         };
     }
 
-    private static void BroadcastResolution(EndlessAbyssMilestoneResolution resolution, string source)
-    {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsClientOnly())
-        {
-            return;
-        }
-
-        var snapshot = EndlessSeaStateSnapshot.Capture(source + ":milestone-resolution");
-        TerriasNetworkRuntime.Send(
-            new RpcEndlessAbyssMilestoneResolution(resolution, snapshot, source),
-            source);
-    }
-
     private static IReadOnlyList<EndlessAbyssCardOption> CurrentDeckCards()
     {
         try
@@ -446,7 +446,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static string PlayerScopeKey()
     {
-        var playerId = TerriasNetworkRuntime.LocalPlayerId();
+        var playerId = PlayerApi.LocalNetworkPlayerId();
         if (!string.IsNullOrWhiteSpace(playerId))
         {
             return Sanitize(playerId);

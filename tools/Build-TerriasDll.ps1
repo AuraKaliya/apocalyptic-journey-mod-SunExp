@@ -7,8 +7,6 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj"
-
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     if ([string]::IsNullOrWhiteSpace($GamePath)) {
         $ManagedPath = Join-Path $repoRoot "Managed"
@@ -18,4 +16,9 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     }
 }
 
-dotnet build $project -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
+& (Join-Path $repoRoot "tools\Build-MainSharedConsumers.ps1") `
+    -Configuration $Configuration `
+    -ManagedPath $ManagedPath
+if ($LASTEXITCODE -ne 0) {
+    throw "Terrias product build transaction failed."
+}

@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.Application;
 using AuraMode.Shared;
 using Data.Save;
 using Terrias.Dll.Hooks.Ui;
@@ -365,7 +366,7 @@ public static class EndlessAbyssEvacuationRuntime
         var resolution = EndlessAbyssEvacuationService.CaptureStored();
         EndlessSeaRunStateStore.MarkEnded(source);
         EndlessAbyssEvacuationService.PersistCurrentSave(source);
-        EndlessSeaNetworkSync.BroadcastSnapshot(source);
+        EndlessSeaApplicationService.BroadcastSnapshot(source);
         AuraModeOutcomeRuntime.Clear(
             TerriasIds.ModId,
             TerriasIds.EndlessAbyssSemanticModeId,

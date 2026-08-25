@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "ruleSets": {
+    "terrias": {
+      "semanticLayers": {
+        "projectRoot": ".",
+        "maxExceptions": 0,
+        "layers": [
+          {
+            "id": "Infrastructure",
+            "roots": ["Infrastructure"],
+            "namespacePrefix": "Terrias.Dll.Infrastructure",
+            "allowedDependencies": []
+          },
+          {
+            "id": "GameApi",
+            "roots": ["GameApi"],
+            "namespacePrefix": "Terrias.Dll.GameApi",
+            "allowedDependencies": ["Infrastructure"]
+          },
+          {
+            "id": "Mechanics",
+            "roots": ["Mechanics"],
+            "namespacePrefix": "Terrias.Dll.Mechanics",
+            "allowedDependencies": ["GameApi", "Infrastructure"]
+          }
+        ]
+      }
+    }
+  }
+}

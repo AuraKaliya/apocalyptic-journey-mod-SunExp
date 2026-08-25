@@ -1,27 +1,13 @@
 using System;
-using System.Collections.Generic;
 using Network.Command;
-using Terrias.Dll.Hooks;
-using Terrias.Dll.Mechanics;
+using Terrias.Dll.Application;
 
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class EndlessAbyssShockResolution
-{
-    public EndlessAbyssShockRequest Request { get; set; } = new();
-
-    public List<string> Options { get; set; } = new();
-
-    public string Source { get; set; } = "";
-
-    public string Token { get; set; } = "";
-}
-
-[Serializable]
 public sealed class RpcEndlessAbyssShockResolution : RpcCommandBase
 {
-    public EndlessAbyssShockResolution Resolution { get; set; } = new();
+    public EndlessSeaShockMessage Resolution { get; set; } = new();
 
     public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
 
@@ -32,21 +18,20 @@ public sealed class RpcEndlessAbyssShockResolution : RpcCommandBase
     }
 
     public RpcEndlessAbyssShockResolution(
-        EndlessAbyssShockResolution resolution,
+        EndlessSeaShockMessage resolution,
         EndlessSeaStateSnapshot snapshot,
         string source)
     {
-        Resolution = resolution ?? new EndlessAbyssShockResolution();
+        Resolution = resolution ?? new EndlessSeaShockMessage();
         Snapshot = snapshot ?? new EndlessSeaStateSnapshot();
         Source = source ?? "";
     }
 
     public override void RpcExecute()
     {
-        EndlessAbyssShockService.ApplyNetworkResolution(
+        EndlessSeaApplicationService.ApplyShockResolution(
             Resolution,
+            Snapshot,
             "RpcEndlessAbyssShockResolution:" + Source);
-        Snapshot?.Apply("RpcEndlessAbyssShockResolution:" + Source);
-        EndlessAbyssMilestonePromptService.Schedule("RpcEndlessAbyssShockResolution:" + Source);
     }
 }

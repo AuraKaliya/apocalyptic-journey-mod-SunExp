@@ -497,6 +497,18 @@ public static class PlayerApi
         }
     }
 
+    public static string LocalNetworkPlayerId()
+    {
+        try
+        {
+            return (PlayerManager.Instance?.PlayerId ?? "").Trim();
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
     public static bool IsLocalPlayerOwner(IStatusManager? status)
     {
         if (status == null)

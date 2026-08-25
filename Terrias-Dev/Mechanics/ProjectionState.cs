@@ -20,6 +20,7 @@ public sealed class ProjectionState
         StatusId = statusId ?? "";
         OwnerStatusId = ownerStatusId ?? "";
         OwnerPlayerId = ownerPlayerId ?? "";
+        ExecutionRoutePlayerId = projection.ExecutionRoutePlayerId;
         RoleId = roleId ?? "";
         Projection = projection;
         SlotIndex = slotIndex;
@@ -35,6 +36,8 @@ public sealed class ProjectionState
     public string OwnerStatusId { get; }
 
     public string OwnerPlayerId { get; }
+
+    public string ExecutionRoutePlayerId { get; }
 
     public string RoleId { get; }
 

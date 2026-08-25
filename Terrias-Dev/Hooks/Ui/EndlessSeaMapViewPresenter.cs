@@ -1,4 +1,5 @@
 using System;
+using Terrias.Dll.Application;
 using System.Collections.Generic;
 using System.Linq;
 using Terrias.Dll.GameApi;
@@ -30,11 +31,11 @@ public static class EndlessSeaMapViewPresenter
         }
 
         if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan)
-            && !EndlessSeaNetworkSync.TryGetCachedPlan(floor, out plan))
+            && !EndlessSeaStateProjectionRuntime.TryGetCachedPlan(floor, out plan))
         {
             if (TerriasNetworkRuntime.IsClientOnly())
             {
-                EndlessSeaNetworkSync.RequestSnapshot(source + ":missing-plan");
+                EndlessSeaApplicationService.RequestSnapshot(source + ":missing-plan");
                 return;
             }
 

@@ -67,7 +67,8 @@
 - Projection 与 Spirit 可以同时存在。Projection 占正式友方阵位，Spirit 使用固定附着位；
   两者都是独立友方目标，且各自在原生 Partner 阶段行动。
 - 使用一张对 `Self` 添加 BUFF、同时对敌方造成伤害或添加 BUFF 的 Actor-safe 卡牌：投影
-  status 必须唯一存在于拥有者的 `RoleStatusMap`，自身 BUFF 当次立即生效，敌方效果仍走
+  status 必须唯一存在于主机 `ExecutionRoutePlayerId` 的 `RoleStatusMap`，不得登记到远程
+  semantic owner；自身 BUFF 当次由主机生效并经原生 `UpdateBuff` 镜像，敌方效果仍走
   原生网络分发；执行前后 executor 的 `Self/Target/status/Object` 必须完全恢复，且不得新增
   `Vars["Online"]`。投影死亡、撤销和战斗结束后路由中不得残留 `sp*`。
 - HeartChange 保持原生 Enemy 的对象、位置、队列身份、卡池、冷却和行动次数，不创建

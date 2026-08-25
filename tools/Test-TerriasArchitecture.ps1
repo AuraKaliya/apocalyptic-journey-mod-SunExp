@@ -6,6 +6,19 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $repoRoot "tools\modules\ArchitectureBoundaryValidation.psm1") -Force
 Invoke-ArchitectureBoundaryValidation -RepoRoot $repoRoot -RuleSet "terrias"
 
+& (Join-Path $repoRoot "tools\Test-TerriasArchitectureGate.ps1")
+if ($LASTEXITCODE -ne 0) {
+    throw "Terrias architecture semantic fixture validation failed."
+}
+$semanticProject = Join-Path $repoRoot "tools\TerriasArchitectureGate\TerriasArchitectureGate.csproj"
+dotnet run --project $semanticProject -c Release --no-build -- `
+    --repo-root $repoRoot `
+    --rules (Join-Path $repoRoot "tools\architecture-boundary-rules.json") `
+    --exceptions (Join-Path $repoRoot "tools\architecture-boundary-exceptions.json")
+if ($LASTEXITCODE -ne 0) {
+    throw "Terrias semantic architecture boundary validation failed."
+}
+
 $projectPath = Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj"
 [xml]$project = Get-Content -Raw -LiteralPath $projectPath
 $projectReferences = @($project.Project.ItemGroup.ProjectReference | ForEach-Object { [string]$_.Include })

@@ -5,6 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
 }
@@ -32,7 +33,10 @@ foreach ($binary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
     if (-not (Test-Path -LiteralPath (Join-Path $terriasScripts $binary) -PathType Leaf)) {
         throw "Terrias director runtime binary is missing: Terrias\Scripts\$binary"
     }
-    foreach ($sibling in @("SanGuoShaExp\Scripts", "AuraToolsExp\Scripts")) {
+    $siblingPackages = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly |
+        Where-Object { [string]$_.id -ne "Terrias" } |
+        ForEach-Object { ([string]$_.packagePath).Replace('/', '\') })
+    foreach ($sibling in $siblingPackages) {
         if (Test-Path -LiteralPath (Join-Path (Join-Path $repoRoot $sibling) $binary) -PathType Leaf) {
             throw "AuraDirector technical binary must remain scoped to Terrias: $sibling\$binary"
         }

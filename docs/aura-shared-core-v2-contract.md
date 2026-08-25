@@ -334,16 +334,20 @@ Resource -> Registry -> cross-process write mutex
 `Transactions/FileWrites/<Owner>`，验证成功后由协调器提交到存储根内的最终路径；未提交事务在
 释放时清理 staging。普通字节/文本写入、文件/目录移动和删除也必须走相同 owner-scoped facade。
 
+`tools/shared-consumers.json` 是唯一消费者清单。生产分类只包含 Terrias 与
+AuraToolsExp；SanGuoShaExp 已迁入 `TestMods`，仅保留显式原型构建。
+
 `tools/Test-SharedDllPackaging.ps1` 校验：
 
-- `Terrias`、`SanGuoShaExp`、`AuraToolsExp` 以及仍参与组合测试的共享运行时原型所打包的
-  `Aura.Shared.dll`，都与共享构建产物 SHA-256 一致；
-- 产品和测试消费者引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`；
+- Terrias、AuraToolsExp 打包的 `Aura.Shared.dll` 都与 canonical 共享构建产物 SHA-256 一致；
+- 产品消费者引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`；
 - 消费者项目不私自链接共享源码。
+- 产品 `.csproj` 不包含 Entry/共享 DLL 的 package Copy target。
 
-共享源码变更后的发布顺序为：构建共享运行时与受影响消费者、刷新所有打包 DLL、运行
-领域测试、运行 `Test-SharedDllPackaging.ps1`；只有正式发布候选才运行
-`Test-SharedReleaseGate.ps1 -Profile full-release`。仅编译 Terrias 不能证明共享发布完成。
+共享源码变更后的发布顺序为：构建一次 canonical 共享运行时、用该产物编译两个产品消费者、
+运行门禁，再由 `Publish-MainSharedConsumers.ps1` 暂存、校验、提交并回滚失败发布；最后运行
+`Test-SharedDllPackaging.ps1`。只有正式发布候选才运行
+`Test-SharedReleaseGate.ps1 -Profile full-release`。直接执行某个产品 `.csproj` 不会写正式包。
 
 Terrias 当前接入全景见 `docs/Terrias/04-Aura共享层与核心层接入.md`；同步、authority、
 payload 和去重的细化规则见

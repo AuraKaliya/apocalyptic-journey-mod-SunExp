@@ -68,7 +68,7 @@ function Invoke-ArchitectureBoundaryValidation {
     }
 
     $document = Get-Content -Raw -LiteralPath $RulesPath | ConvertFrom-Json
-    if ($document.schemaVersion -ne 1) {
+    if ($document.schemaVersion -notin @(1, 2)) {
         throw "Unsupported architecture boundary schemaVersion: $($document.schemaVersion)"
     }
     $ruleSetProperty = $document.ruleSets.PSObject.Properties[$RuleSet]

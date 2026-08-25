@@ -46,8 +46,9 @@ the bootstrapper does not scan or install resources on behalf of other Mods.
 
 `SharedResources/aura.discovery.json` is the opt-in discovery entry for content-carried shared resources; it references v4
 `aura.registration.json` and domain registries. AuraToolsExp scans only loaded Mods and deduplicates physical packages by root
-`.modproj` id. Main Mods include `Terrias`, `SanGuoShaExp`, and `AuraToolsExp`; prototype packages under `TestMods` may exercise the same APIs but must not
-define the production contract.
+`.modproj` id. Product consumers are `Terrias` and `AuraToolsExp`, read from
+`tools/shared-consumers.json`; SanGuoShaExp and other packages under `TestMods`
+may exercise the same APIs but must not define the production contract.
 
 The schema is stored at `AuraSharedCore/Schemas/resource-package.schema.json`. Version 1 keeps `resources` backward
 compatible and adds optional platform metadata:

@@ -44,6 +44,8 @@ public sealed class ProjectionCompanionSnapshot
 
     public string OwnerPlayerId { get; set; } = "";
 
+    public string ExecutionRoutePlayerId { get; set; } = "";
+
     public string StatusId { get; set; } = "";
 
     public int SlotIndex { get; set; } = -1;
@@ -306,17 +308,10 @@ public sealed class ProjectionActionFrameSnapshot
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
     public string Generation { get; set; } = "";
-    public long StateRevision { get; set; }
     public long ActionSequence { get; set; }
-    public long CompletedTurnSequence { get; set; }
     public string ProjectionStatusId { get; set; } = "";
     public string CardId { get; set; } = "";
     public List<string> TargetStatusIds { get; set; } = new();
-    public int MaxHp { get; set; }
-    public int CurrentHp { get; set; }
-    public int Attack { get; set; }
-    public int Armor { get; set; }
-    public int CurrentMagic { get; set; }
 }
 
 [Serializable]

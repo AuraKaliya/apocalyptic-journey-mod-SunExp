@@ -387,6 +387,7 @@ internal sealed class ProjectionCardBattleState
             "ProjectionCardBattleState.Execute");
         var cost = card.Cost(projection.Status);
         var committed = false;
+        var actionStateCommitted = false;
         var actionFramePublished = false;
         try
         {
@@ -413,6 +414,8 @@ internal sealed class ProjectionCardBattleState
             }
             ReindexZones();
             revision++;
+            ProjectionSummonService.CommitAction(projection);
+            actionStateCommitted = true;
             ProjectionCardPresentationService.BroadcastCommitted(
                 projection,
                 card.Config,
@@ -427,6 +430,10 @@ internal sealed class ProjectionCardBattleState
             if (committed && !actionFramePublished)
             {
                 revision++;
+                if (!actionStateCommitted)
+                {
+                    ProjectionSummonService.CommitAction(projection);
+                }
                 ProjectionCardPresentationService.BroadcastCommitted(
                     projection,
                     card.Config,

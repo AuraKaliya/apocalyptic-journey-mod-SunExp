@@ -11,10 +11,10 @@ public static class CompanionNativeStatusRouting
 {
     public static bool Register(
         IDictionary<string, List<string>>? roleStatusMap,
-        string? ownerPlayerId,
+        string? executionRoutePlayerId,
         string? statusId)
     {
-        var owner = (ownerPlayerId ?? "").Trim();
+        var owner = (executionRoutePlayerId ?? "").Trim();
         var status = (statusId ?? "").Trim();
         if (roleStatusMap == null || owner.Length == 0 || status.Length == 0)
         {
@@ -95,11 +95,11 @@ public static class CompanionNativeStatusRouting
 
     public static bool Contains(
         IDictionary<string, List<string>>? roleStatusMap,
-        string? ownerPlayerId,
+        string? executionRoutePlayerId,
         string? statusId)
     {
         return roleStatusMap != null
-               && roleStatusMap.TryGetValue((ownerPlayerId ?? "").Trim(), out var statuses)
+               && roleStatusMap.TryGetValue((executionRoutePlayerId ?? "").Trim(), out var statuses)
                && statuses != null
                && statuses.Contains((statusId ?? "").Trim());
     }

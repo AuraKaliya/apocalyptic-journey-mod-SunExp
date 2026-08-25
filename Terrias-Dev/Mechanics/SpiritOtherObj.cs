@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using AuraGameData.Shared.GameApi;
+using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
@@ -29,6 +30,8 @@ public sealed class SpiritOtherObj : Partner
 
     public string OwnerPlayerId { get; private set; } = "";
 
+    public string ExecutionRoutePlayerId { get; private set; } = "";
+
     public override string Type => "Spirit";
 
     public bool InitSpirit(
@@ -37,7 +40,8 @@ public sealed class SpiritOtherObj : Partner
         int slotIndex,
         CompanionStats stats,
         string ownerPlayerId = "",
-        string statusId = "")
+        string statusId = "",
+        string executionRoutePlayerId = "")
     {
         if (snapshot == null || string.IsNullOrWhiteSpace(snapshot.EnemyId))
         {
@@ -46,7 +50,10 @@ public sealed class SpiritOtherObj : Partner
 
         Snapshot = snapshot;
         OwnerStatusId = ownerStatusId ?? "";
-        OwnerPlayerId = CompanionOwnershipService.ResolveOwnerPlayerId(OwnerStatusId, ownerPlayerId);
+        OwnerPlayerId = CompanionOwnershipService.ResolveSemanticOwnerPlayerId(OwnerStatusId, ownerPlayerId);
+        ExecutionRoutePlayerId = string.IsNullOrWhiteSpace(executionRoutePlayerId)
+            ? CompanionExecutionRouteApi.ResolveAuthoritativePlayerId(OwnerPlayerId)
+            : executionRoutePlayerId.Trim();
         var finalStatusId = string.IsNullOrWhiteSpace(statusId) ? SpiritStateStore.NextStatusId() : statusId.Trim();
         var nativeIndex = NativePartnerIndexBase + Interlocked.Increment(ref nextNativePartnerIndex);
         var config = SpiritSummonService.CreateSpiritDataConfig(snapshot, stats);
@@ -75,6 +82,7 @@ public sealed class SpiritOtherObj : Partner
             slotIndex,
             stats,
             OwnerPlayerId,
+            ExecutionRoutePlayerId,
             "SpiritAttachment");
         battleState.ConfigureLoadout(
             snapshot.EquippedIntentIds,

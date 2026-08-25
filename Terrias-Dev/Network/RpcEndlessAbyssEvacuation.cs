@@ -1,6 +1,7 @@
 using System;
 using AuraShared.Core;
 using Network.Command;
+using Terrias.Dll.Application;
 using Terrias.Dll.Hooks;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
@@ -45,7 +46,7 @@ public sealed class RpcEndlessAbyssEvacuation : RpcCommandBase, ITerriasServerBo
         }
 
         Resolution = authoritative;
-        Snapshot = EndlessSeaNetworkSync.CaptureNextAuthoritative(includePlan: false);
+        Snapshot = EndlessSeaApplicationService.CaptureAuthoritative(includePlan: false, advanceGeneration: true);
         if (!AuraSharedPayloadBudget.FitsSoftLimit(
                 this,
                 AuraSharedPayloadBudget.DefaultSoftLimitBytes,
@@ -66,7 +67,7 @@ public sealed class RpcEndlessAbyssEvacuation : RpcCommandBase, ITerriasServerBo
             return;
         }
 
-        Snapshot?.Apply("RpcEndlessAbyssEvacuation");
+        EndlessSeaApplicationService.AcceptRemoteSnapshot(Snapshot, "RpcEndlessAbyssEvacuation");
         EndlessAbyssEvacuationRuntime.ReceiveAuthoritative(
             Resolution,
             "RpcEndlessAbyssEvacuation");

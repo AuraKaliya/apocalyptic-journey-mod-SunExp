@@ -7,7 +7,7 @@ namespace Terrias.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
-    public const int ProjectionProtocolVersion = 19;
+    public const int ProjectionProtocolVersion = 20;
 
     private static int battleEpoch;
 
@@ -43,7 +43,7 @@ public static class CompanionOwnershipService
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, CompanionEntityIdentity> Identities = new(StringComparer.Ordinal);
 
-    public static string ResolveOwnerPlayerId(string ownerStatusId, string preferredPlayerId = "")
+    public static string ResolveSemanticOwnerPlayerId(string ownerStatusId, string preferredPlayerId = "")
     {
         if (!string.IsNullOrWhiteSpace(preferredPlayerId))
         {
@@ -71,13 +71,17 @@ public static class CompanionOwnershipService
         string ownerPlayerId,
         string ownerStatusId,
         string roleId,
-        int slotIndex)
+        int slotIndex,
+        string executionRoutePlayerId = "")
     {
         return new CompanionEntityIdentity
         {
             StatusId = statusId ?? "",
-            OwnerPlayerId = ownerPlayerId ?? "",
-            OwnerStatusId = ownerStatusId ?? "",
+            SemanticOwnerPlayerId = ownerPlayerId ?? "",
+            SemanticOwnerStatusId = ownerStatusId ?? "",
+            ExecutionRoutePlayerId = string.IsNullOrWhiteSpace(executionRoutePlayerId)
+                ? ownerPlayerId ?? ""
+                : executionRoutePlayerId.Trim(),
             RoleId = roleId ?? "",
             Faction = "Friendly",
             EntityKind = "Companion",
@@ -115,11 +119,13 @@ public static class CompanionOwnershipService
             var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
             if (!CompanionNativeStatusRouting.Register(
                     map,
-                    identity.OwnerPlayerId,
+                    identity.ExecutionRoutePlayerId,
                     identity.StatusId))
             {
-                TerriasLog.Warn("[CompanionRouting] native status route was not registered: owner="
-                                + identity.OwnerPlayerId
+                TerriasLog.Warn("[CompanionRouting] native status route was not registered: route="
+                                + identity.ExecutionRoutePlayerId
+                                + ", semanticOwner="
+                                + identity.SemanticOwnerPlayerId
                                 + ", status="
                                 + identity.StatusId
                                 + ", source="

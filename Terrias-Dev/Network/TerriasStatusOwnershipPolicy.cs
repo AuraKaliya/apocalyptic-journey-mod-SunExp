@@ -9,6 +9,13 @@ namespace Terrias.Dll.Network;
 /// </summary>
 public static class TerriasStatusOwnershipPolicy
 {
+    private static Func<string, string?> semanticOwnerResolver = _ => null;
+
+    public static void ConfigureSemanticOwnerResolver(Func<string, string?> resolver)
+    {
+        semanticOwnerResolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
+    }
+
     public static bool SenderOwnsStatus(
         string playerId,
         string ownerStatusId,
@@ -24,6 +31,16 @@ public static class TerriasStatusOwnershipPolicy
         {
             detail = "direct player-status identity";
             return true;
+        }
+
+        var semanticOwner = ResolveSemanticOwner(ownerStatusId);
+        if (!string.IsNullOrWhiteSpace(semanticOwner))
+        {
+            var matches = string.Equals(playerId, semanticOwner, StringComparison.Ordinal);
+            detail = matches
+                ? "synthetic semantic owner"
+                : "synthetic semantic owner mismatch";
+            return matches;
         }
 
         try
@@ -65,6 +82,13 @@ public static class TerriasStatusOwnershipPolicy
             return false;
         }
 
+        var semanticOwner = ResolveSemanticOwner(ownerStatusId);
+        if (!string.IsNullOrWhiteSpace(semanticOwner))
+        {
+            playerId = semanticOwner;
+            return true;
+        }
+
         foreach (var lobbyPlayerId in TerriasNetworkRuntime.LobbyPlayerIds())
         {
             if (string.Equals(lobbyPlayerId, ownerStatusId, StringComparison.Ordinal))
@@ -97,5 +121,17 @@ public static class TerriasStatusOwnershipPolicy
         }
 
         return false;
+    }
+
+    private static string ResolveSemanticOwner(string statusId)
+    {
+        try
+        {
+            return (semanticOwnerResolver(statusId ?? "") ?? "").Trim();
+        }
+        catch
+        {
+            return "";
+        }
     }
 }

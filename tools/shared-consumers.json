@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "consumers": [
+    {
+      "id": "Terrias",
+      "classification": "product",
+      "defaultBuild": true,
+      "projectPath": "Terrias-Dev/Terrias.Dll.csproj",
+      "assemblyName": "Terrias.Aura",
+      "packagePath": "Terrias/Scripts"
+    },
+    {
+      "id": "AuraToolsExp",
+      "classification": "product",
+      "defaultBuild": true,
+      "projectPath": "AuraToolsExp-Dev/AuraToolsExp.Dll.csproj",
+      "assemblyName": "AuraToolsExp.Aura",
+      "packagePath": "AuraToolsExp/Scripts"
+    },
+    {
+      "id": "SkinExp",
+      "classification": "test",
+      "defaultBuild": true,
+      "projectPath": "TestMods/SkinExp-Dev/SkinExp.Dll.csproj",
+      "assemblyName": "SkinExp.Aura",
+      "packagePath": "TestMods/SkinExp/Scripts"
+    },
+    {
+      "id": "BackgroundAudioReplaceExp",
+      "classification": "test",
+      "defaultBuild": true,
+      "projectPath": "TestMods/BackgroundAudioReplaceExp-Dev/BackgroundAudioReplaceExp.Dll.csproj",
+      "assemblyName": "BackgroundAudioReplaceExp.Aura",
+      "packagePath": "TestMods/BackgroundAudioReplaceExp/Scripts"
+    },
+    {
+      "id": "CardUseCialloExp",
+      "classification": "test",
+      "defaultBuild": true,
+      "projectPath": "TestMods/CardUseCialloExp-Dev/CardUseCialloExp.Dll.csproj",
+      "assemblyName": "CardUseCialloExp.Aura",
+      "packagePath": "TestMods/CardUseCialloExp/Scripts"
+    },
+    {
+      "id": "ChatExp",
+      "classification": "test",
+      "defaultBuild": true,
+      "projectPath": "TestMods/ChatExp-Dev/ChatExp.Dll.csproj",
+      "assemblyName": "ChatExp.Aura",
+      "packagePath": "TestMods/ChatExp/Scripts"
+    },
+    {
+      "id": "SkillCGExp",
+      "classification": "test",
+      "defaultBuild": true,
+      "projectPath": "TestMods/SkillCGExp-Dev/SkillCGExp.Dll.csproj",
+      "assemblyName": "SkillCGExp.Aura",
+      "packagePath": "TestMods/SkillCGExp/Scripts"
+    },
+    {
+      "id": "SanGuoShaExp",
+      "classification": "test",
+      "defaultBuild": false,
+      "projectPath": "TestMods/SanGuoShaExp-Dev/SanGuoShaExp.Dll.csproj",
+      "assemblyName": "SanGuoShaExp.Aura",
+      "packagePath": "TestMods/SanGuoShaExp/Scripts"
+    }
+  ]
+}

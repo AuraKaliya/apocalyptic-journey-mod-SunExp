@@ -9,7 +9,7 @@ fixed repository-wide chain for every Terrias or shared edit.
 | --- | --- |
 | Terrias Data/Text only | `validate-terrias.ps1` plus the affected domain validator |
 | Terrias resources or registries | `tools/Test-TerriasResources.ps1` |
-| Terrias C# behavior | `tools/Build-TerriasDll.ps1` plus the focused C# or domain tests |
+| Terrias C# behavior | `tools/Build-TerriasDll.ps1` product transaction plus the focused C# or domain tests |
 | Terrias architecture, hooks, or CSV entry boundaries | add `tools/Test-TerriasArchitecture.ps1` |
 | Synthetic Partner/status object or ScriptExecutor locality | Terrias C# behavior tests plus Architecture; add the shared `network` profile only when the custom RPC/authority contract changes |
 | One Terrias feature domain | `tools/Test-TerriasGate.ps1 -Profile <domain>` |

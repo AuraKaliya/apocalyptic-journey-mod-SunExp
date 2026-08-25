@@ -109,7 +109,9 @@ Assert(ReferenceEquals(CompanionIntentEffects.Expand(legacy), legacy.Effects),
 
 var identity = CompanionOwnershipService.Create("spirit-2", "player-2", "owner-2", "role-2", 3);
 Assert(identity.StatusId == "spirit-2"
-       && identity.OwnerPlayerId == "player-2"
+       && identity.SemanticOwnerPlayerId == "player-2"
+       && identity.SemanticOwnerStatusId == "owner-2"
+       && identity.ExecutionRoutePlayerId == "player-2"
        && identity.Faction == "Friendly"
        && identity.EntityKind == "Companion"
        && identity.SlotIndex == 3,
@@ -121,7 +123,7 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 19
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 20
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
        && SpiritSystemContract.CollectionVersion == 7
@@ -228,13 +230,13 @@ Assert(generatedPlans.All(candidate => candidate.UnlockPlan
            .All(candidate => candidate.LearnedIntentIds.Any(id => SpiritIntentRegistry.Find(id)?.SpeedScale > 0f)),
     "generated growth plans enforce common-intent type diversity and passive trigger reachability");
 var externalState = new CompanionBattleState(
-    "external-status", external.ProfileId, "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", "SpiritAttachment");
+    "external-status", external.ProfileId, "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", entityKind: "SpiritAttachment");
 externalState.ConfigureLoadout(external.EquippedIntentIds, external.EquippedPassiveId, external.LoadoutRevision, external.LoadoutHash);
 Assert(CompanionIntentResolver.IntentsFor(externalState, CompanionIntentTendency.Attack).Count > 0
        && CompanionIntentResolver.IntentsFor(externalState, CompanionIntentTendency.Defense).Count > 0,
     "external compatibility loadouts close both attack and defense planning tendencies");
 var emptyFallbackState = new CompanionBattleState(
-    "empty-fallback", "external.profile", "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", "SpiritAttachment");
+    "empty-fallback", "external.profile", "owner", -1, new CompanionStats(20, 3, 4, 3, 100), "player", entityKind: "SpiritAttachment");
 Assert(CompanionIntentResolver.IntentsFor(emptyFallbackState, CompanionIntentTendency.Attack).Count > 0
        && CompanionIntentResolver.IntentsFor(emptyFallbackState, CompanionIntentTendency.Defense).Count > 0,
     "an invalid empty loadout still receives the bounded emergency fallback instead of waiting forever");
@@ -251,7 +253,7 @@ var visibleCopy = externalState.VisibleStatusSnapshot();
 Assert(visibleCopy.Count == 2 && visibleCopy[0].Stacks == 2 && visibleCopy[1].Maximum == 3,
     "Spirit visible status snapshots retain bounded Buff and mechanic presentation state");
 var equippedOnlyState = new CompanionBattleState(
-    "spirit-equipped", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
+    "spirit-equipped", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", entityKind: "SpiritAttachment");
 equippedOnlyState.ConfigureLoadout(commonIntentIds.Take(3), commonPassiveIds[0], 1, "test");
 var executableLoadout = CompanionIntentResolver.IntentsFor(equippedOnlyState, CompanionIntentTendency.Attack)
     .Concat(CompanionIntentResolver.IntentsFor(equippedOnlyState, CompanionIntentTendency.Defense))
@@ -259,7 +261,7 @@ var executableLoadout = CompanionIntentResolver.IntentsFor(equippedOnlyState, Co
     .Distinct(StringComparer.Ordinal)
     .ToArray();
 var emptyLoadoutState = new CompanionBattleState(
-    "spirit-empty", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", "SpiritAttachment");
+    "spirit-empty", "base-game.10040", "owner", 0, new CompanionStats(10, 3, 3, 2, 100), "player", entityKind: "SpiritAttachment");
 var boundedEmptyFallback = CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Attack)
     .Concat(CompanionIntentResolver.IntentsFor(emptyLoadoutState, CompanionIntentTendency.Defense))
     .Select(intent => intent.Id)
@@ -523,7 +525,7 @@ Assert(initialBattleState.CurrentMagic == initialStats.MaxMagic
 var spentDeploymentStats = new CompanionStats(initialStats.MaxHp, initialStats.MaxMagic, initialStats.Attack, initialStats.Armor);
 spentDeploymentStats.SetCurrentMagic(Math.Max(0, initialStats.MaxMagic - 1));
 var withdrawnBattleState = SpiritCardBattleState.From(new CompanionBattleState(
-    "withdrawn-spirit", deployment.ProfileId, "owner", -1, spentDeploymentStats, "player", "SpiritAttachment"));
+    "withdrawn-spirit", deployment.ProfileId, "owner", -1, spentDeploymentStats, "player", entityKind: "SpiritAttachment"));
 Assert(withdrawnBattleState.CurrentMagic == Math.Max(0, initialStats.MaxMagic - 1),
     "withdrawing and resummoning preserves remaining magic instead of refilling it per summon");
 Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),

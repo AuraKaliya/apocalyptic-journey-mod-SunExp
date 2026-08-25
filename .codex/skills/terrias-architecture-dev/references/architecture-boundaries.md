@@ -10,6 +10,8 @@ Use this reference when deciding where a C# change belongs.
   damage, vars, events, audio, flow facades, and compatibility dispatch.
 - `Terrias-Dev/Mechanics/*`: reusable Terrias behavior that does not need to be
   CSV-callable directly.
+- `Terrias-Dev/Application/*`: use-case transactions, authenticated command
+  handlers, adapter ports, committed application events, and orchestration.
 - `Terrias-Dev/Features/*`: feature runtimes that are initialized by `Entry` or
   hooks but are not CSV-callable script surfaces, such as Skill CG integration.
 - `Terrias-Dev/Hooks/*`: runtime hook registration, UI integration, map
@@ -88,12 +90,20 @@ unordered cleanup phase itself.
 
 ## Dependency Direction
 
-`Scripting` may depend on `GameApi`, `Mechanics`, and `Infrastructure`.
-`Mechanics` may depend on `GameApi` and `Infrastructure` when needed.
-`Features` may depend on shared runtime APIs, `GameApi`, `Mechanics`,
-`Infrastructure`, and hook-safe presentation helpers.
-`Hooks` may call `GameApi`, `Mechanics`, and `Infrastructure`.
-`GameApi` should not depend on concrete `Scripting` behavior.
+`Infrastructure` has no Terrias-layer dependency. `GameApi` depends only on
+`Infrastructure`. `Mechanics` may depend on `GameApi` and `Infrastructure`.
+`Application` may depend on `Mechanics`, `GameApi`, and `Infrastructure`.
+`Scripting`, `Network`, `Hooks`, and `Features` are adapters: they may call
+Application and lower layers, but must not depend on one another. `Entry` is
+the only composition root that may reference every layer.
+
+Mechanics must not reference ports or events defined by Application. It returns
+domain decisions/events; Application invokes persistence, network, and UI ports
+after commit. The Roslyn semantic gate in `tools/TerriasArchitectureGate`
+enforces symbol references, aliases, fully qualified types, signatures, and
+cycles. Bounded legacy entries live in
+`tools/architecture-boundary-exceptions.json`; stale entries fail and the
+exception budget may only shrink.
 
 Do not let `Scripting` import `Hooks`. If CSV needs hook-owned behavior, create
 a `GameApi` facade and call that facade.

@@ -252,12 +252,15 @@ server-bound RPC 必须从服务器接收上下文绑定 sender。payload budget
 
 ### 10.2 DLL 一致性
 
-所有消费者打包的 `Aura.Shared.dll` 必须 hash-identical。共享源码修改后应：
+`tools/shared-consumers.json` 是唯一消费者清单，生产消费者固定为 Terrias 与 AuraToolsExp；
+SanGuoShaExp 属于显式 TestMods。所有生产消费者打包的 `Aura.Shared.dll` 必须 hash-identical。
+共享源码修改后应：
 
-1. 构建共享运行时和受影响消费者；
-2. 刷新各 MOD 的已打包 DLL；
+1. 构建一次 canonical 共享运行时；
+2. 用该产物构建两个生产消费者；
 3. 运行共享架构、核心、RPC authority 和发布门禁；
-4. 运行 `Test-SharedDllPackaging.ps1` 检查哈希。
+4. 由 `Publish-MainSharedConsumers.ps1` 暂存并事务式发布两个产品包；
+5. 运行 `Test-SharedDllPackaging.ps1` 检查哈希与单写入者约束。
 
 顶层验证入口是 `tools/Test-SharedReleaseGate.ps1`，但必须按影响显式选择
 `-Profile`、`-Tag` 或 `-StepId`；只有正式发布候选才选择

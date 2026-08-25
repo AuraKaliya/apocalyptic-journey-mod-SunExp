@@ -80,6 +80,7 @@
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionWrappedCardPolicy.cs" Link="Source\ProjectionWrappedCardPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionProtocolState.cs" Link="Source\ProjectionProtocolState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CompanionNativeStatusRouting.cs" Link="Source\CompanionNativeStatusRouting.cs" />
+    <Compile Include="..\Terrias-Dev\Application\EndlessSeaReplicationClock.cs" Link="Source\EndlessSeaReplicationClock.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionScriptExecutionScope.cs" Link="Source\ProjectionScriptExecutionScope.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryMapPreviewPolicy.cs" Link="Source\SolarMemoryMapPreviewPolicy.cs" />
