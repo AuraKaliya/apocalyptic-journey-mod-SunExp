@@ -66,6 +66,10 @@
   自下而上填充，常驻 Buff 列表隐藏，鼠标悬停时显示游戏原生状态面板。
 - Projection 与 Spirit 可以同时存在。Projection 占正式友方阵位，Spirit 使用固定附着位；
   两者都是独立友方目标，且各自在原生 Partner 阶段行动。
+- 使用一张对 `Self` 添加 BUFF、同时对敌方造成伤害或添加 BUFF 的 Actor-safe 卡牌：投影
+  status 必须唯一存在于拥有者的 `RoleStatusMap`，自身 BUFF 当次立即生效，敌方效果仍走
+  原生网络分发；执行前后 executor 的 `Self/Target/status/Object` 必须完全恢复，且不得新增
+  `Vars["Online"]`。投影死亡、撤销和战斗结束后路由中不得残留 `sp*`。
 - HeartChange 保持原生 Enemy 的对象、位置、队列身份、卡池、冷却和行动次数，不创建
   proxy 或友方槽。原生意图生成后只改写目标：有害行动指向其他未受控敌人，有益行动
   指向玩家、Projection 或 Spirit，Self 行动保持自身；完成一次原生行动后解除控制。
@@ -92,7 +96,9 @@
   的 sprite/material 必须保持原样。卡框呈现星尘效果且不出现紫色错误材质；此效果是本地
   工具表现，不产生卡面 RPC，也不要求客机同步启用。
 - 连续执行【炽冕崩落/星辰序曲动态材质 → 卡牌退出并回池 → 晨星：星台主题框 → 再次
-  获取动态卡】；每次重绑都必须先恢复原生材质，再销毁旧动态材质。主题卡只修改原生
+  获取动态卡】；动态效果先于退出动画请求释放时必须保持 pending，退出层释放后再按
+  LIFO 恢复原生材质并销毁旧动态材质。回池时 view generation 的材质栈必须为空；脏 view
+  必须销毁而不是复用。主题卡只修改原生
   Mesh 路径，不得写入遗留 Image，也不得继承已销毁 shader；任何阶段都不能出现紫色矩形。
 - 发布前重跑 VisualBundle 构建，日志必须同时包含 UI Image 与 WorldSpace Canvas
   MeshRenderer 两条 Direct3D11 像素 smoke pass，并包含 Mesh 材质恢复/重绑 lease smoke。

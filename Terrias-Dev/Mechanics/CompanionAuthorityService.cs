@@ -97,9 +97,46 @@ public static class CompanionOwnershipService
             Identities[identity.StatusId] = identity;
         }
 
-        // Synthetic actors stay outside RoleStatusMap because it represents
-        // real network players. Formal projection seats live in
-        // FriendlyRoleSeatLedger instead.
+        EnsureNativeStatusRoute(identity, "CompanionOwnershipService.Register");
+    }
+
+    public static bool EnsureNativeStatusRoute(string statusId, string source)
+    {
+        var identity = Find(statusId);
+        return identity != null && EnsureNativeStatusRoute(identity, source);
+    }
+
+    private static bool EnsureNativeStatusRoute(
+        CompanionEntityIdentity identity,
+        string source)
+    {
+        try
+        {
+            var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
+            if (!CompanionNativeStatusRouting.Register(
+                    map,
+                    identity.OwnerPlayerId,
+                    identity.StatusId))
+            {
+                TerriasLog.Warn("[CompanionRouting] native status route was not registered: owner="
+                                + identity.OwnerPlayerId
+                                + ", status="
+                                + identity.StatusId
+                                + ", source="
+                                + source);
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[CompanionRouting] native status route registration failed: source="
+                            + source
+                            + ", error="
+                            + ex.Message);
+            return false;
+        }
     }
 
     public static CompanionEntityIdentity? Find(string statusId)
@@ -122,10 +159,8 @@ public static class CompanionOwnershipService
 
     public static void Remove(string statusId)
     {
-        CompanionEntityIdentity? identity;
         lock (SyncRoot)
         {
-            Identities.TryGetValue(statusId ?? "", out identity);
             Identities.Remove(statusId ?? "");
         }
 
@@ -135,18 +170,7 @@ public static class CompanionOwnershipService
             return;
         }
 
-        if (identity != null
-            && !string.IsNullOrWhiteSpace(identity.OwnerPlayerId)
-            && map.TryGetValue(identity.OwnerPlayerId, out var statuses))
-        {
-            statuses?.Remove(statusId);
-            return;
-        }
-
-        foreach (var entry in map.Values)
-        {
-            entry?.Remove(statusId);
-        }
+        CompanionNativeStatusRouting.Remove(map, statusId);
     }
 
     public static void Clear()
@@ -165,17 +189,9 @@ public static class CompanionOwnershipService
             return;
         }
 
-        foreach (var statuses in map.Values)
+        foreach (var statusId in statusIds)
         {
-            if (statuses == null)
-            {
-                continue;
-            }
-
-            foreach (var statusId in statusIds)
-            {
-                statuses.Remove(statusId);
-            }
+            CompanionNativeStatusRouting.Remove(map, statusId);
         }
     }
 }

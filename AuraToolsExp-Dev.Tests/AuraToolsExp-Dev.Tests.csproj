@@ -46,8 +46,8 @@
              Link="CardRefresh\CardRefreshPoolPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CardVisual\CardVisualRenderTargetPolicy.cs"
              Link="CardVisual\CardVisualRenderTargetPolicy.cs" />
-    <Compile Include="..\AuraSharedCore\AuraPresentationMaterialLeaseState.cs"
-             Link="Shared\AuraPresentationMaterialLeaseState.cs" />
+    <Compile Include="..\AuraSharedCore\AuraPresentationMaterialCoordinator.cs"
+             Link="Shared\AuraPresentationMaterialCoordinator.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\ModSync\AuraToolsModSyncRequestTracker.cs"
              Link="ModSync\AuraToolsModSyncRequestTracker.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Feast\FeastRoleResourceIdentity.cs"

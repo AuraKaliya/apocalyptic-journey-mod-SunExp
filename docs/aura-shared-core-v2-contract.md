@@ -155,7 +155,7 @@ contribution。物理来源由 MOD 根目录唯一 `.modproj` 数字 id 绑定�
 | 主线程调度 | `AuraSharedFrameScheduler`、`AuraSharedFrameStepRunner` | Unity/Witch/Mirror/UI 工作只在主线程执行；遵守 phase、预算和分片 |
 | 后台工作 | `AuraSharedBackgroundWorkScheduler` | 仅纯 CPU、文件 I/O 和不可变快照；按 owner 限流，完成回主线程 |
 | 网络基础 | RPC sender/authority、authoritative sync、payload budget、secure envelope | 不携带 Terrias 内容语义；状态变化仍由领域权威验证 |
-| 性能基础 | resource cache、object pool、combat card-zone snapshot | 容量有界；不得缓存业务所有权策略 |
+| 性能基础 | resource cache、object pool、combat card-zone snapshot、presentation material coordinator | 容量有界；临时材质按 view generation 与 Renderer 统一记账，不得由消费者各自恢复同一 Renderer |
 | 通用工具 | identity、JSON、diagnostics、log store、带有效状态变更通知的 feature switch | owner/domain identity 必须稳定且可诊断；变更回调在锁外执行 |
 
 `AuraCardPresentationRuntime` 的战斗卡发布要求单个候选同时拥有精确 visual root、
@@ -166,6 +166,14 @@ contribution。物理来源由 MOD 根目录唯一 `.modproj` 数字 id 绑定�
 bind 重试。池化卡牌的退出动画必须先离开 live hand hierarchy；Burn、弃牌和回抽都在
 删除手牌条目后修复 sibling/SortingGroup 顺序，并通过 owner-qualified key 合并一次原生
 手牌布局，不能因抑制原生 `cardcontainer` 而漏掉焚毁后的 reflow。
+
+池化卡的共享 `AuraCardPresentationViewMarker` 是表现状态权威：只有 `Bound` 接受 apply，
+`Exiting/Resetting/Idle/Destroyed` 均拒绝延迟重绘。所有临时材质必须经
+`AuraPresentationMaterialCoordinator` 形成 `native -> dynamic effect -> exit` 单栈；下层提前
+释放只标记 pending，顶层退出后再按 LIFO 一次性恢复并释放。回池前必须以 root 与 generation
+证明栈为空；外部改写或未清空的栈直接销毁该 view，不得把脏 Renderer 交给下一张卡。
+旧 `AuraPresentationMaterialLeaseState/AuraPresentationMaterialDetachPlan` 已随全部产品消费者
+一次性迁移后删除；兼容基线以协调器为唯一公开合同，不保留第二条独立恢复路径。
 
 后台调度不得修改进程级 CLR thread-pool 上限，也不得在 worker 线程访问 Unity 对象。
 模块级后台任务必须使用独立 owner id；activation lease释放时调用

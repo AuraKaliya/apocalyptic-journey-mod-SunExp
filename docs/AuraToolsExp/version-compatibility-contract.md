@@ -86,10 +86,12 @@ Pass；运行时还要求已启用 SRP。Mesh shader 使用游戏内其它稳定
 避免把构建器专用的 URP include/常量缓冲布局带入游戏卡牌 Mesh。旧 renderer/coverage、
 缺失材质、不兼容或不支持的 shader 直接拒绝应用，不使用旧 bundle fallback。发布构建
 必须在真实 Direct3D11 设备上分别通过 ScreenSpaceCamera Canvas Image 与 WorldSpace Canvas
-内 `MeshFilter + MeshRenderer` 的像素读回；Mesh 路径还必须依次通过“动态材质 → 恢复
-原生材质并销毁动态材质 → 重新绑定新动态材质”的租约 smoke。运行时租约按 Renderer 与
-Material 的 Unity InstanceID 记账，恢复完成前不得销毁动态材质；任一路径出现 `NullGfx`、
-紫色像素、空白像素或池化卡残留上一张卡的材质均不合格。
+内 `MeshFilter + MeshRenderer` 的像素读回，并通过“动态材质 → 原生材质 → 新动态材质”
+shader smoke。共享行为测试另行覆盖“退出材质覆盖 → 下层提前释放保持 pending → 顶层释放
+后按 LIFO 恢复 → 新 generation 重绑”。运行时由共享协调器按 view root、generation、
+Renderer 与 Material 的 Unity InstanceID 维护唯一材质栈，恢复完成前不得销毁动态材质；
+回池时栈非空必须销毁该卡牌 view。任一路径出现 `NullGfx`、紫色像素、空白像素或池化卡
+残留上一张卡的材质均不合格。
 
 ### 配置与模型
 

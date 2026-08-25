@@ -26,6 +26,7 @@ public static class TerriasCombatCardViewPool
     private static readonly HashSet<string> PendingIds = new(StringComparer.Ordinal);
     private const int MaxNativeQueueWaitFrames = 360;
     private static int generation;
+    private static int presentationGeneration;
     private static int nativeQueueWaitFrames;
     private static int materializedSinceLayout;
     private static Transform? poolRoot;
@@ -128,14 +129,12 @@ public static class TerriasCombatCardViewPool
                 card.StopAllCoroutines();
                 SetInteraction(card, false);
                 SetCanvasAlpha(card, 0f);
-                ResetPresentation(card, "OutcomeTeardown." + source);
             }
             catch (Exception ex)
             {
                 TerriasLog.Debug("[CombatCardViewPool] hand teardown step failed: " + ex.Message);
             }
-            ActiveViews.Remove(card);
-            UnityEngine.Object.Destroy(card.gameObject);
+            DestroyCardView(card);
         }
 
         FightUI.cardItemList?.Clear();
@@ -329,15 +328,21 @@ public static class TerriasCombatCardViewPool
                 "CreateInt" + FightPlayer.Instance.InstanceId,
                 new CreateData(config, FightPlayer.Instance.InstanceId));
 
+            var sameConfigInstance = ReferenceEquals(card.dataConfig, config);
             ActivateForUse(card, marker, bucket, config, fightUi);
             var presentationSignature = CombatCardViewPoolCatalog.PresentationSignature(config, bucket);
-            if (!TryLightweightRebind(card, marker, config, presentationSignature))
+            if (!TryLightweightRebind(
+                    card,
+                    marker,
+                    config,
+                    presentationSignature,
+                    sameConfigInstance))
             {
                 var initStart = TerriasPerformanceCounters.Timestamp();
                 card.Init(config);
                 TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.FullInit", initStart);
                 marker.HasInitializedPresentation = true;
-                marker.PresentationSignature = presentationSignature;
+                marker.PresentationSignature = CombatCardViewPoolCatalog.PresentationSignature(config, bucket);
                 AuraCardPresentationDelta.Rebind(card.transform);
             }
 
@@ -449,7 +454,9 @@ public static class TerriasCombatCardViewPool
             return;
         }
 
-        if (!marker.TryTransition(PooledCardViewState.Bound, PooledCardViewState.NativeVisualSuppressed))
+        if (!marker.TryTransition(
+                AuraCardPresentationViewState.Bound,
+                AuraCardPresentationViewState.NativeVisualSuppressed))
         {
             // Re-entrant native visual calls must never regain ownership of a pooled root.
             card.cardcontainer = null;
@@ -472,7 +479,7 @@ public static class TerriasCombatCardViewPool
         }
 
         var marker = card.GetComponent<PooledCombatCardViewMarker>();
-        if (marker == null || marker.State != PooledCardViewState.NativeVisualSuppressed)
+        if (marker == null || marker.State != AuraCardPresentationViewState.NativeVisualSuppressed)
         {
             return;
         }
@@ -480,7 +487,9 @@ public static class TerriasCombatCardViewPool
         card.cardcontainer = marker.SuppressedCardContainer;
         marker.SuppressedCardContainer = null;
         if (marker.Generation != generation
-            || !marker.TryTransition(PooledCardViewState.NativeVisualSuppressed, PooledCardViewState.Exiting))
+            || !marker.TryTransition(
+                AuraCardPresentationViewState.NativeVisualSuppressed,
+                AuraCardPresentationViewState.Exiting))
         {
             DestroyCardView(card);
             TerriasPerformanceCounters.Record("CombatCardViewPool.ExitRejectedStale");
@@ -550,14 +559,6 @@ public static class TerriasCombatCardViewPool
             estimatedCost: 2);
     }
 
-    private static void ReturnUnused(CardItem card, string bucket)
-    {
-        if (!Pool.Release(bucket, card))
-        {
-            DestroyCardView(card);
-        }
-    }
-
     private static void ReleaseNow(CardItem card, PooledCombatCardViewMarker marker, int expectedGeneration)
     {
         if (!IsAlive(card) || marker == null || expectedGeneration != generation || marker.Generation != generation)
@@ -582,7 +583,7 @@ public static class TerriasCombatCardViewPool
 
         if (cardComponents.Length != 1
             || !string.Equals(marker.ConfigInstanceId, card.dataConfig?.InstanceID ?? "", StringComparison.Ordinal)
-            || marker.State != PooledCardViewState.Exiting)
+            || marker.State != AuraCardPresentationViewState.Exiting)
         {
             DestroyCardView(card);
             TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedDirty");
@@ -608,7 +609,12 @@ public static class TerriasCombatCardViewPool
         }
 
         var start = TerriasPerformanceCounters.Timestamp();
-        PrepareIdle(card, bucket, expectedGeneration);
+        if (!PrepareIdle(card, bucket, expectedGeneration))
+        {
+            DestroyCardView(card);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedPresentationDirty");
+            return;
+        }
         if (!Pool.Release(bucket, card))
         {
             DestroyCardView(card);
@@ -740,7 +746,7 @@ public static class TerriasCombatCardViewPool
         marker.Generation = generation;
         marker.Bucket = bucket;
         marker.ConfigInstanceId = config.InstanceID ?? "";
-        marker.ForceState(PooledCardViewState.Bound);
+        marker.BeginPresentationGeneration(NextPresentationGeneration());
         marker.ReleasePending = false;
         marker.ReleaseAttempts = 0;
         StopCardAnimation(card);
@@ -765,7 +771,7 @@ public static class TerriasCombatCardViewPool
         ActiveViews.Add(card);
     }
 
-    private static void PrepareIdle(CardItem card, string bucket, int expectedGeneration)
+    private static bool PrepareIdle(CardItem card, string bucket, int expectedGeneration)
     {
         var marker = card.GetComponent<PooledCombatCardViewMarker>();
         if (marker == null)
@@ -773,8 +779,11 @@ public static class TerriasCombatCardViewPool
             marker = card.gameObject.AddComponent<PooledCombatCardViewMarker>();
         }
 
-        marker.ForceState(PooledCardViewState.Resetting);
-        ResetPresentation(card, "PrepareIdle");
+        marker.ForceState(AuraCardPresentationViewState.Resetting);
+        if (!ResetPresentation(card, "PrepareIdle"))
+        {
+            return false;
+        }
         FightUI.cardItemList.Remove(card);
         FightUI.WaitCard.Remove(card);
         FightUI.SelectedCard.Remove(card);
@@ -802,22 +811,33 @@ public static class TerriasCombatCardViewPool
         marker.SuppressedCardContainer = null;
         marker.PendingExitKind = PooledCardExitKind.Unsupported;
         marker.PendingExitTargetPath = "";
-        marker.ForceState(PooledCardViewState.Idle);
+        marker.ForceState(AuraCardPresentationViewState.Idle);
         ActiveViews.Remove(card);
         card.gameObject.SetActive(false);
+        return true;
     }
 
     private static bool TryLightweightRebind(
         CardItem card,
         PooledCombatCardViewMarker marker,
         DataConfig config,
-        string presentationSignature)
+        string presentationSignature,
+        bool sameConfigInstance)
     {
-        if (!marker.HasInitializedPresentation
+        if (!sameConfigInstance
+            || !marker.HasInitializedPresentation
             || presentationSignature.Length == 0
             || !string.Equals(marker.PresentationSignature, presentationSignature, StringComparison.Ordinal))
         {
             TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.SignatureMiss");
+            return false;
+        }
+        if (!AuraPresentationMaterialCoordinator.IsViewClean(
+                card.transform.GetInstanceID(),
+                marker.PresentationGeneration,
+                out _))
+        {
+            TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.MaterialDirty");
             return false;
         }
 
@@ -884,7 +904,7 @@ public static class TerriasCombatCardViewPool
                 continue;
             }
 
-            if (marker.Generation == generation && marker.State == PooledCardViewState.Bound)
+            if (marker.Generation == generation && marker.State == AuraCardPresentationViewState.Bound)
             {
                 continue;
             }
@@ -1055,11 +1075,10 @@ public static class TerriasCombatCardViewPool
         return card != null && card.gameObject != null;
     }
 
-    private static void ResetPresentation(CardItem card, string source)
+    private static bool ResetPresentation(CardItem card, string source)
     {
-        // Presentation materials are layered as native -> Aura effect -> exit
-        // animation. Unwind them in strict reverse order before the view can be
-        // pooled or destroyed.
+        var marker = card.GetComponent<PooledCombatCardViewMarker>();
+        var viewGeneration = marker?.PresentationGeneration ?? 0;
         card.GetComponent<PooledCardExitAnimator>()?.ResetVisual();
         AuraCardPresentationRuntime.RequestReset(new AuraCardPresentationContext
         {
@@ -1069,16 +1088,50 @@ public static class TerriasCombatCardViewPool
             Source = "CombatCardViewPool." + source,
             Surface = AuraCardPresentationSurface.CombatCard
         });
+        if (AuraPresentationMaterialCoordinator.IsViewClean(
+                card.transform.GetInstanceID(),
+                viewGeneration,
+                out var diagnostic))
+        {
+            return true;
+        }
+
+        TerriasLog.WarnOnce(
+            "combat-card-view-material-stack-dirty:"
+            + card.GetInstanceID()
+            + ":"
+            + viewGeneration,
+            "[CombatCardViewPool] view rejected because its coordinated material stack did not return to the native baseline: "
+            + diagnostic);
+        return false;
     }
 
     private static void DestroyCardView(CardItem card)
     {
         if (IsAlive(card))
         {
+            var marker = card.GetComponent<PooledCombatCardViewMarker>();
+            var viewGeneration = marker?.PresentationGeneration ?? 0;
+            marker?.ForceState(AuraCardPresentationViewState.Resetting);
             ResetPresentation(card, "Destroy");
+            AuraPresentationMaterialCoordinator.AbandonView(
+                card.transform.GetInstanceID(),
+                viewGeneration);
+            marker?.ForceState(AuraCardPresentationViewState.Destroyed);
             ActiveViews.Remove(card);
             UnityEngine.Object.Destroy(card.gameObject);
         }
+    }
+
+    private static int NextPresentationGeneration()
+    {
+        presentationGeneration++;
+        if (presentationGeneration <= 0)
+        {
+            presentationGeneration = 1;
+        }
+
+        return presentationGeneration;
     }
 
     private readonly struct PendingMaterialization

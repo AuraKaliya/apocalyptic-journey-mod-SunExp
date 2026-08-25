@@ -224,7 +224,9 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
 
             while (burnBindings.Count < BurnRendererPaths.Length)
             {
-                burnBindings.Add(new RendererBinding(new Material(template)));
+                burnBindings.Add(new RendererBinding(
+                    new Material(template),
+                    "Terrias.PooledCardExit." + burnBindings.Count));
             }
         }
 
@@ -233,7 +235,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         for (var index = 0; index < BurnRendererPaths.Length; index++)
         {
             var renderer = root.Find(BurnRendererPaths[index])?.GetComponent<MeshRenderer>();
-            if (burnBindings[index].Apply(renderer, root.position.y, canvasScale))
+            if (burnBindings[index].Apply(renderer, root, root.position.y, canvasScale))
             {
                 bound++;
             }
@@ -280,6 +282,10 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
 
     private void OnDestroy()
     {
+        var generation = GetComponent<AuraCardPresentationViewMarker>()?.Generation ?? 0;
+        AuraPresentationMaterialCoordinator.AbandonView(
+            transform.GetInstanceID(),
+            generation);
         foreach (var binding in burnBindings)
         {
             binding.Dispose();
@@ -297,16 +303,21 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
     private sealed class RendererBinding
     {
         private readonly Material burnMaterial;
-        private readonly AuraPresentationMaterialLeaseState materialLease = new();
+        private readonly string ownerId;
         private MeshRenderer? renderer;
-        private Material? originalMaterial;
+        private AuraPresentationMaterialLease? materialLease;
 
-        public RendererBinding(Material burnMaterial)
+        public RendererBinding(Material burnMaterial, string ownerId)
         {
             this.burnMaterial = burnMaterial;
+            this.ownerId = ownerId;
         }
 
-        public bool Apply(MeshRenderer? nextRenderer, float startY, float canvasScale)
+        public bool Apply(
+            MeshRenderer? nextRenderer,
+            Transform viewRoot,
+            float startY,
+            float canvasScale)
         {
             Restore();
             renderer = nextRenderer;
@@ -315,16 +326,35 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
                 return false;
             }
 
-            originalMaterial = renderer.sharedMaterial;
-            burnMaterial.mainTexture = originalMaterial?.mainTexture;
+            var target = renderer;
+            burnMaterial.mainTexture = target.sharedMaterial?.mainTexture;
             SetIfPresent("_Fade", 50f);
             SetIfPresent("_canvasScale", canvasScale);
             SetIfPresent("_startY", startY);
-            materialLease.Bind(
-                renderer.GetInstanceID(),
-                MaterialInstanceId(originalMaterial),
-                MaterialInstanceId(burnMaterial));
-            renderer.sharedMaterial = burnMaterial;
+            var generation = viewRoot.GetComponent<AuraCardPresentationViewMarker>()?.Generation ?? 0;
+            if (!AuraPresentationMaterialCoordinator.TryAcquire(
+                    new AuraPresentationMaterialAcquireRequest
+                    {
+                        ViewRootInstanceId = viewRoot.GetInstanceID(),
+                        ViewGeneration = generation,
+                        TargetInstanceId = target.GetInstanceID(),
+                        OwnerId = ownerId,
+                        AppliedMaterial = burnMaterial,
+                        IsTargetAlive = () => target != null,
+                        ReadCurrentMaterial = () => target == null ? null : target.sharedMaterial,
+                        WriteCurrentMaterial = value =>
+                        {
+                            if (target != null) target.sharedMaterial = value as Material;
+                        },
+                        MaterialInstanceId = MaterialInstanceId
+                    },
+                    out materialLease,
+                    out var failure))
+            {
+                TerriasLog.Warn("[CombatCardViewPool] coordinated burn material acquisition failed: " + failure);
+                renderer = null;
+                return false;
+            }
             return true;
         }
 
@@ -335,30 +365,21 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
 
         public void Restore()
         {
-            if (renderer != null)
+            if (materialLease != null)
             {
-                var targetInstanceId = renderer.GetInstanceID();
-                var detach = materialLease.PlanDetach(
-                    targetInstanceId,
-                    MaterialInstanceId(renderer.sharedMaterial));
-                if (detach.RestoreOriginal)
-                {
-                    renderer.sharedMaterial = originalMaterial;
-                }
-                else if (detach.BlockedByForeignMaterial)
+                var release = materialLease.Release();
+                if (release.IsBlocked)
                 {
                     TerriasLog.WarnOnce(
-                        "pooled-card-exit-material-detach-blocked:"
-                        + targetInstanceId
-                        + ":"
-                        + materialLease.AppliedMaterialInstanceId,
-                        "[CombatCardViewPool] exit animation skipped stale material restoration because a newer presentation owner is active");
+                        "pooled-card-exit-material-stack-blocked:"
+                        + (renderer == null ? 0 : renderer.GetInstanceID()),
+                        "[CombatCardViewPool] coordinated exit material release was blocked: "
+                        + release.Diagnostic);
                 }
             }
 
-            materialLease.Clear();
+            materialLease = null;
             renderer = null;
-            originalMaterial = null;
         }
 
         public void Dispose()
@@ -378,9 +399,9 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             }
         }
 
-        private static int MaterialInstanceId(Material? material)
+        private static int MaterialInstanceId(object? material)
         {
-            return material == null ? 0 : material.GetInstanceID();
+            return material is Material value && value != null ? value.GetInstanceID() : 0;
         }
     }
 

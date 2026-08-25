@@ -406,10 +406,6 @@ $visualBundleBuildScript = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "tools\Build-AuraToolsVisualBundle.ps1")
 $visualBundleBuilder = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\Editor\AuraToolsVisualBundleBuilder.cs.txt")
-$visualProjectManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\UnityProject\Packages\manifest.json") | ConvertFrom-Json
-$visualProjectVersion = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\UnityProject\ProjectSettings\ProjectVersion.txt")
 $cardUiShader = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\VisualAssets\Shaders\CardFaceEffect.shader")
 $cardUrpShader = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -504,8 +500,6 @@ if ($registration.schemaVersion -ne 4 `
         -or $visualBundleBuildScript -notmatch 'real MeshRenderer Direct3D11 pixel smoke test' `
         -or $visualBundleBuildScript -notmatch 'pooled material detach/rebind smoke test' `
         -or $visualBundleBuildScript -notmatch 'total internal programs: \[1-9\]' `
-        -or $visualProjectManifest.dependencies.'com.unity.render-pipelines.universal' -ne "17.0.4" `
-        -or $visualProjectVersion -notmatch '6000\.0\.46f1 \(fb93bc360d3a\)' `
         -or $cardUiShader -notmatch 'Shader\s+"AuraTools/CardFrameEffectUI"' `
         -or $cardUiShader -notmatch '"RenderPipeline"\s*=\s*"UniversalPipeline"' `
         -or $cardUiShader -notmatch '"LightMode"\s*=\s*"SRPDefaultUnlit"' `

@@ -254,6 +254,16 @@ namespace Witch.Core
     {
         public object? Target { get; set; }
     }
+
+    public static class DataConfigPresentationExtensions
+    {
+        public static string Description(this IDataConfig config)
+        {
+            return config.data.TryGetValue("Description", out var description)
+                ? description ?? ""
+                : "";
+        }
+    }
 }
 
 namespace Witch.Mod
@@ -536,6 +546,15 @@ public sealed class DataConfig : IDataConfig
 
 public interface IScriptExecutor
 {
+    IStatusManager Self { get; set; }
+
+    IStatusManager Target { get; set; }
+
+    IStatusManager status { get; set; }
+
+    List<IStatusManager> Object { get; set; }
+
+    IDictionary<string, string> Vars { get; }
 }
 
 public interface IDataConfig

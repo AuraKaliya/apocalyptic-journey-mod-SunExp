@@ -19,33 +19,7 @@ AuraSharedPaths.RootDirectory = tempRoot;
 
 try
 {
-    var materialLease = new AuraPresentationMaterialLeaseState();
-    materialLease.Bind(
-        targetInstanceId: 10,
-        originalMaterialInstanceId: 20,
-        appliedMaterialInstanceId: 30);
-    Assert(materialLease.Owns(10, 30),
-        "presentation material lease owns only its exact renderer/material pair");
-    var foreignMaterialPlan = materialLease.PlanDetach(10, 40);
-    Assert(foreignMaterialPlan.BlockedByForeignMaterial
-           && !foreignMaterialPlan.RestoreOriginal
-           && !foreignMaterialPlan.ReleaseApplied,
-        "a stale presentation owner cannot overwrite or release a newer material layer");
-    var ownedMaterialPlan = materialLease.PlanDetach(10, 30);
-    Assert(ownedMaterialPlan.RestoreOriginal
-           && ownedMaterialPlan.ReleaseApplied
-           && !ownedMaterialPlan.BlockedByForeignMaterial,
-        "the active presentation owner may unwind and release its own material");
-    materialLease.Clear();
-    materialLease.Bind(
-        targetInstanceId: 10,
-        originalMaterialInstanceId: 0,
-        appliedMaterialInstanceId: 50);
-    var destroyedTargetPlan = materialLease.PlanDetach(0, 0);
-    Assert(!destroyedTargetPlan.RestoreOriginal
-           && destroyedTargetPlan.ReleaseApplied
-           && !destroyedTargetPlan.BlockedByForeignMaterial,
-        "destroying a presentation target releases its applied material without restoring a dead renderer");
+    TestPresentationMaterialCoordinatorContracts();
 
     Assert(AuraModeRunIdentity.IsNativeWorldSimulation(
             AuraModeRunIdentity.NativeWorldSimulationModeType,

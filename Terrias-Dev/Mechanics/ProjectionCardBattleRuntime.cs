@@ -382,6 +382,9 @@ internal sealed class ProjectionCardBattleState
         }
         var target = targets.FirstOrDefault();
 
+        CompanionOwnershipService.EnsureNativeStatusRoute(
+            projection.InstanceId,
+            "ProjectionCardBattleState.Execute");
         var cost = card.Cost(projection.Status);
         var committed = false;
         var actionFramePublished = false;
@@ -994,12 +997,22 @@ internal sealed class ProjectionCardInstance
 
         try
         {
-            PrepareExecutor(Config.scriptExecutor, actor, actor);
-            Config.scriptExecutor.RunScript("InitScript");
+            using (ProjectionScriptExecutionScope.Enter(
+                       Config.scriptExecutor,
+                       actor,
+                       new[] { actor }))
+            {
+                Config.scriptExecutor.RunScript("InitScript");
+            }
             foreach (var attachment in attachments)
             {
-                PrepareExecutor(attachment.scriptExecutor, actor, actor);
-                attachment.scriptExecutor.RunScript("InitScript");
+                using (ProjectionScriptExecutionScope.Enter(
+                           attachment.scriptExecutor,
+                           actor,
+                           new[] { actor }))
+                {
+                    attachment.scriptExecutor.RunScript("InitScript");
+                }
             }
             RefreshTags();
             initialized = true;
@@ -1022,12 +1035,22 @@ internal sealed class ProjectionCardInstance
         }
         try
         {
-            PrepareExecutor(Config.scriptExecutor, actor, actor);
-            Config.scriptExecutor.RunScript("InitScript");
+            using (ProjectionScriptExecutionScope.Enter(
+                       Config.scriptExecutor,
+                       actor,
+                       new[] { actor }))
+            {
+                Config.scriptExecutor.RunScript("InitScript");
+            }
             foreach (var attachment in attachments)
             {
-                PrepareExecutor(attachment.scriptExecutor, actor, actor);
-                attachment.scriptExecutor.RunScript("InitScript");
+                using (ProjectionScriptExecutionScope.Enter(
+                           attachment.scriptExecutor,
+                           actor,
+                           new[] { actor }))
+                {
+                    attachment.scriptExecutor.RunScript("InitScript");
+                }
             }
             RefreshTags();
             lastRefreshRevision = stateRevision;
@@ -1082,8 +1105,13 @@ internal sealed class ProjectionCardInstance
         }
         try
         {
-            PrepareExecutor(Config.scriptExecutor, actor, null);
-            Config.scriptExecutor.RunScript(scriptName);
+            using (ProjectionScriptExecutionScope.Enter(
+                       Config.scriptExecutor,
+                       actor,
+                       Array.Empty<IStatusManager>()))
+            {
+                Config.scriptExecutor.RunScript(scriptName);
+            }
             foreach (var attachment in attachments)
             {
                 var attachmentScript = DictionaryUtil.Get(attachment.data, scriptName);
@@ -1092,8 +1120,13 @@ internal sealed class ProjectionCardInstance
                 {
                     continue;
                 }
-                PrepareExecutor(attachment.scriptExecutor, actor, null);
-                attachment.scriptExecutor.RunScript(scriptName);
+                using (ProjectionScriptExecutionScope.Enter(
+                           attachment.scriptExecutor,
+                           actor,
+                           Array.Empty<IStatusManager>()))
+                {
+                    attachment.scriptExecutor.RunScript(scriptName);
+                }
             }
             RefreshTags();
         }
@@ -1252,47 +1285,61 @@ internal sealed class ProjectionCardInstance
             throw new InvalidOperationException("projection status is unavailable");
         }
 
-        PrepareExecutorTargets(Config.scriptExecutor, self, targets);
         if (Config.scriptExecutor is not ScriptExecutor executor)
         {
             throw new InvalidOperationException(
                 "projection card executor is unavailable");
         }
-        foreach (var attachment in attachments)
-        {
-            PrepareExecutorTargets(attachment.scriptExecutor, self, targets);
-        }
-        EventCenter.Instance.EventTrigger(
-            "Action" + self.InstanceId,
-            new ActionData(Config, actor.RoleId));
-        foreach (var attachment in attachments)
-        {
-            attachment.scriptExecutor.RunScript("PreUseScript");
-        }
-
-        var useCountValue = self.dynamicVariables.TryGetValue("UseCount", out var currentUseCount)
-            ? currentUseCount
-            : 1f;
-        var useCount = Math.Max(
-            1,
-            (int)useCountValue + ReadInt(Config.Vars, "ExUseCount"));
-        self.dynamicVariables["UseCount"] = 1f;
-        for (var index = 0; index < useCount; index++)
+        using var cardScope = ProjectionScriptExecutionScope.Enter(executor, self, targets);
+        var attachmentScopes = new List<ProjectionScriptExecutionScope>();
+        try
         {
             foreach (var attachment in attachments)
             {
-                attachment.scriptExecutor.RunScript("UseScript");
+                attachmentScopes.Add(ProjectionScriptExecutionScope.Enter(
+                    attachment.scriptExecutor,
+                    self,
+                    targets));
             }
-            execute(executor);
+            EventCenter.Instance.EventTrigger(
+                "Action" + self.InstanceId,
+                new ActionData(Config, actor.RoleId));
+            foreach (var attachment in attachments)
+            {
+                attachment.scriptExecutor.RunScript("PreUseScript");
+            }
+
+            var useCountValue = self.dynamicVariables.TryGetValue("UseCount", out var currentUseCount)
+                ? currentUseCount
+                : 1f;
+            var useCount = Math.Max(
+                1,
+                (int)useCountValue + ReadInt(Config.Vars, "ExUseCount"));
+            self.dynamicVariables["UseCount"] = 1f;
+            for (var index = 0; index < useCount; index++)
+            {
+                foreach (var attachment in attachments)
+                {
+                    attachment.scriptExecutor.RunScript("UseScript");
+                }
+                execute(executor);
+            }
+            EventCenter.Instance.EventTrigger(
+                "ActionAfter" + self.InstanceId,
+                new ActionData(Config, actor.RoleId));
+            self.CheckAllBuff("ReducePerUse");
+            DictionaryUtil.Set(Config.Vars, "OnceExCost", "0");
+            if (Tags.Contains("Combo"))
+            {
+                executor.ComboSc();
+            }
         }
-        EventCenter.Instance.EventTrigger(
-            "ActionAfter" + self.InstanceId,
-            new ActionData(Config, actor.RoleId));
-        self.CheckAllBuff("ReducePerUse");
-        DictionaryUtil.Set(Config.Vars, "OnceExCost", "0");
-        if (Tags.Contains("Combo"))
+        finally
         {
-            executor.ComboSc();
+            for (var index = attachmentScopes.Count - 1; index >= 0; index--)
+            {
+                attachmentScopes[index].Dispose();
+            }
         }
     }
 
@@ -1322,34 +1369,6 @@ internal sealed class ProjectionCardInstance
                    DictionaryUtil.Get(Config.Vars, "NeedRemove"),
                    "True",
                    StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static void PrepareExecutor(
-        IScriptExecutor executor,
-        IStatusManager self,
-        IStatusManager? target)
-    {
-        executor.Self = self;
-        executor.Target = target;
-        executor.Object.Clear();
-        if (target != null)
-        {
-            executor.Object.Add(target);
-        }
-    }
-
-    private static void PrepareExecutorTargets(
-        IScriptExecutor executor,
-        IStatusManager self,
-        IReadOnlyList<IStatusManager> targets)
-    {
-        executor.Self = self;
-        executor.Target = targets?.FirstOrDefault();
-        executor.Object.Clear();
-        foreach (var target in targets ?? Array.Empty<IStatusManager>())
-        {
-            if (target != null) executor.Object.Add(target);
-        }
     }
 
     private static DataConfig? Materialize(

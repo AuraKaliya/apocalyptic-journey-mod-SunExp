@@ -42,34 +42,65 @@ internal static partial class AuraToolsTestSuite
                == CardVisualRenderTargetKind.None,
             "a surface without a native frame renderer fails closed");
 
-        var lease = new AuraPresentationMaterialLeaseState();
-        lease.Bind(targetInstanceId: 10, originalMaterialInstanceId: 20, appliedMaterialInstanceId: 30);
-        Assert(lease.IsActive && lease.Owns(10, 30),
-            "a dynamic material lease owns one exact renderer and material instance");
-        Assert(!lease.Owns(10, 31) && !lease.Owns(11, 30),
-            "a material lease cannot claim a foreign material or pooled renderer");
-        var firstDetach = lease.PlanDetach(10, 30);
-        Assert(firstDetach.RestoreOriginal && firstDetach.ReleaseApplied,
-            "pool release restores the original material before destroying the dynamic material");
-        lease.Clear();
-        Assert(!lease.IsActive && !lease.PlanDetach(10, 30).ReleaseApplied,
-            "a cleared pooled view cannot destroy the previous card's material twice");
+        const int rootId = 9101;
+        const int generation = 23;
+        const int targetId = 9201;
+        var native = new FakeMaterial(20);
+        var effect = new FakeMaterial(30);
+        var burn = new FakeMaterial(40);
+        object? current = native;
+        var released = new List<int>();
 
-        lease.Bind(targetInstanceId: 10, originalMaterialInstanceId: 0, appliedMaterialInstanceId: 35);
-        Assert(lease.PlanDetach(10, 35).RestoreOriginal,
-            "an Image using Unity's implicit default material restores its intentional null material");
-        lease.Clear();
+        var effectLease = Acquire("AuraTools.CardEffect", effect);
+        var burnLease = Acquire("Terrias.ExitBurn", burn);
+        Assert(ReferenceEquals(current, burn)
+               && burnLease.OwnsCurrent
+               && !effectLease.OwnsCurrent,
+            "AuraTools and Terrias temporary materials share one authoritative renderer stack");
+        Assert(effectLease.Release().IsPending && ReferenceEquals(current, burn),
+            "clearing a lower AuraTools effect cannot overwrite a newer pooled exit layer");
+        Assert(burnLease.Release().IsClean
+               && ReferenceEquals(current, native)
+               && released.SequenceEqual(new[] { 40, 30 }),
+            "pooled exit cleanup drains the pending AuraTools effect back to the native card face");
+        Assert(AuraPresentationMaterialCoordinator.IsViewClean(rootId, generation, out _),
+            "a card view becomes reusable only after every visual owner has left the stack");
+        effectLease.Release();
+        burnLease.Release();
+        Assert(released.SequenceEqual(new[] { 40, 30 }),
+            "consumer cleanup cannot destroy coordinated dynamic materials twice");
 
-        lease.Bind(targetInstanceId: 10, originalMaterialInstanceId: 20, appliedMaterialInstanceId: 40);
-        Assert(lease.Owns(10, 40),
-            "the same pooled renderer can acquire a new dynamic material after a theme-only binding");
-        var foreignOwner = lease.PlanDetach(10, 50);
-        Assert(foreignOwner.BlockedByForeignMaterial
-               && !foreignOwner.RestoreOriginal
-               && !foreignOwner.ReleaseApplied,
-            "a dynamic visual cannot overwrite or destroy the material held by a newer exit-animation owner");
-        var destroyedTarget = lease.PlanDetach(0, 0);
-        Assert(!destroyedTarget.RestoreOriginal && destroyedTarget.ReleaseApplied,
-            "destroying a card view releases its dynamic material without touching another renderer");
+        AuraPresentationMaterialLease Acquire(string owner, FakeMaterial material)
+        {
+            var acquired = AuraPresentationMaterialCoordinator.TryAcquire(
+                new AuraPresentationMaterialAcquireRequest
+                {
+                    ViewRootInstanceId = rootId,
+                    ViewGeneration = generation,
+                    TargetInstanceId = targetId,
+                    OwnerId = owner,
+                    AppliedMaterial = material,
+                    IsTargetAlive = () => true,
+                    ReadCurrentMaterial = () => current,
+                    WriteCurrentMaterial = value => current = value,
+                    MaterialInstanceId = value => (value as FakeMaterial)?.Id ?? 0,
+                    ReleaseAppliedMaterial = value => released.Add(((FakeMaterial)value).Id)
+                },
+                out var lease,
+                out var failure);
+            Assert(acquired && lease != null,
+                "card visual material acquires through the shared coordinator: " + failure);
+            return lease!;
+        }
+    }
+
+    private sealed class FakeMaterial
+    {
+        public FakeMaterial(int id)
+        {
+            Id = id;
+        }
+
+        public int Id { get; }
     }
 }

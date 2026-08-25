@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Witch.Core;
@@ -105,16 +106,42 @@ public static class CombatCardViewPoolCatalog
             Mix(ref hash, bucket);
             Mix(ref hash, config.GetType().FullName ?? config.GetType().Name);
             Mix(ref hash, CardConfigApi.Id(config));
-            Mix(ref hash, DictionaryUtil.Get(config.Vars, "BaseScript"));
-            Mix(ref hash, DictionaryUtil.Get(config.data, "Name"));
-            Mix(ref hash, DictionaryUtil.Get(config.data, "Description"));
-            Mix(ref hash, DictionaryUtil.Get(config.data, "Icon"));
-            Mix(ref hash, DictionaryUtil.Get(config.data, "Rarity"));
-            Mix(ref hash, DictionaryUtil.Get(config.data, "Tag"));
-            Mix(ref hash, DictionaryUtil.Get(config.Vars, "Tag"));
-            Mix(ref hash, DictionaryUtil.Get(config.Vars, "SpecialTag"));
+            MixDictionary(ref hash, config.data, _ => true);
+            MixDictionary(
+                ref hash,
+                config.Vars,
+                key => !IsCostOnlyField(key));
+            try
+            {
+                Mix(ref hash, config.Description());
+            }
+            catch
+            {
+                Mix(ref hash, DictionaryUtil.Get(config.data, "Description"));
+            }
             return hash.ToString("X16");
         }
+    }
+
+    private static void MixDictionary(
+        ref ulong hash,
+        IEnumerable<KeyValuePair<string, string>>? values,
+        Func<string, bool> include)
+    {
+        foreach (var pair in (values ?? Array.Empty<KeyValuePair<string, string>>())
+                     .Where(pair => include(pair.Key ?? ""))
+                     .OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            Mix(ref hash, pair.Key);
+            Mix(ref hash, pair.Value);
+        }
+    }
+
+    private static bool IsCostOnlyField(string key)
+    {
+        return string.Equals(key, "ExCost", StringComparison.Ordinal)
+               || string.Equals(key, "OnceExCost", StringComparison.Ordinal)
+               || string.Equals(key, "TotalExCost", StringComparison.Ordinal);
     }
 
     private static void Mix(ref ulong hash, string? value)

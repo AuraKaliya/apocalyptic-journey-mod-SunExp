@@ -521,6 +521,9 @@ public static class SpiritSummonService
             manager.statusData[spirit.InstanceId] = new StatusDataTransfer(status);
         }
 
+        CompanionOwnershipService.EnsureNativeStatusRoute(
+            spirit.InstanceId,
+            "SpiritSummonService.RegisterFightState");
         ProjectionTurnCoordinator.RegisterCompanion(spirit, "SpiritSummonService.RegisterFightState");
     }
 

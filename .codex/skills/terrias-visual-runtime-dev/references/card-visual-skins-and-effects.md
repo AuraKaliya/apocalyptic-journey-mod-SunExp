@@ -78,12 +78,14 @@ frame preset to the five cards that carry effects.
   so native hand reflow cannot leave a pooled card on its base skin.
 - Lightweight Terrias card-view rebinding must call the shared presentation
   lifecycle, not the Terrias-only router. Pool prepare/destroy emits a shared
-  reset; bind emits a shared apply. Temporary materials form an ownership
-  stack: native material, Aura card effect, then card-exit animation. Pooling,
-  teardown, and destruction must unwind that stack in reverse order. A material
-  owner may restore or release only while its exact material still owns the
-  renderer; it must never reattach a stale or destroyed material over a newer
-  owner. Card-visual protocol v9 uses the `frame`
+  reset; bind emits a shared apply. `AuraPresentationMaterialCoordinator` is
+  the only temporary-material owner and keys each stack by view root,
+  generation, and Renderer: native material, Aura card effect, then card-exit
+  animation. A lower owner may request release out of order, but it remains
+  pending until the top drains the stack in LIFO order. Pooling requires an
+  empty stack for that generation; an externally changed or dirty stack
+  destroys the view instead of reattaching stale material or returning it idle.
+  Card-visual protocol v9 uses the `frame`
   target with `native-frame-v5`: select the whole native presentation mode
   exactly as `ICard.SetCardStyle` does. If `Front/background` owns a
   `MeshRenderer`, mutate only the matching `Front/FrontBack.MeshRenderer`; a

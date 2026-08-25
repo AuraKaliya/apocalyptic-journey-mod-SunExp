@@ -614,6 +614,9 @@ public static class ProjectionSummonService
             manager.statusData[projection.InstanceId] = new StatusDataTransfer(status);
         }
 
+        CompanionOwnershipService.EnsureNativeStatusRoute(
+            projection.InstanceId,
+            source + ".RegisterFightState");
         ProjectionTurnCoordinator.RegisterCompanion(projection, source);
 
         // The internal Status remains available to ScriptExecutor through

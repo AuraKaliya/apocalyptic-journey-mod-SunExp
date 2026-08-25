@@ -128,6 +128,11 @@ public static class AuraCardPresentationRuntime
                 "Rejected non-exact combat card presentation context: " + context.Source);
             return;
         }
+        if (context.Surface == AuraCardPresentationSurface.CombatCard
+            && !AcceptsCombatApply(context.Root))
+        {
+            return;
+        }
         foreach (var pair in Snapshot())
         {
             try
@@ -293,6 +298,12 @@ public static class AuraCardPresentationRuntime
         var expected = ReadInstanceId(card.dataConfig);
         var actual = ReadInstanceId(context.Config!);
         return expected.Length > 0 && string.Equals(expected, actual, StringComparison.Ordinal);
+    }
+
+    private static bool AcceptsCombatApply(Transform root)
+    {
+        var marker = root.GetComponent<AuraCardPresentationViewMarker>();
+        return marker == null || marker.AcceptsApply;
     }
 
     private static KeyValuePair<string, AuraCardPresentationSubscription>[] Snapshot()

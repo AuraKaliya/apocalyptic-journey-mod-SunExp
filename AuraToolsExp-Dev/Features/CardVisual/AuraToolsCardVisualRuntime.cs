@@ -559,7 +559,7 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
     private Material? originalEffectImageMaterial;
     private Material? originalEffectMeshMaterial;
     private Material? effectMaterial;
-    private readonly AuraPresentationMaterialLeaseState effectMaterialLease = new();
+    private AuraPresentationMaterialLease? effectMaterialLease;
     private string skinSignature = "";
     private string effectSignature = "";
     private string diagnosticCardId = "";
@@ -651,13 +651,7 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
                             ?? Enumerable.Empty<string>());
         if (signature == effectSignature && effectMaterial != null)
         {
-            var stillAttached = useMesh
-                ? mesh != null && effectMaterialLease.Owns(
-                    mesh.GetInstanceID(),
-                    MaterialInstanceId(mesh.sharedMaterial))
-                : image != null && effectMaterialLease.Owns(
-                    image.GetInstanceID(),
-                    MaterialInstanceId(image.material));
+            var stillAttached = effectMaterialLease?.OwnsCurrent == true;
             if (stillAttached)
             {
                 AuraToolsCardVisualAssets.ApplyRuntimeTexture(effectMaterial, runtimeTexture);
@@ -683,11 +677,14 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         {
             originalEffectMeshMaterial = mesh.material;
             effectMeshTarget = mesh;
-            effectMaterialLease.Bind(
-                mesh.GetInstanceID(),
-                MaterialInstanceId(originalEffectMeshMaterial),
-                MaterialInstanceId(effectMaterial));
-            mesh.sharedMaterial = effectMaterial;
+            if (!AcquireEffectMaterial(mesh, effectMaterial))
+            {
+                effectMeshTarget = null;
+                originalEffectMeshMaterial = null;
+                Object.Destroy(effectMaterial);
+                effectMaterial = null;
+                effectSignature = "";
+            }
             return;
         }
 
@@ -695,11 +692,14 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         {
             originalEffectImageMaterial = image.material;
             effectImageTarget = image;
-            effectMaterialLease.Bind(
-                image.GetInstanceID(),
-                MaterialInstanceId(originalEffectImageMaterial),
-                MaterialInstanceId(effectMaterial));
-            image.material = effectMaterial;
+            if (!AcquireEffectMaterial(image, effectMaterial))
+            {
+                effectImageTarget = null;
+                originalEffectImageMaterial = null;
+                Object.Destroy(effectMaterial);
+                effectMaterial = null;
+                effectSignature = "";
+            }
             return;
         }
 
@@ -709,11 +709,8 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
 
     public void ClearAll()
     {
-        if (!ClearEffect())
-        {
-            return;
-        }
         RestoreSkin();
+        ClearEffect();
         ResetSkinCapture();
         skinSignature = "";
         effectSignature = "";
@@ -778,53 +775,113 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
 
     private bool ClearEffect()
     {
-        var targetInstanceId = effectMeshTarget != null
-            ? effectMeshTarget.GetInstanceID()
-            : effectImageTarget != null
-                ? effectImageTarget.GetInstanceID()
-                : 0;
-        var currentMaterialInstanceId = effectMeshTarget != null
-            ? MaterialInstanceId(effectMeshTarget.sharedMaterial)
-            : effectImageTarget != null
-                ? MaterialInstanceId(effectImageTarget.material)
-                : 0;
-        var detach = effectMaterialLease.PlanDetach(
-            targetInstanceId,
-            currentMaterialInstanceId);
-        if (detach.BlockedByForeignMaterial)
+        var coordinated = effectMaterialLease != null;
+        var release = effectMaterialLease?.Release()
+                      ?? new AuraPresentationMaterialReleaseResult(
+                          AuraPresentationMaterialReleaseDisposition.Clean,
+                          "");
+        if (release.IsBlocked)
         {
             AuraToolsLog.WarnOnce(
-                "card-visual-material-detach-blocked:"
-                + targetInstanceId
-                + ":"
-                + effectMaterialLease.AppliedMaterialInstanceId,
-                "[CardVisual] dynamic material reset deferred because a newer presentation material owns the native renderer: card="
+                "card-visual-material-stack-blocked:"
+                + (effectMeshTarget != null
+                    ? effectMeshTarget.GetInstanceID()
+                    : effectImageTarget != null
+                        ? effectImageTarget.GetInstanceID()
+                        : 0),
+                "[CardVisual] coordinated dynamic material release was blocked: card="
                 + (diagnosticCardId.Length == 0 ? "<unknown>" : diagnosticCardId)
                 + ", surface="
-                + diagnosticSurface);
-            return false;
-        }
-        if (detach.RestoreOriginal)
-        {
-            if (effectMeshTarget != null)
-            {
-                effectMeshTarget.sharedMaterial = originalEffectMeshMaterial;
-            }
-            else if (effectImageTarget != null)
-            {
-                effectImageTarget.material = originalEffectImageMaterial;
-            }
+                + diagnosticSurface
+                + ", detail="
+                + release.Diagnostic);
         }
 
-        if ((detach.ReleaseApplied || !effectMaterialLease.IsActive) && effectMaterial != null)
+        if (!coordinated && effectMaterial != null)
             Object.Destroy(effectMaterial);
-        effectMaterialLease.Clear();
+        effectMaterialLease = null;
         effectImageTarget = null;
         effectMeshTarget = null;
         originalEffectImageMaterial = null;
         originalEffectMeshMaterial = null;
         effectMaterial = null;
-        return true;
+        return release.IsClean;
+    }
+
+    private bool AcquireEffectMaterial(MeshRenderer target, Material material)
+    {
+        var viewRoot = transform;
+        var generation = viewRoot.GetComponent<AuraCardPresentationViewMarker>()?.Generation ?? 0;
+        return AuraPresentationMaterialCoordinator.TryAcquire(
+            new AuraPresentationMaterialAcquireRequest
+            {
+                ViewRootInstanceId = viewRoot.GetInstanceID(),
+                ViewGeneration = generation,
+                TargetInstanceId = target.GetInstanceID(),
+                OwnerId = "AuraTools.CardVisual.DynamicEffect",
+                AppliedMaterial = material,
+                IsTargetAlive = () => target != null,
+                ReadCurrentMaterial = () => target == null ? null : target.sharedMaterial,
+                WriteCurrentMaterial = value =>
+                {
+                    if (target != null) target.sharedMaterial = value as Material;
+                },
+                MaterialInstanceId = MaterialInstanceId,
+                ReleaseAppliedMaterial = DestroyMaterial
+            },
+            out effectMaterialLease,
+            out var failure)
+            || WarnAcquireFailure(failure);
+    }
+
+    private bool AcquireEffectMaterial(Image target, Material material)
+    {
+        var viewRoot = transform;
+        var generation = viewRoot.GetComponent<AuraCardPresentationViewMarker>()?.Generation ?? 0;
+        return AuraPresentationMaterialCoordinator.TryAcquire(
+            new AuraPresentationMaterialAcquireRequest
+            {
+                ViewRootInstanceId = viewRoot.GetInstanceID(),
+                ViewGeneration = generation,
+                TargetInstanceId = target.GetInstanceID(),
+                OwnerId = "AuraTools.CardVisual.DynamicEffect",
+                AppliedMaterial = material,
+                IsTargetAlive = () => target != null,
+                ReadCurrentMaterial = () => target == null ? null : target.material,
+                WriteCurrentMaterial = value =>
+                {
+                    if (target != null) target.material = value as Material;
+                },
+                MaterialInstanceId = MaterialInstanceId,
+                ReleaseAppliedMaterial = DestroyMaterial
+            },
+            out effectMaterialLease,
+            out var failure)
+            || WarnAcquireFailure(failure);
+    }
+
+    private bool WarnAcquireFailure(string failure)
+    {
+        AuraToolsLog.WarnOnce(
+            "card-visual-material-acquire-failed:"
+            + diagnosticCardId
+            + ":"
+            + diagnosticSurface,
+            "[CardVisual] coordinated dynamic material acquisition failed: card="
+            + (diagnosticCardId.Length == 0 ? "<unknown>" : diagnosticCardId)
+            + ", surface="
+            + diagnosticSurface
+            + ", detail="
+            + failure);
+        return false;
+    }
+
+    private static void DestroyMaterial(object material)
+    {
+        if (material is Material value && value != null)
+        {
+            Object.Destroy(value);
+        }
     }
 
     private Texture? ReadMeshTexture(MeshRenderer? mesh)
@@ -865,9 +922,9 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
                && left.GetInstanceID() == right.GetInstanceID();
     }
 
-    private static int MaterialInstanceId(Material? material)
+    private static int MaterialInstanceId(object? material)
     {
-        return material == null ? 0 : material.GetInstanceID();
+        return material is Material value && value != null ? value.GetInstanceID() : 0;
     }
 
     private CardVisualRenderTargetKind ResolveNativeTargetKind(Transform? targetNode, string purpose)
@@ -927,7 +984,14 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
     }
 
     private static Sprite? LoadSprite(string path) => AuraToolsCardVisualAssets.LoadSprite(path);
-    private void OnDestroy() => ClearEffect();
+    private void OnDestroy()
+    {
+        ClearAll();
+        var generation = GetComponent<AuraCardPresentationViewMarker>()?.Generation ?? 0;
+        AuraPresentationMaterialCoordinator.AbandonView(
+            transform.GetInstanceID(),
+            generation);
+    }
 }
 
 internal static class AuraToolsCardVisualAssets

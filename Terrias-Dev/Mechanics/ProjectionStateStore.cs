@@ -280,13 +280,7 @@ public static class ProjectionStateStore
         }
 
         var map = Singleton<TempDataManager>.Instance?.RoleStatusMap;
-        if (map != null)
-        {
-            foreach (var entry in map.Values)
-            {
-                entry?.Remove(statusId);
-            }
-        }
+        CompanionNativeStatusRouting.Remove(map, statusId);
 
         try
         {

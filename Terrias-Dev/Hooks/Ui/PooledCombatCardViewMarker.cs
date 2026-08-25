@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.UI;
@@ -16,7 +17,13 @@ public sealed class PooledCombatCardViewMarker : MonoBehaviour
 
     public bool HasInitializedPresentation { get; set; }
 
-    public PooledCardViewState State { get; private set; } = PooledCardViewState.Idle;
+    private AuraCardPresentationViewMarker SharedMarker =>
+        GetComponent<AuraCardPresentationViewMarker>()
+        ?? gameObject.AddComponent<AuraCardPresentationViewMarker>();
+
+    public int PresentationGeneration => SharedMarker.Generation;
+
+    public AuraCardPresentationViewState State => SharedMarker.State;
 
     public bool ReleasePending { get; set; }
 
@@ -28,19 +35,20 @@ public sealed class PooledCombatCardViewMarker : MonoBehaviour
 
     public string PendingExitTargetPath { get; set; } = "";
 
-    public bool TryTransition(PooledCardViewState expected, PooledCardViewState next)
+    public void BeginPresentationGeneration(int generation)
     {
-        if (State != expected)
-        {
-            return false;
-        }
-
-        State = next;
-        return true;
+        SharedMarker.BeginGeneration(generation);
     }
 
-    public void ForceState(PooledCardViewState state)
+    public bool TryTransition(
+        AuraCardPresentationViewState expected,
+        AuraCardPresentationViewState next)
     {
-        State = state;
+        return SharedMarker.TryTransition(expected, next);
+    }
+
+    public void ForceState(AuraCardPresentationViewState state)
+    {
+        SharedMarker.ForceState(state);
     }
 }

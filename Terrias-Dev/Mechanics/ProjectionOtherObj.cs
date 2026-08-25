@@ -69,6 +69,8 @@ public sealed class ProjectionOtherObj : Partner
                      as StatusManager;
         if (status == null)
         {
+            CompanionBattleStateStore.Remove(InstanceId);
+            battleState = null;
             return false;
         }
 

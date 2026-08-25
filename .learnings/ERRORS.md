@@ -7184,3 +7184,46 @@ instead of the Terrias inventory learning.
 
 Restored the unrelated entry and updated both intended learning statuses using
 their unique learning headers as patch context.
+
+---
+# ERR-20260825-001: AuraTools visual project metadata drifted from its build contract
+
+**Logged**: 2026-08-25
+**Severity**: medium
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`tools/Test-AuraToolsExp.ps1` passed its behavior and production builds but
+failed the shared resource and CG ownership gate. The committed Unity project
+metadata still declared Unity `2022.3.62f3c1` and omitted URP, while the
+authoritative builder and gate require Unity `6000.0.46f1` plus URP `17.0.4`.
+
+## Resolution
+
+Synchronized the local generated project once, then removed that ignored cache
+from the aggregate gate. The gate now validates the tracked generator's exact
+Unity and URP declarations; `Build-AuraToolsVisualBundle.ps1` deterministically
+writes the generated metadata before launching Unity. When this aggregate gate
+fails, print its individual predicates before changing runtime code because the
+single terminal message covers many independent visual contract checks.
+
+---
+# ERR-20260825-002: Architecture gate requires PowerShell 7
+
+**Logged**: 2026-08-25
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+Running `tools/Test-TerriasArchitecture.ps1` through Windows PowerShell failed
+because its module uses `System.IO.Path.GetRelativePath`, which is unavailable
+on the Windows PowerShell .NET Framework runtime.
+
+## Resolution
+
+Run this gate with `pwsh -NoProfile -File`; the same gate then passed all 523
+source-file boundary checks.

@@ -121,7 +121,7 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
 | `Terrias-Dev.RegistryTests` | 175 行 | 保留为 Spirit Registry 专项，由矩阵独立选择 |
 | `Terrias-Dev.SpiritTests` | 103 行，20 条断言 | 新增 Spirit 概率、冷却、计划快照、效果、身份和生命周期行为专项 |
 | `Terrias-Dev.ColumbinaTests` | 67 行，17 条断言 | 新增角色池、身份优先级、目标表现与 sender/status 所有权行为专项 |
-| `Terrias-Dev.Tests` | `Program.cs` 1,832 行 | 正式承接原 Terrias C# here-string 行为 harness，当前 637 条断言，包含致命伤害后抽牌/发牌拒绝与原生队列清理 |
+| `Terrias-Dev.Tests` | `Program.cs` 2,573 行 | 正式承接原 Terrias C# here-string 行为 harness，当前 732 条断言，包含致命伤害后抽牌/发牌拒绝、原生队列清理、投影原生状态路由和对象池材质所有权回归测试 |
 
 ## 分阶段实施计划
 
@@ -219,17 +219,16 @@ P0-P3 及补充开发现已全部完成；当前测试体系已从隐式全套�
 
 ## 本轮验证记录
 
-- 正式共享矩阵除 Foundation worker/归档维护外的 19 个步骤全部通过：Core
-  1,246、CG 171、Skin 36、Audio 475、Combat AI 537、AuraToolsExp 1,340 条
-  行为断言，以及知识、训练工件、仿真、架构、网络、Director、Native Reward、
-  consumer 和 packaging 验证。
-- 公共 API compatibility baseline 4,951 项通过；Terrias、SanGuoShaExp、
+- 正式共享 `full-release` 矩阵 23 个步骤全部通过：Core 1,270、Tooling 16、
+  CG 175、Skin 36、Audio 475、Combat AI 680、AuraToolsExp 1,340 条行为断言，
+  以及知识、Foundation worker、训练工件、仿真、架构、网络、Director、
+  Native Reward、consumer 和 packaging 验证。
+- 公共 API compatibility baseline 5,042 项通过；Terrias、SanGuoShaExp、
   AuraToolsExp 三个正式消费者构建通过，分发的 `Aura.Shared.dll` 哈希一致。
-- Terrias `full-release` profile 13 个显式步骤全部通过：637 条主 C# 断言、
+- Terrias `full-release` profile 14 个显式步骤全部通过：732 条主 C# 断言、
   Architecture、Content、Resources、Events、Spirit 三层、Columbina、Elemental、
   Familiar、Branding 和 shipped DLL 构建。
 - 当前 `Managed/Witch.dll` 仍是已静态审查但未完成游戏烟雾验证的版本；Director
   gate 验证其保持 fail-closed 且不安装 Harmony prefix，不擅自扩充生产 allowlist。
-- Foundation worker 和归档维护未运行，因为本轮没有 worker/归档改动，也不是
-  正式发布候选；TestMods 按隔离约束未运行。另已验证 shared gate 对无 selector
-  调用会直接拒绝，不再意外启动完整发布链。
+- Foundation worker 已随完整共享发布矩阵验证；归档维护和 TestMods 按隔离约束
+  未运行。另已验证 shared gate 对无 selector 调用会直接拒绝，不再意外启动完整发布链。

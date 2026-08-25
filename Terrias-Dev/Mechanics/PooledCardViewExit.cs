@@ -2,15 +2,6 @@ using System;
 
 namespace Terrias.Dll.Mechanics;
 
-public enum PooledCardViewState
-{
-    Idle,
-    Bound,
-    NativeVisualSuppressed,
-    Exiting,
-    Resetting
-}
-
 public enum PooledCardExitKind
 {
     Burn,

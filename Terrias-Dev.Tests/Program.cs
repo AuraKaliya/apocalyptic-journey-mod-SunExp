@@ -65,6 +65,8 @@ internal static class Program
         TestProjectionDeckRecipe();
         TestProjectionActorDeckProjection();
         TestProjectionCardExecutionPolicy();
+        TestProjectionNativeStatusRouting();
+        TestProjectionScriptExecutionScope();
         TestProjectionProtocolState();
         TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
@@ -80,6 +82,109 @@ internal static class Program
 
         Console.WriteLine("Terrias C# tests passed: " + assertions + " assertions.");
     }
+
+    private static void TestProjectionNativeStatusRouting()
+    {
+        var routes = new Dictionary<string, List<string>>(StringComparer.Ordinal)
+        {
+            ["owner-a"] = new List<string> { "native-a", "projection-1", "projection-1" },
+            ["owner-b"] = new List<string> { "native-b" }
+        };
+
+        True(CompanionNativeStatusRouting.Register(routes, "owner-b", "projection-1"),
+            "projection companions register into the native status-event routing table");
+        False(routes["owner-a"].Contains("projection-1"),
+            "re-registering a projection removes stale owner routes and duplicates");
+        Equal(1, routes["owner-b"].Count(value => value == "projection-1"),
+            "one projection status has exactly one authoritative native owner route");
+        var stableOwnerOrder = routes["owner-b"].ToArray();
+        True(CompanionNativeStatusRouting.Register(routes, "owner-b", "projection-1")
+             && routes["owner-b"].SequenceEqual(stableOwnerOrder),
+            "repairing an already-correct projection route is idempotent and preserves native status order");
+        True(CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1"),
+            "projection native routing can verify its owner/status invariant");
+        var executorVars = new Dictionary<string, string>(StringComparer.Ordinal);
+        var projectionWouldSendRemote =
+            !CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1")
+            && !executorVars.ContainsKey("Online");
+        var enemyWouldSendRemote =
+            !CompanionNativeStatusRouting.Contains(routes, "owner-b", "enemy-1")
+            && !executorVars.ContainsKey("Online");
+        False(projectionWouldSendRemote,
+            "the native ForEachObject gate now applies projection self BUFFs locally");
+        True(enemyWouldSendRemote,
+            "the same native gate still dispatches non-local target effects through the game's RPC");
+        Equal(1, CompanionNativeStatusRouting.Remove(routes, "projection-1"),
+            "projection cleanup removes the authoritative route exactly once");
+        False(CompanionNativeStatusRouting.Contains(routes, "owner-b", "projection-1"),
+            "a removed projection no longer participates in native status routing");
+        False(CompanionNativeStatusRouting.Register(routes, "", "projection-2"),
+            "projection routing rejects missing owner identity");
+    }
+
+    private static void TestProjectionScriptExecutionScope()
+    {
+        var originalSelf = new FakeStatus("native-self");
+        var originalTarget = new FakeStatus("native-target");
+        var originalStatus = new FakeStatus("native-status-field");
+        var originalObjects = new List<IStatusManager> { originalTarget };
+        var projection = new FakeStatus("projection-self");
+        var targetA = new FakeStatus("enemy-a");
+        var targetB = new FakeStatus("enemy-b");
+        var executor = new TestScriptExecutor
+        {
+            Self = originalSelf,
+            Target = originalTarget,
+            status = originalStatus,
+            Object = originalObjects
+        };
+
+        using (ProjectionScriptExecutionScope.Enter(
+                   executor,
+                   projection,
+                   new IStatusManager[] { targetA, targetB }))
+        {
+            True(ReferenceEquals(projection, executor.Self)
+                 && ReferenceEquals(targetA, executor.Target)
+                 && executor.status == null,
+                "projection script scope exposes the synthetic actor as native Self and clears transient status routing");
+            True(executor.Object.SequenceEqual(new IStatusManager[] { targetA, targetB }),
+                "projection script scope preserves the authoritative target order");
+            False(executor.Vars.ContainsKey("Online"),
+                "projection script scope does not counterfeit a received-online marker or suppress native target RPCs");
+        }
+
+        True(ReferenceEquals(executor.Self, originalSelf)
+             && ReferenceEquals(executor.Target, originalTarget)
+             && ReferenceEquals(executor.status, originalStatus)
+             && ReferenceEquals(executor.Object, originalObjects),
+            "projection execution restores every native executor field and the original target-list identity");
+        False(executor.Vars.ContainsKey("Online"),
+            "projection execution leaves native online-routing variables unchanged");
+
+        executor.Vars["Online"] = "preexisting-host-route";
+        try
+        {
+            using (ProjectionScriptExecutionScope.Enter(
+                       executor,
+                       projection,
+                       Array.Empty<IStatusManager>()))
+            {
+                throw new InvalidOperationException("script failure fixture");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        Equal("preexisting-host-route",
+            executor.Vars["Online"],
+            "projection execution restores a pre-existing native Online marker after script failure");
+        True(ReferenceEquals(executor.Object, originalObjects)
+             && ReferenceEquals(executor.Self, originalSelf),
+            "projection execution restores executor state through exception unwinding");
+    }
+
 
     private static void TestProjectionSummonTurnTransactionLedger()
     {
@@ -1455,38 +1560,72 @@ internal static class Program
 
     private static void TestCombatCardViewPoolCatalog()
     {
-        var cardEffectLease = new AuraPresentationMaterialLeaseState();
-        cardEffectLease.Bind(
-            targetInstanceId: 10,
-            originalMaterialInstanceId: 100,
-            appliedMaterialInstanceId: 200);
-        var exitAnimationLease = new AuraPresentationMaterialLeaseState();
-        exitAnimationLease.Bind(
-            targetInstanceId: 10,
-            originalMaterialInstanceId: 200,
-            appliedMaterialInstanceId: 300);
-        var currentMaterial = 300;
-        var exitDetach = exitAnimationLease.PlanDetach(10, currentMaterial);
-        True(exitDetach.RestoreOriginal,
-            "pooled exit reset first restores the live Aura card-effect material");
-        currentMaterial = exitAnimationLease.OriginalMaterialInstanceId;
-        exitAnimationLease.Clear();
-        var effectDetach = cardEffectLease.PlanDetach(10, currentMaterial);
-        True(effectDetach.RestoreOriginal && effectDetach.ReleaseApplied,
-            "shared card reset then restores the native material and releases the dynamic effect");
-        currentMaterial = cardEffectLease.OriginalMaterialInstanceId;
-        Equal(100, currentMaterial,
-            "dynamic effect and burn-animation leases unwind to the native pooled-card material in LIFO order");
+        const int viewRootId = 10101;
+        const int viewGeneration = 29;
+        const int rendererId = 10201;
+        var nativeMaterial = new FakePresentationMaterial(100);
+        var effectMaterial = new FakePresentationMaterial(200);
+        var burnMaterial = new FakePresentationMaterial(300);
+        object? currentMaterial = nativeMaterial;
+        var releasedMaterials = new List<int>();
 
-        var staleExitLease = new AuraPresentationMaterialLeaseState();
-        staleExitLease.Bind(
-            targetInstanceId: 10,
-            originalMaterialInstanceId: 200,
-            appliedMaterialInstanceId: 300);
-        var staleDetach = staleExitLease.PlanDetach(10, 100);
-        True(staleDetach.BlockedByForeignMaterial
-             && !staleDetach.RestoreOriginal,
-            "a stale exit animation cannot reattach a destroyed dynamic material after another owner reset the renderer");
+        var cardEffectLease = AcquireLayer("AuraTools.CardEffect", effectMaterial);
+        var exitAnimationLease = AcquireLayer("Terrias.ExitBurn", burnMaterial);
+        True(cardEffectLease.Release().IsPending
+             && ReferenceEquals(currentMaterial, burnMaterial)
+             && !AuraPresentationMaterialCoordinator.IsViewClean(
+                 viewRootId,
+                 viewGeneration,
+                 out _),
+            "a pooled card stays non-reusable when its lower visual layer is waiting for exit cleanup");
+        True(exitAnimationLease.Release().IsClean
+             && ReferenceEquals(currentMaterial, nativeMaterial)
+             && releasedMaterials.SequenceEqual(new[] { 300, 200 }),
+            "dynamic effect and burn-animation owners unwind through one stack to the native pooled-card material");
+        True(AuraPresentationMaterialCoordinator.IsViewClean(
+                viewRootId,
+                viewGeneration,
+                out _),
+            "the pooled card becomes reusable only after its authoritative material stack is empty");
+
+        var staleExitLease = AcquireLayer("Terrias.StaleExit", burnMaterial, viewGeneration + 1);
+        var foreignMaterial = new FakePresentationMaterial(999);
+        currentMaterial = foreignMaterial;
+        True(staleExitLease.Release().IsBlocked
+             && ReferenceEquals(currentMaterial, foreignMaterial)
+             && !AuraPresentationMaterialCoordinator.IsViewClean(
+                 viewRootId,
+                 viewGeneration + 1,
+                 out _),
+            "a stale exit animation marks the pooled view dirty instead of reattaching a destroyed predecessor material");
+        AuraPresentationMaterialCoordinator.AbandonView(viewRootId, viewGeneration + 1);
+
+        AuraPresentationMaterialLease AcquireLayer(
+            string owner,
+            FakePresentationMaterial material,
+            int generation = viewGeneration)
+        {
+            var acquired = AuraPresentationMaterialCoordinator.TryAcquire(
+                new AuraPresentationMaterialAcquireRequest
+                {
+                    ViewRootInstanceId = viewRootId,
+                    ViewGeneration = generation,
+                    TargetInstanceId = rendererId,
+                    OwnerId = owner,
+                    AppliedMaterial = material,
+                    IsTargetAlive = () => true,
+                    ReadCurrentMaterial = () => currentMaterial,
+                    WriteCurrentMaterial = value => currentMaterial = value,
+                    MaterialInstanceId = value => (value as FakePresentationMaterial)?.Id ?? 0,
+                    ReleaseAppliedMaterial = value => releasedMaterials.Add(
+                        ((FakePresentationMaterial)value).Id)
+                },
+                out var lease,
+                out var failure);
+            True(acquired && lease != null,
+                "pooled card visual layer acquires through the shared material coordinator: " + failure);
+            return lease!;
+        }
 
         Equal(PooledCardExitKind.MoveToDiscard,
             PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DiscardTargetPath),
@@ -1555,6 +1694,45 @@ internal static class Program
         Equal(structuralSignature, CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Dynamic cost deltas do not invalidate an otherwise reusable card presentation lease");
         guidance.Vars["SpecialTag"] = "new-structural-tag";
         False(structuralSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Structural tag changes invalidate a reusable card presentation lease");
+        var taggedSignature = CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket);
+        guidance.data = new Dictionary<string, string>(guidance.data)
+        {
+            ["FuturePresentationField"] = "future-value"
+        };
+        False(taggedSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket),
+            "previously unknown card data fields invalidate lightweight presentation reuse by default");
+
+        var orderedA = new DataConfig(
+            new Dictionary<string, string>
+            {
+                ["Id"] = "ordered-card",
+                ["Description"] = "same",
+                ["Name"] = "Ordered"
+            },
+            new Dictionary<string, string>
+            {
+                ["BaseScript"] = "CommonCardItem",
+                ["Tag"] = "Alpha"
+            });
+        var orderedB = new DataConfig(
+            new Dictionary<string, string>
+            {
+                ["Name"] = "Ordered",
+                ["Description"] = "same",
+                ["Id"] = "ordered-card"
+            },
+            new Dictionary<string, string>
+            {
+                ["Tag"] = "Alpha",
+                ["BaseScript"] = "CommonCardItem"
+            });
+        Equal(CombatCardViewPoolCatalog.PresentationSignature(
+                orderedA,
+                CombatCardViewPoolCatalog.CommonBucket),
+            CombatCardViewPoolCatalog.PresentationSignature(
+                orderedB,
+                CombatCardViewPoolCatalog.CommonBucket),
+            "presentation signatures are deterministic across dictionary insertion order");
 
         var readDefaultOnFlag = typeof(TerriasPerformanceSettings).GetMethod(
             "ReadDefaultOnFlag",
@@ -2354,6 +2532,30 @@ internal static class Program
         public IScriptExecutor scriptExecutor => throw new NotSupportedException();
 
         public bool isCompiling => false;
+    }
+
+    private sealed class TestScriptExecutor : IScriptExecutor
+    {
+        public IStatusManager Self { get; set; } = null!;
+
+        public IStatusManager Target { get; set; } = null!;
+
+        public IStatusManager status { get; set; } = null!;
+
+        public List<IStatusManager> Object { get; set; } = new();
+
+        public IDictionary<string, string> Vars { get; } =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+    }
+
+    private sealed class FakePresentationMaterial
+    {
+        public FakePresentationMaterial(int id)
+        {
+            Id = id;
+        }
+
+        public int Id { get; }
     }
 
     private sealed class TestSpiritProfile

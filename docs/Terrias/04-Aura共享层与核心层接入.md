@@ -177,6 +177,12 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 通用卡牌展示生命周期由 `AuraCardPresentationRuntime` 统一路由。AuraToolsExp 在此基础上应用逐卡白名单卡框和动态效果；Terrias 只订阅必要的内容表现。完整边界见[内容与工具资源边界](12-内容与工具资源边界.md)。
 
+池化战斗卡的共享 view marker 同时持有单调 generation 和 `Bound/Exiting/Resetting/Idle`
+状态；非 `Bound` 状态不再接受延迟 apply。AuraTools 动态卡面材质和 Terrias 退出材质必须
+共同进入 `AuraPresentationMaterialCoordinator` 的单一 Renderer 栈，允许下层先申请释放，
+但只由栈顶按 LIFO 恢复前驱。回池前栈必须为空，否则销毁 view；消费者不得再各自保存并
+回写“原材质”，也不得在恢复完成前销毁仍由栈引用的动态材质。
+
 ### 6.7 UI 安全
 
 `AuraUiShared` 提供无业务语义的 UI 构造能力；Terrias 的 `TerriasUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。关闭中的 UI 只能临时租借并恢复原有 `GraphicRaycaster` 状态，不能把原生画布永久禁用；过渡结束后由共享 guard 分帧刷新 `UpperCanvasController`、`EventSystem`、输入模块与 GraphicRegistry，并在终态日志中校验主画布射线所有权。
