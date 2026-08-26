@@ -116,7 +116,7 @@ public static class SpiritAdventureButtonRuntime
         var manager = target.GetComponent<ButtonManager>();
         if (manager != null)
         {
-            var icon = TerriasResourceCache.Load<Sprite>(TerriasIds.SpiritBallIconPath, true, "ui.spirit-adventure");
+            var icon = TerriasResourceCache.Load<Sprite>(TerriasIds.SpiritAdventureIconPath, true, "ui.spirit-adventure");
             manager.enableIcon = icon != null;
             manager.enableText = icon == null;
             manager.buttonText = label;

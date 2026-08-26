@@ -293,6 +293,7 @@ public static class TerriasIds
     public const string SpiritBattleStateKey = "TerriasSpiritBattleState";
     public const string SpiritStatusIdPrefix = "ss";
     public const string SpiritBallIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/spirit_ball";
+    public const string SpiritAdventureIconPath = "Mods/Terrias/ModResource/Images/UI/\u7cbe\u7075\u80cc\u5305.png";
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
     public const string SpiritCaptureRegistryFile = "spirit.capture.registry.json";
     public const string SpiritGrowthRegistryFile = "spirit.growth.registry.json";
