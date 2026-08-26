@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+Import-Module (Join-Path $PSScriptRoot "RepositoryPath.psm1") -Force
 
 function Get-OptionalValues {
     param(
@@ -31,7 +32,7 @@ function Get-RuleFiles {
 
     $excludePatterns = Get-OptionalValues -Object $Rule -Name "excludePathRegex"
     return @($files | Sort-Object FullName -Unique | Where-Object {
-        $relative = [System.IO.Path]::GetRelativePath($RepoRoot, $_.FullName).Replace("\", "/")
+        $relative = Get-RepositoryRelativePath -RepoRoot $RepoRoot -Path $_.FullName
         $generated = $relative -match '(^|/)(?:bin|obj)/' `
             -or $relative -match '/VisualAssets/UnityProject/'
         -not $generated `
@@ -89,7 +90,7 @@ function Invoke-ArchitectureBoundaryValidation {
             [void]$checkedFiles.Add($file.FullName)
             $text = [System.IO.File]::ReadAllText($file.FullName)
             if ($text -notmatch $namespacePattern) {
-                $relative = [System.IO.Path]::GetRelativePath($resolvedRoot, $file.FullName)
+                $relative = Get-RepositoryRelativePath -RepoRoot $resolvedRoot -Path $file.FullName
                 $violations.Add("namespace-prefix: $relative must use $($namespaceRule.prefix)")
             }
         }
@@ -104,7 +105,7 @@ function Invoke-ArchitectureBoundaryValidation {
                 if (-not $match.Success) {
                     continue
                 }
-                $relative = [System.IO.Path]::GetRelativePath($resolvedRoot, $file.FullName)
+                $relative = Get-RepositoryRelativePath -RepoRoot $resolvedRoot -Path $file.FullName
                 $line = Get-LineNumber -Text $text -Index $match.Index
                 $violations.Add("$($rule.id): $relative`:$line matches '$pattern'")
             }

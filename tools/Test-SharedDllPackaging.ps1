@@ -62,13 +62,64 @@ if (-not (Test-Path -LiteralPath $publishManifestPath -PathType Leaf)) {
     throw "Product package publish manifest is missing: $publishManifestPath"
 }
 $publishManifest = Get-Content -Raw -LiteralPath $publishManifestPath | ConvertFrom-Json
-if ($publishManifest.schemaVersion -ne 1 -or $publishManifest.sharedSha256 -ne $expectedHash) {
+if ($publishManifest.schemaVersion -ne 1 `
+    -or [string]$publishManifest.configuration -ne $Configuration `
+    -or [string]$publishManifest.transactionId -notmatch '^[0-9a-f]{32}$' `
+    -or $publishManifest.sharedSha256 -ne $expectedHash) {
     throw "Product package publish manifest does not match the canonical shared DLL."
 }
 $publishedIds = @($publishManifest.consumers | ForEach-Object { [string]$_.id } | Sort-Object)
 $expectedIds = @($consumers | ForEach-Object { [string]$_.id } | Sort-Object)
 if ([string]::Join('|', $publishedIds) -ne [string]::Join('|', $expectedIds)) {
     throw "Product package publish manifest consumer set is stale."
+}
+
+foreach ($consumer in $consumers) {
+    $manifestConsumer = @($publishManifest.consumers | Where-Object {
+        [string]$_.id -eq [string]$consumer.id
+    })
+    if ($manifestConsumer.Count -ne 1) {
+        throw "Product package publish manifest must contain one record for $($consumer.id)."
+    }
+
+    $packagePath = ([string]$consumer.packagePath).Replace('\', '/').TrimEnd('/')
+    $entrySource = Get-SharedConsumerAssemblyPath `
+        -RepoRoot $repoRoot `
+        -Consumer $consumer `
+        -Configuration $Configuration
+    $expectedFiles = @(
+        [pscustomobject]@{
+            Kind = "entry"
+            Target = "$packagePath/Entry.dll"
+            Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $entrySource).Hash
+        },
+        [pscustomobject]@{
+            Kind = "shared"
+            Target = "$packagePath/Aura.Shared.dll"
+            Sha256 = $expectedHash
+        }
+    )
+    $actualFiles = @($manifestConsumer[0].files)
+    if ($actualFiles.Count -ne $expectedFiles.Count) {
+        throw "Product package publish manifest file set is stale: $($consumer.id)"
+    }
+
+    foreach ($expectedFile in $expectedFiles) {
+        $actualFile = @($actualFiles | Where-Object { [string]$_.kind -eq $expectedFile.Kind })
+        if ($actualFile.Count -ne 1 `
+            -or [string]$actualFile[0].target -ne $expectedFile.Target `
+            -or [string]$actualFile[0].sha256 -ne $expectedFile.Sha256) {
+            throw "Product package publish manifest entry is stale: $($consumer.id)/$($expectedFile.Kind)"
+        }
+
+        $publishedPath = Resolve-ConsumerPath `
+            -RepoRoot $repoRoot `
+            -RelativePath $expectedFile.Target
+        $publishedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $publishedPath).Hash
+        if ($publishedHash -ne $expectedFile.Sha256) {
+            throw "Published package file does not match its manifest: $($expectedFile.Target)"
+        }
+    }
 }
 
 $sanGuo = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification test -Id "SanGuoShaExp")

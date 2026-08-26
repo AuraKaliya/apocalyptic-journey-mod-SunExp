@@ -2,6 +2,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $repoRoot "tools\modules\RepositoryPath.psm1") -Force
 $roots = @(
     "AuraSharedCore",
     "AuraCgShared",
@@ -22,10 +23,8 @@ $records = foreach ($root in $roots) {
             continue
         }
 
-        $relativePath = $file.FullName.Substring($repoRoot.Length)
-        $relativePath = $relativePath.TrimStart([char[]]@("\", "/"))
         [pscustomobject]@{
-            RelativePath = $relativePath.Replace("\", "/")
+            RelativePath = Get-RepositoryRelativePath -RepoRoot $repoRoot -Path $file.FullName
             Text = [IO.File]::ReadAllText($file.FullName)
         }
     }

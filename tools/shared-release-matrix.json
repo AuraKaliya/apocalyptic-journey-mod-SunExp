@@ -171,6 +171,17 @@
       "enabled": true
     },
     {
+      "id": "repository-path-compatibility",
+      "kind": "script",
+      "path": "tools/Test-RepositoryPath.ps1",
+      "owner": "ProductBuildTooling",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["tooling", "path-safety", "powershell-compatibility"],
+      "profiles": ["architecture", "network", "consumer", "packaging", "full-release"],
+      "enabled": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",
@@ -272,6 +283,18 @@
       "cost": "fast",
       "impactTags": ["packaging", "shared-dll", "consumer"],
       "profiles": ["packaging", "consumer", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "main-consumer-publish-transaction",
+      "kind": "script",
+      "path": "tools/Test-MainSharedConsumerPublishTransaction.ps1",
+      "owner": "ProductBuildTooling",
+      "category": "integration",
+      "cost": "fast",
+      "impactTags": ["packaging", "transaction", "rollback", "powershell-compatibility"],
+      "profiles": ["consumer", "packaging", "full-release"],
       "enabled": true,
       "passConfiguration": true
     }

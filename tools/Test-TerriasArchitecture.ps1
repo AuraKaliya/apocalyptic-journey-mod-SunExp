@@ -3,6 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+Import-Module (Join-Path $repoRoot "tools\modules\RepositoryPath.psm1") -Force
 Import-Module (Join-Path $repoRoot "tools\modules\ArchitectureBoundaryValidation.psm1") -Force
 Invoke-ArchitectureBoundaryValidation -RepoRoot $repoRoot -RuleSet "terrias"
 
@@ -45,7 +46,7 @@ foreach ($file in (Get-ChildItem -LiteralPath $dataRoot -Recurse -File -Filter "
             }
             foreach ($match in $managedTarget.Matches([string]$property.Value)) {
                 if (-not $match.Groups[1].Value.StartsWith("Scripting.", [System.StringComparison]::Ordinal)) {
-                    $relative = [System.IO.Path]::GetRelativePath($repoRoot, $file.FullName)
+                    $relative = Get-RepositoryRelativePath -RepoRoot $repoRoot -Path $file.FullName
                     throw "CSV managed target must route through Terrias.Dll.Scripting: $relative -> $($match.Value)"
                 }
             }

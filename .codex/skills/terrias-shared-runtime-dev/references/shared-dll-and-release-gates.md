@@ -21,8 +21,11 @@ shared release consumer.
 Product projects compile against the canonical shared build but do not write
 package directories from MSBuild targets. After validation,
 `Publish-MainSharedConsumers.ps1` stages Entry and Aura.Shared for both product
-packages, verifies source/stage hashes, commits each file with rollback, and
-verifies final hashes. All product copies must match the canonical DLL.
+packages plus the release manifest, verifies source/stage hashes, commits the
+manifest last as the transaction marker, rolls back in reverse commit order on
+failure, and verifies final hashes. All product copies must match the canonical
+DLL. Repository-relative manifest paths come from the PowerShell 5.1/7-compatible
+`RepositoryPath.psm1` boundary rather than runtime-specific path APIs.
 
 ## Public API Cutover
 
@@ -84,6 +87,7 @@ tools\Build-MainSharedConsumers.ps1 # public surface consumed by product MODs
 tools\Test-SharedReleaseGate.ps1 -Profile network # RPC behavior or authority changes
 tools\Test-NetworkRpcAuthority.ps1 # generic RPC boundary scanner changes
 tools\Test-SharedDllPackaging.ps1 # project references or DLL distribution
+tools\Test-MainSharedConsumerPublishTransaction.ps1 # staged commit/rollback and PowerShell 5.1 compatibility
 tools\Test-SharedReleaseGate.ps1 -List # inspect profiles and impact tags
 tools\Test-SharedReleaseGate.ps1 -Profile domain # all shared domain behavior
 tools\Test-SharedReleaseGate.ps1 -Tag public-api # tag-selected validation

@@ -343,9 +343,12 @@ AuraToolsExp；SanGuoShaExp 已迁入 `TestMods`，仅保留显式原型构建�
 - 产品消费者引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`；
 - 消费者项目不私自链接共享源码。
 - 产品 `.csproj` 不包含 Entry/共享 DLL 的 package Copy target。
+- 发布清单逐消费者记录的 Entry/共享 DLL 路径与 SHA-256 均匹配实际包文件。
+- 清单最后提交失败的故障注入会恢复旧 DLL/清单，且不遗留 staging 或 backup 文件。
 
 共享源码变更后的发布顺序为：构建一次 canonical 共享运行时、用该产物编译两个产品消费者、
-运行门禁，再由 `Publish-MainSharedConsumers.ps1` 暂存、校验、提交并回滚失败发布；最后运行
+运行门禁，再由 `Publish-MainSharedConsumers.ps1` 暂存、校验并将发布清单作为最后提交标记；
+任一步骤失败时按提交逆序回滚 DLL 与清单；最后运行
 `Test-SharedDllPackaging.ps1`。只有正式发布候选才运行
 `Test-SharedReleaseGate.ps1 -Profile full-release`。直接执行某个产品 `.csproj` 不会写正式包。
 
