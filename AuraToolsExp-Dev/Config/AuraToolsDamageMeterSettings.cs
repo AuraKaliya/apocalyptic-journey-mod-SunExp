@@ -72,8 +72,13 @@ public sealed class DamageMeterSettings
     [JsonProperty("maxEventsPerBatch")]
     public int MaxEventsPerBatch { get; set; } = DefaultMaxEventsPerBatch;
 
+    private LegacyDamageSettlementCgSettings? legacySettlementCg;
+
     [JsonProperty("settlementCg")]
-    public DamageSettlementCgSettings SettlementCg { get; set; } = new();
+    private LegacyDamageSettlementCgSettings? LegacySettlementCg
+    {
+        set => legacySettlementCg = value;
+    }
 
     public void Normalize()
     {
@@ -99,8 +104,13 @@ public sealed class DamageMeterSettings
         MaxEventsPerBatch = Math.Max(1, Math.Min(64, MaxEventsPerBatch <= 0
             ? DefaultMaxEventsPerBatch
             : MaxEventsPerBatch));
-        SettlementCg ??= new DamageSettlementCgSettings();
-        SettlementCg.Normalize();
+    }
+
+    internal LegacyDamageSettlementCgSettings? TakeLegacySettlementCg()
+    {
+        var value = legacySettlementCg;
+        legacySettlementCg = null;
+        return value;
     }
 
     private static string NormalizeChoice(string? value, string fallback, params string[] choices)
@@ -117,7 +127,7 @@ public sealed class DamageMeterSettings
     }
 }
 
-public sealed class DamageSettlementCgSettings
+internal sealed class LegacyDamageSettlementCgSettings
 {
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;

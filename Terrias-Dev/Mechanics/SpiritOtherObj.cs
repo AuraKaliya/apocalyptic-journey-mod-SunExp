@@ -237,6 +237,7 @@ public sealed class SpiritOtherObj : Partner
             ? TerriasIds.ProjectionActionWaitCardId
             : cardId.Trim();
         var presentationData = PresentationDataFor(sourceCardId);
+        SpiritIntentPresentationDataComposer.AppendElementRule(presentationData, Snapshot.SpiritElementId);
         var adapterHandle = AuraGameDataHostApi.ResolveHandle(DataType.EnemyCard, TerriasIds.SpiritIntentAdapterCardId)
             ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");
         var materialized = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
@@ -246,6 +247,7 @@ public sealed class SpiritOtherObj : Partner
             Vars = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 [TerriasIds.SpiritIntentSourceCardVar] = sourceCardId,
+                [TerriasIds.SpiritElementIdKey] = Snapshot.SpiritElementId,
                 ["CD"] = "0",
                 ["priority"] = Math.Max(1, priority).ToString()
             }
@@ -329,6 +331,7 @@ public sealed class SpiritOtherObj : Partner
         {
             if (status.actionObj[i] != null && status.actionText[i] != null)
             {
+                EnsureElementBadge(status.actionObj[i]);
                 continue;
             }
 
@@ -342,11 +345,41 @@ public sealed class SpiritOtherObj : Partner
             icon.SetActive(false);
             status.actionObj[i] = icon;
             status.actionText[i] = keyword;
+            EnsureElementBadge(icon);
             var valueText = icon.transform.Find("Icon/val")?.GetComponent<TMP_Text>();
             if (valueText != null)
             {
                 valueText.text = "";
             }
+        }
+    }
+
+    private void EnsureElementBadge(GameObject icon)
+    {
+        if (icon == null || icon.transform.Find("TerriasSpiritElement") != null)
+        {
+            return;
+        }
+
+        var badge = SpiritElementUiApi.CreateBadge(
+            icon.transform,
+            "TerriasSpiritElement",
+            38f,
+            16f,
+            ignoreLayout: true);
+        var elementId = SpiritElementService.NormalizeId(Snapshot.SpiritElementId);
+        SpiritElementUiApi.Bind(
+            badge.Icon,
+            badge.Label,
+            elementId,
+            SpiritElementService.DisplayName(elementId),
+            SpiritElementService.IconPath(elementId));
+        if (badge.Root.transform is RectTransform rect)
+        {
+            rect.anchorMin = new Vector2(1f, 1f);
+            rect.anchorMax = new Vector2(1f, 1f);
+            rect.pivot = new Vector2(1f, 1f);
+            rect.anchoredPosition = new Vector2(3f, 3f);
         }
     }
 

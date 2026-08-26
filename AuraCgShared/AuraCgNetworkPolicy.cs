@@ -37,9 +37,15 @@ internal static class AuraCgNetworkPolicy
                && HasBoundedIdentifier(item.CgId, maximumIdentifierLength)
                && HasBoundedIdentifier(item.ProviderId, maximumIdentifierLength)
                && HasBoundedIdentifier(item.CardId, maximumIdentifierLength)
-               && (string.Equals(item.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase)
-                   || string.Equals(item.TriggerKind, "card", StringComparison.OrdinalIgnoreCase))
-               && HasBoundedIdentifier(item.OwnerInstanceId, maximumIdentifierLength);
+               && HasBoundedIdentifier(item.SignalId, maximumIdentifierLength)
+               && HasBoundedIdentifier(item.SubjectId, maximumIdentifierLength)
+               && (string.Equals(item.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(item.SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(item.SubjectType, AuraCgSubjectTypes.Event, StringComparison.OrdinalIgnoreCase))
+               && HasBoundedIdentifier(item.OwnerInstanceId, maximumIdentifierLength)
+               && (item.ScenePlan == null
+                   || item.ScenePlan.IsValid(maximumIdentifierLength)
+                   && string.Equals(item.ScenePlan.SignalId, item.SignalId, StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool HasValidPlaybackShape(
@@ -72,9 +78,18 @@ internal static class AuraCgNetworkPolicy
             item.SkillCgPlayId = playback.SkillCgPlayId;
             item.OwnerInstanceId = playback.OwnerStatusId;
             item.CardId = string.IsNullOrWhiteSpace(item.CardId) ? playback.CardId : item.CardId;
-            item.TriggerKind = (item.TriggerKind ?? "").Trim().ToLowerInvariant();
+            item.SignalId = (item.SignalId ?? "").Trim().ToLowerInvariant();
+            item.SubjectType = AuraCgSubjectTypes.Normalize(item.SubjectType);
+            item.SubjectId = (item.SubjectId ?? "").Trim();
+            item.TriggerKind = item.SubjectType;
             item.EventToken = playback.SkillCgPlayId;
             item.ActionSequence = playback.ActionSequence;
+            if (item.ScenePlan != null)
+            {
+                item.ScenePlan.SignalId = item.SignalId;
+                item.ScenePlan.EventToken = item.EventToken;
+                item.ScenePlan.Normalize();
+            }
         }
     }
 

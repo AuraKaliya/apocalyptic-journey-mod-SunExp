@@ -132,6 +132,42 @@ internal sealed class AuraCgUnityMediaRepository
         onLoaded(result);
     }
 
+    public List<Sprite> RegisterDirectSceneSprites(
+        SkillCgRequest request,
+        IEnumerable<Sprite> sprites,
+        bool ownsSprites)
+    {
+        var result = (sprites ?? Array.Empty<Sprite>())
+            .Where(sprite => sprite != null)
+            .ToList();
+        var cacheKey = AuraCgMediaCacheKeys.Sequence(request);
+        if (cache.TryGetSequence(cacheKey, out var cached))
+        {
+            if (ownsSprites)
+            {
+                foreach (var duplicate in result.Where(candidate =>
+                             cached.All(retained => !ReferenceEquals(retained, candidate))))
+                {
+                    releaseQueue.QueueSprite(duplicate, AuraCgMediaOwnership.RuntimeObject);
+                }
+            }
+
+            return cached;
+        }
+
+        if (result.Count == 0)
+        {
+            return result;
+        }
+
+        cache.StoreSequence(
+            cacheKey,
+            result,
+            AuraSharedResourceCache.EstimateObjectBytes,
+            ownsSprites ? AuraCgMediaOwnership.RuntimeObject : AuraCgMediaOwnership.External);
+        return result;
+    }
+
     public Sprite CreateInvertedSprite(Sprite source)
     {
         var texture = source.texture;

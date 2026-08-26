@@ -153,6 +153,7 @@ public static class SpiritCardFactory
             SourceModId = RuntimeValue(runtimeConfig, TerriasIds.SpiritSourceModIdKey),
             SpeciesId = RuntimeValue(runtimeConfig, TerriasIds.SpiritSpeciesIdKey),
             ProfileId = RuntimeValue(runtimeConfig, TerriasIds.SpiritGrowthProfileIdKey),
+            SpiritElementId = RuntimeValue(runtimeConfig, TerriasIds.SpiritElementIdKey),
             EnemyId = enemyId,
             VariantId = RuntimeValue(runtimeConfig, TerriasIds.SpiritVariantIdKey, enemyId),
             DisplayName = RuntimeValue(runtimeConfig, TerriasIds.SpiritDisplayNameKey, RuntimeValue(runtimeConfig, "Name")),
@@ -232,6 +233,7 @@ public static class SpiritCardFactory
         Set(runtime, TerriasIds.SpiritSourceModIdKey, snapshot.SourceModId);
         Set(runtime, TerriasIds.SpiritSpeciesIdKey, snapshot.SpeciesId);
         Set(runtime, TerriasIds.SpiritGrowthProfileIdKey, snapshot.ProfileId);
+        Set(runtime, TerriasIds.SpiritElementIdKey, snapshot.SpiritElementId);
         Set(runtime, TerriasIds.SpiritEnemyIdKey, snapshot.EnemyId);
         Set(runtime, TerriasIds.SpiritVariantIdKey, snapshot.VariantId);
         Set(runtime, TerriasIds.SpiritDisplayNameKey, names.Resolve(TerriasLocale.ZhHans, snapshot.EnemyId));

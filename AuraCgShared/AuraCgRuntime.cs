@@ -16,10 +16,13 @@ public static class SkillCgArbiterRuntime
     public const string SkillCgKind = "skill";
     public const string CardUseCgKind = "cardUse";
     public const string FeastCgKind = "feast";
+    public const string RoleCgKind = AuraCgSubjectTypes.Role;
+    public const string CardCgKind = AuraCgSubjectTypes.Card;
+    public const string EventCgKind = AuraCgSubjectTypes.Event;
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-08-22-v15";
-    public const int CurrentProtocolVersion = 11;
+    public const string CurrentBuildId = "aura-cg-shared-2026-08-26-v16";
+    public const int CurrentProtocolVersion = 12;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
     private const string DefaultNetworkOwner = "AuraCgShared";
@@ -85,8 +88,33 @@ public static class SkillCgArbiterRuntime
 
     public static void Trigger(object ownerToken, string ownerModId, SkillCgTriggerContext context)
     {
+        EmitSignal(ownerToken, ownerModId, AuraCgSignalContext.FromLegacy(context));
+    }
+
+    public static void EmitSignal(object ownerToken, string ownerModId, AuraCgSignalContext context)
+    {
+        context ??= new AuraCgSignalContext();
+        context.Normalize();
         var arbiter = EnsureArbiter(ownerModId);
-        Invoke(arbiter, "Trigger", context);
+        Invoke(arbiter, "Signal", new AuraCgSignalRequest(ownerModId, context));
+    }
+
+    public static bool IsAuthoritativeHost()
+    {
+        var manager = PlayerManager.Instance;
+        return manager == null || !manager.isClient && !manager.isServer || manager.isServer;
+    }
+
+    public static void BeginPresentationSession(string ownerModId, string reason)
+    {
+        BeginFightSession(ownerModId, reason);
+    }
+
+    public static void RegisterSceneAssetResolver(ModConfig modConfig, string ownerModId, object resolver)
+    {
+        Initialize(modConfig, ownerModId);
+        var arbiter = EnsureArbiter(ownerModId);
+        Invoke(arbiter, "RegisterSceneAssetResolver", resolver);
     }
 
     public static void RequestCg(string ownerModId, SkillCgRequest request)
@@ -238,6 +266,49 @@ public static class SkillCgArbiterRuntime
         return BuildRegisteredRequestsByKind(CardUseCgKind, consumerModId, context, ownerModId, disableSync);
     }
 
+    public static IReadOnlyList<SkillCgRequest> BuildRegisteredSignalRequests(
+        string consumerModId,
+        AuraCgSignalContext context,
+        string ownerModId = "",
+        bool disableSync = false)
+    {
+        context ??= new AuraCgSignalContext();
+        context.Normalize();
+        var registeredEntries = AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId).AsEnumerable();
+        if (context.Facts.TryGetValue("resolvedCgId", out var resolvedCgId)
+            && !string.IsNullOrWhiteSpace(resolvedCgId))
+        {
+            var selected = resolvedCgId.Trim();
+            registeredEntries = registeredEntries.Where(entry =>
+                string.Equals(entry.CgId, selected, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(entry.QualifiedCgId, selected, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var requests = registeredEntries
+            .Select(entry => RegisteredRequestResolver.BuildSignalRequest(
+                entry,
+                context,
+                AuraCgActivationRuntime.CanProducerEmit(entry, consumerModId),
+                disableSync))
+            .Where(request => request != null)
+            .Cast<SkillCgRequest>()
+            .OrderByDescending(request => request.Priority)
+            .ThenBy(request => request.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        foreach (var request in requests)
+        {
+            context.ConfigureResolvedRequest?.Invoke(request);
+            request.Normalize();
+        }
+        if (context.ScenePlan != null || context.SceneSource != null)
+        {
+            var scene = requests.FirstOrDefault(request => request.ScenePlan != null);
+            return scene == null ? Array.Empty<SkillCgRequest>() : new[] { scene };
+        }
+
+        return requests;
+    }
+
     private static IReadOnlyList<SkillCgRequest> BuildRegisteredRequestsByKind(
         string kind,
         string consumerModId,
@@ -313,21 +384,11 @@ public static class SkillCgArbiterRuntime
             return null;
         }
 
-        var targetIds = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
-            ? entry.SkillIds
-            : entry.CardIds;
-        var cardId = (targetIds ?? new List<string>())
-            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value) && !value.Contains("*")) ?? "*";
-        return BuildRegisteredRequestByKind(entry, kind, consumerModId, new SkillCgTriggerContext
-        {
-            TriggerKind = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? "skill" : "card",
-            ActionSequence = -Math.Abs(DateTime.UtcNow.Ticks),
-            Action = "*",
-            CardId = cardId,
-            SkillId = string.Equals(kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? cardId : "",
-            OwnerRoleId = (entry.TargetRoleIds ?? new List<string>()).FirstOrDefault() ?? "*",
-            CreatedAt = Time.unscaledTime
-        }, disableSync: true);
+        return BuildRegisteredPreloadRequest(
+            entry,
+            new HashSet<string>(new[] { kind }, StringComparer.OrdinalIgnoreCase),
+            requestedRoleId: "",
+            consumerModId: consumerModId);
     }
 
     public static bool PreviewRegisteredCg(string consumerModId, string ownerModId, string cgId)
@@ -389,23 +450,83 @@ public static class SkillCgArbiterRuntime
         return AuraCgRegistryRuntime.GetRegisteredEntries(ownerModId)
             .Where(entry => kindSet.Any(kind => IsRegisteredCgEntry(entry, kind)))
             .Where(entry => string.IsNullOrWhiteSpace(roleId) || EntryMatchesRole(entry, roleId))
-            .Where(entry => !string.Equals(entry.Kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase) || EntryMatchesEnabledRuntimeCardPack(entry))
+            .Where(entry => !string.Equals(entry.SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+                            || EntryMatchesEnabledRuntimeCardPack(entry))
             .Where(AuraCgActivationRuntime.IsLocallyEnabled)
-            .Select(entry => CreateRegisteredRequest(entry, ResolveRegisteredImageResource(entry), ResolveImagePath(entry.OwnerModId, ResolveRegisteredImageResource(entry)), new SkillCgTriggerContext
-            {
-                TriggerKind = string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase) ? "skill" : "card",
-                CardId = (string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
-                    ? entry.SkillIds
-                    : entry.CardIds)?.FirstOrDefault() ?? "*",
-                SkillId = string.Equals(entry.Kind, SkillCgKind, StringComparison.OrdinalIgnoreCase)
-                    ? entry.SkillIds?.FirstOrDefault() ?? "*"
-                    : "",
-                OwnerRoleId = roleId,
-                CreatedAt = Time.unscaledTime
-            }, disableSync: true))
+            .Select(entry => BuildRegisteredPreloadRequest(entry, kindSet, roleId, consumerModId))
             .Where(request => request != null)
             .Cast<SkillCgRequest>()
             .ToList();
+    }
+
+    private static SkillCgRequest? BuildRegisteredPreloadRequest(
+        AuraCgRegistryEntry entry,
+        ISet<string> requestedKinds,
+        string requestedRoleId,
+        string consumerModId)
+    {
+        entry.Normalize(entry.OwnerModId);
+        var signalId = entry.Signals.FirstOrDefault(signal => requestedKinds.Any(kind =>
+            string.Equals(signal, SignalForPreloadKind(kind), StringComparison.OrdinalIgnoreCase))) ?? "";
+        if (signalId.Length == 0)
+        {
+            return null;
+        }
+
+        var subjectId = entry.SubjectIds.FirstOrDefault(value => !string.Equals(value, "*", StringComparison.Ordinal))
+                        ?? entry.SubjectIds.FirstOrDefault()
+                        ?? "*";
+        var roleId = string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+            ? string.IsNullOrWhiteSpace(requestedRoleId) ? subjectId : requestedRoleId
+            : string.IsNullOrWhiteSpace(requestedRoleId)
+                ? MatchFact(entry, "roleId")
+                : requestedRoleId;
+        var skillId = MatchFact(entry, "skillId");
+        var cardId = string.Equals(entry.SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+            ? subjectId
+            : string.IsNullOrWhiteSpace(skillId) ? "*" : skillId;
+        var context = new AuraCgSignalContext
+        {
+            SignalId = signalId,
+            SubjectType = entry.SubjectType,
+            SubjectId = subjectId,
+            RoleId = roleId,
+            CardId = cardId,
+            SkillId = skillId,
+            OwnerInstanceId = "preload",
+            ActionSequence = -Math.Abs(DateTime.UtcNow.Ticks),
+            EventToken = "preload:" + entry.QualifiedCgId,
+            CreatedAt = Time.unscaledTime
+        };
+        return RegisteredRequestResolver.BuildSignalRequest(
+            entry,
+            context,
+            AuraCgActivationRuntime.CanProducerEmit(entry, consumerModId),
+            disableSync: true,
+            warnWhenMediaMissing: false);
+    }
+
+    private static string MatchFact(AuraCgRegistryEntry entry, string key)
+    {
+        return entry.Match?.Facts != null
+               && entry.Match.Facts.TryGetValue(key, out var values)
+            ? values.FirstOrDefault(value => !string.Equals(value, "*", StringComparison.Ordinal)) ?? ""
+            : "";
+    }
+
+    private static string SignalForPreloadKind(string kind)
+    {
+        if (string.Equals(kind, CardUseCgKind, StringComparison.OrdinalIgnoreCase))
+        {
+            return AuraCgSignals.CardUsePresentationCommitted;
+        }
+
+        if (string.Equals(kind, FeastCgKind, StringComparison.OrdinalIgnoreCase))
+        {
+            return AuraCgSignals.RoleFeastCompleted;
+        }
+
+        return AuraCgSignals.RoleSkillCommitted;
     }
 
     private static bool EntryMatchesEnabledRuntimeCardPack(AuraCgRegistryEntry entry)
@@ -416,7 +537,11 @@ public static class SkillCgArbiterRuntime
             return true;
         }
 
-        foreach (var cardId in entry.CardIds ?? new List<string>())
+        var cardIds = string.Equals(entry.SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+            && entry.SubjectIds.Count > 0
+                ? entry.SubjectIds
+                : entry.CardIds;
+        foreach (var cardId in cardIds ?? new List<string>())
         {
             var pack = ResolveCardPack(cardId);
             if (string.IsNullOrWhiteSpace(pack) || enabledPacks.Contains(pack))
@@ -709,7 +834,11 @@ public static class SkillCgArbiterRuntime
         var protocolVersion = ReadIntProperty(existing, "ProtocolVersion", 0);
         var minimumSupported = ReadIntProperty(existing, "MinimumSupportedProtocolVersion", int.MaxValue);
         var buildId = ReadStringProperty(existing, "BuildId");
-        var methodsPresent = new[] { "Configure", "RegisterProvider", "Trigger", "RequestCg", "PreloadCg", "EnsureAdventurePreloaded", "ClearQueue" }
+        var methodsPresent = new[]
+            {
+                "Configure", "RegisterProvider", "RegisterSceneAssetResolver", "Signal", "Trigger",
+                "RequestCg", "PreloadCg", "EnsureAdventurePreloaded", "ClearQueue"
+            }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
         var compatible = protocolVersion >= MinimumSupportedProtocolVersion
             && minimumSupported <= CurrentProtocolVersion
@@ -813,6 +942,21 @@ public static class SkillCgArbiterRuntime
         public string Reason { get; }
     }
 
+    private sealed class AuraCgSignalRequest
+    {
+        public AuraCgSignalRequest(string consumerModId, AuraCgSignalContext context)
+        {
+            ConsumerModId = string.IsNullOrWhiteSpace(consumerModId)
+                ? DefaultNetworkOwner
+                : consumerModId.Trim();
+            Context = context ?? new AuraCgSignalContext();
+        }
+
+        public string ConsumerModId { get; }
+
+        public AuraCgSignalContext Context { get; }
+    }
+
     private sealed class SkillCgFightDrainRequest
     {
         public SkillCgFightDrainRequest(string ownerModId, string? reason, float maximumDrainSeconds)
@@ -864,6 +1008,7 @@ public static class SkillCgArbiterRuntime
         private const int MaxPreloadStartsPerFrame = 1;
         private const float ClearDeduplicateSeconds = 1.0f;
         private readonly AuraCgProviderCoordinator providerCoordinator = new(SkillCgRequest.FromObject);
+        private readonly AuraCgSceneAssetResolverCoordinator sceneAssetResolvers = new();
         private readonly AuraCgPlaybackCoordinator playbackCoordinator = new();
         private readonly AuraCgAdventurePreloadHistory adventurePreloadHistory = new(MaxAdventurePreloadKeys);
         private readonly AuraCgPreloadScheduler<SkillCgRequest> preloadScheduler = new(
@@ -996,6 +1141,50 @@ public static class SkillCgArbiterRuntime
             }
         }
 
+        public void RegisterSceneAssetResolver(object? provider)
+        {
+            if (sceneAssetResolvers.Register(provider, out var description))
+            {
+                AuraCgLog.InfoOnce(
+                    "scene-asset-resolver:" + description,
+                    "CG scene asset resolver registered: " + description);
+                return;
+            }
+
+            AuraCgLog.WarnOnce(
+                "scene-asset-resolver-invalid:" + (provider?.GetType().FullName ?? "null"),
+                "CG scene asset resolver registration skipped: invalid provider.");
+        }
+
+        public void Signal(object? value)
+        {
+            if (value is not AuraCgSignalRequest request)
+            {
+                return;
+            }
+
+            request.Context.Normalize();
+            var batch = BuildRegisteredSignalRequests(
+                    request.ConsumerModId,
+                    request.Context,
+                    disableSync: false)
+                .ToList();
+            var legacy = request.Context.ToLegacyTrigger();
+            batch.AddRange(providerCoordinator.BuildRequests(legacy, LogProviderBuildFailure));
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            batch = batch
+                .GroupBy(item => item.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderByDescending(item => item.Priority).First())
+                .OrderByDescending(item => item.Priority)
+                .ThenBy(item => item.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            QueueLocalRequests(batch);
+        }
+
         public void Trigger(object? value)
         {
             if (value is not SkillCgTriggerContext context)
@@ -1003,17 +1192,7 @@ public static class SkillCgArbiterRuntime
                 return;
             }
 
-            var batch = providerCoordinator.BuildRequests(context, LogProviderBuildFailure);
-
-            if (batch.Count == 0)
-            {
-                return;
-            }
-
-            if (!QueueLocalRequests(batch))
-            {
-                return;
-            }
+            Signal(new AuraCgSignalRequest(DefaultNetworkOwner, AuraCgSignalContext.FromLegacy(context)));
         }
 
         private static void LogProviderBuildFailure(AuraCgProviderBuildFailure failure)
@@ -1029,6 +1208,12 @@ public static class SkillCgArbiterRuntime
             if (value is not SkillCgRequest request)
             {
                 return;
+            }
+
+            request.Normalize();
+            if (request.Exclusive)
+            {
+                BeginExclusivePlayback();
             }
 
             if (TryEnqueue(request))
@@ -1265,15 +1450,25 @@ public static class SkillCgArbiterRuntime
 
         private bool QueueLocalRequests(IReadOnlyList<SkillCgRequest> requests)
         {
-            if (!acceptingBattleRequests)
+            var batch = (requests ?? Array.Empty<SkillCgRequest>())
+                .Where(request => request != null)
+                .ToList();
+            var exclusive = batch
+                .Where(request => request.Exclusive)
+                .OrderByDescending(request => request.Priority)
+                .ThenBy(request => request.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (exclusive != null)
+            {
+                batch = new List<SkillCgRequest> { exclusive };
+            }
+
+            if (!acceptingBattleRequests && exclusive == null)
             {
                 AuraCgLog.DebugLog("CG request ignored after the battle entered settlement.");
                 return false;
             }
 
-            var batch = (requests ?? Array.Empty<SkillCgRequest>())
-                .Where(request => request != null)
-                .ToList();
             if (batch.Count == 0 || batch.Count > AuraCgNetworkRuntime.MaximumEventsPerPlayback)
             {
                 if (batch.Count > AuraCgNetworkRuntime.MaximumEventsPerPlayback)
@@ -1281,6 +1476,11 @@ public static class SkillCgArbiterRuntime
                     AuraCgLog.WarnOnce("playback-batch-too-large", "Skill CG playback skipped: event count exceeds network budget.");
                 }
                 return false;
+            }
+
+            if (exclusive != null)
+            {
+                BeginExclusivePlayback();
             }
 
             var accepted = EnqueueBatch(batch.Where(IsLocalPlaybackEnabled));
@@ -1360,15 +1560,39 @@ public static class SkillCgArbiterRuntime
 
         private void EnqueueNetworkPlayback(IReadOnlyList<SkillCgRequest> requests)
         {
-            if (!acceptingBattleRequests)
+            var batch = (requests ?? Array.Empty<SkillCgRequest>())
+                .Where(request => request != null)
+                .ToList();
+            var exclusive = batch
+                .Where(request => request.Exclusive)
+                .OrderByDescending(request => request.Priority)
+                .ThenBy(request => request.QualifiedProviderId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+            if (!acceptingBattleRequests && exclusive == null)
             {
                 return;
             }
-            EnqueueBatch(requests);
+
+            if (exclusive != null)
+            {
+                batch = new List<SkillCgRequest> { exclusive };
+                BeginExclusivePlayback();
+            }
+
+            EnqueueBatch(batch);
             if (playbackCoordinator.QueueCount > 0)
             {
                 StartPlaybackIfNeeded();
             }
+        }
+
+        private void BeginExclusivePlayback()
+        {
+            fightSessionGeneration++;
+            drainScheduled = false;
+            playbackCoordinator.Clear();
+            overlayPresenter.Hide();
+            FlushReleasedMedia();
         }
 
         private bool TryEnqueue(SkillCgRequest request)
@@ -1481,6 +1705,12 @@ public static class SkillCgArbiterRuntime
 
         private IEnumerator PlayRequest(SkillCgRequest request, int generation)
         {
+            if (string.Equals(request.MediaType, SkillCgMediaTypes.Scene, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return PlaySceneRequest(request, generation);
+                yield break;
+            }
+
             if (string.Equals(request.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
             {
                 yield return PlaySequenceRequest(request, generation);
@@ -1579,6 +1809,126 @@ public static class SkillCgArbiterRuntime
             }
 
             overlayPresenter.Hide();
+        }
+
+        private IEnumerator PlaySceneRequest(SkillCgRequest request, int generation)
+        {
+            var plan = request.ScenePlan;
+            if (plan == null || !plan.IsValid(AuraCgNetworkRuntime.MaximumIdentifierLength))
+            {
+                AuraCgLog.WarnOnce(
+                    "scene-plan-invalid:" + request.ProviderId,
+                    "CG team scene skipped: processed scene plan is invalid. provider=" + request.ProviderId);
+                yield break;
+            }
+
+            var backgroundAsset = sceneAssetResolvers.Resolve(plan.BackgroundAsset);
+            if (backgroundAsset == null)
+            {
+                AuraCgLog.WarnOnce(
+                    "scene-background-unresolved:" + plan.BackgroundAsset.QualifiedAssetId,
+                    "CG team scene skipped: background asset is not registered locally. asset="
+                    + plan.BackgroundAsset.QualifiedAssetId);
+                yield break;
+            }
+
+            var backgroundFrames = new List<Sprite>();
+            yield return LoadSceneAsset(
+                backgroundAsset,
+                frames => backgroundFrames = frames,
+                () => playbackCoordinator.IsCurrent(generation));
+            if (!playbackCoordinator.IsCurrent(generation) || backgroundFrames.Count == 0)
+            {
+                yield break;
+            }
+
+            var layers = new List<AuraCgSceneLayerPresentation>();
+            foreach (var participant in plan.Participants.OrderBy(item => item.SeatIndex))
+            {
+                var resolved = sceneAssetResolvers.Resolve(
+                    participant.RoleLayerAsset,
+                    participant.RoleId,
+                    participant.RoleVariantId);
+                if (resolved == null)
+                {
+                    AuraCgLog.WarnOnce(
+                        "scene-role-unresolved:" + participant.RoleLayerAsset.QualifiedAssetId,
+                        "CG team scene skipped: role layer asset is not registered locally. asset="
+                        + participant.RoleLayerAsset.QualifiedAssetId);
+                    yield break;
+                }
+
+                var frames = new List<Sprite>();
+                yield return LoadSceneAsset(
+                    resolved,
+                    value => frames = value,
+                    () => playbackCoordinator.IsCurrent(generation));
+                if (!playbackCoordinator.IsCurrent(generation) || frames.Count == 0)
+                {
+                    yield break;
+                }
+
+                layers.Add(new AuraCgSceneLayerPresentation
+                {
+                    Plan = participant,
+                    Frames = frames,
+                    FrameSeconds = resolved.FrameSeconds,
+                    Loop = resolved.Loop
+                });
+            }
+
+            if (layers.Count != plan.Participants.Count
+                || !overlayPresenter.ShowScene(backgroundFrames[0], layers, request))
+            {
+                yield break;
+            }
+
+            AuraCgLog.DebugLog(
+                "CG team scene play: provider=" + request.ProviderId
+                + ", scene=" + plan.SceneId
+                + ", signal=" + plan.SignalId
+                + ", participants=" + plan.Participants.Count);
+            yield return overlayPresenter.PlayScene(
+                request,
+                () => playbackCoordinator.IsCurrent(generation));
+            if (playbackCoordinator.IsCurrent(generation))
+            {
+                overlayPresenter.Hide();
+            }
+        }
+
+        private IEnumerator LoadSceneAsset(
+            AuraCgResolvedSceneAsset asset,
+            Action<List<Sprite>> onLoaded,
+            Func<bool> keepLoading)
+        {
+            var mediaRequest = asset.ToMediaRequest();
+            if (asset.DirectSprites.Count > 0)
+            {
+                if (string.IsNullOrWhiteSpace(mediaRequest.ImagePath))
+                {
+                    mediaRequest.ImagePath = "scene-direct://" + asset.OwnerModId + "/" + asset.AssetId;
+                }
+
+                mediaRequest.MediaType = SkillCgMediaTypes.Sequence;
+                mediaRequest.Normalize();
+                onLoaded(mediaRepository.RegisterDirectSceneSprites(
+                    mediaRequest,
+                    asset.DirectSprites,
+                    asset.OwnsDirectSprites));
+                yield break;
+            }
+
+            mediaRequest.Normalize();
+            if (string.Equals(mediaRequest.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
+            {
+                yield return mediaRepository.LoadSequenceSprites(mediaRequest, onLoaded, keepLoading);
+                yield break;
+            }
+
+            Sprite? sprite = null;
+            yield return mediaRepository.LoadSprite(mediaRequest.ImagePath, value => sprite = value);
+            onLoaded(sprite == null ? new List<Sprite>() : new List<Sprite> { sprite });
         }
 
         private void FlushReleasedMedia()

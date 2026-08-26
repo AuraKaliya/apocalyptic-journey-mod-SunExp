@@ -10,7 +10,7 @@ namespace AuraCg.Shared;
 internal sealed class AuraCgNetworkRuntime
 {
     internal const int MaximumEventsPerPlayback = 4;
-    internal const int MaximumPayloadBytes = 8192;
+    internal const int MaximumPayloadBytes = 16384;
     internal const int MaximumIdentifierLength = 160;
     private const int MaximumPlaybackClaims = 512;
     private readonly Func<SkillCgNetworkEvent, bool, SkillCgRequest?> registeredRequestResolver;
@@ -398,12 +398,6 @@ internal sealed class AuraCgNetworkRuntime
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(request.OwnerInstanceId))
-        {
-            rejection = "owner instance id is empty in multiplayer. card=" + request.CardId;
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(issuerPlayerId))
         {
             rejection = "issuer player id is empty. owner=" + request.OwnerInstanceId + ", card=" + request.CardId;
@@ -411,6 +405,37 @@ internal sealed class AuraCgNetworkRuntime
         }
 
         var localStatusId = ResolveLocalStatusId();
+        var hostEventScene = request.ScenePlan != null
+                             && string.Equals(
+                                 request.SubjectType,
+                                 AuraCgSubjectTypes.Event,
+                                 StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(request.OwnerInstanceId) && hostEventScene)
+        {
+            // An adventure terminal scene may begin after the fight status has
+            // been released. Bind it to the authenticated player in that case;
+            // server validation accepts either the player's active status or
+            // the player identity itself, never an arbitrary remote owner.
+            request.OwnerInstanceId = string.IsNullOrWhiteSpace(localStatusId)
+                ? issuerPlayerId
+                : localStatusId;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.OwnerInstanceId))
+        {
+            rejection = "owner instance id is empty in multiplayer. card=" + request.CardId;
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(localStatusId)
+            && string.Equals(request.OwnerInstanceId, issuerPlayerId, StringComparison.Ordinal))
+        {
+            // Registered out-of-fight presentations (for example feast or
+            // adventure settlement) remain authenticated by the sender's
+            // player identity after the transient combat status is gone.
+            return true;
+        }
+
         if (string.IsNullOrWhiteSpace(localStatusId))
         {
             rejection = "local status id is empty. owner=" + request.OwnerInstanceId + ", card=" + request.CardId;
@@ -452,13 +477,17 @@ internal sealed class AuraCgNetworkRuntime
             ProviderId = request.ProviderId,
             OwnerModId = request.OwnerModId,
             CgId = RegisteredCgId(request),
+            SignalId = request.SignalId,
+            SubjectType = request.SubjectType,
+            SubjectId = request.SubjectId,
             CardId = request.CardId,
             TriggerKind = request.TriggerKind,
             OwnerInstanceId = request.OwnerInstanceId,
             ActionSequence = request.ActionSequence,
             EventToken = request.EventToken,
             IssuerPlayerId = request.IssuerPlayerId,
-            SkillCgPlayId = request.SkillCgPlayId
+            SkillCgPlayId = request.SkillCgPlayId,
+            ScenePlan = request.ScenePlan
         };
     }
 

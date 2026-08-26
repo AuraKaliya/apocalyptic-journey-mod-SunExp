@@ -14,6 +14,7 @@ internal static class AuraCgMediaCacheKeys
     public static string Sequence(SkillCgRequest request)
     {
         return (request.OwnerModId ?? "")
+            + "\u001f" + (request.ImageResource ?? "")
             + "\u001f" + (request.BundlePath ?? "")
             + "\u001f" + (request.BundleAssetPrefix ?? "")
             + "\u001f" + (request.ImagePath ?? "")

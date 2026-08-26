@@ -123,10 +123,11 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 20
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 21
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
-       && SpiritSystemContract.CollectionVersion == 7
+       && SpiritSystemContract.CollectionVersion == 8
+       && SpiritSystemContract.GrowthRegistrySchemaVersion == 3
        && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,
     "the current Spirit save, registry, and Partner protocol contract stays synchronized");
 
@@ -167,9 +168,33 @@ Assert(legacyProfileKeys.Contains("SaveData")
 
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 var terriasModConfig = new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") };
+TerriasTextCatalog.Load(terriasModConfig);
 SpiritGrowthRegistry.Load(terriasModConfig);
 SpiritTrainingRegistry.Load(terriasModConfig);
 SpiritIntentRegistry.Load(terriasModConfig);
+var pyroSpecies = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
+{
+    SourceModId = "base-game",
+    EnemyId = "10004",
+    VariantId = "10004"
+});
+var anemoSpecies = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
+{
+    SourceModId = "base-game",
+    EnemyId = "10002",
+    VariantId = "10002"
+});
+Assert(pyroSpecies.Profile.CaptureElement == "pyro"
+       && anemoSpecies.Profile.CaptureElement == "anemo"
+       && SpiritElementService.IconPath("pyro").EndsWith("元素-火", StringComparison.Ordinal)
+       && SpiritElementService.IconPath("anemo").EndsWith("元素-风", StringComparison.Ordinal),
+    "the growth registry owns capture defaults for all seven Spirit elements and presentation resolves their icons");
+var elementalPresentation = CompanionIntentPresentationSnapshot.Resolve(
+    new CompanionResolvedEffect { HandlerId = "damage.multi", Value = 12, RepeatCount = 2 },
+    1,
+    "electro");
+Assert(elementalPresentation.DisplayText == "雷 · 12×2",
+    "Spirit intent previews identify the per-segment element and hit count");
 var commonIntentIds = SpiritTrainingRegistry.CommonIntentIds("Common.Basic")
     .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Tactical"))
     .Concat(SpiritTrainingRegistry.CommonIntentIds("Common.Advanced"))
@@ -400,8 +425,11 @@ Assert(migratedCollection.Version == SpiritCollectionService.CurrentVersion
        && migratedCollection.Instances[0].Speed is >= 80 and <= 120
        && migratedCollection.Instances[0].LoadoutRevision >= 1
        && migratedCollection.Instances[0].Presentation != null
+       && SpiritElementService.TryParse(migratedCollection.Instances[0].ElementId, out _)
+       && migratedCollection.Instances[0].ElementSource == SpiritElementService.LegacyMigrationSource
+       && migratedCollection.Instances[0].ElementAssignmentRevision == SpiritElementService.AssignmentRevision
        && legacyStore.SaveCount == 1,
-    "legacy collections persist deterministic training and localized presentation state during the version migration");
+    "legacy collections persist deterministic training, element, and localized presentation state during the version migration");
 SpiritCollectionService.Configure(legacyStore);
 Assert(legacyStore.SaveCount == 1,
     "an already migrated spirit collection is not rewritten merely because it was opened");
@@ -446,12 +474,25 @@ for (var index = 0; index < 7; index++)
         "captured spirit creates an independent level-one individual");
 }
 Assert(SpiritCollectionService.Snapshot().Instances.Count == 7
-       && party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid)) == 6,
-    "duplicate species persist independently while the adventure party remains capped at six");
+       && party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid)) == 6
+       && SpiritCollectionService.Snapshot().Instances.Select(item => item.ElementId).Distinct(StringComparer.Ordinal).Count() == 1
+       && SpiritCollectionService.Snapshot().Instances.All(item => item.ElementSource == SpiritElementService.CaptureDefaultSource),
+    "captured duplicate species freeze the same configured default element while the adventure party remains capped at six");
+var capturedDefaultElement = SpiritCollectionService.Find("uid-0")!.ElementId;
+var individualOverrideElement = capturedDefaultElement == "electro" ? "pyro" : "electro";
+Assert(SpiritCollectionService.SetElement("uid-1", individualOverrideElement)
+       && SpiritCollectionService.Find("uid-1") is
+       {
+           ElementSource: SpiritElementService.ExplicitOverrideSource
+       }
+       && SpiritCollectionService.Find("uid-1")?.ElementId == individualOverrideElement
+       && SpiritCollectionService.Find("uid-0")?.ElementId == capturedDefaultElement,
+    "element belongs to the individual so same-species Spirits can diverge without rewriting their species default");
 var capturedInstance = SpiritCollectionService.Find("uid-0")!;
 var growthView = SpiritGrowthQueryService.Build(capturedInstance);
 Assert(!string.IsNullOrWhiteSpace(capturedInstance.SpeciesId)
        && !string.IsNullOrWhiteSpace(capturedInstance.ProfileId)
+       && growthView.ElementId == capturedInstance.ElementId
        && growthView.RadarAxes.Count == 4
        && growthView.CurrentAptitudeCurve.Count == 50
        && growthView.StandardAptitudeCurve.Count == 50
@@ -675,6 +716,7 @@ var frozenStarStats = CompanionStatsService.SpiritStats(
     SpiritIntentRegistry.ProfileForIdentity(starDeployment.ProfileId, starDeployment.ProfileKey));
 Assert(starDeployment.SpiritStarRank == 5
        && starDeployment.SpiritGuiyuanValue == 16
+       && SpiritElementService.TryParse(starDeployment.SpiritElementId, out _)
        && frozenStarStats.MaxHp == unstarredDeploymentStats.MaxHp * 2
        && frozenStarStats.Attack == unstarredDeploymentStats.Attack * 2
        && frozenStarStats.Armor == unstarredDeploymentStats.Armor * 2
@@ -686,6 +728,10 @@ var forgedAllocation = SpiritModelCloner.CloneSnapshot(starDeployment);
 forgedAllocation.GuiyuanAllocationLuck++;
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedAllocation, "star-owner", true, out _),
     "remote deployment rejects guiyuan allocations that do not match the frozen effective origins");
+var forgedElement = SpiritModelCloner.CloneSnapshot(starDeployment);
+forgedElement.SpiritElementId = "void";
+Assert(!SpiritBattleDeploymentService.CanSummon(forgedElement, "star-owner", true, out _),
+    "remote deployment rejects elements outside the seven-type Spirit contract");
 SpiritBattleDeploymentService.Clear();
 
 Console.WriteLine($"Terrias spirit runtime tests passed: {assertions} assertions.");

@@ -1,11 +1,27 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "enabled": true,
   "cardUseCg": {
     "enabled": true,
     "registeredEntries": {},
     "presentationOverrides": {}
   },
+  "eventCg": {
+    "enabled": true,
+    "syncRemote": true,
+    "backgroundResource": "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
+    "baseWidth": 1600,
+    "baseHeight": 900,
+    "fadeIn": 0.35,
+    "hold": 3.0,
+    "fadeOut": 0.45,
+    "specialBattleIds": [],
+    "specialOpeningEnabled": true,
+    "specialVictoryEnabled": true,
+    "battleDefeatEnabled": true,
+    "adventureSettlementEnabled": true
+  },
+  "lowHealthThreshold": 0.3,
   "syncRemote": true,
   "maxQueueLength": 8,
   "maxRequestAgeSeconds": 6.0,

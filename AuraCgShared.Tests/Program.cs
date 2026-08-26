@@ -6,9 +6,19 @@ var entry = new AuraCgRegistryEntry
 {
     OwnerModId = "Terrias",
     CgId = "solar-prayer",
-    Kind = "skill",
+    SubjectType = AuraCgSubjectTypes.Role,
+    SubjectIds = new List<string> { "wuna" },
+    Signals = new List<string> { AuraCgSignals.RoleSkillCommitted },
+    Match = new AuraCgMatchSpec
+    {
+        Facts = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["skillId"] = new() { "sun_card" }
+        }
+    },
     TargetRoleIds = new List<string> { "wuna" },
     CardIds = new List<string> { "*sun_card" },
+    SkillIds = new List<string> { "sun_card" },
     Priority = 42,
     Media = new AuraCgMediaSpec
     {
@@ -51,17 +61,21 @@ entry.Media.Type = "video";
 Assert(!AuraCgRegistryQueryService.IsRegisteredEntry(entry, "skill"), "unsupported media rejected");
 entry.Media.Type = SkillCgMediaTypes.Sequence;
 
-Assert(AuraCgRegistryQueryService.MatchesRole(entry, ""), "empty role keeps existing wildcard behavior");
+Assert(!AuraCgRegistryQueryService.MatchesRole(entry, ""), "empty role identity rejected");
+Assert(AuraCgRegistryQueryService.MatchesRole(entry, "WUNA"), "schema-v4 role subject ignores case");
 Assert(AuraCgTargetMatcher.MatchesRole(entry, "WUNA"), "role match ignores case");
 Assert(AuraCgTargetMatcher.MatchesRole(entry, "Terrias_wuna_wuna"), "owner-scoped short role id matches full runtime role id");
 entry.TargetRoleIds = new List<string> { "Terrias_wuna_wuna", "wuna" };
 Assert(AuraCgTargetMatcher.MatchesRole(entry, "Terrias_wuna_wuna"),
     "canonical and short aliases may both resolve to one runtime role");
 entry.TargetRoleIds = new List<string> { "wuna" };
-Assert(!AuraCgTargetMatcher.MatchesRole(entry, "loneer"), "other role rejected");
+entry.SubjectIds = new List<string> { "wuna" };
+Assert(!AuraCgRegistryQueryService.MatchesRole(entry, "loneer"), "other role rejected");
 entry.TargetRoleIds = new List<string> { "*" };
-Assert(AuraCgTargetMatcher.MatchesRole(entry, "loneer"), "role wildcard accepted");
+entry.SubjectIds = new List<string> { "*" };
+Assert(AuraCgRegistryQueryService.MatchesRole(entry, "loneer"), "role wildcard accepted");
 entry.TargetRoleIds = new List<string> { "wuna" };
+entry.SubjectIds = new List<string> { "wuna" };
 
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "sun_card"), "leading-star card identity matches");
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "*sun_card"), "exact decorated card identity matches");
@@ -91,6 +105,7 @@ var context = new SkillCgTriggerContext
 {
     Action = "future-action",
     CardId = "sun_card",
+    SkillId = "sun_card",
     OwnerRoleId = "wuna",
     OwnerInstanceId = "status-1",
     ActionSequence = 17,
@@ -98,8 +113,6 @@ var context = new SkillCgTriggerContext
 };
 Assert(AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: true), "matching trigger accepted");
 Assert(!AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: false), "consumer activation enforced");
-entry.SkillIds = new List<string> { "sun_card" };
-context.SkillId = "sun_card";
 context.TriggerKind = "card";
 Assert(!AuraCgRegistryQueryService.MatchesTrigger(entry, "skill", context, consumerCanPlay: true),
     "card-use transactions cannot trigger skill CG entries");
@@ -170,6 +183,9 @@ var registeredEvent = new SkillCgNetworkEvent
     OwnerModId = entry.OwnerModId,
     CgId = entry.CgId,
     ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId,
+    SignalId = AuraCgSignals.RoleSkillCommitted,
+    SubjectType = AuraCgSubjectTypes.Role,
+    SubjectId = "wuna",
     CardId = "sun_card",
     TriggerKind = "skill",
     OwnerInstanceId = "status-network",
@@ -187,14 +203,201 @@ Assert(hostResolved != null
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) == null, "registered resolver enforces recipient-local activation");
 resolverEnabled = true;
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: true) != null, "registered resolver admits locally enabled network playback");
-registeredEvent.TriggerKind = "card";
+registeredEvent.SignalId = AuraCgSignals.CardUsePresentationCommitted;
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false) == null,
-    "card-use network events cannot resolve schema-v3 skill targets");
-registeredEvent.TriggerKind = "skill";
+    "card-use network signals cannot resolve role-skill targets");
+registeredEvent.SignalId = AuraCgSignals.RoleSkillCommitted;
 registeredEvent.ProviderId = "Other.SkillCG." + entry.CgId;
 Assert(registeredResolver.ResolveNetworkRequest(registeredEvent, requireLocalActivation: false) == null, "registered resolver rejects provider identity substitution");
 registeredEvent.ProviderId = entry.OwnerModId + ".SkillCG." + entry.CgId;
 Assert(AuraCgRegisteredRequestResolver.MediaExists(entry.Media.Type, "missing", entry.Media.BundlePath), "registered bundled media resolves without exposing transport paths");
+
+var legacyCardEntry = new AuraCgRegistryEntry
+{
+    OwnerModId = "Terrias",
+    CgId = "legacy-card-use",
+    Kind = "cardUse",
+    TargetRoleIds = new List<string> { "wuna" },
+    CardIds = new List<string> { "legacy_card" },
+    Media = new AuraCgMediaSpec { Type = SkillCgMediaTypes.Image }
+};
+legacyCardEntry.Normalize(legacyCardEntry.OwnerModId);
+Assert(legacyCardEntry.SubjectType == AuraCgSubjectTypes.Card
+       && legacyCardEntry.SubjectIds.SequenceEqual(new[] { "legacy_card" })
+       && legacyCardEntry.Signals.SequenceEqual(new[] { AuraCgSignals.CardUsePresentationCommitted }),
+    "bounded schema-v3 card-use targets migrate to semantic signal identity");
+
+var lowHealthEntry = new AuraCgRegistryEntry
+{
+    OwnerModId = "AuraToolsExp",
+    CgId = "career-1-low-health",
+    SubjectType = AuraCgSubjectTypes.Role,
+    SubjectIds = new List<string> { "career_1" },
+    Signals = new List<string> { AuraCgSignals.RoleLowHealthCrossedDown },
+    Match = new AuraCgMatchSpec
+    {
+        MaximumMetrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["healthRatio"] = 0.3d
+        }
+    },
+    Media = new AuraCgMediaSpec { Type = SkillCgMediaTypes.Image }
+};
+var lowHealthSignal = new AuraCgSignalContext
+{
+    SignalId = AuraCgSignals.RoleLowHealthCrossedDown,
+    SubjectType = AuraCgSubjectTypes.Role,
+    SubjectId = "career_1",
+    RoleId = "career_1",
+    Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["healthRatio"] = 0.2d
+    }
+};
+Assert(AuraCgRegistryQueryService.MatchesSignal(lowHealthEntry, lowHealthSignal, consumerCanPlay: true),
+    "role signal matching evaluates rich local metrics before resolution");
+lowHealthSignal.Metrics["healthRatio"] = 0.5d;
+Assert(!AuraCgRegistryQueryService.MatchesSignal(lowHealthEntry, lowHealthSignal, consumerCanPlay: true),
+    "role signal metrics reject an out-of-range local trigger");
+
+for (var count = 1; count <= AuraCgSceneProtocol.MaximumParticipants; count++)
+{
+    var slots = AuraCgTeamSceneLayout.Resolve(count);
+    Assert(slots.Count == count
+           && slots.All(slot => slot.CenterX >= 0f && slot.CenterX <= 1f
+                                && slot.CenterY >= 0f && slot.CenterY <= 1f
+                                && slot.Width > 0f && slot.Height > 0f),
+        "team scene layout remains bounded for participant count " + count);
+}
+
+var sceneEntry = new AuraCgRegistryEntry
+{
+    OwnerModId = "AuraToolsExp",
+    CgId = "event.adventure-settlement",
+    SubjectType = AuraCgSubjectTypes.Event,
+    SubjectIds = new List<string> { "*" },
+    Signals = new List<string> { AuraCgSignals.AdventureSettlementEntering },
+    Match = new AuraCgMatchSpec
+    {
+        Facts = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["terminal"] = new() { "true" }
+        }
+    },
+    Media = new AuraCgMediaSpec { Type = SkillCgMediaTypes.Scene },
+    Scene = new AuraCgSceneTemplateSpec
+    {
+        MaximumParticipants = AuraCgSceneProtocol.MaximumParticipants,
+        BackgroundAsset = new AuraCgSceneAssetReference
+        {
+            OwnerModId = "AuraToolsExp",
+            AssetId = "event.background.settlement"
+        },
+        RoleLayerOwnerModId = "AuraToolsExp",
+        RoleLayerAssetPrefix = "role.idle.",
+        Exclusive = true
+    },
+    Priority = 100
+};
+var sceneSignal = new AuraCgSignalContext
+{
+    SignalId = AuraCgSignals.AdventureSettlementEntering,
+    SubjectType = AuraCgSubjectTypes.Event,
+    SubjectId = "adventure",
+    OwnerInstanceId = "status-host",
+    ActionSequence = 70,
+    EventToken = "settlement-70",
+    Facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["terminal"] = "true"
+    },
+    SceneSource = new AuraCgSceneSourceSnapshot
+    {
+        SceneId = "team-terminal",
+        EventToken = "settlement-70",
+        Participants = Enumerable.Range(0, 9)
+            .Select(index => new AuraCgSceneParticipantSource
+            {
+                Order = index,
+                PlayerId = "player-" + index,
+                RoleId = "role-" + index,
+                RoleVariantId = "skin-" + index
+            })
+            .Concat(new[]
+            {
+                new AuraCgSceneParticipantSource
+                {
+                    Order = 99,
+                    PlayerId = "player-0",
+                    RoleId = "duplicate-role"
+                }
+            })
+            .ToList()
+    }
+};
+var sceneResolver = new AuraCgRegisteredRequestResolver(
+    owner => string.Equals(owner, sceneEntry.OwnerModId, StringComparison.OrdinalIgnoreCase)
+        ? new[] { sceneEntry }
+        : Array.Empty<AuraCgRegistryEntry>(),
+    _ => true,
+    (_, resource) => "D:/must-not-resolve-scene/" + resource,
+    () => 21f,
+    null,
+    "skill",
+    "cardUse",
+    160);
+var sceneRequest = sceneResolver.BuildSignalRequest(
+    sceneEntry,
+    sceneSignal,
+    consumerCanPlay: true,
+    disableSync: false);
+Assert(sceneRequest?.ScenePlan != null
+       && sceneRequest.MediaType == SkillCgMediaTypes.Scene
+       && sceneRequest.Exclusive,
+    "a terminal event resolves to exactly one exclusive scene request");
+Assert(sceneRequest!.ScenePlan!.Participants.Count == AuraCgSceneProtocol.MaximumParticipants
+       && sceneRequest.ScenePlan.Participants.Select(item => item.RoleId)
+           .SequenceEqual(Enumerable.Range(0, 8).Select(index => "role-" + index)),
+    "host scene planning preserves player order, deduplicates participants, and caps the wire plan");
+var sceneWire = Newtonsoft.Json.JsonConvert.SerializeObject(sceneRequest.ScenePlan);
+Assert(!sceneWire.Contains("PlayerId", StringComparison.OrdinalIgnoreCase)
+       && !sceneWire.Contains("Damage", StringComparison.OrdinalIgnoreCase)
+       && !sceneWire.Contains("Base64", StringComparison.OrdinalIgnoreCase)
+       && !sceneWire.Contains("StableKey", StringComparison.OrdinalIgnoreCase)
+       && !sceneWire.Contains("QualifiedAssetId", StringComparison.OrdinalIgnoreCase)
+       && !sceneWire.Contains("D:/", StringComparison.OrdinalIgnoreCase),
+    "processed scene plans exclude rich player data, damage history, derived cache identities, encoded media, and local paths");
+
+var sceneEvent = new SkillCgNetworkEvent
+{
+    OwnerModId = sceneEntry.OwnerModId,
+    CgId = sceneEntry.CgId,
+    ProviderId = sceneEntry.OwnerModId + ".SkillCG." + sceneEntry.CgId,
+    SignalId = AuraCgSignals.AdventureSettlementEntering,
+    SubjectType = AuraCgSubjectTypes.Event,
+    SubjectId = "adventure",
+    CardId = "adventure",
+    OwnerInstanceId = "status-host",
+    ActionSequence = 70,
+    EventToken = "settlement-70",
+    IssuerPlayerId = "host",
+    SkillCgPlayId = "play-scene",
+    ScenePlan = sceneRequest.ScenePlan
+};
+Assert(AuraCgNetworkPolicy.HasValidEventIdentity(sceneEvent, 160),
+    "owner-qualified processed scene plan passes the bounded network policy");
+var peerScene = sceneResolver.ResolveNetworkRequest(sceneEvent, requireLocalActivation: true);
+Assert(peerScene?.ScenePlan != null
+       && peerScene.ScenePlan.Participants.Count == 8,
+    "peers resolve a host-selected event scene without receiving the host's rich match facts");
+sceneEvent.ScenePlan!.BackgroundAsset.AssetId = "C:/raw/background.png";
+Assert(!AuraCgNetworkPolicy.HasValidEventIdentity(sceneEvent, 160),
+    "scene network policy rejects filesystem paths masquerading as logical asset ids");
+sceneEvent.ScenePlan.BackgroundAsset.AssetId = "event.background.settlement";
+sceneEvent.ScenePlan.ProtocolVersion = AuraCgSceneProtocol.CurrentVersion + 1;
+Assert(!AuraCgNetworkPolicy.HasValidEventIdentity(sceneEvent, 160),
+    "scene network policy rejects unsupported scene protocol versions");
+sceneEvent.ScenePlan.ProtocolVersion = AuraCgSceneProtocol.CurrentVersion;
 
 var slideSize = AuraCgPresentationMath.CalculateSlideImageSize(200f, 100f, 1000f, 1000f);
 Assert(Near(slideSize.X, 1700f) && Near(slideSize.Y, 850f), "slide layout preserves aspect at the configured viewport height ratio");
@@ -256,12 +459,15 @@ Assert(!staleCoordinator.IsCurrent(staleGeneration)
        && staleCoordinator.RecentKeyCount == 0,
     "playback clear invalidates the active generation and all queue-owned state");
 
-const int maxIdentifier = 16;
+const int maxIdentifier = 64;
 var networkEvent = new SkillCgNetworkEvent
 {
     OwnerModId = "Terrias",
     CgId = "solar",
     ProviderId = "provider",
+    SignalId = AuraCgSignals.CardUsePresentationCommitted,
+    SubjectType = AuraCgSubjectTypes.Card,
+    SubjectId = "card",
     CardId = "card",
     TriggerKind = "card",
     OwnerInstanceId = "status"
@@ -509,6 +715,20 @@ Assert(flushedSprites.Count == 1 && flushedSprites[0].Ownership == AuraCgMediaOw
 
 var sequenceKey = AuraCgMediaCacheKeys.Sequence(request);
 Assert(AuraCgMediaCacheKeys.Preload(request) == "sequence:" + sequenceKey, "sequence preload uses canonical cache key");
+var directSceneA = new SkillCgRequest
+{
+    OwnerModId = "AuraToolsExp",
+    ImageResource = "role.idle.career_1",
+    MediaType = SkillCgMediaTypes.Sequence
+};
+var directSceneB = new SkillCgRequest
+{
+    OwnerModId = "AuraToolsExp",
+    ImageResource = "role.idle.career_3",
+    MediaType = SkillCgMediaTypes.Sequence
+};
+Assert(AuraCgMediaCacheKeys.Sequence(directSceneA) != AuraCgMediaCacheKeys.Sequence(directSceneB),
+    "direct scene sequences include their logical resource id in the cache key");
 Assert(AuraCgMediaCacheKeys.Sprite("cg.png", "black", 0.03f, 0.08f).Contains(SkillCgAlphaModes.BlackKey, StringComparison.Ordinal), "sprite key normalizes alpha aliases");
 
 Assert(AuraCgMediaPathResolver.NormalizeRelativeResourcePath("  \\\\cg\\sequence\\frame.png  ") == "cg/sequence/frame.png", "media resource paths normalize separators and leading roots");

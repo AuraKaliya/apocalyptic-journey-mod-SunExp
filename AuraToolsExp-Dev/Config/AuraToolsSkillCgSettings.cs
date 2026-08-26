@@ -8,14 +8,33 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class AuraToolsSkillCgSettings
 {
+    public const int CurrentSchemaVersion = 7;
+
+    private AuraToolsEventCgSettings eventCg = new();
+    private bool hasExplicitEventCg;
+
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
 
     [JsonProperty("cardUseCg")]
     public AuraToolsCardUseCgSettings CardUseCg { get; set; } = new();
+
+    [JsonProperty("eventCg", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public AuraToolsEventCgSettings EventCg
+    {
+        get => eventCg;
+        set
+        {
+            eventCg = value ?? new AuraToolsEventCgSettings();
+            hasExplicitEventCg = true;
+        }
+    }
+
+    [JsonProperty("lowHealthThreshold")]
+    public float LowHealthThreshold { get; set; } = 0.3f;
 
     [JsonProperty("syncRemote")]
     public bool SyncRemote { get; set; } = true;
@@ -43,9 +62,12 @@ public sealed class AuraToolsSkillCgSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(6, SchemaVersion);
+        SchemaVersion = Math.Max(CurrentSchemaVersion, SchemaVersion);
         CardUseCg ??= new AuraToolsCardUseCgSettings();
         CardUseCg.Normalize();
+        eventCg ??= new AuraToolsEventCgSettings();
+        eventCg.Normalize();
+        LowHealthThreshold = Math.Max(0.05f, Math.Min(0.95f, LowHealthThreshold));
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
         MaxRequestAgeSeconds = Math.Max(0.5f, Math.Min(30f, MaxRequestAgeSeconds));
         DuplicateWindowSeconds = Math.Max(0.02f, Math.Min(2f, DuplicateWindowSeconds));
@@ -87,10 +109,104 @@ public sealed class AuraToolsSkillCgSettings
 
         Roles = normalizedRoles;
     }
+
+    internal bool TryImportLegacySettlementCg(LegacyDamageSettlementCgSettings? legacy)
+    {
+        if (legacy == null || hasExplicitEventCg)
+        {
+            return false;
+        }
+
+        legacy.Normalize();
+        eventCg = AuraToolsEventCgSettings.FromLegacy(legacy);
+        hasExplicitEventCg = true;
+        return true;
+    }
+}
+
+public sealed class AuraToolsEventCgSettings
+{
+    public const int CurrentSchemaVersion = 1;
+
+    public const string DefaultBackgroundResource = "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png";
+
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("syncRemote")]
+    public bool SyncRemote { get; set; } = true;
+
+    [JsonProperty("backgroundResource")]
+    public string BackgroundResource { get; set; } = DefaultBackgroundResource;
+
+    [JsonProperty("baseWidth")]
+    public int BaseWidth { get; set; } = 1600;
+
+    [JsonProperty("baseHeight")]
+    public int BaseHeight { get; set; } = 900;
+
+    [JsonProperty("fadeIn")]
+    public float FadeIn { get; set; } = 0.35f;
+
+    [JsonProperty("hold")]
+    public float Hold { get; set; } = 3f;
+
+    [JsonProperty("fadeOut")]
+    public float FadeOut { get; set; } = 0.45f;
+
+    [JsonProperty("specialBattleIds")]
+    public List<string> SpecialBattleIds { get; set; } = new();
+
+    [JsonProperty("specialOpeningEnabled")]
+    public bool SpecialOpeningEnabled { get; set; } = true;
+
+    [JsonProperty("specialVictoryEnabled")]
+    public bool SpecialVictoryEnabled { get; set; } = true;
+
+    [JsonProperty("battleDefeatEnabled")]
+    public bool BattleDefeatEnabled { get; set; } = true;
+
+    [JsonProperty("adventureSettlementEnabled")]
+    public bool AdventureSettlementEnabled { get; set; } = true;
+
+    public void Normalize()
+    {
+        BackgroundResource = string.IsNullOrWhiteSpace(BackgroundResource)
+            ? DefaultBackgroundResource
+            : BackgroundResource.Trim();
+        BaseWidth = Math.Max(1, Math.Min(8192, BaseWidth));
+        BaseHeight = Math.Max(1, Math.Min(8192, BaseHeight));
+        FadeIn = Math.Max(0f, Math.Min(5f, FadeIn));
+        Hold = Math.Max(0.1f, Math.Min(30f, Hold));
+        FadeOut = Math.Max(0f, Math.Min(5f, FadeOut));
+        SpecialBattleIds = (SpecialBattleIds ?? new List<string>())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(128)
+            .ToList();
+    }
+
+    internal static AuraToolsEventCgSettings FromLegacy(LegacyDamageSettlementCgSettings legacy)
+    {
+        return new AuraToolsEventCgSettings
+        {
+            Enabled = legacy.Enabled,
+            SyncRemote = legacy.SyncRemote,
+            BackgroundResource = legacy.BackgroundResource,
+            BaseWidth = legacy.BaseWidth,
+            BaseHeight = legacy.BaseHeight,
+            FadeIn = legacy.FadeIn,
+            Hold = legacy.Hold,
+            FadeOut = legacy.FadeOut
+        };
+    }
 }
 
 public sealed class AuraToolsCardUseCgSettings
 {
+    public const int CurrentSchemaVersion = 1;
+
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
 

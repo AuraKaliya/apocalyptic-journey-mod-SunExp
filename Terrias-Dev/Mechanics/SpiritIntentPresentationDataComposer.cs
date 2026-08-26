@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.Mechanics;
 
@@ -62,5 +63,36 @@ public static class SpiritIntentPresentationDataComposer
         }
 
         return overrides;
+    }
+
+    public static void AppendElementRule(IDictionary<string, string> presentation, string elementId)
+    {
+        if (presentation == null || SpiritElementService.NormalizeId(elementId).Length == 0)
+        {
+            return;
+        }
+
+        var arguments = new[] { "element", SpiritElementService.DisplayName(elementId) };
+        Append(presentation, "Description", TerriasTextCatalog.Format("ui.spirit.element_segment_rule", arguments));
+        foreach (var locale in TerriasLocale.Supported)
+        {
+            Append(
+                presentation,
+                TerriasLocale.FieldName("Description", locale),
+                TerriasTextCatalog.FormatForLocale("ui.spirit.element_segment_rule", locale, arguments));
+        }
+
+        presentation[TerriasIds.SpiritElementIdKey] = SpiritElementService.NormalizeId(elementId);
+    }
+
+    private static void Append(IDictionary<string, string> presentation, string key, string line)
+    {
+        if (!presentation.TryGetValue(key, out var current) || string.IsNullOrWhiteSpace(current)
+            || string.IsNullOrWhiteSpace(line) || current.IndexOf(line, StringComparison.Ordinal) >= 0)
+        {
+            return;
+        }
+
+        presentation[key] = current.TrimEnd() + "\n" + line;
     }
 }

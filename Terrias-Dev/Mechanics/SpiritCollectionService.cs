@@ -91,6 +91,7 @@ public static class SpiritCollectionService
             normalizedSnapshot.DeploymentToken = "";
             normalizedSnapshot.SpeciesId = "";
             normalizedSnapshot.ProfileId = "";
+            normalizedSnapshot.SpiritElementId = "";
             var identity = SpiritGrowthRegistry.ResolveIdentity(normalizedSnapshot);
             var aptitudeRoll = SpiritGrowthRegistry.AptitudeRollFor(identity.Profile);
             var instance = new SpiritInstance
@@ -108,6 +109,7 @@ public static class SpiritCollectionService
                     ? DateTimeOffset.UtcNow.ToString("O")
                     : normalizedSnapshot.CapturedAt
             };
+            SpiritElementService.AssignCaptureDefault(instance, identity.Profile, legacy: false);
             SpiritTrainingService.InitializeCaptured(instance);
             if (identity.UsedFallback && IsOwnedSource(normalizedSnapshot.SourceModId))
             {
@@ -173,6 +175,29 @@ public static class SpiritCollectionService
     public static bool ToggleLocked(string spiritUid)
     {
         return ToggleFlag(spiritUid, false);
+    }
+
+    public static bool SetElement(string spiritUid, string elementId, string source = SpiritElementService.ExplicitOverrideSource)
+    {
+        lock (SyncRoot)
+        {
+            if (!SpiritElementService.TryParse(elementId, out _))
+            {
+                return false;
+            }
+
+            var candidate = CloneDocument(document);
+            var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
+            if (instance == null)
+            {
+                return false;
+            }
+
+            SpiritElementService.Assign(instance, elementId, source);
+            SaveUnlocked(candidate);
+            document = candidate;
+            return true;
+        }
     }
 
     public static bool EquipIntent(string spiritUid, int slotIndex, string intentId)
@@ -352,6 +377,7 @@ public static class SpiritCollectionService
                 snapshot.SpiritUid = UniqueUid(candidate, snapshot.SpiritUid);
                 snapshot.SpeciesId = "";
                 snapshot.ProfileId = "";
+                snapshot.SpiritElementId = "";
                 snapshot.SpiritGuiyuanValue = 0;
                 snapshot.SpiritStarRank = 0;
                 snapshot.GuiyuanAllocationMagic = 0;
@@ -370,6 +396,7 @@ public static class SpiritCollectionService
                     Aptitude = SpiritGrowthService.LegacyAptitude,
                     CapturedAt = snapshot.CapturedAt
                 };
+                SpiritElementService.AssignCaptureDefault(imported, identity.Profile, legacy: true);
                 SpiritTrainingService.Normalize(imported, legacy: true);
                 candidate.Instances.Add(imported);
                 AddToFirstEmpty(candidate.DefaultPartySlots, snapshot.SpiritUid);
@@ -406,6 +433,7 @@ public static class SpiritCollectionService
                 item.SpiritUid = string.IsNullOrWhiteSpace(item.SpiritUid) ? Guid.NewGuid().ToString("N") : item.SpiritUid.Trim();
                 while (!seen.Add(item.SpiritUid)) item.SpiritUid = Guid.NewGuid().ToString("N");
                 item.Snapshot.SpiritUid = item.SpiritUid;
+                item.Snapshot.SpiritElementId = "";
                 item.Presentation ??= new SpiritLocalizedPresentation();
                 if (sourceVersion < 6 || !HasPresentation(item.Presentation))
                 {
@@ -418,6 +446,7 @@ public static class SpiritCollectionService
                     item.ProfileId = identity.ProfileId;
                 }
                 var profile = SpiritGrowthRegistry.Resolve(item);
+                SpiritElementService.NormalizePersisted(item, profile, sourceVersion < 8);
                 var maxLevel = SpiritGrowthService.MaxLevelFor(profile);
                 var roll = SpiritGrowthRegistry.AptitudeRollFor(profile);
                 item.Level = Math.Max(1, Math.Min(maxLevel, item.Level));

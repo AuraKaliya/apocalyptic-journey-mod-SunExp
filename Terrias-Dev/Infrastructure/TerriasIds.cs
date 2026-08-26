@@ -279,6 +279,7 @@ public static class TerriasIds
     public const string SpiritSourceModIdKey = "TerriasSpiritSourceModId";
     public const string SpiritSpeciesIdKey = "TerriasSpiritSpeciesId";
     public const string SpiritGrowthProfileIdKey = "TerriasSpiritGrowthProfileId";
+    public const string SpiritElementIdKey = "TerriasSpiritElementId";
     public const string SpiritDisplayNameKey = "TerriasSpiritDisplayName";
     public const string SpiritDescriptionKey = "TerriasSpiritDescription";
     public const string SpiritAnimationPathKey = "TerriasSpiritAnimationPath";

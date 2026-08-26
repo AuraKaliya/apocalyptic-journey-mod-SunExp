@@ -1,24 +1,15 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "ownerModId": "Terrias",
   "contributionId": "manifest",
   "protocol": {
     "minVersion": 1,
-    "preferredVersion": 3
+    "preferredVersion": 4
   },
   "entries": [
     {
       "cgId": "loneer.morning-star-prayer",
       "displayName": "Loneer - 晨星祈愿",
-      "kind": "skill",
-      "targetRoleIds": [
-        "Terrias_loneer_loneer",
-        "loneer"
-      ],
-      "skillIds": [
-        "Terrias_loneer_loneer_morning_star_prayer",
-        "loneer_morning_star_prayer"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_loneer_loneer/SkillCg/Terrias/loneer.morning-star-prayer/content.png",
@@ -44,20 +35,29 @@
         "skill-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_loneer_loneer",
+        "loneer"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "Terrias_loneer_loneer_morning_star_prayer",
+            "loneer_morning_star_prayer"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "wuna.white-sun-prayer",
       "displayName": "WuNa - 白曜圣祷",
-      "kind": "skill",
-      "targetRoleIds": [
-        "Terrias_wuna_wuna",
-        "wuna"
-      ],
-      "skillIds": [
-        "Terrias_wuna_wuna_white_sun_prayer",
-        "wuna_white_sun_prayer"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_wuna_wuna/SkillCg/Terrias/wuna.white-sun-prayer/content.png",
@@ -83,20 +83,29 @@
         "skill-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_wuna_wuna",
+        "wuna"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "Terrias_wuna_wuna_white_sun_prayer",
+            "wuna_white_sun_prayer"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "columbina.homesickness",
       "displayName": "Columbina - 她的乡愁",
-      "kind": "skill",
-      "targetRoleIds": [
-        "Terrias_columbina_columbina",
-        "columbina"
-      ],
-      "skillIds": [
-        "Terrias_columbina_columbina_homesickness",
-        "columbina_homesickness"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_columbina_columbina/SkillCg/Terrias/columbina.homesickness/content.png",
@@ -122,19 +131,29 @@
         "skill-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_columbina_columbina",
+        "columbina"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "Terrias_columbina_columbina_homesickness",
+            "columbina_homesickness"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "terrias.blazing-crown-collapse",
       "displayName": "Terrias - 炽冕崩落",
-      "kind": "cardUse",
-      "targetRoleIds": [
-        "*"
-      ],
-      "cardIds": [
-        "Terrias_terrias_blazing_crown_collapse",
-        "blazing_crown_collapse"
-      ],
       "media": {
         "type": "sequence",
         "resource": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/Terrias/terrias.blazing-crown-collapse/content",
@@ -172,19 +191,24 @@
         "sequence-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "card",
+      "subjectIds": [
+        "Terrias_terrias_blazing_crown_collapse",
+        "blazing_crown_collapse"
+      ],
+      "signals": [
+        "aura.card.use.presentation-committed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "loneer.feast",
       "displayName": "Loneer - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "Terrias_loneer_loneer",
-        "loneer"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_loneer_loneer/Feast/Terrias/loneer.feast/content.png",
@@ -210,19 +234,24 @@
         "feast-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_loneer_loneer",
+        "loneer"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "wuna.feast",
       "displayName": "WuNa - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "Terrias_wuna_wuna",
-        "wuna"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_wuna_wuna/Feast/Terrias/wuna.feast/content.png",
@@ -248,19 +277,24 @@
         "feast-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_wuna_wuna",
+        "wuna"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "columbina.feast",
       "displayName": "Columbina - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "Terrias_columbina_columbina",
-        "columbina"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Terrias_columbina_columbina/Feast/Terrias/columbina.feast/content.png",
@@ -286,7 +320,20 @@
         "feast-cg",
         "terrias"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_columbina_columbina",
+        "columbina"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     }
   ]
 }

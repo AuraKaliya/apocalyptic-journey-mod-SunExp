@@ -2,12 +2,12 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritSystemContract
 {
-    public const int CollectionVersion = 7;
+    public const int CollectionVersion = 8;
     public const int InherentAbilityPlanVersion = 1;
     public const int TrainingPlanVersion = 2;
     public const int TrainingRegistrySchemaVersion = 2;
     public const int IntentRegistrySchemaVersion = 3;
-    public const int GrowthRegistrySchemaVersion = 2;
+    public const int GrowthRegistrySchemaVersion = 3;
     public const int CaptureRegistrySchemaVersion = 1;
     public const int MaximumVisibleStatuses = 24;
 

@@ -112,6 +112,20 @@ async function verifyInteractions(page, productionModuleIds, report) {
   const previewIds = (await page.evaluate(() => window.__AURA_PREVIEW__.visibleModuleIds())).sort();
   assert(JSON.stringify(previewIds) === JSON.stringify(productionModuleIds), "preview module inventory differs from production ids");
 
+  await page.locator('[data-category-id="presentation"]').click();
+  await waitUntilReady(page);
+  const presentationIds = await page.evaluate(() => window.__AURA_PREVIEW__.visibleModuleIds());
+  assert(presentationIds.length === 9, "presentation category should contain nine tools");
+  assert(["presentation.skill-cg", "presentation.card-use-cg", "presentation.event-cg"]
+    .every(id => presentationIds.includes(id)), "presentation category must expose Role, Card, and Event CG");
+  assert(!presentationIds.includes("presentation.feast-cg"), "legacy Feast CG must remain hidden from the toolbox");
+  const presentationPath = path.join(outputRoot, "interaction-presentation-cg.png");
+  await page.screenshot({ path: presentationPath, animations: "disabled" });
+  await page.locator("#module-list").evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await page.waitForTimeout(40);
+  const presentationBottomPath = path.join(outputRoot, "interaction-presentation-cg-bottom.png");
+  await page.screenshot({ path: presentationBottomPath, animations: "disabled" });
+
   await page.locator('[data-category-id="records"]').click();
   await waitUntilReady(page);
   assert(await page.locator(".module-row").count() === 3, "records category should contain three tools");
@@ -166,6 +180,8 @@ async function verifyInteractions(page, productionModuleIds, report) {
   report.interactions = {
     globalSearchScreenshot: searchPath,
     overlayScreenshot: overlayPath,
+    presentationScreenshot: presentationPath,
+    presentationBottomScreenshot: presentationBottomPath,
     moduleInventory: productionModuleIds,
     passed: true
   };
@@ -206,7 +222,7 @@ async function main() {
     await browser.close();
     fs.writeFileSync(path.join(outputRoot, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
   }
-  console.log(`AuraTools toolbox preview passed: ${captureCases.length} captures, 6 interaction checks.`);
+  console.log(`AuraTools toolbox preview passed: ${captureCases.length} captures and interaction checks.`);
   console.log(`Output: ${outputRoot}`);
 }
 

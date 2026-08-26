@@ -84,10 +84,10 @@
              Link="DamageMeter\OutOfRunDamageHistoryModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Model\OutOfRunDamageHistoryBuilder.cs"
              Link="DamageMeter\OutOfRunDamageHistoryBuilder.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\SettlementCg\DamageSettlementCgPayload.cs"
-             Link="DamageMeter\SettlementCg\DamageSettlementCgPayload.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\SettlementCg\DamageSettlementCgAnimationSpec.cs"
-             Link="DamageMeter\SettlementCg\DamageSettlementCgAnimationSpec.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSceneContracts.cs"
+             Link="Cg\AuraCgSceneContracts.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgAnimationSpec.cs"
+             Link="Cg\AuraToolsCgAnimationSpec.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\WinSqlite.cs"
              Link="DamageMeter\WinSqlite.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\DamageHistoryDatabase.cs"

@@ -35,7 +35,8 @@ public static class CompanionIntentExecutor
                 ? Array.Empty<CompanionIntentEffectSpec>()
                 : CompanionIntentEffects.Expand(intent);
             System.Collections.Generic.IReadOnlyList<CompanionResolvedEffect> effects = plan.ResolvedEffects;
-            var fingerprint = CompanionIntentPresentationSnapshot.Fingerprint(effects, specs);
+            var spiritElementId = SpiritStateStore.Find(state.StatusId)?.Snapshot.SpiritElementId ?? "";
+            var fingerprint = CompanionIntentPresentationSnapshot.Fingerprint(effects, specs, spiritElementId);
             var isCurrentSnapshot = string.Equals(
                     DictionaryUtil.Get(executor.Vars, PresentedPlanVar),
                     plan.PlanId,
@@ -59,7 +60,7 @@ public static class CompanionIntentExecutor
                 var displayIndex = index < specs.Count
                     ? Math.Max(1, specs[index].DisplayIndex)
                     : index + 1;
-                var snapshot = CompanionIntentPresentationSnapshot.Resolve(effect, displayIndex);
+                var snapshot = CompanionIntentPresentationSnapshot.Resolve(effect, displayIndex, spiritElementId);
                 DictionaryUtil.Set(executor.Vars, "DesVal" + snapshot.DisplayIndex, snapshot.DisplayText);
                 if (diagnostic.Length > 0)
                 {

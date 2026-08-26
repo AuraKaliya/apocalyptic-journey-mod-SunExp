@@ -3,7 +3,8 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+using AuraCg.Shared;
+using AuraToolsExp.Dll.Features.Cg;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;
@@ -81,13 +82,13 @@ internal static partial class AuraToolsTestSuite
             }
         };
         skillCg.Normalize();
-        Assert(skillCg.SchemaVersion == 6
+        Assert(skillCg.SchemaVersion == 7
                && skillCg.CardUseCg.RegisteredEntries.ContainsKey("Terrias:terrias.blazing-crown-collapse")
                && skillCg.CardUseCg.PresentationOverrides.TryGetValue("Terrias:terrias.blazing-crown-collapse", out var cardUseOverride)
                && cardUseOverride.FlashStrength == 1f
                && Math.Abs(cardUseOverride.FrameSeconds!.Value - 0.01f) < 0.001f
                && skillCg.Roles["Terrias_wuna_wuna"].Rules[0].SourceOwnerModId == "Terrias",
-            "Skill CG and card-use CG preferences migrate to content ownership while remaining tool-configured");
+            "role, card, and event CG preferences migrate to content ownership while remaining tool-configured");
 
         var feastRole = new FeastRoleSettings
         {
@@ -154,12 +155,8 @@ internal static partial class AuraToolsTestSuite
         Assert(settings.UiRefreshIntervalMs == 1000, "DPS UI refresh falls back to the bounded default");
         Assert(settings.SubmitBatchIntervalMs == 250, "DPS network submit batching falls back to the bounded default");
         Assert(settings.MaxEventsPerBatch == 24, "DPS network submit batch size falls back to the bounded default");
-        Assert(settings.SettlementCg.Enabled
-               && settings.SettlementCg.BackgroundResource == "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png"
-               && settings.SettlementCg.BaseWidth == 1600
-               && settings.SettlementCg.BaseHeight == 900
-               && settings.SettlementCg.SlotSize == 180,
-            "DPS settlement CG defaults normalize with the damage meter");
+        Assert(!JsonConvert.SerializeObject(settings).Contains("settlementCg", StringComparison.Ordinal),
+            "damage settings no longer serialize an independent settlement CG subsystem");
     
         var legacy = JsonConvert.DeserializeObject<DamageMeterSettings>("{\"friendlyOnly\":true}")!;
         legacy.Normalize();
@@ -814,115 +811,110 @@ internal static partial class AuraToolsTestSuite
             "an intentionally empty Unity type selection remains empty instead of silently restoring defaults");
     }
     
-    public static void TestDamageSettlementCgSettingsAndLayout()
+    public static void TestUnifiedEventCgSettingsAndLegacyMigration()
     {
-        var settings = new DamageSettlementCgSettings
+        var settings = new AuraToolsEventCgSettings
         {
             BackgroundResource = "",
             BaseWidth = 0,
             BaseHeight = -1,
-            SlotSize = 0,
             FadeIn = -1f,
             Hold = 100f,
-            FadeOut = 99f
+            FadeOut = 99f,
+            SpecialBattleIds = new List<string> { " boss-a ", "BOSS-A", "boss-b" }
         };
         settings.Normalize();
         Assert(settings.BackgroundResource == "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
-            "settlement CG background falls back to bundled resource");
-        Assert(settings.BaseWidth == 1 && settings.BaseHeight == 1 && settings.SlotSize == 1,
-            "settlement CG dimensions are clamped positive");
+            "event CG background falls back to the migrated bundled resource");
+        Assert(settings.BaseWidth == 1 && settings.BaseHeight == 1,
+            "event CG dimensions are clamped positive");
         Assert(settings.FadeIn == 0f && Math.Abs(settings.Hold - 30f) < 0.001f && Math.Abs(settings.FadeOut - 5f) < 0.001f,
-            "settlement CG timing is clamped");
-    
-        settings = new DamageSettlementCgSettings();
-        settings.Normalize();
-        var layout = DamageSettlementCgLayout.Calculate(1920f, 1080f, settings);
-        Assert(Math.Abs(layout.Scale - 1.2f) < 0.001f, "settlement CG uses cover scale at 16:9");
-        var first = layout.SlotForRank(1)!.Rect;
-        Assert(Math.Abs(first.X - 780f) < 0.001f
-               && Math.Abs(first.Y - 336f) < 0.001f
-               && Math.Abs(first.Width - 216f) < 0.001f,
-            "rank one slot scales from 1600x900 coordinates");
-    
-        var wide = DamageSettlementCgLayout.Calculate(2560f, 1080f, settings);
-        Assert(Math.Abs(wide.Scale - 1.6f) < 0.001f
-               && Math.Abs(wide.Background.Y + 180f) < 0.001f,
-            "settlement CG cover crops vertically on ultrawide viewports");
+            "event CG timing is clamped");
+        Assert(settings.SpecialBattleIds.SequenceEqual(new[] { "boss-a", "boss-b" }, StringComparer.OrdinalIgnoreCase),
+            "special battle ids are trimmed and deduplicated");
+
+        var damageSettings = JsonConvert.DeserializeObject<DamageMeterSettings>(
+            "{\"settlementCg\":{\"enabled\":false,\"syncRemote\":false,\"backgroundResource\":\"legacy.png\",\"baseWidth\":1200,\"baseHeight\":700,\"fadeIn\":0.2,\"hold\":4,\"fadeOut\":0.6}}")!;
+        var roleCg = new AuraToolsSkillCgSettings();
+        Assert(roleCg.TryImportLegacySettlementCg(damageSettings.TakeLegacySettlementCg()),
+            "legacy damage settlement settings migrate exactly once into event CG");
+        Assert(!roleCg.EventCg.Enabled
+               && !roleCg.EventCg.SyncRemote
+               && roleCg.EventCg.BackgroundResource == "legacy.png"
+               && roleCg.EventCg.BaseWidth == 1200
+               && roleCg.EventCg.BaseHeight == 700,
+            "legacy presentation choices survive the bounded migration");
+        Assert(!roleCg.TryImportLegacySettlementCg(damageSettings.TakeLegacySettlementCg())
+               && !JsonConvert.SerializeObject(damageSettings).Contains("settlementCg", StringComparison.Ordinal),
+            "the retired damage settlement configuration is consumed and never re-serialized");
     }
     
-    public static void TestDamageSettlementCgPayloadOrdering()
+    public static void TestTeamScenePlanning()
     {
-        var record = new OutOfRunDamageHistoryRecord
+        var source = new AuraCgSceneSourceSnapshot
         {
-            AdventureId = "adventure",
-            EndedUtc = "now",
-            TeamMembers = new List<OutOfRunTeamMemberSnapshot>
+            SceneId = "adventure-settlement",
+            EventToken = "settlement-1",
+            Participants = new List<AuraCgSceneParticipantSource>
             {
-                new() { InstanceId = "p4", PlayerId = "p4", RoleId = "role4", RoleDisplayName = "D", TotalDamage = 10, Dps = 10 },
-                new() { InstanceId = "p1", PlayerId = "p1", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 100, Dps = 20 },
-                new() { InstanceId = "p3", PlayerId = "p3", RoleId = "role3", RoleDisplayName = "C", TotalDamage = 50, Dps = 30 },
-                new() { InstanceId = "p2", PlayerId = "p2", RoleId = "role2", RoleDisplayName = "B", TotalDamage = 100, Dps = 15 },
-                new() { InstanceId = "p5", PlayerId = "p5", RoleId = "role5", RoleDisplayName = "E", TotalDamage = 1, Dps = 1 },
-                new() { InstanceId = "e0", PlayerId = "e0", RoleDisplayName = "Enemy", TotalDamage = 999, Dps = 999 },
-                new() { InstanceId = "p1-alias", PlayerId = "p1", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 90, Dps = 18 }
+                new() { Order = 3, PlayerId = "p3", RoleId = "role3", RoleVariantId = "skin:3" },
+                new() { Order = 0, PlayerId = "p0", RoleId = "role0", RoleVariantId = "skin:0" },
+                new() { Order = 1, PlayerId = "p1", RoleId = "role1", RoleVariantId = "skin:1" },
+                new() { Order = 2, PlayerId = "p2", RoleId = "role2", RoleVariantId = "skin:2" },
+                new() { Order = 9, PlayerId = "p1", RoleId = "duplicate-must-drop" },
+                new() { Order = 4, PlayerId = "p4", RoleId = "role4" },
+                new() { Order = 5, PlayerId = "p5", RoleId = "role5" },
+                new() { Order = 6, PlayerId = "p6", RoleId = "role6" },
+                new() { Order = 7, PlayerId = "p7", RoleId = "role7" },
+                new() { Order = 8, PlayerId = "p8", RoleId = "role8" }
             }
         };
-    
-        var payload = DamageSettlementCgBuilder.Build(record, new DamageSettlementCgSettings());
-        Assert(payload.Entries.Count == 4, "settlement CG payload keeps the four display slots");
-        Assert(payload.Entries[0].InstanceId == "p1"
-               && payload.Entries[1].InstanceId == "p2"
-               && payload.Entries[2].InstanceId == "p3"
-               && payload.Entries[3].InstanceId == "p4",
-            "settlement CG payload orders by total DPS damage with deterministic tie breakers");
-        Assert(payload.Entries.Select(entry => entry.Rank).SequenceEqual(new[] { 1, 2, 3, 4 }),
-            "settlement CG payload assigns rank numbers");
-        Assert(payload.Entries.All(entry => entry.InstanceId != "e0")
-               && payload.Entries.Count(entry => entry.PlayerId == "p1") == 1,
-            "settlement CG excludes non-role combatants and deduplicates real players");
-    
-        payload = DamageSettlementCgBuilder.Build(new OutOfRunDamageHistoryRecord
+        var template = new AuraCgSceneTemplateSpec
         {
-            TeamMembers = new List<OutOfRunTeamMemberSnapshot>
+            MaximumParticipants = 8,
+            BackgroundAsset = new AuraCgSceneAssetReference
             {
-                new() { InstanceId = "solo", PlayerId = "solo", RoleId = "role1", RoleDisplayName = "A", TotalDamage = 100, Dps = 20 }
-            }
-        }, new DamageSettlementCgSettings());
-        Assert(payload.Entries.Count == 1 && payload.Entries[0].InstanceId == "solo",
-            "settlement CG payload does not pad missing display slots with test data");
+                OwnerModId = "AuraToolsExp",
+                AssetId = "event.background.settlement"
+            },
+            RoleLayerOwnerModId = "AuraToolsExp",
+            RoleLayerAssetPrefix = "role.idle."
+        };
+        var plan = AuraCgTeamScenePlanner.Build(
+            source,
+            template,
+            "aura.adventure.settlement.entering");
+        Assert(plan != null && plan.IsValid(), "team settlement source produces one valid processed scene plan");
+        Assert(plan!.Participants.Count == 8
+               && plan.Participants.Select(item => item.RoleId).SequenceEqual(
+                   Enumerable.Range(0, 8).Select(index => "role" + index)),
+            "team scene preserves actual player order, deduplicates players, and caps the processed plan at eight roles");
+        Assert(plan.Participants.Select(item => item.SeatIndex).SequenceEqual(Enumerable.Range(0, 8))
+               && plan.Participants.All(item => item.Width > 0f && item.Height > 0f),
+            "the shared layout resolves stable positions without damage ranking input");
+        var wire = JsonConvert.SerializeObject(plan);
+        Assert(!wire.Contains("PlayerId", StringComparison.OrdinalIgnoreCase)
+               && !wire.Contains("Damage", StringComparison.OrdinalIgnoreCase)
+               && !wire.Contains("Path", StringComparison.OrdinalIgnoreCase)
+               && wire.Contains("event.background.settlement", StringComparison.Ordinal),
+            "the transmitted scene plan contains logical assets and positions, never rich player or damage source data");
     }
     
-    public static void TestDamageSettlementCgAnimationSpec()
+    public static void TestUnifiedCgAnimationSpec()
     {
-        var native = DamageSettlementCgAnimationSpec.FromJson(
+        var native = AuraToolsCgAnimationSpec.FromJson(
             "{\"FrameCount\":2,\"FrameRate\":8}",
             new[] { "Idle_10", "Idle_00", "Idle_01" });
         Assert(native.OrderedFrameNames.SequenceEqual(new[] { "Idle_00", "Idle_01" })
                && Math.Abs(native.FrameSeconds - 0.125f) < 0.001f,
             "native idle animation config uses frame count and frame rate");
     
-        var shared = DamageSettlementCgAnimationSpec.FromJson(
+        var shared = AuraToolsCgAnimationSpec.FromJson(
             "{\"AnimationPerFrame\":0.2,\"isLoop\":false,\"Direction\":\"Left\"}",
             new[] { "matte_00002", "matte_00001" });
         Assert(shared.OrderedFrameNames.SequenceEqual(new[] { "matte_00001", "matte_00002" })
                && Math.Abs(shared.FrameSeconds - 0.2f) < 0.001f
-               && !shared.Loop
-               && shared.Direction == "Left",
-            "shared skin idle animation config uses AnimationPerFrame and natural frame order");
-    }
-    
-    public static void TestDamageSettlementCgPreparationPolicy()
-    {
-        Assert(DamageSettlementCgPreparationPolicy.ShouldWait(0f, hasPendingPreparation: true, isCurrentGeneration: true),
-            "settlement CG waits while synchronized role resources are preparing");
-        Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(
-                DamageSettlementCgPreparationPolicy.MaximumWaitSeconds,
-                hasPendingPreparation: true,
-                isCurrentGeneration: true),
-            "settlement CG preparation wait has a bounded deadline");
-        Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(0.1f, hasPendingPreparation: false, isCurrentGeneration: true),
-            "settlement CG starts immediately when all role resources are ready");
-        Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(0.1f, hasPendingPreparation: true, isCurrentGeneration: false),
-            "superseded settlement CG routines stop waiting");
+               && !shared.Loop,
+            "the unified CG asset resolver uses one deterministic idle animation parser");
     }
 }

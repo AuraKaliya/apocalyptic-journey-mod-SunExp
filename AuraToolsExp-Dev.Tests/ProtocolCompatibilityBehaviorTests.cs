@@ -1,5 +1,5 @@
+using AuraCg.Shared;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Infrastructure;
 
 internal static partial class AuraToolsTestSuite
@@ -110,17 +110,32 @@ internal static partial class AuraToolsTestSuite
         Assert(new DamageLedger().ApplySnapshot(legacySnapshot),
             "damage snapshots migrate from the supported legacy protocol range");
 
-        var presentation = new DamageSettlementCgPayload
+        var presentation = new AuraCgScenePlan
         {
-            ProtocolVersion = DamageMeterProtocol.MinimumReadableVersion,
-            PresentationProtocolVersion =
-                DamageSettlementCgProtocol.CurrentVersion
+            ProtocolVersion = AuraCgSceneProtocol.CurrentVersion,
+            SceneId = "settlement",
+            SignalId = "aura.adventure.settlement.entering",
+            EventToken = "settlement-1",
+            BackgroundAsset = new AuraCgSceneAssetReference
+            {
+                OwnerModId = "AuraToolsExp",
+                AssetId = "event.background.settlement"
+            },
+            Participants = new List<AuraCgSceneParticipantPlan>
+            {
+                new()
+                {
+                    RoleId = "career_1",
+                    RoleLayerAsset = new AuraCgSceneAssetReference
+                    {
+                        OwnerModId = "AuraToolsExp",
+                        AssetId = "role.idle"
+                    }
+                }
+            }
         };
-        Assert(DamageMeterProtocol.IsReadable(presentation.ProtocolVersion)
-               && DamageSettlementCgProtocol.Contract.Negotiate(
-                   presentation.PresentationProtocolVersion,
-                   presentation.MinimumPresentationProtocolVersion,
-                   presentation.RequiredCapabilities).Compatible,
-            "settlement presentation compatibility is independent from the damage-data protocol version");
+        Assert(presentation.IsValid()
+               && presentation.ProtocolVersion == AuraCgSceneProtocol.CurrentVersion,
+            "event scene compatibility is owned by the unified CG protocol, independent from damage data");
     }
 }

@@ -8,7 +8,6 @@ using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
 using UnityEngine;

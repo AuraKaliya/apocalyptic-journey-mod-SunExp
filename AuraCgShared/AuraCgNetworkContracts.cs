@@ -21,6 +21,12 @@ public sealed class SkillCgNetworkEvent
     // Stable local registry id. Media paths and presentation data are resolved locally from this id.
     public string CgId { get; set; } = "";
 
+    public string SignalId { get; set; } = "";
+
+    public string SubjectType { get; set; } = "";
+
+    public string SubjectId { get; set; } = "";
+
     public string CardId { get; set; } = "";
 
     public string TriggerKind { get; set; } = "";
@@ -34,6 +40,10 @@ public sealed class SkillCgNetworkEvent
     public string IssuerPlayerId { get; set; } = "";
 
     public string SkillCgPlayId { get; set; } = "";
+
+    // Composite scenes carry only a validated, processed plan. Raw media,
+    // local paths, caches, and source statistics remain local.
+    public AuraCgScenePlan? ScenePlan { get; set; }
 }
 
 internal sealed class SkillCgFightSessionRequest

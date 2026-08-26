@@ -89,9 +89,9 @@
     }
 
     if (state.scenario === "warning") {
-      Object.assign(findModule("presentation.feast-cg"), {
-        summary: "随一键美餐暂停 · 已配置 16 个角色",
-        attention: "开启一键美餐后恢复自动播放",
+      Object.assign(findModule("presentation.skill-cg"), {
+        summary: "技能规则 6 条 · 美餐触发已暂停",
+        attention: "开启一键美餐后恢复美餐信号",
         availability: "warning"
       });
       Object.assign(findModule("presentation.skin"), {

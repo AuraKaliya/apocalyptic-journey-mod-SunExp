@@ -68,16 +68,22 @@ public static class SpiritGrowthRegistry
                     loaded = MigrateSchema1(loaded);
                     TerriasLog.Warn("[SpiritGrowthRegistry] loaded schema 1 through the in-memory compatibility migration.");
                 }
+                else if (loaded.SchemaVersion == 2)
+                {
+                    loaded = MigrateSchema2(loaded);
+                    TerriasLog.Warn("[SpiritGrowthRegistry] loaded schema 2 through the in-memory element assignment migration.");
+                }
                 else if (loaded.SchemaVersion != SpiritSystemContract.GrowthRegistrySchemaVersion)
                 {
                     throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion
-                                                   + "; expected 1 or " + SpiritSystemContract.GrowthRegistrySchemaVersion);
+                                                   + "; expected 1, 2, or " + SpiritSystemContract.GrowthRegistrySchemaVersion);
                 }
 
                 SetDocument(NormalizeAndValidate(loaded));
                 lastLoadDiagnostic = "ready:" + path;
                 TerriasLog.Info(
-                    "[SpiritGrowthRegistry] registryState=ready schema=2 profiles=" + document.Profiles.Count
+                    "[SpiritGrowthRegistry] registryState=ready schema=" + SpiritSystemContract.GrowthRegistrySchemaVersion
+                    + " profiles=" + document.Profiles.Count
                     + ", species=" + document.Profiles.Select(profile => profile.SpeciesId).Distinct(StringComparer.Ordinal).Count()
                     + ", hash=" + registryHash
                     + ", path=" + path);
@@ -276,6 +282,7 @@ public static class SpiritGrowthRegistry
         {
             SpeciesId = speciesId,
             ProfileId = profileId,
+            CaptureElement = SpiritElementService.DeterministicDefault(speciesId),
             FormKey = "default",
             FormLabelKey = "form.default",
             Match = new SpiritSpeciesGrowthMatch
@@ -317,6 +324,7 @@ public static class SpiritGrowthRegistry
             {
                 SpeciesId = profileId,
                 ProfileId = profileId,
+                CaptureElement = SpiritElementService.DeterministicDefault(profileId),
                 FormKey = "default",
                 FormLabelKey = "form.default",
                 Match = new SpiritSpeciesGrowthMatch
@@ -332,6 +340,18 @@ public static class SpiritGrowthRegistry
         }
 
         return migrated;
+    }
+
+    private static SpiritGrowthRegistryDocument MigrateSchema2(SpiritGrowthRegistryDocument source)
+    {
+        foreach (var profile in source.Profiles ?? new List<SpiritSpeciesGrowthProfile>())
+        {
+            profile.CaptureElement = SpiritElementService.DeterministicDefault(
+                string.IsNullOrWhiteSpace(profile.SpeciesId) ? profile.ProfileId : profile.SpeciesId);
+        }
+
+        source.SchemaVersion = SpiritSystemContract.GrowthRegistrySchemaVersion;
+        return source;
     }
 
     private static SpiritGrowthRegistryDocument NormalizeAndValidate(SpiritGrowthRegistryDocument source)
@@ -433,12 +453,16 @@ public static class SpiritGrowthRegistry
             if (!matchKeys.Add(matchKey)) throw new InvalidDataException("duplicate profile match=" + matchKey);
             var tier = ParseTier(raw.Tier, (SpiritSpeciesTier)0);
             if (tier == 0) throw new InvalidDataException("invalid tier for " + profileId);
+            var captureElement = SpiritElementService.NormalizeId(raw.CaptureElement);
+            if (captureElement.Length == 0)
+                throw new InvalidDataException("invalid captureElement for " + profileId);
             ValidateOrigins(raw.BaseOrigins, tier, true, profileId);
             ValidateOrigins(raw.GrowthOrigins, tier, false, profileId);
             var profile = new SpiritSpeciesGrowthProfile
             {
                 SpeciesId = speciesId,
                 ProfileId = profileId,
+                CaptureElement = captureElement,
                 FormKey = First(raw.FormKey, "default"),
                 FormOrder = Math.Max(0, raw.FormOrder),
                 FormLabelKey = First(raw.FormLabelKey, "form.default"),
@@ -474,7 +498,7 @@ public static class SpiritGrowthRegistry
                 throw new InvalidDataException("duplicate formOrder in species " + species.Key);
         }
 
-        source.SchemaVersion = 2;
+        source.SchemaVersion = SpiritSystemContract.GrowthRegistrySchemaVersion;
         source.FormLabels = new Dictionary<string, string>(source.FormLabels, StringComparer.Ordinal);
         source.Profiles = normalizedProfiles.OrderBy(profile => profile.ProfileId, StringComparer.Ordinal).ToList();
         ValidateRadarCaps(source);

@@ -1,11 +1,23 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using UiRaycastSafetyShared;
 
 namespace AuraCg.Shared;
+
+internal sealed class AuraCgSceneLayerPresentation
+{
+    public AuraCgSceneParticipantPlan Plan { get; set; } = new();
+
+    public IReadOnlyList<Sprite> Frames { get; set; } = Array.Empty<Sprite>();
+
+    public float FrameSeconds { get; set; } = 0.08f;
+
+    public bool Loop { get; set; } = true;
+}
 
 internal sealed class AuraCgOverlayPresenter
 {
@@ -20,6 +32,9 @@ internal sealed class AuraCgOverlayPresenter
     private Canvas? overlayCanvas;
     private CanvasGroup? overlayGroup;
     private Image? overlayImage;
+    private GameObject? sceneRoot;
+    private readonly List<Image> sceneImages = new();
+    private IReadOnlyList<AuraCgSceneLayerPresentation> activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
     private Image? overlayFlash;
     private Image? overlayScreenFlash;
     private Sprite? screenFlashSprite;
@@ -46,6 +61,7 @@ internal sealed class AuraCgOverlayPresenter
         }
 
         ActivateRoot();
+        HideSceneLayers();
         overlayImage!.sprite = sprite;
         overlayImage.material = ResolveLumaKeyMaterial(request);
         overlayImage.raycastTarget = false;
@@ -62,6 +78,7 @@ internal sealed class AuraCgOverlayPresenter
         }
 
         ActivateRoot();
+        HideSceneLayers();
         overlayImage!.sprite = sprites[0];
         overlayImage.material = ResolveLumaKeyMaterial(request);
         overlayImage.raycastTarget = false;
@@ -70,6 +87,58 @@ internal sealed class AuraCgOverlayPresenter
         DisableMaskedFlash();
         DisableScreenFlash();
         ConfigureFullscreenImage(sprites[0], request);
+        return true;
+    }
+
+    public bool ShowScene(
+        Sprite background,
+        IReadOnlyList<AuraCgSceneLayerPresentation> layers,
+        SkillCgRequest request)
+    {
+        if (background == null
+            || layers == null
+            || layers.Count == 0
+            || request.ScenePlan == null
+            || !EnsureOverlay())
+        {
+            return false;
+        }
+
+        ActivateRoot();
+        overlayImage!.sprite = background;
+        overlayImage.material = null;
+        overlayImage.raycastTarget = false;
+        overlayImage.enabled = true;
+        ConfigureFullscreenImage(background, request);
+        activeSceneLayers = layers
+            .Where(layer => layer != null && layer.Frames != null && layer.Frames.Count > 0)
+            .OrderBy(layer => layer.Plan.ZIndex)
+            .ThenBy(layer => layer.Plan.SeatIndex)
+            .ToList();
+        if (activeSceneLayers.Count == 0)
+        {
+            return false;
+        }
+
+        EnsureSceneImageCount(activeSceneLayers.Count);
+        var viewport = GetOverlayViewportSize();
+        for (var index = 0; index < sceneImages.Count; index++)
+        {
+            var image = sceneImages[index];
+            if (index >= activeSceneLayers.Count)
+            {
+                image.enabled = false;
+                image.sprite = null;
+                continue;
+            }
+
+            var layer = activeSceneLayers[index];
+            ConfigureSceneLayer(image, layer, viewport);
+        }
+
+        ResetGroup();
+        DisableMaskedFlash();
+        DisableScreenFlash();
         return true;
     }
 
@@ -104,6 +173,33 @@ internal sealed class AuraCgOverlayPresenter
         yield return Fade(1f, 0f, request.FadeOut, isCurrent);
     }
 
+    public IEnumerator PlayScene(SkillCgRequest request, Func<bool> isCurrent)
+    {
+        if (overlayGroup == null || activeSceneLayers.Count == 0)
+        {
+            yield break;
+        }
+
+        var fadeIn = Mathf.Max(0f, request.FadeIn);
+        var hold = Mathf.Max(0f, request.Hold);
+        var fadeOut = Mathf.Max(0f, request.FadeOut);
+        var total = Mathf.Max(0.01f, fadeIn + hold + fadeOut);
+        var elapsed = 0f;
+        while (isCurrent() && elapsed < total)
+        {
+            UpdateSceneFrames(elapsed);
+            overlayGroup.alpha = SceneAlpha(elapsed, fadeIn, hold, fadeOut);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (isCurrent())
+        {
+            UpdateSceneFrames(total);
+            overlayGroup.alpha = 0f;
+        }
+    }
+
     public bool ShouldApplyCpuAlphaMode(string alphaMode)
     {
         if (!string.Equals(SkillCgAlphaModes.Normalize(alphaMode), SkillCgAlphaModes.BlackKey, StringComparison.OrdinalIgnoreCase))
@@ -126,6 +222,7 @@ internal sealed class AuraCgOverlayPresenter
 
         DisableMaskedFlash();
         DisableScreenFlash();
+        HideSceneLayers();
 
         if (overlayGroup != null)
         {
@@ -155,6 +252,9 @@ internal sealed class AuraCgOverlayPresenter
         overlayCanvas = null;
         overlayGroup = null;
         overlayImage = null;
+        sceneRoot = null;
+        sceneImages.Clear();
+        activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
         overlayFlash = null;
         overlayScreenFlash = null;
         DestroyRuntimeResources();
@@ -166,13 +266,14 @@ internal sealed class AuraCgOverlayPresenter
             && overlayCanvas != null
             && overlayGroup != null
             && overlayImage != null
+            && sceneRoot != null
             && overlayFlash != null
             && overlayScreenFlash != null)
         {
             return true;
         }
 
-        if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || overlayFlash != null || overlayScreenFlash != null)
+        if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || sceneRoot != null || overlayFlash != null || overlayScreenFlash != null)
         {
             Destroy();
         }
@@ -194,11 +295,114 @@ internal sealed class AuraCgOverlayPresenter
         ResetGroup();
 
         overlayImage = CreateImage("AuraCg.Image", Color.white, preserveAspect: true);
+        sceneRoot = new GameObject("AuraCg.SceneLayers", typeof(RectTransform));
+        sceneRoot.transform.SetParent(overlayRoot.transform, false);
+        var sceneRect = sceneRoot.GetComponent<RectTransform>();
+        sceneRect.anchorMin = Vector2.zero;
+        sceneRect.anchorMax = Vector2.one;
+        sceneRect.offsetMin = Vector2.zero;
+        sceneRect.offsetMax = Vector2.zero;
         overlayFlash = CreateImage("AuraCg.Flash", Color.clear, preserveAspect: false);
         overlayScreenFlash = CreateImage("AuraCg.ScreenFlash", Color.clear, preserveAspect: false);
         overlayRoot.SetActive(false);
         AuraCgLog.InfoOnce("overlay-created", "CG overlay created on an independent non-interactive canvas.");
         return true;
+    }
+
+    private void EnsureSceneImageCount(int count)
+    {
+        if (sceneRoot == null)
+        {
+            return;
+        }
+
+        while (sceneImages.Count < count)
+        {
+            var gameObject = new GameObject(
+                "AuraCg.SceneRole." + sceneImages.Count,
+                typeof(RectTransform),
+                typeof(Image));
+            gameObject.transform.SetParent(sceneRoot.transform, false);
+            var image = gameObject.GetComponent<Image>();
+            image.raycastTarget = false;
+            image.preserveAspect = true;
+            image.enabled = false;
+            sceneImages.Add(image);
+        }
+    }
+
+    private static void ConfigureSceneLayer(
+        Image image,
+        AuraCgSceneLayerPresentation layer,
+        Vector2 viewport)
+    {
+        var plan = layer.Plan;
+        var rect = image.rectTransform;
+        rect.anchorMin = new Vector2(plan.CenterX, plan.CenterY);
+        rect.anchorMax = new Vector2(plan.CenterX, plan.CenterY);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(
+            viewport.x * plan.Width * plan.Scale,
+            viewport.y * plan.Height * plan.Scale);
+        rect.localScale = new Vector3(plan.MirrorX ? -1f : 1f, 1f, 1f);
+        image.sprite = layer.Frames[0];
+        image.color = Color.white;
+        image.material = null;
+        image.raycastTarget = false;
+        image.enabled = true;
+    }
+
+    private void UpdateSceneFrames(float elapsed)
+    {
+        for (var index = 0; index < activeSceneLayers.Count && index < sceneImages.Count; index++)
+        {
+            var layer = activeSceneLayers[index];
+            if (layer.Frames.Count == 0)
+            {
+                continue;
+            }
+
+            var frameSeconds = Mathf.Max(0.01f, layer.FrameSeconds);
+            var rawIndex = Math.Max(0, (int)(elapsed / frameSeconds));
+            var frameIndex = layer.Loop
+                ? rawIndex % layer.Frames.Count
+                : Math.Min(rawIndex, layer.Frames.Count - 1);
+            sceneImages[index].sprite = layer.Frames[frameIndex];
+        }
+    }
+
+    private void HideSceneLayers()
+    {
+        activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
+        foreach (var image in sceneImages)
+        {
+            if (image == null)
+            {
+                continue;
+            }
+
+            image.raycastTarget = false;
+            image.enabled = false;
+            image.sprite = null;
+            image.material = null;
+        }
+    }
+
+    private static float SceneAlpha(float elapsed, float fadeIn, float hold, float fadeOut)
+    {
+        if (fadeIn > 0f && elapsed < fadeIn)
+        {
+            return Mathf.Clamp01(elapsed / fadeIn);
+        }
+
+        var fadeOutStart = fadeIn + hold;
+        if (fadeOut > 0f && elapsed > fadeOutStart)
+        {
+            return Mathf.Clamp01(1f - (elapsed - fadeOutStart) / fadeOut);
+        }
+
+        return 1f;
     }
 
     private Image CreateImage(string name, Color color, bool preserveAspect)

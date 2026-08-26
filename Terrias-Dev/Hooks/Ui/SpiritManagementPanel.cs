@@ -335,6 +335,9 @@ public static class SpiritManagementPanel
         var levelText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
         var aptitudeText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
         var markerText = TerriasUiComponents.AddTextBlock(cell.transform, "", 11, TextAnchor.MiddleCenter, Muted, 16f, 1f);
+        var elementBadge = SpiritElementUi.CreateBadge(cell.transform, "ElementBadge", 42f, 18f, ignoreLayout: true);
+        var elementRect = elementBadge.Root.transform as RectTransform;
+        if (elementRect != null) elementRect.anchoredPosition = new Vector2(5f, -5f);
         var activeStamp = AddActiveStamp(cell.transform);
         activeStamp.SetActive(false);
         var selectionBadge = AddSelectionBadge(cell.transform);
@@ -342,7 +345,7 @@ public static class SpiritManagementPanel
         var button = cell.AddComponent<Button>();
         var view = cell.AddComponent<SpiritManagementCellView>();
         view.Initialize(backgroundSurface, portrait, nameText, stars, levelText, aptitudeText,
-            markerText, outline, activeStamp, selectionBadge, button, OnSpiritCellClicked);
+            markerText, elementBadge.Icon, elementBadge.Label, outline, activeStamp, selectionBadge, button, OnSpiritCellClicked);
         return view;
     }
 
@@ -432,6 +435,8 @@ public static class SpiritManagementPanel
         TerriasUiComponents.ConfigureHorizontalLayout(detailHeader, new RectOffset(0, 0, 0, 0), 8f);
         AddFixedTextBlock(detailHeader.transform, SpiritPresentationResolver.Name(item), 23,
             TextAnchor.MiddleLeft, QualityAccent(item.Aptitude), 36f, 1f, FontStyle.Normal);
+        var detailElement = SpiritElementUi.CreateBadge(detailHeader.transform, "Element", 58f, 24f);
+        SpiritElementUi.Bind(detailElement.Icon, detailElement.Label, growth.ElementId);
         AddFixedTextBlock(detailHeader.transform, "Lv." + item.Level, 19,
             TextAnchor.MiddleRight, Pale, 36f, 0f, FontStyle.Normal, 58f);
         AddFixedTextBlock(detailHeader.transform, StarText(item), 17,
@@ -481,7 +486,12 @@ public static class SpiritManagementPanel
             {
                 TerriasUiComponents.AddTextBlock(cell.transform, SpiritPresentationResolver.Name(item), 12,
                     TextAnchor.MiddleCenter, QualityAccent(item.Aptitude), 18f, 1f);
-                TerriasUiComponents.AddTextBlock(cell.transform, "Lv." + item.Level + "  " + StarText(item), 11,
+                var partyMeta = LayoutObject("PartyMeta", cell.transform, 18f);
+                TerriasUiComponents.ConfigureHorizontalLayout(partyMeta, new RectOffset(0, 0, 0, 0), 3f,
+                    childForceExpandHeight: false, alignment: TextAnchor.MiddleCenter);
+                var partyElement = SpiritElementUi.CreateBadge(partyMeta.transform, "Element", 34f, 16f);
+                SpiritElementUi.Bind(partyElement.Icon, partyElement.Label, item.ElementId);
+                AddFixedTextBlock(partyMeta.transform, "Lv." + item.Level + "  " + StarText(item), 11,
                     TextAnchor.MiddleCenter, StarGold, 18f, 1f);
             }
             if (item != null && Same(uid, party.ActiveSpiritUid)) AddActiveStamp(cell.transform);
@@ -676,6 +686,20 @@ public static class SpiritManagementPanel
 
     private static void BuildAttributeView(Transform parent, SpiritInstance item, SpiritGrowthViewSnapshot growth)
     {
+        var elementRule = LayoutObject("ElementRule", parent, 32f);
+        TerriasUiComponents.ConfigureHorizontalLayout(elementRule, new RectOffset(4, 4, 3, 3), 6f,
+            childForceExpandHeight: false, alignment: TextAnchor.MiddleLeft);
+        var elementBadge = SpiritElementUi.CreateBadge(elementRule.transform, "Element", 54f, 24f);
+        SpiritElementUi.Bind(elementBadge.Icon, elementBadge.Label, growth.ElementId);
+        AddFixedTextBlock(
+            elementRule.transform,
+            L("ui.spirit.element_segment_rule", "element", SpiritElementService.DisplayName(growth.ElementId)),
+            12,
+            TextAnchor.MiddleLeft,
+            Muted,
+            24f,
+            1f);
+
         var overview = LayoutObject("AttributeOverview", parent, 218f);
         TerriasUiComponents.ConfigureHorizontalLayout(overview, new RectOffset(0, 0, 0, 0), 12f);
         var radarRoot = LayoutObject("Radar", overview.transform, 218f, 0f, 218f);

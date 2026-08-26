@@ -49,7 +49,7 @@ $growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
 $training = Get-Content -LiteralPath $trainingPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
-Assert-True ($growth.schemaVersion -eq 2) "spirit growth registry schema must be 2."
+Assert-True ($growth.schemaVersion -eq 3) "spirit growth registry schema must be 3."
 Assert-True ($training.schemaVersion -eq 2) "spirit training registry schema must be 2."
 Assert-True ($growth.defaults.maxLevel -eq 50) "spirit level cap must remain 50."
 
@@ -134,11 +134,14 @@ $tierRanges = @{
 }
 $growthProfileIds = @($growth.profiles | ForEach-Object { [string]$_.profileId })
 $growthSpeciesIds = @($growth.profiles | ForEach-Object { [string]$_.speciesId })
+$supportedCaptureElements = @("pyro", "hydro", "geo", "dendro", "electro", "cryo", "anemo")
 Assert-True (@($growth.profiles).Count -eq 58) "growth registry must contain 55 base-game forms and 3 Terrias species."
 Assert-True ((@($growthProfileIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable profileId values."
 Assert-True ((@($growthSpeciesIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable speciesId values."
 Assert-True ((@($growthProfileIds | Sort-Object -Unique)).Count -eq $growthProfileIds.Count) "growth profileId values must be unique."
 Assert-True ((@($growth.profiles | Where-Object { $_.match.sourceModId -eq "base-game" })).Count -eq 55) "all 55 reviewed base-game forms must be data-backed."
+Assert-True ((@($growth.profiles | Where-Object { $supportedCaptureElements -notcontains [string]$_.captureElement })).Count -eq 0) "every growth profile must declare one of the seven capture elements."
+Assert-True ((@($growth.profiles.captureElement | Sort-Object -Unique)).Count -eq 7) "the provisional species table must exercise all seven elements."
 $identityDiff = @(Compare-Object $growthProfileIds $explicitIntentProfileIds)
 Assert-True ($identityDiff.Count -eq 1 -and @($identityDiff | Where-Object InputObject -eq "base-game.99999").Count -eq 1) "growth and intent identities may differ only by the uncapturable test profile base-game.99999."
 
@@ -185,6 +188,7 @@ Assert-True ($multiFormSpecies.Count -eq 5) "the five reviewed multi-form specie
 foreach ($group in $multiFormSpecies) {
     Assert-True ((@($group.Group.formKey | Sort-Object -Unique)).Count -eq $group.Count) "multi-form species $($group.Name) has duplicate form keys."
     Assert-True ((@($group.Group.formOrder | Sort-Object -Unique)).Count -eq $group.Count) "multi-form species $($group.Name) has duplicate form order values."
+    Assert-True ((@($group.Group.captureElement | Sort-Object -Unique)).Count -eq 1) "multi-form species $($group.Name) must keep one fixed capture element."
 }
 
 $commonIntents = @($training.commonIntents)

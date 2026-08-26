@@ -24,6 +24,7 @@ public static class SpiritGrowthQueryService
             SpiritUid = instance.SpiritUid,
             SpeciesId = string.IsNullOrWhiteSpace(instance.SpeciesId) ? profile.SpeciesId : instance.SpeciesId,
             ProfileId = string.IsNullOrWhiteSpace(instance.ProfileId) ? profile.ProfileId : instance.ProfileId,
+            ElementId = SpiritElementService.NormalizeId(instance.ElementId),
             FormKey = profile.FormKey,
             FormLabel = SpiritGrowthRegistry.FormLabel(profile),
             Tier = ParseTier(profile.Tier),

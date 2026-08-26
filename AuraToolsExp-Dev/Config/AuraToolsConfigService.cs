@@ -180,6 +180,15 @@ public static class AuraToolsConfigService
             () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
     }
 
+    public static void SaveEventCg()
+    {
+        SkillCg.EventCg.Normalize();
+        SaveModuleSetting(
+            AuraToolModuleIds.EventCg,
+            SkillCg.EventCg,
+            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
+    }
+
     public static void SaveSkin()
     {
         Skin.Normalize();
@@ -548,6 +557,14 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.CardUseCg,
             SkillCg.CardUseCg,
             ref migrated);
+        if (SkillCg.TryImportLegacySettlementCg(MatchExperience.DamageMeter.TakeLegacySettlementCg()))
+        {
+            migrated++;
+        }
+        SkillCg.EventCg = LoadModuleSetting(
+            AuraToolModuleIds.EventCg,
+            SkillCg.EventCg,
+            ref migrated);
         Skin = LoadModuleSetting(
             AuraToolModuleIds.Skin,
             Skin,
@@ -715,6 +732,10 @@ public static class AuraToolsConfigService
             SkillCg.CardUseCg,
             out _);
         SaveModuleSettingNoNotify(
+            AuraToolModuleIds.EventCg,
+            SkillCg.EventCg,
+            out _);
+        SaveModuleSettingNoNotify(
             AuraToolModuleIds.Skin,
             Skin,
             out _);
@@ -870,7 +891,9 @@ public static class AuraToolsConfigService
         var changed = 0;
         foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries())
         {
-            if (!string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase))
+            entry.Normalize(entry.OwnerModId);
+            if (!string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+                || !entry.Signals.Contains(AuraCgSignals.RoleSkillCommitted, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -1037,7 +1060,11 @@ public static class AuraToolsConfigService
 
     private static string ResolveRegisteredRoleId(AuraCgRegistryEntry entry)
     {
-        foreach (var value in entry.TargetRoleIds ?? new List<string>())
+        var registeredIds = string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+            && entry.SubjectIds.Count > 0
+                ? entry.SubjectIds
+                : entry.TargetRoleIds;
+        foreach (var value in registeredIds ?? new List<string>())
         {
             var roleId = RoleCatalog.NormalizeRoleId(value);
             if (!string.IsNullOrWhiteSpace(roleId))
@@ -1072,9 +1099,13 @@ public static class AuraToolsConfigService
     private static IEnumerable<string> ResolveRegisteredCardIds(AuraCgRegistryEntry entry)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var registeredIds = entry.SkillIds != null && entry.SkillIds.Count > 0
-            ? entry.SkillIds
-            : entry.CardIds;
+        var registeredIds = entry.Match?.Facts != null
+                            && entry.Match.Facts.TryGetValue("skillId", out var skillIds)
+                            && skillIds.Count > 0
+            ? skillIds
+            : entry.SkillIds != null && entry.SkillIds.Count > 0
+                ? entry.SkillIds
+                : entry.CardIds;
         foreach (var value in registeredIds ?? new List<string>())
         {
             var cardId = (value ?? "").Trim();

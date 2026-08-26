@@ -15,6 +15,7 @@ public static class SkillCgMediaTypes
 {
     public const string Image = "image";
     public const string Sequence = "sequence";
+    public const string Scene = "scene";
 
     public static string Normalize(string? value)
     {
@@ -24,6 +25,12 @@ public static class SkillCgMediaTypes
             || string.Equals(type, "pngSequence", StringComparison.OrdinalIgnoreCase))
         {
             return Sequence;
+        }
+
+        if (string.Equals(type, Scene, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "teamScene", StringComparison.OrdinalIgnoreCase))
+        {
+            return Scene;
         }
 
         return Image;

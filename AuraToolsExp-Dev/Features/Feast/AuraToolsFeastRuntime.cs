@@ -397,10 +397,54 @@ public static class AuraToolsFeastRuntime
         }
 
         var nextSequence = actionSequence + 1;
+        var ownerInstanceId = ResolveCgOwnerInstanceId(normalizedRole);
         var candidate = ResolveEffectiveCandidate(normalizedRole, nextSequence, out var presentation);
         if (candidate == null)
         {
             LogDiagnostic("no-candidate:" + normalizedRole, "[Feast] skipped CG: no registered feast CG for role=" + normalizedRole + ".");
+            return;
+        }
+
+        var signal = new AuraCgSignalContext
+        {
+            SignalId = AuraCgSignals.RoleFeastCompleted,
+            SubjectType = AuraCgSubjectTypes.Role,
+            SubjectId = normalizedRole,
+            RoleId = normalizedRole,
+            Action = "Feast",
+            CardId = FeastCardId,
+            OwnerInstanceId = ownerInstanceId,
+            CreatedAt = Time.unscaledTime,
+            ActionSequence = nextSequence,
+            EventToken = "role-feast:" + normalizedRole + ":" + nextSequence,
+            Facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["resolvedCgId"] = candidate.QualifiedCgId
+            },
+            ConfigureResolvedRequest = request =>
+            {
+                request.DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote;
+                request.FadeIn = presentation.FadeIn;
+                request.Hold = presentation.Hold;
+                request.FadeOut = presentation.FadeOut;
+                request.PresentationMode = presentation.Mode;
+                request.FitMode = presentation.Fit;
+                request.FocusX = presentation.FocusX;
+                request.FocusY = presentation.FocusY;
+                request.SafeScale = presentation.SafeScale;
+            }
+        };
+        var registered = SkillCgArbiterRuntime.BuildRegisteredSignalRequests(
+            AuraToolsIds.ModId,
+            signal,
+            disableSync: !AuraToolsConfigService.SkillCg.SyncRemote);
+        if (registered.Count > 0)
+        {
+            SkillCgArbiterRuntime.EmitSignal(
+                AuraToolsConfigService.MatchExperience.Feast.Cg,
+                AuraToolsIds.ModId,
+                signal);
+            actionSequence = nextSequence;
             return;
         }
 
@@ -413,11 +457,14 @@ public static class AuraToolsFeastRuntime
 
         SkillCgArbiterRuntime.RequestCg(AuraToolsIds.ModId, new SkillCgRequest
         {
-            ProviderId = AuraToolsIds.ModId + ".Feast." + SafeProviderSegment(candidate.OwnerModId) + "." + SafeProviderSegment(candidate.CgId),
+            ProviderId = AuraToolsIds.ModId + ".Feast.Local." + SafeProviderSegment(candidate.CgId),
             OwnerModId = AuraToolsIds.ModId,
+            SignalId = AuraCgSignals.RoleFeastCompleted,
+            SubjectType = AuraCgSubjectTypes.Role,
+            SubjectId = normalizedRole,
             TriggerKind = "feast",
             CardId = FeastCardId,
-            OwnerInstanceId = normalizedRole,
+            OwnerInstanceId = ownerInstanceId,
             ImagePath = imagePath,
             ImageResource = candidate.ImageResource,
             Priority = candidate.Priority,
@@ -431,9 +478,25 @@ public static class AuraToolsFeastRuntime
             SafeScale = presentation.SafeScale,
             CreatedAt = Time.unscaledTime,
             ActionSequence = nextSequence,
+            EventToken = signal.EventToken,
             DisableSync = true
         });
         actionSequence = nextSequence;
+    }
+
+    private static string ResolveCgOwnerInstanceId(string fallbackRoleId)
+    {
+        try
+        {
+            var statusId = (FightPlayer.Instance?.Status?.InstanceId ?? "").Trim();
+            if (statusId.Length > 0) return statusId;
+            var playerId = (PlayerManager.Instance?.PlayerId ?? "").Trim();
+            return playerId.Length > 0 ? playerId : fallbackRoleId;
+        }
+        catch
+        {
+            return fallbackRoleId;
+        }
     }
 
     private static FeastCgCandidate? ResolveEffectiveCandidate(
@@ -649,7 +712,7 @@ public static class AuraToolsFeastRuntime
     public static bool IsCgEffective()
     {
         var settings = AuraToolsConfigService.MatchExperience.Feast;
-        return settings.IsCgEffective;
+        return AuraToolsConfigService.SkillCg.Enabled && settings.IsCgEffective;
     }
 
     private static void CaptureCurrentRole(ModHookContext context)

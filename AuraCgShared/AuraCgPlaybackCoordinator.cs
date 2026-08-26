@@ -45,7 +45,8 @@ internal sealed class AuraCgPlaybackCoordinator
             return AuraCgPlaybackEnqueueResult.Invalid;
         }
 
-        if (string.IsNullOrWhiteSpace(request.ImagePath))
+        if (string.IsNullOrWhiteSpace(request.ImagePath)
+            && (request.ScenePlan == null || !request.ScenePlan.IsValid()))
         {
             return AuraCgPlaybackEnqueueResult.EmptyMedia;
         }

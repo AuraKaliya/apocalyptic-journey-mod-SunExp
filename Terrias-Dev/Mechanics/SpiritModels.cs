@@ -31,6 +31,7 @@ public sealed class CapturedEnemySnapshot
     // Permanent collection snapshots keep these fields at their defaults.
     public string SpeciesId { get; set; } = "";
     public string ProfileId { get; set; } = "";
+    public string SpiritElementId { get; set; } = "";
     public int SpiritLevel { get; set; }
     public int SpiritAptitude { get; set; }
     public int SpiritGuiyuanValue { get; set; }

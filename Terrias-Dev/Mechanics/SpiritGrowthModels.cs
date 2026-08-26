@@ -186,6 +186,8 @@ public sealed class SpiritSpeciesGrowthProfile
 
     public string ProfileId { get; set; } = "";
 
+    public string CaptureElement { get; set; } = "";
+
     public string FormKey { get; set; } = "default";
 
     public int FormOrder { get; set; }
@@ -223,6 +225,7 @@ public sealed class SpiritSpeciesGrowthProfile
         {
             SpeciesId = SpeciesId,
             ProfileId = ProfileId,
+            CaptureElement = CaptureElement,
             FormKey = FormKey,
             FormOrder = FormOrder,
             FormLabelKey = FormLabelKey,
@@ -291,6 +294,12 @@ public sealed class SpiritInstance
 
     public string ProfileId { get; set; } = "";
 
+    public string ElementId { get; set; } = "";
+
+    public string ElementSource { get; set; } = "";
+
+    public int ElementAssignmentRevision { get; set; }
+
     public CapturedEnemySnapshot Snapshot { get; set; } = new();
 
     public SpiritLocalizedPresentation Presentation { get; set; } = new();
@@ -344,6 +353,9 @@ public sealed class SpiritInstance
             SpiritUid = SpiritUid,
             SpeciesId = SpeciesId,
             ProfileId = ProfileId,
+            ElementId = ElementId,
+            ElementSource = ElementSource,
+            ElementAssignmentRevision = ElementAssignmentRevision,
             Snapshot = SpiritModelCloner.CloneSnapshot(Snapshot),
             Presentation = (Presentation ?? new SpiritLocalizedPresentation()).Clone(),
             Level = Level,
@@ -491,6 +503,8 @@ public sealed class SpiritGrowthViewSnapshot
 
     public string ProfileId { get; set; } = "";
 
+    public string ElementId { get; set; } = "";
+
     public string FormKey { get; set; } = "default";
 
     public string FormLabel { get; set; } = "";
@@ -556,6 +570,7 @@ public static class SpiritModelCloner
             SourceEnemyCardIds = (source.SourceEnemyCardIds ?? new List<string>()).ToList(),
             SpeciesId = source.SpeciesId,
             ProfileId = source.ProfileId,
+            SpiritElementId = source.SpiritElementId,
             SpiritLevel = source.SpiritLevel,
             SpiritAptitude = source.SpiritAptitude,
             SpiritGuiyuanValue = source.SpiritGuiyuanValue,

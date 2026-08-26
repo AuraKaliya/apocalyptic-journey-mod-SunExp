@@ -47,6 +47,14 @@ ExpectPriority(
 
 Assert(ElementalTypeParser.TryParse("火", out var pyro) && pyro == ElementalType.Pyro, "Chinese Pyro alias failed");
 Assert(ElementalTypeParser.TryParse("Anemo", out var anemo) && anemo == ElementalType.Anemo, "Anemo alias failed");
+Assert(!ElementalAttachmentRegistry.TryForElement(ElementalType.Anemo, out _)
+       && !ElementalAttachmentRegistry.TryForElement(ElementalType.Geo, out _)
+       && ElementalAttachmentRegistry.TryForElement(ElementalType.Pyro, out _)
+       && ElementalAttachmentRegistry.TryForElement(ElementalType.Hydro, out _)
+       && ElementalAttachmentRegistry.TryForElement(ElementalType.Electro, out _)
+       && ElementalAttachmentRegistry.TryForElement(ElementalType.Cryo, out _)
+       && ElementalAttachmentRegistry.TryForElement(ElementalType.Dendro, out _),
+    "Spirit wind and geo hits may react but only the other five elements can persist attachments");
 Assert(!ElementalTypeParser.TryParse("invalid", out _), "invalid element must be rejected");
 
 ExpectRange(1, 1, 10);

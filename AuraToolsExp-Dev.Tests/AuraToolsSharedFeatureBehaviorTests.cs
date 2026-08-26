@@ -3,7 +3,6 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;
@@ -85,7 +84,7 @@ internal static partial class AuraToolsTestSuite
     
         settings.Normalize();
         var rules = settings.Roles["career_1"].Rules;
-        Assert(settings.SchemaVersion == 6
+        Assert(settings.SchemaVersion == 7
                && rules[0].Image == "CG/Roles/1/skill_cg.png"
                && rules[0].EffectivePresentation.Mode == "fullscreenFade"
                && rules[0].EffectivePresentation.Fit == "cover"

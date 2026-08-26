@@ -9,7 +9,6 @@ using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
@@ -45,18 +44,6 @@ internal static class DamageMeterSettlementRuntime
 
         adventureHistoryRestoreAttempted = true;
         DamageMeterNetworkRuntime.RestoreAdventureHistory();
-    }
-
-    internal static void PrepareSettlementCgAssets(string source)
-    {
-        var members = CollectTeamMembers(captureAvatars: false);
-        if (members.Count == 0)
-        {
-            AuraToolsLog.Warn("[SettlementCG] preload skipped: no team members. source=" + source + ".");
-            return;
-        }
-
-        DamageSettlementCgRuntime.PrepareForTeam(members);
     }
 
     internal static void OnAdventureSettlement(ModHookContext context)
@@ -108,8 +95,6 @@ internal static class DamageMeterSettlementRuntime
             var record = AuraToolsDamageMeterRuntime.RunAggregate.HasDamage
                 ? OutOfRunDamageHistoryBuilder.Build(aggregate, request, countShield: true)
                 : OutOfRunDamageHistoryBuilder.Build(AuraToolsDamageMeterRuntime.History.Records, request, countShield: true);
-            DamageSettlementCgRuntime.TryPlay(record);
-
             if (DamageHistoryStorage.Database.AppendAdventure(record))
             {
                 AuraToolsDamageMeterRuntime.NotifyLedgerChanged();

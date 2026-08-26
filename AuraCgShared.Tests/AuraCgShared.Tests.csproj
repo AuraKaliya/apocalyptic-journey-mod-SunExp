@@ -8,8 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs" Link="Core\AuraSharedIdentity.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedContentId.cs" Link="Core\AuraSharedContentId.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSignalContracts.cs" Link="Shared\AuraCgSignalContracts.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSceneContracts.cs" Link="Shared\AuraCgSceneContracts.cs" />
     <Compile Include="..\AuraCgShared\AuraCgRegistryQueryService.cs" Link="Shared\AuraCgRegistryQueryService.cs" />
     <Compile Include="..\AuraCgShared\AuraCgTargetMatcher.cs" Link="Shared\AuraCgTargetMatcher.cs" />
     <Compile Include="..\AuraCgShared\AuraCgCandidateSelector.cs" Link="Shared\AuraCgCandidateSelector.cs" />

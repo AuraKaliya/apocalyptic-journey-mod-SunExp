@@ -9,7 +9,6 @@ using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.Resolution;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Infrastructure;
 using Data.Save;
 using UnityEngine;
@@ -56,7 +55,6 @@ internal static class DamageMeterAvailabilityRuntime
     {
         DamageMeterHookAdapter.RunHook("entry UI hidden scope", () =>
         {
-            DamageSettlementCgRuntime.BeginAdventure();
             SetAvailable(false, GetHookName(context));
         });
     }
@@ -84,7 +82,6 @@ internal static class DamageMeterAvailabilityRuntime
             {
                 DamageMeterNetworkRuntime.BeginAdventure();
                 DamageMeterSettlementRuntime.CaptureAdventureTeamMembers();
-                DamageSettlementCgRuntime.BeginAdventure();
                 DamageMeterSettlementRuntime.BeginAdventure();
 
                 AuraToolsDamageMeterUi.CloseHistory();
@@ -106,7 +103,6 @@ internal static class DamageMeterAvailabilityRuntime
             PreparationUiActive = false;
             DamageMeterSettlementRuntime.RestoreAdventureHistoryOnce();
             SetAvailable(true, GetHookName(context));
-            DamageMeterSettlementRuntime.PrepareSettlementCgAssets(GetHookName(context));
         });
     }
 

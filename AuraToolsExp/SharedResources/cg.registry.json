@@ -1,21 +1,14 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "ownerModId": "AuraToolsExp",
   "protocol": {
     "minVersion": 1,
-    "preferredVersion": 3
+    "preferredVersion": 4
   },
   "entries": [
     {
       "cgId": "official.career_1.careercard_1",
       "displayName": "Official career_1 - Skill CG",
-      "kind": "skill",
-      "targetRoleIds": [
-        "career_1"
-      ],
-      "skillIds": [
-        "careercard_1"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png",
@@ -40,18 +33,27 @@
         "skill-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_1"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "careercard_1"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_3.careercard_4",
       "displayName": "Official career_3 - Skill CG",
-      "kind": "skill",
-      "targetRoleIds": [
-        "career_3"
-      ],
-      "skillIds": [
-        "careercard_4"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png",
@@ -76,18 +78,27 @@
         "skill-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_3"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "careercard_4"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_1.feast",
       "displayName": "官方角色 career_1 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_1"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_1/Feast/AuraToolsExp/template.career_1/content.png",
@@ -113,18 +124,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_1"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_2.feast",
       "displayName": "官方角色 career_2 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_2"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_2/Feast/AuraToolsExp/template.career_2/content.png",
@@ -150,18 +166,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_2"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_3.feast",
       "displayName": "官方角色 career_3 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_3"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_3/Feast/AuraToolsExp/template.career_3/content.png",
@@ -187,18 +208,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_3"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_5.feast",
       "displayName": "官方角色 career_5 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_5"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_5/Feast/AuraToolsExp/template.career_5/content.png",
@@ -224,18 +250,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_5"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_6.feast",
       "displayName": "官方角色 career_6 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_6"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_6/Feast/AuraToolsExp/template.career_6/content.png",
@@ -261,18 +292,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_6"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_7.feast",
       "displayName": "官方角色 career_7 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_7"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_7/Feast/AuraToolsExp/template.career_7/content.png",
@@ -298,18 +334,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_7"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_8.feast",
       "displayName": "官方角色 career_8 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_8"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_8/Feast/AuraToolsExp/template.career_8/content.png",
@@ -335,18 +376,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_8"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "official.career_9.feast",
       "displayName": "官方角色 career_9 - 美餐",
-      "kind": "feast",
-      "targetRoleIds": [
-        "career_9"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/career_9/Feast/AuraToolsExp/template.career_9/content.png",
@@ -372,19 +418,23 @@
         "feast-cg",
         "official-role"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_9"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "agua.feast",
       "displayName": "Agua - Feast",
-      "kind": "feast",
-      "targetRoleIds": [
-        "Agua_agua_agua",
-        "agua"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Agua_agua_agua/Feast/AuraToolsExp/template.agua/content.png",
@@ -411,19 +461,24 @@
         "mod-role",
         "agua"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Agua_agua_agua",
+        "agua"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "saya.feast",
       "displayName": "Saya - Feast",
-      "kind": "feast",
-      "targetRoleIds": [
-        "Saya_careersample_saya",
-        "saya"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/Saya_careersample_saya/Feast/AuraToolsExp/template.saya/content.png",
@@ -450,19 +505,24 @@
         "mod-role",
         "saya"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Saya_careersample_saya",
+        "saya"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "pw_chiha.jk_chiha.feast",
       "displayName": "Taki Chiha (Academy Freshman) - Feast",
-      "kind": "feast",
-      "targetRoleIds": [
-        "PW_Chiha_career_time_JK_Chiha",
-        "JK_Chiha"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/PW_Chiha_career_time_JK_Chiha/Feast/AuraToolsExp/template.pw_chiha.jk_chiha/content.png",
@@ -490,19 +550,24 @@
         "pw-chiha",
         "jk-chiha"
       ],
-      "enabled": true
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "PW_Chiha_career_time_JK_Chiha",
+        "JK_Chiha"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     },
     {
       "cgId": "pw_chiha.mg_chiha.feast",
       "displayName": "Taki Chiha (Magical Girl) - Feast",
-      "kind": "feast",
-      "targetRoleIds": [
-        "PW_Chiha_career_time_MG_Chiha",
-        "MG_Chiha"
-      ],
-      "cardIds": [
-        "*"
-      ],
       "media": {
         "type": "image",
         "resource": "CG/Role/PW_Chiha_career_time_MG_Chiha/Feast/AuraToolsExp/template.pw_chiha.mg_chiha/content.png",
@@ -529,6 +594,327 @@
         "mod-role",
         "pw-chiha",
         "mg-chiha"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "PW_Chiha_career_time_MG_Chiha",
+        "MG_Chiha"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_1.low-health",
+      "displayName": "Official career_1 - Low Health CG",
+      "subjectType": "role",
+      "subjectIds": [
+        "career_1"
+      ],
+      "signals": [
+        "aura.role.health.crossed-down"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png",
+        "fallbackImage": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
+      "priority": 25,
+      "tags": [
+        "role-cg",
+        "low-health-cg",
+        "official-role"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "official.career_3.low-health",
+      "displayName": "Official career_3 - Low Health CG",
+      "subjectType": "role",
+      "subjectIds": [
+        "career_3"
+      ],
+      "signals": [
+        "aura.role.health.crossed-down"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png",
+        "fallbackImage": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "contain",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "contentOwned"
+      },
+      "priority": 25,
+      "tags": [
+        "role-cg",
+        "low-health-cg",
+        "official-role"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.special-opening",
+      "displayName": "特殊战斗开场",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.opening"
+      ],
+      "match": {
+        "facts": {
+          "specialBattle": [
+            "true"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "event",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.settlement"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": false
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 80,
+      "tags": [
+        "event-cg",
+        "team-scene"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.special-victory",
+      "displayName": "特殊战斗胜利",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.outcome.victory"
+      ],
+      "match": {
+        "facts": {
+          "specialBattle": [
+            "true"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.settlement"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 110,
+      "tags": [
+        "event-cg",
+        "team-scene"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.battle-defeat",
+      "displayName": "战斗失败",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.outcome.defeat"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.settlement"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 120,
+      "tags": [
+        "event-cg",
+        "team-scene"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.adventure-settlement",
+      "displayName": "冒险结算",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.adventure.settlement.entering"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.settlement"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 100,
+      "tags": [
+        "event-cg",
+        "team-scene"
       ],
       "enabled": true
     }

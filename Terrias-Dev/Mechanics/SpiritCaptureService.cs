@@ -146,7 +146,8 @@ public static class SpiritCaptureService
 
         PlayerApi.ShowCaption(TerriasTextCatalog.Format(
             recorded.AddedToParty ? "caption.spirit_capture.captured_party" : "caption.spirit_capture.captured_warehouse",
-            "name", SpiritPresentationResolver.Name(state.CapturedEnemy)));
+            "name", SpiritPresentationResolver.Name(state.CapturedEnemy),
+            "element", SpiritElementService.DisplayName(recorded.Instance?.ElementId)));
     }
 
     private static bool ResolveLocal(
@@ -179,7 +180,8 @@ public static class SpiritCaptureService
         PlayerApi.ShowCaption(settled
             ? TerriasTextCatalog.Format(
                 recorded.AddedToParty ? "caption.spirit_capture.captured_party" : "caption.spirit_capture.captured_warehouse",
-                "name", SpiritPresentationResolver.Name(snapshot))
+                "name", SpiritPresentationResolver.Name(snapshot),
+                "element", SpiritElementService.DisplayName(recorded.Instance?.ElementId))
             : TerriasTextCatalog.Get("caption.spirit_capture.settlement_fallback"));
         return true;
     }

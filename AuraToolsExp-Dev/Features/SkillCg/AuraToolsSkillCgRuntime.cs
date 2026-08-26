@@ -6,6 +6,8 @@ using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Features.Cg;
+using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules;
 using AuraUi.Shared;
@@ -44,6 +46,10 @@ public static class AuraToolsSkillCgRuntime
             DuplicateWindowSeconds = AuraToolsConfigService.SkillCg.DuplicateWindowSeconds
         });
         AuraToolsCgVisualBootstrap.Initialize();
+        SkillCgArbiterRuntime.RegisterSceneAssetResolver(
+            modConfig,
+            AuraToolsIds.ModId,
+            new AuraToolsCgSceneAssetResolver());
         SkillCgArbiterRuntime.RegisterProvider(modConfig, AuraToolsIds.ModId, new AuraToolsSkillCgProvider());
 
         AuraToolsConfigService.SubscribeModule(
@@ -51,6 +57,12 @@ public static class AuraToolsSkillCgRuntime
             Reconfigure);
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.CardUseCg,
+            Reconfigure);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.EventCg,
+            Reconfigure);
+        AuraToolsConfigService.SubscribeModule(
+            AuraToolModuleIds.FeastCg,
             Reconfigure);
         AuraCgRegistryRuntime.Changed += OnRegistryChanged;
         EnsureRegistryStateCurrent();
@@ -74,7 +86,8 @@ public static class AuraToolsSkillCgRuntime
 
     private static bool HooksEnabled => !safeModeDisabled
                                         && (AuraToolsConfigService.SkillCg.Enabled
-                                            || AuraToolsConfigService.SkillCg.CardUseCg.Enabled);
+                                            || AuraToolsConfigService.SkillCg.CardUseCg.Enabled
+                                            || AuraToolsConfigService.SkillCg.EventCg.Enabled);
 
     private static void EnsureHooksMatchConfig()
     {
@@ -123,10 +136,37 @@ public static class AuraToolsSkillCgRuntime
                 AdventureStarting = OnAdventureStart,
                 BattleOpening = OnFightStart,
                 BattleRestarting = OnFightRestarting,
+                OutcomeEntering = AuraToolsCgEventSignalService.OutcomeEntering,
                 BattleEnded = outcome => OnFightEnded(outcome.NativeContext)
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));
+        var signalHooks = new AuraHookRegistry(
+            modConfig,
+            AuraToolsIds.ModId + ".CG.Signals",
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn);
+        signalHooks.BeforeRouted(
+            "StatusManager.set_CurHp",
+            AuraToolsCgLowHealthSignalService.BeforeCurHpChanged,
+            "RoleLowHealth.Before");
+        signalHooks.AfterRouted(
+            "StatusManager.set_CurHp",
+            AuraToolsCgLowHealthSignalService.AfterCurHpChanged,
+            "RoleLowHealth.After");
+        signalHooks.BeforeRouted(
+            "GameApp.GameOver",
+            AuraToolsCgEventSignalService.AdventureSettlement,
+            "AdventureSettlement.GameApp");
+        signalHooks.BeforeRouted(
+            "PlayerManager.GameOver",
+            AuraToolsCgEventSignalService.AdventureSettlement,
+            "AdventureSettlement.PlayerManager");
+        signalHooks.AfterRouted(
+            "GameExitUI.Start",
+            AuraToolsCgEventSignalService.AdventureSettlement,
+            "AdventureSettlement.ExitUi");
+        HookRegistrations.Add(signalHooks);
         hooksRegistered = true;
         AuraToolsLog.Info("[SkillCG] routed hooks enabled.");
     }
@@ -153,6 +193,8 @@ public static class AuraToolsSkillCgRuntime
         hooksRegistered = false;
         SkillCgArbiterRuntime.Clear(AuraToolsIds.ModId, "disabled");
         AuraToolsSkillCgProvider.ClearOwnerRoles();
+        AuraToolsCgLowHealthSignalService.Reset();
+        AuraToolsCgEventSignalService.Reset();
         AuraToolsLog.Info("[SkillCG] routed hooks disabled.");
     }
 
@@ -173,7 +215,13 @@ public static class AuraToolsSkillCgRuntime
                 return;
             }
 
-            SkillCgArbiterRuntime.Trigger(AuraToolsConfigService.SkillCg, AuraToolsIds.ModId, trigger);
+            var signal = AuraCgSignalContext.FromLegacy(trigger);
+            signal.ConfigureResolvedRequest = request =>
+            {
+                request.DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote;
+                ApplyCardUsePresentationOverride(request);
+            };
+            SkillCgArbiterRuntime.EmitSignal(AuraToolsConfigService.SkillCg, AuraToolsIds.ModId, signal);
         });
     }
 
@@ -224,10 +272,16 @@ public static class AuraToolsSkillCgRuntime
             };
             if (ShouldEmitLocalRequest(trigger))
             {
-                SkillCgArbiterRuntime.Trigger(
+                var signal = AuraCgSignalContext.FromLegacy(trigger);
+                signal.ConfigureResolvedRequest = request =>
+                {
+                    request.DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote;
+                    ApplyRegisteredSkillPresentationOverride(request);
+                };
+                SkillCgArbiterRuntime.EmitSignal(
                     AuraToolsConfigService.SkillCg,
                     AuraToolsIds.ModId,
-                    trigger);
+                    signal);
             }
         });
     }
@@ -284,6 +338,8 @@ public static class AuraToolsSkillCgRuntime
         {
             AuraToolsSkillCgProvider.ClearOwnerRoles();
             EnsureRegistryStateCurrent();
+            AuraToolsCgLowHealthSignalService.Reset();
+            AuraToolsCgEventSignalService.BattleOpening(context);
         });
     }
 
@@ -292,6 +348,7 @@ public static class AuraToolsSkillCgRuntime
         RunHook("adventure preload", () =>
         {
             EnsureRegistryStateCurrent();
+            AuraToolsCgEventSignalService.BeginAdventure(context);
             PreloadAdventureCg();
         });
     }
@@ -338,10 +395,12 @@ public static class AuraToolsSkillCgRuntime
         var rootEnabled = !safeModeDisabled;
         var skillEnabled = rootEnabled && AuraToolsConfigService.SkillCg.Enabled;
         var cardUseEnabled = rootEnabled && AuraToolsConfigService.SkillCg.CardUseCg.Enabled;
+        var eventEnabled = rootEnabled && AuraToolsConfigService.SkillCg.EventCg.Enabled;
+        var feastEnabled = skillEnabled && AuraToolsConfigService.MatchExperience.Feast.IsCgEffective;
         var overrides = new List<AuraCgLocalActivationOverride>();
         foreach (var entry in snapshot.Entries)
         {
-            if (string.Equals(entry.Kind, SkillCgArbiterRuntime.CardUseCgKind, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(entry.SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase))
             {
                 var cardConfigured = !AuraToolsConfigService.SkillCg.CardUseCg.RegisteredEntries.TryGetValue(
                                          entry.QualifiedCgId,
@@ -356,7 +415,32 @@ public static class AuraToolsSkillCgRuntime
                 continue;
             }
 
-            if (!string.Equals(entry.Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(entry.SubjectType, AuraCgSubjectTypes.Event, StringComparison.OrdinalIgnoreCase))
+            {
+                overrides.Add(new AuraCgLocalActivationOverride
+                {
+                    OwnerModId = entry.OwnerModId,
+                    CgId = entry.CgId,
+                    Enabled = eventEnabled
+                });
+                continue;
+            }
+
+            if (entry.Signals.Any(signal => string.Equals(
+                    signal,
+                    AuraCgSignals.RoleFeastCompleted,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                overrides.Add(new AuraCgLocalActivationOverride
+                {
+                    OwnerModId = entry.OwnerModId,
+                    CgId = entry.CgId,
+                    Enabled = feastEnabled
+                });
+                continue;
+            }
+
+            if (!string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -413,7 +497,11 @@ public static class AuraToolsSkillCgRuntime
 
     private static void OnFightEnded(ModHookContext context)
     {
-        RunHook("fight ended", AuraToolsSkillCgProvider.ClearOwnerRoles);
+        RunHook("fight ended", () =>
+        {
+            AuraToolsSkillCgProvider.ClearOwnerRoles();
+            AuraToolsCgLowHealthSignalService.Reset();
+        });
     }
 
     private static void OnFightRestarting(ModHookContext context)
@@ -421,6 +509,8 @@ public static class AuraToolsSkillCgRuntime
         RunHook("fight restarting", () =>
         {
             AuraToolsSkillCgProvider.ClearOwnerRoles();
+            AuraToolsCgLowHealthSignalService.Reset();
+            AuraToolsCgEventSignalService.BattleRestarting();
         });
     }
 
@@ -635,42 +725,17 @@ public sealed class AuraToolsSkillCgProvider
             yield break;
         }
 
-        if ((!AuraToolsConfigService.SkillCg.Enabled && !AuraToolsConfigService.SkillCg.CardUseCg.Enabled))
+        if (!AuraToolsConfigService.SkillCg.Enabled
+            || !string.Equals(
+                trigger.SignalId,
+                AuraCgSignals.RoleSkillCommitted,
+                StringComparison.OrdinalIgnoreCase))
         {
             yield break;
         }
 
         var roleId = ResolveRoleId(trigger);
         var emitted = false;
-        if (AuraToolsConfigService.SkillCg.CardUseCg.Enabled
-            && !string.Equals(trigger.TriggerKind, "skill", StringComparison.OrdinalIgnoreCase))
-        {
-            foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(
-                         AuraToolsIds.ModId,
-                         trigger,
-                         disableSync: !AuraToolsConfigService.SkillCg.SyncRemote))
-            {
-                AuraToolsSkillCgRuntime.ApplyCardUsePresentationOverride(request);
-                emitted = true;
-                yield return request;
-            }
-        }
-
-        if (!AuraToolsConfigService.SkillCg.Enabled
-            || string.Equals(trigger.TriggerKind, "card", StringComparison.OrdinalIgnoreCase))
-        {
-            yield break;
-        }
-
-        foreach (var request in SkillCgArbiterRuntime.BuildRegisteredRequests(
-                     AuraToolsIds.ModId,
-                     trigger,
-                     disableSync: !AuraToolsConfigService.SkillCg.SyncRemote))
-        {
-            AuraToolsSkillCgRuntime.ApplyRegisteredSkillPresentationOverride(request);
-            emitted = true;
-            yield return request;
-        }
 
         foreach (var role in MatchingRoles(roleId))
         {
@@ -727,6 +792,9 @@ public sealed class AuraToolsSkillCgProvider
                         ? AuraToolsIds.ModId + ".SkillCG." + role.RoleId + "." + requestCardId
                         : rule.ProviderId,
                     OwnerModId = AuraToolsIds.ModId,
+                    SignalId = AuraCgSignals.RoleSkillCommitted,
+                    SubjectType = AuraCgSubjectTypes.Role,
+                    SubjectId = roleId,
                     TriggerKind = string.IsNullOrWhiteSpace(trigger.TriggerKind)
                         ? "skill"
                         : trigger.TriggerKind,
@@ -746,7 +814,7 @@ public sealed class AuraToolsSkillCgProvider
                     CreatedAt = Time.unscaledTime,
                     ActionSequence = trigger.ActionSequence,
                     EventToken = trigger.EventToken,
-                    DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote
+                    DisableSync = true
                 };
             }
         }
@@ -885,7 +953,7 @@ public static class AuraToolsSkillCgEditor
 
     public static void Show(Transform parent)
     {
-        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.SkillCgEditor", parent, "技能CG配置", RefreshAndSave);
+        var window = Settings.AuraToolsUi.CreateOverlay("AuraTools.SkillCgEditor", parent, "角色 CG 配置", RefreshAndSave);
         var toolbar = Settings.AuraToolsUi.CreateLayout("Toolbar", window.transform);
         Settings.AuraToolsUi.SetFixedHeight(toolbar, Settings.AuraToolsUi.ToolbarHeight);
         var toolbarLayout = toolbar.AddComponent<HorizontalLayoutGroup>();
@@ -894,8 +962,20 @@ public static class AuraToolsSkillCgEditor
         toolbarLayout.childControlHeight = true;
         toolbarLayout.childForceExpandWidth = false;
         toolbarLayout.childForceExpandHeight = false;
-        hintText = Settings.AuraToolsUi.AddText(toolbar.transform, "为角色技能选择本地 CG 图片。", 14, TextAnchor.MiddleLeft, Settings.AuraToolsUi.MutedText, 34f, 1f);
+        hintText = Settings.AuraToolsUi.AddText(
+            toolbar.transform,
+            RoleCgSummary(),
+            14,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.MutedText,
+            34f,
+            1f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "扫描角色", () => RefreshRoles(true), 92f);
+        Settings.AuraToolsUi.AddButton(
+            toolbar.transform,
+            "美餐资源",
+            () => AuraToolsFeastRoleEditor.Show(window.transform),
+            92f);
         Settings.AuraToolsUi.AddButton(toolbar.transform, "保存", RefreshAndSave, 78f);
 
         var behavior = Settings.AuraToolsUi.CreateLayout("Behavior", window.transform);
@@ -918,15 +998,75 @@ public static class AuraToolsSkillCgEditor
             });
         Settings.AuraToolsUi.AddText(
             behavior.transform,
-            "联机同步技能 CG 播放",
+            "联机同步",
             Settings.AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             Settings.AuraToolsUi.Text,
             Settings.AuraToolsUi.TextMinHeight,
-            1f);
+            0f,
+            82f);
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "低生命阈值",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            0f,
+            92f);
+        var thresholdInput = Settings.AuraToolsUi.AddInput(
+            behavior.transform,
+            Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f).ToString(),
+            value =>
+            {
+                if (float.TryParse(value, out var percentage))
+                {
+                    AuraToolsConfigService.SkillCg.LowHealthThreshold = Math.Max(5f, Math.Min(95f, percentage)) / 100f;
+                    AuraToolsConfigService.SaveSkillCg();
+                    if (hintText != null) hintText.text = RoleCgSummary();
+                }
+            },
+            70f,
+            Settings.AuraToolsUi.StandardButtonHeight);
+        thresholdInput.contentType = InputField.ContentType.DecimalNumber;
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "%",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.MutedText,
+            Settings.AuraToolsUi.TextMinHeight,
+            0f,
+            22f);
+        Settings.AuraToolsUi.AddToggle(
+            behavior.transform,
+            AuraToolsConfigService.MatchExperience.Feast.Cg.Enabled,
+            value =>
+            {
+                AuraToolsConfigService.MatchExperience.Feast.Cg.Enabled = value;
+                AuraToolsConfigService.SaveFeastCg();
+                if (hintText != null) hintText.text = RoleCgSummary();
+            });
+        Settings.AuraToolsUi.AddText(
+            behavior.transform,
+            "美餐 CG",
+            Settings.AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            Settings.AuraToolsUi.Text,
+            Settings.AuraToolsUi.TextMinHeight,
+            0f,
+            82f);
 
         roleContent = Settings.AuraToolsUi.CreateScroll(window.transform, "SkillCgRoles");
         RefreshRoles(false);
+    }
+
+    private static string RoleCgSummary()
+    {
+        var ruleCount = AuraToolsConfigService.SkillCg.Roles.Values.Sum(role => role.Rules.Count);
+        return "技能规则 " + ruleCount
+               + " · 低生命 " + Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f) + "%"
+               + " · 美餐 " + (AuraToolsConfigService.MatchExperience.Feast.Cg.Enabled ? "开启" : "关闭");
     }
 
     private static void RefreshRoles(bool forceScan)

@@ -43,7 +43,8 @@ public static class CompanionIntentPresentationSnapshot
 
     public static CompanionIntentPresentationValue Resolve(
         CompanionResolvedEffect? effect,
-        int displayIndex)
+        int displayIndex,
+        string spiritElementId = "")
     {
         if (effect == null)
         {
@@ -56,7 +57,11 @@ public static class CompanionIntentPresentationSnapshot
         var displayText = authoritativeValue.ToString(CultureInfo.InvariantCulture);
         if (IsMultiDamage(effect.HandlerId, repeatCount))
         {
-            displayText += "*" + repeatCount.ToString(CultureInfo.InvariantCulture);
+            displayText += "×" + repeatCount.ToString(CultureInfo.InvariantCulture);
+        }
+        if (IsDamage(effect.HandlerId) && SpiritElementService.NormalizeId(spiritElementId).Length > 0)
+        {
+            displayText = SpiritElementService.DisplayName(spiritElementId) + " · " + displayText;
         }
 
         return new CompanionIntentPresentationValue(
@@ -69,11 +74,13 @@ public static class CompanionIntentPresentationSnapshot
 
     public static int Fingerprint(
         IReadOnlyList<CompanionResolvedEffect> effects,
-        IReadOnlyList<CompanionIntentEffectSpec> specs)
+        IReadOnlyList<CompanionIntentEffectSpec> specs,
+        string spiritElementId = "")
     {
         unchecked
         {
             var hash = 17;
+            hash = HashText(hash, SpiritElementService.NormalizeId(spiritElementId));
             var count = effects.Count;
             hash = hash * 31 + count;
             for (var index = 0; index < count; index++)
@@ -98,6 +105,12 @@ public static class CompanionIntentPresentationSnapshot
         return repeatCount > 1
             && !string.IsNullOrWhiteSpace(handlerId)
             && handlerId!.StartsWith("damage.", StringComparison.Ordinal);
+    }
+
+    private static bool IsDamage(string? handlerId)
+    {
+        return !string.IsNullOrWhiteSpace(handlerId)
+               && handlerId!.StartsWith("damage.", StringComparison.Ordinal);
     }
 
     private static int HashText(int hash, string? value)

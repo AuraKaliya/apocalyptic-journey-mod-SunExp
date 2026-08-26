@@ -12,7 +12,7 @@ public static class AuraCgRegistryRuntime
 {
     public const string RegistryAuthorityId = "AuraCgShared";
     public const string RegistryFileName = "cg.registry.json";
-    public const int CurrentRegistrySchemaVersion = 3;
+    public const int CurrentRegistrySchemaVersion = 4;
     private static readonly object CacheGate = new();
     private static readonly HashSet<string> ActiveDiscoverySources = new(StringComparer.OrdinalIgnoreCase);
     private static AuraCgRegistryDocument? cachedDocument;
@@ -498,6 +498,18 @@ public sealed class AuraCgRegistryEntry
     [JsonProperty("kind")]
     public string Kind { get; set; } = "skill";
 
+    [JsonProperty("subjectType")]
+    public string SubjectType { get; set; } = "";
+
+    [JsonProperty("subjectIds")]
+    public List<string> SubjectIds { get; set; } = new();
+
+    [JsonProperty("signals")]
+    public List<string> Signals { get; set; } = new();
+
+    [JsonProperty("match")]
+    public AuraCgMatchSpec Match { get; set; } = new();
+
     [JsonProperty("targetRoleIds")]
     public List<string> TargetRoleIds { get; set; } = new();
 
@@ -512,6 +524,9 @@ public sealed class AuraCgRegistryEntry
 
     [JsonProperty("defaultPresentation")]
     public AuraCgPresentationSpec DefaultPresentation { get; set; } = new();
+
+    [JsonProperty("scene")]
+    public AuraCgSceneTemplateSpec? Scene { get; set; }
 
     [JsonProperty("defaultActivation")]
     public AuraCgDefaultActivationSpec DefaultActivation { get; set; } = new();
@@ -546,6 +561,26 @@ public sealed class AuraCgRegistryEntry
         TargetRoleIds = CleanList(TargetRoleIds);
         CardIds = CleanList(CardIds);
         SkillIds = CleanList(SkillIds);
+        MigrateLegacyTargetContract();
+        SubjectType = AuraCgSubjectTypes.Normalize(SubjectType);
+        SubjectIds = CleanList(SubjectIds);
+        Signals = CleanList(Signals)
+            .Select(value => value.ToLowerInvariant())
+            .ToList();
+        Match ??= new AuraCgMatchSpec();
+        Match.Normalize();
+        Media ??= new AuraCgMediaSpec();
+        Media.Normalize();
+        DefaultPresentation ??= new AuraCgPresentationSpec();
+        DefaultPresentation.Normalize();
+        Scene?.Normalize();
+        DefaultActivation ??= new AuraCgDefaultActivationSpec();
+        DefaultActivation.Normalize();
+        Tags = CleanList(Tags);
+    }
+
+    private void MigrateLegacyTargetContract()
+    {
         if (string.Equals(Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)
             && SkillIds.Count == 0
             && CardIds.Count > 0)
@@ -555,13 +590,56 @@ public sealed class AuraCgRegistryEntry
             SkillIds = CardIds;
             CardIds = new List<string>();
         }
-        Media ??= new AuraCgMediaSpec();
-        Media.Normalize();
-        DefaultPresentation ??= new AuraCgPresentationSpec();
-        DefaultPresentation.Normalize();
-        DefaultActivation ??= new AuraCgDefaultActivationSpec();
-        DefaultActivation.Normalize();
-        Tags = CleanList(Tags);
+
+        if (string.IsNullOrWhiteSpace(SubjectType))
+        {
+            SubjectType = string.Equals(Kind, SkillCgArbiterRuntime.CardUseCgKind, StringComparison.OrdinalIgnoreCase)
+                ? AuraCgSubjectTypes.Card
+                : string.Equals(Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)
+                  || string.Equals(Kind, SkillCgArbiterRuntime.FeastCgKind, StringComparison.OrdinalIgnoreCase)
+                    ? AuraCgSubjectTypes.Role
+                    : AuraCgSubjectTypes.Event;
+        }
+
+        if (SubjectIds == null || SubjectIds.Count == 0)
+        {
+            SubjectIds = string.Equals(SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+                ? new List<string>(CardIds)
+                : string.Equals(SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+                    ? new List<string>(TargetRoleIds)
+                    : new List<string> { "*" };
+        }
+
+        if (Signals == null || Signals.Count == 0)
+        {
+            Signals = new List<string>
+            {
+                string.Equals(Kind, SkillCgArbiterRuntime.CardUseCgKind, StringComparison.OrdinalIgnoreCase)
+                    ? AuraCgSignals.CardUsePresentationCommitted
+                    : string.Equals(Kind, SkillCgArbiterRuntime.FeastCgKind, StringComparison.OrdinalIgnoreCase)
+                        ? AuraCgSignals.RoleFeastCompleted
+                        : string.Equals(Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)
+                            ? AuraCgSignals.RoleSkillCommitted
+                            : AuraCgSignals.BattleOpening
+            };
+        }
+
+        Match ??= new AuraCgMatchSpec();
+        Match.Facts ??= new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (string.Equals(Kind, SkillCgArbiterRuntime.SkillCgKind, StringComparison.OrdinalIgnoreCase)
+            && SkillIds.Count > 0
+            && !Match.Facts.ContainsKey("skillId"))
+        {
+            Match.Facts["skillId"] = new List<string>(SkillIds);
+        }
+
+        if (string.Equals(SubjectType, AuraCgSubjectTypes.Card, StringComparison.OrdinalIgnoreCase)
+            && TargetRoleIds.Count > 0
+            && !TargetRoleIds.Contains("*", StringComparer.OrdinalIgnoreCase)
+            && !Match.Facts.ContainsKey("roleId"))
+        {
+            Match.Facts["roleId"] = new List<string>(TargetRoleIds);
+        }
     }
 
     private static List<string> CleanList(IEnumerable<string>? values)

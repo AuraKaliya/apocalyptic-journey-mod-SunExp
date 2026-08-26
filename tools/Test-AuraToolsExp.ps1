@@ -27,7 +27,7 @@ $requiredProtocolFeatures = @{
     "multiplayer.mod-sync" = @(1, 2)
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
-    "presentation.damage-settlement-cg" = @(1, 1)
+    "presentation.event-cg" = @(1, 1)
     "records.match-replay" = @(11, 11)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
@@ -272,11 +272,10 @@ if ($officialSummerSkins.Count -ne 1) {
 }
 $terriasSkins = @($skinValidation.Skins | Where-Object {
     ($_.TargetCareerId -eq "Terrias_wuna_wuna" -and $_.SkinId -eq "AuraToolsExp.Terrias_wuna_wuna.summer_cool") `
-        -or ($_.TargetCareerId -eq "Terrias_columbina_columbina" -and $_.SkinId -eq "AuraToolsExp.Terrias_columbina_columbina.restore_colors") `
-        -or ($_.TargetCareerId -eq "Terrias_loneer_loneer" -and $_.SkinId -eq "AuraToolsExp.Terrias_loneer_loneer.stellar_priest")
+        -or ($_.TargetCareerId -eq "Terrias_columbina_columbina" -and $_.SkinId -eq "AuraToolsExp.Terrias_columbina_columbina.restore_colors")
 })
-if ($terriasSkins.Count -ne 3) {
-    throw "AuraToolsExp must own all three Terrias replacement skins."
+if ($terriasSkins.Count -ne 2) {
+    throw "AuraToolsExp must own both currently bundled Terrias replacement skins."
 }
 
 $matchSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -353,10 +352,19 @@ if ($loggingSettings.schemaVersion -ne 5 `
 
 $skillCgSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\SkillCgSettings.json") | ConvertFrom-Json
-if ($skillCgSettings.schemaVersion -ne 6 `
+if ($skillCgSettings.schemaVersion -ne 7 `
         -or $skillCgSettings.disableAfterFailures -ne $true `
+        -or [Math]::Abs([double]$skillCgSettings.lowHealthThreshold - 0.3) -gt 0.0001 `
+        -or $skillCgSettings.eventCg.enabled -ne $true `
+        -or $skillCgSettings.eventCg.syncRemote -ne $true `
+        -or $skillCgSettings.eventCg.baseWidth -ne 1600 `
+        -or $skillCgSettings.eventCg.baseHeight -ne 900 `
+        -or $skillCgSettings.eventCg.specialOpeningEnabled -ne $true `
+        -or $skillCgSettings.eventCg.specialVictoryEnabled -ne $true `
+        -or $skillCgSettings.eventCg.battleDefeatEnabled -ne $true `
+        -or $skillCgSettings.eventCg.adventureSettlementEnabled -ne $true `
         -or $null -ne $skillCgSettings.PSObject.Properties["preloadOnFightStart"]) {
-    throw "AuraToolsExp Skill CG configuration contract is invalid."
+    throw "AuraToolsExp unified CG configuration contract is invalid."
 }
 
 $registration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -368,21 +376,68 @@ $terriasRegistration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $terriasCgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "Terrias\SharedResources\cg.registry.json") | ConvertFrom-Json
 $officialSkillCg = @($cgRegistry.entries | Where-Object {
-    $_.kind -eq "skill" -and $_.cgId -in @(
+    $_.subjectType -eq "role" `
+        -and @($_.signals) -contains "aura.role.skill.committed" `
+        -and $_.cgId -in @(
         "official.career_1.careercard_1",
         "official.career_3.careercard_4")
 })
-$terriasSkillCg = @($cgRegistry.entries | Where-Object {
-    $_.kind -eq "skill" -and $_.cgId -in @(
+$officialFeastCg = @($cgRegistry.entries | Where-Object {
+    $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.feast.completed"
+})
+$officialLowHealthCg = @($cgRegistry.entries | Where-Object {
+    $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.health.crossed-down"
+})
+$eventCg = @($cgRegistry.entries | Where-Object {
+    $_.subjectType -eq "event"
+})
+$terriasSkillCg = @($terriasCgRegistry.entries | Where-Object {
+    $_.subjectType -eq "role" `
+        -and @($_.signals) -contains "aura.role.skill.committed" `
+        -and $_.cgId -in @(
         "loneer.morning-star-prayer",
         "wuna.white-sun-prayer",
         "columbina.homesickness")
 })
-$terriasCardUseCg = @($cgRegistry.entries | Where-Object {
-    $_.kind -eq "cardUse" -and $_.cgId -eq "terrias.blazing-crown-collapse"
+$terriasCardUseCg = @($terriasCgRegistry.entries | Where-Object {
+    $_.subjectType -eq "card" `
+        -and @($_.signals) -contains "aura.card.use.presentation-committed" `
+        -and $_.cgId -eq "terrias.blazing-crown-collapse"
 })
-$terriasFeastCg = @($cgRegistry.entries | Where-Object {
-    $_.kind -eq "feast" -and $_.cgId -in @("loneer.feast", "wuna.feast", "columbina.feast")
+$terriasFeastCg = @($terriasCgRegistry.entries | Where-Object {
+    $_.subjectType -eq "role" `
+        -and @($_.signals) -contains "aura.role.feast.completed" `
+        -and $_.cgId -in @("loneer.feast", "wuna.feast", "columbina.feast")
+})
+$allCgEntries = @($cgRegistry.entries) + @($terriasCgRegistry.entries)
+$legacyCgFieldsPresent = @($allCgEntries | Where-Object {
+    $null -ne $_.PSObject.Properties["kind"] `
+        -or $null -ne $_.PSObject.Properties["targetRoleIds"] `
+        -or $null -ne $_.PSObject.Properties["skillIds"] `
+        -or $null -ne $_.PSObject.Properties["cardIds"]
+}).Count -ne 0
+$invalidSemanticCg = @($allCgEntries | Where-Object {
+    [string]::IsNullOrWhiteSpace([string]$_.subjectType) `
+        -or @($_.subjectIds).Count -eq 0 `
+        -or @($_.signals).Count -eq 0
+}).Count -ne 0
+$invalidSkillCgFacts = @($officialSkillCg + $terriasSkillCg | Where-Object {
+    @($_.match.facts.skillId).Count -eq 0
+}).Count -ne 0
+$invalidEventScene = @($eventCg | Where-Object {
+    $_.media.type -ne "scene" `
+        -or $_.scene.layoutId -ne "team-stage.v1" `
+        -or $_.scene.maximumParticipants -ne 8 `
+        -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.ownerModId) `
+        -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.assetId) `
+        -or [string]::IsNullOrWhiteSpace([string]$_.scene.roleLayerOwnerModId) `
+        -or [string]::IsNullOrWhiteSpace([string]$_.scene.roleLayerAssetPrefix)
+}).Count -ne 0
+$terminalEventCg = @($eventCg | Where-Object {
+    @($_.signals) -notcontains "aura.battle.opening"
+})
+$openingEventCg = @($eventCg | Where-Object {
+    @($_.signals) -contains "aura.battle.opening"
 })
 $cardVisualRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\card-visual.registry.json") | ConvertFrom-Json
@@ -432,18 +487,32 @@ if ($registration.schemaVersion -ne 4 `
         -or $registration.ownerModId -ne "AuraToolsExp" `
         -or $registration.participantKind -ne "Tool" `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
-        -or $cgRegistry.schemaVersion -ne 3 `
+        -or $cgRegistry.schemaVersion -ne 4 `
+        -or $cgRegistry.protocol.preferredVersion -ne 4 `
+        -or @($cgRegistry.entries).Count -ne 20 `
         -or $officialSkillCg.Count -ne 2 `
-        -or @($officialSkillCg | Where-Object { @($_.skillIds).Count -eq 0 -or $null -ne $_.cardIds }).Count -ne 0 `
-        -or $terriasSkillCg.Count -ne 0 `
-        -or $terriasCardUseCg.Count -ne 0 `
-        -or $terriasFeastCg.Count -ne 0 `
+        -or $officialFeastCg.Count -ne 12 `
+        -or $officialLowHealthCg.Count -ne 2 `
+        -or $eventCg.Count -ne 4 `
+        -or $invalidEventScene `
+        -or $terminalEventCg.Count -ne 3 `
+        -or @($terminalEventCg | Where-Object {
+            $_.scene.exclusive -ne $true -or $_.scene.presentationProfileId -ne "terminal"
+        }).Count -ne 0 `
+        -or $openingEventCg.Count -ne 1 `
+        -or $openingEventCg[0].scene.exclusive -ne $false `
         -or $terriasRegistration.ownerModId -ne "Terrias" `
         -or @($terriasRegistration.resources).Count -ne 9 `
         -or $terriasCgRegistry.ownerModId -ne "Terrias" `
-        -or $terriasCgRegistry.schemaVersion -ne 3 `
+        -or $terriasCgRegistry.schemaVersion -ne 4 `
+        -or $terriasCgRegistry.protocol.preferredVersion -ne 4 `
         -or @($terriasCgRegistry.entries).Count -ne 7 `
-        -or @($terriasSkillCg | Where-Object { @($_.skillIds).Count -eq 0 -or $null -ne $_.cardIds }).Count -ne 0 `
+        -or $terriasSkillCg.Count -ne 3 `
+        -or $terriasCardUseCg.Count -ne 1 `
+        -or $terriasFeastCg.Count -ne 3 `
+        -or $invalidSkillCgFacts `
+        -or $invalidSemanticCg `
+        -or $legacyCgFieldsPresent `
         -or $cardVisualSettings.schemaVersion -ne 2 `
         -or @($cardVisualSettings.themes.PSObject.Properties).Count -ne 0 `
         -or @($cardVisualSettings.dynamicEffectOverrides.PSObject.Properties).Count -ne 0 `
@@ -878,12 +947,13 @@ $codecNames = @([regex]::Matches(
 $expectedCodecNames = @(
     "StarterDeck", "CardRefresh", "Feast", "FeastCg", "SafeBox", "Skin",
     "BattleBgm", "CardUseAudio", "PixelEmoji", "SkillCg", "CardUseCg",
-    "DamageStatistics", "BattleReplay", "AdventureArchive", "ModSync",
+    "EventCg", "DamageStatistics", "BattleReplay", "AdventureArchive", "ModSync",
     "LobbyStatus", "AutoBattle", "FileLogging", "PresetLibrary", "ModHealth")
-if ($codecNames.Count -ne 20 `
-        -or @($codecNames | Sort-Object -Unique).Count -ne 20 `
+if ($codecNames.Count -ne 21 `
+        -or @($codecNames | Sort-Object -Unique).Count -ne 21 `
         -or @(Compare-Object ($codecNames | Sort-Object) ($expectedCodecNames | Sort-Object)).Count -ne 0 `
         -or $codecSource -notmatch 'payload\.Remove\("cardUseCg"\)' `
+        -or $codecSource -notmatch 'payload\.Remove\("eventCg"\)' `
         -or $codecSource -notmatch 'modelRiskAcknowledgements' `
         -or $codecSource -notmatch 'captureTrainingSamples' `
         -or $presetServiceSource -notmatch 'AuraToolConfigChangeBus\.BeginBatch' `

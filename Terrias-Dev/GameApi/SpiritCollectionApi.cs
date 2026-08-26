@@ -252,6 +252,9 @@ public static class SpiritCollectionApi
 
     public static bool ToggleLocked(string uid) => EnsureProfileBound() && SpiritCollectionService.ToggleLocked(uid);
 
+    public static bool SetElement(string uid, string elementId, string source = SpiritElementService.ExplicitOverrideSource)
+        => EnsureProfileBound() && SpiritCollectionService.SetElement(uid, elementId, source);
+
     public static IReadOnlyList<SpiritExperienceResult> GrantBattleExperience(
         IReadOnlyList<string> partyUids,
         string activeUid,

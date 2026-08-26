@@ -43,6 +43,7 @@ public static class SpiritBattleDeploymentService
             var snapshot = SpiritModelCloner.CloneSnapshot(active.Snapshot);
             snapshot.SpeciesId = active.SpeciesId;
             snapshot.ProfileId = active.ProfileId;
+            snapshot.SpiritElementId = active.ElementId;
             snapshot.SpiritLevel = active.Level;
             snapshot.SpiritAptitude = active.Aptitude;
             snapshot.SpiritGuiyuanValue = active.GuiyuanValue;
@@ -98,6 +99,10 @@ public static class SpiritBattleDeploymentService
                 return false;
             }
             if (!SpiritAscensionService.ValidateDeploymentSnapshot(snapshot, out reason))
+            {
+                return false;
+            }
+            if (!SpiritElementService.ValidateDeploymentSnapshot(snapshot, out reason))
             {
                 return false;
             }

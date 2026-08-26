@@ -36,13 +36,15 @@
       "fallback": "request-compatible-snapshot-or-disable-damage-meter-only"
     },
     {
-      "id": "presentation.damage-settlement-cg",
+      "id": "presentation.event-cg",
       "currentVersion": 1,
       "minimumSupportedVersion": 1,
       "requiredCapabilities": [
-        "ranked-entries.v1"
+        "signal-registry.v4",
+        "processed-team-scene.v1",
+        "owner-qualified-assets.v1"
       ],
-      "fallback": "skip-settlement-presentation-only"
+      "fallback": "disable-remote-event-cg-and-keep-local-registered-cg"
     },
     {
       "id": "records.match-replay",

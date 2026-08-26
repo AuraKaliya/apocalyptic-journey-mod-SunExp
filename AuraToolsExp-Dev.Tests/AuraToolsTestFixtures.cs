@@ -3,7 +3,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.DamageMeter.Capture;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
-using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
+using AuraToolsExp.Dll.Features.Cg;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;

@@ -68,7 +68,7 @@ var multiPresentation = CompanionIntentPresentationSnapshot.Resolve(new Companio
     Value = 5,
     RepeatCount = 4
 }, 1);
-Assert(multiPresentation.DisplayText == "5*4", "multi-hit presentation must preserve per-hit value and hit count");
+Assert(multiPresentation.DisplayText == "5\u00d74", "multi-hit presentation must preserve per-hit value and hit count");
 
 var buffPresentation = CompanionIntentPresentationSnapshot.Resolve(new CompanionResolvedEffect
 {

@@ -8,6 +8,7 @@ using AuraToolsExp.Dll.Features.Audio;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.CardVisual;
+using AuraToolsExp.Dll.Features.Cg;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Diagnostics;
 using AuraToolsExp.Dll.Features.Feast;
@@ -55,6 +56,7 @@ internal static class AuraToolsBuiltInModules
             DiagnosticsModule(),
             SkillCgModule(),
             CardUseCgModule(),
+            EventCgModule(),
             PresetLibraryModule(),
             ModHealthModule()
         };
@@ -324,7 +326,8 @@ internal static class AuraToolsBuiltInModules
             },
             FeastCgState,
             AuraToolsFeastRoleEditor.Show,
-            new[] { "美餐", "CG", "食物", "角色", "表现资源" });
+            new[] { "美餐", "CG", "食物", "角色", "表现资源" },
+            visible: false);
     }
 
     private static IAuraToolModule SafeBoxModule()
@@ -599,8 +602,8 @@ internal static class AuraToolsBuiltInModules
             "presentation",
             250,
             130,
-            "技能 CG",
-            "按角色和技能播放自定义战斗 CG。",
+            "角色 CG",
+            "管理角色的技能、美餐与低生命表现。",
             context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.SkillCg.Enabled,
             enabled =>
@@ -615,12 +618,13 @@ internal static class AuraToolsBuiltInModules
                 return State(
                     AuraToolModuleIds.SkillCg,
                     AuraToolsConfigService.SkillCg.Enabled,
-                    "角色规则 " + count + " 条 · 联机同步"
+                    "技能规则 " + count + " 条 · 低生命 "
+                    + Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f) + "% · 联机同步"
                     + (AuraToolsConfigService.SkillCg.SyncRemote ? "开启" : "关闭"),
                     count);
             },
             AuraToolsSkillCgEditor.Show,
-            new[] { "技能", "CG", "角色", "特效" });
+            new[] { "技能", "美餐", "低生命", "CG", "角色", "特效" });
     }
 
     private static IAuraToolModule CardUseCgModule()
@@ -630,8 +634,8 @@ internal static class AuraToolsBuiltInModules
             "presentation",
             260,
             131,
-            "卡牌使用 CG",
-            "管理其他 MOD 注册的卡牌使用表现。",
+            "卡牌 CG",
+            "管理按卡牌使用信号触发的注册表现。",
             context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.SkillCg.CardUseCg.Enabled,
             enabled =>
@@ -654,6 +658,42 @@ internal static class AuraToolsBuiltInModules
             },
             AuraToolsSkillCgManager.Show,
             new[] { "卡牌", "CG", "注册项", "特效" });
+    }
+
+    private static IAuraToolModule EventCgModule()
+    {
+        return Module(
+            AuraToolModuleIds.EventCg,
+            "presentation",
+            270,
+            132,
+            "事件 CG",
+            "管理战斗开场、胜负与冒险结算的队伍场景。",
+            context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
+            () => AuraToolsConfigService.SkillCg.EventCg.Enabled,
+            enabled =>
+            {
+                AuraToolsConfigService.SkillCg.EventCg.Enabled = enabled;
+                AuraToolsConfigService.SaveEventCg();
+            },
+            () =>
+            {
+                var settings = AuraToolsConfigService.SkillCg.EventCg;
+                var triggerCount = new[]
+                {
+                    settings.SpecialOpeningEnabled,
+                    settings.SpecialVictoryEnabled,
+                    settings.BattleDefeatEnabled,
+                    settings.AdventureSettlementEnabled
+                }.Count(value => value);
+                return State(
+                    AuraToolModuleIds.EventCg,
+                    settings.Enabled,
+                    "事件 " + triggerCount + "/4 · 特殊战斗 " + settings.SpecialBattleIds.Count + " 条",
+                    triggerCount);
+            },
+            AuraToolsEventCgSettingsPage.Show,
+            new[] { "事件", "CG", "战斗开场", "胜利", "失败", "冒险结算", "队伍" });
     }
 
     private static IAuraToolModule DiagnosticsModule()

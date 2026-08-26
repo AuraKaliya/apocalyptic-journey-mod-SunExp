@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "defaults": {
     "maxLevel": 50,
     "levelCurveId": "level-linear-1-50",
@@ -108,6 +108,7 @@
     {
       "speciesId": "base-game.10001",
       "profileId": "base-game.10001",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -139,6 +140,7 @@
     {
       "speciesId": "base-game.10002",
       "profileId": "base-game.10002",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -170,6 +172,7 @@
     {
       "speciesId": "base-game.10003",
       "profileId": "base-game.10003",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -201,6 +204,7 @@
     {
       "speciesId": "base-game.10004",
       "profileId": "base-game.10004",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -232,6 +236,7 @@
     {
       "speciesId": "base-game.10005",
       "profileId": "base-game.10005",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -263,6 +268,7 @@
     {
       "speciesId": "base-game.10007",
       "profileId": "base-game.10007",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -294,6 +300,7 @@
     {
       "speciesId": "base-game.10008",
       "profileId": "base-game.10008",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -325,6 +332,7 @@
     {
       "speciesId": "base-game.10009",
       "profileId": "base-game.10009",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -356,6 +364,7 @@
     {
       "speciesId": "base-game.10010",
       "profileId": "base-game.10010",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -387,6 +396,7 @@
     {
       "speciesId": "base-game.10014",
       "profileId": "base-game.10014",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -418,6 +428,7 @@
     {
       "speciesId": "base-game.10015",
       "profileId": "base-game.10015",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -449,6 +460,7 @@
     {
       "speciesId": "base-game.10016",
       "profileId": "base-game.10016",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -480,6 +492,7 @@
     {
       "speciesId": "base-game.10017",
       "profileId": "base-game.10017",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -511,6 +524,7 @@
     {
       "speciesId": "base-game.10018",
       "profileId": "base-game.10018",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -542,6 +556,7 @@
     {
       "speciesId": "base-game.10019",
       "profileId": "base-game.10019",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -573,6 +588,7 @@
     {
       "speciesId": "base-game.10020",
       "profileId": "base-game.10020",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -604,6 +620,7 @@
     {
       "speciesId": "base-game.10021",
       "profileId": "base-game.10021",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -635,6 +652,7 @@
     {
       "speciesId": "base-game.10022",
       "profileId": "base-game.10022",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -666,6 +684,7 @@
     {
       "speciesId": "base-game.10023",
       "profileId": "base-game.10023",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -697,6 +716,7 @@
     {
       "speciesId": "base-game.10024",
       "profileId": "base-game.10024",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -728,6 +748,7 @@
     {
       "speciesId": "base-game.10025",
       "profileId": "base-game.10025",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -759,6 +780,7 @@
     {
       "speciesId": "base-game.10026",
       "profileId": "base-game.10026",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -790,6 +812,7 @@
     {
       "speciesId": "base-game.evernight-incarnation",
       "profileId": "base-game.10027",
+      "captureElement": "cryo",
       "formKey": "final",
       "formOrder": 1,
       "formLabelKey": "form.final",
@@ -821,6 +844,7 @@
     {
       "speciesId": "base-game.10028",
       "profileId": "base-game.10028",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -852,6 +876,7 @@
     {
       "speciesId": "base-game.10029",
       "profileId": "base-game.10029",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -883,6 +908,7 @@
     {
       "speciesId": "base-game.10032",
       "profileId": "base-game.10032",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -914,6 +940,7 @@
     {
       "speciesId": "base-game.10033",
       "profileId": "base-game.10033",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -945,6 +972,7 @@
     {
       "speciesId": "base-game.10034",
       "profileId": "base-game.10034",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -976,6 +1004,7 @@
     {
       "speciesId": "base-game.10035",
       "profileId": "base-game.10035",
+      "captureElement": "hydro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1007,6 +1036,7 @@
     {
       "speciesId": "base-game.lesser-joker",
       "profileId": "base-game.10036",
+      "captureElement": "anemo",
       "formKey": "black",
       "formOrder": 0,
       "formLabelKey": "form.black",
@@ -1038,6 +1068,7 @@
     {
       "speciesId": "base-game.lesser-joker",
       "profileId": "base-game.10037",
+      "captureElement": "anemo",
       "formKey": "white",
       "formOrder": 1,
       "formLabelKey": "form.white",
@@ -1069,6 +1100,7 @@
     {
       "speciesId": "base-game.10038",
       "profileId": "base-game.10038",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1100,6 +1132,7 @@
     {
       "speciesId": "base-game.10039",
       "profileId": "base-game.10039",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1131,6 +1164,7 @@
     {
       "speciesId": "base-game.10040",
       "profileId": "base-game.10040",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1162,6 +1196,7 @@
     {
       "speciesId": "base-game.10041",
       "profileId": "base-game.10041",
+      "captureElement": "dendro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1193,6 +1228,7 @@
     {
       "speciesId": "base-game.10042",
       "profileId": "base-game.10042",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1224,6 +1260,7 @@
     {
       "speciesId": "base-game.10043",
       "profileId": "base-game.10043",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1255,6 +1292,7 @@
     {
       "speciesId": "base-game.10044",
       "profileId": "base-game.10044",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1286,6 +1324,7 @@
     {
       "speciesId": "base-game.10045",
       "profileId": "base-game.10045",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1317,6 +1356,7 @@
     {
       "speciesId": "base-game.10046",
       "profileId": "base-game.10046",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1348,6 +1388,7 @@
     {
       "speciesId": "base-game.10047",
       "profileId": "base-game.10047",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1379,6 +1420,7 @@
     {
       "speciesId": "base-game.demon-king",
       "profileId": "base-game.10048",
+      "captureElement": "hydro",
       "formKey": "phase-1",
       "formOrder": 1,
       "formLabelKey": "form.phase-1",
@@ -1410,6 +1452,7 @@
     {
       "speciesId": "base-game.demon-king-sword",
       "profileId": "base-game.10049",
+      "captureElement": "geo",
       "formKey": "right",
       "formOrder": 0,
       "formLabelKey": "form.right",
@@ -1441,6 +1484,7 @@
     {
       "speciesId": "base-game.demon-king-sword",
       "profileId": "base-game.10050",
+      "captureElement": "geo",
       "formKey": "left",
       "formOrder": 1,
       "formLabelKey": "form.left",
@@ -1472,6 +1516,7 @@
     {
       "speciesId": "base-game.demon-king",
       "profileId": "base-game.10051",
+      "captureElement": "hydro",
       "formKey": "phase-2",
       "formOrder": 2,
       "formLabelKey": "form.phase-2",
@@ -1503,6 +1548,7 @@
     {
       "speciesId": "base-game.demon-king",
       "profileId": "base-game.10052",
+      "captureElement": "hydro",
       "formKey": "phase-3",
       "formOrder": 3,
       "formLabelKey": "form.phase-3",
@@ -1534,6 +1580,7 @@
     {
       "speciesId": "base-game.evernight-incarnation",
       "profileId": "base-game.10053",
+      "captureElement": "cryo",
       "formKey": "derived",
       "formOrder": 0,
       "formLabelKey": "form.derived",
@@ -1565,6 +1612,7 @@
     {
       "speciesId": "base-game.10054",
       "profileId": "base-game.10054",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1596,6 +1644,7 @@
     {
       "speciesId": "base-game.10055",
       "profileId": "base-game.10055",
+      "captureElement": "electro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1627,6 +1676,7 @@
     {
       "speciesId": "base-game.caroline",
       "profileId": "base-game.10056",
+      "captureElement": "cryo",
       "formKey": "phase-1",
       "formOrder": 1,
       "formLabelKey": "form.phase-1",
@@ -1658,6 +1708,7 @@
     {
       "speciesId": "base-game.caroline",
       "profileId": "base-game.10057",
+      "captureElement": "cryo",
       "formKey": "phase-2",
       "formOrder": 2,
       "formLabelKey": "form.phase-2",
@@ -1689,6 +1740,7 @@
     {
       "speciesId": "base-game.caroline",
       "profileId": "base-game.10058",
+      "captureElement": "cryo",
       "formKey": "complete-angel",
       "formOrder": 3,
       "formLabelKey": "form.complete-angel",
@@ -1720,6 +1772,7 @@
     {
       "speciesId": "base-game.10059",
       "profileId": "base-game.10059",
+      "captureElement": "geo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1751,6 +1804,7 @@
     {
       "speciesId": "base-game.10060",
       "profileId": "base-game.10060",
+      "captureElement": "anemo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1782,6 +1836,7 @@
     {
       "speciesId": "base-game.10061",
       "profileId": "base-game.10061",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1813,6 +1868,7 @@
     {
       "speciesId": "terrias.boss_orbit_mirror_array",
       "profileId": "terrias.boss_orbit_mirror_array",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1844,6 +1900,7 @@
     {
       "speciesId": "terrias.boss_saint_wuna",
       "profileId": "terrias.boss_saint_wuna",
+      "captureElement": "cryo",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",
@@ -1875,6 +1932,7 @@
     {
       "speciesId": "terrias.boss_second_sun_last_day",
       "profileId": "terrias.boss_second_sun_last_day",
+      "captureElement": "pyro",
       "formKey": "default",
       "formOrder": 0,
       "formLabelKey": "form.default",

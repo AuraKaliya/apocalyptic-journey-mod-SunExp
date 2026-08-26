@@ -18,6 +18,8 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
     private Text? levelText;
     private Text? aptitudeText;
     private Text? markerText;
+    private Image? elementIcon;
+    private Text? elementText;
     private Outline? outline;
     private GameObject? activeStamp;
     private GameObject? selectionBadge;
@@ -33,6 +35,8 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         Text nextLevelText,
         Text nextAptitudeText,
         Text nextMarkerText,
+        Image nextElementIcon,
+        Text nextElementText,
         Outline nextOutline,
         GameObject nextActiveStamp,
         GameObject nextSelectionBadge,
@@ -46,6 +50,8 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         levelText = nextLevelText;
         aptitudeText = nextAptitudeText;
         markerText = nextMarkerText;
+        elementIcon = nextElementIcon;
+        elementText = nextElementText;
         outline = nextOutline;
         activeStamp = nextActiveStamp;
         selectionBadge = nextSelectionBadge;
@@ -91,6 +97,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         if (levelText != null) { levelText.text = "Lv." + Math.Max(1, item?.Level ?? 1); levelText.color = primaryColor; }
         if (aptitudeText != null) { aptitudeText.text = aptitude ?? ""; aptitudeText.color = nameColor; }
         if (markerText != null) { markerText.text = marker ?? ""; markerText.color = markerColor; }
+        SpiritElementUi.Bind(elementIcon, elementText, item?.ElementId ?? "");
         if (outline != null) { outline.enabled = outlined; outline.effectColor = outlineColor; }
         if (selectionBadge != null) selectionBadge.SetActive(selected);
         if (activeStamp != null) activeStamp.SetActive(active);
@@ -119,6 +126,8 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
     {
         spiritUid = "";
         if (portrait != null) portrait.sprite = null;
+        if (elementIcon != null) { elementIcon.sprite = null; elementIcon.color = Color.clear; }
+        if (elementText != null) elementText.text = "";
         if (outline != null) outline.enabled = false;
         if (selectionBadge != null) selectionBadge.SetActive(false);
         if (activeStamp != null) activeStamp.SetActive(false);

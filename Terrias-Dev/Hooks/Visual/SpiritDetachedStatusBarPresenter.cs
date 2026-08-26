@@ -3,6 +3,7 @@ using System.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
+using Terrias.Dll.Hooks.Ui;
 using TMPro;
 using UnityEngine;
 using Witch.UI.Window;
@@ -80,6 +81,14 @@ internal sealed class SpiritDetachedStatusBarPresenter : MonoBehaviour
             hpItem.transform.localRotation = sourceBar.hpItemObj.transform.localRotation
                                              * Quaternion.Euler(0f, 0f, BarRotationDegrees);
             hpItem.SetActive(true);
+
+            var elementId = SpiritStateStore.Find(nextStatus?.InstanceId ?? "")?.Snapshot.SpiritElementId ?? "";
+            var elementBadge = SpiritElementUi.CreateBadge(displayRoot.transform, "Element", 46f, 18f, ignoreLayout: true);
+            SpiritElementUi.Bind(elementBadge.Icon, elementBadge.Label, elementId);
+            if (elementBadge.Root.transform is RectTransform elementRect)
+            {
+                elementRect.anchoredPosition = new Vector2(10f, 28f);
+            }
 
             healthFill = hpItem.transform.Find("fill")?.GetComponent<SpriteRenderer>();
             healthDelayFill = hpItem.transform.Find("redfill")?.GetComponent<SpriteRenderer>();

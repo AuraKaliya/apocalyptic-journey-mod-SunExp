@@ -34,7 +34,6 @@ internal static class DamageMeterLifecycleCoordinator
             {
                 DamageMeterAvailabilityRuntime.PreparationUiActive = false;
                 DamageMeterAvailabilityRuntime.SetAvailable(true, "FightInit.Init");
-                DamageMeterSettlementRuntime.PrepareSettlementCgAssets("FightInit.Init");
             }
 
             ResetCaptureServices();

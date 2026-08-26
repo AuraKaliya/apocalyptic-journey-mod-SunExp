@@ -188,7 +188,7 @@ internal static class AuraToolConfigCodecRegistry
                 _ => { },
                 value => CommitSetting(AuraToolModuleIds.CardRefresh, value,
                     item => AuraToolsConfigService.MatchExperience.CardRefresh = item, AuraToolsConfigService.SaveCardRefresh)),
-            Codec(Audit(AuraToolModuleIds.Feast, "一键美餐", "low", "主开关与批处理上限", "美餐 CG 子配置"),
+            Codec(Audit(AuraToolModuleIds.Feast, "一键美餐", "low", "主开关与批处理上限", "角色 CG 的美餐资源子配置"),
                 FeastSettings.CurrentSchemaVersion,
                 () => new FeastGameplayPortableSettings
                 {
@@ -205,7 +205,7 @@ internal static class AuraToolConfigCodecRegistry
                         current.MaxBatchCount = item.MaxBatchCount;
                     }, AuraToolsConfigService.SaveFeast);
                 }),
-            Codec(Audit(AuraToolModuleIds.FeastCg, "美餐 CG", "resource", "CG 角色规则、选择与相对资源引用", "图片文件正文", AuraToolModuleIds.Feast),
+            Codec(Audit(AuraToolModuleIds.FeastCg, "角色 CG · 美餐资源", "resource", "美餐角色规则、选择与相对资源引用", "图片文件正文", AuraToolModuleIds.SkillCg, AuraToolModuleIds.Feast),
                 FeastCgSettings.CurrentSchemaVersion,
                 () => AuraToolsConfigService.MatchExperience.Feast.Cg,
                 value => value.Normalize(),
@@ -238,21 +238,32 @@ internal static class AuraToolConfigCodecRegistry
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.PixelEmoji, value,
                     item => AuraToolsConfigService.PixelEmoji = item, AuraToolsConfigService.SavePixelEmoji)),
-            Codec(Audit(AuraToolModuleIds.SkillCg, "技能 CG", "resource", "技能规则与资源引用", "卡牌使用 CG 子配置、图片正文"), 5,
+            Codec(Audit(AuraToolModuleIds.SkillCg, "角色 CG", "resource", "技能、美餐与低生命规则和资源引用", "卡牌/事件 CG 子配置、图片正文"), AuraToolsSkillCgSettings.CurrentSchemaVersion,
                 () => AuraToolsConfigService.SkillCg,
                 value => value.Normalize(),
                 value =>
                 {
                     value.CardUseCg = AuraToolsConfigService.SkillCg.CardUseCg;
+                    value.EventCg = AuraToolsConfigService.SkillCg.EventCg;
                     CommitSetting(AuraToolModuleIds.SkillCg, value,
                         item => AuraToolsConfigService.SkillCg = item, AuraToolsConfigService.SaveSkillCg);
                 },
-                payload => { payload.Remove("cardUseCg"); return payload; }),
-            Codec(Audit(AuraToolModuleIds.CardUseCg, "卡牌使用 CG", "resource", "注册项启停引用", "CG 图片正文"), 1,
+                payload =>
+                {
+                    payload.Remove("cardUseCg");
+                    payload.Remove("eventCg");
+                    return payload;
+                }),
+            Codec(Audit(AuraToolModuleIds.CardUseCg, "卡牌 CG", "resource", "注册项启停引用", "CG 图片正文"), AuraToolsCardUseCgSettings.CurrentSchemaVersion,
                 () => AuraToolsConfigService.SkillCg.CardUseCg,
                 value => value.Normalize(),
                 value => CommitSetting(AuraToolModuleIds.CardUseCg, value,
                     item => AuraToolsConfigService.SkillCg.CardUseCg = item, AuraToolsConfigService.SaveCardUseCg)),
+            Codec(Audit(AuraToolModuleIds.EventCg, "事件 CG", "resource", "事件触发、背景与队伍场景表现", "CG 图片正文"), AuraToolsEventCgSettings.CurrentSchemaVersion,
+                () => AuraToolsConfigService.SkillCg.EventCg,
+                value => value.Normalize(),
+                value => CommitSetting(AuraToolModuleIds.EventCg, value,
+                    item => AuraToolsConfigService.SkillCg.EventCg = item, AuraToolsConfigService.SaveEventCg)),
             Codec(Audit(AuraToolModuleIds.DamageStatistics, "DPT 统计", "data", "统计展示与采集设置", "伤害数据库"), 1,
                 () => AuraToolsConfigService.MatchExperience.DamageMeter,
                 value => value.Normalize(),

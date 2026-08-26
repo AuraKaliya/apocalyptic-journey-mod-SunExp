@@ -43,6 +43,9 @@ public sealed class SkillCgRegisteredEntryView
         QualifiedCgId = entry.QualifiedCgId;
         DisplayName = entry.DisplayName;
         Kind = entry.Kind;
+        SubjectType = entry.SubjectType;
+        SubjectIds = (entry.SubjectIds ?? new List<string>()).ToList();
+        Signals = (entry.Signals ?? new List<string>()).ToList();
         TargetRoleIds = (entry.TargetRoleIds ?? new List<string>()).ToList();
         CardIds = (entry.CardIds ?? new List<string>()).ToList();
         SkillIds = (entry.SkillIds ?? new List<string>()).ToList();
@@ -68,6 +71,12 @@ public sealed class SkillCgRegisteredEntryView
     public string DisplayName { get; set; } = "";
 
     public string Kind { get; set; } = "";
+
+    public string SubjectType { get; set; } = "";
+
+    public List<string> SubjectIds { get; set; } = new();
+
+    public List<string> Signals { get; set; } = new();
 
     public List<string> TargetRoleIds { get; set; } = new();
 
@@ -99,6 +108,12 @@ public sealed class SkillCgRegisteredEntryView
 }
 public sealed class SkillCgTriggerContext
 {
+    public string SignalId { get; set; } = "";
+
+    public string SubjectType { get; set; } = "";
+
+    public string SubjectId { get; set; } = "";
+
     public string TriggerKind { get; set; } = "";
 
     public long ActionSequence { get; set; }
@@ -115,6 +130,18 @@ public sealed class SkillCgTriggerContext
 
     public string OwnerRoleId { get; set; } = "";
 
+    public string BattleId { get; set; } = "";
+
+    public string ModeId { get; set; } = "";
+
+    public string Outcome { get; set; } = "";
+
+    public AuraCgScenePlan? ScenePlan { get; set; }
+
+    public Dictionary<string, string> Facts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, double> Metrics { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public float CreatedAt { get; set; }
 }
 
@@ -126,6 +153,12 @@ public sealed class SkillCgRequest
     public string ProviderId { get; set; } = "";
 
     public string OwnerModId { get; set; } = "";
+
+    public string SignalId { get; set; } = "";
+
+    public string SubjectType { get; set; } = "";
+
+    public string SubjectId { get; set; } = "";
 
     public string CardId { get; set; } = "";
 
@@ -197,7 +230,14 @@ public sealed class SkillCgRequest
 
     public bool DisableSync { get; set; }
 
+    public bool Exclusive { get; set; }
+
+    public AuraCgScenePlan? ScenePlan { get; set; }
+
     public string DuplicateKey => OwnerInstanceId
+                                  + "|" + SignalId
+                                  + "|" + SubjectType
+                                  + "|" + SubjectId
                                   + "|" + TriggerKind
                                   + "|" + CardId
                                   + "|" + CanonicalMediaKey()
@@ -213,7 +253,8 @@ public sealed class SkillCgRequest
                                   + "|" + FitMode
                                   + "|" + FocusX.ToString("0.###")
                                   + "|" + FocusY.ToString("0.###")
-                                  + "|" + SafeScale.ToString("0.###");
+                                  + "|" + SafeScale.ToString("0.###")
+                                  + "|" + (ScenePlan?.StableKey ?? "");
 
     public string QualifiedProviderId => QualifyProviderId(OwnerModId, ProviderId);
 
@@ -221,8 +262,15 @@ public sealed class SkillCgRequest
     {
         ProviderId = string.IsNullOrWhiteSpace(ProviderId) ? "unknown" : ProviderId.Trim();
         OwnerModId = OwnerModId?.Trim() ?? "";
+        SignalId = (SignalId ?? "").Trim().ToLowerInvariant();
+        SubjectType = AuraCgSubjectTypes.Normalize(string.IsNullOrWhiteSpace(SubjectType)
+            ? AuraCgSignals.SubjectType(SignalId)
+            : SubjectType);
+        SubjectId = (SubjectId ?? "").Trim();
         CardId = CardId?.Trim() ?? "";
-        TriggerKind = TriggerKind?.Trim().ToLowerInvariant() ?? "";
+        TriggerKind = string.IsNullOrWhiteSpace(TriggerKind)
+            ? SubjectType
+            : TriggerKind.Trim().ToLowerInvariant();
         OwnerInstanceId = OwnerInstanceId?.Trim() ?? "";
         ImagePath = ImagePath?.Trim() ?? "";
         ImageResource = ImageResource?.Trim() ?? "";
@@ -263,6 +311,13 @@ public sealed class SkillCgRequest
             : EventToken.Trim();
         IssuerPlayerId = IssuerPlayerId?.Trim() ?? "";
         SkillCgPlayId = SkillCgPlayId?.Trim() ?? "";
+        if (ScenePlan != null)
+        {
+            ScenePlan.SignalId = SignalId;
+            ScenePlan.EventToken = EventToken;
+            ScenePlan.Normalize();
+            MediaType = SkillCgMediaTypes.Scene;
+        }
 
         if (CreatedAt <= 0f)
         {
@@ -287,6 +342,9 @@ public sealed class SkillCgRequest
         {
             ProviderId = ReadString(type, source, "ProviderId", providerId),
             OwnerModId = ReadString(type, source, "OwnerModId", ownerModId),
+            SignalId = ReadString(type, source, "SignalId", context.SignalId),
+            SubjectType = ReadString(type, source, "SubjectType", context.SubjectType),
+            SubjectId = ReadString(type, source, "SubjectId", context.SubjectId),
             CardId = ReadString(type, source, "CardId", context.CardId),
             TriggerKind = ReadString(type, source, "TriggerKind", context.TriggerKind),
             OwnerInstanceId = ReadString(type, source, "OwnerInstanceId", context.OwnerInstanceId),
@@ -321,7 +379,9 @@ public sealed class SkillCgRequest
             IssuerPlayerId = ReadString(type, source, "IssuerPlayerId", ""),
             SkillCgPlayId = ReadString(type, source, "SkillCgPlayId", ""),
             IsRemote = ReadBool(type, source, "IsRemote", false),
-            DisableSync = ReadBool(type, source, "DisableSync", false)
+            DisableSync = ReadBool(type, source, "DisableSync", false),
+            Exclusive = ReadBool(type, source, "Exclusive", false),
+            ScenePlan = ReadObject<AuraCgScenePlan>(type, source, "ScenePlan") ?? context.ScenePlan
         };
     }
 
@@ -429,6 +489,18 @@ public sealed class SkillCgRequest
         catch
         {
             return fallback;
+        }
+    }
+
+    private static T? ReadObject<T>(Type type, object source, string name) where T : class
+    {
+        try
+        {
+            return type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public)?.GetValue(source) as T;
+        }
+        catch
+        {
+            return null;
         }
     }
 }

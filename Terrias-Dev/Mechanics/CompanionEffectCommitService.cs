@@ -19,8 +19,11 @@ public static class CompanionEffectCommitService
         }
 
         var before = target.CurHp;
-        var applied = ExecutorApi.DealDamageToTarget(executor, target, amount);
-        Log("damage", executor, target, before, target.CurHp, applied);
+        var elemental = SpiritElementalAttackService.TryCommitSegment(executor, target, amount, out var resolution);
+        var applied = elemental
+            ? resolution.PrimaryDamage > 0
+            : ExecutorApi.DealDamageToTarget(executor, target, amount);
+        Log(elemental ? "damage.elemental:" + resolution.Reaction : "damage", executor, target, before, target.CurHp, applied);
         SynchronizeSpiritTarget(target, "damage");
         return applied;
     }
