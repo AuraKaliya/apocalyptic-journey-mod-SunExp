@@ -126,7 +126,10 @@ Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
 Assert(CompanionAuthorityService.ProjectionProtocolVersion == 21
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
-       && SpiritSystemContract.CollectionVersion == 8
+       && SpiritSystemContract.CollectionVersion == 9
+       && SpiritSystemContract.InitialRosterGrantVersion == 1
+       && SpiritSystemContract.InitialRosterProfileCount == 58
+       && SpiritSystemContract.InitialRosterConfigurationKey == "GrantAllSpiritsOnFirstLoad"
        && SpiritSystemContract.GrowthRegistrySchemaVersion == 3
        && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,
     "the current Spirit save, registry, and Partner protocol contract stays synchronized");
@@ -160,6 +163,10 @@ Assert(legacyProfileKeys.Contains("SaveData")
        {
            Instances = new List<SpiritInstance> { new() }
        })
+       && SpiritProfileBindingPolicy.HasRecoverableContent(new SpiritCollectionDocument
+       {
+           InitialRosterGrantVersion = SpiritSystemContract.InitialRosterGrantVersion
+       })
        && !SpiritProfileBindingPolicy.ShouldRecoverLegacy(true, new SpiritCollectionDocument
        {
            ProcessedCaptureTokens = new Dictionary<string, string> { ["capture"] = "uid" }
@@ -168,10 +175,21 @@ Assert(legacyProfileKeys.Contains("SaveData")
 
 var repositoryRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 var terriasModConfig = new Witch.Mod.ModConfig { DirectoryName = Path.Combine(repositoryRoot, "Terrias") };
+Assert(Witch.Mod.ModConfigurationFile.TryRead(terriasModConfig.DirectoryName, out var ownConfiguration, out var configurationError)
+       && string.IsNullOrWhiteSpace(configurationError)
+       && ownConfiguration.ExtensionData.TryGetValue(SpiritSystemContract.InitialRosterConfigurationKey, out var initialRosterSetting)
+       && initialRosterSetting is bool initialRosterEnabled
+       && initialRosterEnabled,
+    "the native mod configuration parser loads GrantAllSpiritsOnFirstLoad as an enabled JSON boolean");
 TerriasTextCatalog.Load(terriasModConfig);
 SpiritGrowthRegistry.Load(terriasModConfig);
 SpiritTrainingRegistry.Load(terriasModConfig);
 SpiritIntentRegistry.Load(terriasModConfig);
+var registeredSpiritProfiles = SpiritGrowthRegistry.RegisteredProfiles();
+Assert(registeredSpiritProfiles.Count == SpiritSystemContract.InitialRosterProfileCount
+       && registeredSpiritProfiles.Select(profile => profile.ProfileId).Distinct(StringComparer.Ordinal).Count()
+       == SpiritSystemContract.InitialRosterProfileCount,
+    "the initial roster source exposes exactly fifty-eight distinct registered Spirit profiles");
 var pyroSpecies = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
 {
     SourceModId = "base-game",
@@ -400,6 +418,84 @@ Assert(fallbackIdentityA.UsedFallback
        && fallbackIdentityA.SpeciesId == fallbackIdentityB.SpeciesId
        && fallbackIdentityA.ProfileId == fallbackIdentityB.ProfileId,
     "unregistered species receive deterministic stable identities independent of individual uid");
+
+var existingRosterProfile = registeredSpiritProfiles[0];
+var existingRosterSnapshot = RosterSnapshot(existingRosterProfile, "existing-roster-spirit");
+existingRosterSnapshot.CaptureOrigin = "preexisting-capture";
+var existingRosterInstance = new SpiritInstance
+{
+    SpiritUid = existingRosterSnapshot.SpiritUid,
+    SpeciesId = existingRosterProfile.SpeciesId,
+    ProfileId = existingRosterProfile.ProfileId,
+    Snapshot = existingRosterSnapshot,
+    Level = 4,
+    Aptitude = 60
+};
+SpiritTrainingService.InitializeCaptured(existingRosterInstance);
+var initialRosterStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Version = SpiritSystemContract.CollectionVersion,
+    Instances = new List<SpiritInstance> { existingRosterInstance },
+    DefaultPartySlots = new List<string> { existingRosterInstance.SpiritUid, "", "", "", "", "" },
+    DefaultActiveSpiritUid = existingRosterInstance.SpiritUid
+});
+SpiritCollectionService.Configure(initialRosterStore);
+var initialRosterSeeds = registeredSpiritProfiles.Select((profile, index) => new SpiritInitialRosterSeed
+{
+    ProfileId = profile.ProfileId,
+    Snapshot = RosterSnapshot(profile, "initial-roster-" + index)
+}).ToArray();
+var initialRosterResult = SpiritCollectionService.GrantInitialRoster(initialRosterSeeds);
+var grantedRoster = SpiritCollectionService.Snapshot();
+Assert(initialRosterResult.Success
+       && !initialRosterResult.AlreadyGranted
+       && initialRosterResult.GrantedCount == SpiritSystemContract.InitialRosterProfileCount
+       && grantedRoster.InitialRosterGrantVersion == SpiritSystemContract.InitialRosterGrantVersion
+       && grantedRoster.Instances.Count == SpiritSystemContract.InitialRosterProfileCount + 1
+       && grantedRoster.Instances.Count(item => item.ProfileId == existingRosterProfile.ProfileId) == 2
+       && grantedRoster.Instances.Count(item => item.Snapshot.CaptureOrigin == SpiritSystemContract.InitialRosterCaptureOrigin)
+       == SpiritSystemContract.InitialRosterProfileCount
+       && grantedRoster.DefaultPartySlots[0] == existingRosterInstance.SpiritUid
+       && grantedRoster.DefaultActiveSpiritUid == existingRosterInstance.SpiritUid
+       && initialRosterStore.SaveCount == 1,
+    "the enabled initial roster transaction always appends one of all fifty-eight profiles without deduping or changing the party");
+var repeatedInitialRoster = SpiritCollectionService.GrantInitialRoster(initialRosterSeeds);
+Assert(repeatedInitialRoster.Success
+       && repeatedInitialRoster.AlreadyGranted
+       && repeatedInitialRoster.GrantedCount == 0
+       && SpiritCollectionService.Snapshot().Instances.Count == SpiritSystemContract.InitialRosterProfileCount + 1
+       && initialRosterStore.SaveCount == 1,
+    "the persisted initial roster version prevents another fifty-eight-instance batch on later loads");
+
+var incompleteRosterStore = new MemorySpiritStore();
+SpiritCollectionService.Configure(incompleteRosterStore);
+var incompleteRosterResult = SpiritCollectionService.GrantInitialRoster(initialRosterSeeds.Take(
+    SpiritSystemContract.InitialRosterProfileCount - 1).ToArray());
+Assert(!incompleteRosterResult.Success
+       && SpiritCollectionService.Snapshot().Instances.Count == 0
+       && SpiritCollectionService.AppliedInitialRosterGrantVersion() == 0
+       && incompleteRosterStore.SaveCount == 0,
+    "a roster preflight count mismatch leaves the collection and completion marker untouched");
+
+var blockedRosterStore = new MemorySpiritStore { CanGrantInitialRoster = false };
+SpiritCollectionService.Configure(blockedRosterStore);
+var blockedRosterResult = SpiritCollectionService.GrantInitialRoster(initialRosterSeeds);
+Assert(!blockedRosterResult.Success
+       && blockedRosterResult.Reason.Contains("blocked", StringComparison.Ordinal)
+       && SpiritCollectionService.Snapshot().Instances.Count == 0
+       && blockedRosterStore.SaveCount == 0,
+    "an unreadable-profile guard blocks automatic roster writes instead of overwriting retained user data");
+
+var failingRosterStore = new MemorySpiritStore();
+SpiritCollectionService.Configure(failingRosterStore);
+failingRosterStore.FailNextSave = true;
+var initialRosterWriteFailed = false;
+try { SpiritCollectionService.GrantInitialRoster(initialRosterSeeds); }
+catch (IOException) { initialRosterWriteFailed = true; }
+Assert(initialRosterWriteFailed
+       && SpiritCollectionService.Snapshot().Instances.Count == 0
+       && SpiritCollectionService.AppliedInitialRosterGrantVersion() == 0,
+    "a failed initial roster save commits neither the fifty-eight instances nor the completion marker");
 
 var legacyStore = new MemorySpiritStore(new SpiritCollectionDocument
 {
@@ -760,7 +856,35 @@ CapturedEnemySnapshot Captured(string enemyId, string uid)
     };
 }
 
-sealed class MemorySpiritStore : ISpiritCollectionStore
+CapturedEnemySnapshot RosterSnapshot(SpiritSpeciesGrowthProfile profile, string uid)
+{
+    var match = profile.Match ?? new SpiritSpeciesGrowthMatch();
+    var enemyId = match.EnemyId ?? "";
+    var variantId = string.IsNullOrWhiteSpace(match.VariantId) || match.VariantId == "*"
+        ? enemyId
+        : match.VariantId;
+    return new CapturedEnemySnapshot
+    {
+        SpiritUid = uid,
+        SourceModId = match.SourceModId ?? "",
+        EnemyId = enemyId,
+        VariantId = variantId,
+        DisplayName = profile.ProfileId,
+        AnimationPath = "animation/" + profile.ProfileId,
+        IdlePath = "idle/" + profile.ProfileId,
+        DictPath = "dict/" + profile.ProfileId,
+        CaptureOrigin = SpiritSystemContract.InitialRosterCaptureOrigin,
+        CapturedAt = "2026-08-27T00:00:00.0000000Z",
+        BaseHp = 40,
+        BaseAttack = 8,
+        BaseArmor = 3,
+        Rarity = profile.Tier == nameof(SpiritSpeciesTier.Normal)
+            ? 1
+            : profile.Tier == nameof(SpiritSpeciesTier.Elite) ? 2 : 3
+    };
+}
+
+sealed class MemorySpiritStore : ISpiritCollectionStore, ISpiritInitialRosterGrantGuard
 {
     private SpiritCollectionDocument document;
 
@@ -770,6 +894,10 @@ sealed class MemorySpiritStore : ISpiritCollectionStore
     }
 
     public bool FailNextSave { get; set; }
+
+    public bool CanGrantInitialRoster { get; set; } = true;
+
+    public string InitialRosterGrantBlockReason => CanGrantInitialRoster ? "" : "blocked by test store";
 
     public int SaveCount { get; private set; }
 

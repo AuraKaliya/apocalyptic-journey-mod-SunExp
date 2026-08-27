@@ -21,30 +21,32 @@ internal static class AuraToolsCgEventSignalService
     private static long signalSequence;
     private static string battleId = "";
     private static bool adventureSettlementEmitted;
-    private static bool terminalSceneEmitted;
-    private static float lastSpecialVictoryAt = -1000f;
+    private static bool terminalBattleSceneEmitted;
 
     public static void BeginAdventure(ModHookContext context)
     {
         adventureSequence++;
         battleId = "";
         adventureSettlementEmitted = false;
-        terminalSceneEmitted = false;
-        lastSpecialVictoryAt = -1000f;
+        terminalBattleSceneEmitted = false;
+        AuraToolsCgOutcomeReasonService.Reset();
         AuraToolsCgTeamSnapshotService.BeginAdventure();
     }
 
     public static void BattleOpening(ModHookContext context)
     {
         battleId = ResolveBattleId(context);
+        terminalBattleSceneEmitted = false;
+        AuraToolsCgOutcomeReasonService.Reset();
         AuraToolsCgTeamSnapshotService.Refresh();
         var settings = Settings();
-        if (settings.SpecialOpeningEnabled && IsSpecialBattle(battleId, settings.SpecialBattleIds))
+        var scene = settings.GetScene(AuraToolsEventCgSceneIds.BattleOpening);
+        if (scene.Enabled && MatchesBattle(battleId, scene.BattleIds))
         {
             Emit(
+                AuraToolsEventCgSceneIds.BattleOpening,
                 AuraCgSignals.BattleOpening,
                 "opening",
-                specialBattle: true,
                 terminal: false);
         }
     }
@@ -52,38 +54,42 @@ internal static class AuraToolsCgEventSignalService
     public static void OutcomeEntering(AuraBattleOutcomeContext context)
     {
         var settings = Settings();
-        if (context.Outcome == AuraBattleOutcome.Win)
+        var reason = AuraToolsCgOutcomeReasonService.Consume(context.Outcome);
+        if (context.Outcome == AuraBattleOutcome.Win
+            || string.Equals(reason, AuraToolsEventCgOutcomeReasons.MidasEscape, StringComparison.OrdinalIgnoreCase))
         {
-            if (settings.SpecialVictoryEnabled && IsSpecialBattle(battleId, settings.SpecialBattleIds))
+            var sceneId = AuraToolsEventCgOutcomeReasons.SceneForReason(reason);
+            var scene = settings.GetScene(sceneId);
+            if (scene.Enabled && Emit(sceneId, AuraCgSignals.BattleVictory, reason, terminal: true))
             {
-                if (Emit(
-                        AuraCgSignals.BattleVictory,
-                        "victory",
-                        specialBattle: true,
-                        terminal: true))
-                {
-                    lastSpecialVictoryAt = Time.unscaledTime;
-                }
+                terminalBattleSceneEmitted = true;
             }
-
             return;
         }
 
-        if (settings.BattleDefeatEnabled
+        // Ordinary escape is neither victory nor defeat. Content-specific
+        // successful escapes are classified before the native outcome arrives.
+        if (context.Outcome == AuraBattleOutcome.Escape)
+        {
+            return;
+        }
+
+        var defeat = settings.GetScene(AuraToolsEventCgSceneIds.BattleDefeat);
+        if (defeat.Enabled
             && Emit(
+                AuraToolsEventCgSceneIds.BattleDefeat,
                 AuraCgSignals.BattleDefeat,
-                context.Outcome == AuraBattleOutcome.Escape ? "escape" : "defeat",
-                specialBattle: IsSpecialBattle(battleId, settings.SpecialBattleIds),
+                AuraToolsEventCgOutcomeReasons.Defeat,
                 terminal: true))
         {
-            terminalSceneEmitted = true;
+            terminalBattleSceneEmitted = true;
         }
     }
 
     public static void BattleRestarting()
     {
-        terminalSceneEmitted = false;
-        lastSpecialVictoryAt = -1000f;
+        terminalBattleSceneEmitted = false;
+        AuraToolsCgOutcomeReasonService.Reset();
         AuraToolsCgTeamSnapshotService.Refresh();
     }
 
@@ -91,8 +97,8 @@ internal static class AuraToolsCgEventSignalService
     {
         battleId = "";
         adventureSettlementEmitted = false;
-        terminalSceneEmitted = false;
-        lastSpecialVictoryAt = -1000f;
+        terminalBattleSceneEmitted = false;
+        AuraToolsCgOutcomeReasonService.Reset();
         AuraToolsCgTeamSnapshotService.Reset();
     }
 
@@ -103,10 +109,13 @@ internal static class AuraToolsCgEventSignalService
             return;
         }
 
-        adventureSettlementEmitted = true;
         var settings = Settings();
-        if (!settings.Enabled || terminalSceneEmitted || Time.unscaledTime - lastSpecialVictoryAt <= 3f)
+        var scene = settings.GetScene(AuraToolsEventCgSceneIds.AdventureSettlement);
+        if (!settings.Enabled
+            || !scene.Enabled
+            || terminalBattleSceneEmitted && !settings.PlaySettlementAfterBattleScene)
         {
+            adventureSettlementEmitted = true;
             return;
         }
 
@@ -114,76 +123,88 @@ internal static class AuraToolsCgEventSignalService
         SkillCgArbiterRuntime.BeginPresentationSession(
             AuraToolsIds.ModId,
             "adventure settlement");
-        if (failed && settings.BattleDefeatEnabled)
+        adventureSettlementEmitted = Emit(
+            AuraToolsEventCgSceneIds.AdventureSettlement,
+            AuraCgSignals.AdventureSettlementEntering,
+            failed ? "failed" : "completed",
+            terminal: true);
+    }
+
+    public static bool Preview(string sceneId, int participantCount)
+    {
+        var normalizedSceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
+        var settings = Settings();
+        var scene = settings.GetScene(normalizedSceneId);
+        if (!scene.Enabled)
         {
-            terminalSceneEmitted = Emit(
-                AuraCgSignals.BattleDefeat,
-                "adventure-defeat",
-                specialBattle: false,
-                terminal: true);
-            return;
+            return false;
         }
 
-        if (settings.AdventureSettlementEnabled)
+        var source = AuraToolsCgTeamSnapshotService.BuildPreviewSource(
+            normalizedSceneId,
+            "event-cg-preview:" + normalizedSceneId,
+            participantCount);
+        if (source == null)
         {
-            terminalSceneEmitted = Emit(
-                AuraCgSignals.AdventureSettlementEntering,
-                failed ? "failed" : "completed",
-                specialBattle: false,
-                terminal: true);
+            return false;
         }
+
+        var signalId = SignalForScene(normalizedSceneId);
+        var reason = OutcomeReasonForScene(normalizedSceneId);
+        var terminal = !string.Equals(
+            normalizedSceneId,
+            AuraToolsEventCgSceneIds.BattleOpening,
+            StringComparison.OrdinalIgnoreCase);
+        var signal = CreateSignal(normalizedSceneId, signalId, reason, terminal, source);
+        signal.ConfigureResolvedRequest = request =>
+        {
+            ConfigureRequest(request, scene, terminal);
+            request.DisableSync = true;
+        };
+        var candidates = SkillCgArbiterRuntime.BuildRegisteredSignalRequests(
+            AuraToolsIds.ModId,
+            signal,
+            disableSync: true);
+        if (candidates.Count == 0)
+        {
+            return false;
+        }
+
+        SkillCgArbiterRuntime.BeginPresentationSession(AuraToolsIds.ModId, "event CG preview");
+        SkillCgArbiterRuntime.EmitSignal(settings, AuraToolsIds.ModId, signal);
+        return true;
     }
 
     private static bool Emit(
+        string sceneId,
         string signalId,
-        string outcome,
-        bool specialBattle,
+        string outcomeReason,
         bool terminal)
     {
         var settings = Settings();
-        if (!settings.Enabled || !SkillCgArbiterRuntime.IsAuthoritativeHost())
+        var scene = settings.GetScene(sceneId);
+        if (!settings.Enabled || !scene.Enabled || !SkillCgArbiterRuntime.IsAuthoritativeHost())
         {
             return false;
         }
 
         var sequence = ++signalSequence;
-        var modeId = ResolveModeId();
-        var subjectId = !string.IsNullOrWhiteSpace(battleId)
-            ? battleId
-            : string.IsNullOrWhiteSpace(modeId) ? "adventure" : modeId;
         var eventToken = "event-cg:"
                          + adventureSequence.ToString(CultureInfo.InvariantCulture)
                          + ":" + AuraBattleLifecycleRouter.CurrentBattleSessionId.ToString(CultureInfo.InvariantCulture)
-                         + ":" + signalId
+                         + ":" + sceneId
                          + ":" + sequence.ToString(CultureInfo.InvariantCulture);
-        var sceneSource = AuraToolsCgTeamSnapshotService.BuildSource(
-            terminal ? "team-terminal" : "team-event",
-            eventToken);
+        var sceneSource = AuraToolsCgTeamSnapshotService.BuildSource(sceneId, eventToken);
         if (sceneSource == null)
         {
-            AuraToolsLog.Warn("[CG] event scene skipped: no participating roles. signal=" + signalId + ".");
+            AuraToolsLog.Warn("[CG] event scene skipped: no participating roles. scene=" + sceneId + ".");
             return false;
         }
 
-        var signal = new AuraCgSignalContext
-        {
-            SignalId = signalId,
-            SubjectType = AuraCgSubjectTypes.Event,
-            SubjectId = subjectId,
-            BattleId = battleId,
-            ModeId = modeId,
-            Outcome = outcome,
-            ActionSequence = sequence,
-            EventToken = eventToken,
-            CreatedAt = Time.unscaledTime,
-            SceneSource = sceneSource,
-            Facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["specialBattle"] = specialBattle ? "true" : "false",
-                ["terminal"] = terminal ? "true" : "false"
-            },
-            ConfigureResolvedRequest = request => ConfigureRequest(request, settings, terminal)
-        };
+        var signal = CreateSignal(sceneId, signalId, outcomeReason, terminal, sceneSource);
+        signal.ActionSequence = sequence;
+        signal.EventToken = eventToken;
+        signal.ConfigureResolvedRequest = request => ConfigureRequest(request, scene, terminal);
         var candidates = SkillCgArbiterRuntime.BuildRegisteredSignalRequests(
             AuraToolsIds.ModId,
             signal,
@@ -197,23 +218,55 @@ internal static class AuraToolsCgEventSignalService
         return true;
     }
 
+    private static AuraCgSignalContext CreateSignal(
+        string sceneId,
+        string signalId,
+        string outcomeReason,
+        bool terminal,
+        AuraCgSceneSourceSnapshot source)
+    {
+        var modeId = ResolveModeId();
+        var subjectId = !string.IsNullOrWhiteSpace(battleId)
+            ? battleId
+            : string.IsNullOrWhiteSpace(modeId) ? "adventure" : modeId;
+        return new AuraCgSignalContext
+        {
+            SignalId = signalId,
+            SubjectType = AuraCgSubjectTypes.Event,
+            SubjectId = subjectId,
+            BattleId = battleId,
+            ModeId = modeId,
+            Outcome = outcomeReason,
+            CreatedAt = Time.unscaledTime,
+            SceneSource = source,
+            Facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["resolvedCgId"] = AuraToolsEventCgSceneIds.CgId(sceneId),
+                ["sceneId"] = sceneId,
+                ["outcomeReason"] = outcomeReason,
+                ["terminal"] = terminal ? "true" : "false"
+            }
+        };
+    }
+
     private static void ConfigureRequest(
         SkillCgRequest request,
-        AuraToolsEventCgSettings settings,
+        AuraToolsEventCgSceneSettings scene,
         bool terminal)
     {
+        var settings = Settings();
         request.DisableSync = !settings.SyncRemote;
-        request.FadeIn = settings.FadeIn;
-        request.Hold = settings.Hold;
-        request.FadeOut = settings.FadeOut;
+        request.FadeIn = scene.EffectiveFadeIn;
+        request.Hold = scene.EffectiveHold;
+        request.FadeOut = scene.EffectiveFadeOut;
         request.PresentationMode = SkillCgPresentationModes.FullscreenFade;
         request.FitMode = SkillCgFitModes.Cover;
         request.Exclusive = terminal || request.Exclusive;
         if (request.ScenePlan != null)
         {
-            request.ScenePlan.LogicalWidth = settings.BaseWidth;
-            request.ScenePlan.LogicalHeight = settings.BaseHeight;
-            request.ScenePlan.PresentationProfileId = terminal ? "terminal" : "event";
+            request.ScenePlan.LogicalWidth = scene.EffectiveBaseWidth;
+            request.ScenePlan.LogicalHeight = scene.EffectiveBaseHeight;
+            request.ScenePlan.PresentationProfileId = scene.SceneId;
             request.ScenePlan.Normalize();
         }
     }
@@ -225,12 +278,37 @@ internal static class AuraToolsCgEventSignalService
         return settings;
     }
 
-    private static bool IsSpecialBattle(string id, IEnumerable<string> configuredIds)
+    private static bool MatchesBattle(string id, IEnumerable<string> configuredIds)
     {
+        var configured = (configuredIds ?? Array.Empty<string>())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToList();
+        if (configured.Count == 0)
+        {
+            return true;
+        }
+
         var normalized = (id ?? "").Trim();
-        return normalized.Length > 0 && (configuredIds ?? Array.Empty<string>()).Any(value =>
+        return normalized.Length > 0 && configured.Any(value =>
             string.Equals(value, "*", StringComparison.Ordinal)
             || string.Equals(value, normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string SignalForScene(string sceneId)
+    {
+        if (AuraToolsEventCgSceneIds.IsVictory(sceneId)) return AuraCgSignals.BattleVictory;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.BattleOpening, StringComparison.OrdinalIgnoreCase)) return AuraCgSignals.BattleOpening;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.BattleDefeat, StringComparison.OrdinalIgnoreCase)) return AuraCgSignals.BattleDefeat;
+        return AuraCgSignals.AdventureSettlementEntering;
+    }
+
+    private static string OutcomeReasonForScene(string sceneId)
+    {
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.VictoryMidas, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgOutcomeReasons.MidasEscape;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.VictoryRitual, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgOutcomeReasons.RitualVictory;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.VictoryCurse, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgOutcomeReasons.CurseVictory;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.BattleDefeat, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgOutcomeReasons.Defeat;
+        return AuraToolsEventCgOutcomeReasons.StandardVictory;
     }
 
     private static string ResolveModeId()

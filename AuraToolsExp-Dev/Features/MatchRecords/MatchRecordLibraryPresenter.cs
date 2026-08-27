@@ -11,7 +11,6 @@ using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -109,7 +108,7 @@ internal static class MatchRecordLibraryPresenter
             {
                 var since = dateRangeDays <= 0 ? (DateTime?)null : DateTime.UtcNow.AddDays(-dateRangeDays);
                 var filtered = MatchRecordStorage.Database.SearchRecords(collection, searchText, resultFilter, since)
-                    .Where(item => !compatibleOnly || CanPlayV11(item))
+                    .Where(item => !compatibleOnly || CanPlayV12(item))
                     .ToList();
                 var offset = pageIndex * MatchRecordDatabase.DefaultPageSize;
                 var items = filtered.Skip(offset).Take(MatchRecordDatabase.DefaultPageSize).ToList();
@@ -260,7 +259,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
-        var canPlay = CanPlayV11(item);
+        var canPlay = CanPlayV12(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
         AuraUiStableId.Assign(row, "match-record." + item.RecordId);
         AuraToolsUi.SetFixedHeight(row, 72f);
@@ -414,15 +413,17 @@ internal static class MatchRecordLibraryPresenter
             });
     }
 
-    private static bool CanPlayV11(MatchRecord item)
+    private static bool CanPlayV12(MatchRecord item)
     {
-        return item.ReplayProtocol == ReplayProtocolV11.DocumentVersion
+        return item.ReplayProtocol == MatchReplayProtocol.Version
                && string.Equals(item.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
     }
 
     private static string ReplayAvailabilityLabel(MatchRecord item)
     {
-        if (CanPlayV11(item)) return "v11 可回放";
+        if (CanPlayV12(item)) return "v12 可回放";
+        if (string.Equals(item.ReplayState, MatchReplayStates.Rejected, StringComparison.OrdinalIgnoreCase))
+            return "记录已拒绝，仅保留摘要";
         if (string.Equals(item.ReplayState, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase))
             return item.CaptureDiagnostics.Count > 0 ? "回放捕获失败" : "仅保留对局摘要";
         if (string.Equals(item.ReplayState, MatchReplayStates.Corrupt, StringComparison.OrdinalIgnoreCase))

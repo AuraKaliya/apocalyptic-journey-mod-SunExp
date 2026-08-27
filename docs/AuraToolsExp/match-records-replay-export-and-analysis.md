@@ -1,121 +1,69 @@
-# AuraToolsExp 对局记录、原生回放与视频
+# AuraToolsExp 对局记录、独立回放与视频
 
 ## 功能边界
 
 - 对局摘要、DPT 统计、分析、结构化回放和媒体统一从“对局记录”进入。
-- 摘要和分析可独立保留；只有通过 v11 完整验证的记录才显示“回放”。
-- 结构化回放是权威数据，MP4 是同一原生表现会话的派生媒体。
-- 回放不重跑脚本、AI、随机数、网络命令、奖励或存档逻辑。
-- 详细架构见 [原生战斗回放 v11 终局架构](./match-replay-v11-native-final-architecture.md)。
+- 摘要和分析可独立保留；只有 `Replay Document v12` 且状态为 `Ready` 的记录显示“回放”。
+- v12 canonical 文档是权威数据；POV 是不进入 canonical 哈希的本机可选 sidecar，MP4 是派生媒体。
+- 回放不初始化真实战斗，也不执行卡牌、Buff、职业、遗物、敌人、Partner、AI、随机数、
+  Command、RPC、奖励或存档逻辑。
+- 完整协议与实现边界见 [独立表现回放 v12 实现架构](./match-replay-v12-portable-canonical-design.md)。
 
-## Replay Document v11
+## Replay Document v12
 
-v11 保存录制时的：
+v12 只保存可验证、可移植的通用事实：
 
-- 游戏、Aura、内容 MOD 的精确程序集指纹；
-- 背景场景、RoleTable、玩家/队友、敌人、伙伴和槽位；
-- 生命、防御、能量、Buff、状态、手牌、牌区和敌方意图；
-- 卡牌主题、卡框、动态效果与参数快照；
-- 卡牌、技能、敌方意图和远端公开行动的原生动画/目标/效果时序；
-- BGM、音效和语音的内容寻址 PCM；
-- 权威 after-value 事件、检查点和完整哈希链。
+- 主机权威公共状态及 typed delta；
+- 全局有序的因果事务、truth lane 与 presentation lane；
+- 动态实体 spawn generation、稳定槽位、卡牌来源、actor/target、动画、效果 delay 和音频 cue；
+- reducer 派生的配对完整检查点；
+- Aura Replay Presentation ABI 的 scene/entity/card/buff/intent/effect descriptor；
+- 内容寻址的 PNG 与 PCM16 WAV 资产；
+- truthRoot、presentationRoot 和 documentRoot。
 
-结构化回放从 `BattleMaterialized` 的完整战场开始。`FightManager.Init` 前只保存启动
-上下文；玩家、队友和 owner-qualified 敌方实体通过可播放校验后才提交初态并把时钟
-归零。此前的装载/UI 音效不进入回放，当前实际 BGM 在基线时刻从 `t=0` 开始。
+本机手牌和私有牌堆只进入可选 POV sidecar。内容 MOD 的 owner/id/version 仅作为来源信息，
+不构成播放依赖，也不进入任何玩法脚本入口。
 
-音频 cue 只在原生或共享播放器已经给出实际 `AudioClip` 时产生；字符串重载只是
-关联路径。战斗进入 Outcome 后关闭新的手牌生产，所有 `BattleEnded` 清理完成后才
-封存终局，因此回放不会把胜利动作之后的异步抽牌队列误写成最终手牌。
-原生流式 BGM 不调用 Unity 会报错的 `AudioClip.GetData`，而由 Unity 自身的
-`AudioSampleProvider` 解码为交错 PCM；非流式音效和语音仍使用协作切片读取。
-全部附件由同一 PCM16 WAV 契约写入和读取，16-bit、声道、采样率、blockAlign、
-byteRate、data 长度与附件元数据任一不一致都会拒绝 `Ready`。
-若捕获仍被严格校验拒绝，资料库会标记“回放捕获失败”，禁用回放按钮，并在按钮
-说明中显示分类诊断；受限草稿仅供排错，不能播放或导出。
+## 独立回放
 
-游戏或 MOD 指纹不匹配时，结构化回放会拒绝启动并提示使用匹配版本；已验证的
-MP4 不受影响。
+播放器创建 AuraToolsExp 自有的隔离根对象、Camera、Canvas、背景、双方单位、HUD、Buff/intent
+文本、卡牌、效果和音频。它按 journal 的 logical time、transactionId 和 stepOrdinal 投影记录
+事实；表现完成不会写回 reducer。
 
-回放启动采用事务式界面切换。文档或原生视图准备失败时，对局资料库不会关闭，
-错误直接显示在当前页面。准备成功后才进入回放；正常播放完毕、主动退出、运行中
-失败或用户发起的视频导出结束，都会重建原生设置缓存并返回对局资料库，同时恢复
-原分类、搜索、筛选、分页、选择项、编辑项与滚动位置。
+定位从最近的 truth/presentation checkpoint 恢复，静默应用后续事件，并从完整 presentation
+lane 重建目标时刻仍有效或尚在 delay 中的卡牌、效果和音频。退出只销毁播放器拥有的对象，
+不需要恢复 `RoleTable`、`FightManager`、`FightCardManager` 或 `FightUI`，因为它们从未被创建或修改。
 
-## 原生回放
+## `.aurareplay` v12
 
-回放在菜单态创建一个无网络、无脚本的原生战斗表现会话：
+默认导出包包含：
 
-- 加载录制背景；
-- 创建隔离 FightManager 和原生 FightUI；
-- 按录制实体创建 FightPlayer、OtherPlayer、Enemy 和 Partner；
-- 使用原生手牌布局、状态条、Buff HUD、意图槽、动画队列和效果管理器；
-- 在动作命中点投影记录结果；
-- 使用原生 CaptionUI 显示胜负结果。
+- `manifest.json`；
+- `document.json.gz`；
+- `timeline/truth/*` 与 `timeline/presentation/*`；
+- `checkpoints/truth/*` 与 `checkpoints/presentation/*`；
+- `assets/<sha256>.png|wav`；
+- `analysis/summary.json.gz` 派生缓存。
 
-控制条提供播放/暂停、0.5x/1x/2x/4x、上一/下一动作、上一/下一回合、进度定位和
-退出。定位会先取消瞬态表现，再从检查点恢复，因此同一位置的状态和手牌必须一致。
-
-## `.aurareplay` v11
-
-包固定包含：
-
-```text
-manifest.json
-document.json.gz
-timeline/*.json.gz
-checkpoints/*.json.gz
-attachments/<sha256>.<extension>
-analysis/summary.json.gz
-```
-
-导入会检查包版本 11、路径、重复 entry、解压预算、文档/事件/检查点哈希和必需附件。
-导入成功不代表当前环境可播放；原生播放还需要匹配的运行时指纹。
+默认包不包含 POV、DLL、脚本或 MP4。导入严格拒绝未知/重复 JSON 字段、非法 entry、路径穿越、
+可执行内容、超预算数据、chunk 链不一致、检查点伪造、资源清单不等和任一根哈希错误。导入后
+分析会从 canonical 文档重新生成，不信任包内派生缓存。
 
 ## MP4 导出
 
-导出器使用原生回放会话、固定帧时钟和 RenderTexture。它不会截取桌面，也不会把
-资料库、设置、回放控制条或导出控制条录入画面。
-
-- profile：720p30、1080p30；
-- HUD：可选择保留完整原生战斗 HUD；
-- 音频：使用录制时冻结的 PCM 离线混合；
-- 编码：仅使用工具自带并通过清单哈希验证的 FFmpeg/ffprobe；
-- 输出：只登记完整解码验证后的 MP4。
-
-任务状态为：
-
-```text
-Planned -> Rendering -> Encoding -> Validating -> Committing -> Ready
-```
-
-取消、进程中断、磁盘不足、编码器损坏和提交中断均有确定性恢复或清理结果。
+- 视频只通过 v12 独立播放器的专用 Camera 与固定 RenderTexture 取帧，不截取桌面或游戏窗口。
+- 时间由固定帧步推进，不依赖实时帧率；离线音轨从同一组 PCM cue 混音。
+- 输出固定为受控 FFmpeg 的 MP4 profile；失败时保留结构化回放，不生成静音或 AVI 降级文件。
+- 已验证 MP4 与 canonical 文档分开存储，删除或重建媒体不会改变 documentRoot。
 
 ## 旧记录
 
-- v10 合成场景文档在数据库启动时自动切换为协议 11 的 `SummaryOnly`。
-- 对局摘要、分析和已验证 MP4 保留。
-- v10 文档、合成时间线和附件引用删除，不保留旧播放器。
-- v8/v9 及更早 chunks 只能通过迁移报告授权清理，不能执行或播放。
-- 数据库 v5 会把“空初态、首个完整回合前仅有音频”的早期 v11 `Ready` 记录重建到首个完整回合；无法无歧义重建的记录退出可播放集合。
-- 数据库 v6 会为哈希有效、仅缺少卡牌 `Tag` 字段的旧 v11 快照补入显式空字符串并重算文档；其它缺失或损坏仍退出 `Ready`。旧 `.aurareplay` 包也只允许在原始哈希验证后执行同一项迁移。
-- 数据库 v7 会把旧写入器唯一遗漏 16-bit 字段的 WAV 迁移到新内容哈希，并同步重写附件、cue、事件链、检查点和文档哈希；旧文件进入隔离区，无法严格证明可修复的音频令 Ready 记录转为 Corrupt。
+v11 已退出结构化可播放集合。数据库升级会先写备份和迁移审计报告，再把 pre-v12 记录改为
+`SummaryOnly`，保留摘要、分析、收藏信息和已验证 MP4，删除旧 document/chunk/asset 引用。
+旧 `.aurareplay` 包不进入 v12 importer，也不存在隐藏 v11 播放器或双 writer。
 
-## 手工验证
+## 验证状态
 
-1. 录制包含普通卡、攻击卡、技能、敌方多意图、Buff 变化、伙伴和至少两回合的战斗。
-2. 对比真实战斗与回放的背景、角色/皮肤、队友、敌人、伙伴、生命、防御、能量、Buff、意图和完整手牌。
-3. 确认日耀/晨星两个完整卡包保持录制时的静态卡框；另行确认只有【炽冕崩落】与四张【星辰序曲】保留各自动态效果，普通同包卡不会被误加动态效果。
-4. 反复定位到动作前、命中点和动作后，确认状态哈希、手牌顺序和意图一致。
-5. 使用不匹配的 MOD 构建启动回放，确认被明确拒绝而不是降级。
-6. 分别导出 720p/1080p、有无 HUD、有无音频，并用 ffprobe 验证 MP4。
-7. 退出回放后重新打开设置、进入大厅和开始真实战斗，确认无残留 FightUI、角色、卡牌、音频、输入遮挡或运行时皮肤作用域。
-8. 使用能够致命的二阶以上【炽冕崩落】，确认伤害后的抽牌不会进入原生队列，结算期间 `createCardQueue` 与手牌均为空。
-9. 覆盖 `PlayEffect(string)->PlayEffect(AudioClip)`、语音与 BGM 实际 Clip，确认新记录为 `Ready`；强制 PCM 读取失败时只产生 `SummaryOnly + Rejected` 诊断草稿。
-10. 分别在原生玩家创建、敌人创建和激活阶段注入失败，确认资料库在提交前保持原位，提交后的失败则自动返回资料库并显示错误。
-11. 播放至结束、点击退出、触发投影错误及完成用户发起的视频导出，确认都回到同一资料库状态；随后首次打开设置也不得出现透明全屏点击层。
-12. 使用原生流式 BGM（例如 `Celestial Meadow`）进入战斗，确认控制台没有 streamed-samples `GetData` 错误，最终记录包含 `BattleBgm` PCM 附件并进入 `Ready`。
-13. 检查新记录的初始 checkpoint 已包含本地玩家和至少一个 owner-qualified 敌人，首个 `PlayerRoundReady` 不再承担首次实体 upsert；用数据库 v4 空基线样本验证 v5 重建后可直接启动原生视图。
-14. 连续获得一张有皮肤卡和多张无皮肤卡并触发手牌重排/池复用，确认静态卡框与动态效果始终跟随精确卡实例，不传播到相邻卡牌。
-15. 用数据库 v5 的缺失 `Tag` 样本和同类旧 `.aurareplay` 包验证 v6 迁移后可回放；篡改原始文档哈希或再缺少 `Rarity/Icon` 时必须拒绝。
-16. 用数据库 v6 的零 `bitsPerSample` WAV 验证 v7 迁移后原记录仍可播放 BGM/音效/语音；确认新 SHA 文件存在、旧 SHA 只在隔离区且包导入走相同迁移。
+纯 reducer、事务、检查点、资产、POV、SQLite、包、分析、媒体、协议清单和发布门禁已有自动
+覆盖。发布前仍需在游戏进程中完成单机、2/3 人联机、动态友方单位、Terrias Projection、
+重启后卸载源 MOD、seek/倍速/退出以及 MP4 音画同步黑盒矩阵。

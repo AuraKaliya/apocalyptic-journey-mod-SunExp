@@ -9,7 +9,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -73,11 +73,11 @@ internal static class MatchReplayVideoExporter
         }
 
         ReplayEncoderDependency dependency;
-        ReplayDocumentV11? document;
+        ReplayDocumentEnvelopeV12? envelope;
         try
         {
             dependency = ReplayEncoderDependency.LoadVerified();
-            document = MatchRecordStorage.Database.LoadV11(recordId);
+            envelope = MatchRecordStorage.Database.LoadV12(recordId);
         }
         catch (Exception ex)
         {
@@ -85,9 +85,9 @@ internal static class MatchReplayVideoExporter
             return false;
         }
 
-        if (document == null)
+        if (envelope == null)
         {
-            message = "这条记录没有经过验证的 Replay Document v11。";
+            message = "这条记录没有经过验证的 Replay Document v12。";
             return false;
         }
 
@@ -113,7 +113,7 @@ internal static class MatchReplayVideoExporter
             TargetPath = target,
             Message = "任务已计划",
             EstimatedBytes = EstimateOutputBytes(
-                document,
+                envelope.Document,
                 dimensions.width,
                 dimensions.height,
                 settings.FramesPerSecond,
@@ -130,21 +130,21 @@ internal static class MatchReplayVideoExporter
                 () =>
                 {
                     MatchReplayExportControlsPresenter.Show();
-                    if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, document)) != null)
+                    if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, envelope)) != null)
                         return;
                     workerRunning = false;
-                    Fail(job, "worker-unavailable", "无法启动原生回放视频导出协程。", deleteStaging: true);
+                    Fail(job, "worker-unavailable", "无法启动独立回放视频导出协程。", deleteStaging: true);
                 },
                 failure =>
                 {
                     workerRunning = false;
-                    Fail(job, "native-replay-launch-failed", failure, deleteStaging: true);
+                    Fail(job, "replay-launch-failed", failure, deleteStaging: true);
                 },
                 out var launchMessage);
             if (!accepted)
             {
                 workerRunning = false;
-                Fail(job, "native-replay-launch-failed", launchMessage, deleteStaging: true);
+                Fail(job, "replay-launch-failed", launchMessage, deleteStaging: true);
                 message = job.Message;
                 return false;
             }
@@ -185,10 +185,10 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency = null,
-        ReplayDocumentV11? document = null)
+        ReplayDocumentEnvelopeV12? envelope = null)
     {
         Exception? failure = null;
-        var core = ExportCore(job, settings, dependency, document);
+        var core = ExportCore(job, settings, dependency, envelope);
         while (failure == null)
         {
             bool moved;
@@ -208,7 +208,7 @@ internal static class MatchReplayVideoExporter
         {
             var committing = job.State == MatchReplayExportStates.Committing;
             Fail(job, committing ? "commit-interrupted" : "export-failed", failure.Message, deleteStaging: !committing);
-            AuraToolsLog.Warn("[MatchRecords] v11 native video export failed: " + failure);
+            AuraToolsLog.Warn("[MatchRecords] v12 portable video export failed: " + failure);
         }
         if (MatchReplayPlayer.IsActive)
         {
@@ -229,9 +229,9 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency,
-        ReplayDocumentV11? document)
+        ReplayDocumentEnvelopeV12? envelope)
     {
-        ReplayNativeRenderSurface? surface = null;
+        ReplayRenderSurfaceV12? surface = null;
         RenderTexture? target = null;
         Texture2D? reader = null;
         ReplayFramePipeline? pipeline = null;
@@ -240,8 +240,8 @@ internal static class MatchReplayVideoExporter
         try
         {
             dependency ??= ReplayEncoderDependency.LoadVerified();
-            document ??= MatchRecordStorage.Database.LoadV11(job.RecordId)
-                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v11。");
+            envelope ??= MatchRecordStorage.Database.LoadV12(job.RecordId)
+                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v12。");
             if (!MatchReplayPlayer.IsActive
                 && !MatchReplayPlayer.TryStartForExport(job.RecordId, out var startMessage))
                 throw new InvalidOperationException(startMessage);
@@ -249,7 +249,7 @@ internal static class MatchReplayVideoExporter
             while (MatchReplayPlayer.IsActive && !MatchReplayPlayer.IsReadyForExport && readyFrames++ < 900)
                 yield return null;
             if (!MatchReplayPlayer.IsReadyForExport)
-                throw new TimeoutException("原生战斗回放视图准备超时：" + MatchReplayPlayer.PreparationStatus);
+                throw new TimeoutException("独立回放场景准备超时：" + MatchReplayPlayer.PreparationStatus);
             job.AttemptCount++;
             DeleteIfExists(job.StagingPath);
             DeleteIfExists(audioPath);
@@ -265,7 +265,7 @@ internal static class MatchReplayVideoExporter
 
             var audioSampleFrames = settings.IncludeAudio
                 ? ReplayOfflineAudioMixer.MixToWave(
-                    document,
+                    envelope.Document,
                     frameCount,
                     settings.FramesPerSecond,
                     MatchRecordStorage.Database.ResolveReplayAsset,
@@ -278,7 +278,7 @@ internal static class MatchReplayVideoExporter
             target.Create();
             reader = new Texture2D(job.Width, job.Height, TextureFormat.RGB24, mipChain: false);
             Time.captureFramerate = job.FramesPerSecond;
-            surface = new ReplayNativeRenderSurface(target, settings.IncludeUi);
+            surface = new ReplayRenderSurfaceV12(target, settings.IncludeUi);
             pipeline = new ReplayFramePipeline(
                 dependency,
                 job.StagingPath,
@@ -296,13 +296,13 @@ internal static class MatchReplayVideoExporter
                     {
                         throw new InvalidOperationException(
                             string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
-                                ? "原生回放投影在视频导出期间失败。"
+                                ? "独立回放投影在视频导出期间失败。"
                                 : MatchReplayPlayer.PlaybackIssue);
                     }
                 }
                 if (!MatchReplayPlayer.IsActive)
                 {
-                    throw new InvalidOperationException("原生回放会话在视频导出完成前退出。");
+                    throw new InvalidOperationException("独立回放会话在视频导出完成前退出。");
                 }
                 yield return new WaitForEndOfFrame();
                 surface.Render();
@@ -376,7 +376,7 @@ internal static class MatchReplayVideoExporter
                 FramesPerSecond = job.FramesPerSecond,
                 FileBytes = verification.FileBytes,
                 Sha256 = verification.Sha256,
-                TimelineJson = AuraSharedJson.SerializeCompact(BuildTimeline(document, job.FramesPerSecond))
+                TimelineJson = AuraSharedJson.SerializeCompact(BuildTimeline(envelope.Document, job.FramesPerSecond))
             };
             job.Message = "已保存并验证 " + Path.GetFileName(job.TargetPath);
             if (!MatchRecordStorage.Database.CommitExportMedia(job, asset))
@@ -584,26 +584,27 @@ internal static class MatchReplayVideoExporter
                + (settings.IncludeUi ? ".hud" : ".clean");
     }
 
-    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV11 document, int fps)
+    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV12 document, int fps)
     {
-        return document.Events
-            .Where(item => item.EventType == ReplayEventTypesV11.TurnChanged)
-            .GroupBy(item => item.TurnIndex)
+        return document.TruthEvents
+            .Where(item => item.EventType == ReplayEventTypesV12.RoundStarted)
+            .GroupBy(item => item.RoundSequence)
             .Select(group => group.First())
-            .OrderBy(item => item.TurnIndex)
+            .OrderBy(item => item.RoundSequence)
             .Select(item => new MatchMediaTimelineEntry
             {
-                TurnIndex = item.TurnIndex,
+                TurnIndex = item.RoundSequence,
                 EventSequence = item.Sequence,
-                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV11.TimebaseTicksPerSecond
+                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV12.TimebaseTicksPerSecond
             })
             .ToList();
     }
 
-    private static long EstimateOutputBytes(ReplayDocumentV11 document, int width, int height, int fps, bool includeAudio)
+    private static long EstimateOutputBytes(ReplayDocumentV12 document, int width, int height, int fps, bool includeAudio)
     {
+        var events = document.TruthEvents.Concat(document.PresentationEvents).ToList();
         var durationSeconds = Math.Max(1d,
-            document.Events.Count == 0 ? 1d : document.Events.Max(item => item.TimeTicks) / (double)ReplayProtocolV11.TimebaseTicksPerSecond + 1d);
+            events.Count == 0 ? 1d : events.Max(item => item.TimeTicks) / (double)ReplayProtocolV12.TimebaseTicksPerSecond + 1d);
         var bitsPerSecond = width >= 1920 ? 12_000_000L : 6_000_000L;
         var waveBytes = includeAudio
             ? (long)(durationSeconds * ReplayOfflineAudioMixer.SampleRate * ReplayOfflineAudioMixer.Channels * 2d)

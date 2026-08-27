@@ -28,7 +28,7 @@ $requiredProtocolFeatures = @{
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
     "presentation.event-cg" = @(1, 1)
-    "records.match-replay" = @(11, 11)
+    "records.match-replay" = @(12, 12)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
         -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
@@ -48,6 +48,19 @@ foreach ($entry in $requiredProtocolFeatures.GetEnumerator()) {
 $damageProtocol = @($protocolManifest.features | Where-Object id -eq "records.damage-meter")[0]
 if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
     throw "AuraToolsExp damage-meter protocol inventory must distinguish v4 live networking from v3 persisted-data migration."
+}
+$replayProtocol = @($protocolManifest.features | Where-Object id -eq "records.match-replay")[0]
+$requiredReplayCapabilities = @(
+    "causal-transactions.v1",
+    "authoritative-public-state.v1",
+    "dual-journal-lane.v1",
+    "full-checkpoints.v1",
+    "portable-presentation.v1",
+    "independent-replay-scene.v1",
+    "embedded-assets.v1")
+if (@(Compare-Object @($replayProtocol.requiredCapabilities) $requiredReplayCapabilities).Count -ne 0 `
+        -or $replayProtocol.fallback -ne "reject-structured-replay-and-retain-summary-analysis-verified-mp4") {
+    throw "AuraToolsExp match-replay v12 protocol capabilities or fallback are incomplete."
 }
 
 $ffmpegRoot = Join-Path $repoRoot "AuraToolsExp\Runtime\ffmpeg\win-x64"
@@ -232,10 +245,26 @@ finally {
 
 $replaySources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords") -Recurse -File -Filter "*.cs")
 $replayText = ($replaySources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
-if ($replayText -match 'ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplaySceneRuntime|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+if ($replayText -match 'ReplayDocumentV11|ReplayProtocolV11|SaveV11|LoadV11|MatchReplayFightSandboxInitializer|ReplayNativeDocumentAdapter|ReplayNativeViewRuntime|MatchReplayNativePresentationApi|ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+        -or $replayText -match '\bTerrias\b' `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\GameApi\MatchReplayNativePresentationApi.cs")) `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsMatchRecordSettings.cs")) -match 'PreferMp4|FfmpegPath' `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")) -match 'UnityEngine\.ScreenCaptureModule') {
-    throw "AuraToolsExp v11 release still contains a retired synthetic/network replay, AVI, screenshot, PATH FFmpeg, or silent-audio path."
+    throw "AuraToolsExp v12 release still contains a retired v11/native-player, AVI, screenshot, PATH FFmpeg, or silent-audio path."
+}
+$portablePlaybackText = (@(Get-ChildItem -LiteralPath (
+            Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV12\Playback") -File -Filter "*.cs") |
+        ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
+$playerText = Get-Content -Raw -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayPlayer.cs")
+if ($portablePlaybackText -match '\bFightManager\b|\bFightUI\b|\bRoleTable\b|\bIScriptExecutor\b|using\s+Witch(?:\.Core)?\s*;' `
+        -or $playerText -match '\bFightManager\b|\bFightUI\b|MatchReplayEnvironmentScope|MatchReplayFightSandboxInitializer' `
+        -or $playerText -notmatch 'ReplaySceneRuntime' `
+        -or $replayText -notmatch 'ReplayNetworkAuthorityV12' `
+        -or $replayText -notmatch 'DeclaredDocumentRoot' `
+        -or $replayText -notmatch 'TruthRoot' `
+        -or $replayText -notmatch 'PresentationRoot') {
+    throw "AuraToolsExp portable replay boundary, network authority, or canonical-root contract is invalid."
 }
 
 & dotnet run --project $project -c $Configuration
@@ -352,17 +381,21 @@ if ($loggingSettings.schemaVersion -ne 5 `
 
 $skillCgSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\SkillCgSettings.json") | ConvertFrom-Json
-if ($skillCgSettings.schemaVersion -ne 7 `
+if ($skillCgSettings.schemaVersion -ne 9 `
         -or $skillCgSettings.disableAfterFailures -ne $true `
         -or [Math]::Abs([double]$skillCgSettings.lowHealthThreshold - 0.3) -gt 0.0001 `
+        -or @($skillCgSettings.roleEntries.PSObject.Properties).Count -ne 0 `
+        -or @($skillCgSettings.roleSelections.PSObject.Properties).Count -ne 0 `
+        -or @($skillCgSettings.manualRoleEntries).Count -ne 0 `
+        -or $skillCgSettings.legacyRoleRulesMigrated -ne $true `
+        -or $null -ne $skillCgSettings.PSObject.Properties["roles"] `
         -or $skillCgSettings.eventCg.enabled -ne $true `
         -or $skillCgSettings.eventCg.syncRemote -ne $true `
-        -or $skillCgSettings.eventCg.baseWidth -ne 1600 `
-        -or $skillCgSettings.eventCg.baseHeight -ne 900 `
-        -or $skillCgSettings.eventCg.specialOpeningEnabled -ne $true `
-        -or $skillCgSettings.eventCg.specialVictoryEnabled -ne $true `
-        -or $skillCgSettings.eventCg.battleDefeatEnabled -ne $true `
-        -or $skillCgSettings.eventCg.adventureSettlementEnabled -ne $true `
+        -or $skillCgSettings.eventCg.schemaVersion -ne 2 `
+        -or @($skillCgSettings.eventCg.scenes.PSObject.Properties).Count -ne 7 `
+        -or @($skillCgSettings.eventCg.scenes.PSObject.Properties.Value | Where-Object { $_.enabled -ne $true }).Count -ne 0 `
+        -or $null -ne $skillCgSettings.eventCg.PSObject.Properties["specialBattleIds"] `
+        -or $null -ne $skillCgSettings.eventCg.PSObject.Properties["backgroundResource"] `
         -or $null -ne $skillCgSettings.PSObject.Properties["preloadOnFightStart"]) {
     throw "AuraToolsExp unified CG configuration contract is invalid."
 }
@@ -439,6 +472,9 @@ $terminalEventCg = @($eventCg | Where-Object {
 $openingEventCg = @($eventCg | Where-Object {
     @($_.signals) -contains "aura.battle.opening"
 })
+$victoryEventCg = @($eventCg | Where-Object {
+    @($_.signals) -contains "aura.battle.outcome.victory"
+})
 $cardVisualRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\card-visual.registry.json") | ConvertFrom-Json
 $cardVisualSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -489,18 +525,21 @@ if ($registration.schemaVersion -ne 4 `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
         -or $cgRegistry.schemaVersion -ne 4 `
         -or $cgRegistry.protocol.preferredVersion -ne 4 `
-        -or @($cgRegistry.entries).Count -ne 20 `
+        -or @($cgRegistry.entries).Count -ne 23 `
         -or $officialSkillCg.Count -ne 2 `
         -or $officialFeastCg.Count -ne 12 `
         -or $officialLowHealthCg.Count -ne 2 `
-        -or $eventCg.Count -ne 4 `
+        -or $eventCg.Count -ne 7 `
         -or $invalidEventScene `
-        -or $terminalEventCg.Count -ne 3 `
+        -or $terminalEventCg.Count -ne 6 `
         -or @($terminalEventCg | Where-Object {
             $_.scene.exclusive -ne $true -or $_.scene.presentationProfileId -ne "terminal"
         }).Count -ne 0 `
         -or $openingEventCg.Count -ne 1 `
+        -or $openingEventCg[0].cgId -ne "event.battle-opening" `
         -or $openingEventCg[0].scene.exclusive -ne $false `
+        -or $victoryEventCg.Count -ne 4 `
+        -or @($victoryEventCg.match.facts.outcomeReason | Sort-Object -Unique).Count -ne 4 `
         -or $terriasRegistration.ownerModId -ne "Terrias" `
         -or @($terriasRegistration.resources).Count -ne 9 `
         -or $terriasCgRegistry.ownerModId -ne "Terrias" `
@@ -649,6 +688,7 @@ $expectedModuleIds = @(
     "presentation.pixel-emoji",
     "presentation.skill-cg",
     "presentation.card-use-cg",
+    "presentation.event-cg",
     "presentation.card-visual",
     "records.damage-statistics",
     "records.battle-replay",
@@ -844,7 +884,8 @@ foreach ($assetName in @(
 $moduleSettingsPages = @(
     "AuraToolsExp-Dev\Features\Audio\AuraToolsAudioSettingsPage.cs",
     "AuraToolsExp-Dev\Features\StarterDeck\AuraToolsStarterDeckSettingsPage.cs",
-    "AuraToolsExp-Dev\Features\Feast\AuraToolsFeastRoleEditor.cs",
+    "AuraToolsExp-Dev\Features\Cg\AuraToolsRoleCgSettingsPage.cs",
+    "AuraToolsExp-Dev\Features\Cg\AuraToolsEventCgSettingsPage.cs",
     "AuraToolsExp-Dev\Features\MatchRecords\AuraToolsReplaySettingsPage.cs",
     "AuraToolsExp-Dev\Features\Logging\AuraToolsLoggingSettingsPage.cs",
     "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSettingsPage.cs",
@@ -862,6 +903,13 @@ foreach ($relativePage in $moduleSettingsPages) {
     if ($pageSource -match 'AddDecoratedReplayPanelImage\(') {
         throw "AuraToolsExp settings page still uses the decorated toolbox-home surface: $relativePage"
     }
+}
+if ((Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Feast\AuraToolsFeastRoleEditor.cs")) `
+        -or ((Get-Content -Raw -Encoding UTF8 -LiteralPath (
+            Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsConfigService.cs")) -match "ImportRegisteredSkillCgDefaults") `
+        -or $allAuraToolsText -match "class\s+AuraToolsSkillCgProvider" `
+        -or $allAuraToolsText -match "class\s+AuraToolsSkillCgEditor") {
+    throw "AuraToolsExp still contains a retired flat role-CG editor, copied-registration provider, or default-import path."
 }
 
 $layoutSources = @(Get-ChildItem -LiteralPath (
@@ -882,7 +930,8 @@ foreach ($layoutSource in $layoutSources) {
 if ($moduleSource -match "AuraToolsSettingsRuntime" `
         -or $moduleSource -notmatch "AuraToolsAudioSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsStarterDeckSettingsPage" `
-        -or $moduleSource -notmatch "AuraToolsFeastRoleEditor" `
+        -or $moduleSource -notmatch "AuraToolsRoleCgSettingsPage" `
+        -or $moduleSource -notmatch "AuraToolsEventCgSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsReplaySettingsPage" `
         -or $moduleSource -notmatch "AuraToolsLoggingSettingsPage" `
         -or $moduleSource -notmatch "AuraToolsAutoBattleSettingsPage" `

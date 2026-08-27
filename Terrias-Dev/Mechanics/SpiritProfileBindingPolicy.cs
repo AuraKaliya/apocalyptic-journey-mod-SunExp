@@ -32,7 +32,8 @@ public static class SpiritProfileBindingPolicy
     public static bool HasRecoverableContent(SpiritCollectionDocument? document)
     {
         return document != null
-               && ((document.Instances?.Count ?? 0) > 0
+               && (document.InitialRosterGrantVersion > 0
+                   || (document.Instances?.Count ?? 0) > 0
                    || (document.DefaultPartySlots?.Any(uid => !string.IsNullOrWhiteSpace(uid)) ?? false)
                    || !string.IsNullOrWhiteSpace(document.DefaultActiveSpiritUid)
                    || (document.ProcessedCaptureTokens?.Count ?? 0) > 0

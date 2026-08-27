@@ -8,7 +8,7 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class AuraToolsSkillCgSettings
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 9;
 
     private AuraToolsEventCgSettings eventCg = new();
     private bool hasExplicitEventCg;
@@ -57,6 +57,20 @@ public sealed class AuraToolsSkillCgSettings
     [JsonProperty("defaultPresentation")]
     public SkillCgPresentationSettings DefaultPresentation { get; set; } = SkillCgPresentationSettings.CreateDefault();
 
+    [JsonProperty("roleEntries")]
+    public Dictionary<string, RoleCgEntryOverrideSettings> RoleEntries { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("roleSelections")]
+    public Dictionary<string, string> RoleSelections { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("manualRoleEntries")]
+    public List<RoleCgManualEntrySettings> ManualRoleEntries { get; set; } = new();
+
+    [JsonProperty("legacyRoleRulesMigrated")]
+    public bool LegacyRoleRulesMigrated { get; set; }
+
     [JsonProperty("roles")]
     public Dictionary<string, SkillCgRoleSettings> Roles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -74,6 +88,35 @@ public sealed class AuraToolsSkillCgSettings
         MaxHookFailures = Math.Max(1, Math.Min(20, MaxHookFailures));
         DefaultPresentation = (DefaultPresentation ?? SkillCgPresentationSettings.CreateDefault())
             .Resolve(SkillCgPresentationSettings.CreateDefault());
+        RoleEntries ??= new Dictionary<string, RoleCgEntryOverrideSettings>(StringComparer.OrdinalIgnoreCase);
+        RoleEntries = RoleEntries
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null)
+            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group =>
+            {
+                var value = group.Last().Value;
+                value.Normalize();
+                return value;
+            }, StringComparer.OrdinalIgnoreCase);
+        RoleSelections ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        RoleSelections = RoleSelections
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Key)
+                           && !string.IsNullOrWhiteSpace(pair.Value))
+            .GroupBy(pair => pair.Key.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Last().Value.Trim(),
+                StringComparer.OrdinalIgnoreCase);
+        ManualRoleEntries ??= new List<RoleCgManualEntrySettings>();
+        foreach (var entry in ManualRoleEntries)
+        {
+            entry?.Normalize();
+        }
+        ManualRoleEntries = ManualRoleEntries
+            .Where(entry => entry != null && entry.IsValid)
+            .GroupBy(entry => entry.CgId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.Last())
+            .ToList();
         Roles ??= new Dictionary<string, SkillCgRoleSettings>(StringComparer.OrdinalIgnoreCase);
         var normalizedRoles = new Dictionary<string, SkillCgRoleSettings>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in Roles)
@@ -108,6 +151,154 @@ public sealed class AuraToolsSkillCgSettings
         }
 
         Roles = normalizedRoles;
+        MigrateLegacyRoleRules();
+    }
+
+    public bool ShouldSerializeRoles()
+    {
+        return !LegacyRoleRulesMigrated && Roles.Count > 0;
+    }
+
+    public string GetRoleSelection(string roleId, string channel, string skillId = "")
+    {
+        var exact = AuraToolsRoleCgContextKeys.Create(roleId, channel, skillId);
+        if (RoleSelections.TryGetValue(exact, out var selected))
+        {
+            return selected;
+        }
+
+        if (string.Equals(channel, AuraToolsRoleCgContextKeys.SkillChannel, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(skillId, "*", StringComparison.Ordinal))
+        {
+            var wildcard = AuraToolsRoleCgContextKeys.Create(roleId, channel, "*");
+            if (RoleSelections.TryGetValue(wildcard, out selected))
+            {
+                return selected;
+            }
+        }
+
+        return "";
+    }
+
+    public void SetRoleSelection(string roleId, string channel, string skillId, string qualifiedCgId)
+    {
+        RoleSelections[AuraToolsRoleCgContextKeys.Create(roleId, channel, skillId)] =
+            (qualifiedCgId ?? "").Trim();
+    }
+
+    public void ResetRoleSelection(string roleId, string channel, string skillId)
+    {
+        var exact = AuraToolsRoleCgContextKeys.Create(roleId, channel, skillId);
+        if (RoleSelections.Remove(exact))
+        {
+            return;
+        }
+
+        if (string.Equals(channel, AuraToolsRoleCgContextKeys.SkillChannel, StringComparison.OrdinalIgnoreCase))
+        {
+            RoleSelections.Remove(AuraToolsRoleCgContextKeys.Create(roleId, channel, "*"));
+        }
+    }
+
+    private void MigrateLegacyRoleRules()
+    {
+        if (LegacyRoleRulesMigrated)
+        {
+            Roles.Clear();
+            return;
+        }
+
+        foreach (var role in Roles.Values.Where(value => value != null))
+        {
+            var roleId = RoleCatalog.NormalizeRoleId(role.RoleId);
+            for (var index = 0; index < role.Rules.Count; index++)
+            {
+                var rule = role.Rules[index];
+                if (rule == null)
+                {
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(rule.SourceOwnerModId)
+                    && !string.IsNullOrWhiteSpace(rule.SourceCgId))
+                {
+                    var key = rule.SourceOwnerModId.Trim() + ":" + rule.SourceCgId.Trim();
+                    RoleEntries[key] = new RoleCgEntryOverrideSettings
+                    {
+                        Presentation = PresentationOverride(rule.EffectivePresentation)
+                    };
+                    SetRoleSelection(
+                        roleId,
+                        AuraToolsRoleCgContextKeys.SkillChannel,
+                        rule.CardId,
+                        role.Enabled && rule.Enabled
+                            ? key
+                            : AuraToolsRoleCgContextKeys.NoneSelectionCgId);
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(roleId) || string.IsNullOrWhiteSpace(rule.Image))
+                {
+                    continue;
+                }
+
+                var presentation = rule.EffectivePresentation ?? rule.Presentation.Resolve(DefaultPresentation);
+                var manual = new RoleCgManualEntrySettings
+                {
+                    CgId = "user.legacy." + SafeManualId(roleId) + "." + (index + 1),
+                    DisplayName = string.IsNullOrWhiteSpace(rule.DisplayName) ? "导入的技能 CG" : rule.DisplayName,
+                    RoleId = roleId,
+                    SignalId = "aura.role.skill.committed",
+                    SkillId = rule.CardId,
+                    Resource = rule.Image,
+                    Priority = Math.Max(1000, rule.Priority),
+                    Presentation = presentation
+                };
+                ManualRoleEntries.Add(manual);
+                SetRoleSelection(
+                    roleId,
+                    AuraToolsRoleCgContextKeys.SkillChannel,
+                    rule.CardId,
+                    role.Enabled && rule.Enabled
+                        ? "AuraToolsExp:" + manual.CgId
+                        : AuraToolsRoleCgContextKeys.NoneSelectionCgId);
+            }
+        }
+
+        Roles.Clear();
+        LegacyRoleRulesMigrated = true;
+        foreach (var entry in ManualRoleEntries)
+        {
+            entry.Normalize();
+        }
+    }
+
+    private static string SafeManualId(string value)
+    {
+        var chars = (value ?? "")
+            .Select(character => char.IsLetterOrDigit(character) || character == '_' || character == '-'
+                ? char.ToLowerInvariant(character)
+                : '-')
+            .ToArray();
+        var result = new string(chars).Trim('-');
+        return string.IsNullOrWhiteSpace(result) ? "role" : result;
+    }
+
+    private static CardUseCgPresentationOverrideSettings PresentationOverride(
+        SkillCgPresentationSettings? presentation)
+    {
+        presentation ??= SkillCgPresentationSettings.CreateDefault();
+        return new CardUseCgPresentationOverrideSettings
+        {
+            PresentationMode = presentation.Mode,
+            FitMode = presentation.Fit,
+            FadeIn = presentation.FadeIn,
+            Hold = presentation.Hold,
+            FadeOut = presentation.FadeOut,
+            FocusX = presentation.FocusX,
+            FocusY = presentation.FocusY,
+            SafeScale = presentation.SafeScale
+        };
     }
 
     internal bool TryImportLegacySettlementCg(LegacyDamageSettlementCgSettings? legacy)
@@ -126,9 +317,16 @@ public sealed class AuraToolsSkillCgSettings
 
 public sealed class AuraToolsEventCgSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public const string DefaultBackgroundResource = "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png";
+
+    private Dictionary<string, AuraToolsEventCgSceneSettings> scenes =
+        new(StringComparer.OrdinalIgnoreCase);
+    private bool hasExplicitScenes;
+
+    [JsonProperty("schemaVersion")]
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
@@ -136,50 +334,313 @@ public sealed class AuraToolsEventCgSettings
     [JsonProperty("syncRemote")]
     public bool SyncRemote { get; set; } = true;
 
+    [JsonProperty("playSettlementAfterBattleScene")]
+    public bool PlaySettlementAfterBattleScene { get; set; }
+
+    [JsonProperty("scenes", ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public Dictionary<string, AuraToolsEventCgSceneSettings> Scenes
+    {
+        get => scenes;
+        set
+        {
+            scenes = value ?? new Dictionary<string, AuraToolsEventCgSceneSettings>(StringComparer.OrdinalIgnoreCase);
+            hasExplicitScenes = true;
+        }
+    }
+
     [JsonProperty("backgroundResource")]
-    public string BackgroundResource { get; set; } = DefaultBackgroundResource;
+    private string LegacyBackgroundResource { get; set; } = DefaultBackgroundResource;
 
     [JsonProperty("baseWidth")]
-    public int BaseWidth { get; set; } = 1600;
+    private int LegacyBaseWidth { get; set; } = AuraToolsEventCgDefaults.BaseWidth;
 
     [JsonProperty("baseHeight")]
-    public int BaseHeight { get; set; } = 900;
+    private int LegacyBaseHeight { get; set; } = AuraToolsEventCgDefaults.BaseHeight;
 
     [JsonProperty("fadeIn")]
-    public float FadeIn { get; set; } = 0.35f;
+    private float LegacyFadeIn { get; set; } = AuraToolsEventCgDefaults.FadeIn;
 
     [JsonProperty("hold")]
-    public float Hold { get; set; } = 3f;
+    private float LegacyHold { get; set; } = AuraToolsEventCgDefaults.Hold;
 
     [JsonProperty("fadeOut")]
-    public float FadeOut { get; set; } = 0.45f;
+    private float LegacyFadeOut { get; set; } = AuraToolsEventCgDefaults.FadeOut;
 
     [JsonProperty("specialBattleIds")]
-    public List<string> SpecialBattleIds { get; set; } = new();
+    private List<string> LegacySpecialBattleIds { get; set; } = new();
 
     [JsonProperty("specialOpeningEnabled")]
-    public bool SpecialOpeningEnabled { get; set; } = true;
+    private bool LegacySpecialOpeningEnabled { get; set; } = true;
 
     [JsonProperty("specialVictoryEnabled")]
-    public bool SpecialVictoryEnabled { get; set; } = true;
+    private bool LegacySpecialVictoryEnabled { get; set; } = true;
 
     [JsonProperty("battleDefeatEnabled")]
-    public bool BattleDefeatEnabled { get; set; } = true;
+    private bool LegacyBattleDefeatEnabled { get; set; } = true;
 
     [JsonProperty("adventureSettlementEnabled")]
-    public bool AdventureSettlementEnabled { get; set; } = true;
+    private bool LegacyAdventureSettlementEnabled { get; set; } = true;
 
     public void Normalize()
     {
-        BackgroundResource = string.IsNullOrWhiteSpace(BackgroundResource)
+        SchemaVersion = Math.Max(CurrentSchemaVersion, SchemaVersion);
+        LegacyBackgroundResource = string.IsNullOrWhiteSpace(LegacyBackgroundResource)
             ? DefaultBackgroundResource
-            : BackgroundResource.Trim();
-        BaseWidth = Math.Max(1, Math.Min(8192, BaseWidth));
-        BaseHeight = Math.Max(1, Math.Min(8192, BaseHeight));
-        FadeIn = Math.Max(0f, Math.Min(5f, FadeIn));
-        Hold = Math.Max(0.1f, Math.Min(30f, Hold));
-        FadeOut = Math.Max(0f, Math.Min(5f, FadeOut));
-        SpecialBattleIds = (SpecialBattleIds ?? new List<string>())
+            : LegacyBackgroundResource.Trim();
+        LegacyBaseWidth = Math.Max(1, Math.Min(8192, LegacyBaseWidth));
+        LegacyBaseHeight = Math.Max(1, Math.Min(8192, LegacyBaseHeight));
+        LegacyFadeIn = Math.Max(0f, Math.Min(5f, LegacyFadeIn));
+        LegacyHold = Math.Max(0.1f, Math.Min(30f, LegacyHold));
+        LegacyFadeOut = Math.Max(0f, Math.Min(5f, LegacyFadeOut));
+        LegacySpecialBattleIds = (LegacySpecialBattleIds ?? new List<string>())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(128)
+            .ToList();
+
+        if (!hasExplicitScenes)
+        {
+            scenes = CreateMigratedScenes();
+            hasExplicitScenes = true;
+        }
+
+        scenes ??= new Dictionary<string, AuraToolsEventCgSceneSettings>(StringComparer.OrdinalIgnoreCase);
+        var normalized = new Dictionary<string, AuraToolsEventCgSceneSettings>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sceneId in AuraToolsEventCgSceneIds.All)
+        {
+            var scene = scenes.TryGetValue(sceneId, out var configured) && configured != null
+                ? configured
+                : new AuraToolsEventCgSceneSettings();
+            scene.Normalize(sceneId);
+            normalized[sceneId] = scene;
+        }
+        scenes = normalized;
+    }
+
+    public AuraToolsEventCgSceneSettings GetScene(string sceneId)
+    {
+        Normalize();
+        var normalized = AuraToolsEventCgSceneIds.Normalize(sceneId);
+        return scenes.TryGetValue(normalized, out var scene)
+            ? scene
+            : scenes[AuraToolsEventCgSceneIds.AdventureSettlement];
+    }
+
+    public bool ShouldSerializeLegacyBackgroundResource() => false;
+    public bool ShouldSerializeLegacyBaseWidth() => false;
+    public bool ShouldSerializeLegacyBaseHeight() => false;
+    public bool ShouldSerializeLegacyFadeIn() => false;
+    public bool ShouldSerializeLegacyHold() => false;
+    public bool ShouldSerializeLegacyFadeOut() => false;
+    public bool ShouldSerializeLegacySpecialBattleIds() => false;
+    public bool ShouldSerializeLegacySpecialOpeningEnabled() => false;
+    public bool ShouldSerializeLegacySpecialVictoryEnabled() => false;
+    public bool ShouldSerializeLegacyBattleDefeatEnabled() => false;
+    public bool ShouldSerializeLegacyAdventureSettlementEnabled() => false;
+
+    private Dictionary<string, AuraToolsEventCgSceneSettings> CreateMigratedScenes()
+    {
+        var result = AuraToolsEventCgSceneIds.All.ToDictionary(
+            sceneId => sceneId,
+            sceneId => new AuraToolsEventCgSceneSettings
+            {
+                Enabled = LegacyEnabled(sceneId),
+                BackgroundResource = string.Equals(LegacyBackgroundResource, DefaultBackgroundResource, StringComparison.OrdinalIgnoreCase)
+                    ? ""
+                    : LegacyBackgroundResource,
+                BaseWidth = LegacyBaseWidth == AuraToolsEventCgDefaults.BaseWidth ? null : LegacyBaseWidth,
+                BaseHeight = LegacyBaseHeight == AuraToolsEventCgDefaults.BaseHeight ? null : LegacyBaseHeight,
+                FadeIn = Nearly(LegacyFadeIn, AuraToolsEventCgDefaults.FadeIn) ? null : LegacyFadeIn,
+                Hold = Nearly(LegacyHold, AuraToolsEventCgDefaults.Hold) ? null : LegacyHold,
+                FadeOut = Nearly(LegacyFadeOut, AuraToolsEventCgDefaults.FadeOut) ? null : LegacyFadeOut
+            },
+            StringComparer.OrdinalIgnoreCase);
+        result[AuraToolsEventCgSceneIds.BattleOpening].BattleIds = LegacySpecialBattleIds.ToList();
+        return result;
+    }
+
+    private bool LegacyEnabled(string sceneId)
+    {
+        if (AuraToolsEventCgSceneIds.IsVictory(sceneId)) return LegacySpecialVictoryEnabled;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.BattleOpening, StringComparison.OrdinalIgnoreCase)) return LegacySpecialOpeningEnabled;
+        if (string.Equals(sceneId, AuraToolsEventCgSceneIds.BattleDefeat, StringComparison.OrdinalIgnoreCase)) return LegacyBattleDefeatEnabled;
+        return LegacyAdventureSettlementEnabled;
+    }
+
+    private static bool Nearly(float left, float right)
+    {
+        return Math.Abs(left - right) < 0.0001f;
+    }
+
+    internal static AuraToolsEventCgSettings FromLegacy(LegacyDamageSettlementCgSettings legacy)
+    {
+        var settings = new AuraToolsEventCgSettings
+        {
+            Enabled = legacy.Enabled,
+            SyncRemote = legacy.SyncRemote,
+            LegacyBackgroundResource = legacy.BackgroundResource,
+            LegacyBaseWidth = legacy.BaseWidth,
+            LegacyBaseHeight = legacy.BaseHeight,
+            LegacyFadeIn = legacy.FadeIn,
+            LegacyHold = legacy.Hold,
+            LegacyFadeOut = legacy.FadeOut
+        };
+        settings.Normalize();
+        return settings;
+    }
+}
+
+public static class AuraToolsEventCgSceneIds
+{
+    public const string VictoryStandard = "victory.standard";
+    public const string VictoryMidas = "victory.midas";
+    public const string VictoryRitual = "victory.ritual";
+    public const string VictoryCurse = "victory.curse";
+    public const string BattleOpening = "battle-opening";
+    public const string BattleDefeat = "battle-defeat";
+    public const string AdventureSettlement = "adventure-settlement";
+
+    public static readonly string[] Victory =
+    {
+        VictoryStandard,
+        VictoryMidas,
+        VictoryRitual,
+        VictoryCurse
+    };
+
+    public static readonly string[] All =
+    {
+        VictoryStandard,
+        VictoryMidas,
+        VictoryRitual,
+        VictoryCurse,
+        BattleOpening,
+        BattleDefeat,
+        AdventureSettlement
+    };
+
+    public static string Normalize(string? value)
+    {
+        var candidate = (value ?? "").Trim().ToLowerInvariant();
+        return All.FirstOrDefault(sceneId => string.Equals(sceneId, candidate, StringComparison.OrdinalIgnoreCase))
+               ?? AdventureSettlement;
+    }
+
+    public static bool IsVictory(string? sceneId)
+    {
+        return Victory.Contains(Normalize(sceneId), StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static string CgId(string sceneId)
+    {
+        return "event." + Normalize(sceneId);
+    }
+
+    public static string FromCgId(string? cgId)
+    {
+        var value = (cgId ?? "").Trim();
+        return value.StartsWith("event.", StringComparison.OrdinalIgnoreCase)
+            ? Normalize(value.Substring("event.".Length))
+            : Normalize(value);
+    }
+}
+
+public static class AuraToolsEventCgOutcomeReasons
+{
+    public const string StandardVictory = "standard-victory";
+    public const string MidasEscape = "midas-escape";
+    public const string RitualVictory = "ritual-victory";
+    public const string CurseVictory = "curse-victory";
+    public const string Defeat = "defeat";
+    public const string Escape = "escape";
+
+    public static string SceneForReason(string? reason)
+    {
+        var value = (reason ?? "").Trim();
+        if (string.Equals(value, MidasEscape, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgSceneIds.VictoryMidas;
+        if (string.Equals(value, RitualVictory, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgSceneIds.VictoryRitual;
+        if (string.Equals(value, CurseVictory, StringComparison.OrdinalIgnoreCase)) return AuraToolsEventCgSceneIds.VictoryCurse;
+        return AuraToolsEventCgSceneIds.VictoryStandard;
+    }
+}
+
+public static class AuraToolsEventCgDefaults
+{
+    public const int BaseWidth = 1600;
+    public const int BaseHeight = 900;
+    public const float FadeIn = 0.35f;
+    public const float Hold = 3f;
+    public const float FadeOut = 0.45f;
+}
+
+public sealed class AuraToolsEventCgSceneSettings
+{
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
+
+    [JsonProperty("backgroundResource", NullValueHandling = NullValueHandling.Ignore)]
+    public string BackgroundResource { get; set; } = "";
+
+    [JsonProperty("baseWidth", NullValueHandling = NullValueHandling.Ignore)]
+    public int? BaseWidth { get; set; }
+
+    [JsonProperty("baseHeight", NullValueHandling = NullValueHandling.Ignore)]
+    public int? BaseHeight { get; set; }
+
+    [JsonProperty("fadeIn", NullValueHandling = NullValueHandling.Ignore)]
+    public float? FadeIn { get; set; }
+
+    [JsonProperty("hold", NullValueHandling = NullValueHandling.Ignore)]
+    public float? Hold { get; set; }
+
+    [JsonProperty("fadeOut", NullValueHandling = NullValueHandling.Ignore)]
+    public float? FadeOut { get; set; }
+
+    [JsonProperty("battleIds", NullValueHandling = NullValueHandling.Ignore)]
+    public List<string> BattleIds { get; set; } = new();
+
+    [JsonIgnore]
+    public string SceneId { get; private set; } = AuraToolsEventCgSceneIds.AdventureSettlement;
+
+    [JsonIgnore]
+    public string EffectiveBackgroundResource => string.IsNullOrWhiteSpace(BackgroundResource)
+        ? AuraToolsEventCgSettings.DefaultBackgroundResource
+        : BackgroundResource;
+
+    [JsonIgnore]
+    public int EffectiveBaseWidth => BaseWidth ?? AuraToolsEventCgDefaults.BaseWidth;
+
+    [JsonIgnore]
+    public int EffectiveBaseHeight => BaseHeight ?? AuraToolsEventCgDefaults.BaseHeight;
+
+    [JsonIgnore]
+    public float EffectiveFadeIn => FadeIn ?? AuraToolsEventCgDefaults.FadeIn;
+
+    [JsonIgnore]
+    public float EffectiveHold => Hold ?? AuraToolsEventCgDefaults.Hold;
+
+    [JsonIgnore]
+    public float EffectiveFadeOut => FadeOut ?? AuraToolsEventCgDefaults.FadeOut;
+
+    [JsonIgnore]
+    public bool UsesDefaultPresentation => string.IsNullOrWhiteSpace(BackgroundResource)
+                                           && !BaseWidth.HasValue
+                                           && !BaseHeight.HasValue
+                                           && !FadeIn.HasValue
+                                           && !Hold.HasValue
+                                           && !FadeOut.HasValue;
+
+    public void Normalize(string sceneId)
+    {
+        SceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
+        BackgroundResource = (BackgroundResource ?? "").Trim().Replace('\\', '/');
+        BaseWidth = BaseWidth.HasValue ? Math.Max(1, Math.Min(8192, BaseWidth.Value)) : null;
+        BaseHeight = BaseHeight.HasValue ? Math.Max(1, Math.Min(8192, BaseHeight.Value)) : null;
+        FadeIn = Clamp(FadeIn, 0f, 5f);
+        Hold = Clamp(Hold, 0.1f, 30f);
+        FadeOut = Clamp(FadeOut, 0f, 5f);
+        BattleIds = (BattleIds ?? new List<string>())
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -187,19 +648,101 @@ public sealed class AuraToolsEventCgSettings
             .ToList();
     }
 
-    internal static AuraToolsEventCgSettings FromLegacy(LegacyDamageSettlementCgSettings legacy)
+    public void ResetPresentation()
     {
-        return new AuraToolsEventCgSettings
-        {
-            Enabled = legacy.Enabled,
-            SyncRemote = legacy.SyncRemote,
-            BackgroundResource = legacy.BackgroundResource,
-            BaseWidth = legacy.BaseWidth,
-            BaseHeight = legacy.BaseHeight,
-            FadeIn = legacy.FadeIn,
-            Hold = legacy.Hold,
-            FadeOut = legacy.FadeOut
-        };
+        BackgroundResource = "";
+        BaseWidth = null;
+        BaseHeight = null;
+        FadeIn = null;
+        Hold = null;
+        FadeOut = null;
+    }
+
+    private static float? Clamp(float? value, float minimum, float maximum)
+    {
+        return value.HasValue ? Math.Max(minimum, Math.Min(maximum, value.Value)) : null;
+    }
+}
+
+public sealed class RoleCgEntryOverrideSettings
+{
+    [JsonProperty("enabled", NullValueHandling = NullValueHandling.Ignore)]
+    private bool? LegacyEnabled { get; set; }
+
+    [JsonProperty("presentation")]
+    public CardUseCgPresentationOverrideSettings Presentation { get; set; } = new();
+
+    public void Normalize()
+    {
+        Presentation ??= new CardUseCgPresentationOverrideSettings();
+        Presentation.Normalize();
+    }
+
+    public bool ShouldSerializeLegacyEnabled()
+    {
+        return false;
+    }
+}
+
+public static class AuraToolsRoleCgContextKeys
+{
+    public const string SkillChannel = "skill";
+    public const string NoneSelectionCgId = "AuraToolsExp:role-cg.none";
+
+    public static string Create(string roleId, string channel, string skillId = "")
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId).ToLowerInvariant();
+        var normalizedChannel = (channel ?? "").Trim().ToLowerInvariant();
+        var normalizedSkill = string.Equals(normalizedChannel, SkillChannel, StringComparison.Ordinal)
+            ? (skillId ?? "").Trim().ToLowerInvariant()
+            : "";
+        return normalizedChannel + "|" + normalizedRole + "|" + normalizedSkill;
+    }
+}
+
+public sealed class RoleCgManualEntrySettings
+{
+    [JsonProperty("cgId")]
+    public string CgId { get; set; } = "";
+
+    [JsonProperty("displayName")]
+    public string DisplayName { get; set; } = "";
+
+    [JsonProperty("roleId")]
+    public string RoleId { get; set; } = "";
+
+    [JsonProperty("signalId")]
+    public string SignalId { get; set; } = "";
+
+    [JsonProperty("skillId")]
+    public string SkillId { get; set; } = "";
+
+    [JsonProperty("resource")]
+    public string Resource { get; set; } = "";
+
+    [JsonProperty("priority")]
+    public int Priority { get; set; } = 1000;
+
+    [JsonProperty("presentation")]
+    public SkillCgPresentationSettings Presentation { get; set; } = SkillCgPresentationSettings.CreateDefault();
+
+    [JsonIgnore]
+    public bool IsValid => !string.IsNullOrWhiteSpace(CgId)
+                           && !string.IsNullOrWhiteSpace(RoleId)
+                           && !string.IsNullOrWhiteSpace(SignalId)
+                           && !string.IsNullOrWhiteSpace(Resource);
+
+    public void Normalize()
+    {
+        CgId = (CgId ?? "").Trim();
+        DisplayName = string.IsNullOrWhiteSpace(DisplayName) ? "玩家自定义 CG" : DisplayName.Trim();
+        RoleId = RoleCatalog.NormalizeRoleId(RoleId);
+        SignalId = (SignalId ?? "").Trim().ToLowerInvariant();
+        SkillId = (SkillId ?? "").Trim();
+        Resource = (Resource ?? "").Trim().Replace('\\', '/').TrimStart('/');
+        Priority = Math.Max(1000, Math.Min(10000, Priority));
+        Presentation = (Presentation ?? SkillCgPresentationSettings.CreateDefault())
+            .Resolve(SkillCgPresentationSettings.CreateDefault());
     }
 }
 
@@ -250,6 +793,9 @@ public sealed class CardUseCgPresentationOverrideSettings
     [JsonProperty("fadeIn")] public float? FadeIn { get; set; }
     [JsonProperty("hold")] public float? Hold { get; set; }
     [JsonProperty("fadeOut")] public float? FadeOut { get; set; }
+    [JsonProperty("focusX")] public float? FocusX { get; set; }
+    [JsonProperty("focusY")] public float? FocusY { get; set; }
+    [JsonProperty("safeScale")] public float? SafeScale { get; set; }
     [JsonProperty("frameSeconds")] public float? FrameSeconds { get; set; }
     [JsonProperty("alphaMode")] public string AlphaMode { get; set; } = "";
     [JsonProperty("keyThreshold")] public float? KeyThreshold { get; set; }
@@ -271,6 +817,9 @@ public sealed class CardUseCgPresentationOverrideSettings
         FadeIn = ClampNullable(FadeIn, 0f, 10f);
         Hold = ClampNullable(Hold, 0f, 30f);
         FadeOut = ClampNullable(FadeOut, 0f, 10f);
+        FocusX = ClampNullable(FocusX, 0f, 1f);
+        FocusY = ClampNullable(FocusY, 0f, 1f);
+        SafeScale = ClampNullable(SafeScale, 1f, 3f);
         FrameSeconds = ClampNullable(FrameSeconds, 0.01f, 1f);
         KeyThreshold = ClampNullable(KeyThreshold, 0f, 1f);
         KeySoftness = ClampNullable(KeySoftness, 0.001f, 1f);

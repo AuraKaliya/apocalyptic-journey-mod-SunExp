@@ -20,6 +20,7 @@ public static class SpiritCollectionApi
     private static bool initialized;
     private static ModConfig? configuredMod;
     private static string boundProfileKey = "";
+    private static readonly HashSet<string> InitialRosterAttemptedProfileKeys = new(StringComparer.Ordinal);
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -336,6 +337,7 @@ public static class SpiritCollectionApi
 
             if (string.Equals(boundProfileKey, stableKey, StringComparison.Ordinal))
             {
+                TryGrantInitialRoster(stableKey);
                 return true;
             }
 
@@ -352,13 +354,121 @@ public static class SpiritCollectionApi
                     stableKey));
                 boundProfileKey = stableKey;
                 TerriasLog.Info("[SpiritCollection] profile bound to stable player=" + stableKey + ".");
-                return true;
             }
             catch (Exception ex)
             {
                 TerriasLog.Warn("[SpiritCollection] stable profile bind failed for " + stableKey + ": " + ex.Message);
                 return false;
             }
+
+            TryGrantInitialRoster(stableKey);
+            return true;
+        }
+    }
+
+    private static void TryGrantInitialRoster(string stableProfileKey)
+    {
+        if (configuredMod == null
+            || string.IsNullOrWhiteSpace(stableProfileKey)
+            || !InitialRosterAttemptedProfileKeys.Add(stableProfileKey)
+            || SpiritCollectionService.AppliedInitialRosterGrantVersion()
+            >= SpiritSystemContract.InitialRosterGrantVersion)
+        {
+            return;
+        }
+
+        if (!TerriasModConfigurationApi.TryGetBoolean(
+                configuredMod,
+                SpiritSystemContract.InitialRosterConfigurationKey,
+                out var enabled,
+                out var diagnostic))
+        {
+            TerriasLog.Warn("[SpiritInitialRoster] configuration unavailable for profile="
+                            + stableProfileKey
+                            + ": "
+                            + diagnostic
+                            + ".");
+            return;
+        }
+        if (!enabled)
+        {
+            TerriasLog.Info("[SpiritInitialRoster] disabled for profile=" + stableProfileKey + ".");
+            return;
+        }
+
+        try
+        {
+            var profiles = SpiritGrowthRegistry.RegisteredProfiles();
+            if (profiles.Count != SpiritSystemContract.InitialRosterProfileCount)
+            {
+                TerriasLog.Warn("[SpiritInitialRoster] roster rejected for profile="
+                                + stableProfileKey
+                                + "; expected="
+                                + SpiritSystemContract.InitialRosterProfileCount
+                                + ", actual="
+                                + profiles.Count
+                                + ", registry="
+                                + SpiritGrowthRegistry.LastLoadDiagnostic
+                                + ".");
+                return;
+            }
+
+            var seeds = new List<SpiritInitialRosterSeed>(profiles.Count);
+            foreach (var profile in profiles)
+            {
+                var match = profile.Match ?? new SpiritSpeciesGrowthMatch();
+                var inspection = EnemyCatalogApi.InspectConfiguredProfile(
+                    match.SourceModId,
+                    match.EnemyId,
+                    match.VariantId,
+                    SpiritSystemContract.InitialRosterCaptureOrigin);
+                if (!inspection.Eligible || inspection.Snapshot == null)
+                {
+                    TerriasLog.Warn("[SpiritInitialRoster] roster preflight failed for profile="
+                                    + stableProfileKey
+                                    + ", spiritProfile="
+                                    + profile.ProfileId
+                                    + ": "
+                                    + inspection.Reason
+                                    + ".");
+                    return;
+                }
+
+                seeds.Add(new SpiritInitialRosterSeed
+                {
+                    ProfileId = profile.ProfileId,
+                    Snapshot = inspection.Snapshot
+                });
+            }
+
+            var result = SpiritCollectionService.GrantInitialRoster(seeds);
+            if (!result.Success)
+            {
+                TerriasLog.Warn("[SpiritInitialRoster] grant failed for profile="
+                                + stableProfileKey
+                                + ": "
+                                + result.Reason
+                                + ".");
+                return;
+            }
+
+            TerriasLog.Info("[SpiritInitialRoster] grantState="
+                            + (result.AlreadyGranted ? "already-applied" : "committed")
+                            + ", profile="
+                            + stableProfileKey
+                            + ", granted="
+                            + result.GrantedCount
+                            + ", version="
+                            + SpiritSystemContract.InitialRosterGrantVersion
+                            + ".");
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[SpiritInitialRoster] grant transaction failed for profile="
+                            + stableProfileKey
+                            + ": "
+                            + ex.Message
+                            + ".");
         }
     }
 
@@ -405,11 +515,12 @@ public static class SpiritCollectionApi
         return !string.IsNullOrWhiteSpace(runtimeId) ? runtimeId : boundProfileKey;
     }
 
-    private sealed class SpiritSidecarProfileStore : ISpiritCollectionStore
+    private sealed class SpiritSidecarProfileStore : ISpiritCollectionStore, ISpiritInitialRosterGrantGuard
     {
         private readonly string modDirectory;
         private readonly string profileKey;
         private readonly IReadOnlyList<string> legacyProfileKeys;
+        private ProfileLoadState loadState;
 
         public SpiritSidecarProfileStore(
             string modDirectory,
@@ -421,24 +532,34 @@ public static class SpiritCollectionApi
             this.legacyProfileKeys = legacyProfileKeys ?? Array.Empty<string>();
         }
 
+        public bool CanGrantInitialRoster => loadState != ProfileLoadState.Invalid;
+
+        public string InitialRosterGrantBlockReason => loadState == ProfileLoadState.Invalid
+            ? "精灵档案损坏且无法从备份恢复，已阻止自动初始发放以避免覆盖原文件。"
+            : "";
+
         public SpiritCollectionDocument Load()
         {
             var path = ProfilePath();
             if (!File.Exists(path))
             {
                 var recovered = TryRecoverLegacy(path);
+                loadState = recovered == null ? ProfileLoadState.New : ProfileLoadState.LegacyRecovered;
                 return recovered ?? new SpiritCollectionDocument();
             }
             try
             {
-                return JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(path))
-                       ?? new SpiritCollectionDocument();
+                var loaded = JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(path))
+                             ?? new SpiritCollectionDocument();
+                loadState = ProfileLoadState.Existing;
+                return loaded;
             }
             catch (Exception ex)
             {
                 var recovered = TryLoadBackup(path);
                 if (recovered != null)
                 {
+                    loadState = ProfileLoadState.BackupRecovered;
                     TerriasLog.Warn("[SpiritCollection] recovered profile from backup " + path + ": " + ex.Message);
                     return recovered;
                 }
@@ -448,6 +569,7 @@ public static class SpiritCollectionApi
                     if (!File.Exists(invalidBackup)) File.Copy(path, invalidBackup, overwrite: false);
                 }
                 catch { }
+                loadState = ProfileLoadState.Invalid;
                 TerriasLog.Warn("[SpiritCollection] preserved but ignored invalid profile " + path + ": " + ex.Message);
                 return new SpiritCollectionDocument();
             }
@@ -461,6 +583,7 @@ public static class SpiritCollectionApi
                 path,
                 JsonConvert.SerializeObject(document, Formatting.Indented),
                 createBackup: true);
+            loadState = ProfileLoadState.Existing;
         }
 
         private string ProfilePath()
@@ -522,6 +645,16 @@ public static class SpiritCollectionApi
                     : null;
             }
             catch { return null; }
+        }
+
+        private enum ProfileLoadState
+        {
+            Unknown,
+            New,
+            Existing,
+            LegacyRecovered,
+            BackupRecovered,
+            Invalid
         }
     }
 

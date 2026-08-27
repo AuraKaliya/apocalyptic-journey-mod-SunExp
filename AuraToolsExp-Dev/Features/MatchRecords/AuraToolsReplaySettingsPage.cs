@@ -1,8 +1,6 @@
 using System;
 using System.Globalization;
 using AuraToolsExp.Dll.Config;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.LegacyMigration;
-using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraUi.Shared;
@@ -111,48 +109,15 @@ public static class AuraToolsReplaySettingsPage
             () => AuraToolsMatchRecordsRuntime.OpenLibrary(overlayParent),
             132f);
 
-        var migrationRow = CreateInlineRow(content, "LegacyMigration");
-        var migrationStatus = AuraToolsUi.AddText(
+        var migrationRow = CreateInlineRow(content, "ReplayProtocol");
+        AuraToolsUi.AddText(
             migrationRow.transform,
-            "检测并整理旧版本回放；战斗统计会保留",
+            "Replay Document v12 · 独立场景 · 内嵌表现资源 · v11 仅保留摘要与分析",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
-        AuraToolsUi.AddButton(migrationRow.transform, "扫描旧录像", () =>
-        {
-            try
-            {
-                var report = ReplayLegacyMigrationService.Scan();
-                migrationStatus.text = "已扫描 " + report.Records.Count + " 条；旧数据块 "
-                                       + report.ChunkRowsToDelete + " 个。请查看报告后再确认清理。";
-            }
-            catch (Exception ex)
-            {
-                migrationStatus.text = "扫描失败：" + ex.Message;
-            }
-        }, 108f);
-        AuraToolsUi.AddButton(migrationRow.transform, "查看报告", () =>
-        {
-            var path = ReplayLegacyMigrationService.LatestReportPath;
-            var directory = string.IsNullOrWhiteSpace(path)
-                ? System.IO.Path.Combine(MatchRecordStorage.RootDirectory, "MigrationReports")
-                : System.IO.Path.GetDirectoryName(path) ?? MatchRecordStorage.RootDirectory;
-            FileResourceUtil.OpenDirectory(directory);
-        }, 92f);
-        AuraToolsUi.AddButton(migrationRow.transform, "确认清理旧回放", () =>
-        {
-            try
-            {
-                var report = ReplayLegacyMigrationService.ApplyLatest();
-                migrationStatus.text = "已清理 " + report.ChunkRowsToDelete + " 个旧数据块；统计已保留。";
-            }
-            catch (Exception ex)
-            {
-                migrationStatus.text = "清理未执行：" + ex.Message;
-            }
-        }, 132f);
     }
 
     private static void CreateToggle(

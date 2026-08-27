@@ -47,6 +47,104 @@ public static class SpiritCollectionService
         }
     }
 
+    public static int AppliedInitialRosterGrantVersion()
+    {
+        lock (SyncRoot)
+        {
+            return document.InitialRosterGrantVersion;
+        }
+    }
+
+    public static SpiritInitialRosterGrantResult GrantInitialRoster(
+        IReadOnlyList<SpiritInitialRosterSeed> seeds)
+    {
+        lock (SyncRoot)
+        {
+            if (document.InitialRosterGrantVersion >= SpiritSystemContract.InitialRosterGrantVersion)
+            {
+                return new SpiritInitialRosterGrantResult
+                {
+                    Success = true,
+                    AlreadyGranted = true
+                };
+            }
+            if (store is ISpiritInitialRosterGrantGuard guard && !guard.CanGrantInitialRoster)
+            {
+                return InitialRosterFailure(string.IsNullOrWhiteSpace(guard.InitialRosterGrantBlockReason)
+                    ? "精灵档案当前禁止自动初始发放。"
+                    : guard.InitialRosterGrantBlockReason);
+            }
+            if (seeds == null || seeds.Count != SpiritSystemContract.InitialRosterProfileCount)
+            {
+                return InitialRosterFailure("初始精灵清单必须恰好包含 "
+                                            + SpiritSystemContract.InitialRosterProfileCount
+                                            + " 个 Profile。");
+            }
+
+            var expectedProfileIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var seed in seeds)
+            {
+                var profileId = (seed?.ProfileId ?? "").Trim();
+                if (profileId.Length == 0 || !expectedProfileIds.Add(profileId))
+                {
+                    return InitialRosterFailure("初始精灵清单包含空白或重复的 ProfileId。");
+                }
+                if (seed?.Snapshot == null || string.IsNullOrWhiteSpace(seed.Snapshot.EnemyId))
+                {
+                    return InitialRosterFailure("初始精灵 Profile " + profileId + " 缺少有效捕获快照。");
+                }
+            }
+
+            var candidate = CloneDocument(document);
+            var grantedCount = 0;
+            foreach (var seed in seeds)
+            {
+                var operationToken = SpiritSystemContract.InitialRosterCaptureOrigin
+                                     + ":"
+                                     + seed.ProfileId.Trim();
+                var instance = CreateInstance(
+                    candidate,
+                    seed.Snapshot,
+                    operationToken,
+                    null,
+                    out var identity);
+                if (identity.UsedFallback
+                    || !Same(instance.ProfileId, seed.ProfileId.Trim()))
+                {
+                    return InitialRosterFailure("初始精灵 Profile 解析漂移：expected="
+                                                + seed.ProfileId.Trim()
+                                                + ", actual="
+                                                + instance.ProfileId
+                                                + ".");
+                }
+                if (instance.ResolvedInherentIntentIds.Count == 0
+                    || instance.ResolvedInherentIntentIds.Any(id => SpiritIntentRegistry.Find(id) == null)
+                    || SpiritTrainingRegistry.FindPassive(instance.ResolvedInherentPassiveId) == null
+                    || instance.EquippedIntentIds.Count == 0
+                    || instance.EquippedIntentIds.Any(id => SpiritIntentRegistry.Find(id) == null)
+                    || SpiritTrainingRegistry.FindPassive(instance.EquippedPassiveId) == null
+                    || !SpiritElementService.TryParse(instance.ElementId, out _))
+                {
+                    return InitialRosterFailure("初始精灵 Profile 依赖的意图、被动或元素注册表尚未就绪："
+                                                + seed.ProfileId.Trim()
+                                                + ".");
+                }
+
+                candidate.Instances.Add(instance);
+                grantedCount++;
+            }
+
+            candidate.InitialRosterGrantVersion = SpiritSystemContract.InitialRosterGrantVersion;
+            SaveUnlocked(candidate);
+            document = candidate;
+            return new SpiritInitialRosterGrantResult
+            {
+                Success = true,
+                GrantedCount = grantedCount
+            };
+        }
+    }
+
     public static SpiritCaptureRecordResult Capture(
         CapturedEnemySnapshot snapshot,
         string operationToken,
@@ -73,44 +171,8 @@ public static class SpiritCollectionService
             }
 
             var candidate = CloneDocument(document);
-            var normalizedSnapshot = SpiritModelCloner.CloneSnapshot(snapshot);
-            normalizedSnapshot.SpiritUid = UniqueUid(candidate, normalizedSnapshot.SpiritUid);
-            normalizedSnapshot.InstanceId = "";
-            normalizedSnapshot.SpiritLevel = 0;
-            normalizedSnapshot.SpiritAptitude = 0;
-            normalizedSnapshot.SpiritGuiyuanValue = 0;
-            normalizedSnapshot.SpiritStarRank = 0;
-            normalizedSnapshot.GuiyuanAllocationMagic = 0;
-            normalizedSnapshot.GuiyuanAllocationSpirit = 0;
-            normalizedSnapshot.GuiyuanAllocationLuck = 0;
-            normalizedSnapshot.GuiyuanAllocationPerception = 0;
-            normalizedSnapshot.OriginMagic = 0;
-            normalizedSnapshot.OriginSpirit = 0;
-            normalizedSnapshot.OriginLuck = 0;
-            normalizedSnapshot.OriginPerception = 0;
-            normalizedSnapshot.DeploymentToken = "";
-            normalizedSnapshot.SpeciesId = "";
-            normalizedSnapshot.ProfileId = "";
-            normalizedSnapshot.SpiritElementId = "";
-            var identity = SpiritGrowthRegistry.ResolveIdentity(normalizedSnapshot);
-            var aptitudeRoll = SpiritGrowthRegistry.AptitudeRollFor(identity.Profile);
-            var instance = new SpiritInstance
-            {
-                SpiritUid = normalizedSnapshot.SpiritUid,
-                SpeciesId = identity.SpeciesId,
-                ProfileId = identity.ProfileId,
-                Snapshot = normalizedSnapshot,
-                Presentation = SpiritPresentationResolver.Capture(normalizedSnapshot),
-                Level = 1,
-                Experience = 0,
-                Aptitude = Math.Max(aptitudeRoll.Minimum, Math.Min(aptitudeRoll.Maximum,
-                    fixedAptitude ?? SpiritGrowthService.RollAptitude(identity.Profile, token + ":" + normalizedSnapshot.SpiritUid))),
-                CapturedAt = string.IsNullOrWhiteSpace(normalizedSnapshot.CapturedAt)
-                    ? DateTimeOffset.UtcNow.ToString("O")
-                    : normalizedSnapshot.CapturedAt
-            };
-            SpiritElementService.AssignCaptureDefault(instance, identity.Profile, legacy: false);
-            SpiritTrainingService.InitializeCaptured(instance);
+            var instance = CreateInstance(candidate, snapshot, token, fixedAptitude, out var identity);
+            var normalizedSnapshot = instance.Snapshot;
             if (identity.UsedFallback && IsOwnedSource(normalizedSnapshot.SourceModId))
             {
                 TerriasLog.Warn("[SpiritGrowthRegistry] owned capture used fallback profileId=" + identity.ProfileId
@@ -423,6 +485,7 @@ public static class SpiritCollectionService
         var sourceVersion = source.Version;
         var legacyTraining = sourceVersion < 5;
         source.Version = CurrentVersion;
+        source.InitialRosterGrantVersion = Math.Max(0, source.InitialRosterGrantVersion);
         source.Instances ??= new List<SpiritInstance>();
         source.ProcessedCaptureTokens ??= new Dictionary<string, string>(StringComparer.Ordinal);
         source.ProcessedBattleTokens ??= new List<string>();
@@ -526,6 +589,56 @@ public static class SpiritCollectionService
         return candidate;
     }
 
+    private static SpiritInstance CreateInstance(
+        SpiritCollectionDocument owner,
+        CapturedEnemySnapshot source,
+        string operationToken,
+        int? fixedAptitude,
+        out SpiritProfileIdentity identity)
+    {
+        var normalizedSnapshot = SpiritModelCloner.CloneSnapshot(source);
+        normalizedSnapshot.SpiritUid = UniqueUid(owner, normalizedSnapshot.SpiritUid);
+        normalizedSnapshot.InstanceId = "";
+        normalizedSnapshot.SpiritLevel = 0;
+        normalizedSnapshot.SpiritAptitude = 0;
+        normalizedSnapshot.SpiritGuiyuanValue = 0;
+        normalizedSnapshot.SpiritStarRank = 0;
+        normalizedSnapshot.GuiyuanAllocationMagic = 0;
+        normalizedSnapshot.GuiyuanAllocationSpirit = 0;
+        normalizedSnapshot.GuiyuanAllocationLuck = 0;
+        normalizedSnapshot.GuiyuanAllocationPerception = 0;
+        normalizedSnapshot.OriginMagic = 0;
+        normalizedSnapshot.OriginSpirit = 0;
+        normalizedSnapshot.OriginLuck = 0;
+        normalizedSnapshot.OriginPerception = 0;
+        normalizedSnapshot.DeploymentToken = "";
+        normalizedSnapshot.SpeciesId = "";
+        normalizedSnapshot.ProfileId = "";
+        normalizedSnapshot.SpiritElementId = "";
+        identity = SpiritGrowthRegistry.ResolveIdentity(normalizedSnapshot);
+        var aptitudeRoll = SpiritGrowthRegistry.AptitudeRollFor(identity.Profile);
+        var instance = new SpiritInstance
+        {
+            SpiritUid = normalizedSnapshot.SpiritUid,
+            SpeciesId = identity.SpeciesId,
+            ProfileId = identity.ProfileId,
+            Snapshot = normalizedSnapshot,
+            Presentation = SpiritPresentationResolver.Capture(normalizedSnapshot),
+            Level = 1,
+            Experience = 0,
+            Aptitude = Math.Max(aptitudeRoll.Minimum, Math.Min(aptitudeRoll.Maximum,
+                fixedAptitude ?? SpiritGrowthService.RollAptitude(
+                    identity.Profile,
+                    (operationToken ?? "") + ":" + normalizedSnapshot.SpiritUid))),
+            CapturedAt = string.IsNullOrWhiteSpace(normalizedSnapshot.CapturedAt)
+                ? DateTimeOffset.UtcNow.ToString("O")
+                : normalizedSnapshot.CapturedAt
+        };
+        SpiritElementService.AssignCaptureDefault(instance, identity.Profile, legacy: false);
+        SpiritTrainingService.InitializeCaptured(instance);
+        return instance;
+    }
+
     private static void TrimCaptureHistory(SpiritCollectionDocument owner)
     {
         if (owner.ProcessedCaptureTokens.Count <= OperationHistoryLimit) return;
@@ -565,6 +678,7 @@ public static class SpiritCollectionService
         {
             Version = source.Version,
             LegacyCardMigrationVersion = source.LegacyCardMigrationVersion,
+            InitialRosterGrantVersion = source.InitialRosterGrantVersion,
             Instances = source.Instances.Select(item => item.Clone()).ToList(),
             DefaultPartySlots = new List<string>(source.DefaultPartySlots),
             DefaultActiveSpiritUid = source.DefaultActiveSpiritUid,
@@ -578,6 +692,11 @@ public static class SpiritCollectionService
     private static SpiritGuiyuanResult GuiyuanFailure(string reason)
     {
         return new SpiritGuiyuanResult { Reason = reason ?? "归元失败。" };
+    }
+
+    private static SpiritInitialRosterGrantResult InitialRosterFailure(string reason)
+    {
+        return new SpiritInitialRosterGrantResult { Reason = reason ?? "初始精灵发放失败。" };
     }
 
     private static bool HasPresentation(SpiritLocalizedPresentation presentation)

@@ -1,5 +1,32 @@
 # Learnings
 
+## [LRN-20260827-001] correction
+
+**Logged**: 2026-08-27T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Terrias 的初始全精灵开关要求一次性追加固定的 58 个 Profile 个体，不执行补齐或现有收藏去重。
+
+### Details
+最初方案把功能理解为“确保每个 Profile 至少一只”。用户明确修正为：首次检测 `GrantAllSpiritsOnFirstLoad=true` 时，无论当前收藏内容，直接新增 58 个已注册 Profile 对应个体各一只；只有整批发放版本负责阻止以后重复执行。
+
+### Suggested Action
+保持批次输入恰好 58 个唯一 Profile 的预检和单次原子保存，但不要按当前收藏查询缺失项。行为测试必须用一个已存在的同 Profile 个体证明最终仍新增第二只。
+
+### Metadata
+- Source: user_feedback
+- Related Files: Terrias-Dev/Mechanics/SpiritCollectionService.cs, Terrias-Dev.SpiritTests/Program.cs
+- Tags: spirit, initial-roster, persistence
+
+### Resolution
+- **Resolved**: 2026-08-27T00:00:00+08:00
+- **Notes**: Implemented the direct 58-instance batch and added no-dedup, idempotence, rollback, and party-preservation coverage.
+
+---
+
 ## [LRN-20260820-001] correction
 
 **Logged**: 2026-08-20T00:00:00+08:00

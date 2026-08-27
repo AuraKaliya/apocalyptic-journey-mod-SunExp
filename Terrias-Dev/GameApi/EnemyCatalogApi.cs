@@ -23,6 +23,48 @@ public static class EnemyCatalogApi
         return result;
     }
 
+    public static SpiritEligibilityResult InspectConfiguredProfile(
+        string sourceModId,
+        string enemyId,
+        string variantId,
+        string captureOrigin)
+    {
+        var normalizedEnemyId = (enemyId ?? "").Trim().TrimStart('*');
+        if (normalizedEnemyId.Length == 0 || normalizedEnemyId == "*")
+        {
+            return SpiritEligibilityResult.Reject("初始精灵 Profile 缺少具体敌人标识。");
+        }
+
+        var data = TerriasConfigIndex.Row(DataType.Enemy, normalizedEnemyId)
+                   ?? TerriasConfigIndex.Row(
+                       DataType.Enemy,
+                       TerriasContentIdCompatibility.Canonicalize(normalizedEnemyId));
+        if (data == null)
+        {
+            return SpiritEligibilityResult.Reject("初始精灵 Profile 无法解析敌人配置：" + normalizedEnemyId);
+        }
+
+        var animation = DictionaryUtil.Get(data, "Animation").TrimEnd('/');
+        if (animation.Length == 0)
+        {
+            return SpiritEligibilityResult.Reject("初始精灵 Profile 没有动画资源：" + normalizedEnemyId);
+        }
+
+        var normalizedVariantId = (variantId ?? "").Trim();
+        if (normalizedVariantId.Length == 0 || normalizedVariantId == "*")
+        {
+            normalizedVariantId = FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), normalizedEnemyId);
+        }
+
+        return SpiritEligibilityResult.Allow(BuildSnapshot(
+            data,
+            normalizedEnemyId,
+            normalizedVariantId,
+            string.IsNullOrWhiteSpace(sourceModId) ? SourceModId(normalizedEnemyId) : sourceModId.Trim(),
+            "",
+            captureOrigin));
+    }
+
     private static SpiritEligibilityResult InspectCore(IStatusManager? target, string captureOrigin, bool requireDictionaryVisible)
     {
         if (target?.fatherObject is not Enemy enemy || enemy.dataConfig?.data == null)
@@ -73,24 +115,41 @@ public static class EnemyCatalogApi
             return SpiritEligibilityResult.Reject("目标没有可用的待机动画。");
         }
 
-        var variantId = FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), enemyId);
+        return SpiritEligibilityResult.Allow(BuildSnapshot(
+            data,
+            enemyId,
+            FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), enemyId),
+            SourceModId(enemyId),
+            target.InstanceId ?? "",
+            captureOrigin));
+    }
+
+    private static CapturedEnemySnapshot BuildSnapshot(
+        IDictionary<string, string> data,
+        string enemyId,
+        string variantId,
+        string sourceModId,
+        string instanceId,
+        string captureOrigin)
+    {
+        var animation = DictionaryUtil.Get(data, "Animation").TrimEnd('/');
         var description = string.Join("\n", new[]
         {
             DictionaryUtil.Get(data, "Description1"),
             DictionaryUtil.Get(data, "Description2")
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
-        var snapshot = new CapturedEnemySnapshot
+        return new CapturedEnemySnapshot
         {
             SpiritUid = Guid.NewGuid().ToString("N"),
-            SourceModId = SourceModId(enemyId),
-            EnemyId = enemyId,
-            VariantId = variantId,
-            InstanceId = target.InstanceId ?? "",
-            DisplayName = FirstNonEmpty(DictionaryUtil.Get(data, "Name"), enemyId),
+            SourceModId = sourceModId ?? "",
+            EnemyId = enemyId ?? "",
+            VariantId = variantId ?? "",
+            InstanceId = instanceId ?? "",
+            DisplayName = FirstNonEmpty(DictionaryUtil.Get(data, "Name"), enemyId ?? ""),
             Description = description,
             AnimationPath = animation,
-            DictPath = dictPath,
-            IdlePath = idlePath,
+            DictPath = animation + "/Dict",
+            IdlePath = animation + "/Idle",
             CaptureOrigin = captureOrigin ?? "",
             CapturedAt = DateTimeOffset.UtcNow.ToString("O"),
             BaseHp = DictionaryUtil.GetInt(data, "Hp"),
@@ -99,7 +158,6 @@ public static class EnemyCatalogApi
             Rarity = DictionaryUtil.GetInt(data, "Rarity"),
             SourceEnemyCardIds = SplitIds(DictionaryUtil.Get(data, "CardList"))
         };
-        return SpiritEligibilityResult.Allow(snapshot);
     }
 
     private static bool HasSprite(string path, string hotspotName)

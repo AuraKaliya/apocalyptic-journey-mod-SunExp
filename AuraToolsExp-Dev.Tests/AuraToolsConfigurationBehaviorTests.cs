@@ -82,13 +82,19 @@ internal static partial class AuraToolsTestSuite
             }
         };
         skillCg.Normalize();
-        Assert(skillCg.SchemaVersion == 7
+        Assert(skillCg.SchemaVersion == 9
                && skillCg.CardUseCg.RegisteredEntries.ContainsKey("Terrias:terrias.blazing-crown-collapse")
                && skillCg.CardUseCg.PresentationOverrides.TryGetValue("Terrias:terrias.blazing-crown-collapse", out var cardUseOverride)
                && cardUseOverride.FlashStrength == 1f
                && Math.Abs(cardUseOverride.FrameSeconds!.Value - 0.01f) < 0.001f
-               && skillCg.Roles["Terrias_wuna_wuna"].Rules[0].SourceOwnerModId == "Terrias",
-            "role, card, and event CG preferences migrate to content ownership while remaining tool-configured");
+               && skillCg.Roles.Count == 0
+               && skillCg.RoleEntries.TryGetValue("Terrias:wuna.white-sun-prayer", out var roleOverride)
+               && roleOverride.Presentation.Hold.HasValue
+               && skillCg.GetRoleSelection(
+                   "Terrias_wuna_wuna",
+                   AuraToolsRoleCgContextKeys.SkillChannel,
+                   "Terrias_wuna_wuna_*wuna_white_sun_prayer") == "Terrias:wuna.white-sun-prayer",
+            "role CG migration preserves its per-role skill selection without copying a registered resource");
 
         var feastRole = new FeastRoleSettings
         {
@@ -191,8 +197,7 @@ internal static partial class AuraToolsTestSuite
         Assert(!defaults.MatchRecords.Enabled
                && defaults.MatchRecords.Statistics.Enabled
                && !defaults.MatchRecords.Replay.Enabled
-               && defaults.MatchRecords.Replay.AutoRecordLimit == 20
-               && defaults.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
+               && defaults.MatchRecords.Replay.AutoRecordLimit == 20,
             "match records and replay default off while the DPT child is ready when the module is enabled");
 
         var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
@@ -213,8 +218,7 @@ internal static partial class AuraToolsTestSuite
         Assert(current.MatchRecords.Enabled
                && !current.MatchRecords.Statistics.Enabled
                && current.MatchRecords.Replay.Enabled
-               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit
-               && current.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
+               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit,
             "the new matchRecords section wins over stale settings and fixes replay presentation to Standard");
         Assert(json.Contains("\"matchRecords\"", StringComparison.Ordinal)
                && !json.Contains("\"damageMeter\"", StringComparison.Ordinal),
@@ -813,25 +817,28 @@ internal static partial class AuraToolsTestSuite
     
     public static void TestUnifiedEventCgSettingsAndLegacyMigration()
     {
-        var settings = new AuraToolsEventCgSettings
-        {
-            BackgroundResource = "",
-            BaseWidth = 0,
-            BaseHeight = -1,
-            FadeIn = -1f,
-            Hold = 100f,
-            FadeOut = 99f,
-            SpecialBattleIds = new List<string> { " boss-a ", "BOSS-A", "boss-b" }
-        };
+        var settings = JsonConvert.DeserializeObject<AuraToolsEventCgSettings>(
+            "{\"backgroundResource\":\"\",\"baseWidth\":0,\"baseHeight\":-1,\"fadeIn\":-1,\"hold\":100,\"fadeOut\":99,\"specialBattleIds\":[\" boss-a \",\"BOSS-A\",\"boss-b\"]}")!;
         settings.Normalize();
-        Assert(settings.BackgroundResource == "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
-            "event CG background falls back to the migrated bundled resource");
-        Assert(settings.BaseWidth == 1 && settings.BaseHeight == 1,
-            "event CG dimensions are clamped positive");
-        Assert(settings.FadeIn == 0f && Math.Abs(settings.Hold - 30f) < 0.001f && Math.Abs(settings.FadeOut - 5f) < 0.001f,
-            "event CG timing is clamped");
-        Assert(settings.SpecialBattleIds.SequenceEqual(new[] { "boss-a", "boss-b" }, StringComparer.OrdinalIgnoreCase),
-            "special battle ids are trimmed and deduplicated");
+        Assert(settings.SchemaVersion == 2
+               && settings.Scenes.Count == AuraToolsEventCgSceneIds.All.Length,
+            "event CG migration creates one independent profile for every player-facing scene");
+        var opening = settings.GetScene(AuraToolsEventCgSceneIds.BattleOpening);
+        Assert(opening.EffectiveBackgroundResource == AuraToolsEventCgSettings.DefaultBackgroundResource,
+            "event CG profiles inherit the AuraToolsExp background without storing it as a local override");
+        Assert(opening.EffectiveBaseWidth == 1 && opening.EffectiveBaseHeight == 1,
+            "migrated event CG dimensions are clamped positive per scene");
+        Assert(opening.EffectiveFadeIn == 0f
+               && Math.Abs(opening.EffectiveHold - 30f) < 0.001f
+               && Math.Abs(opening.EffectiveFadeOut - 5f) < 0.001f,
+            "migrated event CG timing is clamped per scene");
+        Assert(opening.BattleIds.SequenceEqual(new[] { "boss-a", "boss-b" }, StringComparer.OrdinalIgnoreCase),
+            "legacy special battle ids migrate only into the battle-opening profile");
+        var serialized = JsonConvert.SerializeObject(settings);
+        Assert(serialized.Contains("\"scenes\"", StringComparison.Ordinal)
+               && !serialized.Contains("specialBattleIds", StringComparison.Ordinal)
+               && !serialized.Contains("backgroundResource\":\"Mods/AuraToolsExp", StringComparison.Ordinal),
+            "event CG writes only the final scene-profile schema and omits inherited default paths");
 
         var damageSettings = JsonConvert.DeserializeObject<DamageMeterSettings>(
             "{\"settlementCg\":{\"enabled\":false,\"syncRemote\":false,\"backgroundResource\":\"legacy.png\",\"baseWidth\":1200,\"baseHeight\":700,\"fadeIn\":0.2,\"hold\":4,\"fadeOut\":0.6}}")!;
@@ -840,13 +847,88 @@ internal static partial class AuraToolsTestSuite
             "legacy damage settlement settings migrate exactly once into event CG");
         Assert(!roleCg.EventCg.Enabled
                && !roleCg.EventCg.SyncRemote
-               && roleCg.EventCg.BackgroundResource == "legacy.png"
-               && roleCg.EventCg.BaseWidth == 1200
-               && roleCg.EventCg.BaseHeight == 700,
+               && roleCg.EventCg.GetScene(AuraToolsEventCgSceneIds.AdventureSettlement).EffectiveBackgroundResource == "legacy.png"
+               && roleCg.EventCg.GetScene(AuraToolsEventCgSceneIds.AdventureSettlement).EffectiveBaseWidth == 1200
+               && roleCg.EventCg.GetScene(AuraToolsEventCgSceneIds.AdventureSettlement).EffectiveBaseHeight == 700,
             "legacy presentation choices survive the bounded migration");
         Assert(!roleCg.TryImportLegacySettlementCg(damageSettings.TakeLegacySettlementCg())
                && !JsonConvert.SerializeObject(damageSettings).Contains("settlementCg", StringComparison.Ordinal),
             "the retired damage settlement configuration is consumed and never re-serialized");
+
+        var legacyRoleCg = JsonConvert.DeserializeObject<AuraToolsSkillCgSettings>(
+            "{\"schemaVersion\":7,\"roles\":{\"career_1\":{\"enabled\":true,\"roleId\":\"career_1\",\"rules\":[{\"enabled\":false,\"sourceOwnerModId\":\"Example\",\"sourceCgId\":\"registered\",\"cardId\":\"careercard_1\",\"image\":\"registered.png\"},{\"enabled\":true,\"providerId\":\"legacy.manual\",\"cardId\":\"careercard_1\",\"image\":\"manual.png\"}]}}}")!;
+        legacyRoleCg.Normalize();
+        Assert(legacyRoleCg.SchemaVersion == 9
+               && legacyRoleCg.LegacyRoleRulesMigrated
+               && legacyRoleCg.Roles.Count == 0
+               && legacyRoleCg.RoleEntries.ContainsKey("Example:registered")
+               && legacyRoleCg.ManualRoleEntries.Count == 1
+               && legacyRoleCg.GetRoleSelection(
+                   "career_1",
+                   AuraToolsRoleCgContextKeys.SkillChannel,
+                   "careercard_1") == "AuraToolsExp:user.legacy.career_1.2",
+            "legacy copied registrations become context selections while genuine manual rules become user-owned entries");
+        var legacyRoleJson = JObject.Parse(JsonConvert.SerializeObject(legacyRoleCg));
+        Assert(legacyRoleJson["roles"] == null,
+            "the retired role-rule writer is removed after one-way migration");
+        Assert(legacyRoleJson["roleEntries"]?["Example:registered"]?["enabled"] == null,
+            "role entry overrides no longer serialize the retired global activation flag");
+    }
+
+    public static void TestCgOutcomeReasonPolicy()
+    {
+        Assert(AuraToolsCgOutcomeReasonPolicy.ResolveEscape(true) == AuraToolsEventCgOutcomeReasons.MidasEscape,
+            "a point-gold escape is classified as its successful victory reason");
+        Assert(AuraToolsCgOutcomeReasonPolicy.ResolveEscape(false) == AuraToolsEventCgOutcomeReasons.Escape,
+            "an ordinary escape is not classified as battle defeat");
+        Assert(AuraToolsCgOutcomeReasonPolicy.ResolveWin(true, false) == AuraToolsEventCgOutcomeReasons.RitualVictory,
+            "ritual victory keeps its semantic reason");
+        Assert(AuraToolsCgOutcomeReasonPolicy.ResolveWin(false, true) == AuraToolsEventCgOutcomeReasons.CurseVictory,
+            "curse victory keeps its semantic reason");
+        Assert(AuraToolsCgOutcomeReasonPolicy.ResolveWin(false, false) == AuraToolsEventCgOutcomeReasons.StandardVictory,
+            "unclassified wins use the normal victory scene");
+    }
+
+    public static void TestRoleCgContextSelections()
+    {
+        var settings = new AuraToolsSkillCgSettings();
+        settings.SetRoleSelection("Career_1", AuraToolsRoleCgContextKeys.SkillChannel, "*", "Example:wildcard");
+        Assert(settings.GetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_1")
+               == "Example:wildcard",
+            "a migrated wildcard skill selection is inherited by concrete skills for the same role");
+
+        settings.SetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_1", "Example:exact");
+        Assert(settings.GetRoleSelection("CAREER_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_1")
+               == "Example:exact",
+            "an exact role-and-skill selection overrides the wildcard fallback without affecting other skills");
+        settings.ResetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_1");
+        Assert(settings.GetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_1")
+               == "Example:wildcard",
+            "resetting an exact role CG selection reveals its inherited wildcard preference");
+        settings.ResetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_2");
+        Assert(settings.GetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_2") == "",
+            "resetting a context with only a wildcard preference restores manifest defaults");
+
+        settings.SetRoleSelection(
+            "career_1",
+            AuraToolsRoleCgContextKeys.SkillChannel,
+            "careercard_3",
+            AuraToolsRoleCgContextKeys.NoneSelectionCgId);
+        Assert(settings.GetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_3")
+               == AuraToolsRoleCgContextKeys.NoneSelectionCgId,
+            "an explicitly disabled legacy context remains distinct from an unset manifest-default context");
+    }
+
+    public static void TestCgSettingsLayoutBudgets()
+    {
+        foreach (var viewport in new[] { (Width: 922f, Height: 838f), (Width: 1280f, Height: 720f) })
+        {
+            var budget = AuraToolsCgSettingsLayoutPolicy.Evaluate(viewport.Width, viewport.Height);
+            Assert(budget.Fits,
+                "role and event CG single-context layouts fit viewport "
+                + viewport.Width + "x" + viewport.Height
+                + " without a permanent side rail or nested scroll area");
+        }
     }
     
     public static void TestTeamScenePlanning()

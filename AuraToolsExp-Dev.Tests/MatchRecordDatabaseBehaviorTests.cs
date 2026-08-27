@@ -1,426 +1,20 @@
 using AuraToolsExp.Dll.Features.DamageMeter.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 internal static partial class AuraToolsTestSuite
 {
     public static void TestMatchRecordDatabase()
     {
-        var root = Path.Combine(Path.GetTempPath(), "AuraTools-MatchRecordsV11-" + Guid.NewGuid().ToString("N"));
-        var path = Path.Combine(root, "MatchRecords.sqlite3");
+        var root = Path.Combine(Path.GetTempPath(), "AuraTools-MatchRecordsV12-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
-            var database = new MatchRecordDatabase(path);
-            database.Initialize();
-            var document = ReplayV11Document("record-v11");
-            Assert(ReplayDocumentFinalizerV11.FinalizeAndValidate(document).IsValid,
-                "test Replay Document v11 finalizes before storage");
-            var record = Summary(document);
-            var analysis = MatchAnalysisBuilder.BuildV11(record, document);
-            Assert(database.SaveV11(record, document, analysis),
-                "SQLite stores the v11 summary, document, timeline, checkpoints, and analysis atomically");
-            var loaded = database.LoadV11(record.RecordId);
-            Assert(loaded != null
-                   && loaded.Header.DocumentVersion == 11
-                   && loaded.Header.DocumentSha256 == document.Header.DocumentSha256
-                   && loaded.Events.Count == document.Events.Count
-                   && ReplayDocumentValidatorV11.Validate(loaded).IsValid,
-                "stored Replay Document v11 reloads through checksum-verified timeline chunks");
-            Assert(database.Get(record.RecordId)?.ReplayProtocol == 11
-                   && database.GetAnalysis(record.RecordId)?.TotalDamage == analysis.TotalDamage,
-                "battle summaries and analysis remain independently queryable");
-
-            var summaryOnly = Summary(ReplayV11Document("summary-only"));
-            summaryOnly.ReplayState = MatchReplayStates.SummaryOnly;
-            Assert(database.SaveSummaryV11(summaryOnly, new MatchAnalysisReport { RecordId = summaryOnly.RecordId }),
-                "a failed recording can retain statistics without manufacturing a playable replay");
-            Assert(database.LoadV11(summaryOnly.RecordId) == null
-                   && database.Get(summaryOnly.RecordId)?.ReplayState == MatchReplayStates.SummaryOnly,
-                "summary-only rows are never exposed as Replay Document v11");
-
-            var rejectedDocument = ReplayV11Document("rejected-v11");
-            rejectedDocument.Events[0].Audio.Add(new ReplayAudioCueV11
-            {
-                NativeResourceId = "Sounds/missing-effect",
-                ResolutionPolicy = "embedded-required",
-                Kind = "Effect",
-                Bus = "Effect"
-            });
-            Assert(!ReplayDocumentFinalizerV11.FinalizeAndValidate(rejectedDocument).IsValid,
-                "test capture draft reproduces a strict missing-PCM rejection");
-            var rejectedRecord = Summary(rejectedDocument);
-            rejectedRecord.CaptureDiagnostics.Add("required replay audio capture failed [get-data-returned-false]");
-            Assert(database.SaveRejectedV11(rejectedRecord, rejectedDocument),
-                "a rejected capture preserves its bounded v11 document and timeline as a non-playable diagnostic draft");
-            using (var rejected = new WinSqliteConnection(path))
-            using (var state = rejected.Prepare(
-                       "SELECT document_state, (SELECT COUNT(*) FROM replay_timeline_chunks WHERE record_id=?) "
-                       + "FROM replay_documents WHERE record_id=?;"))
-            {
-                state.Bind(1, rejectedRecord.RecordId);
-                state.Bind(2, rejectedRecord.RecordId);
-                Assert(state.Read()
-                       && state.Text(0) == "Rejected"
-                       && state.Int64(1) > 0
-                       && database.LoadV11(rejectedRecord.RecordId) == null
-                       && database.Get(rejectedRecord.RecordId)?.ReplayState == MatchReplayStates.SummaryOnly,
-                    "rejected diagnostic drafts retain evidence but never enter the playable v11 runtime");
-            }
-            Assert(database.UpdateReplayState(summaryOnly.RecordId, MatchReplayStates.Incomplete),
-                "test can reproduce the pre-fix incomplete-without-document state");
-            var reopened = new MatchRecordDatabase(path);
-            reopened.Initialize();
-            Assert(reopened.Get(summaryOnly.RecordId)?.ReplayState == MatchReplayStates.SummaryOnly,
-                "startup migration reclassifies v11 rows without a document as summary-only");
-
-            var job = new MatchReplayExportJob
-            {
-                JobId = "job-v11",
-                RecordId = record.RecordId,
-                State = MatchReplayExportStates.Planned,
-                CreatedUtc = "2026-08-20T00:00:00Z",
-                StagingPath = Path.Combine(root, "job.partial.mp4"),
-                TargetPath = Path.Combine(root, "job.mp4"),
-                ProfileId = "profile",
-                Width = 1280,
-                Height = 720,
-                FramesPerSecond = 30,
-                FrameCount = 60
-            };
-            database.CreateExportJob(job);
-            job.State = MatchReplayExportStates.Committing;
-            job.OutputSha256 = new string('b', 64);
-            Assert(database.UpdateExportJob(job), "export task state transitions use revision compare-and-swap");
-            var asset = new MatchMediaAsset
-            {
-                MediaId = job.JobId,
-                RecordId = job.RecordId,
-                Format = "MP4",
-                FilePath = "Media/record-v11/job.mp4",
-                CreatedUtc = "2026-08-20T00:01:00Z",
-                DurationMilliseconds = 2000,
-                Width = 1280,
-                Height = 720,
-                FramesPerSecond = 30,
-                FileBytes = 1234,
-                Sha256 = job.OutputSha256,
-                TimelineJson = "[]"
-            };
-            job.Message = "ready";
-            Assert(database.CommitExportMedia(job, asset)
-                   && database.LoadExportJob(job.JobId)?.State == MatchReplayExportStates.Ready
-                   && database.LoadMedia(record.RecordId).Single().Format == "MP4",
-                "media registration and Ready job transition commit in one SQLite transaction");
-
-            var legacyEvents = new List<MatchReplayEvent>
-            {
-                new() { Sequence = 1, TurnIndex = 1, Kind = MatchReplayEventKinds.ActionFrame }
-            };
-            var legacyChunks = MatchReplayChunker.Build(legacyEvents, 32 * 1024);
-            var legacy = new MatchRecord
-            {
-                RecordId = "legacy-v9",
-                SessionId = "legacy-v9",
-                LevelId = "legacy",
-                ReplayProtocol = 9,
-                ReplayState = MatchReplayStates.Ready,
-                StatisticsJson = "{\"total\":42}",
-                InitialState = new MatchReplayInitialState { LevelId = "legacy" }
-            };
-            Assert(database.Save(legacy, legacyChunks)
-                   && database.LoadLegacyReplayIds().SequenceEqual(new[] { legacy.RecordId }),
-                "the isolated migration boundary can inventory legacy rows without playing them");
-            database.SaveMigrationScan("migration-test", "report.json", new string('c', 64), 1, legacyChunks.Sum(item => item.Payload.Length));
-            database.ApplyLegacyReplayCleanup(new[] { legacy.RecordId }, "migration-test");
-            Assert(database.LoadLegacyReplayIds().Count == 0
-                   && database.LoadChunks(legacy.RecordId).Count == 0
-                   && database.Get(legacy.RecordId)?.ReplayState == MatchReplayStates.SummaryOnly
-                   && database.Get(legacy.RecordId)?.StatisticsJson.Contains("42", StringComparison.Ordinal) == true,
-                "authorized legacy cleanup removes old chunks while preserving statistics as analysis-only v11 metadata");
-
-            using (var connection = new WinSqliteConnection(path))
-            using (var version = connection.Prepare("PRAGMA user_version;"))
-            {
-                Assert(version.Read() && version.Int64(0) == MatchRecordsDatabaseMigrator.CurrentVersion,
-                    "the shared database records the v11 schema migration version");
-            }
-            Assert(database.Delete(record.RecordId)
-                   && database.LoadV11(record.RecordId) == null
-                   && database.LoadMedia(record.RecordId).Count == 0,
-                "deleting a match removes its v11 document, media rows, chunks, and task rows");
-
-            var cutoverPath = Path.Combine(root, "legacy-v10.sqlite3");
-            using (var legacyConnection = new WinSqliteConnection(cutoverPath))
-            {
-                legacyConnection.Execute("CREATE TABLE replay_documents(record_id TEXT PRIMARY KEY, document_version INTEGER NOT NULL CHECK(document_version=10));");
-                legacyConnection.Execute("INSERT INTO replay_documents(record_id, document_version) VALUES('old-v10', 10);");
-            }
-            var cutover = new MatchRecordDatabase(cutoverPath);
-            cutover.Initialize();
-            using (var migrated = new WinSqliteConnection(cutoverPath))
-            using (var schema = migrated.Prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='replay_documents';"))
-            using (var migration = migrated.Prepare("SELECT state, record_count FROM replay_migrations WHERE migration_id='replay-v10-to-v11-native-cutover';"))
-            {
-                Assert(schema.Read()
-                       && schema.Text(0).Replace(" ", "").Contains("document_version=11", StringComparison.Ordinal)
-                       && migration.Read()
-                       && migration.Text(0) == "Applied"
-                       && migration.Int64(1) == 1,
-                    "startup performs the one-way v10 synthetic-document to v11 native schema cutover");
-            }
-
-            var emptyBootstrapPath = Path.Combine(root, "empty-bootstrap-v4.sqlite3");
-            var emptyBootstrapSeed = new MatchRecordDatabase(emptyBootstrapPath);
-            emptyBootstrapSeed.Initialize();
-            var emptyBootstrapDocument = ReplayV11PreMaterializedDocument("empty-bootstrap-v11");
-            var retainedBgmHash = emptyBootstrapDocument.Attachments.Single(value => value.Usage == "BattleBgm").Sha256;
-            var removedEffectHash = emptyBootstrapDocument.Attachments.Single(value => value.Usage == "SetupEffect").Sha256;
-            var emptyBootstrapRecord = Summary(emptyBootstrapDocument);
-            Assert(emptyBootstrapSeed.SaveRejectedV11(emptyBootstrapRecord, emptyBootstrapDocument),
-                "test database can seed the formerly Ready-compatible empty-baseline v11 shape");
-            using (var seed = new WinSqliteConnection(emptyBootstrapPath))
-            {
-                using (var readyRecord = seed.Prepare(
-                           "UPDATE battle_records SET replay_state='Ready' WHERE record_id=?;"))
-                {
-                    readyRecord.Bind(1, emptyBootstrapRecord.RecordId);
-                    readyRecord.Execute();
-                }
-                using (var readyDocument = seed.Prepare(
-                           "UPDATE replay_documents SET document_state='Ready' WHERE record_id=?;"))
-                {
-                    readyDocument.Bind(1, emptyBootstrapRecord.RecordId);
-                    readyDocument.Execute();
-                }
-                seed.Execute(
-                    "DELETE FROM replay_migrations WHERE migration_id='replay-v11-empty-bootstrap-to-materialized-baseline';");
-                seed.Execute("PRAGMA user_version=4;");
-            }
-
-            var migratedEmptyBootstrap = new MatchRecordDatabase(emptyBootstrapPath);
-            migratedEmptyBootstrap.Initialize();
-            var migratedDocument = migratedEmptyBootstrap.LoadV11(emptyBootstrapRecord.RecordId);
-            var migratedRecord = migratedEmptyBootstrap.Get(emptyBootstrapRecord.RecordId);
-            using (var migratedConnection = new WinSqliteConnection(emptyBootstrapPath))
-            using (var migration = migratedConnection.Prepare(
-                       "SELECT state, record_count FROM replay_migrations "
-                       + "WHERE migration_id='replay-v11-empty-bootstrap-to-materialized-baseline';"))
-            using (var version = migratedConnection.Prepare("PRAGMA user_version;"))
-            {
-                Assert(migratedDocument != null
-                       && ReplayDocumentValidatorV11.Validate(migratedDocument).IsValid
-                       && ReplayPlayableBootstrapContractV11.ValidateState(migratedDocument.InitialState).Count == 0
-                       && migratedDocument.Events.First().Audio.Single().Kind == "BattleBgm"
-                       && migratedDocument.Events.Skip(1).First().EventType == ReplayEventTypesV11.ActionStarted
-                       && migratedRecord?.ReplayState == MatchReplayStates.Ready
-                       && migratedRecord.InitialState.BaselineState == null
-                       && migratedRecord.CaptureDiagnostics.Any(value =>
-                           value.Contains("replay-v11-empty-bootstrap-to-materialized-baseline", StringComparison.Ordinal))
-                       && migration.Read()
-                       && migration.Text(0) == "Applied"
-                       && migration.Int64(1) == 1
-                       && version.Read()
-                       && version.Int64(0) == MatchRecordsDatabaseMigrator.CurrentVersion,
-                    "v5 startup transactionally rebases retained empty-baseline Ready records and records the cutover");
-            }
-            Assert(File.Exists(Path.Combine(root, "Attachments", retainedBgmHash + ".wav"))
-                   && !File.Exists(Path.Combine(root, "Attachments", removedEffectHash + ".wav")),
-                "v5 migration retains referenced BGM and deletes the unpaired pre-materialization effect attachment");
-            Assert(Directory.GetFiles(root, "empty-bootstrap-v4.sqlite3.backup-v4-*").Length == 1,
-                "the materialized-baseline data migration preserves a pre-upgrade v4 database backup");
-
-            var emptyTagPath = Path.Combine(root, "empty-tag-v5.sqlite3");
-            var emptyTagSeed = new MatchRecordDatabase(emptyTagPath);
-            emptyTagSeed.Initialize();
-            var emptyTagDocument = ReplayV11Document("empty-tag-v11");
-            emptyTagDocument.InitialState.Cards[0].Values.RemoveAll(value =>
-                value.Key == ReplayCardPresentationContractV11.TagKey);
-            ReplayDocumentFinalizerV11.FinalizeAndValidate(emptyTagDocument);
-            var emptyTagRecord = Summary(emptyTagDocument);
-            Assert(emptyTagSeed.SaveRejectedV11(emptyTagRecord, emptyTagDocument),
-                "test database can seed the formerly Ready-compatible sparse card presentation shape");
-            using (var seed = new WinSqliteConnection(emptyTagPath))
-            {
-                using (var readyRecord = seed.Prepare(
-                           "UPDATE battle_records SET replay_state='Ready' WHERE record_id=?;"))
-                {
-                    readyRecord.Bind(1, emptyTagRecord.RecordId);
-                    readyRecord.Execute();
-                }
-                using (var readyDocument = seed.Prepare(
-                           "UPDATE replay_documents SET document_state='Ready' WHERE record_id=?;"))
-                {
-                    readyDocument.Bind(1, emptyTagRecord.RecordId);
-                    readyDocument.Execute();
-                }
-                seed.Execute(
-                    "DELETE FROM replay_migrations WHERE migration_id='replay-v11-card-presentation-empty-tag';");
-                seed.Execute("PRAGMA user_version=5;");
-            }
-
-            var corruptEmptyTagPath = Path.Combine(root, "corrupt-empty-tag-v5.sqlite3");
-            File.Copy(emptyTagPath, corruptEmptyTagPath);
-            using (var corruptSeed = new WinSqliteConnection(corruptEmptyTagPath))
-            {
-                using var corruptHash = corruptSeed.Prepare(
-                    "UPDATE replay_documents SET document_sha256='tampered' WHERE record_id=?;");
-                corruptHash.Bind(1, emptyTagRecord.RecordId);
-                corruptHash.Execute();
-            }
-
-            var migratedEmptyTag = new MatchRecordDatabase(emptyTagPath);
-            migratedEmptyTag.Initialize();
-            var repairedTagDocument = migratedEmptyTag.LoadV11(emptyTagRecord.RecordId);
-            var repairedTagRecord = migratedEmptyTag.Get(emptyTagRecord.RecordId);
-            using (var migratedConnection = new WinSqliteConnection(emptyTagPath))
-            using (var migration = migratedConnection.Prepare(
-                       "SELECT state, record_count FROM replay_migrations "
-                       + "WHERE migration_id='replay-v11-card-presentation-empty-tag';"))
-            using (var version = migratedConnection.Prepare("PRAGMA user_version;"))
-            {
-                Assert(repairedTagDocument != null
-                       && ReplayDocumentValidatorV11.Validate(repairedTagDocument).IsValid
-                       && repairedTagDocument.InitialState.Cards[0].Values.Any(value =>
-                           value.Key == ReplayCardPresentationContractV11.TagKey && value.Value == "")
-                       && repairedTagRecord?.ReplayState == MatchReplayStates.Ready
-                       && repairedTagRecord.CaptureDiagnostics.Any(value =>
-                           value.Contains("replay-v11-card-presentation-empty-tag", StringComparison.Ordinal))
-                       && migration.Read()
-                       && migration.Text(0) == "Applied"
-                       && migration.Int64(1) == 1
-                       && version.Read()
-                       && version.Int64(0) == MatchRecordsDatabaseMigrator.CurrentVersion,
-                    "v6 startup repairs sparse empty-Tag card snapshots and keeps retained Ready replays playable");
-            }
-            Assert(Directory.GetFiles(root, "empty-tag-v5.sqlite3.backup-v5-*").Length == 1,
-                "the v6 card-presentation migration preserves a pre-upgrade v5 database backup");
-
-            var corruptEmptyTag = new MatchRecordDatabase(corruptEmptyTagPath);
-            corruptEmptyTag.Initialize();
-            var corruptEmptyTagRecord = corruptEmptyTag.Get(emptyTagRecord.RecordId);
-            using (var corruptConnection = new WinSqliteConnection(corruptEmptyTagPath))
-            using (var corruptDocument = corruptConnection.Prepare(
-                       "SELECT document_state FROM replay_documents WHERE record_id=?;"))
-            {
-                corruptDocument.Bind(1, emptyTagRecord.RecordId);
-                Assert(corruptEmptyTagRecord?.ReplayState == MatchReplayStates.Corrupt
-                       && corruptDocument.Read()
-                       && corruptDocument.Text(0) == "Corrupt"
-                       && corruptEmptyTagRecord.CaptureDiagnostics.Any(value =>
-                           value.Contains("hash is invalid before migration", StringComparison.Ordinal)),
-                    "v6 refuses to launder a tampered Ready document while repairing a missing Tag");
-            }
-
-            var legacyPcmPath = Path.Combine(root, "legacy-pcm-v6.sqlite3");
-            var legacyPcmSeed = new MatchRecordDatabase(legacyPcmPath);
-            legacyPcmSeed.Initialize();
-            var legacyPcmDocument = ReplayV11Document("legacy-pcm-v11");
-            var legacyWave = ReplayPcm16WaveContractV11.BuildPayload(
-                new[] { new byte[8] },
-                sampleFrames: 2,
-                channels: 2,
-                sampleRate: 48_000);
-            legacyWave[34] = 0;
-            legacyWave[35] = 0;
-            var legacyWaveHash = ReplayCanonicalJsonV11.Sha256(legacyWave);
-            Assert(ReplayPcm16WaveContractV11.TryRepairLegacyMissingBits(
-                    legacyWave,
-                    out var expectedRepairedWave,
-                    out _,
-                    out _),
-                "the database migration fixture is a bounded missing-bits WAV");
-            var repairedWaveHash = ReplayCanonicalJsonV11.Sha256(expectedRepairedWave);
-            legacyPcmDocument.Attachments.Add(new ReplayAttachmentV11
-            {
-                Sha256 = legacyWaveHash,
-                MediaType = "audio/wav",
-                Extension = ".wav",
-                Usage = "BattleBgm",
-                ByteLength = legacyWave.Length,
-                SampleRate = 48_000,
-                Channels = 2,
-                SampleFrames = 2,
-                Required = true,
-                Payload = legacyWave
-            });
-            legacyPcmDocument.Events[0].Audio.Add(new ReplayAudioCueV11
-            {
-                AssetSha256 = legacyWaveHash,
-                NativeResourceId = "Sounds/test-bgm",
-                ResolutionPolicy = "embedded-required",
-                Kind = "BattleBgm",
-                Bus = "Bgm",
-                DurationSamples = 2
-            });
-            Assert(!ReplayDocumentFinalizerV11.FinalizeAndValidate(legacyPcmDocument).IsValid,
-                "the old writer's zero-bit WAV is rejected by the final PCM contract");
-            var legacyPcmRecord = Summary(legacyPcmDocument);
-            Assert(legacyPcmSeed.SaveRejectedV11(legacyPcmRecord, legacyPcmDocument),
-                "test database can seed the legacy malformed WAV document without bypassing production storage");
-            using (var seed = new WinSqliteConnection(legacyPcmPath))
-            {
-                using (var readyRecord = seed.Prepare(
-                           "UPDATE battle_records SET replay_state='Ready' WHERE record_id=?;"))
-                {
-                    readyRecord.Bind(1, legacyPcmRecord.RecordId);
-                    readyRecord.Execute();
-                }
-                using (var readyDocument = seed.Prepare(
-                           "UPDATE replay_documents SET document_state='Ready' WHERE record_id=?;"))
-                {
-                    readyDocument.Bind(1, legacyPcmRecord.RecordId);
-                    readyDocument.Execute();
-                }
-                seed.Execute(
-                    "DELETE FROM replay_migrations WHERE migration_id='replay-v11-pcm16-wave-header';");
-                seed.Execute("PRAGMA user_version=6;");
-            }
-
-            var migratedPcm = new MatchRecordDatabase(legacyPcmPath);
-            migratedPcm.Initialize();
-            var repairedPcmDocument = migratedPcm.LoadV11(legacyPcmRecord.RecordId, loadAttachmentPayloads: true);
-            var repairedPcmRecord = migratedPcm.Get(legacyPcmRecord.RecordId);
-            var repairedPcmPath = Path.Combine(root, "Attachments", repairedWaveHash + ".wav");
-            var archivedLegacyPcmPath = Path.Combine(
-                root,
-                "Quarantine",
-                "Attachments",
-                legacyWaveHash + ".wav.legacy-pcm-v6");
-            using (var migratedConnection = new WinSqliteConnection(legacyPcmPath))
-            using (var migration = migratedConnection.Prepare(
-                       "SELECT state, record_count FROM replay_migrations "
-                       + "WHERE migration_id='replay-v11-pcm16-wave-header';"))
-            using (var reference = migratedConnection.Prepare(
-                       "SELECT asset_sha256 FROM replay_asset_refs WHERE record_id=? AND usage='BattleBgm';"))
-            {
-                reference.Bind(1, legacyPcmRecord.RecordId);
-                Assert(repairedPcmDocument != null
-                       && ReplayDocumentValidatorV11.Validate(repairedPcmDocument).IsValid
-                       && repairedPcmDocument.Events[0].Audio.Single().AssetSha256 == repairedWaveHash
-                       && repairedPcmDocument.Attachments.Single().Sha256 == repairedWaveHash
-                       && ReplayPcm16WaveContractV11.TryRead(
-                           repairedPcmDocument.Attachments.Single().Payload,
-                           out var repairedWaveInfo,
-                           out _)
-                       && repairedWaveInfo.BitsPerSample == 16
-                       && repairedPcmRecord?.ReplayState == MatchReplayStates.Ready
-                       && repairedPcmRecord.CaptureDiagnostics.Any(value =>
-                           value.Contains("replay-v11-pcm16-wave-header", StringComparison.Ordinal))
-                       && migration.Read()
-                       && migration.Text(0) == "Applied"
-                       && migration.Int64(1) == 1
-                       && reference.Read()
-                       && reference.Text(0) == repairedWaveHash
-                       && File.Exists(repairedPcmPath)
-                       && File.Exists(archivedLegacyPcmPath)
-                       && !File.Exists(Path.Combine(root, "Attachments", legacyWaveHash + ".wav")),
-                    "v7 atomically rewrites PCM content ids, replay hashes and refs while archiving the old WAV");
-            }
-            Assert(Directory.GetFiles(root, "legacy-pcm-v6.sqlite3.backup-v6-*").Length == 1,
-                "the v7 PCM migration preserves a pre-upgrade v6 database backup");
+            TestV12Storage(root);
+            TestV12CutoverIdempotence(root);
+            TestPreV12Cutover(root);
         }
         finally
         {
@@ -428,25 +22,239 @@ internal static partial class AuraToolsTestSuite
         }
     }
 
-    private static MatchRecord Summary(ReplayDocumentV11 document)
+    private static void TestV12CutoverIdempotence(string root)
     {
-        return new MatchRecord
-        {
-            RecordId = document.Header.RecordId,
-            SessionId = document.Header.SessionId,
-            AdventureId = document.Header.AdventureId,
-            LevelId = document.Header.LevelId,
-            Result = document.Header.Result,
-            StartedUtc = document.Header.StartedUtc,
-            EndedUtc = document.Header.EndedUtc,
-            Collection = MatchRecordCollections.Auto,
-            ReplayProtocol = 11,
-            ReplayState = MatchReplayStates.Ready,
-            GameBuild = document.Header.GameBuild,
-            ToolBuild = document.Header.ToolBuild,
-            EventCount = document.Events.Count,
-            TurnCount = document.Events.Max(item => item.TurnIndex),
-            ContentSha256 = document.Header.DocumentSha256
-        };
+        var path = Path.Combine(root, "v12-cutover-idempotence.db");
+        var database = new MatchRecordDatabase(path);
+        database.Initialize();
+        var envelope = BuildReplayV12("v12-survives-cutover-audit");
+        Assert(ReplayDocumentFinalizerV12.FinalizeAndValidate(envelope).IsValid
+               && database.SaveV12(Summary(envelope), envelope),
+            "v12 cutover idempotence fixture stores a current canonical replay");
+        var assetPath = database.ResolveReplayAsset(envelope.Document.Assets.Single().Sha256);
+        using (var connection = new WinSqliteConnection(path))
+            connection.Execute("DELETE FROM replay_migrations;");
+
+        var reopened = new MatchRecordDatabase(path);
+        reopened.Initialize();
+        var loaded = reopened.LoadV12(envelope.Document.Header.RecordId, loadAssetPayloads: true);
+        Assert(loaded != null
+               && loaded.DeclaredDocumentRoot == envelope.DeclaredDocumentRoot
+               && File.Exists(assetPath)
+               && ReplayDocumentValidatorV12.Validate(loaded).IsValid,
+            "rerunning the cutover audit never drops an already-valid v12 document or its shared asset");
     }
+
+    private static void TestV12Storage(string root)
+    {
+        var path = Path.Combine(root, "v12.db");
+        var database = new MatchRecordDatabase(path);
+        database.Initialize();
+        var envelope = BuildReplayV12("database-v12");
+        Assert(ReplayDocumentFinalizerV12.FinalizeAndValidate(envelope).IsValid,
+            "database fixture is a valid v12 document");
+        var record = Summary(envelope);
+        var analysis = MatchAnalysisBuilder.BuildV12(record, envelope.Document);
+        Assert(database.SaveV12(record, envelope, analysis),
+            "database atomically stores a validated v12 canonical document");
+        Assert(!database.SaveV12(Summary(envelope), envelope, analysis),
+            "database rejects duplicate canonical record ids");
+
+        var loaded = database.LoadV12(record.RecordId, loadAssetPayloads: true);
+        var manifestOnly = database.LoadV12(record.RecordId, loadAssetPayloads: false);
+        Assert(loaded != null
+               && loaded.DeclaredDocumentRoot == envelope.DeclaredDocumentRoot
+               && ReplayDocumentValidatorV12.Validate(loaded).IsValid
+               && loaded.Document.TruthEvents.Count == envelope.Document.TruthEvents.Count
+               && loaded.Document.PresentationEvents.Count == envelope.Document.PresentationEvents.Count
+               && loaded.Document.Assets.Single().Payload.SequenceEqual(envelope.Document.Assets.Single().Payload),
+            "database restores both journal lanes, paired checkpoints, and content-addressed assets");
+        Assert(manifestOnly != null
+               && manifestOnly.Document.Assets.Single().Payload.Length == 0
+               && ReplayDocumentValidatorV12.Validate(manifestOnly).IsValid,
+            "canonical validation depends on the asset manifest and remains valid without loading large payload bytes");
+        Assert(database.GetAnalysis(record.RecordId)?.RecordId == record.RecordId
+               && database.ContainsContentHash(envelope.DeclaredDocumentRoot),
+            "analysis and canonical document root remain queryable beside the replay");
+
+        var privateAssetBytes = ReplayTestPngBytes();
+        var privateAssetHash = ReplayCanonicalJsonV12.Sha256(privateAssetBytes);
+        var sidecar = new ReplayPovSidecarV12
+        {
+            ParentDocumentRoot = envelope.DeclaredDocumentRoot,
+            PlayerId = "local-player",
+            Events = new List<ReplayPovEventV12>
+            {
+                new()
+                {
+                    CanonicalSequence = envelope.Document.TruthEvents.First().Sequence,
+                    TransactionId = envelope.Document.TruthEvents.First().TransactionId,
+                    StepOrdinal = envelope.Document.TruthEvents.First().StepOrdinal,
+                    Kind = ReplayPovEventKindsV12.UpsertPrivateCard,
+                    Card = new ReplayPublicCardStateV12
+                    {
+                        CardInstanceId = "private-card",
+                        DescriptorId = "private-card-desc",
+                        OwnerPlayerId = "local-player",
+                        Zone = "Hand"
+                    }
+                }
+            },
+            PrivateCards = new List<ReplayCardDescriptorV12>
+            {
+                new()
+                {
+                    DescriptorId = "private-card-desc",
+                    Name = "Private Card",
+                    ArtworkAssetSha256 = privateAssetHash
+                }
+            },
+            Assets = new List<ReplayAssetV12>
+            {
+                new()
+                {
+                    Sha256 = privateAssetHash,
+                    MediaType = "image/png",
+                    Extension = ".png",
+                    Usage = "Pov.Card.Artwork",
+                    ByteLength = privateAssetBytes.Length,
+                    Width = 1,
+                    Height = 1,
+                    Payload = privateAssetBytes
+                }
+            }
+        };
+        ReplayPovContractV12.Finalize(sidecar);
+        database.SavePovV12(record.RecordId, sidecar);
+        var loadedPov = database.LoadFirstPovV12(record.RecordId);
+        var loadedPovWithAssets = database.LoadPovV12(record.RecordId, "local-player", loadAssetPayloads: true);
+        Assert(loadedPov != null
+               && loadedPov.ParentDocumentRoot == envelope.DeclaredDocumentRoot
+               && loadedPov.Assets.Single().Payload.Length == 0
+               && ReplayPovContractV12.Validate(loadedPov, requirePayloads: false) == ""
+               && loadedPovWithAssets?.Assets.Single().Payload.SequenceEqual(privateAssetBytes) == true
+               && ReplayPovContractV12.Validate(loadedPovWithAssets, requirePayloads: true) == "",
+            "POV sidecar is independently hashed and points only to its parent document root");
+
+        var rejected = new MatchRecord
+        {
+            RecordId = "rejected-v12",
+            SessionId = "rejected-v12",
+            LevelId = "level-test",
+            ReplayProtocol = ReplayProtocolV12.DocumentVersion
+        };
+        Assert(database.SaveSummaryV12(rejected, MatchAnalysisBuilder.BuildSummary(rejected), rejected: true)
+               && database.Get(rejected.RecordId)?.ReplayState == MatchReplayStates.Rejected
+               && database.LoadV12(rejected.RecordId) == null,
+            "failed structured capture stores only a rejected summary and never a partial document");
+
+        var assetPath = database.ResolveReplayAsset(envelope.Document.Assets.Single().Sha256);
+        var privateAssetPath = database.ResolveReplayAsset(privateAssetHash);
+        Assert(File.Exists(assetPath)
+               && File.Exists(privateAssetPath)
+               && database.Delete(record.RecordId)
+               && !File.Exists(assetPath)
+               && !File.Exists(privateAssetPath),
+            "deleting the final canonical and POV references removes their content-addressed files");
+        Assert(MatchRecordsDatabaseMigrator.IntegrityCheck(path) == "ok",
+            "v12 storage remains SQLite-integrity clean after atomic deletion");
+    }
+
+    private static void TestPreV12Cutover(string root)
+    {
+        var path = Path.Combine(root, "cutover.db");
+        var attachmentDirectory = Path.Combine(root, "Attachments");
+        Directory.CreateDirectory(attachmentDirectory);
+        var retiredAsset = Path.Combine(attachmentDirectory, new string('a', 64) + ".bin");
+        File.WriteAllBytes(retiredAsset, new byte[] { 7, 8, 9 });
+        using (var connection = new WinSqliteConnection(path))
+        {
+            connection.Execute("CREATE TABLE battle_records(sequence INTEGER PRIMARY KEY AUTOINCREMENT, record_id TEXT UNIQUE NOT NULL, "
+                               + "adventure_id TEXT NOT NULL, session_id TEXT NOT NULL, level_id TEXT NOT NULL, result TEXT NOT NULL, "
+                               + "started_utc TEXT NOT NULL, ended_utc TEXT NOT NULL, collection_kind TEXT NOT NULL, replay_state TEXT NOT NULL, "
+                               + "replay_protocol INTEGER NOT NULL, game_build TEXT NOT NULL, tool_build TEXT NOT NULL, mod_fingerprint TEXT NOT NULL, "
+                               + "event_count INTEGER NOT NULL, turn_count INTEGER NOT NULL, compressed_bytes INTEGER NOT NULL, "
+                               + "statistics_payload BLOB NOT NULL, initial_payload BLOB NOT NULL, metadata_payload BLOB NOT NULL);");
+            var metadata = new MatchRecordMetadata
+            {
+                BattleTitle = "Retired battle",
+                ContentSha256 = new string('b', 64),
+                RequiredCapabilities = new List<string> { "old-capability" }
+            };
+            using (var insert = connection.Prepare(
+                       "INSERT INTO battle_records(record_id, adventure_id, session_id, level_id, result, started_utc, ended_utc, "
+                       + "collection_kind, replay_state, replay_protocol, game_build, tool_build, mod_fingerprint, event_count, turn_count, "
+                       + "compressed_bytes, statistics_payload, initial_payload, metadata_payload) VALUES(?, '', ?, 'old-level', 'Win', '', '', "
+                       + "'Favorite', 'Ready', 11, '', '', '', 8, 2, 999, ?, ?, ?);"))
+            {
+                insert.Bind(1, "retired-v11");
+                insert.Bind(2, "retired-v11");
+                insert.Bind(3, MatchReplayPayload.Encode("statistics-retained"));
+                insert.Bind(4, MatchReplayPayload.Encode(new MatchReplayInitialState { LevelId = "old-level" }));
+                insert.Bind(5, MatchReplayPayload.Encode(metadata));
+                insert.Execute();
+            }
+            connection.Execute("CREATE TABLE replay_chunks(record_id TEXT, chunk_index INTEGER, payload BLOB);");
+            connection.Execute("CREATE TABLE replay_assets(asset_sha256 TEXT, file_path TEXT);");
+            using var asset = connection.Prepare("INSERT INTO replay_assets(asset_sha256, file_path) VALUES(?, ?);");
+            asset.Bind(1, new string('a', 64));
+            asset.Bind(2, "Attachments/" + new string('a', 64) + ".bin");
+            asset.Execute();
+            connection.Execute("PRAGMA user_version=8;");
+        }
+
+        var migrated = new MatchRecordDatabase(path);
+        migrated.Initialize();
+        var retained = migrated.Get("retired-v11");
+        Assert(retained != null
+               && retained.ReplayProtocol == 11
+               && retained.ReplayState == MatchReplayStates.SummaryOnly
+               && retained.StatisticsJson == "statistics-retained"
+               && retained.ContentSha256 == ""
+               && retained.RequiredCapabilities.Count == 0
+               && retained.CaptureDiagnostics.Any(item => item.Contains("retired", StringComparison.Ordinal)),
+            "pre-v12 cutover retains summary and analysis inputs while removing playable identity and capabilities");
+        using (var connection = new WinSqliteConnection(path))
+        {
+            Assert(!TableExists(connection, "replay_chunks")
+                   && !TableExists(connection, "replay_timeline_chunks")
+                   && TableExists(connection, "replay_truth_chunks")
+                   && TableExists(connection, "replay_presentation_chunks")
+                   && TableExists(connection, "replay_pov_asset_refs")
+                   && MatchRecordsDatabaseMigrator.UserVersion(connection) == MatchRecordsDatabaseMigrator.CurrentVersion,
+                "cutover deletes retired replay tables and leaves only the v12 storage surface");
+            using var migration = connection.Prepare(
+                "SELECT report_path, report_sha256, record_count, chunk_bytes FROM replay_migrations WHERE state='Applied' LIMIT 1;");
+            Assert(migration.Read()
+                   && File.Exists(Path.Combine(root, migration.Text(0).Replace('/', Path.DirectorySeparatorChar)))
+                   && migration.Text(1).Length == 64
+                   && migration.Int64(2) == 1
+                   && migration.Int64(3) == 999,
+                "cutover writes and records a verified audit report before retiring structured data");
+        }
+        Assert(!File.Exists(retiredAsset),
+            "cutover deletes assets that were owned only by retired replay documents");
+    }
+
+    private static bool TableExists(WinSqliteConnection connection, string name)
+    {
+        using var query = connection.Prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1;");
+        query.Bind(1, name);
+        return query.Read();
+    }
+
+    private static MatchRecord Summary(ReplayDocumentEnvelopeV12 envelope) => new()
+    {
+        RecordId = envelope.Document.Header.RecordId,
+        SessionId = envelope.Document.Header.BattleSessionId,
+        AdventureId = envelope.Document.Header.AdventureId,
+        LevelId = envelope.Document.Header.LevelId,
+        BattleTitle = envelope.Document.Header.BattleTitle,
+        Result = envelope.Document.Header.Result,
+        StartedUtc = envelope.Document.Header.StartedUtc,
+        EndedUtc = envelope.Document.Header.EndedUtc,
+        ReplayProtocol = ReplayProtocolV12.DocumentVersion,
+        ReplayState = MatchReplayStates.Ready,
+        TurnCount = 1
+    };
 }

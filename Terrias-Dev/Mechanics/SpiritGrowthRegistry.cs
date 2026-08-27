@@ -155,6 +155,17 @@ public static class SpiritGrowthRegistry
         }
     }
 
+    public static IReadOnlyList<SpiritSpeciesGrowthProfile> RegisteredProfiles()
+    {
+        lock (SyncRoot)
+        {
+            return document.Profiles
+                .OrderBy(profile => profile.ProfileId, StringComparer.Ordinal)
+                .Select(profile => profile.Clone())
+                .ToArray();
+        }
+    }
+
     public static SpiritSpeciesTier TierFor(CapturedEnemySnapshot snapshot)
     {
         return ParseTier(Resolve(snapshot).Tier, TierFromRarity(snapshot?.Rarity ?? 1));

@@ -1,0 +1,4 @@
+{
+  "_readme": "修改后需要重启游戏。开启后，每个稳定玩家档案只会执行一次初始发放：直接新增全部 58 个精灵 Profile 对应的个体各 1 只，不检查现有收藏，也不修改编队。",
+  "GrantAllSpiritsOnFirstLoad": true
+}

@@ -325,7 +325,7 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.SaveFeastCg();
             },
             FeastCgState,
-            AuraToolsFeastRoleEditor.Show,
+            null,
             new[] { "美餐", "CG", "食物", "角色", "表现资源" },
             visible: false);
     }
@@ -613,17 +613,19 @@ internal static class AuraToolsBuiltInModules
             },
             () =>
             {
-                var count = AuraToolsConfigService.SkillCg.Roles.Values
-                    .Sum(role => role.Rules.Count);
+                var count = AuraCgRegistryRuntime.GetRegisteredEntries()
+                    .Count(entry => string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
+                                    && (entry.Signals.Contains(AuraCgSignals.RoleSkillCommitted, StringComparer.OrdinalIgnoreCase)
+                                        || entry.Signals.Contains(AuraCgSignals.RoleLowHealthCrossedDown, StringComparer.OrdinalIgnoreCase)));
                 return State(
                     AuraToolModuleIds.SkillCg,
                     AuraToolsConfigService.SkillCg.Enabled,
-                    "技能规则 " + count + " 条 · 低生命 "
+                    "角色资源 " + count + " 个 · 低生命 "
                     + Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f) + "% · 联机同步"
                     + (AuraToolsConfigService.SkillCg.SyncRemote ? "开启" : "关闭"),
                     count);
             },
-            AuraToolsSkillCgEditor.Show,
+            AuraToolsRoleCgSettingsPage.Show,
             new[] { "技能", "美餐", "低生命", "CG", "角色", "特效" });
     }
 
@@ -679,17 +681,11 @@ internal static class AuraToolsBuiltInModules
             () =>
             {
                 var settings = AuraToolsConfigService.SkillCg.EventCg;
-                var triggerCount = new[]
-                {
-                    settings.SpecialOpeningEnabled,
-                    settings.SpecialVictoryEnabled,
-                    settings.BattleDefeatEnabled,
-                    settings.AdventureSettlementEnabled
-                }.Count(value => value);
+                var triggerCount = settings.Scenes.Values.Count(scene => scene.Enabled);
                 return State(
                     AuraToolModuleIds.EventCg,
                     settings.Enabled,
-                    "事件 " + triggerCount + "/4 · 特殊战斗 " + settings.SpecialBattleIds.Count + " 条",
+                    "场景 " + triggerCount + "/" + AuraToolsEventCgSceneIds.All.Length + " · 队伍自动布局",
                     triggerCount);
             },
             AuraToolsEventCgSettingsPage.Show,

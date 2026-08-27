@@ -11,7 +11,8 @@ The player recreates the complete settings window with five tabs:
 - Key Bindings;
 - AuraTools toolbox.
 
-Build the Windows player and run twelve automated captures:
+Build the Windows player and run twenty-two automated captures, including role
+CG and event CG configuration at the two supported layout budgets:
 
 ```powershell
 tools\Build-AuraToolsUnityUiPreview.ps1

@@ -14,7 +14,7 @@ namespace AuraToolsExp.Dll.Features.Cg;
 
 public sealed class AuraToolsCgSceneAssetResolver
 {
-    public const string BackgroundAssetId = "event.background.settlement";
+    public const string BackgroundAssetPrefix = "event.background.";
     public const string RoleIdleAssetId = "role.idle";
 
     public string ProviderId => AuraToolsIds.ModId + ".Cg.SceneAssets";
@@ -28,9 +28,9 @@ public sealed class AuraToolsCgSceneAssetResolver
         string roleId,
         string roleVariantId)
     {
-        if (string.Equals(assetId, BackgroundAssetId, StringComparison.OrdinalIgnoreCase))
+        if (TryResolveBackgroundScene(assetId, out var sceneId))
         {
-            return ResolveBackground(assetId);
+            return ResolveBackground(assetId, sceneId);
         }
 
         return string.Equals(assetId, RoleIdleAssetId, StringComparison.OrdinalIgnoreCase)
@@ -38,9 +38,27 @@ public sealed class AuraToolsCgSceneAssetResolver
             : null;
     }
 
-    private static AuraCgResolvedSceneAsset? ResolveBackground(string assetId)
+    public static string BackgroundAssetId(string sceneId)
     {
-        var resource = AuraToolsConfigService.SkillCg.EventCg.BackgroundResource;
+        return BackgroundAssetPrefix + AuraToolsEventCgSceneIds.Normalize(sceneId);
+    }
+
+    private static bool TryResolveBackgroundScene(string assetId, out string sceneId)
+    {
+        var value = (assetId ?? "").Trim();
+        if (!value.StartsWith(BackgroundAssetPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            sceneId = "";
+            return false;
+        }
+
+        sceneId = AuraToolsEventCgSceneIds.Normalize(value.Substring(BackgroundAssetPrefix.Length));
+        return true;
+    }
+
+    private static AuraCgResolvedSceneAsset? ResolveBackground(string assetId, string sceneId)
+    {
+        var resource = AuraToolsConfigService.SkillCg.EventCg.GetScene(sceneId).EffectiveBackgroundResource;
         var resolvedAssetId = assetId + "." + StableHash(resource);
         try
         {

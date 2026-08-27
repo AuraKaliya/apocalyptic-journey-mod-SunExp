@@ -44,6 +44,7 @@ namespace AuraTools.UnityUiPreview
             internal int Height;
             internal bool Toolbox;
             internal bool Overlay;
+            internal string OverlayKind;
             internal string Category;
         }
 
@@ -89,7 +90,13 @@ namespace AuraTools.UnityUiPreview
                 Case("toolbox-system-1280x720", 4, "default", 1280, 720, true, false, "system"),
                 Case("toolbox-default-922x838", 4, "default", 922, 838, true),
                 Case("toolbox-compact-1024x640", 4, "default", 1024, 640, true),
-                Case("toolbox-overlay-1280x720", 4, "default", 1280, 720, true, true)
+                Case("toolbox-overlay-1280x720", 4, "default", 1280, 720, true, true),
+                Case("role-cg-1280x720", 4, "default", 1280, 720, true, true, "all", "role-cg"),
+                Case("role-cg-922x838", 4, "default", 922, 838, true, true, "all", "role-cg"),
+                Case("event-cg-config-1280x720", 4, "default", 1280, 720, true, true, "all", "event-cg"),
+                Case("event-cg-config-922x838", 4, "default", 922, 838, true, true, "all", "event-cg"),
+                Case("event-cg-preview-1280x720", 4, "default", 1280, 720, true, true, "all", "event-cg-preview"),
+                Case("event-cg-preview-922x838", 4, "default", 922, 838, true, true, "all", "event-cg-preview")
             };
             var results = new List<PreviewCaptureResult>();
             var allErrors = new List<string>();
@@ -102,7 +109,14 @@ namespace AuraTools.UnityUiPreview
                 controller.SelectTab(captureCase.Tab);
                 if (captureCase.Overlay)
                 {
-                    controller.ShowToolSettings("角色皮肤", "已启用 3/3 个候选皮肤", "管理已注册皮肤并选择本地显示效果。");
+                    if (string.IsNullOrWhiteSpace(captureCase.OverlayKind))
+                    {
+                        controller.ShowToolSettings("角色皮肤", "已启用 3/3 个候选皮肤", "管理已注册皮肤并选择本地显示效果。");
+                    }
+                    else
+                    {
+                        controller.ShowCgSettingsPreview(captureCase.OverlayKind);
+                    }
                 }
                 yield return null;
                 yield return new WaitForEndOfFrame();
@@ -279,7 +293,8 @@ namespace AuraTools.UnityUiPreview
             int height,
             bool toolbox = false,
             bool overlay = false,
-            string category = "all")
+            string category = "all",
+            string overlayKind = "")
         {
             return new CaptureCase
             {
@@ -290,6 +305,7 @@ namespace AuraTools.UnityUiPreview
                 Height = height,
                 Toolbox = toolbox,
                 Overlay = overlay,
+                OverlayKind = overlayKind,
                 Category = category
             };
         }

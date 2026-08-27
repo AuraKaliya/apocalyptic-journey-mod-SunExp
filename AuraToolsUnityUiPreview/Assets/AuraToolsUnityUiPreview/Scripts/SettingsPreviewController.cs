@@ -24,6 +24,10 @@ namespace AuraTools.UnityUiPreview
         private GameObject overlay;
         private Text overlayTitle;
         private Text overlaySummary;
+        private GameObject genericOverlayContent;
+        private GameObject roleCgOverlayContent;
+        private GameObject eventCgOverlayContent;
+        private GameObject eventCgPreviewContent;
         private GameObject toast;
         private Text toastText;
         private float toastUntil;
@@ -187,6 +191,7 @@ namespace AuraTools.UnityUiPreview
             overlayTitle.text = title + "设置";
             overlaySummary.text = "";
             overlaySummary.gameObject.SetActive(false);
+            SetOverlayContent(genericOverlayContent);
             overlay.SetActive(true);
             overlay.transform.SetAsLastSibling();
             var close = overlay.transform.Find("Window/Header/Close")?.gameObject;
@@ -194,6 +199,29 @@ namespace AuraTools.UnityUiPreview
             {
                 EventSystem.current?.SetSelectedGameObject(close);
             }
+        }
+
+        internal void ShowCgSettingsPreview(string kind)
+        {
+            var normalized = (kind ?? "").Trim().ToLowerInvariant();
+            if (normalized == "role-cg")
+            {
+                overlayTitle.text = "角色 CG 配置";
+                SetOverlayContent(roleCgOverlayContent);
+            }
+            else if (normalized == "event-cg-preview")
+            {
+                overlayTitle.text = "事件 CG 配置";
+                SetOverlayContent(eventCgPreviewContent);
+            }
+            else
+            {
+                overlayTitle.text = "事件 CG 配置";
+                SetOverlayContent(eventCgOverlayContent);
+            }
+            overlaySummary.gameObject.SetActive(false);
+            overlay.SetActive(true);
+            overlay.transform.SetAsLastSibling();
         }
 
         internal void ShowToast(string message)
@@ -336,7 +364,7 @@ namespace AuraTools.UnityUiPreview
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f),
-                new Vector2(680f, 430f),
+                new Vector2(980f, 590f),
                 Vector2.zero);
             PreviewUi.Image(window, Color.white, PreviewAssets.ToolboxSurface);
             var surface = PreviewUi.Stretch("Surface", window.transform, new Vector4(4f, 4f, 4f, 4f));
@@ -351,13 +379,35 @@ namespace AuraTools.UnityUiPreview
             closeRect.pivot = new Vector2(1f, 0.5f);
             closeRect.sizeDelta = new Vector2(42f, 42f);
             closeRect.anchoredPosition = new Vector2(-8f, 0f);
-            var body = PreviewUi.Stretch("Body", surface.transform, new Vector4(20f, 76f, 20f, 20f));
-            var marker = PreviewUi.Rect("Marker", body.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(74f, 3f), Vector2.zero);
+            var body = PreviewUi.Stretch("Body", surface.transform, new Vector4(16f, 74f, 16f, 16f));
+            genericOverlayContent = PreviewUi.Stretch("Generic", body.transform, Vector4.zero);
+            var marker = PreviewUi.Rect("Marker", genericOverlayContent.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(74f, 3f), Vector2.zero);
             PreviewUi.Image(marker, PreviewTheme.Accent).raycastTarget = false;
-            overlaySummary = PreviewUi.FillText("Summary", body.transform, "", 15, TextAnchor.UpperLeft, PreviewTheme.MutedText, new Vector4(0f, 24f, 0f, 150f));
-            var placeholder = PreviewUi.Rect("Placeholder", body.transform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 52f), new Vector2(0f, 82f));
+            overlaySummary = PreviewUi.FillText("Summary", genericOverlayContent.transform, "", 15, TextAnchor.UpperLeft, PreviewTheme.MutedText, new Vector4(0f, 24f, 0f, 150f));
+            var placeholder = PreviewUi.Rect("Placeholder", genericOverlayContent.transform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 52f), new Vector2(0f, 82f));
             PreviewUi.Image(placeholder, PreviewTheme.Control).raycastTarget = false;
+            roleCgOverlayContent = CgSettingsPreviewPage.BuildRole(body.transform);
+            eventCgOverlayContent = CgSettingsPreviewPage.BuildEvent(body.transform, false);
+            eventCgPreviewContent = CgSettingsPreviewPage.BuildEvent(body.transform, true);
+            SetOverlayContent(genericOverlayContent);
             overlay.SetActive(false);
+        }
+
+        private void SetOverlayContent(GameObject active)
+        {
+            foreach (var content in new[]
+                     {
+                         genericOverlayContent,
+                         roleCgOverlayContent,
+                         eventCgOverlayContent,
+                         eventCgPreviewContent
+                     })
+            {
+                if (content != null)
+                {
+                    content.SetActive(content == active);
+                }
+            }
         }
 
         private void BuildPreviewChrome(Transform parent)

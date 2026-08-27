@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 7,
+  "schemaVersion": 9,
   "enabled": true,
   "cardUseCg": {
     "enabled": true,
@@ -7,19 +7,47 @@
     "presentationOverrides": {}
   },
   "eventCg": {
+    "schemaVersion": 2,
     "enabled": true,
     "syncRemote": true,
-    "backgroundResource": "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
-    "baseWidth": 1600,
-    "baseHeight": 900,
-    "fadeIn": 0.35,
-    "hold": 3.0,
-    "fadeOut": 0.45,
-    "specialBattleIds": [],
-    "specialOpeningEnabled": true,
-    "specialVictoryEnabled": true,
-    "battleDefeatEnabled": true,
-    "adventureSettlementEnabled": true
+    "playSettlementAfterBattleScene": false,
+    "scenes": {
+      "victory.standard": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "victory.midas": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "victory.ritual": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "victory.curse": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "battle-opening": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "battle-defeat": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      },
+      "adventure-settlement": {
+        "enabled": true,
+        "backgroundResource": "",
+        "battleIds": []
+      }
+    }
   },
   "lowHealthThreshold": 0.3,
   "syncRemote": true,
@@ -38,62 +66,8 @@
     "focusY": 0.5,
     "safeScale": 1.0
   },
-  "roles": {
-    "career_1": {
-      "enabled": true,
-      "roleId": "career_1",
-      "displayName": "阿米莉娅",
-      "rules": [
-        {
-          "enabled": true,
-          "providerId": "AuraTools.SkillCG.Amelia",
-          "cardId": "careercard_1",
-          "action": "*",
-          "image": "CG/Role/career_1/SkillCg/AuraToolsExp/official.career_1.careercard_1/content.png",
-          "priority": 10,
-          "fadeIn": 0.35,
-          "hold": 1.0,
-          "fadeOut": 0.45,
-          "presentation": {
-            "mode": "fullscreenFade",
-            "fit": "contain",
-            "fadeIn": 0.35,
-            "hold": 1.5,
-            "fadeOut": 0.5,
-            "focusX": 0.5,
-            "focusY": 0.5,
-            "safeScale": 1.0
-          }
-        }
-      ]
-    },
-    "career_3": {
-      "enabled": true,
-      "roleId": "career_3",
-      "displayName": "阿黛拉",
-      "rules": [
-        {
-          "enabled": true,
-          "providerId": "AuraTools.SkillCG.Adela",
-          "cardId": "careercard_4",
-          "action": "*",
-          "image": "CG/Role/career_3/SkillCg/AuraToolsExp/official.career_3.careercard_4/content.png",
-          "priority": 10,
-          "fadeIn": 0.35,
-          "hold": 1.0,
-          "fadeOut": 0.45,
-          "presentation": {
-            "mode": "fullscreenFade",
-            "fit": "contain",
-            "fadeIn": 0.35,
-            "hold": 1.5,
-            "fadeOut": 0.5,
-            "focusX": 0.5,
-            "focusY": 0.5,
-            "safeScale": 1.0
-          }
-        }
-      ]
-    }
-  }
+  "roleEntries": {},
+  "roleSelections": {},
+  "manualRoleEntries": [],
+  "legacyRoleRulesMigrated": true
 }

@@ -3,33 +3,37 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Presentation;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using Mirror;
-using Newtonsoft.Json;
-using UnityEngine;
 using UiTransitionGuardShared;
-using Witch.Core;
-using Witch.UI.Window;
-using WitchUiManager = Witch.UI.UIManager;
+using UnityEngine;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
+/// <summary>
+/// Drives the portable v12 journal through Aura's own scene. This player never
+/// creates a battle manager, battle UI, role, card, buff, or gameplay script.
+/// </summary>
 internal static class MatchReplayPlayer
 {
     private static readonly float[] Speeds = { 0.5f, 1f, 2f, 4f };
-    private static readonly MatchReplayReadModel ReadModel = new();
+    private static readonly ReplayStateReducerV12 Reducer = new();
+    private static readonly ReplayPovReducerV12 PovReducer = new();
     private static MatchRecord? record;
-    private static ReplayDocumentV11? nativeDocument;
-    private static ReplayNativeAudioPlayer? nativeAudio;
-    private static List<MatchReplayEvent> events = new();
-    private static List<long> timeline = new();
-    private static MatchReplayActionTimeline actionTimeline = MatchReplayActionTimeline.Build(Array.Empty<MatchReplayEvent>());
+    private static ReplayDocumentEnvelopeV12? envelope;
+    private static ReplayPovSidecarV12? pov;
+    private static ReplaySceneRuntime? scene;
+    private static List<ReplayJournalEventV12> events = new();
+    private static HashSet<string> actionTransactions = new(StringComparer.Ordinal);
     private static int eventIndex;
-    private static int pendingStartIndex;
-    private static float playbackClock;
+    private static int povEventIndex;
+    private static int completedActionCount;
+    private static long logicalTicks;
+    private static long durationTicks;
+    private static long pendingStartTicks;
     private static int speedIndex = 1;
     private static bool paused;
     private static bool seeking;
@@ -39,16 +43,11 @@ internal static class MatchReplayPlayer
     private static bool controlsVisible;
     private static bool externalClock;
     private static bool runtimeReady;
-    private static CanvasGroup? fightCanvasGroup;
-    private static string playbackHealth = MatchReplayCompatibilityLevels.Compatible;
+    private static string playbackHealth = "Compatible";
     private static string playbackIssue = "";
     private static string preparationStatus = "";
-    private static string preparedKindsDescription = "";
-    private static string preparedScene = "";
-    private static string preparedAdapter = "";
     private static string lastStartFailure = "";
     private static int failedEventCount;
-    private static PendingVisualProjection? pendingVisualProjection;
 
     internal static bool IsActive => record != null;
     internal static bool IsPaused => paused;
@@ -56,134 +55,174 @@ internal static class MatchReplayPlayer
     internal static float Speed => Speeds[speedIndex];
     internal static int EventIndex => eventIndex;
     internal static int EventCount => events.Count;
-    internal static int ActionCount => actionTimeline.Count;
-    internal static int CompletedActionCount => actionTimeline.CompletedActionsAtEventIndex(eventIndex);
+    internal static int ActionCount => actionTransactions.Count;
+    internal static int CompletedActionCount => completedActionCount;
     internal static bool IsSeeking => seeking;
-    internal static bool IsFinished => IsActive
-                                       && eventIndex >= events.Count
-                                       && playbackClock >= DurationMilliseconds;
+    internal static bool IsFinished => IsActive && eventIndex >= events.Count && logicalTicks >= durationTicks;
     internal static float Progress => seekPreviewing || seeking
         ? seekPreviewProgress
-        : actionTimeline.Count == 0
-            ? 0f
-            : Math.Max(0f, Math.Min(1f, CompletedActionCount / (float)actionTimeline.Count));
-    internal static long DurationMilliseconds => timeline.Count == 0
-        ? 0
-        : timeline[timeline.Count - 1]
-          + MatchReplayPresentationSchedule.Duration(
-              events[events.Count - 1],
-              AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.PresentationMode);
-    internal static IReadOnlyList<MatchReplayEvent> Events => events;
-    internal static bool IsReadyForExport => IsActive
-                                             && runtimeReady
-                                             && externalClock
-                                             && !seeking
-                                             && !HasBlockingError;
+        : durationTicks <= 0 ? (eventIndex >= events.Count ? 1f : 0f) : Clamp01(logicalTicks / (float)durationTicks);
+    internal static long DurationMilliseconds => durationTicks * 1000L / ReplayProtocolV12.TimebaseTicksPerSecond;
+    internal static IReadOnlyList<ReplayJournalEventV12> Events => events;
+    internal static bool IsReadyForExport => IsActive && runtimeReady && externalClock && !seeking && !HasBlockingError;
     internal static string PlaybackHealth => playbackHealth;
     internal static string PlaybackIssue => playbackIssue;
     internal static string PreparationStatus => preparationStatus;
     internal static string LastStartFailure => lastStartFailure;
     internal static int FailedEventCount => failedEventCount;
     internal static bool HasBlockingError => playbackHealth == "Desynced" || playbackHealth == "Failed";
-    internal static int CurrentTurn => runtimeReady ? ReadModel.CurrentTurn : 1;
-    internal static int TurnCount => record?.TurnCount ?? 0;
+    internal static int CurrentTurn => Math.Max(1, Reducer.Current.RoundSequence);
+    internal static int TurnCount => Math.Max(record?.TurnCount ?? 0, events.Count == 0 ? 0 : events.Max(item => item.RoundSequence));
+    internal static long LogicalTicks => logicalTicks;
+    internal static Camera? RenderCamera => scene?.Camera;
 
-    internal static bool TryPrepareInteractive(
-        string recordId,
-        long startSequence,
-        out string message)
+    internal static bool TryPrepareInteractive(string recordId, long startSequence, out string message)
     {
-        return TryPrepareCore(recordId, true, startSequence, true, out message);
+        return TryPrepareCore(recordId, showControls: true, startSequence, returnToLibrary: true, out message);
     }
 
-    internal static bool TryPrepareForExport(
-        string recordId,
-        bool returnToLibrary,
-        out string message)
+    internal static bool TryPrepareForExport(string recordId, bool returnToLibrary, out string message)
     {
-        return TryPrepareCore(recordId, false, 0, returnToLibrary, out message);
+        return TryPrepareCore(recordId, showControls: false, startSequence: 0, returnToLibrary, out message);
     }
 
     internal static bool TryStartForExport(string recordId, out string message)
     {
-        if (!TryPrepareForExport(recordId, false, out message))
-        {
-            return false;
-        }
-
-        return TryActivatePrepared(out message);
+        return TryPrepareForExport(recordId, returnToLibrary: false, out message)
+               && TryActivatePrepared(out message);
     }
 
-    internal static void CommitOrigin()
-    {
-        MatchReplaySessionState.CommitOrigin();
-    }
+    internal static void CommitOrigin() => MatchReplaySessionState.CommitOrigin();
 
     internal static bool TryActivatePrepared(out string message)
     {
         message = "";
-        if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Prepared)
+        if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Prepared || envelope == null)
         {
-            message = "回放原生视图尚未准备完成。";
+            message = "回放数据尚未准备完成。";
             return false;
         }
 
         try
         {
-            if (FightManager.Instance == null)
-            {
-                throw new InvalidOperationException("Prepared replay FightManager is unavailable.");
-            }
-
-            MatchReplayFightSandboxInitializer.Activate(FightManager.Instance);
-            var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI")
-                          ?? throw new InvalidOperationException("Prepared FightUI is unavailable.");
-            if (!externalClock && nativeDocument != null)
-            {
-                nativeAudio = new ReplayNativeAudioPlayer(nativeDocument, fightUi.transform);
-            }
-
-            MatchReplayPresentationDirector.ShowTurn(ReadModel.CurrentTurn, ResolveRecordedPlayerId());
-            if (controlsVisible)
-            {
-                MatchReplayControlsPresenter.Show();
-            }
-
+            MatchReplayUiLifecycle.PrepareForReplayView();
+            scene = new ReplaySceneRuntime(envelope.Document, pov, includeHud: true);
+            Reducer.Reset(envelope.Document.InitialState);
+            logicalTicks = 0;
+            scene.Tick(0);
+            scene.Restore(Reducer.Current, null);
+            ResetPovThrough(0);
+            ExecuteDueEvents(suppressAudio: externalClock);
+            scene.Tick(0);
             runtimeReady = true;
             MatchReplaySessionState.MarkActive();
+            if (controlsVisible) MatchReplayControlsPresenter.Show();
+            if (pendingStartTicks > 0) SeekToTicks(pendingStartTicks);
             preparationStatus = "";
-            if (pendingStartIndex > 0)
-            {
-                var target = pendingStartIndex;
-                pendingStartIndex = 0;
-                SeekToIndex(target);
-            }
-
-            AuraToolsLog.Info("[MatchRecords] v" + record?.ReplayProtocol + " replay started: record=" + record?.RecordId
-                              + ", events=" + events.Count
-                              + ", kinds=" + preparedKindsDescription
-                              + ", compatibility=" + playbackHealth
-                              + ", mode=native-view-projection"
-                              + ", scene=" + preparedScene
-                              + ", adapter=" + preparedAdapter + ".");
+            scene.SetPlaybackSpeed(Speed);
+            scene.SetPaused(paused);
+            AuraToolsLog.Info("[MatchRecords] portable v12 replay started: record=" + record?.RecordId
+                              + ", events=" + events.Count + ", actions=" + ActionCount
+                              + ", scene=aura-independent, gameplay-scripts=disabled.");
             RefreshControls();
             message = "开始回放。";
             return true;
         }
         catch (Exception ex)
         {
-            var failure = "无法显示已准备的回放：" + ex.Message;
-            lastStartFailure = failure;
-            AuraToolsLog.Error("[MatchRecords] replay activation failed: " + ex.Message, ex);
-            BeginStop(MatchReplayExitKind.RuntimeFailed, failure);
-            message = failure;
+            lastStartFailure = "无法创建独立回放场景：" + ex.Message;
+            AuraToolsLog.Error("[MatchRecords] portable replay activation failed", ex);
+            BeginStop(MatchReplayExitKind.RuntimeFailed, lastStartFailure);
+            message = lastStartFailure;
             return false;
         }
     }
 
-    internal static void FailCommittedStart(string detail)
+    internal static void FailCommittedStart(string detail) => BeginStop(MatchReplayExitKind.StartFailed, detail);
+
+    internal static void Tick()
     {
-        BeginStop(MatchReplayExitKind.RuntimeFailed, detail);
+        if (!IsActive || !runtimeReady || externalClock || resetting) return;
+        var elapsedMilliseconds = Math.Max(0f, Time.unscaledDeltaTime * 1000f);
+        MatchReplayControlsPresenter.Tick(elapsedMilliseconds);
+        if (!paused && !seeking && !HasBlockingError)
+            AdvanceClock(elapsedMilliseconds * Speed);
+    }
+
+    internal static void TogglePause()
+    {
+        if (!runtimeReady || seeking) return;
+        paused = !paused;
+        scene?.SetPaused(paused);
+        RefreshControls();
+    }
+
+    internal static void CycleSpeed()
+    {
+        if (!runtimeReady || seeking) return;
+        speedIndex = (speedIndex + 1) % Speeds.Length;
+        scene?.SetPlaybackSpeed(Speed);
+        RefreshControls();
+    }
+
+    internal static void SeekNormalized(float value)
+    {
+        if (!runtimeReady || durationTicks <= 0) return;
+        SeekToTicks((long)Math.Round(Clamp01(value) * durationTicks));
+    }
+
+    internal static void BeginSeekPreview(float value)
+    {
+        if (!runtimeReady) return;
+        seekPreviewing = true;
+        seekPreviewProgress = Clamp01(value);
+        RefreshControls();
+    }
+
+    internal static void PreviewSeekNormalized(float value)
+    {
+        if (!seekPreviewing) return;
+        seekPreviewProgress = Clamp01(value);
+        RefreshControls();
+    }
+
+    internal static void CommitSeekPreview(float value)
+    {
+        if (!seekPreviewing) return;
+        seekPreviewing = false;
+        SeekNormalized(value);
+    }
+
+    internal static void SeekTurn(int delta)
+    {
+        if (!runtimeReady || delta == 0) return;
+        var rounds = events.Where(item => item.RoundSequence > 0)
+            .GroupBy(item => item.RoundSequence)
+            .Select(group => new { Round = group.Key, Ticks = group.Min(item => item.TimeTicks) })
+            .OrderBy(item => item.Round)
+            .ToList();
+        if (rounds.Count == 0) return;
+        var current = rounds.FindLastIndex(item => item.Ticks <= logicalTicks);
+        if (current < 0) current = 0;
+        var target = Math.Max(0, Math.Min(rounds.Count - 1, current + delta));
+        SeekToTicks(rounds[target].Ticks);
+    }
+
+    internal static void AdvanceExportClock(float milliseconds)
+    {
+        if (!IsReadyForExport || paused) return;
+        AdvanceClock(Math.Max(0f, milliseconds));
+    }
+
+    internal static void SetRenderHudVisible(bool visible) => scene?.SetHudVisible(visible);
+
+    internal static void Stop() => BeginStop(MatchReplayExitKind.Cancelled);
+
+    internal static void StopForModuleDisabled() => BeginStop(MatchReplayExitKind.ModuleDisabled);
+
+    internal static void StopAfterExport(bool completed, string detail)
+    {
+        BeginStop(completed ? MatchReplayExitKind.ExportCompleted : MatchReplayExitKind.ExportFailed, detail);
     }
 
     private static bool TryPrepareCore(
@@ -196,841 +235,344 @@ internal static class MatchReplayPlayer
         message = "";
         lastStartFailure = "";
         if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Idle)
-        {
-            return Reject(
-                recordId,
-                MatchReplaySessionState.IsExiting ? "previous-replay-exiting" : "already-active",
-                MatchReplaySessionState.IsExiting
-                    ? "上一场回放仍在退出并恢复对局记录页面，请稍候再试。"
-                    : "已有对局正在准备或回放。",
-                out message);
-        }
-
+            return Reject("已有对局正在准备或回放。", out message);
         if (!AuraToolsMatchRecordsRuntime.Enabled)
-        {
-            return Reject(recordId, "module-disabled", "对局记录模块尚未开启。", out message);
-        }
-
-        if (FightManager.Instance != null && FightManager.Instance.fightType != FightType.None)
-        {
-            return Reject(recordId, "fight-active", "当前战斗尚未结束，请先返回主菜单再开始回放。", out message);
-        }
+            return Reject("对局记录模块尚未开启。", out message);
+        if (MatchReplayRecorder.IsRecording)
+            return Reject("当前战斗仍在记录，不能同时启动回放。", out message);
         if (NetworkServer.active || NetworkClient.active)
-        {
-            return Reject(recordId, "network-active", "请先离开联机大厅；原生回放不会启动或复用网络会话。", out message);
-        }
+            return Reject("请先离开联机会话再开始回放。", out message);
+        if (!MatchReplaySessionState.TryBeginPreparation(recordId, returnToLibrary, out message)) return false;
 
-        var lifecycleStarted = false;
         try
         {
-            if (!ReplayNativeDocumentAdapter.TryLoad(recordId, out var nativeLoad, out var loadMessage))
-            {
-                return Reject(recordId, "native-document-incompatible", loadMessage, out message);
-            }
-            var loaded = nativeLoad.Record;
-            var decoded = nativeLoad.Events;
-            var loadedDocument = nativeLoad.Document;
+            preparationStatus = "正在校验 Replay Document v12...";
+            var loadedRecord = MatchRecordStorage.Database.Get(recordId)
+                               ?? throw new InvalidOperationException("找不到这条对局记录。");
+            if (loadedRecord.ReplayProtocol != ReplayProtocolV12.DocumentVersion
+                || !string.Equals(loadedRecord.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal))
+                throw new InvalidOperationException("该记录不是可播放的 Replay Document v12；旧记录仅保留摘要与分析。");
+            var loadedEnvelope = MatchRecordStorage.Database.LoadV12(recordId, loadAssetPayloads: true)
+                                 ?? throw new InvalidOperationException("Replay Document v12 数据不存在。");
+            var validation = ReplayDocumentValidatorV12.Validate(loadedEnvelope);
+            if (!validation.IsValid)
+                throw new InvalidOperationException("回放完整性校验失败：" + validation.Message);
+            ValidateRequiredAssets(loadedEnvelope.Document);
 
-            var metadataCompatibility = MatchReplayCompatibility.Evaluate(loaded);
-            if (!metadataCompatibility.CanPlay)
+            ReplayPovSidecarV12? loadedPov = null;
+            try
             {
-                return Reject(recordId, "metadata-incompatible", metadataCompatibility.Message, out message);
+                loadedPov = MatchRecordStorage.Database.LoadFirstPovV12(recordId, loadAssetPayloads: true);
+                if (loadedPov != null
+                    && !string.Equals(loadedPov.ParentDocumentRoot, loadedEnvelope.DeclaredDocumentRoot, StringComparison.OrdinalIgnoreCase))
+                    loadedPov = null;
             }
-
-            var quality = MatchReplayCaptureQuality.Evaluate(decoded);
-            if (!quality.CanPlay)
+            catch (Exception ex)
             {
-                MatchRecordStorage.Database.UpdateReplayState(recordId, MatchReplayStates.Incomplete);
-                return Reject(recordId, "capture-incomplete", quality.Message, out message);
-            }
-
-            var compatibility = MatchReplayCompatibility.Evaluate(loaded, decoded);
-            if (!compatibility.CanPlay)
-            {
-                return Reject(recordId, "event-stream-incompatible", compatibility.Message, out message);
-            }
-
-            var decodedActionTimeline = MatchReplayActionTimeline.Build(decoded);
-            if (decodedActionTimeline.Count == 0)
-            {
-                return Reject(recordId, "action-frame-missing", "回放没有可定位的权威动作帧。", out message);
+                AuraToolsLog.Warn("[MatchRecords] optional POV sidecar ignored: " + ex.Message);
             }
 
-            if (loaded.InitialState?.BaselineState == null)
-            {
-                return Reject(recordId, "baseline-missing", "回放缺少初始状态基线。", out message);
-            }
-
-            if (!MatchReplaySessionState.TryBeginPreparation(
-                    recordId,
-                    returnToLibrary,
-                    out var lifecycleMessage))
-            {
-                return Reject(recordId, "lifecycle-busy", lifecycleMessage, out message);
-            }
-            lifecycleStarted = true;
-
-            record = loaded;
-            nativeDocument = loadedDocument;
-            events = decoded;
-            timeline = MatchReplayPresentationSchedule.Build(
-                decoded,
-                AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.PresentationMode);
-            actionTimeline = decodedActionTimeline;
+            record = loadedRecord;
+            envelope = loadedEnvelope;
+            pov = loadedPov;
+            events = loadedEnvelope.Document.TruthEvents
+                .Concat(loadedEnvelope.Document.PresentationEvents)
+                .OrderBy(item => item.Sequence)
+                .ToList();
+            actionTransactions = events
+                .Where(item => item.EventType == ReplayEventTypesV12.TransactionStarted
+                               && item.Transaction != null
+                               && IsAction(item.Transaction.Kind))
+                .Select(item => item.TransactionId)
+                .ToHashSet(StringComparer.Ordinal);
+            durationTicks = CalculateDurationTicks(events);
+            pendingStartTicks = ResolveStartTicks(events, startSequence);
             eventIndex = 0;
-            pendingStartIndex = startSequence <= 0 ? 0 : events.FindIndex(item => item.Sequence >= startSequence);
-            if (pendingStartIndex < 0)
-            {
-                pendingStartIndex = events.Count;
-            }
-
-            playbackClock = 0f;
-            paused = false;
-            speedIndex = 1;
+            completedActionCount = 0;
+            logicalTicks = 0;
             controlsVisible = showControls;
             externalClock = !showControls;
-            runtimeReady = false;
+            paused = false;
             seeking = false;
             seekPreviewing = false;
-            playbackHealth = compatibility.Level;
-            playbackIssue = "";
-            preparationStatus = "正在构造只读原生战斗视图";
-            preparedKindsDescription = quality.DescribeCounts();
+            seekPreviewProgress = 0f;
+            runtimeReady = false;
+            playbackHealth = "Compatible";
+            playbackIssue = loadedPov == null ? "" : "POV";
             failedEventCount = 0;
-            MatchReplayUiLifecycle.PrepareForReplayView();
-            MatchReplayEnvironmentScope.CaptureAndInstallRoleTable(record.InitialState);
-            PrepareNativeView();
+            Reducer.Reset(loadedEnvelope.Document.InitialState);
             MatchReplaySessionState.MarkPrepared();
-
-            message = "回放原生视图已准备完成。";
+            preparationStatus = "v12 已校验，等待创建独立回放场景。";
+            message = preparationStatus;
             return true;
         }
         catch (Exception ex)
         {
-            var failure = "无法开始回放：" + ex.Message;
-            message = failure;
-            AuraToolsLog.Error("[MatchRecords] replay initialization failed: record=" + recordId + ", error=" + ex.Message, ex);
-            if (lifecycleStarted)
-            {
-                BeginStop(MatchReplayExitKind.StartFailed, failure);
-            }
-            lastStartFailure = failure;
+            lastStartFailure = ex.Message;
+            AuraToolsLog.Warn("[MatchRecords] replay preparation rejected: record=" + recordId + ", reason=" + ex.Message);
+            var decision = MatchReplaySessionState.BeginExit(MatchReplayExitKind.StartFailed, ex.Message);
+            ResetPlaybackState();
+            MatchReplaySessionState.CompleteExit();
+            if (!decision.ReturnToLibrary) MatchReplayReturnCoordinator.Clear();
+            message = ex.Message;
             return false;
         }
     }
 
-    internal static void Tick()
+    private static void AdvanceClock(float milliseconds)
     {
-        if (!IsActive || resetting)
-        {
-            return;
-        }
-
-        if (controlsVisible)
-        {
-            MatchReplayControlsPresenter.Tick(Time.unscaledDeltaTime * 1000f);
-        }
-
-        if (!runtimeReady)
-        {
-            RefreshControls();
-            return;
-        }
-
-        if (HasBlockingError)
-        {
-            if (externalClock)
-            {
-                return;
-            }
-            BeginStop(MatchReplayExitKind.RuntimeFailed, playbackIssue);
-            return;
-        }
-
-        if (!externalClock && IsFinished)
-        {
-            BeginStop(MatchReplayExitKind.Completed);
-            return;
-        }
-
-        FreezeBattleRuntime();
-        if (externalClock || seeking)
-        {
-            return;
-        }
-
-        if (paused)
-        {
-            SyncAudio();
-            RefreshControls();
-            return;
-        }
-
-        var elapsed = Time.unscaledDeltaTime * 1000f * Speed;
-        playbackClock += elapsed;
-        MatchReplayPresentationDirector.Tick(elapsed);
-        ExecuteDueEvents(maximum: 16);
-        FlushPendingVisualProjection();
-        SyncAudio();
-        if (HasBlockingError)
-        {
-            BeginStop(MatchReplayExitKind.RuntimeFailed, playbackIssue);
-            return;
-        }
-        if (eventIndex >= events.Count && playbackClock >= DurationMilliseconds)
-        {
-            BeginStop(MatchReplayExitKind.Completed);
-            return;
-        }
-
-        RefreshControls();
-    }
-
-    internal static void TogglePause()
-    {
-        if (!runtimeReady)
-        {
-            return;
-        }
-
-        paused = !paused;
-        RefreshControls();
-    }
-
-    internal static void CycleSpeed()
-    {
-        if (!runtimeReady)
-        {
-            return;
-        }
-
-        speedIndex = (speedIndex + 1) % Speeds.Length;
-        RefreshControls();
-    }
-
-    internal static void SeekNormalized(float value)
-    {
-        if (!runtimeReady || actionTimeline.Count == 0)
-        {
-            return;
-        }
-
-        var completed = Math.Max(0, Math.Min(
-            actionTimeline.Count,
-            (int)Math.Round(Math.Max(0f, Math.Min(1f, value)) * actionTimeline.Count)));
-        SeekToIndex(actionTimeline.EventIndexForCompletedActions(completed, events.Count));
-    }
-
-    internal static void BeginSeekPreview(float value)
-    {
-        if (!runtimeReady || seeking)
-        {
-            return;
-        }
-
-        seekPreviewing = true;
-        seekPreviewProgress = Math.Max(0f, Math.Min(1f, value));
-    }
-
-    internal static void PreviewSeekNormalized(float value)
-    {
-        if (seekPreviewing)
-        {
-            seekPreviewProgress = Math.Max(0f, Math.Min(1f, value));
-        }
-    }
-
-    internal static void CommitSeekPreview(float value)
-    {
-        seekPreviewing = false;
-        SeekNormalized(Math.Max(0f, Math.Min(1f, value)));
-    }
-
-    internal static void SeekTurn(int delta)
-    {
-        if (!runtimeReady || events.Count == 0)
-        {
-            return;
-        }
-
-        var targetTurn = Math.Max(1, Math.Min(Math.Max(1, TurnCount), CurrentTurn + delta));
-        var target = events.FindIndex(item => item.Kind == MatchReplayEventKinds.TurnFrame
-                                              && item.TurnFrame?.TurnIndex >= targetTurn);
-        SeekToIndex(target < 0 ? events.Count : Math.Min(events.Count, target + 1));
-    }
-
-    internal static void AdvanceExportClock(float milliseconds)
-    {
-        if (!IsReadyForExport || paused || IsFinished)
-        {
-            return;
-        }
-
-        var elapsed = Math.Max(0f, milliseconds);
-        playbackClock += elapsed;
-        MatchReplayPresentationDirector.Tick(elapsed);
-        ExecuteDueEvents(maximum: 64);
-        FlushPendingVisualProjection();
-        SyncAudio();
-        if (eventIndex >= events.Count && playbackClock >= DurationMilliseconds)
+        var deltaTicks = (long)Math.Round(milliseconds * ReplayProtocolV12.TimebaseTicksPerSecond / 1000d);
+        logicalTicks = Math.Min(durationTicks, logicalTicks + Math.Max(0L, deltaTicks));
+        ExecuteDueEvents(suppressAudio: externalClock);
+        scene?.Tick(logicalTicks);
+        if (IsFinished)
         {
             paused = true;
+            scene?.SetPaused(true);
+        }
+        RefreshControls();
+    }
+
+    private static void ExecuteDueEvents(bool suppressAudio)
+    {
+        while (eventIndex < events.Count && events[eventIndex].TimeTicks <= logicalTicks)
+        {
+            try
+            {
+                var value = events[eventIndex];
+                if (value.Lane == ReplayJournalLanesV12.Truth)
+                {
+                    Reducer.Apply(value);
+                    scene?.ApplyState(Reducer.Current);
+                    if (value.EventType == ReplayEventTypesV12.TransactionCompleted
+                        && actionTransactions.Contains(value.TransactionId))
+                        completedActionCount++;
+                }
+                else
+                {
+                    scene?.ApplyPresentation(value, Reducer.Current, suppressAudio);
+                }
+                eventIndex++;
+                ApplyPovThrough(value.Sequence);
+            }
+            catch (Exception ex)
+            {
+                failedEventCount++;
+                playbackHealth = "Desynced";
+                playbackIssue = "回放在事件 " + events[eventIndex].Sequence + " 停止：" + ex.Message;
+                paused = true;
+                scene?.SetPaused(true);
+                AuraToolsLog.Error("[MatchRecords] portable replay event failed", ex);
+                break;
+            }
         }
     }
 
-    internal static void Stop()
+    private static void SeekToTicks(long targetTicks)
     {
-        BeginStop(MatchReplayExitKind.Cancelled);
-    }
-
-    internal static void StopForModuleDisabled()
-    {
-        BeginStop(MatchReplayExitKind.ModuleDisabled);
-    }
-
-    internal static void StopAfterExport(bool completed, string detail)
-    {
-        BeginStop(
-            completed ? MatchReplayExitKind.ExportCompleted : MatchReplayExitKind.ExportFailed,
-            detail);
+        if (envelope == null || scene == null || HasBlockingError) return;
+        seeking = true;
+        seekPreviewing = false;
+        var wasPaused = paused;
+        scene.SetPaused(true);
+        try
+        {
+            var target = Math.Max(0L, Math.Min(durationTicks, targetTicks));
+            var targetSequence = events.Where(item => item.TimeTicks <= target)
+                .Select(item => item.Sequence)
+                .DefaultIfEmpty(0L)
+                .Max();
+            var truthCheckpoint = envelope.Document.TruthCheckpoints
+                .Where(item => item.EventSequence <= targetSequence)
+                .OrderBy(item => item.EventSequence)
+                .LastOrDefault();
+            var presentationCheckpoint = envelope.Document.PresentationCheckpoints
+                .Where(item => item.EventSequence <= (truthCheckpoint?.EventSequence ?? 0L))
+                .OrderBy(item => item.EventSequence)
+                .LastOrDefault();
+            var checkpointSequence = truthCheckpoint?.EventSequence ?? 0L;
+            var lastTruthSequence = events.Where(item => item.Lane == ReplayJournalLanesV12.Truth
+                                                          && item.Sequence <= checkpointSequence)
+                .Select(item => item.Sequence)
+                .DefaultIfEmpty(0L)
+                .Max();
+            Reducer.Reset(truthCheckpoint?.State ?? envelope.Document.InitialState, lastTruthSequence);
+            eventIndex = events.FindIndex(item => item.Sequence > checkpointSequence);
+            if (eventIndex < 0) eventIndex = events.Count;
+            logicalTicks = truthCheckpoint?.TimeTicks ?? 0L;
+            scene.Tick(logicalTicks);
+            scene.Restore(Reducer.Current, presentationCheckpoint);
+            ResetPovThrough(checkpointSequence);
+            completedActionCount = events.Take(eventIndex)
+                .Count(item => item.EventType == ReplayEventTypesV12.TransactionCompleted
+                               && actionTransactions.Contains(item.TransactionId));
+            logicalTicks = target;
+            ExecuteDueEvents(suppressAudio: true);
+            scene.RestoreTimedPresentationsAt(
+                envelope.Document.PresentationEvents,
+                logicalTicks,
+                includeAudio: !externalClock);
+            scene.Tick(logicalTicks);
+            seekPreviewProgress = durationTicks <= 0 ? 0f : Clamp01(logicalTicks / (float)durationTicks);
+        }
+        catch (Exception ex)
+        {
+            failedEventCount++;
+            playbackHealth = "Failed";
+            playbackIssue = "定位回放失败：" + ex.Message;
+            paused = true;
+            AuraToolsLog.Error("[MatchRecords] portable replay seek failed", ex);
+        }
+        finally
+        {
+            seeking = false;
+            if (!HasBlockingError) paused = wasPaused;
+            scene.SetPaused(paused);
+            RefreshControls();
+        }
     }
 
     private static void BeginStop(MatchReplayExitKind kind, string detail = "")
     {
         if (resetting) return;
-        if (record == null && !MatchReplaySessionState.IsPlayback)
+        if (!IsActive && !MatchReplaySessionState.IsPlayback)
         {
             MatchReplayControlsPresenter.Close();
             MatchReplayReturnCoordinator.Clear();
             return;
         }
         resetting = true;
-        paused = true;
-        var exitDecision = MatchReplaySessionState.BeginExit(kind, detail);
-        var cleanupFailures = 0;
-        UiTransitionGuardRuntime.BeginTransition(null, AuraToolsIds.ModId, "Match replay stop", 8);
-        RunCleanupStep("controls", MatchReplayControlsPresenter.Close, ref cleanupFailures);
-        RunCleanupStep("presentation", MatchReplayPresentationDirector.Reset, ref cleanupFailures);
+        var decision = MatchReplaySessionState.BeginExit(kind, detail);
+        UiTransitionGuardRuntime.BeginTransition(null, AuraToolsIds.ModId, "Match replay stop", 4);
+        MatchReplayControlsPresenter.Close();
+        try { scene?.Dispose(); }
+        catch (Exception ex) { AuraToolsLog.Error("[MatchRecords] replay scene cleanup failed", ex); }
         ResetPlaybackState();
-        RunCleanupStep(
-            "native-presentation-ui",
-            () => MatchReplayUiLifecycle.CloseReplayOwnedPresentationUis("Match replay stop"),
-            ref cleanupFailures);
-        RunCleanupStep("native-view", MatchReplayNativeViewRuntime.Dispose, ref cleanupFailures);
-        RunCleanupStep("environment", MatchReplayEnvironmentScope.Restore, ref cleanupFailures);
-        UiTransitionGuardRuntime.ScrubNow(null, AuraToolsIds.ModId, "Match replay stop");
-        UiTransitionGuardRuntime.RecoverNativeInput(null, AuraToolsIds.ModId, "Match replay stop", 8);
-        var cleanup = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
-            CompleteStopAfterUnityDestroy(exitDecision, cleanupFailures));
-        if (cleanup == null)
+        var finalizer = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(CompleteStopAfterUnityDestroy(decision));
+        if (finalizer == null)
         {
-            AuraToolsLog.Error(
-                "[MatchRecords] replay teardown finalizer could not be scheduled.",
-                new InvalidOperationException("Match-record runtime coroutine driver is unavailable."));
+            MatchReplaySessionState.CompleteExit();
+            resetting = false;
+            if (decision.ReturnToLibrary) MatchReplayReturnCoordinator.ReturnToLibrary(decision.Message);
+            else MatchReplayReturnCoordinator.Clear();
         }
     }
 
-    private static System.Collections.IEnumerator CompleteStopAfterUnityDestroy(
-        MatchReplayExitDecision exitDecision,
-        int cleanupFailures)
+    private static System.Collections.IEnumerator CompleteStopAfterUnityDestroy(MatchReplayExitDecision decision)
     {
-        // Object.Destroy and GraphicRegistry removal become terminal at the next
-        // Unity frame boundary. The session remains Exiting until those owned
-        // objects have actually disappeared.
         yield return null;
-        try
-        {
-            MatchReplayNativeViewRuntime.CompleteDispose();
-            if (MatchReplayUiLifecycle.ReplayOwnedPresentationUiCount != 0)
-            {
-                throw new InvalidOperationException(
-                    "Replay-owned native UI remained registered after teardown.");
-            }
-        }
-        catch (Exception ex)
-        {
-            cleanupFailures++;
-            AuraToolsLog.Error("[MatchRecords] replay teardown terminal check failed", ex);
-        }
-
-        RunCleanupStep(
-            "ui-ownership",
-            MatchReplayUiLifecycle.ReleaseReplayOwnership,
-            ref cleanupFailures);
-
         MatchReplaySessionState.CompleteExit();
         resetting = false;
-        AuraToolsLog.Debug("[MatchRecords] native replay cleanup completed: failures=" + cleanupFailures + ".");
-        if (exitDecision.ReturnToLibrary)
-        {
-            var message = cleanupFailures == 0
-                ? exitDecision.Message
-                : exitDecision.Message + " 清理校验发现 " + cleanupFailures + " 个错误，请查看日志。";
-            MatchReplayReturnCoordinator.ReturnToLibrary(message);
-        }
-        else
-        {
-            MatchReplayReturnCoordinator.Clear();
-        }
-    }
-
-    private static void RunCleanupStep(string name, Action action, ref int failureCount)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            failureCount++;
-            AuraToolsLog.Error("[MatchRecords] replay cleanup step failed: step=" + name, ex);
-        }
+        UiTransitionGuardRuntime.ScrubNow(null, AuraToolsIds.ModId, "Match replay stop");
+        UiTransitionGuardRuntime.RecoverNativeInput(null, AuraToolsIds.ModId, "Match replay stop", 8);
+        if (decision.ReturnToLibrary) MatchReplayReturnCoordinator.ReturnToLibrary(decision.Message);
+        else MatchReplayReturnCoordinator.Clear();
     }
 
     private static void ResetPlaybackState()
     {
-        nativeAudio?.Dispose();
-        nativeAudio = null;
-        MatchReplayOutcomePresenter.Clear();
-        nativeDocument = null;
+        scene = null;
         record = null;
+        envelope = null;
+        pov = null;
         events.Clear();
-        timeline.Clear();
-        actionTimeline = MatchReplayActionTimeline.Build(Array.Empty<MatchReplayEvent>());
-        ReadModel.Reset(null);
+        actionTransactions.Clear();
         eventIndex = 0;
-        pendingStartIndex = 0;
-        playbackClock = 0f;
+        povEventIndex = 0;
+        completedActionCount = 0;
+        logicalTicks = 0;
+        durationTicks = 0;
+        pendingStartTicks = 0;
         paused = false;
         seeking = false;
         seekPreviewing = false;
         seekPreviewProgress = 0f;
-        fightCanvasGroup = null;
         controlsVisible = false;
         externalClock = false;
         runtimeReady = false;
-        playbackHealth = MatchReplayCompatibilityLevels.Compatible;
+        playbackHealth = "Compatible";
         playbackIssue = "";
         preparationStatus = "";
-        preparedKindsDescription = "";
-        preparedScene = "";
-        preparedAdapter = "";
         failedEventCount = 0;
-        pendingVisualProjection = null;
+        Reducer.Reset(new ReplayPublicStateV12());
+        PovReducer.Reset();
     }
 
-    private static void ExecuteDueEvents(int maximum)
+    private static void ResetPovThrough(long canonicalSequence)
     {
-        var executed = 0;
-        while (eventIndex < events.Count
-               && playbackClock >= timeline[eventIndex]
-               && executed++ < Math.Max(1, maximum))
-        {
-            Execute(events[eventIndex], animate: true, project: true);
-            FlushPendingVisualProjection();
-            eventIndex++;
-            if (HasBlockingError)
-            {
-                paused = true;
-                break;
-            }
-        }
+        PovReducer.Reset();
+        povEventIndex = 0;
+        ApplyPovThrough(canonicalSequence);
     }
 
-    private static bool Execute(MatchReplayEvent item, bool animate, bool project)
+    private static void ApplyPovThrough(long canonicalSequence)
     {
-        try
+        if (pov == null)
         {
-            switch (item.Kind)
-            {
-                case MatchReplayEventKinds.TurnFrame:
-                    if (item.TurnFrame == null)
-                    {
-                        throw new InvalidOperationException("回合帧为空。");
-                    }
-
-                    if (!string.Equals(
-                            MatchReplayProjectionState.Hash(item.TurnFrame.State),
-                            item.TurnFrame.StateHash,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException("回合帧状态校验失败。");
-                    }
-
-                    var turnCardTransitions = MatchReplayActionDerivation.BuildCardTransitions(
-                        ReadModel.Current,
-                        item.TurnFrame.State);
-                    ReadModel.Reset(item.TurnFrame.State);
-                    if (project)
-                    {
-                        ProjectCurrent(restoreCards: false, restoreRoleTable: false);
-                        MatchReplayCardStateCapture.ApplyTransitions(
-                            ReadModel.Current.Cards,
-                            ReadModel.Current.CardTopCount,
-                            turnCardTransitions);
-                        MatchReplayPresentationDirector.ShowTurn(
-                            item.TurnFrame.TurnIndex,
-                            item.TurnFrame.ActiveActorId);
-                    }
-                    break;
-                case MatchReplayEventKinds.ActionFrame:
-                    if (item.ActionFrame == null)
-                    {
-                        throw new InvalidOperationException("动作帧为空。");
-                    }
-
-                    if (animate)
-                    {
-                        MatchReplayPresentationDirector.PlayAction(item.ActionFrame);
-                    }
-
-                    ReadModel.Apply(item.ActionFrame.Delta);
-                    var stateHash = MatchReplayProjectionState.Hash(ReadModel.Current);
-                    if (!string.Equals(stateHash, item.ActionFrame.FinalStateHash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        playbackHealth = "Desynced";
-                        playbackIssue = "动作帧数据校验失败：" + item.ActionFrame.ActionId;
-                        failedEventCount++;
-                        return false;
-                    }
-
-                    if (project)
-                    {
-                        var projectionDelay = animate
-                            ? MatchReplayPresentationSchedule.OutcomeProjectionDelay(
-                                item.ActionFrame,
-                                AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.PresentationMode)
-                            : 0;
-                        if (projectionDelay > 0)
-                        {
-                            pendingVisualProjection = new PendingVisualProjection
-                            {
-                                DueMilliseconds = (eventIndex < timeline.Count ? timeline[eventIndex] : playbackClock)
-                                                  + projectionDelay,
-                                ChangedStatusIds = item.ActionFrame.Delta.StatusUpserts
-                                    .Select(status => status.InstanceId)
-                                    .ToList(),
-                                ReplaceCards = MatchReplayProjectionState.HasCardChanges(item.ActionFrame.Delta),
-                                CardTransitions = item.ActionFrame.CardTransitions ?? new List<MatchReplayCardTransition>()
-                            };
-                        }
-                        else
-                        {
-                            ProjectActionResult(item.ActionFrame);
-                        }
-                    }
-                    break;
-                case MatchReplayEventKinds.SeekCheckpoint:
-                    if (item.SeekCheckpoint == null)
-                    {
-                        throw new InvalidOperationException("定位检查点为空。");
-                    }
-
-                    if (!string.Equals(
-                            MatchReplayProjectionState.Hash(item.SeekCheckpoint.State),
-                            item.SeekCheckpoint.StateHash,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException("定位检查点状态校验失败。");
-                    }
-
-                    ReadModel.Reset(item.SeekCheckpoint.State);
-                    break;
-                case MatchReplayEventKinds.BattleResultFrame:
-                    if (item.BattleResultFrame == null)
-                        throw new InvalidOperationException("战斗结果帧为空。");
-                    if (project) MatchReplayOutcomePresenter.Show(item.BattleResultFrame.Result);
-                    break;
-                default:
-                    throw new InvalidOperationException("只读投影播放器拒绝命令重演事件：" + item.Kind);
-            }
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            playbackHealth = "Failed";
-            playbackIssue = "无法投影事件 " + item.Sequence + "：" + ex.Message;
-            failedEventCount++;
-            AuraToolsLog.Warn("[MatchRecords] replay projection event " + item.Sequence + " failed: " + ex.Message);
-            return false;
-        }
-    }
-
-    private static void SeekToIndex(int targetIndex)
-    {
-        if (record?.InitialState.BaselineState == null || seeking)
-        {
+            scene?.ApplyPovCards(Array.Empty<ReplayPublicCardStateV12>());
             return;
         }
+        while (povEventIndex < pov.Events.Count
+               && pov.Events[povEventIndex].CanonicalSequence <= canonicalSequence)
+            PovReducer.Apply(pov.Events[povEventIndex++]);
+        scene?.ApplyPovCards(PovReducer.Cards);
+    }
 
-        seeking = true;
-        paused = true;
-        try
+    private static void ValidateRequiredAssets(ReplayDocumentV12 document)
+    {
+        foreach (var asset in document.Assets)
         {
-            var target = Math.Max(0, Math.Min(events.Count, targetIndex));
-            MatchReplayPresentationDirector.Reset();
-            MatchReplayOutcomePresenter.Clear();
-            pendingVisualProjection = null;
-            ReadModel.Reset(record.InitialState.BaselineState);
-            var start = 0;
-            for (var index = target - 1; index >= 0; index--)
-            {
-                var checkpoint = events[index].SeekCheckpoint;
-                if (events[index].Kind == MatchReplayEventKinds.SeekCheckpoint && checkpoint != null)
-                {
-                    if (!string.Equals(
-                            MatchReplayProjectionState.Hash(checkpoint.State),
-                            checkpoint.StateHash,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException("定位检查点状态校验失败。");
-                    }
-
-                    ReadModel.Reset(checkpoint.State);
-                    start = index + 1;
-                    break;
-                }
-
-                var turnFrame = events[index].TurnFrame;
-                if (events[index].Kind == MatchReplayEventKinds.TurnFrame && turnFrame != null)
-                {
-                    if (!string.Equals(
-                            MatchReplayProjectionState.Hash(turnFrame.State),
-                            turnFrame.StateHash,
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new InvalidOperationException("回合帧状态校验失败。");
-                    }
-
-                    ReadModel.Reset(turnFrame.State);
-                    start = index + 1;
-                    break;
-                }
-            }
-
-            for (var index = start; index < target; index++)
-            {
-                if (!Execute(events[index], animate: false, project: false))
-                {
-                    throw new InvalidOperationException(
-                        string.IsNullOrWhiteSpace(playbackIssue)
-                            ? "定位重建未能应用事件 " + events[index].Sequence + "。"
-                            : playbackIssue);
-                }
-            }
-
-            ProjectCurrent(restoreCards: true, restoreRoleTable: false);
-            var actorId = events.Take(target)
-                .Where(item => item.Kind == MatchReplayEventKinds.TurnFrame && item.TurnFrame != null)
-                .Select(item => item.TurnFrame!.ActiveActorId)
-                .LastOrDefault() ?? ResolveRecordedPlayerId();
-            MatchReplayPresentationDirector.ShowTurn(ReadModel.CurrentTurn, actorId);
-            eventIndex = target;
-            playbackClock = eventIndex < timeline.Count ? timeline[eventIndex] : DurationMilliseconds;
-            seekPreviewProgress = actionTimeline.Count == 0
-                ? 0f
-                : CompletedActionCount / (float)actionTimeline.Count;
-            SyncAudio();
-            preparationStatus = "";
-            AuraToolsLog.Info("[MatchRecords] replay seek completed: event=" + eventIndex
-                              + ", action=" + CompletedActionCount + "/" + actionTimeline.Count + ".");
-        }
-        catch (Exception ex)
-        {
-            playbackHealth = "Failed";
-            playbackIssue = "回放定位失败：" + ex.Message;
-            AuraToolsLog.Error("[MatchRecords] replay seek failed: " + ex.Message, ex);
-        }
-        finally
-        {
-            seeking = false;
-            RefreshControls();
+            var error = ReplayAssetContractV12.Validate(asset, requirePayload: true);
+            if (error.Length > 0)
+                throw new InvalidOperationException("回放内嵌资源缺失或损坏：" + asset.Sha256 + "，" + error);
         }
     }
 
-    private static void PrepareNativeView()
+    private static bool IsAction(string kind)
     {
-        if (record?.InitialState.BaselineState == null)
-        {
-            throw new InvalidOperationException("Replay baseline is unavailable during preparation.");
-        }
-
-        preparedScene = MatchReplayEnvironmentScope.InstallPresentationScene(record.InitialState.BackgroundScene);
-        MatchReplayNativeViewRuntime.Create();
-        MatchReplayNativeViewRuntime.ApplySkinSelections(nativeDocument?.NativeBattle.SkinSelections);
-        InitializeView();
-        preparationStatus = "回放原生视图已准备，等待界面切换";
+        return kind == ReplayTransactionKindsV12.Card
+               || kind == ReplayTransactionKindsV12.Skill
+               || kind == ReplayTransactionKindsV12.Intent
+               || kind == ReplayTransactionKindsV12.Passive
+               || kind == ReplayTransactionKindsV12.Transform
+               || kind == ReplayTransactionKindsV12.ImplicitNative;
     }
 
-    private static void SyncAudio()
+    private static long CalculateDurationTicks(IEnumerable<ReplayJournalEventV12> values)
     {
-        try
+        var maximum = 0L;
+        foreach (var value in values)
         {
-            nativeAudio?.SyncTimeline((long)Math.Max(0f, playbackClock), Speed, paused);
+            var duration = Math.Max(0L, value.Presentation?.DurationTicks ?? 0L);
+            if (value.Presentation?.Audio is { } audio && audio.DurationSamples > 0)
+                duration = Math.Max(duration, audio.DurationSamples * ReplayProtocolV12.TimebaseTicksPerSecond / 48_000L);
+            var delay = Math.Max(0L, value.Presentation?.DelayTicks ?? 0L);
+            maximum = Math.Max(maximum, value.TimeTicks + delay + duration);
         }
-        catch (Exception ex)
-        {
-            playbackHealth = "Failed";
-            playbackIssue = "回放音频失败：" + ex.Message;
-            paused = true;
-            AuraToolsLog.Error("[MatchRecords] replay audio failed.", ex);
-        }
+        return maximum == 0 ? 0 : maximum + ReplayProtocolV12.TimebaseTicksPerSecond / 2;
     }
 
-    private static void InitializeView()
+    private static long ResolveStartTicks(IEnumerable<ReplayJournalEventV12> values, long sequence)
     {
-        if (record?.InitialState.BaselineState == null || FightManager.Instance == null)
-        {
-            throw new InvalidOperationException("Replay view runtime is unavailable.");
-        }
-
-        MatchReplayEnvironmentScope.RestoreInitialRoleTable(record.InitialState.RoleTableJson);
-        preparedAdapter = MatchReplayFightSandboxInitializer.Initialize(FightManager.Instance, record.InitialState);
-        FreezeBattleRuntime();
-        var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
-        if (FightPlayer.Instance == null
-            || FightManager.Instance.statuses == null
-            || FightManager.Instance.statuses.Count == 0
-            || fightUi == null)
-        {
-            throw new InvalidOperationException("回放角色或原生战斗界面未能完成初始化。");
-        }
-
-        fightCanvasGroup = fightUi.gameObject.GetComponent<CanvasGroup>()
-                           ?? fightUi.gameObject.AddComponent<CanvasGroup>();
-        fightCanvasGroup.alpha = 1f;
-        fightCanvasGroup.interactable = false;
-        fightCanvasGroup.blocksRaycasts = false;
-        MatchReplayPresentationDirector.Reset();
-        pendingVisualProjection = null;
-        ReadModel.Reset(record.InitialState.BaselineState);
-        ProjectCurrent(restoreCards: true, restoreRoleTable: true);
-        eventIndex = 0;
-        playbackClock = 0f;
-        AuraToolsLog.Debug("[MatchRecords] replay projection view prepared: adapter=" + preparedAdapter + ".");
+        if (sequence <= 0) return 0;
+        return values.Where(item => item.Sequence >= sequence)
+            .OrderBy(item => item.Sequence)
+            .Select(item => item.TimeTicks)
+            .DefaultIfEmpty(0L)
+            .First();
     }
 
-    private static void ProjectCurrent(
-        bool restoreCards,
-        bool restoreRoleTable,
-        IReadOnlyCollection<string>? changedStatusIds = null)
+    private static bool Reject(string reason, out string message)
     {
-        if (!MatchReplayStateCapture.Project(
-                ReadModel.Current,
-                restoreCards,
-                restoreRoleTable,
-                changedStatusIds))
-        {
-            throw new InvalidOperationException("记录状态无法投影到原生战斗视图。");
-        }
-
-        FreezeBattleRuntime();
-    }
-
-    private static void ProjectActionResult(MatchReplayActionFrame frame)
-    {
-        ProjectCurrent(
-            restoreCards: false,
-            restoreRoleTable: false,
-            frame.Delta.StatusUpserts.Select(status => status.InstanceId).ToList());
-        if (MatchReplayProjectionState.HasCardChanges(frame.Delta))
-        {
-            MatchReplayCardStateCapture.ApplyTransitions(
-                ReadModel.Current.Cards,
-                ReadModel.Current.CardTopCount,
-                frame.CardTransitions);
-        }
-    }
-
-    private static void FlushPendingVisualProjection()
-    {
-        var pending = pendingVisualProjection;
-        if (pending == null || playbackClock < pending.DueMilliseconds)
-        {
-            return;
-        }
-
-        pendingVisualProjection = null;
-        try
-        {
-            ProjectCurrent(
-                restoreCards: false,
-                restoreRoleTable: false,
-                pending.ChangedStatusIds);
-            if (pending.ReplaceCards)
-            {
-                MatchReplayCardStateCapture.ApplyTransitions(
-                    ReadModel.Current.Cards,
-                    ReadModel.Current.CardTopCount,
-                    pending.CardTransitions);
-            }
-        }
-        catch (Exception ex)
-        {
-            playbackHealth = "Failed";
-            playbackIssue = "敌方动作结果投影失败：" + ex.Message;
-            failedEventCount++;
-            paused = true;
-            AuraToolsLog.Error("[MatchRecords] deferred action projection failed: " + ex.Message, ex);
-        }
-    }
-
-    private static void FreezeBattleRuntime()
-    {
-        if (FightManager.Instance != null)
-        {
-            FightManager.Instance.fightType = FightType.None;
-            FightManager.Instance.ActionQueue?.Clear();
-        }
-    }
-
-    private static string ResolveRecordedPlayerId()
-    {
-        var playerId = RoleTable.Instance?.Id ?? "";
-        if (!string.IsNullOrWhiteSpace(playerId))
-        {
-            return playerId;
-        }
-
-        try
-        {
-            var roles = JsonConvert.DeserializeObject<List<FightManager.RoleData>>(
-                GZip.DecompressToString(record?.InitialState.RoleQueue ?? Array.Empty<byte>()));
-            return roles?.FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.InstanceId))?.InstanceId ?? "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    private static void RefreshControls()
-    {
-        if (controlsVisible)
-        {
-            MatchReplayControlsPresenter.Refresh();
-        }
-    }
-
-    private static bool Reject(string recordId, string reason, string detail, out string message)
-    {
-        message = detail;
-        AuraToolsLog.Warn("[MatchRecords] replay start rejected: record=" + (recordId ?? "")
-                          + ", reason=" + reason
-                          + ", fight=" + (FightManager.Instance?.fightType.ToString() ?? "missing")
-                          + ", networkClientActive=" + NetworkClient.active
-                          + ", networkClientConnected=" + NetworkClient.isConnected
-                          + ", networkServerActive=" + NetworkServer.active
-                          + ", detail=" + detail);
+        message = reason;
+        lastStartFailure = reason;
         return false;
     }
 
-    private sealed class PendingVisualProjection
+    private static float Clamp01(float value) => Math.Max(0f, Math.Min(1f, value));
+
+    private static void RefreshControls()
     {
-        internal float DueMilliseconds { get; set; }
-        internal List<string> ChangedStatusIds { get; set; } = new();
-        internal bool ReplaceCards { get; set; }
-        internal List<MatchReplayCardTransition> CardTransitions { get; set; } = new();
+        if (controlsVisible) MatchReplayControlsPresenter.Refresh();
     }
 }

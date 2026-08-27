@@ -54,6 +54,11 @@ function Sync-PreviewIcons {
         throw "Expected 5 Aura Toolbox V2 assets, found $($toolboxV2Assets.Count)."
     }
     $toolboxV2Assets | Copy-Item -Destination $toolboxV2Target -Force
+
+    $cgPreviewTarget = Join-Path $projectPath "Assets\AuraToolsUnityUiPreview\Resources\CgPreview"
+    [System.IO.Directory]::CreateDirectory($cgPreviewTarget) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $repoRoot "AuraToolsExp\ModResource\DPSCG\DPS-CG.png") `
+        -Destination (Join-Path $cgPreviewTarget "event-default.png") -Force
 }
 
 function Assert-PreviewSourceContract {
@@ -178,7 +183,7 @@ if (-not $SkipCapture) {
         throw "Unity preview capture failed with exit code $exitCode. See $playerLog"
     }
     $report = Get-Content -Raw -LiteralPath $reportPath | ConvertFrom-Json
-    if (-not $report.passed -or $report.captures -ne 16) {
+    if (-not $report.passed -or $report.captures -ne 22) {
         throw "Unity preview validation failed: $($report.errors -join '; ')"
     }
     foreach ($result in $report.results) {
