@@ -273,6 +273,7 @@ public static class AuraToolsAudioRuntime
                     var qualifiedId = owner + ":" + providerId;
                     var settings = EnsureVoiceBinding(qualifiedId, provider);
                     migratedBindings |= MigrateSkillVoiceBinding(provider, settings);
+                    migratedBindings |= MigrateNativeDyingBinding(provider, settings);
                     if (!settings.Enabled) continue;
                     var signal = string.IsNullOrWhiteSpace(settings.Signal) ? provider.kind : settings.Signal;
                     var stage = string.IsNullOrWhiteSpace(settings.Stage)
@@ -288,10 +289,10 @@ public static class AuraToolsAudioRuntime
                             .ToArray();
                     var gain = settings.GainDb ?? provider.gainDb ?? defaults.gainDb ?? 0f;
                     var cooldown = settings.CooldownSeconds ?? provider.cooldownSeconds ?? defaults.cooldownSeconds ?? 0f;
-                    var threshold = settings.HpRatioThreshold ?? provider.match?.hpRatioCrossDown;
+                    var registeredThreshold = provider.match?.hpRatioCrossDown;
                     var signature = Signature(audioPath, string.Join(";", variants), signal, stage, settings.ActionId,
                         settings.SkillSlot,
-                        gain, cooldown, threshold, settings.Enabled);
+                        gain, cooldown, registeredThreshold, settings.Enabled);
                     desired.Add(qualifiedId);
                     if (RegisteredVoiceProviders.TryGetValue(qualifiedId, out var current)
                         && string.Equals(current.Signature, signature, StringComparison.Ordinal))
@@ -308,13 +309,13 @@ public static class AuraToolsAudioRuntime
                         string.IsNullOrWhiteSpace(provider.bus) ? defaults.bus ?? SoundBuses.Vocal : provider.bus,
                         string.IsNullOrWhiteSpace(provider.policy) ? defaults.policy ?? SoundPolicies.Additive : provider.policy,
                         provider.hardClaim ?? defaults.hardClaim ?? false,
-                        request => VoiceMatches(request, provider, settings, signal, stage, threshold),
+                        request => VoiceMatches(request, provider, settings, signal, stage, registeredThreshold),
                         cooldown,
                         provider.sync ?? defaults.sync ?? true,
                         gain,
                         provider.volumeMultiplier ?? defaults.volumeMultiplier ?? 1f,
                         signal,
-                        threshold,
+                        registeredThreshold,
                         provider.suppressOriginal?.vocalStates,
                         provider.suppressOriginal?.narrationIds));
                     RegisteredVoiceProviders[qualifiedId] = new VoiceProviderRegistration
@@ -353,8 +354,7 @@ public static class AuraToolsAudioRuntime
                 Signal = provider.kind,
                 Stage = provider.match?.stages?.FirstOrDefault() ?? "",
                 ActionId = FirstActionId(provider),
-                SkillSlot = provider.match?.skillSlot,
-                HpRatioThreshold = provider.match?.hpRatioCrossDown
+                SkillSlot = provider.match?.skillSlot
             };
             settings.Normalize(qualifiedProviderId);
             bindings[qualifiedProviderId] = settings;
@@ -383,6 +383,16 @@ public static class AuraToolsAudioRuntime
             provider.match?.stages?.FirstOrDefault() ?? AudioSignalStages.Committed,
             provider.match?.skillSlot,
             configuredSkills);
+    }
+
+    private static bool MigrateNativeDyingBinding(
+        AudioProviderManifest provider,
+        AuraToolsVoiceBindingSettings settings)
+    {
+        return AuraToolsVoiceNativeStateBindingMigration.Migrate(
+            settings,
+            provider.kind,
+            provider.vocalState);
     }
 
     private static IReadOnlyList<RoleSkillInfo> ResolveProviderSkills(AudioProviderManifest provider)
@@ -427,7 +437,7 @@ public static class AuraToolsAudioRuntime
         AuraToolsVoiceBindingSettings settings,
         string signal,
         string stage,
-        float? threshold)
+        float? registeredThreshold)
     {
         if (!string.Equals(AudioArbiterRuntime.ReadString(request, "Kind"), signal, StringComparison.OrdinalIgnoreCase)) return false;
         if (!string.IsNullOrWhiteSpace(stage)
@@ -456,9 +466,10 @@ public static class AuraToolsAudioRuntime
         if (match.localOwnerOnly == true
             && !AudioArbiterRuntime.ReadBool(request, "IsRemote", false)
             && !AudioArbiterRuntime.ReadBool(request, "IsLocalOwner", false)) return false;
-        if (threshold.HasValue
-            && !(AudioArbiterRuntime.ReadFloat(request, "PreviousHpRatio", 0f) > threshold.Value
-                 && AudioArbiterRuntime.ReadFloat(request, "HpRatio", 0f) <= threshold.Value)) return false;
+        if (registeredThreshold.HasValue
+            && string.Equals(signal, SoundEventKinds.LowHealth, StringComparison.OrdinalIgnoreCase)
+            && !(AudioArbiterRuntime.ReadFloat(request, "PreviousHpRatio", 0f) > registeredThreshold.Value
+                 && AudioArbiterRuntime.ReadFloat(request, "HpRatio", 0f) <= registeredThreshold.Value)) return false;
         return true;
     }
 

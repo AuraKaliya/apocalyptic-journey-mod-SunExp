@@ -84,7 +84,7 @@ internal static partial class AuraToolsTestSuite
     
         settings.Normalize();
         var entries = settings.ManualRoleEntries;
-        Assert(settings.SchemaVersion == 9
+        Assert(settings.SchemaVersion == 10
                && settings.Roles.Count == 0
                && entries.Count == 2
                && entries[0].Resource == "CG/Roles/1/skill_cg.png"

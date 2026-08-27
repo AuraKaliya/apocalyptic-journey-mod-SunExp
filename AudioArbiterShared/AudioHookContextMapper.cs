@@ -122,6 +122,7 @@ internal sealed class AudioHookContextMapper
             CareerId = gameStateReader.ReadCurrentCareerId(),
             RoleId = gameStateReader.ReadStatusRoleId(status),
             StatusInstanceId = gameStateReader.ReadStatusInstanceId(status),
+            IsLocalOwner = gameStateReader.IsLocalOwnerStatus(status, status.InstanceId ?? ""),
             SourceName = "StatusManager.PlayVocal.After"
         };
     }

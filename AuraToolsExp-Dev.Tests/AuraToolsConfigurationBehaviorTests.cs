@@ -82,7 +82,7 @@ internal static partial class AuraToolsTestSuite
             }
         };
         skillCg.Normalize();
-        Assert(skillCg.SchemaVersion == 9
+        Assert(skillCg.SchemaVersion == 10
                && skillCg.CardUseCg.RegisteredEntries.ContainsKey("Terrias:terrias.blazing-crown-collapse")
                && skillCg.CardUseCg.PresentationOverrides.TryGetValue("Terrias:terrias.blazing-crown-collapse", out var cardUseOverride)
                && cardUseOverride.FlashStrength == 1f
@@ -277,12 +277,17 @@ internal static partial class AuraToolsTestSuite
         var audio = JsonConvert.DeserializeObject<AuraToolsAudioSettings>(
             "{\"schemaVersion\":1,\"audioSystemVersion\":\" \",\"battleBgm\":{\"common\":{\"relativePath\":\"Audio/Common/battle_bgm.mp3\"}},\"cardUse\":null}")!;
         audio.Normalize();
-        Assert(audio.SchemaVersion == 6
+        Assert(audio.SchemaVersion == 7
                && audio.BattleBgm.Common.RelativePath == "Audio/Common/battle_bgm.mp3"
                && audio.CardUse.Common.RelativePath == "Audio/Global/all/CardUse/AuraToolsExp/default-card-use/content.mp3"
                && audio.Voice.Enabled
                && audio.Voice.Bindings.Count == 0,
             "audio config preserves user resource paths while recovering missing domains");
+        var retiredThresholdBinding = JsonConvert.DeserializeObject<AuraToolsVoiceBindingSettings>(
+            "{\"providerId\":\"Terrias:Terrias.Wuna.LowHealth\",\"hpRatioThreshold\":0.75}")!;
+        retiredThresholdBinding.Normalize("Terrias:Terrias.Wuna.LowHealth");
+        Assert(!JsonConvert.SerializeObject(retiredThresholdBinding).Contains("hpRatioThreshold", StringComparison.Ordinal),
+            "voice configuration consumes but never rewrites the retired player-defined low-health threshold");
         var voice = new AuraToolsVoiceSettings
         {
             Bindings = new Dictionary<string, AuraToolsVoiceBindingSettings>(StringComparer.OrdinalIgnoreCase)
@@ -363,6 +368,19 @@ internal static partial class AuraToolsTestSuite
                    Array.Empty<AuraToolsVoiceSkillDescriptor>())
                && deferredSkillBinding.ActionId == "legacy_skill",
             "skill voice migration waits for authoritative role data without using the legacy id at runtime");
+        var legacyLowHealthBinding = new AuraToolsVoiceBindingSettings
+        {
+            Signal = "LowHealth",
+            Stage = "ThresholdCrossedDown"
+        };
+        Assert(AuraToolsVoiceNativeStateBindingMigration.Migrate(
+                   legacyLowHealthBinding,
+                   "VocalState",
+                   "Dying")
+               && legacyLowHealthBinding.Signal == "VocalState"
+               && legacyLowHealthBinding.Stage == "Observed"
+               && legacyLowHealthBinding.ActionId == "Dying",
+            "legacy threshold voice bindings migrate once to the native Dying observation");
         Assert(AuraToolsConfigSchemaPolicy.IsNewer(
                    storedEnvelopeVersion: 2,
                    storedValue: new AuraToolsAudioSettings(),
@@ -371,7 +389,7 @@ internal static partial class AuraToolsTestSuite
                    storedEnvelopeVersion: 1,
                    storedValue: new AuraToolsAudioSettings
                    {
-                        SchemaVersion = 7
+                        SchemaVersion = 8
                    },
                    supportedValue: new AuraToolsAudioSettings())
                && !AuraToolsConfigSchemaPolicy.IsNewer(
@@ -820,12 +838,17 @@ internal static partial class AuraToolsTestSuite
         var settings = JsonConvert.DeserializeObject<AuraToolsEventCgSettings>(
             "{\"backgroundResource\":\"\",\"baseWidth\":0,\"baseHeight\":-1,\"fadeIn\":-1,\"hold\":100,\"fadeOut\":99,\"specialBattleIds\":[\" boss-a \",\"BOSS-A\",\"boss-b\"]}")!;
         settings.Normalize();
-        Assert(settings.SchemaVersion == 2
+        Assert(settings.SchemaVersion == 3
                && settings.Scenes.Count == AuraToolsEventCgSceneIds.All.Length,
             "event CG migration creates one independent profile for every player-facing scene");
         var opening = settings.GetScene(AuraToolsEventCgSceneIds.BattleOpening);
-        Assert(opening.EffectiveBackgroundResource == AuraToolsEventCgSettings.DefaultBackgroundResource,
-            "event CG profiles inherit the AuraToolsExp background without storing it as a local override");
+        Assert(opening.EffectiveBackgroundResource == "",
+            "event CG profiles default to the programmatic scene theme without a bitmap background");
+        var retiredBitmap = JsonConvert.DeserializeObject<AuraToolsEventCgSettings>(
+            "{\"schemaVersion\":2,\"scenes\":{\"victory.standard\":{\"enabled\":true,\"backgroundResource\":\"Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png\"}}}")!;
+        retiredBitmap.Normalize();
+        Assert(retiredBitmap.GetScene(AuraToolsEventCgSceneIds.VictoryStandard).EffectiveBackgroundResource == "",
+            "an explicit legacy DPS-CG scene reference migrates one way to the programmatic theme");
         Assert(opening.EffectiveBaseWidth == 1 && opening.EffectiveBaseHeight == 1,
             "migrated event CG dimensions are clamped positive per scene");
         Assert(opening.EffectiveFadeIn == 0f
@@ -858,7 +881,7 @@ internal static partial class AuraToolsTestSuite
         var legacyRoleCg = JsonConvert.DeserializeObject<AuraToolsSkillCgSettings>(
             "{\"schemaVersion\":7,\"roles\":{\"career_1\":{\"enabled\":true,\"roleId\":\"career_1\",\"rules\":[{\"enabled\":false,\"sourceOwnerModId\":\"Example\",\"sourceCgId\":\"registered\",\"cardId\":\"careercard_1\",\"image\":\"registered.png\"},{\"enabled\":true,\"providerId\":\"legacy.manual\",\"cardId\":\"careercard_1\",\"image\":\"manual.png\"}]}}}")!;
         legacyRoleCg.Normalize();
-        Assert(legacyRoleCg.SchemaVersion == 9
+        Assert(legacyRoleCg.SchemaVersion == 10
                && legacyRoleCg.LegacyRoleRulesMigrated
                && legacyRoleCg.Roles.Count == 0
                && legacyRoleCg.RoleEntries.ContainsKey("Example:registered")
@@ -873,6 +896,12 @@ internal static partial class AuraToolsTestSuite
             "the retired role-rule writer is removed after one-way migration");
         Assert(legacyRoleJson["roleEntries"]?["Example:registered"]?["enabled"] == null,
             "role entry overrides no longer serialize the retired global activation flag");
+        var retiredLowHealth = JsonConvert.DeserializeObject<AuraToolsSkillCgSettings>(
+            "{\"schemaVersion\":9,\"lowHealthThreshold\":0.75}")!;
+        retiredLowHealth.Normalize();
+        Assert(retiredLowHealth.SchemaVersion == 10
+               && !JsonConvert.SerializeObject(retiredLowHealth).Contains("lowHealthThreshold", StringComparison.Ordinal),
+            "role CG consumes but never rewrites the retired configurable low-health threshold");
     }
 
     public static void TestCgOutcomeReasonPolicy()
@@ -917,6 +946,42 @@ internal static partial class AuraToolsTestSuite
         Assert(settings.GetRoleSelection("career_1", AuraToolsRoleCgContextKeys.SkillChannel, "careercard_3")
                == AuraToolsRoleCgContextKeys.NoneSelectionCgId,
             "an explicitly disabled legacy context remains distinct from an unset manifest-default context");
+    }
+
+    public static void TestRoleCgSkillIdentityAliases()
+    {
+        var authoritative = new[]
+        {
+            "Terrias_wuna_wuna_white_sun_prayer",
+            "Terrias_wuna_wuna_grave_song"
+        };
+        Assert(AuraToolsRoleSkillIdentity.ResolveEquivalent(
+                   "wuna_white_sun_prayer",
+                   authoritative,
+                   "Terrias") == "Terrias_wuna_wuna_white_sun_prayer",
+            "role CG short ids resolve to the authoritative owner-qualified career skill");
+        Assert(AuraToolsRoleSkillIdentity.ContainsEquivalent(
+                   authoritative,
+                   "*Terrias_wuna_wuna_grave_song",
+                   "Terrias"),
+            "role CG protocol markers do not create duplicate player-facing skills");
+        Assert(!AuraToolsRoleSkillIdentity.ContainsEquivalent(
+                   authoritative,
+                   "unregistered_skill",
+                   "Terrias"),
+            "an unrelated skill remains distinct from the authoritative role skill set");
+    }
+
+    public static void TestLowHealthNativePresentationLatch()
+    {
+        var latch = new AuraToolsLowHealthPresentationLatch();
+        Assert(latch.TryEnter("local-status")
+               && !latch.TryEnter("local-status")
+               && !latch.TryEnter(""),
+            "native Dying presentation emits once per local status in one battle");
+        latch.Reset();
+        Assert(latch.TryEnter("local-status"),
+            "the native Dying presentation latch resets at the next battle generation");
     }
 
     public static void TestCgSettingsLayoutBudgets()

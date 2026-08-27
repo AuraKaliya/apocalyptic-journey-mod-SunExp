@@ -8,7 +8,7 @@ namespace AuraToolsExp.Dll.Config;
 
 public sealed class AuraToolsSkillCgSettings
 {
-    public const int CurrentSchemaVersion = 9;
+    public const int CurrentSchemaVersion = 10;
 
     private AuraToolsEventCgSettings eventCg = new();
     private bool hasExplicitEventCg;
@@ -34,7 +34,7 @@ public sealed class AuraToolsSkillCgSettings
     }
 
     [JsonProperty("lowHealthThreshold")]
-    public float LowHealthThreshold { get; set; } = 0.3f;
+    private float? LegacyLowHealthThreshold { get; set; }
 
     [JsonProperty("syncRemote")]
     public bool SyncRemote { get; set; } = true;
@@ -81,7 +81,6 @@ public sealed class AuraToolsSkillCgSettings
         CardUseCg.Normalize();
         eventCg ??= new AuraToolsEventCgSettings();
         eventCg.Normalize();
-        LowHealthThreshold = Math.Max(0.05f, Math.Min(0.95f, LowHealthThreshold));
         MaxQueueLength = Math.Max(1, Math.Min(30, MaxQueueLength));
         MaxRequestAgeSeconds = Math.Max(0.5f, Math.Min(30f, MaxRequestAgeSeconds));
         DuplicateWindowSeconds = Math.Max(0.02f, Math.Min(2f, DuplicateWindowSeconds));
@@ -158,6 +157,8 @@ public sealed class AuraToolsSkillCgSettings
     {
         return !LegacyRoleRulesMigrated && Roles.Count > 0;
     }
+
+    public bool ShouldSerializeLegacyLowHealthThreshold() => false;
 
     public string GetRoleSelection(string roleId, string channel, string skillId = "")
     {
@@ -317,9 +318,9 @@ public sealed class AuraToolsSkillCgSettings
 
 public sealed class AuraToolsEventCgSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
-    public const string DefaultBackgroundResource = "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png";
+    internal const string RetiredDefaultBackgroundResource = "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png";
 
     private Dictionary<string, AuraToolsEventCgSceneSettings> scenes =
         new(StringComparer.OrdinalIgnoreCase);
@@ -349,7 +350,7 @@ public sealed class AuraToolsEventCgSettings
     }
 
     [JsonProperty("backgroundResource")]
-    private string LegacyBackgroundResource { get; set; } = DefaultBackgroundResource;
+    private string LegacyBackgroundResource { get; set; } = "";
 
     [JsonProperty("baseWidth")]
     private int LegacyBaseWidth { get; set; } = AuraToolsEventCgDefaults.BaseWidth;
@@ -385,7 +386,11 @@ public sealed class AuraToolsEventCgSettings
     {
         SchemaVersion = Math.Max(CurrentSchemaVersion, SchemaVersion);
         LegacyBackgroundResource = string.IsNullOrWhiteSpace(LegacyBackgroundResource)
-            ? DefaultBackgroundResource
+                                   || string.Equals(
+                                       LegacyBackgroundResource.Trim(),
+                                       RetiredDefaultBackgroundResource,
+                                       StringComparison.OrdinalIgnoreCase)
+            ? ""
             : LegacyBackgroundResource.Trim();
         LegacyBaseWidth = Math.Max(1, Math.Min(8192, LegacyBaseWidth));
         LegacyBaseHeight = Math.Max(1, Math.Min(8192, LegacyBaseHeight));
@@ -446,9 +451,7 @@ public sealed class AuraToolsEventCgSettings
             sceneId => new AuraToolsEventCgSceneSettings
             {
                 Enabled = LegacyEnabled(sceneId),
-                BackgroundResource = string.Equals(LegacyBackgroundResource, DefaultBackgroundResource, StringComparison.OrdinalIgnoreCase)
-                    ? ""
-                    : LegacyBackgroundResource,
+                BackgroundResource = LegacyBackgroundResource,
                 BaseWidth = LegacyBaseWidth == AuraToolsEventCgDefaults.BaseWidth ? null : LegacyBaseWidth,
                 BaseHeight = LegacyBaseHeight == AuraToolsEventCgDefaults.BaseHeight ? null : LegacyBaseHeight,
                 FadeIn = Nearly(LegacyFadeIn, AuraToolsEventCgDefaults.FadeIn) ? null : LegacyFadeIn,
@@ -604,9 +607,7 @@ public sealed class AuraToolsEventCgSceneSettings
     public string SceneId { get; private set; } = AuraToolsEventCgSceneIds.AdventureSettlement;
 
     [JsonIgnore]
-    public string EffectiveBackgroundResource => string.IsNullOrWhiteSpace(BackgroundResource)
-        ? AuraToolsEventCgSettings.DefaultBackgroundResource
-        : BackgroundResource;
+    public string EffectiveBackgroundResource => BackgroundResource;
 
     [JsonIgnore]
     public int EffectiveBaseWidth => BaseWidth ?? AuraToolsEventCgDefaults.BaseWidth;
@@ -635,6 +636,13 @@ public sealed class AuraToolsEventCgSceneSettings
     {
         SceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
         BackgroundResource = (BackgroundResource ?? "").Trim().Replace('\\', '/');
+        if (string.Equals(
+                BackgroundResource,
+                AuraToolsEventCgSettings.RetiredDefaultBackgroundResource,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            BackgroundResource = "";
+        }
         BaseWidth = BaseWidth.HasValue ? Math.Max(1, Math.Min(8192, BaseWidth.Value)) : null;
         BaseHeight = BaseHeight.HasValue ? Math.Max(1, Math.Min(8192, BaseHeight.Value)) : null;
         FadeIn = Clamp(FadeIn, 0f, 5f);

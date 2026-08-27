@@ -62,6 +62,8 @@ internal sealed class AudioVocalObservation
 
     public string StatusInstanceId { get; set; } = "";
 
+    public bool IsLocalOwner { get; set; }
+
     public string SourceName { get; set; } = "";
 }
 

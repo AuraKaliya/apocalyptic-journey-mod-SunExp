@@ -96,12 +96,16 @@ foreach ($resourceId in @("columbina.homesickness", "columbina.feast")) {
 
 $cgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias\SharedResources\cg.registry.json") | ConvertFrom-Json
 $homesicknessCg = $cgRegistry.entries | Where-Object { $_.cgId -eq "columbina.homesickness" } | Select-Object -First 1
-Assert-True ($null -ne $homesicknessCg -and $homesicknessCg.kind -eq "skill") "Columbina Homesickness skill CG registration is missing."
-Assert-True (@($homesicknessCg.targetRoleIds) -contains "Terrias_columbina_columbina") "Columbina Homesickness CG must target the full role id."
-Assert-True (@($homesicknessCg.skillIds) -contains "Terrias_columbina_columbina_homesickness") "Columbina Homesickness CG must target the full skill id through schema v3."
+Assert-True ($null -ne $homesicknessCg `
+    -and $homesicknessCg.subjectType -eq "role" `
+    -and @($homesicknessCg.signals) -contains "aura.role.skill.committed") "Columbina Homesickness skill CG registration is missing."
+Assert-True (@($homesicknessCg.subjectIds) -contains "Terrias_columbina_columbina") "Columbina Homesickness CG must target the full role id."
+Assert-True ((@($homesicknessCg.match.facts.skillId) -join "|") -eq "Terrias_columbina_columbina_homesickness") "Columbina Homesickness CG must expose only its authoritative full skill id through schema v4."
 Assert-True ($homesicknessCg.defaultActivation.consumerMode -eq "toolManaged" -and $homesicknessCg.defaultActivation.consumerModId -eq "AuraToolsExp") "Columbina Homesickness CG must be managed by AuraToolsExp."
 $feastCg = $cgRegistry.entries | Where-Object { $_.cgId -eq "columbina.feast" } | Select-Object -First 1
-Assert-True ($null -ne $feastCg -and $feastCg.kind -eq "feast") "Columbina Feast CG registration is missing."
+Assert-True ($null -ne $feastCg `
+    -and $feastCg.subjectType -eq "role" `
+    -and @($feastCg.signals) -contains "aura.role.feast.completed") "Columbina Feast CG registration is missing."
 Assert-True ($feastCg.defaultActivation.consumerMode -eq "toolManaged" -and $feastCg.defaultActivation.consumerModId -eq "AuraToolsExp") "Columbina Feast CG must be managed by AuraToolsExp."
 Assert-True ([double]$homesicknessCg.defaultPresentation.hold -eq 2.1) "Columbina Homesickness CG must cover the longest voice variant."
 
@@ -132,7 +136,11 @@ foreach ($providerId in $expectedVoiceCounts.Keys) {
 }
 
 $lowHealthVoice = $audioRegistry.providers | Where-Object { $_.providerId -eq "Terrias.Columbina.LowHealth" } | Select-Object -First 1
-Assert-True ([double]$lowHealthVoice.match.hpRatioCrossDown -eq 0.2 -and $lowHealthVoice.match.localOwnerOnly) "Columbina low-health voice must use the local-owner 20% crossing rule."
+Assert-True ($lowHealthVoice.kind -eq "VocalState" `
+    -and $lowHealthVoice.vocalState -eq "Dying" `
+    -and @($lowHealthVoice.match.stages) -contains "Observed" `
+    -and $lowHealthVoice.match.localOwnerOnly `
+    -and $null -eq $lowHealthVoice.match.PSObject.Properties["hpRatioCrossDown"]) "Columbina low-health voice must follow the native local-owner Dying decision without a configurable threshold."
 
 $behaviorProject = Join-Path $repoRoot "Terrias-Dev.ColumbinaTests\Terrias-Dev.ColumbinaTests.csproj"
 dotnet run --project $behaviorProject -c $Configuration

@@ -48,6 +48,8 @@ TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();
 TestUnifiedEventCgSettingsAndLegacyMigration();
 TestRoleCgContextSelections();
+TestRoleCgSkillIdentityAliases();
+TestLowHealthNativePresentationLatch();
 TestCgOutcomeReasonPolicy();
 TestCgSettingsLayoutBudgets();
 TestTeamScenePlanning();

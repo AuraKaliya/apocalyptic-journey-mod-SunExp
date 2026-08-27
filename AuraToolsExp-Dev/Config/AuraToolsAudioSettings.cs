@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsAudioSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = 7;
 
     [JsonProperty("battleBgm")]
     public AudioFeatureSettings BattleBgm { get; set; } = AudioFeatureSettings.CreateBattleBgmDefault();
@@ -22,7 +22,7 @@ public sealed class AuraToolsAudioSettings
 
     public void Normalize()
     {
-        SchemaVersion = Math.Max(6, SchemaVersion);
+        SchemaVersion = Math.Max(7, SchemaVersion);
         BattleBgm ??= AudioFeatureSettings.CreateBattleBgmDefault();
         CardUse ??= AudioFeatureSettings.CreateCardUseDefault();
         Voice ??= new AuraToolsVoiceSettings();
@@ -102,7 +102,7 @@ public sealed class AuraToolsVoiceBindingSettings
     public float? CooldownSeconds { get; set; }
 
     [JsonProperty("hpRatioThreshold")]
-    public float? HpRatioThreshold { get; set; }
+    private float? LegacyHpRatioThreshold { get; set; }
 
     public void Normalize(string fallbackProviderId)
     {
@@ -118,8 +118,9 @@ public sealed class AuraToolsVoiceBindingSettings
         ResourcePath = (ResourcePath?.Trim() ?? "")
             .Replace("/Voice/AuraToolsExp/", "/Voice/Terrias/");
         if (CooldownSeconds.HasValue) CooldownSeconds = Math.Max(0f, CooldownSeconds.Value);
-        if (HpRatioThreshold.HasValue) HpRatioThreshold = Math.Max(0.01f, Math.Min(0.99f, HpRatioThreshold.Value));
     }
+
+    public bool ShouldSerializeLegacyHpRatioThreshold() => false;
 }
 
 public sealed class AudioFeatureSettings

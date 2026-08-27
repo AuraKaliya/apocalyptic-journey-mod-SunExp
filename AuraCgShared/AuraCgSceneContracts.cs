@@ -11,7 +11,7 @@ public static class AuraCgSceneProtocol
     public const int CurrentVersion = 1;
     public const int MaximumParticipants = 8;
     public const int MaximumIdentifierLength = 160;
-    public const string DefaultLayoutId = "team-stage.v1";
+    public const string DefaultLayoutId = "team-tableau.v2";
 }
 
 [Serializable]
@@ -314,7 +314,10 @@ internal static class AuraCgTeamScenePlanner
             LogicalHeight = template.LogicalHeight,
             BackgroundAsset = template.BackgroundAsset.Clone()
         };
-        var slots = AuraCgTeamSceneLayout.Resolve(participants.Count);
+        var slots = AuraCgAdaptiveTeamLayout.Resolve(
+            template.LayoutId,
+            template.PresentationProfileId,
+            participants.Count);
         for (var index = 0; index < participants.Count; index++)
         {
             var sourceParticipant = participants[index];
@@ -385,27 +388,69 @@ internal readonly struct AuraCgTeamSceneSlot
     public bool MirrorX { get; }
 }
 
-internal static class AuraCgTeamSceneLayout
+internal static class AuraCgAdaptiveTeamLayout
 {
-    public static IReadOnlyList<AuraCgTeamSceneSlot> Resolve(int participantCount)
+    public static IReadOnlyList<AuraCgTeamSceneSlot> Resolve(
+        string layoutId,
+        string presentationProfileId,
+        int participantCount)
     {
         var count = Math.Max(1, Math.Min(AuraCgSceneProtocol.MaximumParticipants, participantCount));
+        var normalizedLayout = string.IsNullOrWhiteSpace(layoutId)
+            ? AuraCgSceneProtocol.DefaultLayoutId
+            : layoutId.Trim();
+        if (!string.Equals(normalizedLayout, AuraCgSceneProtocol.DefaultLayoutId, StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedLayout = AuraCgSceneProtocol.DefaultLayoutId;
+        }
+        var profile = (presentationProfileId ?? "").ToLowerInvariant();
+        var verticalOffset = profile.Contains("defeat")
+            ? -0.04f
+            : profile.Contains("opening") ? 0.02f : 0f;
+
         var result = new List<AuraCgTeamSceneSlot>(count);
         if (count == 1)
         {
-            result.Add(Slot(0.5f, 0.47f, 0.38f, 0.82f, 0));
+            result.Add(Slot(0.5f, 0.47f + verticalOffset, 0.46f, 0.84f, 10));
             return result;
         }
 
-        var lowerCount = Math.Min(4, count);
-        AddRow(result, lowerCount, 0.43f, 0.30f, 0.72f, 10);
-        var upperCount = count - lowerCount;
-        if (upperCount > 0)
+        if (count <= 4)
         {
-            AddRow(result, upperCount, 0.62f, 0.25f, 0.58f, 0);
+            AddArc(result, count, 0.47f + verticalOffset, count == 2 ? 0.34f : 0.28f, 0.75f, 10);
+            return result;
         }
 
+        var frontCount = count <= 6 ? 3 : 4;
+        var backCount = count - frontCount;
+        AddRow(result, frontCount, 0.40f + verticalOffset, frontCount == 3 ? 0.27f : 0.23f, 0.66f, 10);
+        AddRow(result, backCount, 0.64f + verticalOffset, backCount <= 3 ? 0.24f : 0.21f, 0.52f, 0);
         return result;
+    }
+
+    private static void AddArc(
+        ICollection<AuraCgTeamSceneSlot> output,
+        int count,
+        float centerY,
+        float width,
+        float height,
+        int baseZ)
+    {
+        var start = count == 2 ? 0.31f : 0.14f;
+        var end = count == 2 ? 0.69f : 0.86f;
+        var step = count <= 1 ? 0f : (end - start) / (count - 1);
+        for (var index = 0; index < count; index++)
+        {
+            var distance = Math.Abs(index - (count - 1) / 2f);
+            var y = centerY + Math.Max(0f, 0.055f - distance * 0.035f);
+            output.Add(Slot(
+                start + step * index,
+                y,
+                width,
+                height,
+                baseZ + index,
+                index >= (count + 1) / 2));
+        }
     }
 
     private static void AddRow(
@@ -416,8 +461,9 @@ internal static class AuraCgTeamSceneLayout
         float height,
         int baseZ)
     {
-        var start = count == 1 ? 0.5f : 0.16f;
-        var step = count <= 1 ? 0f : 0.68f / (count - 1);
+        var start = count == 1 ? 0.5f : count == 2 ? 0.34f : count == 3 ? 0.20f : 0.13f;
+        var end = count == 1 ? 0.5f : count == 2 ? 0.66f : count == 3 ? 0.80f : 0.87f;
+        var step = count <= 1 ? 0f : (end - start) / (count - 1);
         for (var index = 0; index < count; index++)
         {
             output.Add(Slot(
@@ -426,7 +472,7 @@ internal static class AuraCgTeamSceneLayout
                 width,
                 height,
                 baseZ + index,
-                index >= count / 2));
+                index >= (count + 1) / 2));
         }
     }
 

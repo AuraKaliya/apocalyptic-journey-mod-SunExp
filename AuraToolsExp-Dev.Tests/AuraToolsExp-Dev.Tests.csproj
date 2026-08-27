@@ -20,6 +20,10 @@
              Link="Infrastructure\AuraToolsProtocolCompatibility.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedJson.cs"
              Link="Shared\AuraSharedJson.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedContentId.cs"
+             Link="Shared\AuraSharedContentId.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs"
+             Link="Shared\AuraSharedIdentity.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs"
              Link="Shared\AuraFeatureSwitchRuntime.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedHooks.cs"
@@ -36,6 +40,8 @@
              Link="Config\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsVoiceSkillBindingMigration.cs"
              Link="Config\AuraToolsVoiceSkillBindingMigration.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsVoiceNativeStateBindingMigration.cs"
+             Link="Config\AuraToolsVoiceNativeStateBindingMigration.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\SafeBox\AuraToolsSafeBoxDataCompatibility.cs"
              Link="SafeBox\AuraToolsSafeBoxDataCompatibility.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\PixelEmojiCore.cs"
@@ -92,6 +98,10 @@
              Link="Cg\AuraToolsCgOutcomeReasonPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgSettingsLayoutPolicy.cs"
              Link="Cg\AuraToolsCgSettingsLayoutPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsRoleSkillIdentity.cs"
+             Link="Cg\AuraToolsRoleSkillIdentity.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsLowHealthPresentationLatch.cs"
+             Link="Cg\AuraToolsLowHealthPresentationLatch.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\WinSqlite.cs"
              Link="DamageMeter\WinSqlite.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\DamageHistoryDatabase.cs"

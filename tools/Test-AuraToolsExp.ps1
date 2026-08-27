@@ -355,7 +355,7 @@ $audioSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $pixelEmojiSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\PixelEmojiSettings.json") | ConvertFrom-Json
 if ($rootSettings.schemaVersion -ne 2 `
-        -or $audioSettings.schemaVersion -ne 5 `
+        -or $audioSettings.schemaVersion -ne 7 `
         -or $null -ne $audioSettings.audioSystemVersion `
         -or $audioSettings.voice.enabled -ne $true `
         -or $null -eq $audioSettings.voice.bindings `
@@ -381,9 +381,9 @@ if ($loggingSettings.schemaVersion -ne 5 `
 
 $skillCgSettings = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\Config\SkillCgSettings.json") | ConvertFrom-Json
-if ($skillCgSettings.schemaVersion -ne 9 `
+if ($skillCgSettings.schemaVersion -ne 10 `
         -or $skillCgSettings.disableAfterFailures -ne $true `
-        -or [Math]::Abs([double]$skillCgSettings.lowHealthThreshold - 0.3) -gt 0.0001 `
+        -or $null -ne $skillCgSettings.PSObject.Properties["lowHealthThreshold"] `
         -or @($skillCgSettings.roleEntries.PSObject.Properties).Count -ne 0 `
         -or @($skillCgSettings.roleSelections.PSObject.Properties).Count -ne 0 `
         -or @($skillCgSettings.manualRoleEntries).Count -ne 0 `
@@ -391,7 +391,7 @@ if ($skillCgSettings.schemaVersion -ne 9 `
         -or $null -ne $skillCgSettings.PSObject.Properties["roles"] `
         -or $skillCgSettings.eventCg.enabled -ne $true `
         -or $skillCgSettings.eventCg.syncRemote -ne $true `
-        -or $skillCgSettings.eventCg.schemaVersion -ne 2 `
+        -or $skillCgSettings.eventCg.schemaVersion -ne 3 `
         -or @($skillCgSettings.eventCg.scenes.PSObject.Properties).Count -ne 7 `
         -or @($skillCgSettings.eventCg.scenes.PSObject.Properties.Value | Where-Object { $_.enabled -ne $true }).Count -ne 0 `
         -or $null -ne $skillCgSettings.eventCg.PSObject.Properties["specialBattleIds"] `
@@ -419,7 +419,7 @@ $officialFeastCg = @($cgRegistry.entries | Where-Object {
     $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.feast.completed"
 })
 $officialLowHealthCg = @($cgRegistry.entries | Where-Object {
-    $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.health.crossed-down"
+    $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.low-health.entered"
 })
 $eventCg = @($cgRegistry.entries | Where-Object {
     $_.subjectType -eq "event"
@@ -455,11 +455,11 @@ $invalidSemanticCg = @($allCgEntries | Where-Object {
         -or @($_.signals).Count -eq 0
 }).Count -ne 0
 $invalidSkillCgFacts = @($officialSkillCg + $terriasSkillCg | Where-Object {
-    @($_.match.facts.skillId).Count -eq 0
+    @($_.match.facts.skillId).Count -ne 1
 }).Count -ne 0
 $invalidEventScene = @($eventCg | Where-Object {
     $_.media.type -ne "scene" `
-        -or $_.scene.layoutId -ne "team-stage.v1" `
+        -or $_.scene.layoutId -ne "team-tableau.v2" `
         -or $_.scene.maximumParticipants -ne 8 `
         -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.ownerModId) `
         -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.assetId) `

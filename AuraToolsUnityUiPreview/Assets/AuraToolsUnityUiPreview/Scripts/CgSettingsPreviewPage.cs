@@ -58,7 +58,7 @@ namespace AuraTools.UnityUiPreview
             else
             {
                 Summary(root.transform, 156f, "使用方案", "AuraToolsExp 默认方案", "", PreviewTheme.Success);
-                Summary(root.transform, 212f, "背景", "默认：点金手胜利", "替换", PreviewTheme.Text);
+                Summary(root.transform, 212f, "背景", "程序主题（无需背景图）", "可选叠层", PreviewTheme.Text);
                 Summary(root.transform, 268f, "冒险队伍", "跟随实际参与玩家 · 当前角色皮肤 · 1-8 人自动布局", "", PreviewTheme.Text);
                 Summary(root.transform, 324f, "展示时长", "标准 · 3 秒", "高级调整", PreviewTheme.Text);
                 var note = Panel(root.transform, "DefaultNote", 0f, 388f, 0f, 76f, false);
@@ -117,22 +117,32 @@ namespace AuraTools.UnityUiPreview
             var stage = PreviewUi.Rect("Stage", parent,
                 new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f),
                 new Vector2(520f, 292f), new Vector2(0f, -152f));
-            var stageImage = PreviewUi.Image(stage, new Color(0.05f, 0.04f, 0.09f, 1f), EventSprite());
-            stageImage.preserveAspect = true;
+            PreviewUi.Image(stage, new Color(0.12f, 0.075f, 0.025f, 1f));
+            var wash = PreviewUi.Stretch("ThemeWash", stage.transform, Vector4.zero);
+            PreviewUi.Image(wash, new Color(0.34f, 0.18f, 0.03f, 0.34f));
+            var topBand = PreviewUi.Rect("TopBand", stage.transform,
+                new Vector2(0.04f, 0.91f), new Vector2(0.96f, 0.945f), Vector2.zero, Vector2.zero, Vector2.zero);
+            PreviewUi.Image(topBand, new Color(1f, 0.77f, 0.20f, 0.85f));
+            var bottomBand = PreviewUi.Rect("BottomBand", stage.transform,
+                new Vector2(0.04f, 0.055f), new Vector2(0.96f, 0.09f), Vector2.zero, Vector2.zero, Vector2.zero);
+            PreviewUi.Image(bottomBand, new Color(1f, 0.77f, 0.20f, 0.65f));
+            var stageGlow = PreviewUi.Rect("StageGlow", stage.transform,
+                new Vector2(0.09f, 0.13f), new Vector2(0.91f, 0.31f), Vector2.zero, Vector2.zero, Vector2.zero);
+            PreviewUi.Image(stageGlow, new Color(0.95f, 0.52f, 0.08f, 0.30f));
             for (var index = 0; index < 4; index++)
             {
                 var x = 52f + index * 128f;
                 var role = PreviewUi.Rect("Participant-" + index, stage.transform,
                     new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0.5f, 0f),
-                    new Vector2(108f, 48f), new Vector2(x, 46f));
-                PreviewUi.Image(role, new Color(0.04f, 0.025f, 0.09f, 0.88f), PreviewAssets.ToolboxControl);
+                    new Vector2(108f, 142f), new Vector2(x, 46f));
+                PreviewUi.Image(role, new Color(0.055f, 0.03f, 0.015f, 0.82f), PreviewAssets.ToolboxControl);
                 PreviewUi.FillText("Name", role.transform, new[] { "乌娜", "卡洛琳", "阿瓜", "萨娅" }[index],
-                    14, TextAnchor.MiddleCenter, PreviewTheme.Text, new Vector4(6f, 4f, 6f, 4f), true);
+                    14, TextAnchor.LowerCenter, PreviewTheme.Text, new Vector4(6f, 4f, 6f, 8f), true);
             }
             var caption = PreviewUi.Rect("Caption", stage.transform,
                 Vector2.zero, new Vector2(1f, 0.18f), Vector2.zero, Vector2.zero, Vector2.zero);
             PreviewUi.Image(caption, new Color(0f, 0f, 0f, 0.62f));
-            PreviewUi.FillText("Text", caption.transform, "点金手胜利 · 队伍自动布局", 16,
+            PreviewUi.FillText("Text", caption.transform, "点金手胜利 · 组件化队伍构图", 16,
                 TextAnchor.MiddleCenter, PreviewTheme.Text, new Vector4(8f, 4f, 8f, 4f), true);
 
             Label(parent, "预览人数", 0f, 448f, 92f, 40f, PreviewTheme.MutedText, TextAnchor.MiddleLeft);
@@ -259,17 +269,5 @@ namespace AuraTools.UnityUiPreview
             return label;
         }
 
-        private static Sprite EventSprite()
-        {
-            var texture = Resources.Load<Texture2D>("CgPreview/event-default");
-            if (texture == null)
-            {
-                return null;
-            }
-            var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f), 100f);
-            sprite.name = "EventCgDefaultPreview";
-            return sprite;
-        }
     }
 }

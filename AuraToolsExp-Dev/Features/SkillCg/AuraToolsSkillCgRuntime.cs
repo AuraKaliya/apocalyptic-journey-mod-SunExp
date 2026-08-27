@@ -157,14 +157,10 @@ public static class AuraToolsSkillCgRuntime
             AuraToolsIds.ModId + ".CG.Signals",
             AuraToolsLog.Debug,
             AuraToolsLog.Warn);
-        signalHooks.BeforeRouted(
-            "StatusManager.set_CurHp",
-            AuraToolsCgLowHealthSignalService.BeforeCurHpChanged,
-            "RoleLowHealth.Before");
         signalHooks.AfterRouted(
-            "StatusManager.set_CurHp",
-            AuraToolsCgLowHealthSignalService.AfterCurHpChanged,
-            "RoleLowHealth.After");
+            "StatusManager.PlayVocal",
+            AuraToolsCgLowHealthSignalService.AfterVocalState,
+            "RoleLowHealth.NativeDying");
         signalHooks.BeforeRouted(
             "PlayerInfo.GiveWin",
             AuraToolsCgOutcomeReasonService.ObserveGiveWin,

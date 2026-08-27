@@ -132,12 +132,25 @@ internal static class AuraToolsCgEventSignalService
 
     public static bool Preview(string sceneId, int participantCount)
     {
+        var request = BuildPreviewRequest(sceneId, participantCount);
+        if (request == null)
+        {
+            return false;
+        }
+
+        SkillCgArbiterRuntime.BeginPresentationSession(AuraToolsIds.ModId, "event CG preview");
+        SkillCgArbiterRuntime.RequestCg(AuraToolsIds.ModId, request);
+        return true;
+    }
+
+    public static SkillCgRequest? BuildPreviewRequest(string sceneId, int participantCount)
+    {
         var normalizedSceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
         var settings = Settings();
         var scene = settings.GetScene(normalizedSceneId);
         if (!scene.Enabled)
         {
-            return false;
+            return null;
         }
 
         var source = AuraToolsCgTeamSnapshotService.BuildPreviewSource(
@@ -146,7 +159,7 @@ internal static class AuraToolsCgEventSignalService
             participantCount);
         if (source == null)
         {
-            return false;
+            return null;
         }
 
         var signalId = SignalForScene(normalizedSceneId);
@@ -167,12 +180,10 @@ internal static class AuraToolsCgEventSignalService
             disableSync: true);
         if (candidates.Count == 0)
         {
-            return false;
+            return null;
         }
 
-        SkillCgArbiterRuntime.BeginPresentationSession(AuraToolsIds.ModId, "event CG preview");
-        SkillCgArbiterRuntime.EmitSignal(settings, AuraToolsIds.ModId, signal);
-        return true;
+        return candidates[0];
     }
 
     private static bool Emit(

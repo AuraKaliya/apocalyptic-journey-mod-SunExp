@@ -40,7 +40,8 @@
     },
     {
       "providerId": "Terrias.Wuna.LowHealth",
-      "kind": "LowHealth",
+      "kind": "VocalState",
+      "vocalState": "Dying",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
@@ -49,7 +50,7 @@
       "cooldownSeconds": 1,
       "match": {
         "stages": [
-          "ThresholdCrossedDown"
+          "Observed"
         ],
         "careerIds": [
           "wuna",
@@ -59,7 +60,6 @@
           "wuna",
           "Terrias_wuna_wuna"
         ],
-        "hpRatioCrossDown": 0.2,
         "localOwnerOnly": true
       },
       "suppressOriginal": {
@@ -189,7 +189,8 @@
     },
     {
       "providerId": "Terrias.Columbina.LowHealth",
-      "kind": "LowHealth",
+      "kind": "VocalState",
+      "vocalState": "Dying",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
@@ -201,7 +202,7 @@
       "cooldownSeconds": 1,
       "match": {
         "stages": [
-          "ThresholdCrossedDown"
+          "Observed"
         ],
         "careerIds": [
           "columbina",
@@ -211,7 +212,6 @@
           "columbina",
           "Terrias_columbina_columbina"
         ],
-        "hpRatioCrossDown": 0.2,
         "localOwnerOnly": true
       },
       "suppressOriginal": {

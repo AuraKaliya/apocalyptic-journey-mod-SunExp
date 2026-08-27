@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 7,
   "battleBgm": {
     "enabled": true,
     "mode": "Common",

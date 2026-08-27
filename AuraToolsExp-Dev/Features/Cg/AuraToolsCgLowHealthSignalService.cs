@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
@@ -15,25 +16,10 @@ namespace AuraToolsExp.Dll.Features.Cg;
 
 internal static class AuraToolsCgLowHealthSignalService
 {
-    private static readonly Dictionary<string, float> BeforeRatios =
-        new(StringComparer.Ordinal);
+    private static readonly AuraToolsLowHealthPresentationLatch Latch = new();
     private static long sequence;
 
-    public static void BeforeCurHpChanged(ModHookContext context)
-    {
-        if (!AuraToolsConfigService.SkillCg.Enabled
-            || context?.Target is not IStatusManager status
-            || !IsLocalRole(status))
-        {
-            return;
-        }
-
-        var id = (status.InstanceId ?? "").Trim();
-        if (id.Length == 0) return;
-        BeforeRatios[id] = Ratio(status);
-    }
-
-    public static void AfterCurHpChanged(ModHookContext context)
+    public static void AfterVocalState(ModHookContext context)
     {
         if (context?.Target is not IStatusManager status)
         {
@@ -41,27 +27,22 @@ internal static class AuraToolsCgLowHealthSignalService
         }
 
         var id = (status.InstanceId ?? "").Trim();
-        if (!AuraToolsConfigService.SkillCg.Enabled || !IsLocalRole(status))
+        var vocalState = context.Arguments?.FirstOrDefault()?.ToString() ?? "";
+        if (!AuraToolsConfigService.SkillCg.Enabled
+            || !IsLocalRole(status)
+            || !string.Equals(vocalState, IStatusManager.VocalState.Dying.ToString(), StringComparison.Ordinal)
+            || id.Length == 0)
         {
-            BeforeRatios.Remove(id);
             return;
         }
 
-        var before = BeforeRatios.TryGetValue(id, out var remembered) ? remembered : 1f;
-        BeforeRatios.Remove(id);
         var after = Ratio(status);
-        var threshold = AuraToolsConfigService.SkillCg.LowHealthThreshold;
-        if (status.CurHp <= 0 || before <= threshold || after > threshold)
-        {
-            return;
-        }
-
         var roleId = AuraSharedIdentity.SelectRoleId(AuraToolsSkillCgRuntime.ReadCurrentCareerId());
-        if (string.IsNullOrWhiteSpace(roleId)) return;
+        if (string.IsNullOrWhiteSpace(roleId) || !Latch.TryEnter(id)) return;
         var currentSequence = ++sequence;
         var signal = new AuraCgSignalContext
         {
-            SignalId = AuraCgSignals.RoleLowHealthCrossedDown,
+            SignalId = AuraCgSignals.RoleLowHealthEntered,
             SubjectType = AuraCgSubjectTypes.Role,
             SubjectId = roleId,
             RoleId = roleId,
@@ -95,7 +76,7 @@ internal static class AuraToolsCgLowHealthSignalService
 
     public static void Reset()
     {
-        BeforeRatios.Clear();
+        Latch.Reset();
     }
 
     private static bool IsLocalRole(IStatusManager status)

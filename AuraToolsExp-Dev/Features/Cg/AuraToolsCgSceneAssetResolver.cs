@@ -96,6 +96,7 @@ public sealed class AuraToolsCgSceneAssetResolver
             return null;
         }
         var resolvedAssetId = assetId + "." + CacheSegment(normalizedRole);
+        var displayName = RoleCatalog.GetDisplayName(normalizedRole);
 
         var skin = SkinRegistry.FindQualified(roleVariantId, effectiveOnly: false);
         var animationDirectory = skin?.Assets?.Animation ?? "";
@@ -116,6 +117,7 @@ public sealed class AuraToolsCgSceneAssetResolver
                 {
                     OwnerModId = AuraToolsIds.ModId,
                     AssetId = skinAssetId,
+                    DisplayName = displayName,
                     ImagePath = idleDirectory,
                     MediaType = SkillCgMediaTypes.Sequence,
                     FrameSeconds = spec.FrameSeconds,
@@ -124,12 +126,13 @@ public sealed class AuraToolsCgSceneAssetResolver
             }
         }
 
-        return ResolveRegisteredCareerIdle(resolvedAssetId + ".career", normalizedRole);
+        return ResolveRegisteredCareerIdle(resolvedAssetId + ".career", normalizedRole, displayName);
     }
 
     private static AuraCgResolvedSceneAsset? ResolveRegisteredCareerIdle(
         string assetId,
-        string roleId)
+        string roleId,
+        string displayName)
     {
         if (!CareerConfigApi.TryCreate(roleId, out var career) || career == null)
         {
@@ -173,7 +176,8 @@ public sealed class AuraToolsCgSceneAssetResolver
                 sprites,
                 ownsSprites: true,
                 frameSeconds: spec.FrameSeconds,
-                loop: spec.Loop);
+                loop: spec.Loop,
+                displayName: displayName);
     }
 
     private static AuraCgResolvedSceneAsset Direct(
@@ -181,12 +185,14 @@ public sealed class AuraToolsCgSceneAssetResolver
         IEnumerable<Sprite> sprites,
         bool ownsSprites,
         float frameSeconds,
-        bool loop)
+        bool loop,
+        string displayName = "")
     {
         return new AuraCgResolvedSceneAsset
         {
             OwnerModId = AuraToolsIds.ModId,
             AssetId = assetId,
+            DisplayName = displayName,
             MediaType = SkillCgMediaTypes.Sequence,
             FrameSeconds = frameSeconds,
             Loop = loop,

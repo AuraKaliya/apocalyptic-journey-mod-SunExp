@@ -146,6 +146,19 @@ Assert-True ((@($growthProfileIds | Where-Object { [string]::IsNullOrWhiteSpace(
 Assert-True ((@($growthSpeciesIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable speciesId values."
 Assert-True ((@($growthProfileIds | Sort-Object -Unique)).Count -eq $growthProfileIds.Count) "growth profileId values must be unique."
 Assert-True ((@($growth.profiles | Where-Object { $_.match.sourceModId -eq "base-game" })).Count -eq 55) "all 55 reviewed base-game forms must be data-backed."
+$nativeTableExport = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "docs\游戏主体内容\combat-knowledge\table-exports\witch-tables-20260810-135440.json") | ConvertFrom-Json
+$nativeEnemyIds = @($nativeTableExport.Tables.Enemy | ForEach-Object { [string]$_.Id })
+$terriasEnemyIds = @(Import-Csv -LiteralPath (Join-Path $repoRoot "Terrias\Data\Enemy\terrias.csv") | ForEach-Object { [string]$_.Id })
+foreach ($profile in @($growth.profiles)) {
+    $source = [string]$profile.match.sourceModId
+    $enemyId = [string]$profile.match.enemyId
+    if ($source -eq "base-game") {
+        Assert-True ($nativeEnemyIds -contains ("enemy_" + $enemyId.Replace("enemy_", ""))) "initial Spirit profile $($profile.profileId) does not resolve to a native enemy row."
+    }
+    else {
+        Assert-True ($terriasEnemyIds -contains $enemyId) "initial Spirit profile $($profile.profileId) does not resolve to a Terrias enemy row."
+    }
+}
 Assert-True ((@($growth.profiles | Where-Object { $supportedCaptureElements -notcontains [string]$_.captureElement })).Count -eq 0) "every growth profile must declare one of the seven capture elements."
 Assert-True ((@($growth.profiles.captureElement | Sort-Object -Unique)).Count -eq 7) "the provisional species table must exercise all seven elements."
 $identityDiff = @(Compare-Object $growthProfileIds $explicitIntentProfileIds)

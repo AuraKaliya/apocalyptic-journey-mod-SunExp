@@ -618,7 +618,7 @@
         "career_1"
       ],
       "signals": [
-        "aura.role.health.crossed-down"
+        "aura.role.low-health.entered"
       ],
       "match": {
         "facts": {},
@@ -660,7 +660,7 @@
         "career_3"
       ],
       "signals": [
-        "aura.role.health.crossed-down"
+        "aura.role.low-health.entered"
       ],
       "match": {
         "facts": {},
@@ -727,7 +727,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "event",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -785,7 +785,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -843,7 +843,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -902,7 +902,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -961,7 +961,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -1016,7 +1016,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -1070,7 +1070,7 @@
         "safeScale": 1.0
       },
       "scene": {
-        "layoutId": "team-stage.v1",
+        "layoutId": "team-tableau.v2",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,

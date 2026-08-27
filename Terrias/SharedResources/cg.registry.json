@@ -47,8 +47,7 @@
       "match": {
         "facts": {
           "skillId": [
-            "Terrias_loneer_loneer_morning_star_prayer",
-            "loneer_morning_star_prayer"
+            "Terrias_loneer_loneer_morning_star_prayer"
           ]
         },
         "minimumMetrics": {},
@@ -95,8 +94,7 @@
       "match": {
         "facts": {
           "skillId": [
-            "Terrias_wuna_wuna_white_sun_prayer",
-            "wuna_white_sun_prayer"
+            "Terrias_wuna_wuna_white_sun_prayer"
           ]
         },
         "minimumMetrics": {},
@@ -143,8 +141,7 @@
       "match": {
         "facts": {
           "skillId": [
-            "Terrias_columbina_columbina_homesickness",
-            "columbina_homesickness"
+            "Terrias_columbina_columbina_homesickness"
           ]
         },
         "minimumMetrics": {},

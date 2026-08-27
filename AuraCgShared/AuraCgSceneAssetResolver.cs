@@ -12,6 +12,8 @@ public sealed class AuraCgResolvedSceneAsset
 
     public string AssetId { get; set; } = "";
 
+    public string DisplayName { get; set; } = "";
+
     public string ImagePath { get; set; } = "";
 
     public string MediaType { get; set; } = SkillCgMediaTypes.Image;
@@ -38,6 +40,7 @@ public sealed class AuraCgResolvedSceneAsset
         AssetId = string.IsNullOrWhiteSpace(AssetId)
             ? reference.AssetId
             : AssetId.Trim();
+        DisplayName = (DisplayName ?? "").Trim();
         ImagePath = (ImagePath ?? "").Trim();
         MediaType = SkillCgMediaTypes.Normalize(MediaType);
         BundlePath = (BundlePath ?? "").Trim().Replace('\\', '/').TrimStart('/');
@@ -84,6 +87,7 @@ public sealed class AuraCgResolvedSceneAsset
         {
             OwnerModId = ReadString(type, source, "OwnerModId"),
             AssetId = ReadString(type, source, "AssetId"),
+            DisplayName = ReadString(type, source, "DisplayName"),
             ImagePath = ReadString(type, source, "ImagePath"),
             MediaType = ReadString(type, source, "MediaType"),
             BundlePath = ReadString(type, source, "BundlePath"),

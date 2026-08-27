@@ -29,6 +29,7 @@ public static class AuraToolsRoleCgSettingsPage
     private static string selectedRoleId = "";
     private static string selectedChannel = AuraToolsRoleCgChannels.Skill;
     private static string selectedSkillId = "";
+    private static readonly List<IDisposable> ThumbnailBindings = new();
 
     public static void Show(Transform parent)
     {
@@ -128,13 +129,15 @@ public static class AuraToolsRoleCgSettingsPage
 
         if (IsChannel(AuraToolsRoleCgChannels.LowHealth))
         {
-            AuraToolsUi.AddText(row.transform, "触发生命值", AuraToolsUi.BodyFontSize,
+            AuraToolsUi.AddText(row.transform, "原生低生命", AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 0f, 96f);
-            var valueText = AuraToolsUi.AddText(row.transform, ThresholdLabel(), AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleCenter, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 0f, 56f);
-            CreateThresholdSlider(row.transform, valueText);
-            AuraToolsUi.AddText(row.transform, "生命值从上方向下越过阈值时播放", AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
+            AuraToolsUi.AddText(row.transform,
+                "沿用游戏主体的“濒危（Dying）”判定；每场战斗首次进入时播放。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
             return;
         }
 
@@ -151,6 +154,7 @@ public static class AuraToolsRoleCgSettingsPage
     private static void RefreshCandidates()
     {
         var viewState = AuraUiViewState.CaptureForContent(resourceContent!);
+        ReleaseThumbnailBindings();
         AuraToolsUi.ClearChildren(resourceContent!);
         if (IsChannel(AuraToolsRoleCgChannels.Feast))
         {
@@ -306,28 +310,55 @@ public static class AuraToolsRoleCgSettingsPage
     {
         var root = AuraToolsUi.CreateLayout("Thumbnail", parent);
         AuraToolsUi.SetFixedSize(root, 64f, 64f);
-        var image = root.AddComponent<Image>();
-        image.color = new Color(0.08f, 0.075f, 0.13f, 1f);
+        var background = root.AddComponent<Image>();
+        background.color = new Color(0.08f, 0.075f, 0.13f, 1f);
+        background.raycastTarget = false;
+        root.AddComponent<RectMask2D>();
+        AuraToolsUi.AddFillText(
+            root.transform,
+            "无图",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleCenter,
+            AuraToolsUi.MutedText);
+        var imageObject = new GameObject("CenteredCrop", typeof(RectTransform), typeof(Image));
+        imageObject.transform.SetParent(root.transform, false);
+        var image = imageObject.GetComponent<Image>();
+        image.color = Color.white;
         image.raycastTarget = false;
         image.preserveAspect = true;
-        var sprite = LoadPreviewSprite(ownerModId, resource);
-        if (sprite != null)
-        {
-            image.sprite = sprite;
-            image.color = Color.white;
-        }
+        var rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = new Vector2(64f, 64f);
+        ThumbnailBindings.Add(SkillCgArbiterRuntime.LoadPreviewSprite(
+            AuraToolsIds.ModId,
+            ownerModId,
+            resource,
+            sprite =>
+            {
+                if (image == null || sprite == null)
+                {
+                    return;
+                }
+
+                image.sprite = sprite;
+                var width = Math.Max(1f, sprite.rect.width);
+                var height = Math.Max(1f, sprite.rect.height);
+                rect.sizeDelta = width >= height
+                    ? new Vector2(64f * width / height, 64f)
+                    : new Vector2(64f, 64f * height / width);
+            }));
     }
 
-    private static Sprite? LoadPreviewSprite(string ownerModId, string resource)
+    private static void ReleaseThumbnailBindings()
     {
-        try
+        for (var index = ThumbnailBindings.Count - 1; index >= 0; index--)
         {
-            return AuraToolsResourceCache.Load<Sprite>(resource, true);
+            ThumbnailBindings[index].Dispose();
         }
-        catch
-        {
-            return null;
-        }
+        ThumbnailBindings.Clear();
     }
 
     private static void ShowRolePicker(Transform parent)
@@ -610,38 +641,6 @@ public static class AuraToolsRoleCgSettingsPage
             TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
     }
 
-    private static void CreateThresholdSlider(Transform parent, Text valueText)
-    {
-        var root = AuraToolsUi.CreateLayout("ThresholdSlider", parent);
-        AuraToolsUi.SetFixedSize(root, 260f, 40f);
-        var background = AuraToolsUi.CreateRect("Background", root.transform,
-            new Vector2(0f, 0.42f), new Vector2(1f, 0.58f), new Vector2(0.5f, 0.5f), Vector2.zero);
-        var backgroundImage = background.AddComponent<Image>();
-        backgroundImage.color = AuraToolsUi.RowHighlighted;
-        var fill = AuraToolsUi.CreateRect("Fill", root.transform,
-            new Vector2(0f, 0.42f), new Vector2(1f, 0.58f), new Vector2(0f, 0.5f), Vector2.zero);
-        var fillImage = fill.AddComponent<Image>();
-        fillImage.color = AuraToolsUi.Accent;
-        var handle = AuraToolsUi.CreateRect("Handle", root.transform,
-            new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(22f, 22f));
-        var handleImage = handle.AddComponent<Image>();
-        handleImage.color = AuraToolsUi.Text;
-        var slider = root.AddComponent<Slider>();
-        slider.minValue = 5f;
-        slider.maxValue = 95f;
-        slider.wholeNumbers = true;
-        slider.fillRect = fill.GetComponent<RectTransform>();
-        slider.handleRect = handle.GetComponent<RectTransform>();
-        slider.targetGraphic = handleImage;
-        slider.value = Mathf.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f);
-        slider.onValueChanged.AddListener(value =>
-        {
-            AuraToolsConfigService.SkillCg.LowHealthThreshold = value / 100f;
-            valueText.text = ThresholdLabel();
-            AuraToolsConfigService.SaveSkillCg();
-        });
-    }
-
     private static GameObject Horizontal(string name, Transform parent, float height, float spacing)
     {
         var row = AuraToolsUi.CreateLayout(name, parent);
@@ -693,11 +692,6 @@ public static class AuraToolsRoleCgSettingsPage
         return string.IsNullOrWhiteSpace(skill.DisplayName) ? skill.Id : skill.DisplayName;
     }
 
-    private static string ThresholdLabel()
-    {
-        return Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f) + "%";
-    }
-
     private static string FeastSource(FeastCgCandidate candidate)
     {
         if (candidate.SourceKind == FeastCgSourceKind.Manual) return "玩家资源";
@@ -732,6 +726,7 @@ public static class AuraToolsRoleCgSettingsPage
 
     private static void Cleanup()
     {
+        ReleaseThumbnailBindings();
         windowRoot = null;
         contextHost = null;
         resourceContent = null;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using AuraCg.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Features.SkillCg;
@@ -33,6 +34,7 @@ public static class AuraToolsEventCgSettingsPage
     private static string victorySceneId = AuraToolsEventCgSceneIds.VictoryStandard;
     private static bool previewMode;
     private static int previewParticipants = 4;
+    private static IDisposable? embeddedPreview;
 
     public static void Show(Transform parent)
     {
@@ -88,6 +90,7 @@ public static class AuraToolsEventCgSettingsPage
         if (configTab != null) configTab.interactable = previewMode;
         if (previewTab != null) previewTab.interactable = !previewMode;
         RefreshContext();
+        ReleaseEmbeddedPreview();
         AuraToolsUi.ClearChildren(bodyContent);
         if (previewMode)
         {
@@ -147,9 +150,9 @@ public static class AuraToolsEventCgSettingsPage
             scene.UsesDefaultPresentation ? null : ResetPresentation);
         AddSummaryRow(
             "背景",
-            scene.UsesDefaultPresentation && string.IsNullOrWhiteSpace(scene.BackgroundResource)
-                ? "默认：" + SceneName(scene.SceneId)
-                : Path.GetFileName(scene.EffectiveBackgroundResource),
+            string.IsNullOrWhiteSpace(scene.BackgroundResource)
+                ? "程序主题（无需背景图）"
+                : "可选叠层：" + Path.GetFileName(scene.EffectiveBackgroundResource),
             AuraToolsUi.Text,
             PickBackground,
             "替换");
@@ -221,24 +224,35 @@ public static class AuraToolsEventCgSettingsPage
             stage,
             AuraToolsCgSettingsLayoutPolicy.EventPreviewWidth,
             AuraToolsCgSettingsLayoutPolicy.EventPreviewHeight);
-        var background = stage.AddComponent<Image>();
-        background.color = new Color(0.05f, 0.045f, 0.09f, 1f);
-        background.raycastTarget = false;
-        background.preserveAspect = true;
-        var sprite = LoadPreviewSprite(scene.EffectiveBackgroundResource);
-        if (sprite != null)
+        var stageBackground = stage.AddComponent<Image>();
+        stageBackground.color = new Color(0.03f, 0.03f, 0.08f, 1f);
+        stageBackground.raycastTarget = false;
+        var request = AuraToolsCgEventSignalService.BuildPreviewRequest(
+            scene.SceneId,
+            previewParticipants);
+        if (request != null)
         {
-            background.sprite = sprite;
-            background.color = Color.white;
+            embeddedPreview = SkillCgArbiterRuntime.ShowEmbeddedScenePreview(
+                AuraToolsIds.ModId,
+                stage.transform,
+                request,
+                success => SetStatus(
+                    success
+                        ? "嵌入预览与实际播放共用同一组件渲染器。"
+                        : "场景资源尚未就绪，无法生成嵌入预览。",
+                    !success));
+        }
+        else
+        {
+            SetStatus("当前场景不可预览，请确认场景已启用且角色目录可用。", true);
         }
 
-        AddPreviewParticipants(stage.transform, previewParticipants);
         var captionRoot = AuraToolsUi.CreateRect("Caption", stage.transform,
             new Vector2(0f, 0f), new Vector2(1f, 0.18f), Vector2.zero, Vector2.zero);
         var captionImage = captionRoot.AddComponent<Image>();
         captionImage.color = new Color(0f, 0f, 0f, 0.58f);
         captionImage.raycastTarget = false;
-        AuraToolsUi.AddFillText(captionRoot.transform, SceneName(scene.SceneId) + " · 队伍自动布局",
+        AuraToolsUi.AddFillText(captionRoot.transform, SceneName(scene.SceneId) + " · 组件化队伍构图",
             AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text);
         AuraToolsUi.AddText(stageRow.transform, "", AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
@@ -288,38 +302,6 @@ public static class AuraToolsEventCgSettingsPage
         if (action != null)
         {
             AuraToolsUi.AddButton(row.transform, actionLabel, action, 104f, 40f);
-        }
-    }
-
-    private static void AddPreviewParticipants(Transform stage, int count)
-    {
-        var roles = RoleCatalog.GetRoles().ToList();
-        if (roles.Count == 0)
-        {
-            return;
-        }
-
-        var shown = Math.Max(1, Math.Min(8, count));
-        var width = Mathf.Min(0.2f, 0.82f / shown);
-        for (var index = 0; index < shown; index++)
-        {
-            var role = roles[index % roles.Count];
-            var center = shown == 1 ? 0.5f : 0.09f + 0.82f * index / (shown - 1f);
-            var root = AuraToolsUi.CreateRect(
-                "Participant-" + index,
-                stage,
-                new Vector2(center - width / 2f, 0.18f),
-                new Vector2(center + width / 2f, 0.38f),
-                new Vector2(0.5f, 0.5f),
-                Vector2.zero);
-            var image = root.AddComponent<Image>();
-            image.color = new Color(0.08f, 0.07f, 0.14f, 0.86f);
-            image.raycastTarget = false;
-            AuraToolsUi.AddFillText(root.transform,
-                string.IsNullOrWhiteSpace(role.DisplayName) ? role.Id : role.DisplayName,
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleCenter,
-                AuraToolsUi.Text);
         }
     }
 
@@ -415,18 +397,6 @@ public static class AuraToolsEventCgSettingsPage
         }
         AuraToolsUi.AddText(row.transform, "", AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
-    }
-
-    private static Sprite? LoadPreviewSprite(string resource)
-    {
-        try
-        {
-            return AuraToolsResourceCache.Load<Sprite>(resource, true);
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private static void SelectCategory(string value)
@@ -526,6 +496,7 @@ public static class AuraToolsEventCgSettingsPage
 
     private static void Cleanup()
     {
+        ReleaseEmbeddedPreview();
         windowRoot = null;
         contextHost = null;
         bodyContent = null;
@@ -536,6 +507,12 @@ public static class AuraToolsEventCgSettingsPage
         settlementTab = null;
         configTab = null;
         previewTab = null;
+    }
+
+    private static void ReleaseEmbeddedPreview()
+    {
+        embeddedPreview?.Dispose();
+        embeddedPreview = null;
     }
 
     private readonly struct NumberField

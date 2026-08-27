@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
 var assertions = 0;
@@ -190,6 +191,33 @@ Assert(registeredSpiritProfiles.Count == SpiritSystemContract.InitialRosterProfi
        && registeredSpiritProfiles.Select(profile => profile.ProfileId).Distinct(StringComparer.Ordinal).Count()
        == SpiritSystemContract.InitialRosterProfileCount,
     "the initial roster source exposes exactly fifty-eight distinct registered Spirit profiles");
+var baseGameLookup = EnemyCatalogApi.ConfiguredEnemyLookupCandidates("base-game", "10001");
+Assert(baseGameLookup.Contains("enemy_10001", StringComparer.OrdinalIgnoreCase),
+    "initial Spirit lookup expands normalized base-game ids to native enemy ids");
+Assert(registeredSpiritProfiles.All(profile =>
+    {
+        var match = profile.Match ?? new SpiritSpeciesGrowthMatch();
+        var candidates = EnemyCatalogApi.ConfiguredEnemyLookupCandidates(match.SourceModId, match.EnemyId);
+        var expected = string.Equals(match.SourceModId, "base-game", StringComparison.OrdinalIgnoreCase)
+            ? "enemy_" + match.EnemyId.Trim().Replace("enemy_", "")
+            : TerriasContentIdCompatibility.CurrentMainPrefix + match.EnemyId.Trim();
+        return candidates.Contains(expected, StringComparer.OrdinalIgnoreCase);
+    }),
+    "all fifty-eight initial Spirit profiles expose their authoritative native or owner-qualified enemy id candidate");
+var initialAttemptLedger = new SpiritInitialRosterAttemptLedger();
+Assert(initialAttemptLedger.MarkPending("profile", "catalog-not-ready")
+       && initialAttemptLedger.PendingProfileKeys().SequenceEqual(new[] { "profile" })
+       && initialAttemptLedger.TryBeginReadyAttempt("profile", 3)
+       && !initialAttemptLedger.TryBeginReadyAttempt("profile", 3),
+    "initial Spirit pending work begins exactly once for one native catalog generation");
+initialAttemptLedger.MarkPending("profile", "late-registration");
+Assert(initialAttemptLedger.TryBeginReadyAttempt("profile", 4),
+    "a newer native catalog generation deterministically drains a pending initial Spirit obligation");
+initialAttemptLedger.MarkCompleted("profile", "committed");
+Assert(initialAttemptLedger.PendingProfileKeys().Count == 0
+       && initialAttemptLedger.IsTerminal("profile")
+       && !initialAttemptLedger.TryBeginReadyAttempt("profile", 5),
+    "a committed initial Spirit grant leaves no retry path behind");
 var pyroSpecies = SpiritGrowthRegistry.ResolveIdentity(new CapturedEnemySnapshot
 {
     SourceModId = "base-game",

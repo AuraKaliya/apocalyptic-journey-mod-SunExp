@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using UnityEngine;
@@ -35,14 +36,19 @@ public static class EnemyCatalogApi
             return SpiritEligibilityResult.Reject("初始精灵 Profile 缺少具体敌人标识。");
         }
 
-        var data = TerriasConfigIndex.Row(DataType.Enemy, normalizedEnemyId)
-                   ?? TerriasConfigIndex.Row(
-                       DataType.Enemy,
-                       TerriasContentIdCompatibility.Canonicalize(normalizedEnemyId));
-        if (data == null)
+        var resolved = AuraGameDataHostApi.Resolve(
+            DataType.Enemy,
+            ConfiguredEnemyLookupCandidates(sourceModId, normalizedEnemyId).ToArray());
+        if (resolved == null)
         {
             return SpiritEligibilityResult.Reject("初始精灵 Profile 无法解析敌人配置：" + normalizedEnemyId);
         }
+
+        var data = resolved.Fields.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value,
+            StringComparer.Ordinal);
+        var resolvedEnemyId = FirstNonEmpty(DictionaryUtil.Get(data, "Id"), resolved.Id);
 
         var animation = DictionaryUtil.Get(data, "Animation").TrimEnd('/');
         if (animation.Length == 0)
@@ -53,16 +59,63 @@ public static class EnemyCatalogApi
         var normalizedVariantId = (variantId ?? "").Trim();
         if (normalizedVariantId.Length == 0 || normalizedVariantId == "*")
         {
-            normalizedVariantId = FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), normalizedEnemyId);
+            normalizedVariantId = FirstNonEmpty(DictionaryUtil.Get(data, "VariantId"), resolvedEnemyId);
         }
 
         return SpiritEligibilityResult.Allow(BuildSnapshot(
             data,
-            normalizedEnemyId,
+            resolvedEnemyId,
             normalizedVariantId,
             string.IsNullOrWhiteSpace(sourceModId) ? SourceModId(normalizedEnemyId) : sourceModId.Trim(),
             "",
             captureOrigin));
+    }
+
+    public static IReadOnlyList<string> ConfiguredEnemyLookupCandidates(
+        string sourceModId,
+        string enemyId)
+    {
+        var source = (sourceModId ?? "").Trim();
+        var value = (enemyId ?? "").Trim().TrimStart('*');
+        if (value.Length == 0 || value == "*")
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        if (string.Equals(source, "base-game", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "BaseGame", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "base_game", StringComparison.OrdinalIgnoreCase))
+        {
+            var local = value.StartsWith("enemy_", StringComparison.OrdinalIgnoreCase)
+                ? value.Substring("enemy_".Length)
+                : value;
+            AddCandidate(result, "enemy_" + local);
+            AddCandidate(result, value);
+            AddCandidate(result, local);
+            return result;
+        }
+
+        if (string.Equals(source, "terrias", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(source, "Terrias", StringComparison.OrdinalIgnoreCase)
+            || TerriasContentIdCompatibility.HasKnownPrefix(value))
+        {
+            foreach (var candidate in TerriasContentIdCompatibility.LookupCandidates(value, "terrias")
+                         .OrderByDescending(candidate => candidate.StartsWith(
+                             TerriasContentIdCompatibility.CurrentMainPrefix,
+                             StringComparison.OrdinalIgnoreCase)))
+            {
+                AddCandidate(result, candidate);
+            }
+            return result;
+        }
+
+        if (source.Length > 0)
+        {
+            AddCandidate(result, source.TrimEnd('_') + "_" + value);
+        }
+        AddCandidate(result, value);
+        return result;
     }
 
     private static SpiritEligibilityResult InspectCore(IStatusManager? target, string captureOrigin, bool requireDictionaryVisible)
@@ -213,5 +266,14 @@ public static class EnemyCatalogApi
     private static string FirstNonEmpty(params string[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+    }
+
+    private static void AddCandidate(ICollection<string> values, string candidate)
+    {
+        var normalized = (candidate ?? "").Trim();
+        if (normalized.Length > 0 && !values.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            values.Add(normalized);
+        }
     }
 }

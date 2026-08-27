@@ -55,10 +55,6 @@ function Sync-PreviewIcons {
     }
     $toolboxV2Assets | Copy-Item -Destination $toolboxV2Target -Force
 
-    $cgPreviewTarget = Join-Path $projectPath "Assets\AuraToolsUnityUiPreview\Resources\CgPreview"
-    [System.IO.Directory]::CreateDirectory($cgPreviewTarget) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $repoRoot "AuraToolsExp\ModResource\DPSCG\DPS-CG.png") `
-        -Destination (Join-Path $cgPreviewTarget "event-default.png") -Force
 }
 
 function Assert-PreviewSourceContract {

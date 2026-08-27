@@ -4,11 +4,13 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using AuraCg.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
+using Witch.Core;
 
 namespace AuraToolsExp.Dll.Features.Cg;
 
@@ -21,7 +23,7 @@ public static class AuraToolsRoleCgChannels
     public static string Signal(string channel)
     {
         if (string.Equals(channel, Feast, StringComparison.OrdinalIgnoreCase)) return AuraCgSignals.RoleFeastCompleted;
-        if (string.Equals(channel, LowHealth, StringComparison.OrdinalIgnoreCase)) return AuraCgSignals.RoleLowHealthCrossedDown;
+        if (string.Equals(channel, LowHealth, StringComparison.OrdinalIgnoreCase)) return AuraCgSignals.RoleLowHealthEntered;
         return AuraCgSignals.RoleSkillCommitted;
     }
 }
@@ -90,22 +92,41 @@ public static class AuraToolsRoleCgCatalog
     {
         var normalized = RoleCatalog.NormalizeRoleId(roleId);
         var result = RoleCatalog.GetRoleSkills(normalized).ToList();
-        var known = new HashSet<string>(result.Select(skill => skill.Id), StringComparer.OrdinalIgnoreCase);
         foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries()
                      .Where(entry => entry.Signals.Contains(AuraCgSignals.RoleSkillCommitted, StringComparer.OrdinalIgnoreCase))
                      .Where(entry => MatchesRole(entry, normalized)))
         {
             foreach (var skillId in MatchValues(entry, "skillId"))
             {
-                if (string.Equals(skillId, "*", StringComparison.Ordinal) || !known.Add(skillId))
+                if (string.Equals(skillId, "*", StringComparison.Ordinal)
+                    || AuraToolsRoleSkillIdentity.ContainsEquivalent(
+                        result.Select(skill => skill.Id),
+                        skillId,
+                        entry.OwnerModId))
+                {
+                    continue;
+                }
+
+                var canonicalId = AuraGameDataHostApi.ResolveId(
+                    DataType.Card,
+                    new[]
+                    {
+                        skillId,
+                        AuraSharedContentId.NormalizeProtocolMarkers(skillId)
+                    });
+                if (string.IsNullOrWhiteSpace(canonicalId)
+                    || AuraToolsRoleSkillIdentity.ContainsEquivalent(
+                        result.Select(skill => skill.Id),
+                        canonicalId,
+                        entry.OwnerModId))
                 {
                     continue;
                 }
 
                 result.Add(new RoleSkillInfo
                 {
-                    Id = skillId,
-                    DisplayName = Settings.AuraToolsPlayerDisplay.CardName(skillId),
+                    Id = canonicalId,
+                    DisplayName = Settings.AuraToolsPlayerDisplay.CardName(canonicalId),
                     Slot = result.Count + 1
                 });
             }

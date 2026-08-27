@@ -2,7 +2,7 @@
 
 This standalone HTML prototype explores the approved adaptive team-scene design
 without changing the product runtime. It uses actual repository role PNGs and
-the current AuraToolsExp background as visual inputs.
+the programmatic AuraToolsExp scene themes as visual inputs; no bitmap background is required.
 
 Open `index.html` directly, or run the repeatable Playwright capture:
 

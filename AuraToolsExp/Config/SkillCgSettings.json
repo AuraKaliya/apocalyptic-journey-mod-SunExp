@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "enabled": true,
   "cardUseCg": {
     "enabled": true,
@@ -7,7 +7,7 @@
     "presentationOverrides": {}
   },
   "eventCg": {
-    "schemaVersion": 2,
+    "schemaVersion": 3,
     "enabled": true,
     "syncRemote": true,
     "playSettlementAfterBattleScene": false,
@@ -49,7 +49,6 @@
       }
     }
   },
-  "lowHealthThreshold": 0.3,
   "syncRemote": true,
   "maxQueueLength": 8,
   "maxRequestAgeSeconds": 6.0,

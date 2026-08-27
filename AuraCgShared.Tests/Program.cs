@@ -233,7 +233,7 @@ var lowHealthEntry = new AuraCgRegistryEntry
     CgId = "career-1-low-health",
     SubjectType = AuraCgSubjectTypes.Role,
     SubjectIds = new List<string> { "career_1" },
-    Signals = new List<string> { AuraCgSignals.RoleLowHealthCrossedDown },
+    Signals = new List<string> { AuraCgSignals.RoleLowHealthEntered },
     Match = new AuraCgMatchSpec
     {
         MaximumMetrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
@@ -245,7 +245,7 @@ var lowHealthEntry = new AuraCgRegistryEntry
 };
 var lowHealthSignal = new AuraCgSignalContext
 {
-    SignalId = AuraCgSignals.RoleLowHealthCrossedDown,
+    SignalId = AuraCgSignals.RoleLowHealthEntered,
     SubjectType = AuraCgSubjectTypes.Role,
     SubjectId = "career_1",
     RoleId = "career_1",
@@ -262,12 +262,21 @@ Assert(!AuraCgRegistryQueryService.MatchesSignal(lowHealthEntry, lowHealthSignal
 
 for (var count = 1; count <= AuraCgSceneProtocol.MaximumParticipants; count++)
 {
-    var slots = AuraCgTeamSceneLayout.Resolve(count);
+    var slots = AuraCgAdaptiveTeamLayout.Resolve(
+        AuraCgSceneProtocol.DefaultLayoutId,
+        "victory.standard",
+        count);
+    var repeatedSlots = AuraCgAdaptiveTeamLayout.Resolve(
+        AuraCgSceneProtocol.DefaultLayoutId,
+        "victory.standard",
+        count);
     Assert(slots.Count == count
            && slots.All(slot => slot.CenterX >= 0f && slot.CenterX <= 1f
-                                && slot.CenterY >= 0f && slot.CenterY <= 1f
-                                && slot.Width > 0f && slot.Height > 0f),
-        "team scene layout remains bounded for participant count " + count);
+                                 && slot.CenterY >= 0f && slot.CenterY <= 1f
+                                 && slot.Width > 0f && slot.Height > 0f)
+           && slots.Select(slot => slot.CenterX + ":" + slot.CenterY)
+               .SequenceEqual(repeatedSlots.Select(slot => slot.CenterX + ":" + slot.CenterY)),
+        "adaptive team tableau remains deterministic and bounded for participant count " + count);
 }
 
 var sceneEntry = new AuraCgRegistryEntry
@@ -360,8 +369,9 @@ Assert(sceneRequest!.ScenePlan!.Participants.Count == AuraCgSceneProtocol.Maximu
            .SequenceEqual(Enumerable.Range(0, 8).Select(index => "role-" + index)),
     "host scene planning preserves player order, deduplicates participants, and caps the wire plan");
 var sceneWire = Newtonsoft.Json.JsonConvert.SerializeObject(sceneRequest.ScenePlan);
-Assert(!sceneWire.Contains("PlayerId", StringComparison.OrdinalIgnoreCase)
-       && !sceneWire.Contains("Damage", StringComparison.OrdinalIgnoreCase)
+    Assert(!sceneWire.Contains("PlayerId", StringComparison.OrdinalIgnoreCase)
+           && !sceneWire.Contains("DisplayName", StringComparison.OrdinalIgnoreCase)
+           && !sceneWire.Contains("Damage", StringComparison.OrdinalIgnoreCase)
        && !sceneWire.Contains("Base64", StringComparison.OrdinalIgnoreCase)
        && !sceneWire.Contains("StableKey", StringComparison.OrdinalIgnoreCase)
        && !sceneWire.Contains("QualifiedAssetId", StringComparison.OrdinalIgnoreCase)
@@ -405,6 +415,9 @@ var landscapeCover = AuraCgPresentationMath.CalculateCoverImageSize(1600f, 900f,
 Assert(Near(landscapeCover.X, 1600f) && Near(landscapeCover.Y, 900f), "landscape cover fills viewport height");
 var portraitCover = AuraCgPresentationMath.CalculateCoverImageSize(500f, 1000f, 1200f, 900f, 1f);
 Assert(Near(portraitCover.X, 1200f) && Near(portraitCover.Y, 2400f), "portrait cover fills viewport width");
+var thumbnailCover = AuraCgPresentationMath.CalculateCoverImageSize(1582f, 994f, 64f, 64f, 1f);
+Assert(Near(thumbnailCover.X, 64f * 1582f / 994f) && Near(thumbnailCover.Y, 64f),
+    "landscape CG thumbnails use a centered square cover based on the shorter source edge");
 var coverOffset = AuraCgPresentationMath.CalculateCoverImageOffset(1600f, 1200f, 1200f, 900f, 0f, 1f);
 Assert(Near(coverOffset.X, 200f) && Near(coverOffset.Y, 150f), "cover focus maps to bounded overflow offset");
 Assert(Near(AuraCgPresentationMath.EvaluateSlideXRatio(0f), 1.18f)

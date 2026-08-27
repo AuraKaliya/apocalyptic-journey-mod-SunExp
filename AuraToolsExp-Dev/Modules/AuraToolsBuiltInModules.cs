@@ -616,12 +616,11 @@ internal static class AuraToolsBuiltInModules
                 var count = AuraCgRegistryRuntime.GetRegisteredEntries()
                     .Count(entry => string.Equals(entry.SubjectType, AuraCgSubjectTypes.Role, StringComparison.OrdinalIgnoreCase)
                                     && (entry.Signals.Contains(AuraCgSignals.RoleSkillCommitted, StringComparer.OrdinalIgnoreCase)
-                                        || entry.Signals.Contains(AuraCgSignals.RoleLowHealthCrossedDown, StringComparer.OrdinalIgnoreCase)));
+                                        || entry.Signals.Contains(AuraCgSignals.RoleLowHealthEntered, StringComparer.OrdinalIgnoreCase)));
                 return State(
                     AuraToolModuleIds.SkillCg,
                     AuraToolsConfigService.SkillCg.Enabled,
-                    "角色资源 " + count + " 个 · 低生命 "
-                    + Math.Round(AuraToolsConfigService.SkillCg.LowHealthThreshold * 100f) + "% · 联机同步"
+                    "角色资源 " + count + " 个 · 原生濒危判定 · 联机同步"
                     + (AuraToolsConfigService.SkillCg.SyncRemote ? "开启" : "关闭"),
                     count);
             },

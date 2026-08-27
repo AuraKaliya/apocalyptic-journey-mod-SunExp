@@ -80,6 +80,7 @@ internal sealed partial class AudioArbiterContractTests
             CareerId = "career",
             RoleId = "role",
             StatusInstanceId = "status",
+            IsLocalOwner = true,
             SourceName = "vocal-source"
         });
         Equal(SoundEventKinds.VocalState, vocal.Kind, "vocal request kind");
@@ -88,6 +89,7 @@ internal sealed partial class AudioArbiterContractTests
         Equal("career", vocal.CareerId, "vocal request career");
         Equal("role", vocal.RoleId, "vocal request role");
         Equal("status", vocal.StatusInstanceId, "vocal request status");
+        Equal(true, vocal.IsLocalOwner, "native vocal observations preserve local-owner authority");
         Equal("vocal-source", vocal.SourceName, "vocal request source");
     
         var lowHealth = AudioRequestFactory.CreateLowHealth(new AudioStatusSnapshot

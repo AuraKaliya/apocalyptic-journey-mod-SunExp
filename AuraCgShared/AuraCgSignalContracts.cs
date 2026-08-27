@@ -35,7 +35,10 @@ public static class AuraCgSignals
 {
     public const string RoleFeastCompleted = "aura.role.feast.completed";
     public const string RoleSkillCommitted = "aura.role.skill.committed";
-    public const string RoleLowHealthCrossedDown = "aura.role.health.crossed-down";
+    public const string RoleLowHealthEntered = "aura.role.low-health.entered";
+
+    [Obsolete("Use RoleLowHealthEntered. Low-health presentation now follows the native Dying decision.")]
+    public const string RoleLowHealthCrossedDown = RoleLowHealthEntered;
     public const string CardUsePresentationCommitted = "aura.card.use.presentation-committed";
     public const string BattleOpening = "aura.battle.opening";
     public const string BattleVictory = "aura.battle.outcome.victory";

@@ -52,8 +52,7 @@ public static class AuraToolsVoiceSettingsPage
                         Signal = provider.kind,
                         Stage = provider.match?.stages?.FirstOrDefault() ?? "",
                         ActionId = FirstActionId(provider),
-                        SkillSlot = provider.match?.skillSlot,
-                        HpRatioThreshold = provider.match?.hpRatioCrossDown
+                        SkillSlot = provider.match?.skillSlot
                     };
                     settings.Normalize(qualifiedId);
                     AuraToolsConfigService.Audio.Voice.Bindings[qualifiedId] = settings;
@@ -141,14 +140,6 @@ public static class AuraToolsVoiceSettingsPage
                 binding.SkillSlot ?? entry.Provider.match?.skillSlot,
                 value => binding.SkillSlot = NormalizeSkillSlot(entry.Provider, value));
         }
-        if (string.Equals(entry.Provider.kind, SoundEventKinds.LowHealth, StringComparison.OrdinalIgnoreCase))
-        {
-            NumberField(
-                controls,
-                "生命阈值",
-                binding.HpRatioThreshold ?? entry.Provider.match?.hpRatioCrossDown,
-                value => binding.HpRatioThreshold = value);
-        }
         if (!string.IsNullOrWhiteSpace(binding.ResourcePath))
         {
             AuraToolsUi.AddButton(controls, "恢复默认", () => binding.ResourcePath = "", 88f, 38f);
@@ -211,6 +202,9 @@ public static class AuraToolsVoiceSettingsPage
         if (!string.IsNullOrWhiteSpace(buff)) return AuraToolsPlayerDisplay.BuffName(buff);
         var result = provider.match?.battleResults?.FirstOrDefault();
         if (string.Equals(result, "Win", StringComparison.OrdinalIgnoreCase)) return "胜利时";
+        if (string.Equals(provider.kind, SoundEventKinds.VocalState, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(provider.vocalState, "Dying", StringComparison.OrdinalIgnoreCase))
+            return "游戏主体濒危判定";
         return "";
     }
 

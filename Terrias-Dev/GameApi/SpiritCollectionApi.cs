@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using AuraGameData.Shared;
+using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using Data.Save;
 using Newtonsoft.Json;
@@ -20,7 +22,8 @@ public static class SpiritCollectionApi
     private static bool initialized;
     private static ModConfig? configuredMod;
     private static string boundProfileKey = "";
-    private static readonly HashSet<string> InitialRosterAttemptedProfileKeys = new(StringComparer.Ordinal);
+    private static readonly SpiritInitialRosterAttemptLedger InitialRosterAttempts = new();
+    private static bool initialRosterCatalogListenerRegistered;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -30,6 +33,7 @@ public static class SpiritCollectionApi
         }
 
         configuredMod = modConfig ?? throw new ArgumentNullException(nameof(modConfig));
+        EnsureInitialRosterCatalogListener();
         initialized = true;
         EnsureProfileBound();
     }
@@ -352,6 +356,14 @@ public static class SpiritCollectionApi
                 SpiritAdventurePartySessionService.Configure(new SpiritAdventurePartySidecarStore(
                     configuredMod.DirectoryName,
                     stableKey));
+                if (!string.IsNullOrWhiteSpace(boundProfileKey)
+                    && !string.Equals(boundProfileKey, stableKey, StringComparison.Ordinal)
+                    && !InitialRosterAttempts.IsTerminal(boundProfileKey))
+                {
+                    InitialRosterAttempts.MarkBlocked(
+                        boundProfileKey,
+                        "profile binding was superseded for the current process lifecycle");
+                }
                 boundProfileKey = stableKey;
                 TerriasLog.Info("[SpiritCollection] profile bound to stable player=" + stableKey + ".");
             }
@@ -368,107 +380,183 @@ public static class SpiritCollectionApi
 
     private static void TryGrantInitialRoster(string stableProfileKey)
     {
-        if (configuredMod == null
-            || string.IsNullOrWhiteSpace(stableProfileKey)
-            || !InitialRosterAttemptedProfileKeys.Add(stableProfileKey)
-            || SpiritCollectionService.AppliedInitialRosterGrantVersion()
-            >= SpiritSystemContract.InitialRosterGrantVersion)
+        lock (SyncRoot)
         {
-            return;
-        }
-
-        if (!TerriasModConfigurationApi.TryGetBoolean(
-                configuredMod,
-                SpiritSystemContract.InitialRosterConfigurationKey,
-                out var enabled,
-                out var diagnostic))
-        {
-            TerriasLog.Warn("[SpiritInitialRoster] configuration unavailable for profile="
-                            + stableProfileKey
-                            + ": "
-                            + diagnostic
-                            + ".");
-            return;
-        }
-        if (!enabled)
-        {
-            TerriasLog.Info("[SpiritInitialRoster] disabled for profile=" + stableProfileKey + ".");
-            return;
-        }
-
-        try
-        {
-            var profiles = SpiritGrowthRegistry.RegisteredProfiles();
-            if (profiles.Count != SpiritSystemContract.InitialRosterProfileCount)
+            if (configuredMod == null
+                || string.IsNullOrWhiteSpace(stableProfileKey)
+                || !string.Equals(boundProfileKey, stableProfileKey, StringComparison.Ordinal))
             {
-                TerriasLog.Warn("[SpiritInitialRoster] roster rejected for profile="
-                                + stableProfileKey
-                                + "; expected="
-                                + SpiritSystemContract.InitialRosterProfileCount
-                                + ", actual="
-                                + profiles.Count
-                                + ", registry="
-                                + SpiritGrowthRegistry.LastLoadDiagnostic
-                                + ".");
                 return;
             }
 
-            var seeds = new List<SpiritInitialRosterSeed>(profiles.Count);
-            foreach (var profile in profiles)
+            if (SpiritCollectionService.AppliedInitialRosterGrantVersion()
+                >= SpiritSystemContract.InitialRosterGrantVersion)
             {
-                var match = profile.Match ?? new SpiritSpeciesGrowthMatch();
-                var inspection = EnemyCatalogApi.InspectConfiguredProfile(
-                    match.SourceModId,
-                    match.EnemyId,
-                    match.VariantId,
-                    SpiritSystemContract.InitialRosterCaptureOrigin);
-                if (!inspection.Eligible || inspection.Snapshot == null)
+                InitialRosterAttempts.MarkCompleted(stableProfileKey, "already-applied");
+                return;
+            }
+            if (InitialRosterAttempts.IsTerminal(stableProfileKey))
+            {
+                return;
+            }
+
+            var catalog = AuraGameDataHostApi.AcquireSnapshot();
+            var catalogEpoch = catalog.Version.Epoch;
+            if (!catalog.Version.NativeReady)
+            {
+                SetInitialRosterPending(
+                    stableProfileKey,
+                    catalogEpoch,
+                    "native game-data catalog is not ready");
+                return;
+            }
+            if (!InitialRosterAttempts.TryBeginReadyAttempt(stableProfileKey, catalogEpoch))
+            {
+                return;
+            }
+
+            if (!TerriasModConfigurationApi.TryGetBoolean(
+                    configuredMod,
+                    SpiritSystemContract.InitialRosterConfigurationKey,
+                    out var enabled,
+                    out var diagnostic))
+            {
+                SetInitialRosterPending(stableProfileKey, catalogEpoch, diagnostic);
+                return;
+            }
+            if (!enabled)
+            {
+                InitialRosterAttempts.MarkDisabled(stableProfileKey, "configuration disabled");
+                TerriasLog.Info("[SpiritInitialRoster] disabled for profile=" + stableProfileKey + ".");
+                return;
+            }
+
+            try
+            {
+                var profiles = SpiritGrowthRegistry.RegisteredProfiles();
+                if (profiles.Count != SpiritSystemContract.InitialRosterProfileCount)
                 {
-                    TerriasLog.Warn("[SpiritInitialRoster] roster preflight failed for profile="
-                                    + stableProfileKey
-                                    + ", spiritProfile="
-                                    + profile.ProfileId
-                                    + ": "
-                                    + inspection.Reason
-                                    + ".");
+                    SetInitialRosterPending(
+                        stableProfileKey,
+                        catalogEpoch,
+                        "expected " + SpiritSystemContract.InitialRosterProfileCount
+                        + " profiles but registry exposed " + profiles.Count
+                        + "; " + SpiritGrowthRegistry.LastLoadDiagnostic);
                     return;
                 }
 
-                seeds.Add(new SpiritInitialRosterSeed
+                var seeds = new List<SpiritInitialRosterSeed>(profiles.Count);
+                foreach (var profile in profiles)
                 {
-                    ProfileId = profile.ProfileId,
-                    Snapshot = inspection.Snapshot
-                });
-            }
+                    var match = profile.Match ?? new SpiritSpeciesGrowthMatch();
+                    var inspection = EnemyCatalogApi.InspectConfiguredProfile(
+                        match.SourceModId,
+                        match.EnemyId,
+                        match.VariantId,
+                        SpiritSystemContract.InitialRosterCaptureOrigin);
+                    if (!inspection.Eligible || inspection.Snapshot == null)
+                    {
+                        SetInitialRosterPending(
+                            stableProfileKey,
+                            catalogEpoch,
+                            "profile " + profile.ProfileId + ": " + inspection.Reason);
+                        return;
+                    }
 
-            var result = SpiritCollectionService.GrantInitialRoster(seeds);
-            if (!result.Success)
-            {
-                TerriasLog.Warn("[SpiritInitialRoster] grant failed for profile="
-                                + stableProfileKey
-                                + ": "
-                                + result.Reason
+                    seeds.Add(new SpiritInitialRosterSeed
+                    {
+                        ProfileId = profile.ProfileId,
+                        Snapshot = inspection.Snapshot
+                    });
+                }
+
+                var result = SpiritCollectionService.GrantInitialRoster(seeds);
+                if (!result.Success)
+                {
+                    if (result.Reason.IndexOf("损坏", StringComparison.Ordinal) >= 0)
+                    {
+                        InitialRosterAttempts.MarkBlocked(stableProfileKey, result.Reason);
+                    }
+                    else
+                    {
+                        InitialRosterAttempts.MarkPending(stableProfileKey, result.Reason);
+                    }
+                    TerriasLog.Warn("[SpiritInitialRoster] grant failed for profile="
+                                    + stableProfileKey + ": " + result.Reason + ".");
+                    return;
+                }
+
+                var grantState = result.AlreadyGranted ? "already-applied" : "committed";
+                InitialRosterAttempts.MarkCompleted(stableProfileKey, grantState);
+                TerriasLog.Info("[SpiritInitialRoster] grantState="
+                                + grantState
+                                + ", profile=" + stableProfileKey
+                                + ", granted=" + result.GrantedCount
+                                + ", version=" + SpiritSystemContract.InitialRosterGrantVersion
+                                + ", catalogEpoch=" + catalogEpoch
                                 + ".");
-                return;
             }
-
-            TerriasLog.Info("[SpiritInitialRoster] grantState="
-                            + (result.AlreadyGranted ? "already-applied" : "committed")
-                            + ", profile="
-                            + stableProfileKey
-                            + ", granted="
-                            + result.GrantedCount
-                            + ", version="
-                            + SpiritSystemContract.InitialRosterGrantVersion
-                            + ".");
+            catch (Exception ex)
+            {
+                SetInitialRosterPending(stableProfileKey, catalogEpoch, ex.Message);
+            }
         }
-        catch (Exception ex)
+    }
+
+    private static void EnsureInitialRosterCatalogListener()
+    {
+        if (initialRosterCatalogListenerRegistered)
         {
-            TerriasLog.Warn("[SpiritInitialRoster] grant transaction failed for profile="
-                            + stableProfileKey
-                            + ": "
-                            + ex.Message
-                            + ".");
+            return;
+        }
+
+        AuraGameDataCatalogRuntime.SnapshotChanged += OnGameDataCatalogChanged;
+        initialRosterCatalogListenerRegistered = true;
+    }
+
+    private static void OnGameDataCatalogChanged(AuraGameDataCatalogVersion version)
+    {
+        if (!version.NativeReady)
+        {
+            return;
+        }
+
+        string[] pending;
+        lock (SyncRoot)
+        {
+            pending = InitialRosterAttempts.PendingProfileKeys().ToArray();
+        }
+
+        foreach (var profileKey in pending)
+        {
+            var capturedKey = profileKey;
+            var scheduled = AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+            {
+                OwnerId = TerriasIds.ModId,
+                Key = "SpiritInitialRoster." + capturedKey + "." + version.Epoch,
+                Source = "SpiritInitialRoster.GameDataReady",
+                Action = () => TryGrantInitialRoster(capturedKey)
+            });
+            if (!scheduled)
+            {
+                TryGrantInitialRoster(capturedKey);
+            }
+        }
+    }
+
+    private static void SetInitialRosterPending(
+        string profileKey,
+        long catalogEpoch,
+        string reason)
+    {
+        var changed = InitialRosterAttempts.MarkPending(profileKey, reason);
+        if (changed)
+        {
+            TerriasLog.Warn("[SpiritInitialRoster] pending owner=SpiritCollectionApi, profile="
+                            + profileKey
+                            + ", catalogEpoch=" + catalogEpoch
+                            + ", drain=next-native-catalog-generation-or-process-start"
+                            + ": " + InitialRosterAttempts.Snapshot(profileKey).Reason + ".");
         }
     }
 

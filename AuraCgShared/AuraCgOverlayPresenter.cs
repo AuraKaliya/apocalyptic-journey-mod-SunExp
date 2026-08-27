@@ -12,6 +12,8 @@ internal sealed class AuraCgSceneLayerPresentation
 {
     public AuraCgSceneParticipantPlan Plan { get; set; } = new();
 
+    public string DisplayName { get; set; } = "";
+
     public IReadOnlyList<Sprite> Frames { get; set; } = Array.Empty<Sprite>();
 
     public float FrameSeconds { get; set; } = 0.08f;
@@ -33,7 +35,7 @@ internal sealed class AuraCgOverlayPresenter
     private CanvasGroup? overlayGroup;
     private Image? overlayImage;
     private GameObject? sceneRoot;
-    private readonly List<Image> sceneImages = new();
+    private AuraCgSceneCompositionRenderer? sceneRenderer;
     private IReadOnlyList<AuraCgSceneLayerPresentation> activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
     private Image? overlayFlash;
     private Image? overlayScreenFlash;
@@ -91,12 +93,11 @@ internal sealed class AuraCgOverlayPresenter
     }
 
     public bool ShowScene(
-        Sprite background,
+        Sprite? background,
         IReadOnlyList<AuraCgSceneLayerPresentation> layers,
         SkillCgRequest request)
     {
-        if (background == null
-            || layers == null
+        if (layers == null
             || layers.Count == 0
             || request.ScenePlan == null
             || !EnsureOverlay())
@@ -105,11 +106,10 @@ internal sealed class AuraCgOverlayPresenter
         }
 
         ActivateRoot();
-        overlayImage!.sprite = background;
+        overlayImage!.sprite = null;
         overlayImage.material = null;
         overlayImage.raycastTarget = false;
-        overlayImage.enabled = true;
-        ConfigureFullscreenImage(background, request);
+        overlayImage.enabled = false;
         activeSceneLayers = layers
             .Where(layer => layer != null && layer.Frames != null && layer.Frames.Count > 0)
             .OrderBy(layer => layer.Plan.ZIndex)
@@ -120,20 +120,10 @@ internal sealed class AuraCgOverlayPresenter
             return false;
         }
 
-        EnsureSceneImageCount(activeSceneLayers.Count);
-        var viewport = GetOverlayViewportSize();
-        for (var index = 0; index < sceneImages.Count; index++)
+        if (sceneRenderer == null
+            || !sceneRenderer.Bind(background, activeSceneLayers, request.ScenePlan))
         {
-            var image = sceneImages[index];
-            if (index >= activeSceneLayers.Count)
-            {
-                image.enabled = false;
-                image.sprite = null;
-                continue;
-            }
-
-            var layer = activeSceneLayers[index];
-            ConfigureSceneLayer(image, layer, viewport);
+            return false;
         }
 
         ResetGroup();
@@ -187,7 +177,7 @@ internal sealed class AuraCgOverlayPresenter
         var elapsed = 0f;
         while (isCurrent() && elapsed < total)
         {
-            UpdateSceneFrames(elapsed);
+            sceneRenderer?.UpdateFrames(elapsed);
             overlayGroup.alpha = SceneAlpha(elapsed, fadeIn, hold, fadeOut);
             elapsed += Time.unscaledDeltaTime;
             yield return null;
@@ -195,7 +185,7 @@ internal sealed class AuraCgOverlayPresenter
 
         if (isCurrent())
         {
-            UpdateSceneFrames(total);
+            sceneRenderer?.UpdateFrames(total);
             overlayGroup.alpha = 0f;
         }
     }
@@ -252,8 +242,9 @@ internal sealed class AuraCgOverlayPresenter
         overlayCanvas = null;
         overlayGroup = null;
         overlayImage = null;
+        sceneRenderer?.Dispose();
+        sceneRenderer = null;
         sceneRoot = null;
-        sceneImages.Clear();
         activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
         overlayFlash = null;
         overlayScreenFlash = null;
@@ -267,13 +258,14 @@ internal sealed class AuraCgOverlayPresenter
             && overlayGroup != null
             && overlayImage != null
             && sceneRoot != null
+            && sceneRenderer != null
             && overlayFlash != null
             && overlayScreenFlash != null)
         {
             return true;
         }
 
-        if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || sceneRoot != null || overlayFlash != null || overlayScreenFlash != null)
+        if (overlayRoot != null || overlayCanvas != null || overlayGroup != null || overlayImage != null || sceneRoot != null || sceneRenderer != null || overlayFlash != null || overlayScreenFlash != null)
         {
             Destroy();
         }
@@ -302,6 +294,7 @@ internal sealed class AuraCgOverlayPresenter
         sceneRect.anchorMax = Vector2.one;
         sceneRect.offsetMin = Vector2.zero;
         sceneRect.offsetMax = Vector2.zero;
+        sceneRenderer = new AuraCgSceneCompositionRenderer(sceneRoot.transform, "AuraCg.SceneComposition");
         overlayFlash = CreateImage("AuraCg.Flash", Color.clear, preserveAspect: false);
         overlayScreenFlash = CreateImage("AuraCg.ScreenFlash", Color.clear, preserveAspect: false);
         overlayRoot.SetActive(false);
@@ -309,84 +302,10 @@ internal sealed class AuraCgOverlayPresenter
         return true;
     }
 
-    private void EnsureSceneImageCount(int count)
-    {
-        if (sceneRoot == null)
-        {
-            return;
-        }
-
-        while (sceneImages.Count < count)
-        {
-            var gameObject = new GameObject(
-                "AuraCg.SceneRole." + sceneImages.Count,
-                typeof(RectTransform),
-                typeof(Image));
-            gameObject.transform.SetParent(sceneRoot.transform, false);
-            var image = gameObject.GetComponent<Image>();
-            image.raycastTarget = false;
-            image.preserveAspect = true;
-            image.enabled = false;
-            sceneImages.Add(image);
-        }
-    }
-
-    private static void ConfigureSceneLayer(
-        Image image,
-        AuraCgSceneLayerPresentation layer,
-        Vector2 viewport)
-    {
-        var plan = layer.Plan;
-        var rect = image.rectTransform;
-        rect.anchorMin = new Vector2(plan.CenterX, plan.CenterY);
-        rect.anchorMax = new Vector2(plan.CenterX, plan.CenterY);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(
-            viewport.x * plan.Width * plan.Scale,
-            viewport.y * plan.Height * plan.Scale);
-        rect.localScale = new Vector3(plan.MirrorX ? -1f : 1f, 1f, 1f);
-        image.sprite = layer.Frames[0];
-        image.color = Color.white;
-        image.material = null;
-        image.raycastTarget = false;
-        image.enabled = true;
-    }
-
-    private void UpdateSceneFrames(float elapsed)
-    {
-        for (var index = 0; index < activeSceneLayers.Count && index < sceneImages.Count; index++)
-        {
-            var layer = activeSceneLayers[index];
-            if (layer.Frames.Count == 0)
-            {
-                continue;
-            }
-
-            var frameSeconds = Mathf.Max(0.01f, layer.FrameSeconds);
-            var rawIndex = Math.Max(0, (int)(elapsed / frameSeconds));
-            var frameIndex = layer.Loop
-                ? rawIndex % layer.Frames.Count
-                : Math.Min(rawIndex, layer.Frames.Count - 1);
-            sceneImages[index].sprite = layer.Frames[frameIndex];
-        }
-    }
-
     private void HideSceneLayers()
     {
         activeSceneLayers = Array.Empty<AuraCgSceneLayerPresentation>();
-        foreach (var image in sceneImages)
-        {
-            if (image == null)
-            {
-                continue;
-            }
-
-            image.raycastTarget = false;
-            image.enabled = false;
-            image.sprite = null;
-            image.material = null;
-        }
+        sceneRenderer?.Hide();
     }
 
     private static float SceneAlpha(float elapsed, float fadeIn, float hold, float fadeOut)

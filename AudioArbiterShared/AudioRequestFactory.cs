@@ -83,6 +83,7 @@ internal static class AudioRequestFactory
             CareerId = observation.CareerId,
             RoleId = observation.RoleId,
             StatusInstanceId = observation.StatusInstanceId,
+            IsLocalOwner = observation.IsLocalOwner,
             SourceName = observation.SourceName
         };
     }

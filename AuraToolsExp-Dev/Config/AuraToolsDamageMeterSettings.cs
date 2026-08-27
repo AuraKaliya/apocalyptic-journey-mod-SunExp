@@ -136,7 +136,7 @@ internal sealed class LegacyDamageSettlementCgSettings
     public bool SyncRemote { get; set; } = true;
 
     [JsonProperty("backgroundResource")]
-    public string BackgroundResource { get; set; } = "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png";
+    public string BackgroundResource { get; set; } = "";
 
     [JsonProperty("baseWidth")]
     public int BaseWidth { get; set; } = 1600;
@@ -159,7 +159,11 @@ internal sealed class LegacyDamageSettlementCgSettings
     public void Normalize()
     {
         BackgroundResource = string.IsNullOrWhiteSpace(BackgroundResource)
-            ? "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png"
+                             || string.Equals(
+                                 BackgroundResource.Trim(),
+                                 "Mods/AuraToolsExp/ModResource/DPSCG/DPS-CG.png",
+                                 StringComparison.OrdinalIgnoreCase)
+            ? ""
             : BackgroundResource.Trim();
         BaseWidth = Math.Max(1, BaseWidth);
         BaseHeight = Math.Max(1, BaseHeight);
