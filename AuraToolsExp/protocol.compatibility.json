@@ -48,16 +48,18 @@
     },
     {
       "id": "records.match-replay",
-      "currentVersion": 11,
-      "minimumSupportedVersion": 11,
+      "currentVersion": 12,
+      "minimumSupportedVersion": 12,
       "requiredCapabilities": [
-        "authoritative-state-events.v11",
-        "native-battle-view.v1",
-        "exact-dependency-manifest.v1",
-        "embedded-audio.v1",
-        "fixed-rendertexture-mp4.v1"
+        "causal-transactions.v1",
+        "authoritative-public-state.v1",
+        "dual-journal-lane.v1",
+        "full-checkpoints.v1",
+        "portable-presentation.v1",
+        "independent-replay-scene.v1",
+        "embedded-assets.v1"
       ],
-      "fallback": "summary-analysis-and-verified-mp4-only"
+      "fallback": "reject-structured-replay-and-retain-summary-analysis-verified-mp4"
     }
   ]
 }

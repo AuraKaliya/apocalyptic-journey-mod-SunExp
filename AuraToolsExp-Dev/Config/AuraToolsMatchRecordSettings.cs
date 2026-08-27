@@ -46,7 +46,6 @@ public sealed class MatchReplaySettings
 {
     public const int DefaultAutoRecordLimit = 20;
     public const int MaximumAutoRecordLimit = 500;
-    public const string DefaultPresentationMode = "Standard";
 
     [JsonProperty("enabled")]
     public bool Enabled { get; set; }
@@ -56,15 +55,6 @@ public sealed class MatchReplaySettings
 
     [JsonProperty("chunkTargetBytes")]
     public int ChunkTargetBytes { get; set; } = 256 * 1024;
-
-    [JsonProperty("workingMemoryBudgetMb")]
-    public int WorkingMemoryBudgetMb { get; set; } = 32;
-
-    [JsonProperty("checkpointEventInterval")]
-    public int CheckpointEventInterval { get; set; } = 150;
-
-    [JsonProperty("presentationMode")]
-    public string PresentationMode { get; set; } = DefaultPresentationMode;
 
     [JsonProperty("video")]
     public MatchReplayVideoSettings Video { get; set; } = new();
@@ -77,11 +67,6 @@ public sealed class MatchReplaySettings
         ChunkTargetBytes = Math.Max(32 * 1024, Math.Min(
             1024 * 1024,
             ChunkTargetBytes <= 0 ? 256 * 1024 : ChunkTargetBytes));
-        WorkingMemoryBudgetMb = Math.Max(8, Math.Min(256, WorkingMemoryBudgetMb <= 0 ? 32 : WorkingMemoryBudgetMb));
-        CheckpointEventInterval = Math.Max(50, Math.Min(1000, CheckpointEventInterval <= 0 ? 150 : CheckpointEventInterval));
-        // Presentation timing is intentionally fixed. Keep the serialized field
-        // for backward-compatible loading, but retire the user-facing choice.
-        PresentationMode = DefaultPresentationMode;
         Video ??= new MatchReplayVideoSettings();
         Video.Normalize();
     }

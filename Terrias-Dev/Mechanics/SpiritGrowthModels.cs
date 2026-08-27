@@ -390,6 +390,8 @@ public sealed class SpiritCollectionDocument
 
     public int LegacyCardMigrationVersion { get; set; }
 
+    public int InitialRosterGrantVersion { get; set; }
+
     public List<SpiritInstance> Instances { get; set; } = new();
 
     public List<string> DefaultPartySlots { get; set; } = new();
@@ -443,6 +445,24 @@ public sealed class SpiritCaptureRecordResult
     public SpiritInstance? Instance { get; set; }
 }
 
+public sealed class SpiritInitialRosterSeed
+{
+    public string ProfileId { get; set; } = "";
+
+    public CapturedEnemySnapshot Snapshot { get; set; } = new();
+}
+
+public sealed class SpiritInitialRosterGrantResult
+{
+    public bool Success { get; set; }
+
+    public bool AlreadyGranted { get; set; }
+
+    public int GrantedCount { get; set; }
+
+    public string Reason { get; set; } = "";
+}
+
 public sealed class SpiritExperienceResult
 {
     public SpiritInstance Instance { get; set; } = new();
@@ -463,6 +483,13 @@ public interface ISpiritCollectionStore
     SpiritCollectionDocument Load();
 
     void Save(SpiritCollectionDocument document);
+}
+
+public interface ISpiritInitialRosterGrantGuard
+{
+    bool CanGrantInitialRoster { get; }
+
+    string InitialRosterGrantBlockReason { get; }
 }
 
 public sealed class SpiritRadarAxisSnapshot

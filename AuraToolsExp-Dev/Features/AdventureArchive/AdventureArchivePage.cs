@@ -234,7 +234,8 @@ internal static class AdventureArchivePage
             }, 64f, AuraToolsUi.CompactButtonHeight);
             AuraToolsUi.SetButtonAvailable(
                 replay,
-                string.Equals(record.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal),
+                record.ReplayProtocol == MatchReplayProtocol.Version
+                && string.Equals(record.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal),
                 "该战斗只保留了摘要，没有完整回放");
         }
         var open = Row(parent, "OpenBattleLibrary", 48f);

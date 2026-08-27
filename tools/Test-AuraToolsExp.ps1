@@ -28,7 +28,7 @@ $requiredProtocolFeatures = @{
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
     "presentation.event-cg" = @(1, 1)
-    "records.match-replay" = @(11, 11)
+    "records.match-replay" = @(12, 12)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
         -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
@@ -48,6 +48,19 @@ foreach ($entry in $requiredProtocolFeatures.GetEnumerator()) {
 $damageProtocol = @($protocolManifest.features | Where-Object id -eq "records.damage-meter")[0]
 if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
     throw "AuraToolsExp damage-meter protocol inventory must distinguish v4 live networking from v3 persisted-data migration."
+}
+$replayProtocol = @($protocolManifest.features | Where-Object id -eq "records.match-replay")[0]
+$requiredReplayCapabilities = @(
+    "causal-transactions.v1",
+    "authoritative-public-state.v1",
+    "dual-journal-lane.v1",
+    "full-checkpoints.v1",
+    "portable-presentation.v1",
+    "independent-replay-scene.v1",
+    "embedded-assets.v1")
+if (@(Compare-Object @($replayProtocol.requiredCapabilities) $requiredReplayCapabilities).Count -ne 0 `
+        -or $replayProtocol.fallback -ne "reject-structured-replay-and-retain-summary-analysis-verified-mp4") {
+    throw "AuraToolsExp match-replay v12 protocol capabilities or fallback are incomplete."
 }
 
 $ffmpegRoot = Join-Path $repoRoot "AuraToolsExp\Runtime\ffmpeg\win-x64"
@@ -232,10 +245,26 @@ finally {
 
 $replaySources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords") -Recurse -File -Filter "*.cs")
 $replayText = ($replaySources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
-if ($replayText -match 'ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplaySceneRuntime|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+if ($replayText -match 'ReplayDocumentV11|ReplayProtocolV11|SaveV11|LoadV11|MatchReplayFightSandboxInitializer|ReplayNativeDocumentAdapter|ReplayNativeViewRuntime|MatchReplayNativePresentationApi|ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+        -or $replayText -match '\bTerrias\b' `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\GameApi\MatchReplayNativePresentationApi.cs")) `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsMatchRecordSettings.cs")) -match 'PreferMp4|FfmpegPath' `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")) -match 'UnityEngine\.ScreenCaptureModule') {
-    throw "AuraToolsExp v11 release still contains a retired synthetic/network replay, AVI, screenshot, PATH FFmpeg, or silent-audio path."
+    throw "AuraToolsExp v12 release still contains a retired v11/native-player, AVI, screenshot, PATH FFmpeg, or silent-audio path."
+}
+$portablePlaybackText = (@(Get-ChildItem -LiteralPath (
+            Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV12\Playback") -File -Filter "*.cs") |
+        ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
+$playerText = Get-Content -Raw -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayPlayer.cs")
+if ($portablePlaybackText -match '\bFightManager\b|\bFightUI\b|\bRoleTable\b|\bIScriptExecutor\b|using\s+Witch(?:\.Core)?\s*;' `
+        -or $playerText -match '\bFightManager\b|\bFightUI\b|MatchReplayEnvironmentScope|MatchReplayFightSandboxInitializer' `
+        -or $playerText -notmatch 'ReplaySceneRuntime' `
+        -or $replayText -notmatch 'ReplayNetworkAuthorityV12' `
+        -or $replayText -notmatch 'DeclaredDocumentRoot' `
+        -or $replayText -notmatch 'TruthRoot' `
+        -or $replayText -notmatch 'PresentationRoot') {
+    throw "AuraToolsExp portable replay boundary, network authority, or canonical-root contract is invalid."
 }
 
 & dotnet run --project $project -c $Configuration

@@ -191,8 +191,7 @@ internal static partial class AuraToolsTestSuite
         Assert(!defaults.MatchRecords.Enabled
                && defaults.MatchRecords.Statistics.Enabled
                && !defaults.MatchRecords.Replay.Enabled
-               && defaults.MatchRecords.Replay.AutoRecordLimit == 20
-               && defaults.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
+               && defaults.MatchRecords.Replay.AutoRecordLimit == 20,
             "match records and replay default off while the DPT child is ready when the module is enabled");
 
         var legacy = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
@@ -213,8 +212,7 @@ internal static partial class AuraToolsTestSuite
         Assert(current.MatchRecords.Enabled
                && !current.MatchRecords.Statistics.Enabled
                && current.MatchRecords.Replay.Enabled
-               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit
-               && current.MatchRecords.Replay.PresentationMode == MatchReplaySettings.DefaultPresentationMode,
+               && current.MatchRecords.Replay.AutoRecordLimit == MatchReplaySettings.MaximumAutoRecordLimit,
             "the new matchRecords section wins over stale settings and fixes replay presentation to Standard");
         Assert(json.Contains("\"matchRecords\"", StringComparison.Ordinal)
                && !json.Contains("\"damageMeter\"", StringComparison.Ordinal),

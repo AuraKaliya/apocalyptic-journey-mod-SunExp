@@ -43,15 +43,20 @@ $intentPath = Join-Path $repoRoot "Terrias\spirit.intent.registry.json"
 $capturePath = Join-Path $repoRoot "Terrias\spirit.capture.registry.json"
 $growthPath = Join-Path $repoRoot "Terrias\spirit.growth.registry.json"
 $trainingPath = Join-Path $repoRoot "Terrias\spirit.training.registry.json"
+$configurationPath = Join-Path $repoRoot "Terrias\Configuration.json"
 $intent = Get-Content -LiteralPath $intentPath -Raw | ConvertFrom-Json
 $capture = Get-Content -LiteralPath $capturePath -Raw | ConvertFrom-Json
 $growth = Get-Content -LiteralPath $growthPath -Raw | ConvertFrom-Json
 $training = Get-Content -LiteralPath $trainingPath -Raw | ConvertFrom-Json
+$configuration = Get-Content -LiteralPath $configurationPath -Raw | ConvertFrom-Json
 Assert-True ($intent.schemaVersion -eq 3) "spirit intent registry schema must be 3."
 Assert-True ($capture.schemaVersion -eq 1) "spirit capture registry schema must be 1."
 Assert-True ($growth.schemaVersion -eq 3) "spirit growth registry schema must be 3."
 Assert-True ($training.schemaVersion -eq 2) "spirit training registry schema must be 2."
 Assert-True ($growth.defaults.maxLevel -eq 50) "spirit level cap must remain 50."
+Assert-True ($configuration.GrantAllSpiritsOnFirstLoad -is [bool]) "GrantAllSpiritsOnFirstLoad must be a JSON boolean."
+Assert-True ($configuration.GrantAllSpiritsOnFirstLoad -eq $true) "Terrias must ship GrantAllSpiritsOnFirstLoad enabled by default."
+Assert-True (-not [string]::IsNullOrWhiteSpace([string]$configuration._readme)) "Terrias Configuration.json must explain the one-time initial Spirit grant."
 
 $intentProfileListFields = @(
     "sourceEnemyCardIds",
@@ -136,6 +141,7 @@ $growthProfileIds = @($growth.profiles | ForEach-Object { [string]$_.profileId }
 $growthSpeciesIds = @($growth.profiles | ForEach-Object { [string]$_.speciesId })
 $supportedCaptureElements = @("pyro", "hydro", "geo", "dendro", "electro", "cryo", "anemo")
 Assert-True (@($growth.profiles).Count -eq 58) "growth registry must contain 55 base-game forms and 3 Terrias species."
+Assert-True ((@($growth.profiles | Where-Object { $_.match.enemyId -eq "*" -or $_.match.enemyId -eq "99999" })).Count -eq 0) "the fifty-eight initial roster profiles must exclude wildcard and test enemies."
 Assert-True ((@($growthProfileIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable profileId values."
 Assert-True ((@($growthSpeciesIds | Where-Object { [string]::IsNullOrWhiteSpace($_) })).Count -eq 0) "growth profiles require stable speciesId values."
 Assert-True ((@($growthProfileIds | Sort-Object -Unique)).Count -eq $growthProfileIds.Count) "growth profileId values must be unique."

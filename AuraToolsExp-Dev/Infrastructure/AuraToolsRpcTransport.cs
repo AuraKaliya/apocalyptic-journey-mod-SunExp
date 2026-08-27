@@ -138,6 +138,32 @@ public static class AuraToolsRpcTransport
         });
     }
 
+    public static bool SendBytesChunksAsync(
+        PlayerManager? manager,
+        string source,
+        string transferId,
+        byte[] payload,
+        Func<AuraToolsRpcChunk, RpcCommandBase> createCommand,
+        bool excludeOwner = false)
+    {
+        if (manager == null || payload == null || payload.Length == 0 || createCommand == null)
+        {
+            Log("chunk-skipped", source, null, 0, "missing binary chunk input");
+            return false;
+        }
+
+        return AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<PreparedChunkTransfer>
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Key = "RpcTransport.BinaryChunk:" + transferId,
+            Source = "RpcTransport.BinaryChunkPrepare:" + source,
+            Kind = AuraSharedBackgroundWorkKind.Cpu,
+            Work = _ => PrepareChunks(transferId, payload),
+            ApplyOnMainThread = prepared => ScheduleChunkSend(manager, source, createCommand, excludeOwner, prepared),
+            OnFailedOnMainThread = ex => Log("chunk-failed", source, null, 0, ex.Message)
+        });
+    }
+
     public static string NewTransferId(string prefix)
     {
         return (string.IsNullOrWhiteSpace(prefix) ? "rpc" : prefix.Trim()) + "-" + Guid.NewGuid().ToString("N");
@@ -145,7 +171,11 @@ public static class AuraToolsRpcTransport
 
     private static PreparedChunkTransfer PrepareChunks(string transferId, string payloadJson)
     {
-        var payloadBytes = Encoding.UTF8.GetBytes(payloadJson ?? "");
+        return PrepareChunks(transferId, Encoding.UTF8.GetBytes(payloadJson ?? ""));
+    }
+
+    private static PreparedChunkTransfer PrepareChunks(string transferId, byte[] payloadBytes)
+    {
         var chunkCount = Math.Max(1, (payloadBytes.Length + ChunkRawBytes - 1) / ChunkRawBytes);
         var sha256 = Sha256Hex(payloadBytes);
         var chunks = new List<AuraToolsRpcChunk>(chunkCount);

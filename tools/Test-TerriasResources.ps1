@@ -255,7 +255,10 @@ try {
             }
             $source = Get-Content -LiteralPath $sourceFile.FullName -Raw -Encoding UTF8
             foreach ($match in [regex]::Matches($source, 'TerriasTextCatalog\.(?:Get|Format|GetForLocale|FormatForLocale)\(\s*"([^"]+)"')) {
-                $referencedLocalizationKeys.Add($match.Groups[1].Value) | Out-Null
+                $key = $match.Groups[1].Value
+                if (-not $key.EndsWith('.')) {
+                    $referencedLocalizationKeys.Add($key) | Out-Null
+                }
             }
             foreach ($match in [regex]::Matches($source, '\bL\(\s*"([^"]+)"')) {
                 $referencedLocalizationKeys.Add($match.Groups[1].Value) | Out-Null
@@ -263,6 +266,9 @@ try {
         }
         foreach ($key in $referencedLocalizationKeys) {
             Assert-True ($localizationKeys.Contains($key)) "Code references missing localization key: $key"
+        }
+        foreach ($elementId in @('pyro', 'hydro', 'geo', 'dendro', 'electro', 'cryo', 'anemo')) {
+            Assert-True ($localizationKeys.Contains("element.$elementId")) "Spirit element is missing localization key: element.$elementId"
         }
 
         foreach ($failureCode in @(

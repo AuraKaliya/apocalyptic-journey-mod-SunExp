@@ -42,78 +42,104 @@ internal static class MatchReplayHookAdapter
         Register("before:FightManager.Init", AuraToolsHookRegistry.BeforeRouted(
             modConfig,
             "FightManager.Init",
-            context => MatchReplayRecorder.Start(context.Arguments),
+            context => Observe("fight-init", () => MatchReplayRecorder.Start(context.Arguments)),
             "MatchRecords.Replay"));
-        Register("before:SkillItem.TrueUse", AuraToolsHookRegistry.BeforeRouted(
-            modConfig!,
-            "SkillItem.TrueUse",
-            context => MatchReplayRecorder.BeginCardAction(context.Target),
-            "MatchRecords.Replay.SkillAction"));
-        Register("after:SkillItem.TrueUse", AuraToolsHookRegistry.AfterRouted(
-            modConfig!,
-            "SkillItem.TrueUse",
-            context => MatchReplayRecorder.EndCardAction(context.Target),
-            "MatchRecords.Replay.SkillAction"));
         Register("before:FightUI.CallActionAnimation", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "FightUI.CallActionAnimation",
-            context => MatchReplayRecorder.CaptureActionPresentation(context.Arguments),
+            context => Observe("action-presentation-before", () => MatchReplayRecorder.CaptureActionPresentation(context.Arguments)),
             "MatchRecords.Replay.ActionPresentation"));
+        Register("after:FightUI.CallActionAnimation", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "FightUI.CallActionAnimation",
+            context => Observe("action-presentation-after", () => MatchReplayRecorder.CompleteActionPresentation(context.Arguments)),
+            "MatchRecords.Replay.ActionPresentation"));
+        Register("after:FightManager.Update", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "FightManager.Update",
+            _ => Observe("stable-barrier", MatchReplayRecorder.ObserveStableBarrier),
+            "MatchRecords.Replay.StableBarrier"));
         Register("remote-combat-actions", AuraRemoteCombatActionRouter.Register(
             modConfig!,
             AuraToolsIds.ModId + ".MatchRecords.Replay",
             new AuraRemoteCombatActionSubscription
             {
-                CommandObserved = MatchReplayRecorder.CaptureRemoteCommand,
-                AuthoritativeStatusApplied = MatchReplayRecorder.ObserveAuthoritativeStatus
+                CommandObserved = context => Observe("remote-command", () => MatchReplayRecorder.CaptureRemoteCommand(context)),
+                AuthoritativeStatusApplied = context => Observe(
+                    "authoritative-status", () => MatchReplayRecorder.ObserveAuthoritativeStatus(context))
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));
         Register("before:OtherObj.DoOneAction", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "OtherObj.DoOneAction",
-            context => MatchReplayRecorder.BeginEnemyIntentAction(context.Target, context.Arguments),
+            context => Observe("enemy-intent-before", () => MatchReplayRecorder.BeginEnemyIntentAction(context.Target, context.Arguments)),
             "MatchRecords.Replay.EnemyIntent"));
         Register("after:OtherObj.DoOneAction", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "OtherObj.DoOneAction",
-            context => MatchReplayRecorder.EndEnemyIntentAction(context.Target),
+            context => Observe("enemy-intent-after", () => MatchReplayRecorder.EndEnemyIntentAction(context.Target)),
             "MatchRecords.Replay.EnemyIntent"));
         Register("before:AudioManager.PlayEffect", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "AudioManager.PlayEffect",
-            context => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Effect"),
+            context => Observe("effect-audio-before", () => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Effect")),
             "MatchRecords.Replay.Audio.Effect"));
         Register("after:AudioManager.PlayEffect", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "AudioManager.PlayEffect",
-            context => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Effect"),
+            context => Observe("effect-audio-after", () => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Effect")),
             "MatchRecords.Replay.Audio.Effect"));
         Register("before:AudioManager.PlayVocal", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "AudioManager.PlayVocal",
-            context => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Vocal"),
+            context => Observe("vocal-audio-before", () => MatchReplayRecorder.BeginNativeAudioCapture(context.Arguments, "Vocal")),
             "MatchRecords.Replay.Audio.Vocal"));
         Register("after:AudioManager.PlayVocal", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "AudioManager.PlayVocal",
-            context => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Vocal"),
+            context => Observe("vocal-audio-after", () => MatchReplayRecorder.EndNativeAudioCapture(context.Arguments, "Vocal")),
             "MatchRecords.Replay.Audio.Vocal"));
         Register("after:AudioManager.PlayBGMList", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "AudioManager.PlayBGMList",
-            context => MatchReplayRecorder.CaptureNativeBgm(context.Target, context.Arguments),
+            context => Observe("bgm-after", () => MatchReplayRecorder.CaptureNativeBgm(context.Target, context.Arguments)),
             "MatchRecords.Replay.Audio.Bgm"));
-        Register("card-lifecycle", AuraCardLifecycleRouter.Register(
+        Register("card-actions", AuraCardActionTransactionRouter.Register(
             modConfig,
             AuraToolsIds.ModId,
             "MatchRecords.Replay.Actions",
-            new AuraCardLifecycleSubscription
+            new AuraCardActionSubscription
             {
-                BeforeCommonCardUse = context => MatchReplayRecorder.BeginCardAction(context.Target),
-                BeforeAttackCardUse = context => MatchReplayRecorder.BeginCardAction(context.Target),
-                AfterCommonCardUse = context => MatchReplayRecorder.EndCardAction(context.Target),
-                AfterAttackCardUse = context => MatchReplayRecorder.EndCardAction(context.Target)
+                Phases = AuraCardActionPhase.NativeStarted | AuraCardActionPhase.Completed | AuraCardActionPhase.Aborted,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraCardActionPhase.NativeStarted)
+                        Observe("card-before", () => MatchReplayRecorder.BeginCardAction(context.Card));
+                    else if (context.Phase == AuraCardActionPhase.Completed)
+                        Observe("card-after", () => MatchReplayRecorder.EndCardAction(context.Card));
+                    else if (context.Phase == AuraCardActionPhase.Aborted)
+                        Observe("card-aborted", () => MatchReplayRecorder.AbortCardAction(context.Card, context.AbortReason));
+                }
+            },
+            AuraToolsLog.Debug,
+            AuraToolsLog.Warn));
+        Register("skill-lifecycle", AuraSkillActionTransactionRouter.Register(
+            modConfig,
+            AuraToolsIds.ModId,
+            "MatchRecords.Replay.Skills",
+            new AuraSkillActionSubscription
+            {
+                Phases = AuraSkillActionPhase.NativeStarted | AuraSkillActionPhase.Completed | AuraSkillActionPhase.Aborted,
+                Handler = context =>
+                {
+                    if (context.Phase == AuraSkillActionPhase.NativeStarted)
+                        Observe("skill-before", () => MatchReplayRecorder.BeginCardAction(context.Skill));
+                    else if (context.Phase == AuraSkillActionPhase.Completed)
+                        Observe("skill-after", () => MatchReplayRecorder.EndCardAction(context.Skill));
+                    else if (context.Phase == AuraSkillActionPhase.Aborted)
+                        Observe("skill-aborted", () => MatchReplayRecorder.AbortCardAction(context.Skill, context.AbortReason));
+                }
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));
@@ -123,12 +149,13 @@ internal static class MatchReplayHookAdapter
             "MatchRecords.Replay",
             new AuraBattleLifecycleSubscription
             {
-                BattleMaterialized = _ => MatchReplayRecorder.CommitMaterializedBaseline(),
-                PlayerRoundReady = _ => MatchReplayRecorder.StartTurn(),
+                BattleMaterialized = _ => Observe("battle-materialized", MatchReplayRecorder.CommitMaterializedBaseline),
+                FightStartSignaled = _ => Observe("fight-start", MatchReplayRecorder.SignalFightStart),
+                PlayerRoundReady = _ => Observe("round-ready", MatchReplayRecorder.StartTurn),
                 BattleRestarting = _ => MatchReplayRecorder.Abort(),
-                BattleSettling = outcome => MatchReplayRecorder.PrepareCompletion(
-                    DamageMeterSettlementRuntime.FightResult(outcome.NativeContext)),
-                BattleFinalized = _ => MatchReplayRecorder.CompleteAfterCleanup("Ended")
+                BattleSettling = outcome => Observe("battle-settling", () => MatchReplayRecorder.PrepareCompletion(
+                    DamageMeterSettlementRuntime.FightResult(outcome.NativeContext))),
+                BattleFinalized = _ => Observe("battle-finalized", () => MatchReplayRecorder.CompleteAfterCleanup("Ended"))
             },
             AuraToolsLog.Debug,
             AuraToolsLog.Warn));
@@ -138,6 +165,19 @@ internal static class MatchReplayHookAdapter
     private static void Register(string key, IDisposable registration)
     {
         Hooks[key] = registration;
+    }
+
+    private static void Observe(string stage, Action capture)
+    {
+        try
+        {
+            capture();
+        }
+        catch (Exception ex)
+        {
+            MatchReplayRecorder.MarkCaptureFailure(stage, ex);
+            AuraToolsLog.Error("[MatchRecords] replay observer failed at " + stage, ex);
+        }
     }
 
     private static void Release()

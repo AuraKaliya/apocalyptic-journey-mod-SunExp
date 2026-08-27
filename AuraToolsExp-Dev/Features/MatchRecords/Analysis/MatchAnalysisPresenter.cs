@@ -5,7 +5,7 @@ using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Portability;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -35,14 +35,12 @@ internal static class MatchAnalysisPresenter
             report = MatchRecordStorage.Database.GetAnalysis(selected.RecordId);
             if (report == null || report.Protocol != MatchAnalysisProtocol.Version)
             {
-                var document = selected.ReplayProtocol == ReplayProtocolV11.DocumentVersion
-                    ? MatchRecordStorage.Database.LoadV11(selected.RecordId)
+                var envelope = selected.ReplayProtocol == ReplayProtocolV12.DocumentVersion
+                    ? MatchRecordStorage.Database.LoadV12(selected.RecordId)
                     : null;
-                report = document != null
-                    ? MatchAnalysisBuilder.BuildV11(selected, document)
-                    : MatchAnalysisBuilder.Build(
-                        selected,
-                        MatchReplayChunker.Decode(MatchRecordStorage.Database.LoadChunks(selected.RecordId)));
+                report = envelope != null
+                    ? MatchAnalysisBuilder.BuildV12(selected, envelope.Document)
+                    : MatchAnalysisBuilder.BuildSummary(selected);
                 MatchRecordStorage.Database.SaveAnalysis(report);
             }
         }
@@ -247,7 +245,7 @@ internal static class MatchAnalysisPresenter
     }
 
     private static bool CanReplay => record != null
-                                     && record.ReplayProtocol == ReplayProtocolV11.DocumentVersion
+                                     && record.ReplayProtocol == ReplayProtocolV12.DocumentVersion
                                      && string.Equals(record.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
 
     private static Button AddReplayButton(Transform parent, string label, long sequence, float width)

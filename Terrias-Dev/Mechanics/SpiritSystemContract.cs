@@ -2,7 +2,11 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritSystemContract
 {
-    public const int CollectionVersion = 8;
+    public const int CollectionVersion = 9;
+    public const int InitialRosterGrantVersion = 1;
+    public const int InitialRosterProfileCount = 58;
+    public const string InitialRosterConfigurationKey = "GrantAllSpiritsOnFirstLoad";
+    public const string InitialRosterCaptureOrigin = "initial-full-roster-v1";
     public const int InherentAbilityPlanVersion = 1;
     public const int TrainingPlanVersion = 2;
     public const int TrainingRegistrySchemaVersion = 2;

@@ -2,9 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Recording;
+
+internal sealed class MatchReplayActionPresentationState
+{
+    public string ActorAnimationState { get; set; } = "";
+    public string EffectName { get; set; } = "";
+    public int EffectDelayMilliseconds { get; set; } = 50;
+    public int PresentationDurationMilliseconds { get; set; } = 1040;
+    public List<MatchReplayTargetPresentationState> Targets { get; set; } = new();
+}
+
+internal sealed class MatchReplayTargetPresentationState
+{
+    public string TargetId { get; set; } = "";
+    public string AnimationState { get; set; } = "";
+}
 
 /// <summary>
 /// Captures the visual inputs immediately before the native FightUI animation consumes
@@ -28,8 +42,12 @@ internal static class MatchReplayActionPresentationCapture
 
         var result = new MatchReplayActionPresentationState
         {
-            ActorAnimationState = Read(executor.dataConfig?.data, "Action"),
-            EffectName = Read(executor.dataConfig?.data, "Effects"),
+            ActorAnimationState = First(
+                Read(executor.dataConfig?.Vars, "Action"),
+                Read(executor.dataConfig?.data, "Action")),
+            EffectName = First(
+                Read(executor.dataConfig?.Vars, "Effects"),
+                Read(executor.dataConfig?.data, "Effects")),
             EffectDelayMilliseconds = 50,
             PresentationDurationMilliseconds = 1040
         };
@@ -85,4 +103,7 @@ internal static class MatchReplayActionPresentationCapture
     {
         return values != null && values.TryGetValue(key, out var value) ? value ?? "" : "";
     }
+
+    private static string First(params string[] values) =>
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
 }

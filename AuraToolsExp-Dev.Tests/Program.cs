@@ -32,7 +32,7 @@ TestOutOfRunHistoryBuilder();
 TestDeterministicAllocation();
 TestDamageHistoryDatabase();
 TestMatchRecordDatabase();
-TestMatchReplayRuntimeCore();
+TestMatchReplayV12Core();
 TestMatchReplayLifecycleAndLibraryReturn();
 TestMatchReplayNativeAudioCallTracking();
 TestMatchAnalysis();

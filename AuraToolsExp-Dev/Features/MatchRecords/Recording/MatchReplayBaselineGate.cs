@@ -8,17 +8,24 @@ internal sealed class MatchReplayBaselineGate
 
     internal bool IsCommitted { get; private set; }
 
+    internal bool MaterializationObserved { get; private set; }
+
     internal bool CanCaptureTimeline => armed && IsCommitted;
+
+    internal bool AwaitingMaterializedCommit => armed && MaterializationObserved && !IsCommitted;
 
     internal void Arm()
     {
         armed = true;
         IsCommitted = false;
+        MaterializationObserved = false;
     }
+
+    internal void MarkMaterialized() => MaterializationObserved = armed;
 
     internal bool TryCommit(Func<bool> capture)
     {
-        if (!armed || IsCommitted || capture == null || !capture())
+        if (!armed || !MaterializationObserved || IsCommitted || capture == null || !capture())
         {
             return false;
         }
@@ -31,5 +38,6 @@ internal sealed class MatchReplayBaselineGate
     {
         armed = false;
         IsCommitted = false;
+        MaterializationObserved = false;
     }
 }

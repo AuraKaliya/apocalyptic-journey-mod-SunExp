@@ -1,7 +1,7 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
@@ -46,7 +46,7 @@ public static class AuraToolsMatchRecordsRuntime
         ApplyModuleActivation();
         EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
-                          + ReplayProtocolV11.DocumentVersion + ".");
+                          + ReplayProtocolV12.DocumentVersion + ".");
     }
 
     internal static Coroutine? StartRuntimeCoroutine(IEnumerator routine)

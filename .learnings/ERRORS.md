@@ -14,6 +14,33 @@ The `combat-ai` release profile passed the shared build, all 674 behavior assert
 This artifact was not modified by the Terrias projection/Spirit implementation. Keep the focused behavior and compatibility passes as the validation signal for this change; repair or regenerate the unrelated model package separately.
 
 ---
+
+## ERR-20260827-002: Replay network compression refactor omitted the storage namespace
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+
+The product build failed after switching canonical network replication from raw JSON text to `ReplayPayloadV12` binary chunks because `ReplayNetworkAuthorityV12.cs` did not import the `ReplayV12.Storage` namespace.
+
+### Error
+
+`CS0103: The name 'ReplayPayloadV12' does not exist in the current context`, followed by generic inference cascade errors.
+
+### Resolution
+
+Added `using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Storage;` and rebuilt successfully. When moving a helper across an architectural sub-namespace, compile the product project, not only the source-linked behavior test project.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `AuraToolsExp-Dev/Features/MatchRecords/ReplayV12/Network/ReplayNetworkAuthorityV12.cs`
+- Pattern-Key: build.source-linked-tests-do-not-cover-full-product
+
+---
 # ERR-20260821-009: AuraSharedCore test stub path was assumed
 
 **Logged**: 2026-08-21
@@ -7591,6 +7618,8 @@ intermediate version.
 **Observed:** Windows error 123 because `Spirit*` was passed as a path rather than an `rg --glob` expression.
 
 **Prevention:** Use the containing directory with `--glob 'Spirit*.cs'`; this repeats ERR-20260826-028 and should be treated as a firm command-construction rule.
+
+**Recurrence (2026-08-27):** The same mistake was made with `ReplayV12/Core/*.cs` and `AuraToolsExp-Dev.Tests/*.cs`. Always pass the directory as the path and put the wildcard in `--glob`, even for quick final-reference searches.
 ## ERR-20260826-030: Direct removal of the temporary compatibility snapshot was policy-blocked
 
 **Command:** `Remove-Item -LiteralPath '...\\artifacts\\shared-runtime-compatibility-current.json' -Force`
@@ -7642,3 +7671,47 @@ intermediate version.
 **Observed:** All 1336 behavioral assertions and the release build passed, then the static preset contract rejected the intentional `EventCg` codec because it still required exactly 20 legacy codec IDs.
 
 **Recovery:** Extend the expected inventory to 21 codecs, require `EventCg`, and assert that role-CG preset export excludes both card and event child payloads.
+# ERR-20260827-001: Resource localization scan treated a dynamic key prefix as a literal
+
+**Logged**: 2026-08-27
+**Severity**: low
+**Status**: resolved
+**Area**: tests
+
+## What failed
+
+`tools/Test-TerriasResources.ps1` reported the missing localization key
+`element.` because its source regex captured the literal prefix in
+`TerriasTextCatalog.Get("element." + normalized)` as though it were a complete
+key.
+
+## Resolution
+
+Ignore trailing-dot dynamic prefixes in the literal-key scan, then explicitly
+validate the complete seven-key `element.<id>` family. The Terrias resource
+audit passes with the dynamic contract covered instead of weakened.
+
+---
+
+## ERR-20260827-003: PowerShell gate used a command directly after `-or`
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+The AuraToolsExp release gate failed to parse after adding a retired-file check as `-or Test-Path ...` inside an `if` expression.
+
+### Resolution
+
+Wrapped the command invocation as `(Test-Path -LiteralPath ...)`. PowerShell command expressions used as boolean operands must be parenthesized.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `tools/Test-AuraToolsExp.ps1`
+- Pattern-Key: powershell.boolean-command-parentheses
+
+---

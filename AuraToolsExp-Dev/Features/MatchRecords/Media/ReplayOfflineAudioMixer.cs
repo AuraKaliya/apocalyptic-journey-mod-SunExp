@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
@@ -17,7 +17,7 @@ internal static class ReplayOfflineAudioMixer
     private const int MaximumDecodedClipSamples = 32 * 1024 * 1024;
 
     internal static long MixToWave(
-        ReplayDocumentV11 document,
+        ReplayDocumentV12 document,
         long videoFrameCount,
         int framesPerSecond,
         Func<string, string> resolveAsset,
@@ -32,15 +32,18 @@ internal static class ReplayOfflineAudioMixer
         var cache = new Dictionary<string, DecodedAudio>(StringComparer.OrdinalIgnoreCase);
         var cues = new List<DecodedCue>();
         long decodedSampleCount = 0;
-        foreach (var cue in document.Events.SelectMany(item => item.Audio ?? new List<ReplayAudioCueV11>()))
+        foreach (var cue in document.PresentationEvents
+                     .Select(item => item.Presentation?.Audio)
+                     .Where(item => item != null)
+                     .Select(item => item!))
         {
             if (string.IsNullOrWhiteSpace(cue.AssetSha256))
-                throw new InvalidDataException("v11 回放音频缺少冻结的 PCM 附件。");
+                throw new InvalidDataException("v12 回放音频缺少冻结的 PCM 资源。");
             if (!cache.TryGetValue(cue.AssetSha256, out var audio))
             {
                 var path = resolveAsset(cue.AssetSha256);
                 if (!TryReadPcm16Wave(path, out var decoded))
-                    throw new InvalidDataException("v11 回放音频附件无法解码：" + cue.AssetSha256);
+                    throw new InvalidDataException("v12 回放音频资源无法解码：" + cue.AssetSha256);
                 audio = decoded;
                 decodedSampleCount += audio.Samples.LongLength;
                 if (decodedSampleCount > 64L * 1024L * 1024L)
@@ -55,7 +58,7 @@ internal static class ReplayOfflineAudioMixer
         using var transaction = AuraSharedFileStore.BeginWrite(AuraToolsIds.ModId, outputPath, overwrite: true);
         using (var writer = new BinaryWriter(transaction.Stream, Encoding.UTF8, leaveOpen: true))
         {
-            writer.Write(ReplayPcm16WaveContractV11.BuildHeader(sampleFrames, Channels, SampleRate));
+            writer.Write(ReplayPcm16WaveContractV12.BuildHeader(sampleFrames, Channels, SampleRate));
             var block = new float[BlockFrames * Channels];
             for (var blockStart = 0L; blockStart < sampleFrames; blockStart += BlockFrames)
             {
@@ -142,8 +145,8 @@ internal static class ReplayOfflineAudioMixer
         try
         {
             var payload = File.ReadAllBytes(path);
-            if (!ReplayPcm16WaveContractV11.TryRead(payload, out var wave, out _)) return false;
-            var samples = ReplayPcm16WaveContractV11.DecodeSamples(
+            if (!ReplayPcm16WaveContractV12.TryRead(payload, out var wave, out _)) return false;
+            var samples = ReplayPcm16WaveContractV12.DecodeSamples(
                 payload,
                 wave,
                 MaximumDecodedClipSamples);
@@ -162,12 +165,12 @@ internal static class ReplayOfflineAudioMixer
 
     private readonly struct DecodedCue
     {
-        internal DecodedCue(ReplayAudioCueV11 cue, DecodedAudio audio)
+        internal DecodedCue(ReplayAudioCueV12 cue, DecodedAudio audio)
         {
             Cue = cue;
             Audio = audio;
         }
-        internal ReplayAudioCueV11 Cue { get; }
+        internal ReplayAudioCueV12 Cue { get; }
         internal DecodedAudio Audio { get; }
     }
 

@@ -1,6 +1,6 @@
-# AuraToolsExp 原生战斗回放 v11 终局架构
+# AuraToolsExp 原生战斗回放 v11 历史架构
 
-状态：当前唯一生产设计。v10 合成场景播放器已退役，不允许与 v11 双轨发布。
+状态：已退役，仅保留为历史决策记录。v11 不属于可播放集合，不得恢复其原生战斗初始化、内容依赖或双轨兼容路径；当前唯一生产设计见 [`match-replay-v12-portable-canonical-design.md`](./match-replay-v12-portable-canonical-design.md)。
 
 ## 1. 产品契约
 

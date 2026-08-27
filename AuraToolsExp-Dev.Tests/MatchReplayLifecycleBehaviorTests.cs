@@ -41,17 +41,6 @@ internal static partial class AuraToolsTestSuite
             "startup export recovery does not invent a user-facing return destination");
         playback.CompleteExit();
 
-        var nativeStatuses = new Dictionary<string, object>(StringComparer.Ordinal);
-        var concreteStatus = new object();
-        var resolvedStatus = MatchReplayNativeStatusRegistration.Register(
-            nativeStatuses,
-            "player-1",
-            concreteStatus,
-            () => nativeStatuses.GetValueOrDefault("player-1"));
-        Assert(ReferenceEquals(resolvedStatus, concreteStatus)
-               && ReferenceEquals(nativeStatuses["player-1"], concreteStatus),
-            "native replay seeds the concrete status dictionary before FightPlayer.Status resolves through it");
-
         var view = new MatchRecordLibraryViewState
         {
             Collection = MatchRecordCollections.Favorite,

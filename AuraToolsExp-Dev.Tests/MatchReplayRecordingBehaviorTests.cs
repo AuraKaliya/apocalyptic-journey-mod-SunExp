@@ -55,6 +55,9 @@ internal static partial class AuraToolsTestSuite
         baseline.Arm();
         Assert(!baseline.CanCaptureTimeline,
             "capturing FightManager.Init context does not open the replay timeline before materialization");
+        Assert(!baseline.TryCommit(() => true),
+            "a populated FightManager before BattleMaterialized cannot open the canonical timeline early");
+        baseline.MarkMaterialized();
         Assert(!baseline.TryCommit(() => false) && !baseline.CanCaptureTimeline,
             "an incomplete materialized snapshot cannot become the authoritative replay baseline");
         Assert(baseline.TryCommit(() => true) && baseline.CanCaptureTimeline,

@@ -56,22 +56,21 @@ CG 展示统一使用信号注册表 v4 与处理后队伍场景协议 v1。冒�
 
 ### 对局回放和分析
 
-回放运行时只读取 `Replay Document v11`，协议范围固定为 11/11，不与旧协议
-协商，也没有降级播放器。v11 使用原生战斗视图并要求录制时游戏、Aura 和内容
-MOD 的运行时指纹匹配；不匹配时只能查看摘要、分析和已验证 MP4。v10 合成场景
-文档单向切换为 `SummaryOnly`，保留摘要、分析和 MP4，删除旧文档与播放器。
-v11 音频只从实际播放 `AudioClip` 冻结 PCM，并在 `BattleFinalized` 终局屏障后封存；
-验证失败的文档以不可播放的 `Rejected` 诊断草稿随摘要保留。v8/v9 和更早记录只
-进入授权清理报告。分析报告仍是可重建的派生缓存。
-v11 的可播放初态从 `BattleMaterialized` 开始，必须包含本地玩家、owner-qualified
-敌方实体和有效 ActiveActor。数据库 v5 对可无歧义恢复的早期空基线 v11 做一次性
-重建；其余记录退出 `Ready`，运行时不提供从后续 delta 猜测初态的兼容播放器。
-数据库 v6 对哈希有效且唯一缺少卡牌 `Tag` 的 v11 文档补入显式空字符串并重新最终化；
-`.aurareplay` 导入也只在原始文档哈希通过后接受这项有界迁移。缺少其它卡牌表现字段、
-存在其它校验错误或原始哈希不匹配时仍拒绝，不保留双版本读取路径。
-数据库 v7 将旧写入器遗漏 `bitsPerSample` 的内容寻址 WAV 确定性重建为规范 PCM16：生成
-新 SHA、重写附件/cue/事件链/检查点/文档哈希并归档无引用旧文件。数据库与
-`.aurareplay` 均先验证原始哈希；不能证明仅缺失该字段的音频不进入迁移。
+回放持久化协议和包协议固定为 `Replay Document v12` / `.aurareplay v12`，可读范围为
+12/12。联机 replay authority 协议独立为 v1，并要求 causal transaction、authoritative
+public state、双 journal lane、完整检查点、portable presentation、独立场景和内嵌资产能力。
+任一房间节点缺少能力时，本场不发送 replay RPC，只保留摘要/分析；其它 AuraToolsExp 功能
+不受影响。
+
+联机只有主机写 canonical 文档。主机通过 sender-bound 公开命令和权威 status 观察远端动作，
+终局封存后把 envelope 与精确 asset payload set 分块复制；客户端必须重组并重新验证两条
+事件链、检查点、资产清单、truthRoot、presentationRoot 和 documentRoot，全部通过后才能
+提交相同 `Ready` 记录。中断或不完整 transfer 不产生客户端第二 writer。
+
+v12 播放器使用 AuraToolsExp 自有 ReplayScene，不依赖录制时的内容 MOD、运行时指纹或游戏
+战斗初始化，也不提供降级播放器。验证失败的结构化记录保存为 `Rejected` 摘要；分析仍是可
+从 canonical 文档重建的派生缓存。所有 pre-v12 记录一次性改为 `SummaryOnly`，保留摘要、
+分析、收藏信息和已验证 MP4，删除旧文档/chunk/asset 引用；旧包不进入 v12 importer。
 
 ### 卡牌视觉
 

@@ -1,6 +1,6 @@
 using AuraToolsExp.Dll.Features.MatchRecords.Media;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.Replay.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
 
 internal static partial class AuraToolsTestSuite
 {
@@ -70,12 +70,14 @@ internal static partial class AuraToolsTestSuite
         try
         {
             var wave = Path.Combine(root, "audio.partial.wav");
-            var missingAudioDocument = ReplayV11Document("audio-test");
-            missingAudioDocument.Events[0].Audio.Add(new ReplayAudioCueV11
+            var missingAudioDocument = new ReplayDocumentV12();
+            missingAudioDocument.PresentationEvents.Add(new ReplayJournalEventV12
             {
-                NativeResourceId = "Sounds/native-missing-in-export-context",
-                Kind = "Effect",
-                Bus = "Effect"
+                Lane = ReplayJournalLanesV12.Presentation,
+                Presentation = new ReplayPresentationMessageV12
+                {
+                    Audio = new ReplayAudioCueV12 { Kind = "Effect", Bus = "Effect" }
+                }
             });
             var missingRejected = false;
             try
@@ -92,9 +94,9 @@ internal static partial class AuraToolsTestSuite
                 missingRejected = true;
             }
             Assert(missingRejected,
-                "v11 export rejects an audio cue that was not frozen as PCM instead of manufacturing silence");
+                "v12 export rejects an audio cue that was not frozen as PCM instead of manufacturing silence");
 
-            var silentDocument = ReplayV11Document("silent-audio-test");
+            var silentDocument = new ReplayDocumentV12();
             var samples = ReplayOfflineAudioMixer.MixToWave(
                 silentDocument,
                 videoFrameCount: 60,
@@ -109,15 +111,22 @@ internal static partial class AuraToolsTestSuite
             var source = Path.Combine(root, "source-44100-mono.wav");
             WritePcmWave(source, 44_100, 1, 4410, 4096);
             var mixed = Path.Combine(root, "mixed.wav");
-            var document = ReplayV11Document("audio-cue-test");
-            document.Events[0].Audio.Add(new ReplayAudioCueV11
+            var document = new ReplayDocumentV12();
+            document.PresentationEvents.Add(new ReplayJournalEventV12
             {
-                AssetSha256 = "audio-test",
-                StartSample = 4800,
-                DurationSamples = 4800,
-                GainQ16 = 65_536,
-                PlaybackRateQ16 = 65_536,
-                Bus = "Effect"
+                Lane = ReplayJournalLanesV12.Presentation,
+                Presentation = new ReplayPresentationMessageV12
+                {
+                    Audio = new ReplayAudioCueV12
+                    {
+                        AssetSha256 = "audio-test",
+                        StartSample = 4800,
+                        DurationSamples = 4800,
+                        GainQ16 = 65_536,
+                        PlaybackRateQ16 = 65_536,
+                        Bus = "Effect"
+                    }
+                }
             });
             ReplayOfflineAudioMixer.MixToWave(document, 30, 30, _ => source, mixed);
             Assert(File.ReadAllBytes(mixed).Skip(44).Any(value => value != 0),
