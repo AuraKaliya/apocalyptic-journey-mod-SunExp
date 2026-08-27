@@ -611,6 +611,50 @@
       }
     },
     {
+      "cgId": "ronove.feast",
+      "displayName": "若娜瓦 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/RonoveEmberOfTheEnd_ronoveCareer_navva/Feast/AuraToolsExp/template.ronove/content.png",
+        "fallbackImage": "CG/Role/RonoveEmberOfTheEnd_ronoveCareer_navva/Feast/AuraToolsExp/template.ronove/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "mod-role",
+        "ronove"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "RonoveEmberOfTheEnd_ronoveCareer_navva",
+        "navva"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
       "cgId": "official.career_1.low-health",
       "displayName": "Official career_1 - Low Health CG",
       "subjectType": "role",

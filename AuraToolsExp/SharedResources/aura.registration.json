@@ -3,7 +3,7 @@
   "ownerModId": "AuraToolsExp",
   "participantKind": "Tool",
   "packageId": "AuraToolsExp.SharedResources.V4",
-  "packageVersion": 3,
+  "packageVersion": 4,
   "resources": [
     {
       "moduleId": "Audio",
@@ -403,6 +403,31 @@
       "scopeAliases": [
         "MG_Chiha",
         "pw_chiha_career_time_mg_chiha"
+      ],
+      "originKind": "ToolRegistered"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "RonoveEmberOfTheEnd_ronoveCareer_navva",
+      "resourceId": "template.ronove",
+      "kind": "File",
+      "source": "CG/Feast/Roles/ronove/feast_cg.png",
+      "fileName": "content.png",
+      "priority": 10,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "mod-role"
+      ],
+      "writerId": "AuraToolsExp",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeOwnerModId": "RonoveEmberOfTheEnd",
+      "scopeAliases": [
+        "navva"
       ],
       "originKind": "ToolRegistered"
     },

@@ -418,6 +418,15 @@ $officialSkillCg = @($cgRegistry.entries | Where-Object {
 $officialFeastCg = @($cgRegistry.entries | Where-Object {
     $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.feast.completed"
 })
+$ronoveFeastCg = @($officialFeastCg | Where-Object {
+    $_.cgId -eq "ronove.feast"
+})
+$ronoveFeastResource = @($registration.resources | Where-Object {
+    $_.moduleId -eq "CG" `
+        -and $_.featureId -eq "Feast" `
+        -and $_.scopeId -eq "RonoveEmberOfTheEnd_ronoveCareer_navva" `
+        -and $_.resourceId -eq "template.ronove"
+})
 $officialLowHealthCg = @($cgRegistry.entries | Where-Object {
     $_.subjectType -eq "role" -and @($_.signals) -contains "aura.role.low-health.entered"
 })
@@ -522,12 +531,21 @@ $visualBundle = Join-Path $repoRoot "AuraToolsExp\ModResource\VisualBundles\aura
 if ($registration.schemaVersion -ne 4 `
         -or $registration.ownerModId -ne "AuraToolsExp" `
         -or $registration.participantKind -ne "Tool" `
+        -or $registration.packageVersion -ne 4 `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
         -or $cgRegistry.schemaVersion -ne 4 `
         -or $cgRegistry.protocol.preferredVersion -ne 4 `
-        -or @($cgRegistry.entries).Count -ne 23 `
+        -or @($cgRegistry.entries).Count -ne 24 `
         -or $officialSkillCg.Count -ne 2 `
-        -or $officialFeastCg.Count -ne 12 `
+        -or $officialFeastCg.Count -ne 13 `
+        -or $ronoveFeastCg.Count -ne 1 `
+        -or @($ronoveFeastCg[0].subjectIds | Where-Object { $_ -in @(
+            "RonoveEmberOfTheEnd_ronoveCareer_navva", "navva") }).Count -ne 2 `
+        -or $ronoveFeastCg[0].media.resource -ne "CG/Role/RonoveEmberOfTheEnd_ronoveCareer_navva/Feast/AuraToolsExp/template.ronove/content.png" `
+        -or $ronoveFeastResource.Count -ne 1 `
+        -or $ronoveFeastResource[0].scopeOwnerModId -ne "RonoveEmberOfTheEnd" `
+        -or $ronoveFeastResource[0].source -ne "CG/Feast/Roles/ronove/feast_cg.png" `
+        -or @($ronoveFeastResource[0].scopeAliases) -notcontains "navva" `
         -or $officialLowHealthCg.Count -ne 2 `
         -or $eventCg.Count -ne 7 `
         -or $invalidEventScene `
