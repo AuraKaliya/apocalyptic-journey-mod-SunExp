@@ -83,24 +83,26 @@ internal static partial class AuraToolsTestSuite
         };
     
         settings.Normalize();
-        var rules = settings.Roles["career_1"].Rules;
-        Assert(settings.SchemaVersion == 7
-               && rules[0].Image == "CG/Roles/1/skill_cg.png"
-               && rules[0].EffectivePresentation.Mode == "fullscreenFade"
-               && rules[0].EffectivePresentation.Fit == "cover"
-               && Math.Abs(rules[0].EffectivePresentation.Hold - 2f) < 0.001f
-               && Math.Abs(rules[0].EffectivePresentation.FocusX - 0.4f) < 0.001f
-               && Math.Abs(rules[0].EffectivePresentation.FocusY - 0.6f) < 0.001f
-               && Math.Abs(rules[0].EffectivePresentation.SafeScale - 1.1f) < 0.001f,
-            "skill CG preserves imported paths and presentation inherits global defaults");
-        Assert(rules[1].EffectivePresentation.Mode == "centerFade"
-               && rules[1].EffectivePresentation.Fit == "stretch"
-               && Math.Abs(rules[1].EffectivePresentation.FadeIn - 0.2f) < 0.001f
-               && Math.Abs(rules[1].EffectivePresentation.Hold - 1.25f) < 0.001f
-               && Math.Abs(rules[1].EffectivePresentation.FocusX - 1f) < 0.001f
-               && Math.Abs(rules[1].EffectivePresentation.FocusY - 0.6f) < 0.001f
-               && Math.Abs(rules[1].EffectivePresentation.SafeScale - 1f) < 0.001f,
-            "skill CG rule presentation overrides selected fields");
+        var entries = settings.ManualRoleEntries;
+        Assert(settings.SchemaVersion == 9
+               && settings.Roles.Count == 0
+               && entries.Count == 2
+               && entries[0].Resource == "CG/Roles/1/skill_cg.png"
+               && entries[0].Presentation.Mode == "fullscreenFade"
+               && entries[0].Presentation.Fit == "cover"
+               && Math.Abs(entries[0].Presentation.Hold - 2f) < 0.001f
+               && Math.Abs(entries[0].Presentation.FocusX - 0.4f) < 0.001f
+               && Math.Abs(entries[0].Presentation.FocusY - 0.6f) < 0.001f
+               && Math.Abs(entries[0].Presentation.SafeScale - 1.1f) < 0.001f,
+            "legacy manual skill CG becomes a user-owned entry while preserving inherited presentation");
+        Assert(entries[1].Presentation.Mode == "centerFade"
+               && entries[1].Presentation.Fit == "stretch"
+               && Math.Abs(entries[1].Presentation.FadeIn - 0.2f) < 0.001f
+               && Math.Abs(entries[1].Presentation.Hold - 1.25f) < 0.001f
+               && Math.Abs(entries[1].Presentation.FocusX - 1f) < 0.001f
+               && Math.Abs(entries[1].Presentation.FocusY - 0.6f) < 0.001f
+               && Math.Abs(entries[1].Presentation.SafeScale - 1f) < 0.001f,
+            "manual skill CG migration preserves per-entry presentation overrides");
     }
     
     public static void TestRpcPayloadBudgetUsesUtf8Bytes()

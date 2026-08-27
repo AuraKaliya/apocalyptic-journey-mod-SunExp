@@ -75,6 +75,12 @@ internal static class AuraToolsCgLowHealthSignalService
             {
                 ["healthRatio"] = after
             },
+            Facts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["resolvedCgId"] = AuraToolsRoleCgCatalog.ResolveSelectedCgId(
+                    roleId,
+                    AuraToolsRoleCgChannels.LowHealth)
+            },
             ConfigureResolvedRequest = request =>
             {
                 request.DisableSync = !AuraToolsConfigService.SkillCg.SyncRemote;

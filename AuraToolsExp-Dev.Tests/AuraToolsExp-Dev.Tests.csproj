@@ -88,6 +88,10 @@
              Link="Cg\AuraCgSceneContracts.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgAnimationSpec.cs"
              Link="Cg\AuraToolsCgAnimationSpec.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgOutcomeReasonPolicy.cs"
+             Link="Cg\AuraToolsCgOutcomeReasonPolicy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgSettingsLayoutPolicy.cs"
+             Link="Cg\AuraToolsCgSettingsLayoutPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\WinSqlite.cs"
              Link="DamageMeter\WinSqlite.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Storage\DamageHistoryDatabase.cs"

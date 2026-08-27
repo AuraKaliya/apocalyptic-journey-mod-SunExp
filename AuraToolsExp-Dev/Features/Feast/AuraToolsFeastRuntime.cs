@@ -254,6 +254,56 @@ public static class AuraToolsFeastRuntime
         PlayFeastForRole(roleId, force: true);
     }
 
+    public static bool PreviewCandidate(string roleId, string qualifiedCgId)
+    {
+        var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
+        var candidate = BuildCandidateCgsForRole(normalizedRole)
+            .FirstOrDefault(value => string.Equals(
+                value.QualifiedCgId,
+                qualifiedCgId,
+                StringComparison.OrdinalIgnoreCase));
+        if (candidate == null)
+        {
+            return false;
+        }
+
+        var imagePath = ResolveCandidateImagePath(candidate);
+        if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
+        {
+            return false;
+        }
+
+        var presentation = candidate.Presentation ?? FeastSettings.CreateDefaultPresentation();
+        SkillCgArbiterRuntime.RequestCg(AuraToolsIds.ModId, new SkillCgRequest
+        {
+            ProviderId = candidate.OwnerModId + ".SkillCG." + candidate.CgId,
+            OwnerModId = candidate.OwnerModId,
+            SignalId = AuraCgSignals.RoleFeastCompleted,
+            SubjectType = AuraCgSubjectTypes.Role,
+            SubjectId = normalizedRole,
+            TriggerKind = FeastKind,
+            CardId = FeastCardId,
+            OwnerInstanceId = "feast-preview",
+            ImagePath = imagePath,
+            ImageResource = candidate.ImageResource,
+            MediaType = SkillCgMediaTypes.Image,
+            Priority = candidate.Priority,
+            FadeIn = presentation.FadeIn,
+            Hold = presentation.Hold,
+            FadeOut = presentation.FadeOut,
+            PresentationMode = presentation.Mode,
+            FitMode = presentation.Fit,
+            FocusX = presentation.FocusX,
+            FocusY = presentation.FocusY,
+            SafeScale = presentation.SafeScale,
+            CreatedAt = Time.unscaledTime,
+            ActionSequence = -Math.Abs(DateTime.UtcNow.Ticks),
+            EventToken = "feast-preview:" + candidate.QualifiedCgId,
+            DisableSync = true
+        });
+        return true;
+    }
+
     private static void Reconfigure()
     {
         SkillCgArbiterRuntime.Initialize(null, AuraToolsIds.ModId, new SkillCgArbiterOptions

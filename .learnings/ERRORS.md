@@ -15,6 +15,98 @@ This artifact was not modified by the Terrias projection/Spirit implementation. 
 
 ---
 
+## ERR-20260827-004: Broad apply patch mixed several stale contexts
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+
+A single patch attempted to remove several `AuraToolsSkillCgProvider` call sites, but one later context no longer matched and caused the entire patch to be rejected.
+
+### Resolution
+
+Locate the live call sites first and apply smaller, independently verifiable hunks instead of coupling unrelated removals into one patch.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `AuraToolsExp-Dev/Features/SkillCg/AuraToolsSkillCgRuntime.cs`
+- Pattern-Key: apply-patch.small-live-contexts
+
+---
+
+## ERR-20260827-005: Unity LoadImage selected a ReadOnlySpan overload unavailable to net472
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+
+The AuraToolsExp build failed with CS0518 because `Texture2D.LoadImage(byte[])` resolved through a Unity API surface requiring `System.ReadOnlySpan<T>`, which is not available in the product's net472 compile contract.
+
+### Resolution
+
+Use the established `AuraToolsResourceCache.Load<Sprite>` path for settings-page thumbnails instead of directly decoding image bytes in the UI layer.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `AuraToolsExp-Dev/Features/Cg/AuraToolsRoleCgSettingsPage.cs`, `AuraToolsExp-Dev/Features/Cg/AuraToolsEventCgSettingsPage.cs`
+- Pattern-Key: unity.net472.avoid-span-image-api
+
+---
+
+## ERR-20260827-006: CG behavior tests still asserted the retired role-rule schema
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+
+The focused AuraToolsExp test run failed after the schema-v8 migration because two tests still indexed `settings.Roles` and expected schema 7.
+
+### Resolution
+
+Update the tests to assert the final one-way migration: copied registrations become `roleEntries` activation overrides, manual rules become `manualRoleEntries`, and the retired `roles` writer remains absent.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `AuraToolsExp-Dev.Tests/AuraToolsConfigurationBehaviorTests.cs`, `AuraToolsExp-Dev.Tests/AuraToolsSharedFeatureBehaviorTests.cs`
+- Pattern-Key: tests.update-after-bounded-migration
+
+---
+
+## ERR-20260827-007: Shared packaging check ran before the product publish transaction
+
+**Logged**: 2026-08-27
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+
+`Test-SharedDllPackaging.ps1` found that the newly built canonical `Aura.Shared.dll` did not match the Terrias package copy.
+
+### Resolution
+
+Run `Build-MainSharedConsumers.ps1` so Terrias and AuraToolsExp are rebuilt and published together from the canonical shared DLL, then rerun the packaging check.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `tools/Build-MainSharedConsumers.ps1`, `tools/Publish-MainSharedConsumers.ps1`
+- Pattern-Key: shared-runtime.publish-before-packaging-check
+
+---
+
 ## ERR-20260827-002: Replay network compression refactor omitted the storage namespace
 
 **Logged**: 2026-08-27
@@ -7713,5 +7805,174 @@ Wrapped the command invocation as `(Test-Path -LiteralPath ...)`. PowerShell com
 - Reproducible: yes
 - Related Files: `tools/Test-AuraToolsExp.ps1`
 - Pattern-Key: powershell.boolean-command-parentheses
+
+---
+
+## ERR-20260827-008: Unity preview inventory omitted the new event-CG module
+
+**Logged**: 2026-08-27
+**Severity**: low
+**Status**: resolved
+**Area**: UI preview
+
+### Summary
+
+The Unity preview source contract stopped before compilation because its catalog did not contain the production `presentation.event-cg` module introduced by the CG redesign.
+
+### Resolution
+
+Added the event-CG module to the preview catalog and updated the role-CG label and summary so the preview inventory follows the production module catalog.
+
+### Prevention
+
+Run the preview source-contract check whenever a built-in module is added or renamed; module inventory and secondary-page captures must change in the same patch.
+
+## ERR-20260827-009: AuraToolsExp product project filename was guessed
+
+**Logged**: 2026-08-27
+**Severity**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+
+An incremental build targeted the guessed path `AuraToolsExp-Dev/AuraToolsExp-Dev.csproj`; the repository project is `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj`.
+
+### Prevention
+
+Discover project files with `rg --files <root> | rg "\\.csproj$"` before invoking a direct build, or use the established product gate wrapper.
+
+## ERR-20260827-010: System Python lacked Pillow for sprite-bound analysis
+
+**Logged**: 2026-08-27
+**Severity**: low
+**Status**: resolved
+**Area**: research tooling
+
+### Summary
+
+The MSYS2 `python.exe` available on PATH did not include Pillow, so a read-only alpha-bound audit failed with `ModuleNotFoundError: PIL`.
+
+### Prevention
+
+Inspect the available image tooling first. For repository sprite audits, use the bundled workspace Python only after resolving its dependencies, or use `System.Drawing`/existing project tooling instead of assuming Pillow is installed globally.
+
+## ERR-20260827-011: AuraCombatAiShared project path was guessed
+
+**Logged**: 2026-08-27T17:12:49+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: research tooling
+
+### Summary
+
+A read-only target-framework inspection assumed `AuraCombatAiShared/AuraCombatAiShared.csproj`, but the shared sources are compiled through a different project surface and that path does not exist.
+
+### Prevention
+
+Discover project files with `rg --files | rg "\\.csproj$"` before reading a project by path, especially for linked shared-source directories.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `AuraCombatAiShared/`, `AuraSharedRuntime-Dev/`
+
+---
+
+## ERR-20260827-012: Combat knowledge gate root recursion hit a volatile trainer path
+
+**Logged**: 2026-08-27T17:20:11+08:00
+**Priority**: medium
+**Status**: pending
+**Area**: tests
+
+### Summary
+
+`tools/Test-AuraCombatKnowledge.ps1` failed before its fallback logic because its repository-wide recursive `Get-ChildItem` traversed Foundation Trainer runtime data and reported a missing `checkpoints` directory.
+
+### Error
+
+```text
+Get-ChildItem: Could not find a part of the path '.../foundation-controller-checkpoint/.../checkpoints'.
+```
+
+### Suggested Fix
+
+Discover the decompiled `AllScripts.cs` fixture only under stable source/reference roots, or enumerate with an error policy that excludes volatile `ModsData` runtime output. The knowledge contract should not traverse live trainer storage.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `tools/Test-AuraCombatKnowledge.ps1`, `ModsData/AuraShared/Logs/AuraToolsExp/FoundationTrainer/`
+
+---
+
+## ERR-20260827-013: Event CG prototype geometry assertions exposed invalid stage sizing
+
+**Logged**: 2026-08-27T17:28:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+
+The first Event CG v2 Playwright capture completed asset loading but failed its
+layout contract: the desktop stage was not 16:9 and the first/fifth participant
+panels left the scene bounds in 7-8 player layouts.
+
+### Error
+
+```text
+scene aspect ratio drifted from 16:9
+participant leaves scene: 0
+participant leaves scene: 4
+```
+
+### Suggested Fix
+
+Make the preview shell reserve an explicit 16:9 stage within each viewport and
+center the seven-panel grid without relying on tableau transforms. Keep the
+geometry assertions and rerun all 17 captures after the CSS correction.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `tools/EventCgScenePrototype/styles.css`, `tools/EventCgScenePrototype/capture.cjs`
+
+### Resolution
+
+- **Resolved**: 2026-08-27T17:32:00+08:00
+- **Notes**: The stage now derives its height from the smaller viewport budget while preserving 16:9, and panel layouts use an opacity-only entrance animation so tableau translation cannot leak into CSS Grid. All 17 captures pass.
+
+---
+
+## ERR-20260827-014: Event CG nameplate audit caught overlapping labels and an in-flight animation
+
+**Logged**: 2026-08-27T17:38:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: frontend
+
+### Summary
+
+After strengthening the prototype audit, tableau nameplate bounds overlapped in
+2-4 player layouts and the last six-player participant was measured before its
+delayed entrance animation had settled.
+
+### Suggested Fix
+
+Narrow tableau nameplates while preserving full-width panel captions, and wait
+for the maximum deterministic entrance delay plus animation duration before
+running static geometry assertions.
+
+### Metadata
+
+- Reproducible: yes
+- Related Files: `tools/EventCgScenePrototype/styles.css`, `tools/EventCgScenePrototype/capture.cjs`
+
+### Resolution
+
+- **Resolved**: 2026-08-27T17:40:00+08:00
+- **Notes**: Tableau nameplates now use narrower bounds, panel captions retain full width, and full-motion capture waits 900 ms for the last delayed entrance to settle. The strengthened 17-case audit passes.
 
 ---

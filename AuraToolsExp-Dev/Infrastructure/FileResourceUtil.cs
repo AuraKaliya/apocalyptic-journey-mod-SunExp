@@ -40,6 +40,16 @@ public static class FileResourceUtil
                 DirectoryResource("user-imports")));
     }
 
+    public static string EventCgDirectory(string sceneId)
+    {
+        return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
+            AuraSharedResourcePathPolicy.StorageResourcePath(
+                AuraToolsConfigService.DataRootDirectory,
+                Scope(AuraSharedSystems.Cg, "EventCg", "Event", sceneId),
+                AuraToolsIds.ModId,
+                DirectoryResource("user-imports")));
+    }
+
     public static string CommonAudioDirectory()
     {
         return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AuraToolsExp 队伍型事件 CG v2</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="prototype-shell">
+    <header class="titlebar">
+      <div>
+        <h1>队伍型事件 CG v2</h1>
+        <p id="profile-label">自适应群像 · 普通胜利</p>
+      </div>
+      <div class="status" aria-live="polite">
+        <span id="layout-status">等权弧形</span>
+        <span id="asset-status">资源归一化 4/4</span>
+      </div>
+    </header>
+
+    <nav class="event-tabs" aria-label="事件场景">
+      <button type="button" data-scene="opening">战斗开场</button>
+      <button type="button" data-scene="victory" class="is-active">普通胜利</button>
+      <button type="button" data-scene="midas">点金手</button>
+      <button type="button" data-scene="ritual">仪式胜利</button>
+      <button type="button" data-scene="curse">诅咒胜利</button>
+      <button type="button" data-scene="defeat">战斗失败</button>
+      <button type="button" data-scene="settlement">冒险结算</button>
+    </nav>
+
+    <section class="control-strip" aria-label="预览参数">
+      <div class="stepper-group">
+        <span class="control-label">队伍人数</span>
+        <button id="count-down" class="icon-button" type="button" aria-label="减少一名角色">−</button>
+        <output id="participant-count">4</output>
+        <button id="count-up" class="icon-button" type="button" aria-label="增加一名角色">+</button>
+      </div>
+
+      <div class="motion-control" role="group" aria-label="动态效果">
+        <button type="button" data-motion="full" class="is-active">标准动态</button>
+        <button type="button" data-motion="reduced">减少动态</button>
+      </div>
+
+      <label class="check-control">
+        <input id="safe-zone-toggle" type="checkbox">
+        <span>安全区</span>
+      </label>
+    </section>
+
+    <section class="scene-frame" aria-label="队伍型事件 CG 构图预览">
+      <div id="scene" class="scene scene-victory" data-count="4" data-layout="tableau">
+        <img class="scene-background" src="../../AuraToolsExp/ModResource/DPSCG/DPS-CG.png" alt="">
+        <div class="background-shade" aria-hidden="true"></div>
+        <div class="stage-floor" aria-hidden="true"></div>
+        <div class="event-motif" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="safe-zone" aria-hidden="true"></div>
+
+        <div class="scene-caption">
+          <strong id="scene-title">普通胜利</strong>
+          <span id="scene-subtitle">冒险队伍</span>
+        </div>
+
+        <div id="participants" class="participants" aria-label="参与角色"></div>
+      </div>
+    </section>
+
+    <footer class="diagnostics">
+      <span id="composition-note">4 人等权弧形，按联合 Alpha 边界归一化</span>
+      <span>16:9 · 共享渲染器目标构图</span>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

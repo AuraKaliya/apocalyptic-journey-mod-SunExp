@@ -62,6 +62,46 @@ internal static class AuraToolsCgTeamSnapshotService
         };
     }
 
+    public static AuraCgSceneSourceSnapshot? BuildPreviewSource(
+        string sceneId,
+        string eventToken,
+        int participantCount)
+    {
+        var roles = RoleCatalog.GetRoles()
+            .Where(role => role != null && !string.IsNullOrWhiteSpace(role.Id))
+            .ToList();
+        if (roles.Count == 0)
+        {
+            return BuildSource(sceneId, eventToken);
+        }
+
+        var count = Math.Max(1, Math.Min(AuraCgSceneProtocol.MaximumParticipants, participantCount));
+        var result = new AuraCgSceneSourceSnapshot
+        {
+            SceneId = sceneId,
+            EventToken = eventToken
+        };
+        for (var index = 0; index < count; index++)
+        {
+            var role = roles[index % roles.Count];
+            var playerId = "preview-seat-" + index;
+            result.Participants.Add(new AuraCgSceneParticipantSource
+            {
+                Order = index,
+                PlayerId = playerId,
+                RoleId = role.Id,
+                RoleVariantId = SkinRuntime.GetSelectedQualifiedSkinId(role.Id, playerId),
+                RoleLayerAsset = new AuraCgSceneAssetReference
+                {
+                    OwnerModId = AuraToolsIds.ModId,
+                    AssetId = AuraToolsCgSceneAssetResolver.RoleIdleAssetId
+                }
+            });
+        }
+
+        return result;
+    }
+
     private static void MergeCurrentTeam(bool replace)
     {
         var current = CollectCurrentTeam();

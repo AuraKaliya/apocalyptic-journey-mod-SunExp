@@ -53,15 +53,15 @@ namespace AuraTools.UnityUiPreview
             Module("gameplay.starter-deck", "gameplay", "自定义开局", "为世界推演配置全局或按角色的开局卡牌与遗物。", "全局 · 卡牌 0/15 · 遗物 0/6", "starter-deck", false, true),
             Module("gameplay.card-refresh", "gameplay", "卡牌刷新", "在战斗奖励选牌时提供一次重新抽取。", "战斗奖励选牌可刷新", "card-refresh", false, false),
             Module("gameplay.feast", "gameplay", "一键美餐", "进食一次后自动处理剩余食物。", "单次最多处理 64 份食物", "feast", true, false),
-            Module("presentation.feast-cg", "presentation", "美餐 CG", "在一键美餐完成后播放按角色配置的 CG。", "已配置 16 个角色", "feast-cg", true, true),
             Module("gameplay.safe-box", "gameplay", "随身保险箱", "在冒险顶部栏直接打开保险箱。", "冒险顶部栏显示入口", "safe-box", false, false),
             Module("presentation.skin", "presentation", "角色皮肤", "管理已注册皮肤并选择本地显示效果。", "已启用 3/3 个候选皮肤", "skin", true, true),
             Module("presentation.battle-bgm", "presentation", "战斗背景音乐", "替换战斗音乐，并可按角色设置不同曲目。", "通用音频", "battle-bgm", false, true),
             Module("presentation.card-use-audio", "presentation", "出牌音效", "配置通用或按角色生效的出牌音效。", "通用音效", "card-use-audio", true, true),
             Module("presentation.character-voice", "presentation", "角色语音", "管理内容 MOD 注册的角色语音。", "", "card-use-audio", true, true),
             Module("presentation.pixel-emoji", "presentation", "像素表情", "制作、收藏并在联机中展示像素表情。", "作品 12 · 收藏 5", "pixel-emoji", true, true),
-            Module("presentation.skill-cg", "presentation", "技能 CG", "管理技能触发的角色表现和联机同步。", "角色规则 6 条 · 联机同步开启", "skill-cg", true, true),
+            Module("presentation.skill-cg", "presentation", "角色 CG", "按角色配置技能、美餐和低生命表现。", "角色资源 4 个 · 联机同步开启", "skill-cg", true, true),
             Module("presentation.card-use-cg", "presentation", "卡牌使用 CG", "管理注册卡牌的使用演出。", "已启用 4/7 个注册项", "card-use-cg", true, true),
+            Module("presentation.event-cg", "presentation", "事件 CG", "配置胜利、战斗与冒险结算场景。", "场景 7/7 · 队伍自动布局", "skill-cg", true, true),
             Module("presentation.card-visual", "presentation", "卡牌视觉", "管理卡框主题与动态效果。", "", "skin", true, true),
             Module("records.damage-statistics", "records", "伤害统计", "记录本场伤害并提供局内和冒险统计。", "本场 · 全部阵营 · 表格", "damage-statistics", true, true),
             Module("records.battle-replay", "records", "战斗回放", "自动记录对局并提供回放与视频导出。", "自动保存上限 20", "battle-replay", true, true),
@@ -91,10 +91,10 @@ namespace AuraTools.UnityUiPreview
                     auto.Availability = "warning";
                     break;
                 case "warning":
-                    var feastCg = modules.First(module => module.Id == "presentation.feast-cg");
-                    feastCg.Summary = "随一键美餐暂停 · 已配置 16 个角色";
-                    feastCg.Attention = "开启一键美餐后恢复自动播放";
-                    feastCg.Availability = "warning";
+                    var roleCg = modules.First(module => module.Id == "presentation.skill-cg");
+                    roleCg.Summary = "美餐自动播放已暂停 · 其它角色 CG 正常";
+                    roleCg.Attention = "开启一键美餐后恢复美餐 CG";
+                    roleCg.Availability = "warning";
                     var skin = modules.First(module => module.Id == "presentation.skin");
                     skin.Summary = "已启用 2/3 个候选皮肤";
                     skin.Attention = "1 个资源目录缺失";

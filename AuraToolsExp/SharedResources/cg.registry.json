@@ -695,8 +695,8 @@
       "enabled": true
     },
     {
-      "cgId": "event.special-opening",
-      "displayName": "特殊战斗开场",
+      "cgId": "event.battle-opening",
+      "displayName": "战斗开场",
       "subjectType": "event",
       "subjectIds": [
         "*"
@@ -706,8 +706,8 @@
       ],
       "match": {
         "facts": {
-          "specialBattle": [
-            "true"
+          "sceneId": [
+            "battle-opening"
           ]
         },
         "minimumMetrics": {},
@@ -734,7 +734,7 @@
         "maximumParticipants": 8,
         "backgroundAsset": {
           "ownerModId": "AuraToolsExp",
-          "assetId": "event.background.settlement"
+          "assetId": "event.background.battle-opening"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
         "roleLayerAssetPrefix": "role.idle.",
@@ -753,8 +753,8 @@
       "enabled": true
     },
     {
-      "cgId": "event.special-victory",
-      "displayName": "特殊战斗胜利",
+      "cgId": "event.victory.standard",
+      "displayName": "普通胜利",
       "subjectType": "event",
       "subjectIds": [
         "*"
@@ -764,8 +764,8 @@
       ],
       "match": {
         "facts": {
-          "specialBattle": [
-            "true"
+          "outcomeReason": [
+            "standard-victory"
           ]
         },
         "minimumMetrics": {},
@@ -792,7 +792,7 @@
         "maximumParticipants": 8,
         "backgroundAsset": {
           "ownerModId": "AuraToolsExp",
-          "assetId": "event.background.settlement"
+          "assetId": "event.background.victory.standard"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
         "roleLayerAssetPrefix": "role.idle.",
@@ -807,6 +807,183 @@
       "tags": [
         "event-cg",
         "team-scene"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.victory.midas",
+      "displayName": "点金手胜利",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.outcome.victory"
+      ],
+      "match": {
+        "facts": {
+          "outcomeReason": [
+            "midas-escape"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.victory.midas"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 113,
+      "tags": [
+        "event-cg",
+        "team-scene",
+        "victory-reason"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.victory.ritual",
+      "displayName": "仪式胜利",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.outcome.victory"
+      ],
+      "match": {
+        "facts": {
+          "outcomeReason": [
+            "ritual-victory"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.victory.ritual"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 112,
+      "tags": [
+        "event-cg",
+        "team-scene",
+        "victory-reason"
+      ],
+      "enabled": true
+    },
+    {
+      "cgId": "event.victory.curse",
+      "displayName": "诅咒胜利",
+      "subjectType": "event",
+      "subjectIds": [
+        "*"
+      ],
+      "signals": [
+        "aura.battle.outcome.victory"
+      ],
+      "match": {
+        "facts": {
+          "outcomeReason": [
+            "curse-victory"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "scene"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 3.0,
+        "fadeOut": 0.45,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1.0
+      },
+      "scene": {
+        "layoutId": "team-stage.v1",
+        "presentationProfileId": "terminal",
+        "logicalWidth": 1600,
+        "logicalHeight": 900,
+        "maximumParticipants": 8,
+        "backgroundAsset": {
+          "ownerModId": "AuraToolsExp",
+          "assetId": "event.background.victory.curse"
+        },
+        "roleLayerOwnerModId": "AuraToolsExp",
+        "roleLayerAssetPrefix": "role.idle.",
+        "exclusive": true
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 111,
+      "tags": [
+        "event-cg",
+        "team-scene",
+        "victory-reason"
       ],
       "enabled": true
     },
@@ -846,7 +1023,7 @@
         "maximumParticipants": 8,
         "backgroundAsset": {
           "ownerModId": "AuraToolsExp",
-          "assetId": "event.background.settlement"
+          "assetId": "event.background.battle-defeat"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
         "roleLayerAssetPrefix": "role.idle.",
@@ -900,7 +1077,7 @@
         "maximumParticipants": 8,
         "backgroundAsset": {
           "ownerModId": "AuraToolsExp",
-          "assetId": "event.background.settlement"
+          "assetId": "event.background.adventure-settlement"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
         "roleLayerAssetPrefix": "role.idle.",
