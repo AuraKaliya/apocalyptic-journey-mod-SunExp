@@ -2,11 +2,24 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using System.Reflection;
+using Newtonsoft.Json;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
 var assertions = 0;
+
+if (args.Length != 1 || !File.Exists(args[0]))
+    throw new ArgumentException("Expected the shipped spirit.artifact.registry.json path.");
+var artifactRegistryDocument = JsonConvert.DeserializeObject<SpiritArtifactRegistryDocument>(File.ReadAllText(args[0]))
+    ?? throw new InvalidDataException("Artifact registry deserialization failed.");
+typeof(SpiritArtifactRegistry).GetMethod("NormalizeAndValidate", BindingFlags.NonPublic | BindingFlags.Static)!
+    .Invoke(null, new object[] { artifactRegistryDocument });
+typeof(SpiritArtifactRegistry).GetMethod("SetDocument", BindingFlags.NonPublic | BindingFlags.Static)!
+    .Invoke(null, new object[] { artifactRegistryDocument });
+typeof(SpiritArtifactRegistry).GetField("ready", BindingFlags.NonPublic | BindingFlags.Static)!
+    .SetValue(null, true);
 
 Assert(SpiritCaptureRollService.ChanceBasisPoints(100, 100) == 1000,
     "full-health capture chance is 10 percent");
@@ -124,16 +137,277 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 21
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 22
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
-       && SpiritSystemContract.CollectionVersion == 9
+       && SpiritSystemContract.CollectionVersion == 11
+       && SpiritSystemContract.ArtifactInventoryVersion == 2
+       && SpiritSystemContract.ArtifactPresetCapacity == 20
+       && SpiritSystemContract.ArtifactBattleProtocolVersion == 1
        && SpiritSystemContract.InitialRosterGrantVersion == 1
        && SpiritSystemContract.InitialRosterProfileCount == 58
        && SpiritSystemContract.InitialRosterConfigurationKey == "GrantAllSpiritsOnFirstLoad"
        && SpiritSystemContract.GrowthRegistrySchemaVersion == 3
        && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,
     "the current Spirit save, registry, and Partner protocol contract stays synchronized");
+
+var artifactPool = SpiritArtifactRegistry.Pools().First();
+var artifactInventory = new SpiritArtifactInventory
+{
+    SelectedPoolId = artifactPool.Id,
+    TargetSetId = artifactPool.SetIds[0]
+};
+var artifactDraw = SpiritArtifactRoller.PrepareTenDraw(
+    artifactInventory,
+    artifactPool.Id,
+    artifactPool.SetIds[0],
+    new ZeroArtifactRandom(),
+    "draw-token",
+    "2026-08-28T00:00:00Z");
+Assert(artifactDraw.Success && artifactDraw.Results.Count == 10 && artifactDraw.TruthCost == 160,
+    "artifact draw creates one atomic 160-Truth ten-pull");
+Assert(artifactDraw.Results.Count(item => item.Rarity >= 2) >= 1
+       && artifactDraw.Results.All(item => item.Level == 1 && item.SubStatRolls.Count == 0),
+    "artifact ten-pull applies its two-star guarantee and Lv.1 main-stat-only contract");
+Assert(artifactDraw.Results.All(item => item.SetId == artifactPool.SetIds[0]),
+    "zero target roll resolves into the selected artifact set");
+
+artifactInventory.RarityPity = 29;
+artifactInventory.TargetFate = 1;
+var pityDraw = SpiritArtifactRoller.PrepareTenDraw(
+    artifactInventory,
+    artifactPool.Id,
+    artifactPool.SetIds[0],
+    new ZeroArtifactRandom(),
+    "pity-token",
+    "2026-08-28T00:00:00Z");
+Assert(pityDraw.Results[0].Rarity == 3 && pityDraw.Results[0].SetId == artifactPool.SetIds[0]
+       && pityDraw.ResultingTargetFate == 0,
+    "thirtieth pull and armed target fate force a target-set three-star");
+
+var artifactCollection = new SpiritCollectionDocument
+{
+    Instances = new List<SpiritInstance>
+    {
+        new() { SpiritUid = "spirit-a", ArtifactLoadout = new SpiritArtifactLoadout() },
+        new() { SpiritUid = "spirit-b", ArtifactLoadout = new SpiritArtifactLoadout() }
+    },
+    ArtifactInventory = new SpiritArtifactInventory
+    {
+        Essence = 100,
+        SelectedPoolId = artifactPool.Id,
+        TargetSetId = artifactPool.SetIds[0],
+        Artifacts = new List<SpiritArtifactInstance> { artifactDraw.Results[0].Clone() }
+    }
+};
+var artifactUid = artifactCollection.ArtifactInventory.Artifacts[0].ArtifactUid;
+var upgradedArtifact = SpiritArtifactInventoryService.Upgrade(
+    artifactCollection, artifactUid, new ZeroArtifactRandom());
+Assert(upgradedArtifact.Success
+       && upgradedArtifact.Artifact?.Level == 2
+       && upgradedArtifact.Artifact.SubStatRolls.Count == 1
+       && artifactCollection.ArtifactInventory.Essence == 90,
+    "artifact Lv.1 to Lv.2 consumes 10 essence and records one persistent roll");
+Assert(SpiritArtifactInventoryService.Equip(artifactCollection, "spirit-a", artifactUid).Success
+       && SpiritArtifactInventoryService.EquippedSpiritUid(artifactCollection, artifactUid) == "spirit-a",
+    "artifact equips into the selected Spirit instance");
+Assert(SpiritArtifactInventoryService.Equip(artifactCollection, "spirit-b", artifactUid).Success
+       && SpiritArtifactInventoryService.EquippedSpiritUid(artifactCollection, artifactUid) == "spirit-b"
+       && artifactCollection.Instances[0].ArtifactLoadout.ArtifactUids().Count == 0
+       && artifactCollection.Instances[0].ArtifactLoadout.Revision == 2
+       && artifactCollection.Instances[1].ArtifactLoadout.Revision == 1,
+    "equipping an owned artifact atomically transfers it and advances every changed Spirit revision");
+Assert(!SpiritArtifactInventoryService.Dismantle(artifactCollection, new[] { artifactUid }).Success,
+    "equipped artifacts cannot be dismantled");
+Assert(SpiritArtifactInventoryService.Unequip(
+        artifactCollection, "spirit-b", artifactCollection.ArtifactInventory.Artifacts[0].SlotId).Success,
+    "equipped artifact can be explicitly removed from its slot");
+var artifactBattle = SpiritArtifactLoadoutResolver.Resolve(artifactCollection, artifactCollection.Instances[1]).Battle;
+Assert(SpiritArtifactLoadoutResolver.ValidateBattleSnapshot(artifactBattle, out _),
+    "empty artifact loadout still produces a registry-bound valid battle snapshot");
+var dismantledArtifact = SpiritArtifactInventoryService.Dismantle(artifactCollection, new[] { artifactUid });
+Assert(dismantledArtifact.Success && dismantledArtifact.EssenceDelta == 8
+       && artifactCollection.ArtifactInventory.Essence == 98,
+    "Lv.2 one-star dismantle returns base essence plus 70 percent of invested essence");
+
+var presetArtifacts = CreatePresetArtifacts(artifactPool.SetIds[0], "preset-primary");
+var alternateFlower = CreatePresetArtifacts(artifactPool.SetIds[1], "preset-alternate")
+    .First(value => value.SlotId == SpiritArtifactSlots.Flower);
+var presetCollection = new SpiritCollectionDocument
+{
+    Instances = new List<SpiritInstance>
+    {
+        new() { SpiritUid = "preset-spirit-a", ArtifactLoadout = new SpiritArtifactLoadout() },
+        new() { SpiritUid = "preset-spirit-b", ArtifactLoadout = new SpiritArtifactLoadout() },
+        new() { SpiritUid = "preset-spirit-c", ArtifactLoadout = new SpiritArtifactLoadout() }
+    },
+    ArtifactInventory = new SpiritArtifactInventory
+    {
+        SelectedPoolId = artifactPool.Id,
+        TargetSetId = artifactPool.SetIds[0],
+        Artifacts = presetArtifacts.Concat(new[] { alternateFlower }).Select(value => value.Clone()).ToList()
+    }
+};
+var primaryDraft = new SpiritArtifactPreset { Name = "主预设" };
+foreach (var artifact in presetArtifacts) primaryDraft.Set(artifact.SlotId, artifact.ArtifactUid);
+var savedPrimary = SpiritArtifactPresetService.Save(presetCollection, primaryDraft);
+Assert(savedPrimary.Success && savedPrimary.Preset != null
+       && SpiritArtifactPresetService.ProtectedArtifactUids(presetCollection).Count == 5,
+    "account artifact preset stores five exact instances and protects their union");
+var protectedFlower = presetArtifacts.First(value => value.SlotId == SpiritArtifactSlots.Flower);
+Assert(!SpiritArtifactInventoryService.Dismantle(presetCollection, new[] { protectedFlower.ArtifactUid }).Success,
+    "preset-referenced artifacts cannot be dismantled even while unequipped");
+
+var secondaryDraft = savedPrimary.Preset!.Clone();
+secondaryDraft.PresetUid = "";
+secondaryDraft.Name = "共享预设";
+secondaryDraft.Set(SpiritArtifactSlots.Flower, alternateFlower.ArtifactUid);
+var savedSecondary = SpiritArtifactPresetService.Save(presetCollection, secondaryDraft);
+Assert(savedSecondary.Success
+       && SpiritArtifactPresetService.ProtectedArtifactUids(presetCollection).Count == 6,
+    "different account presets may share exact artifact instances without duplicate ownership data");
+
+var primaryPreset = savedPrimary.Preset!;
+var primaryBySlot = presetArtifacts.ToDictionary(value => value.SlotId, value => value.ArtifactUid, StringComparer.Ordinal);
+Assert(SpiritArtifactInventoryService.Equip(
+           presetCollection, "preset-spirit-a", primaryBySlot[SpiritArtifactSlots.Flower]).Success
+       && SpiritArtifactInventoryService.Equip(
+           presetCollection, "preset-spirit-a", primaryBySlot[SpiritArtifactSlots.Plume]).Success
+       && SpiritArtifactInventoryService.Equip(
+           presetCollection, "preset-spirit-b", primaryBySlot[SpiritArtifactSlots.Sands]).Success
+       && SpiritArtifactInventoryService.Equip(
+           presetCollection, "preset-spirit-b", primaryBySlot[SpiritArtifactSlots.Goblet]).Success,
+    "preset transfer fixture distributes exact instances across multiple Spirits");
+var beforePresetA = presetCollection.Instances[0].ArtifactLoadout.Revision;
+var beforePresetB = presetCollection.Instances[1].ArtifactLoadout.Revision;
+var appliedPreset = SpiritArtifactPresetService.Apply(
+    presetCollection, "preset-spirit-c", primaryPreset.PresetUid);
+Assert(appliedPreset.Success && appliedPreset.TransferredArtifactCount == 4
+       && appliedPreset.AffectedSpiritUids.OrderBy(value => value, StringComparer.Ordinal)
+           .SequenceEqual(new[] { "preset-spirit-a", "preset-spirit-b", "preset-spirit-c" })
+       && presetCollection.Instances[0].ArtifactLoadout.ArtifactUids().Count == 0
+       && presetCollection.Instances[1].ArtifactLoadout.ArtifactUids().Count == 0
+       && SpiritArtifactSlots.All.All(slot => presetCollection.Instances[2].ArtifactLoadout.Get(slot) == primaryPreset.Get(slot))
+       && presetCollection.Instances[0].ArtifactLoadout.Revision == beforePresetA + 1
+       && presetCollection.Instances[1].ArtifactLoadout.Revision == beforePresetB + 1,
+    "applying an account preset atomically strips prior owners and equips the current Spirit");
+var repeatedPreset = SpiritArtifactPresetService.Apply(
+    presetCollection, "preset-spirit-c", primaryPreset.PresetUid);
+Assert(repeatedPreset.Success && repeatedPreset.AffectedSpiritUids.Count == 0
+       && repeatedPreset.TransferredArtifactCount == 0,
+    "reapplying the already active preset is an idempotent no-op");
+
+var filteredPresetItems = SpiritArtifactInventoryQueryService.Filter(
+    presetCollection,
+    new SpiritArtifactInventoryFilter { CleanableOnly = true });
+Assert(filteredPresetItems.Count == 0,
+    "cleanable select-all query excludes equipped and every preset-referenced artifact");
+Assert(SpiritArtifactPresetService.Delete(presetCollection, primaryPreset.PresetUid).Success
+       && SpiritArtifactPresetService.IsProtected(presetCollection, primaryBySlot[SpiritArtifactSlots.Plume])
+       && !SpiritArtifactPresetService.IsProtected(presetCollection, primaryBySlot[SpiritArtifactSlots.Flower]),
+    "preset protection is reference-counted across the remaining account presets");
+var unprotectedArtifact = CreatePresetArtifacts(artifactPool.SetIds[1], "unprotected")
+    .First(value => value.SlotId == SpiritArtifactSlots.Plume);
+presetCollection.ArtifactInventory.Artifacts.Add(unprotectedArtifact);
+Assert(!SpiritArtifactInventoryService.Dismantle(
+           presetCollection,
+           new[] { unprotectedArtifact.ArtifactUid, primaryBySlot[SpiritArtifactSlots.Plume] }).Success
+       && SpiritArtifactInventoryService.Find(presetCollection, unprotectedArtifact.ArtifactUid) != null,
+    "batch dismantle remains all-or-nothing when any requested item has preset protection");
+var queryArtifacts = CreatePresetArtifacts(artifactPool.SetIds[0], "query").Take(3).ToList();
+queryArtifacts[0].Rarity = 1;
+queryArtifacts[1].Rarity = 2;
+queryArtifacts[2].Rarity = 3;
+queryArtifacts[1].Locked = true;
+var queryCollection = new SpiritCollectionDocument
+{
+    ArtifactInventory = new SpiritArtifactInventory { Artifacts = queryArtifacts }
+};
+var rarityFiltered = SpiritArtifactInventoryQueryService.Filter(
+    queryCollection,
+    new SpiritArtifactInventoryFilter { RarityMask = (1 << 1) | (1 << 3) });
+Assert(rarityFiltered.Count == 2 && rarityFiltered.All(value => value.Rarity is 1 or 3),
+    "artifact filter supports selecting multiple rarity bands without duplicating the warehouse query");
+Assert(SpiritArtifactInventoryQueryService.SelectAllCleanable(queryCollection, queryArtifacts).Count == 2,
+    "artifact select-all candidate count excludes locked items before UI selection");
+var oversizedPresetInventory = new SpiritArtifactInventory
+{
+    Presets = Enumerable.Range(0, 21).Select(index => new SpiritArtifactPreset
+    {
+        PresetUid = index < 2 ? "duplicate-id" : "preset-" + index,
+        Name = index < 2 ? "重复名称" : "预设 " + index,
+        Order = index
+    }).ToList()
+};
+SpiritArtifactPresetService.NormalizeInventory(oversizedPresetInventory);
+Assert(oversizedPresetInventory.Presets.Count == 20
+       && oversizedPresetInventory.Presets.Select(value => value.PresetUid).Distinct(StringComparer.Ordinal).Count() == 20
+       && oversizedPresetInventory.Presets.Select(value => value.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == 20
+       && oversizedPresetInventory.Presets.Select(value => value.Order).SequenceEqual(Enumerable.Range(0, 20)),
+    "account preset normalization enforces the 20-slot bound and deterministic unique identity/order");
+var legacyArtifactStore = new MemorySpiritStore(new SpiritCollectionDocument
+{
+    Version = 10,
+    ArtifactInventory = new SpiritArtifactInventory
+    {
+        Version = 1,
+        SelectedPoolId = artifactPool.Id,
+        TargetSetId = artifactPool.SetIds[0],
+        Presets = null!
+    }
+});
+SpiritCollectionService.Configure(legacyArtifactStore);
+var migratedArtifactCollection = SpiritCollectionService.Snapshot();
+Assert(legacyArtifactStore.SaveCount == 1
+       && migratedArtifactCollection.Version == 11
+       && migratedArtifactCollection.ArtifactInventory.Version == 2
+       && migratedArtifactCollection.ArtifactInventory.Presets.Count == 0,
+    "collection schema 11 performs one durable migration to the account preset inventory contract");
+
+var artifactCombatState = new CompanionBattleState(
+    "artifact-spirit", "role", "owner", -1, new CompanionStats(100, 10, 30, 20),
+    entityKind: "SpiritAttachment");
+artifactCombatState.ConfigureArtifactBattle(new SpiritArtifactBattleSnapshot
+{
+    ProtocolVersion = 1,
+    ActiveEffects = new List<SpiritArtifactActiveEffectSnapshot>
+    {
+        new()
+        {
+            SetId = "gladiator",
+            RequiredPieces = 2,
+            EffectId = "gladiator.damage",
+            HandlerId = "intent.attack.damage-percent",
+            Amount = 8
+        },
+        new()
+        {
+            SetId = "gladiator",
+            RequiredPieces = 4,
+            EffectId = "gladiator.triumph",
+            HandlerId = "intent.attack.triumph",
+            Amount = 4,
+            Maximum = 3
+        }
+    }
+});
+artifactCombatState.SetPassiveValue("artifact.gladiator.triumph.stacks", 3);
+var artifactDamageEffects = new List<CompanionResolvedEffect>
+{
+    new() { HandlerId = "damage.single", Value = 125, RepeatCount = 1 }
+};
+var artifactCost = 2;
+var artifactModifierKeys = new List<string>();
+SpiritArtifactBattleRuntime.ApplyPlanModifiers(
+    artifactCombatState,
+    new CompanionIntentDefinition { Id = "attack", Type = "Attack", Cost = 2 },
+    artifactDamageEffects,
+    ref artifactCost,
+    artifactModifierKeys);
+Assert(artifactDamageEffects[0].PreArtifactValue == 125
+       && artifactDamageEffects[0].ArtifactDamageBonusBasisPoints == 2000
+       && artifactDamageEffects[0].Value == 150,
+    "two- and four-piece damage bonuses add inside one independent artifact multiplier");
 
 var normalizedRemotePayload = RemoteTargetEventApi.ComposePayload(
     "Terrias_Card_Spark",
@@ -912,6 +1186,31 @@ CapturedEnemySnapshot RosterSnapshot(SpiritSpeciesGrowthProfile profile, string 
     };
 }
 
+List<SpiritArtifactInstance> CreatePresetArtifacts(string setId, string uidPrefix)
+{
+    var result = new List<SpiritArtifactInstance>();
+    for (var index = 0; index < SpiritArtifactSlots.All.Count; index++)
+    {
+        var slot = SpiritArtifactSlots.All[index];
+        var piece = SpiritArtifactRegistry.PieceFor(setId, slot)
+                    ?? throw new InvalidOperationException("Missing artifact piece for preset test: " + setId + "/" + slot);
+        var statId = slot == SpiritArtifactSlots.Flower ? SpiritArtifactStats.Life : SpiritArtifactStats.Magic;
+        var range = SpiritArtifactRegistry.Range(statId, 3, main: true);
+        result.Add(new SpiritArtifactInstance
+        {
+            ArtifactUid = uidPrefix + "-" + slot,
+            SetId = setId,
+            PieceId = piece.Id,
+            SlotId = slot,
+            Rarity = 3,
+            Level = 1,
+            MainStat = new SpiritArtifactStatRoll { StatId = statId, Value = range.Minimum },
+            AcquiredAt = "2026-08-29T00:00:00Z"
+        });
+    }
+    return result;
+}
+
 sealed class MemorySpiritStore : ISpiritCollectionStore, ISpiritInitialRosterGrantGuard
 {
     private SpiritCollectionDocument document;
@@ -953,4 +1252,9 @@ sealed class MemorySpiritPartySessionStore : ISpiritAdventurePartySessionStore
     {
         document = value.Clone();
     }
+}
+
+sealed class ZeroArtifactRandom : ISpiritArtifactRandom
+{
+    public int Next(int exclusiveMaximum) => 0;
 }

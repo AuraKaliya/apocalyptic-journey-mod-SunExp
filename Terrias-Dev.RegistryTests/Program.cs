@@ -3,12 +3,13 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
+using Newtonsoft.Json;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
-if (args.Length != 1 || !File.Exists(args[0]))
+if (args.Length != 2 || !File.Exists(args[0]) || !File.Exists(args[1]))
 {
-    throw new ArgumentException("Expected the shipped spirit.intent.registry.json path.");
+    throw new ArgumentException("Expected the shipped spirit.intent.registry.json and spirit.artifact.registry.json paths.");
 }
 
 var legacyMainPrefix = TerriasContentIdCompatibility.LegacyPrefixFor("terrias");
@@ -125,6 +126,62 @@ foreach (var profile in document.Profiles)
     Assert(profile.FallbackSourceEnemyCardIds != null, profile.EnemyId + " fallbackSourceEnemyCardIds is null");
 }
 
+var artifactDocument = JsonConvert.DeserializeObject<SpiritArtifactRegistryDocument>(File.ReadAllText(args[1]))
+    ?? throw new InvalidDataException("C# SpiritArtifactRegistryDocument deserialization returned null.");
+Assert(artifactDocument.SchemaVersion == 1, "artifact registry schema version must be 1");
+Assert(artifactDocument.InventoryCapacity == 1000, "artifact inventory capacity must be 1000");
+Assert(artifactDocument.Draw.Count == 10 && artifactDocument.Draw.TruthCost == 160,
+    "artifact draw must be a 160-Truth ten-pull");
+Assert(artifactDocument.Draw.ThreeStarHardPity == 30
+       && artifactDocument.Draw.TargetSetWeightPercent == 50
+       && artifactDocument.Draw.MinimumTwoStarPerBatch == 1,
+    "artifact pity and target contracts must remain stable");
+Assert(artifactDocument.Draw.RarityWeights.Values.Sum() == 10000,
+    "artifact rarity weights must total 10000");
+Assert(artifactDocument.Enhancement.UpgradeCosts.SequenceEqual(new[] { 10, 20, 30, 40 }),
+    "artifact enhancement costs must total 100 through 10/20/30/40");
+Assert(artifactDocument.SubStatWeights.Sum(value => value.Weight) == 100,
+    "artifact sub-stat weights must total 100 percent");
+Assert(artifactDocument.Sets.Count == 12 && artifactDocument.Pools.Count == 3,
+    "first artifact release must contain 12 sets in three pools");
+Assert(artifactDocument.Pools.All(pool => pool.SetIds.Count == 4),
+    "every artifact pool must contain four sets");
+Assert(artifactDocument.Sets.SelectMany(set => set.Pieces).Count() == 60,
+    "every first-release artifact set must contain five pieces");
+Assert(artifactDocument.Sets.All(set => set.Bonuses.Select(bonus => bonus.RequiredPieces).SequenceEqual(new[] { 2, 4 })),
+    "first-release artifact sets must expose cumulative 2/4-piece effects");
+Assert(artifactDocument.Sets.SelectMany(set => set.Bonuses).SelectMany(bonus => bonus.Effects)
+        .All(effect => SpiritArtifactEffectHandlerRegistry.Supports(effect.HandlerId)),
+    "every artifact set effect must use a registered handler");
+var assignedSetIds = artifactDocument.Pools.SelectMany(pool => pool.SetIds).ToArray();
+Assert(assignedSetIds.Distinct(StringComparer.Ordinal).Count() == 12,
+    "every artifact set must belong to exactly one draw pool");
+var terriasDirectory = Path.GetDirectoryName(args[1]) ?? throw new InvalidDataException("artifact registry directory unavailable");
+foreach (var set in artifactDocument.Sets)
+{
+    Assert(set.Pieces.Select(piece => piece.SlotId).OrderBy(value => value, StringComparer.Ordinal)
+            .SequenceEqual(SpiritArtifactSlots.All.OrderBy(value => value, StringComparer.Ordinal)),
+        set.Id + " must contain every artifact slot exactly once");
+    Assert(set.Pieces.Any(piece => piece.Id == set.RepresentativePieceId && piece.SlotId == SpiritArtifactSlots.Flower),
+        set.Id + " representative piece must be its flower");
+    foreach (var piece in set.Pieces)
+    {
+        const string prefix = "Mods/Terrias/";
+        Assert(piece.IconPath.StartsWith(prefix, StringComparison.Ordinal), piece.Id + " icon must be Terrias-owned");
+        var physical = Path.Combine(terriasDirectory,
+            piece.IconPath.Substring(prefix.Length).Replace('/', Path.DirectorySeparatorChar) + ".png");
+        Assert(File.Exists(physical), piece.Id + " icon is missing: " + physical);
+    }
+}
+Assert(File.Exists(Path.Combine(terriasDirectory, "ModResource", "Images", "Artifacts", "splash-background-runtime.png")),
+    "artifact result background PNG is missing");
+Assert(File.Exists(Path.Combine(terriasDirectory, "ModResource", "Images", "Artifacts", "resultcard-bg-runtime.png")),
+    "artifact result-card PNG is missing");
+Assert(File.Exists(Path.Combine(terriasDirectory, "ModResource", "Images", "Artifacts", "祈愿动画-runtime.mp4")),
+    "artifact runtime wish video is missing");
+Assert(SpiritArtifactMath.ApplyDamageMultiplier(125, 2000) == 150,
+    "artifact damage must remain in its independent multiplier");
+
 var legacyJson = """
 {
   "schemaVersion": 3,
@@ -165,6 +222,9 @@ Console.WriteLine(
     "Spirit registry C# deserialization passed: profiles=" + (document.Profiles.Count - 1)
     + ", pveIntents=" + document.Intents.Count(intent => intent.Pool == "Pve")
     + ", pvpReservedIntents=" + document.Intents.Count(intent => intent.Pool == "PvpReserved") + ".");
+Console.WriteLine("Spirit artifact registry passed: pools=" + artifactDocument.Pools.Count
+                  + ", sets=" + artifactDocument.Sets.Count
+                  + ", pieces=" + artifactDocument.Sets.SelectMany(set => set.Pieces).Count() + ".");
 
 static void Assert(bool condition, string message)
 {

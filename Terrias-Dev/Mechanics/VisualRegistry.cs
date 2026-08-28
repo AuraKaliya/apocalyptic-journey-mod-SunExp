@@ -53,6 +53,13 @@ public static class VisualRegistry
         return string.IsNullOrWhiteSpace(path) ? fallback : path.Trim();
     }
 
+    public static string? VideoPath(string id, string? fallback = null)
+    {
+        var spec = ActiveDocument().Videos.FirstOrDefault(item => IsEnabled(item.Enabled, item.Id, id));
+        var path = spec?.Path ?? "";
+        return string.IsNullOrWhiteSpace(path) ? fallback : path.Trim();
+    }
+
     public static ModeEntryVisualSpec? ModeEntry(string id)
     {
         return ActiveDocument().ModeEntries.FirstOrDefault(item => IsEnabled(item.Enabled, item.Id, id));
@@ -192,6 +199,7 @@ public static class VisualRegistry
         current.SchemaVersion = current.SchemaVersion <= 0 ? fallback.SchemaVersion : current.SchemaVersion;
         current.OwnerModId = string.IsNullOrWhiteSpace(current.OwnerModId) ? OwnerModId : current.OwnerModId.Trim();
         current.Textures = Merge(current.Textures, fallback.Textures, spec => spec.Id, NormalizeTexture);
+        current.Videos = Merge(current.Videos, fallback.Videos, spec => spec.Id, NormalizeVideo);
         current.ModeEntries = Merge(current.ModeEntries, fallback.ModeEntries, spec => spec.Id, NormalizeModeEntry);
         current.FrameAnimations = Merge(current.FrameAnimations, fallback.FrameAnimations, spec => spec.Id, NormalizeFrameAnimation);
         current.MapNodeArt = Merge(current.MapNodeArt, fallback.MapNodeArt, spec => spec.Id, NormalizeMapNodeArt);
@@ -242,6 +250,12 @@ public static class VisualRegistry
     }
 
     private static void NormalizeTexture(TextureVisualSpec spec)
+    {
+        spec.Id = Clean(spec.Id);
+        spec.Path = Clean(spec.Path);
+    }
+
+    private static void NormalizeVideo(VideoVisualSpec spec)
     {
         spec.Id = Clean(spec.Id);
         spec.Path = Clean(spec.Path);
@@ -361,6 +375,49 @@ internal static class VisualRegistryDefaults
                 {
                     Id = "solar_memory.event_map_card",
                     Path = "Mods/Terrias/ModResource/Images/MapNode/\u65e5\u8000\u56de\u5fc6-\u4e8b\u4ef6.png"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.wish.background",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/splash-background-runtime"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.wish.result-card",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/resultcard-bg-runtime"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.empty.flower",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/空素材/生之花.png"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.empty.plume",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/空素材/死之羽.png"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.empty.sands",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/空素材/时之沙.png"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.empty.goblet",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/空素材/空之杯.png"
+                },
+                new()
+                {
+                    Id = "spirit.artifact.empty.circlet",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/空素材/理之冠.png"
+                }
+            },
+            Videos = new List<VideoVisualSpec>
+            {
+                new()
+                {
+                    Id = "spirit.artifact.wish.video",
+                    Path = "Mods/Terrias/ModResource/Images/Artifacts/\u7948\u613f\u52a8\u753b-runtime.mp4"
                 }
             },
             ModeEntries = new List<ModeEntryVisualSpec>

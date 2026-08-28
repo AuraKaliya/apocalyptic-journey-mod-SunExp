@@ -81,7 +81,7 @@ function Test-ModResourcePath {
         return $true
     }
 
-    foreach ($extension in @('.png', '.jpg', '.jpeg', '.wav', '.ogg', '.mp3', '.json', '.asset', '.mat', '.prefab')) {
+    foreach ($extension in @('.png', '.jpg', '.jpeg', '.wav', '.ogg', '.mp3', '.mp4', '.json', '.asset', '.mat', '.prefab')) {
         if (Test-Path -LiteralPath ($candidate + $extension)) {
             return $true
         }
@@ -113,6 +113,7 @@ try {
     $rootNamespace = @($project.Project.PropertyGroup.RootNamespace | Where-Object { $_ })[0]
     Assert-True ($assemblyName -eq "Terrias.Aura") "Terrias assembly name must be Terrias.Aura."
     Assert-True ($rootNamespace -eq "Terrias.Dll") "Terrias root namespace must be Terrias.Dll."
+    Assert-True (@($project.Project.ItemGroup.Reference | Where-Object { $_.Include -eq 'UnityEngine.VideoModule' }).Count -eq 1) "Terrias artifact wish playback requires exactly one UnityEngine.VideoModule reference."
 
     $entryDll = Join-Path $modRoot "Scripts\Entry.dll"
     Assert-True ([IO.File]::Exists($entryDll)) "Shipped Terrias/Scripts/Entry.dll is missing."
@@ -334,6 +335,8 @@ try {
     Assert-True ($skinRetirementFiles.Count -eq 0) "Completed Terrias skin retirement manifests must not remain operational."
     $visualRegistry = Get-Content -LiteralPath (Join-Path $modRoot "visual.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($visualRegistry.ownerModId -eq "Terrias") "Visual registry ownerModId must be Terrias."
+    Assert-True (@($visualRegistry.videos | Where-Object { $_.id -eq 'spirit.artifact.wish.video' }).Count -eq 1) "Visual registry must declare the Spirit artifact wish video exactly once."
+    Assert-True (@($visualRegistry.textures | Where-Object { $_.id -in @('spirit.artifact.wish.background', 'spirit.artifact.wish.result-card') }).Count -eq 2) "Visual registry must declare both Spirit artifact result textures."
     $shaderIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($shader in $visualRegistry.shaders) {
         Assert-True ($shaderIds.Add([string]$shader.id)) "Duplicate visual shader id: $($shader.id)"

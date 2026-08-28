@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "Terrias",
+  "inventoryCapacity": 1000,
+  "draw": {
+    "count": 10,
+    "truthCost": 160,
+    "rarityWeights": { "1": 6500, "2": 3000, "3": 500 },
+    "minimumTwoStarPerBatch": 1,
+    "threeStarHardPity": 30,
+    "targetSetWeightPercent": 50,
+    "guaranteeTargetAfterOffTargetThreeStar": true
+  },
+  "enhancement": {
+    "maximumLevel": 5,
+    "upgradeCosts": [10, 20, 30, 40],
+    "dismantleBaseEssence": { "1": 1, "2": 3, "3": 8 },
+    "investedEssenceRefundPercent": 70
+  },
+  "subStatWeights": [
+    { "statId": "life", "weight": 15 },
+    { "statId": "magic", "weight": 15 },
+    { "statId": "spirit", "weight": 15 },
+    { "statId": "luck", "weight": 15 },
+    { "statId": "perception", "weight": 15 },
+    { "statId": "speed", "weight": 15 },
+    { "statId": "max-magic", "weight": 5 },
+    { "statId": "extraordinary", "weight": 5 }
+  ],
+  "statRanges": [
+    {
+      "statId": "life",
+      "main": { "1": { "minimum": 8, "maximum": 12 }, "2": { "minimum": 12, "maximum": 16 }, "3": { "minimum": 16, "maximum": 20 } },
+      "sub": { "1": { "minimum": 2, "maximum": 4 }, "2": { "minimum": 3, "maximum": 5 }, "3": { "minimum": 4, "maximum": 6 } }
+    },
+    {
+      "statId": "magic",
+      "main": { "1": { "minimum": 2, "maximum": 3 }, "2": { "minimum": 3, "maximum": 4 }, "3": { "minimum": 4, "maximum": 5 } },
+      "sub": { "1": { "minimum": 1, "maximum": 2 }, "2": { "minimum": 1, "maximum": 3 }, "3": { "minimum": 2, "maximum": 3 } }
+    },
+    {
+      "statId": "spirit",
+      "main": { "1": { "minimum": 2, "maximum": 3 }, "2": { "minimum": 3, "maximum": 4 }, "3": { "minimum": 4, "maximum": 5 } },
+      "sub": { "1": { "minimum": 1, "maximum": 2 }, "2": { "minimum": 1, "maximum": 3 }, "3": { "minimum": 2, "maximum": 3 } }
+    },
+    {
+      "statId": "luck",
+      "main": { "1": { "minimum": 2, "maximum": 3 }, "2": { "minimum": 3, "maximum": 4 }, "3": { "minimum": 4, "maximum": 5 } },
+      "sub": { "1": { "minimum": 1, "maximum": 2 }, "2": { "minimum": 1, "maximum": 3 }, "3": { "minimum": 2, "maximum": 3 } }
+    },
+    {
+      "statId": "perception",
+      "main": { "1": { "minimum": 2, "maximum": 3 }, "2": { "minimum": 3, "maximum": 4 }, "3": { "minimum": 4, "maximum": 5 } },
+      "sub": { "1": { "minimum": 1, "maximum": 2 }, "2": { "minimum": 1, "maximum": 3 }, "3": { "minimum": 2, "maximum": 3 } }
+    },
+    {
+      "statId": "speed",
+      "main": { "1": { "minimum": 3, "maximum": 4 }, "2": { "minimum": 4, "maximum": 5 }, "3": { "minimum": 5, "maximum": 6 } },
+      "sub": { "1": { "minimum": 1, "maximum": 1 }, "2": { "minimum": 1, "maximum": 2 }, "3": { "minimum": 1, "maximum": 2 } }
+    },
+    {
+      "statId": "max-magic",
+      "main": {},
+      "sub": { "1": { "minimum": 1, "maximum": 1 }, "2": { "minimum": 1, "maximum": 1 }, "3": { "minimum": 1, "maximum": 2 } }
+    },
+    {
+      "statId": "extraordinary",
+      "main": {},
+      "sub": { "1": { "minimum": 10, "maximum": 20 }, "2": { "minimum": 20, "maximum": 35 }, "3": { "minimum": 35, "maximum": 50 } }
+    }
+  ],
+  "pools": [
+    {
+      "id": "terrias.artifact.pool.triumphal-stage",
+      "name": { "zh-Hans": "逐胜剧幕", "zh-Hant": "逐勝劇幕", "en": "Triumphal Stage", "ja": "勝利の舞台" },
+      "setIds": [
+        "terrias.artifact.set.gladiators-finale",
+        "terrias.artifact.set.shimenawas-reminiscence",
+        "terrias.artifact.set.golden-troupe",
+        "terrias.artifact.set.marechaussee-hunter"
+      ]
+    },
+    {
+      "id": "terrias.artifact.pool.arcane-echo",
+      "name": { "zh-Hans": "魔能回响", "zh-Hant": "魔能迴響", "en": "Arcane Echo", "ja": "魔力の残響" },
+      "setIds": [
+        "terrias.artifact.set.emblem-of-severed-fate",
+        "terrias.artifact.set.gilded-dreams",
+        "terrias.artifact.set.ocean-hued-clam",
+        "terrias.artifact.set.long-nights-oath"
+      ]
+    },
+    {
+      "id": "terrias.artifact.pool.stonebound-forest",
+      "name": { "zh-Hans": "岩契森风", "zh-Hant": "岩契森風", "en": "Stonebound Forest", "ja": "岩契の森風" },
+      "setIds": [
+        "terrias.artifact.set.tenacity-of-the-millelith",
+        "terrias.artifact.set.husk-of-opulent-dreams",
+        "terrias.artifact.set.deepwood-memories",
+        "terrias.artifact.set.viridescent-venerer"
+      ]
+    }
+  ],
+  "sets": [
+    {
+      "id": "terrias.artifact.set.gladiators-finale",
+      "name": { "zh-Hans": "角斗士的终幕礼", "zh-Hant": "角鬥士的終幕禮", "en": "Gladiator's Finale", "ja": "剣闘士のフィナーレ" },
+      "representativePieceId": "terrias.artifact.gladiators-finale.flower",
+      "pieces": [
+        { "id": "terrias.artifact.gladiators-finale.flower", "slotId": "flower", "name": { "zh-Hans": "角斗士的留恋" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/角斗士的终幕礼/角斗士的留恋" },
+        { "id": "terrias.artifact.gladiators-finale.plume", "slotId": "plume", "name": { "zh-Hans": "角斗士的归宿" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/角斗士的终幕礼/角斗士的归宿" },
+        { "id": "terrias.artifact.gladiators-finale.sands", "slotId": "sands", "name": { "zh-Hans": "角斗士的希冀" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/角斗士的终幕礼/角斗士的希冀" },
+        { "id": "terrias.artifact.gladiators-finale.goblet", "slotId": "goblet", "name": { "zh-Hans": "角斗士的酣醉" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/角斗士的终幕礼/角斗士的酣醉" },
+        { "id": "terrias.artifact.gladiators-finale.circlet", "slotId": "circlet", "name": { "zh-Hans": "角斗士的凯旋" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/角斗士的终幕礼/角斗士的凯旋" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "攻击型意图造成的直接伤害提高8%。" }, "effects": [ { "id": "gladiator.damage", "handlerId": "intent.attack.damage-percent", "amount": 8 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "使用攻击型意图后获得1层凯旋，最多3层；每层令攻击型意图伤害提高4%。使用非攻击型意图后清空凯旋。" }, "effects": [ { "id": "gladiator.triumph", "handlerId": "intent.attack.triumph", "amount": 4, "maximum": 3 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.shimenawas-reminiscence",
+      "name": { "zh-Hans": "追忆之注连", "zh-Hant": "追憶之注連", "en": "Shimenawa's Reminiscence", "ja": "追憶のしめ縄" },
+      "representativePieceId": "terrias.artifact.shimenawas-reminiscence.flower",
+      "pieces": [
+        { "id": "terrias.artifact.shimenawas-reminiscence.flower", "slotId": "flower", "name": { "zh-Hans": "羁缠之花" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/追忆之注连/羁缠之花" },
+        { "id": "terrias.artifact.shimenawas-reminiscence.plume", "slotId": "plume", "name": { "zh-Hans": "思忆之矢" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/追忆之注连/思忆之矢" },
+        { "id": "terrias.artifact.shimenawas-reminiscence.sands", "slotId": "sands", "name": { "zh-Hans": "朝露之时" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/追忆之注连/朝露之时" },
+        { "id": "terrias.artifact.shimenawas-reminiscence.goblet", "slotId": "goblet", "name": { "zh-Hans": "祈望之心" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/追忆之注连/祈望之心" },
+        { "id": "terrias.artifact.shimenawas-reminiscence.circlet", "slotId": "circlet", "name": { "zh-Hans": "无常之面" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/追忆之注连/无常之面" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "魔力提高2点。" }, "effects": [ { "id": "shimenawa.magic", "handlerId": "stat.origin.magic", "amount": 2 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "选择攻击型意图时，若可额外支付1点魔能，则额外支付并使本次直接伤害提高18%。" }, "effects": [ { "id": "shimenawa.memory", "handlerId": "intent.attack.extra-cost", "amount": 18, "secondaryAmount": 1 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.golden-troupe",
+      "name": { "zh-Hans": "黄金剧团", "zh-Hant": "黃金劇團", "en": "Golden Troupe", "ja": "黄金の劇団" },
+      "representativePieceId": "terrias.artifact.golden-troupe.flower",
+      "pieces": [
+        { "id": "terrias.artifact.golden-troupe.flower", "slotId": "flower", "name": { "zh-Hans": "黄金乐曲的变奏" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/黄金剧团/黄金乐曲的变奏" },
+        { "id": "terrias.artifact.golden-troupe.plume", "slotId": "plume", "name": { "zh-Hans": "黄金飞鸟的落羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/黄金剧团/黄金飞鸟的落羽" },
+        { "id": "terrias.artifact.golden-troupe.sands", "slotId": "sands", "name": { "zh-Hans": "黄金时代的先声" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/黄金剧团/黄金时代的先声" },
+        { "id": "terrias.artifact.golden-troupe.goblet", "slotId": "goblet", "name": { "zh-Hans": "黄金之夜的喧嚣" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/黄金剧团/黄金之夜的喧嚣" },
+        { "id": "terrias.artifact.golden-troupe.circlet", "slotId": "circlet", "name": { "zh-Hans": "黄金剧团的奖赏" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/黄金剧团/黄金剧团的奖赏" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "冷却时间不低于2回合的意图，其伤害、护盾和治疗提高8%。" }, "effects": [ { "id": "golden-troupe.long-cooldown", "handlerId": "intent.cooldown.numeric-percent", "amount": 8, "secondaryAmount": 2 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "连续使用不同类型的意图时获得1层变奏；达到2层时清空变奏并回复1点魔能。" }, "effects": [ { "id": "golden-troupe.variation", "handlerId": "intent.alternating.variation", "amount": 1, "maximum": 2 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.marechaussee-hunter",
+      "name": { "zh-Hans": "逐影猎人", "zh-Hant": "逐影獵人", "en": "Marechaussee Hunter", "ja": "ファントムハンター" },
+      "representativePieceId": "terrias.artifact.marechaussee-hunter.flower",
+      "pieces": [
+        { "id": "terrias.artifact.marechaussee-hunter.flower", "slotId": "flower", "name": { "zh-Hans": "猎人的胸花" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/逐影猎人/猎人的胸花" },
+        { "id": "terrias.artifact.marechaussee-hunter.plume", "slotId": "plume", "name": { "zh-Hans": "杰作的序曲" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/逐影猎人/杰作的序曲" },
+        { "id": "terrias.artifact.marechaussee-hunter.sands", "slotId": "sands", "name": { "zh-Hans": "裁判的时刻" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/逐影猎人/裁判的时刻" },
+        { "id": "terrias.artifact.marechaussee-hunter.goblet", "slotId": "goblet", "name": { "zh-Hans": "遗忘的容器" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/逐影猎人/遗忘的容器" },
+        { "id": "terrias.artifact.marechaussee-hunter.circlet", "slotId": "circlet", "name": { "zh-Hans": "老兵的容颜" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/逐影猎人/老兵的容颜" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "当前生命不高于70%时，攻击型与干扰型意图伤害提高8%。" }, "effects": [ { "id": "marechaussee.low-health", "handlerId": "intent.low-health.damage-percent", "amount": 8, "secondaryAmount": 70 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "精灵受到攻击时获得1层追猎，最多3层；下次攻击型或干扰型意图消耗全部追猎，每层使伤害提高4%。" }, "effects": [ { "id": "marechaussee.hunt", "handlerId": "status.hit.hunt", "amount": 4, "maximum": 3 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.emblem-of-severed-fate",
+      "name": { "zh-Hans": "绝缘之旗印", "zh-Hant": "絕緣之旗印", "en": "Emblem of Severed Fate", "ja": "絶縁の旗印" },
+      "representativePieceId": "terrias.artifact.emblem-of-severed-fate.flower",
+      "pieces": [
+        { "id": "terrias.artifact.emblem-of-severed-fate.flower", "slotId": "flower", "name": { "zh-Hans": "明威之镡" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/绝缘之旗印/明威之镡" },
+        { "id": "terrias.artifact.emblem-of-severed-fate.plume", "slotId": "plume", "name": { "zh-Hans": "切落之羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/绝缘之旗印/切落之羽" },
+        { "id": "terrias.artifact.emblem-of-severed-fate.sands", "slotId": "sands", "name": { "zh-Hans": "雷云之笼" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/绝缘之旗印/雷云之笼" },
+        { "id": "terrias.artifact.emblem-of-severed-fate.goblet", "slotId": "goblet", "name": { "zh-Hans": "绯花之壶" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/绝缘之旗印/绯花之壶" },
+        { "id": "terrias.artifact.emblem-of-severed-fate.circlet", "slotId": "circlet", "name": { "zh-Hans": "华饰之兜" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/绝缘之旗印/华饰之兜" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "魔能上限提高1点。" }, "effects": [ { "id": "emblem.max-magic", "handlerId": "stat.max-magic", "amount": 1 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "意图每消耗1点魔能，使其伤害、护盾和治疗提高4%，最多提高12%。" }, "effects": [ { "id": "emblem.cost-power", "handlerId": "intent.cost.numeric-percent", "amount": 4, "maximum": 12 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.gilded-dreams",
+      "name": { "zh-Hans": "饰金之梦", "zh-Hant": "飾金之夢", "en": "Gilded Dreams", "ja": "金メッキの夢" },
+      "representativePieceId": "terrias.artifact.gilded-dreams.flower",
+      "pieces": [
+        { "id": "terrias.artifact.gilded-dreams.flower", "slotId": "flower", "name": { "zh-Hans": "梦中的铁花" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/饰金之梦/梦中的铁花" },
+        { "id": "terrias.artifact.gilded-dreams.plume", "slotId": "plume", "name": { "zh-Hans": "裁断的翎羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/饰金之梦/裁断的翎羽" },
+        { "id": "terrias.artifact.gilded-dreams.sands", "slotId": "sands", "name": { "zh-Hans": "沉金的岁月" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/饰金之梦/沉金的岁月" },
+        { "id": "terrias.artifact.gilded-dreams.goblet", "slotId": "goblet", "name": { "zh-Hans": "如蜜的终宴" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/饰金之梦/如蜜的终宴" },
+        { "id": "terrias.artifact.gilded-dreams.circlet", "slotId": "circlet", "name": { "zh-Hans": "沙王的投影" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/饰金之梦/沙王的投影" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "魔力、精神、幸运、感知各提高1点。" }, "effects": [ { "id": "gilded.origins", "handlerId": "stat.origins.all", "amount": 1 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "三个已装备意图中，每存在一种不同意图类型，伤害、护盾和治疗提高4%，最多提高12%。" }, "effects": [ { "id": "gilded.diversity", "handlerId": "loadout.intent-diversity.numeric-percent", "amount": 4, "maximum": 12 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.ocean-hued-clam",
+      "name": { "zh-Hans": "海染砗磲", "zh-Hant": "海染硨磲", "en": "Ocean-Hued Clam", "ja": "海染硨磲" },
+      "representativePieceId": "terrias.artifact.ocean-hued-clam.flower",
+      "pieces": [
+        { "id": "terrias.artifact.ocean-hued-clam.flower", "slotId": "flower", "name": { "zh-Hans": "海染之花" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/海染砗磲/海染之花" },
+        { "id": "terrias.artifact.ocean-hued-clam.plume", "slotId": "plume", "name": { "zh-Hans": "渊宫之羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/海染砗磲/渊宫之羽" },
+        { "id": "terrias.artifact.ocean-hued-clam.sands", "slotId": "sands", "name": { "zh-Hans": "离别之贝" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/海染砗磲/离别之贝" },
+        { "id": "terrias.artifact.ocean-hued-clam.goblet", "slotId": "goblet", "name": { "zh-Hans": "真珠之笼" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/海染砗磲/真珠之笼" },
+        { "id": "terrias.artifact.ocean-hued-clam.circlet", "slotId": "circlet", "name": { "zh-Hans": "海祇之冠" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/海染砗磲/海祇之冠" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "恢复型意图的治疗提高10%。" }, "effects": [ { "id": "ocean-clam.heal", "handlerId": "intent.recovery.heal-percent", "amount": 10 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "成功执行恢复型意图后获得海沫；下次攻击型或干扰型意图消耗海沫，使伤害提高15%。" }, "effects": [ { "id": "ocean-clam.foam", "handlerId": "intent.recovery.foam", "amount": 15, "maximum": 1 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.long-nights-oath",
+      "name": { "zh-Hans": "长夜之誓", "zh-Hant": "長夜之誓", "en": "Long Night's Oath", "ja": "長き夜の誓い" },
+      "representativePieceId": "terrias.artifact.long-nights-oath.flower",
+      "pieces": [
+        { "id": "terrias.artifact.long-nights-oath.flower", "slotId": "flower", "name": { "zh-Hans": "执灯人的誓词" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/长夜之誓/执灯人的誓词" },
+        { "id": "terrias.artifact.long-nights-oath.plume", "slotId": "plume", "name": { "zh-Hans": "夜鸣莺的尾羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/长夜之誓/夜鸣莺的尾羽" },
+        { "id": "terrias.artifact.long-nights-oath.sands", "slotId": "sands", "name": { "zh-Hans": "不死者的哀铃" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/长夜之誓/不死者的哀铃" },
+        { "id": "terrias.artifact.long-nights-oath.goblet", "slotId": "goblet", "name": { "zh-Hans": "未吹响的号角" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/长夜之誓/未吹响的号角" },
+        { "id": "terrias.artifact.long-nights-oath.circlet", "slotId": "circlet", "name": { "zh-Hans": "被浸染的缨盔" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/长夜之誓/被浸染的缨盔" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "精灵等待时额外回复1点魔能。" }, "effects": [ { "id": "long-night.wait-magic", "handlerId": "wait.magic-recovery", "amount": 1 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "等待后获得长誓；下一个具有直接数值的意图消耗长誓，使伤害、护盾或治疗提高15%。" }, "effects": [ { "id": "long-night.oath", "handlerId": "wait.oath", "amount": 15, "maximum": 1 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.tenacity-of-the-millelith",
+      "name": { "zh-Hans": "千岩牢固", "zh-Hant": "千岩牢固", "en": "Tenacity of the Millelith", "ja": "千岩牢固" },
+      "representativePieceId": "terrias.artifact.tenacity-of-the-millelith.flower",
+      "pieces": [
+        { "id": "terrias.artifact.tenacity-of-the-millelith.flower", "slotId": "flower", "name": { "zh-Hans": "勋绩之花" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/千岩牢固/勋绩之花" },
+        { "id": "terrias.artifact.tenacity-of-the-millelith.plume", "slotId": "plume", "name": { "zh-Hans": "昭武翎羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/千岩牢固/昭武翎羽" },
+        { "id": "terrias.artifact.tenacity-of-the-millelith.sands", "slotId": "sands", "name": { "zh-Hans": "金铜时晷" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/千岩牢固/金铜时晷" },
+        { "id": "terrias.artifact.tenacity-of-the-millelith.goblet", "slotId": "goblet", "name": { "zh-Hans": "盟誓金爵" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/千岩牢固/盟誓金爵" },
+        { "id": "terrias.artifact.tenacity-of-the-millelith.circlet", "slotId": "circlet", "name": { "zh-Hans": "将帅兜鍪" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/千岩牢固/将帅兜鍪" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "最大生命提高10点。" }, "effects": [ { "id": "tenacity.life", "handlerId": "stat.max-life", "amount": 10 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "精灵或其拥有者受到攻击时获得1层守契，最多2层；下次防御型或恢复型意图消耗全部守契，每层使护盾或治疗提高8%。" }, "effects": [ { "id": "tenacity.guard", "handlerId": "status.owner-hit.guard", "amount": 8, "maximum": 2 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.husk-of-opulent-dreams",
+      "name": { "zh-Hans": "华馆梦醒形骸记", "zh-Hant": "華館夢醒形骸記", "en": "Husk of Opulent Dreams", "ja": "華館夢醒形骸記" },
+      "representativePieceId": "terrias.artifact.husk-of-opulent-dreams.flower",
+      "pieces": [
+        { "id": "terrias.artifact.husk-of-opulent-dreams.flower", "slotId": "flower", "name": { "zh-Hans": "荣花之期" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/华馆梦醒形骸记/荣花之期" },
+        { "id": "terrias.artifact.husk-of-opulent-dreams.plume", "slotId": "plume", "name": { "zh-Hans": "华馆之羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/华馆梦醒形骸记/华馆之羽" },
+        { "id": "terrias.artifact.husk-of-opulent-dreams.sands", "slotId": "sands", "name": { "zh-Hans": "众生之谣" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/华馆梦醒形骸记/众生之谣" },
+        { "id": "terrias.artifact.husk-of-opulent-dreams.goblet", "slotId": "goblet", "name": { "zh-Hans": "梦醒之瓢" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/华馆梦醒形骸记/梦醒之瓢" },
+        { "id": "terrias.artifact.husk-of-opulent-dreams.circlet", "slotId": "circlet", "name": { "zh-Hans": "形骸之笠" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/华馆梦醒形骸记/形骸之笠" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "护甲提高3点。" }, "effects": [ { "id": "husk.armor", "handlerId": "stat.armor", "amount": 3 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "精灵回合开始且没有护盾时，获得等同于护甲50%的护盾，冷却3个精灵回合；拥有护盾时，防御型意图的护盾提高12%。" }, "effects": [ { "id": "husk.shield-cycle", "handlerId": "turn.shield-cycle", "amount": 50, "secondaryAmount": 3, "maximum": 12 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.deepwood-memories",
+      "name": { "zh-Hans": "深林的记忆", "zh-Hant": "深林的記憶", "en": "Deepwood Memories", "ja": "深林の記憶" },
+      "representativePieceId": "terrias.artifact.deepwood-memories.flower",
+      "pieces": [
+        { "id": "terrias.artifact.deepwood-memories.flower", "slotId": "flower", "name": { "zh-Hans": "迷宫的游人" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/深林的记忆/迷宫的游人" },
+        { "id": "terrias.artifact.deepwood-memories.plume", "slotId": "plume", "name": { "zh-Hans": "翠蔓的智者" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/深林的记忆/翠蔓的智者" },
+        { "id": "terrias.artifact.deepwood-memories.sands", "slotId": "sands", "name": { "zh-Hans": "贤智的定期" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/深林的记忆/贤智的定期" },
+        { "id": "terrias.artifact.deepwood-memories.goblet", "slotId": "goblet", "name": { "zh-Hans": "迷误者之灯" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/深林的记忆/迷误者之灯" },
+        { "id": "terrias.artifact.deepwood-memories.circlet", "slotId": "circlet", "name": { "zh-Hans": "月桂的宝冠" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/深林的记忆/月桂的宝冠" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "干扰型意图施加的每项负面Buff层数提高1层。" }, "effects": [ { "id": "deepwood.debuff", "handlerId": "intent.interference.debuff-stacks", "amount": 1 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "对拥有至少一种负面Buff的敌人造成的直接伤害提高12%。" }, "effects": [ { "id": "deepwood.debuffed-damage", "handlerId": "target.debuffed.damage-percent", "amount": 12 } ] }
+      ]
+    },
+    {
+      "id": "terrias.artifact.set.viridescent-venerer",
+      "name": { "zh-Hans": "翠绿之影", "zh-Hant": "翠綠之影", "en": "Viridescent Venerer", "ja": "翠緑の影" },
+      "representativePieceId": "terrias.artifact.viridescent-venerer.flower",
+      "pieces": [
+        { "id": "terrias.artifact.viridescent-venerer.flower", "slotId": "flower", "name": { "zh-Hans": "野花记忆的绿野" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/翠绿之影/野花记忆的绿野" },
+        { "id": "terrias.artifact.viridescent-venerer.plume", "slotId": "plume", "name": { "zh-Hans": "猎人青翠的箭羽" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/翠绿之影/猎人青翠的箭羽" },
+        { "id": "terrias.artifact.viridescent-venerer.sands", "slotId": "sands", "name": { "zh-Hans": "翠绿猎人的笃定" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/翠绿之影/翠绿猎人的笃定" },
+        { "id": "terrias.artifact.viridescent-venerer.goblet", "slotId": "goblet", "name": { "zh-Hans": "翠绿猎人的容器" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/翠绿之影/翠绿猎人的容器" },
+        { "id": "terrias.artifact.viridescent-venerer.circlet", "slotId": "circlet", "name": { "zh-Hans": "翠绿的猎人之冠" }, "iconPath": "Mods/Terrias/ModResource/Images/Artifacts/翠绿之影/翠绿的猎人之冠" }
+      ],
+      "bonuses": [
+        { "requiredPieces": 2, "description": { "zh-Hans": "速度提高5点。" }, "effects": [ { "id": "viridescent.speed", "handlerId": "stat.speed", "amount": 5 } ] },
+        { "requiredPieces": 4, "description": { "zh-Hans": "使用支援型或干扰型意图后，使下一次攻击型意图伤害提高12%；使用攻击型意图后，使下一次支援型或干扰型意图的第一个有效Buff效果增加1层。" }, "effects": [ { "id": "viridescent.alternation", "handlerId": "intent.gale-alternation", "amount": 12, "secondaryAmount": 1, "maximum": 1 } ] }
+      ]
+    }
+  ]
+}

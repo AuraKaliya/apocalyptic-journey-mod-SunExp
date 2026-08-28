@@ -53,6 +53,10 @@
       <HintPath>$(DllPath)\UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>$(DllPath)\UnityEngine.VideoModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
       <HintPath>$(DllPath)\UnityEngine.AssetBundleModule.dll</HintPath>
       <Private>false</Private>

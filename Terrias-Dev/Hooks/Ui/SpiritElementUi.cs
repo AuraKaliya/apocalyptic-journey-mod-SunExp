@@ -17,6 +17,14 @@ internal static class SpiritElementUi
         return SpiritElementUiApi.CreateBadge(parent, name, width, height, ignoreLayout);
     }
 
+    public static (GameObject Root, Image Icon) CreateIcon(
+        Transform parent,
+        string name,
+        SpiritElementDisplaySurface surface)
+    {
+        return SpiritElementUiApi.CreateIcon(parent, name, SpiritElementDisplayPolicy.IconSize(surface));
+    }
+
     public static void Bind(Image? icon, Text? label, string elementId)
     {
         var normalized = SpiritElementService.NormalizeId(elementId);
@@ -26,6 +34,12 @@ internal static class SpiritElementUi
             normalized,
             SpiritElementService.DisplayName(normalized),
             SpiritElementService.IconPath(normalized));
+    }
+
+    public static void BindIcon(Image? icon, string elementId)
+    {
+        var normalized = SpiritElementService.NormalizeId(elementId);
+        SpiritElementUiApi.BindIcon(icon, SpiritElementService.IconPath(normalized));
     }
 
     public static Color Tint(string elementId)

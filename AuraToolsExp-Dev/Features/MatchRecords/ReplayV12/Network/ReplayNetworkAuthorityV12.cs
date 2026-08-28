@@ -85,6 +85,8 @@ internal static class ReplayNetworkAuthorityV12
     private static readonly Dictionary<string, CapabilityReceipt> Capabilities = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ReplayCanonicalChunkBufferV12> Transfers = new(StringComparer.Ordinal);
 
+    internal static event Action? CapabilityChanged;
+
     internal static bool IsMultiplayer => DamageMeterNetworkRuntime.IsMultiplayer;
     internal static bool IsHost => DamageMeterNetworkRuntime.IsHost;
 
@@ -104,6 +106,7 @@ internal static class ReplayNetworkAuthorityV12
                     command.ProtocolVersion,
                     command.RequiredCapabilities,
                     DateTime.UtcNow);
+            CapabilityChanged?.Invoke();
         }
         AuraToolsRpcTransport.Send(PlayerManager.Instance, command, "MatchRecords.ReplayV12.Capability");
     }
@@ -167,6 +170,7 @@ internal static class ReplayNetworkAuthorityV12
                 DateTime.UtcNow);
         }
         rejection = "";
+        CapabilityChanged?.Invoke();
         return true;
     }
 

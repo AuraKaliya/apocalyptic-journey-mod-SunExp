@@ -69,6 +69,32 @@ internal static class SpiritElementUiApi
         return (root, icon, label);
     }
 
+    public static (GameObject Root, Image Icon) CreateIcon(
+        Transform parent,
+        string name,
+        float size)
+    {
+        var normalizedSize = Math.Max(8f, size);
+        var root = CreateRect(
+            name,
+            parent,
+            new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f),
+            new Vector2(0f, 0.5f),
+            new Vector2(normalizedSize, normalizedSize));
+        var layout = root.AddComponent<LayoutElement>();
+        layout.preferredWidth = normalizedSize;
+        layout.preferredHeight = normalizedSize;
+        layout.minWidth = normalizedSize;
+        layout.minHeight = normalizedSize;
+        layout.flexibleWidth = 0f;
+        layout.flexibleHeight = 0f;
+        var icon = root.AddComponent<Image>();
+        icon.preserveAspect = true;
+        icon.raycastTarget = false;
+        return (root, icon);
+    }
+
     public static void Bind(
         Image? icon,
         Text? label,
@@ -76,18 +102,21 @@ internal static class SpiritElementUiApi
         string displayName,
         string iconPath)
     {
-        var sprite = Resolve(iconPath);
-        if (icon != null)
-        {
-            icon.sprite = sprite;
-            icon.color = sprite == null ? Color.clear : Color.white;
-        }
+        BindIcon(icon, iconPath);
 
         if (label != null)
         {
             label.text = displayName ?? "";
             label.color = Tint(normalizedElementId);
         }
+    }
+
+    public static void BindIcon(Image? icon, string iconPath)
+    {
+        var sprite = Resolve(iconPath);
+        if (icon == null) return;
+        icon.sprite = sprite;
+        icon.color = sprite == null ? Color.clear : Color.white;
     }
 
     public static Color Tint(string normalizedElementId)

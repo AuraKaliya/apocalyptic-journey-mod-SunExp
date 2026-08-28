@@ -52,6 +52,8 @@ public sealed class CapturedEnemySnapshot
     public string TrainingRegistryHash { get; set; } = "";
     public string DeploymentToken { get; set; } = "";
 
+    public SpiritArtifactBattleSnapshot ArtifactBattle { get; set; } = new();
+
     public string ProfileKey => SpiritProfileKey.Create(EnemyId, VariantId);
 
     public string IntentProfileKey => string.IsNullOrWhiteSpace(ProfileId) ? ProfileKey : ProfileId;

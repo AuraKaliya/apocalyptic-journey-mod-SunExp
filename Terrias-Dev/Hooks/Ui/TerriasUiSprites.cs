@@ -16,6 +16,7 @@ public static class TerriasUiSprites
     public const string SubMenuNormalButtonPath = "Mods/Terrias/ModResource/Images/UI/\u5b50\u83dc\u5355/button-normal.png";
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, Texture2D> GeneratedTextures = new(StringComparer.OrdinalIgnoreCase);
 
     public static void Clear()
     {
@@ -29,6 +30,11 @@ public static class TerriasUiSprites
         }
 
         Cache.Clear();
+        foreach (var texture in GeneratedTextures.Values)
+        {
+            if (texture != null) UnityEngine.Object.Destroy(texture);
+        }
+        GeneratedTextures.Clear();
     }
 
     public static Sprite? Button(string logPrefix)
@@ -54,6 +60,133 @@ public static class TerriasUiSprites
     public static Sprite? LibrarySubMenuButtonHighlighted(string logPrefix)
     {
         return LibrarySubMenuButton(logPrefix);
+    }
+
+    public static Sprite RoundedSolid(
+        string key,
+        int width,
+        int height,
+        float radius,
+        Color color)
+    {
+        return RoundedGradient(key, width, height, radius, color, color);
+    }
+
+    public static Sprite RoundedGradient(
+        string key,
+        int width,
+        int height,
+        float radius,
+        Color top,
+        Color bottom)
+        => RoundedGradientCorners(key, width, height, radius, radius, radius, radius, top, bottom);
+
+    public static Sprite RoundedGradientCorners(
+        string key,
+        int width,
+        int height,
+        float topLeftRadius,
+        float topRightRadius,
+        float bottomRightRadius,
+        float bottomLeftRadius,
+        Color top,
+        Color bottom)
+    {
+        width = Math.Max(4, width);
+        height = Math.Max(4, height);
+        var maximumRadius = Math.Min(width, height) * 0.5f;
+        topLeftRadius = Mathf.Clamp(topLeftRadius, 0f, maximumRadius);
+        topRightRadius = Mathf.Clamp(topRightRadius, 0f, maximumRadius);
+        bottomRightRadius = Mathf.Clamp(bottomRightRadius, 0f, maximumRadius);
+        bottomLeftRadius = Mathf.Clamp(bottomLeftRadius, 0f, maximumRadius);
+        var cacheKey = "generated-rounded-corners|"
+                        + (key ?? "")
+                        + "|"
+                        + width
+                        + "x"
+                        + height
+                        + "|r="
+                        + topLeftRadius.ToString("0.###", CultureInfo.InvariantCulture)
+                        + ","
+                        + topRightRadius.ToString("0.###", CultureInfo.InvariantCulture)
+                        + ","
+                        + bottomRightRadius.ToString("0.###", CultureInfo.InvariantCulture)
+                        + ","
+                        + bottomLeftRadius.ToString("0.###", CultureInfo.InvariantCulture)
+                       + "|t="
+                       + ColorKey(top)
+                       + "|b="
+                       + ColorKey(bottom);
+        if (Cache.TryGetValue(cacheKey, out var cached) && cached != null) return cached;
+
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            name = "TerriasRounded-" + (key ?? "ui"),
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        var pixels = new Color[width * height];
+        for (var y = 0; y < height; y++)
+        {
+            var gradient = height <= 1 ? 1f : (y + 0.5f) / height;
+            var rowColor = Color.Lerp(bottom, top, gradient);
+            for (var x = 0; x < width; x++)
+            {
+                var value = rowColor;
+                value.a *= CornerAlpha(
+                    x + 0.5f,
+                    y + 0.5f,
+                    width,
+                    height,
+                    topLeftRadius,
+                    topRightRadius,
+                    bottomRightRadius,
+                    bottomLeftRadius);
+                pixels[y * width + x] = value;
+            }
+        }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        var sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, width, height),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
+            SpriteMeshType.FullRect);
+        sprite.name = texture.name;
+        GeneratedTextures[cacheKey] = texture;
+        Cache[cacheKey] = sprite;
+        return sprite;
+    }
+
+    private static float CornerAlpha(
+        float x,
+        float y,
+        float width,
+        float height,
+        float topLeftRadius,
+        float topRightRadius,
+        float bottomRightRadius,
+        float bottomLeftRadius)
+    {
+        if (topLeftRadius > 0f && x < topLeftRadius && y > height - topLeftRadius)
+            return CircleAlpha(x, y, topLeftRadius, height - topLeftRadius, topLeftRadius);
+        if (topRightRadius > 0f && x > width - topRightRadius && y > height - topRightRadius)
+            return CircleAlpha(x, y, width - topRightRadius, height - topRightRadius, topRightRadius);
+        if (bottomRightRadius > 0f && x > width - bottomRightRadius && y < bottomRightRadius)
+            return CircleAlpha(x, y, width - bottomRightRadius, bottomRightRadius, bottomRightRadius);
+        if (bottomLeftRadius > 0f && x < bottomLeftRadius && y < bottomLeftRadius)
+            return CircleAlpha(x, y, bottomLeftRadius, bottomLeftRadius, bottomLeftRadius);
+        return 1f;
+    }
+
+    private static float CircleAlpha(float x, float y, float centerX, float centerY, float radius)
+    {
+        var deltaX = x - centerX;
+        var deltaY = y - centerY;
+        var distance = Mathf.Sqrt(deltaX * deltaX + deltaY * deltaY);
+        return Mathf.Clamp01(radius + 0.5f - distance);
     }
 
     public static Sprite? NineSlice(string path, Vector4 border, string logPrefix, Rect? sourceCrop = null)
@@ -122,6 +255,17 @@ public static class TerriasUiSprites
                + crop.width.ToString("0.###", CultureInfo.InvariantCulture)
                + ","
                + crop.height.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private static string ColorKey(Color color)
+    {
+        return color.r.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + color.g.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + color.b.ToString("0.###", CultureInfo.InvariantCulture)
+               + ","
+               + color.a.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
     private static Rect ResolveSpriteRect(Sprite source, Rect? sourceCrop)

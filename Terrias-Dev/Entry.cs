@@ -35,6 +35,7 @@ public static class Entry
         RunStep("localization catalog", () => TerriasTextCatalog.Load(modConfig));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
+        RunStep("spirit artifact registry", () => SpiritArtifactRegistry.Load(modConfig));
         RunStep("director runtime", () => TerriasDirectorRuntime.Initialize(modConfig));
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("dimension shop config", () => DimensionShopConfigStore.Load(modConfig));

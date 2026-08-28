@@ -31,6 +31,7 @@ internal static class MatchReplayRecorder
     private static readonly MatchReplayBaselineGate BaselineGate = new();
     private static readonly MatchReplayTerminalGate TerminalGate = new();
     private static readonly ReplayTransactionLedgerV12 Ledger = new();
+    private static readonly ReplayStableBarrierCoordinatorV12 StableBarrier = new();
     private static readonly List<string> ContextStack = new();
     private static readonly Stack<bool> CardLifecycleScopes = new();
     private static readonly Dictionary<string, CaptureTransaction> Transactions = new(StringComparer.Ordinal);
@@ -59,6 +60,12 @@ internal static class MatchReplayRecorder
     private static bool preBaselineActivityMissed;
     private static int lastBgmClipInstanceId;
     private static ReplayAudioCueV12? activeBgmCue;
+    private static long captureGeneration;
+    private static int stableBarrierRequests;
+    private static int stableBarrierRuns;
+    private static int stableBarrierStateChanges;
+    private static double stableBarrierTotalMilliseconds;
+    private static double stableBarrierMaximumMilliseconds;
 
     internal static bool IsRecording
     {
@@ -72,9 +79,9 @@ internal static class MatchReplayRecorder
     {
         if (!AuraToolsMatchRecordsRuntime.ReplayEnabled || MatchReplaySessionState.IsPlayback) return;
         var levelId = Argument<string>(arguments, 0) ?? FightManager.Instance?.level ?? "";
-        ReplayNetworkAuthorityV12.AnnounceCapability(levelId);
         if (ReplayNetworkAuthorityV12.IsMultiplayer && !ReplayNetworkAuthorityV12.IsHost)
         {
+            ReplayNetworkAuthorityV12.AnnounceCapability(levelId);
             lock (Gate) ResetNoLock();
             return;
         }
@@ -119,7 +126,9 @@ internal static class MatchReplayRecorder
             pov = new ReplayPovSidecarV12 { PlayerId = RoleTable.Instance?.Id ?? "single-player" };
             BaselineGate.Arm();
             AudioArbiterRuntime.ResolvedPlayback += OnResolvedPlayback;
+            ReplayNetworkAuthorityV12.CapabilityChanged += OnReplayCapabilityChanged;
         }
+        ReplayNetworkAuthorityV12.AnnounceCapability(levelId);
     }
 
     internal static void CommitMaterializedBaseline()
@@ -128,10 +137,48 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             BaselineGate.MarkMaterialized();
-            if (!ReplayNetworkAuthorityV12.CanHostRecord(pendingHeader?.LevelId ?? "", out _)) return;
-            if (!BaselineGate.TryCommit(CaptureMaterializedBaselineGuardedNoLock)) return;
-            AuraToolsLog.Debug("[MatchRecords] v12 materialized baseline committed.");
+            TryCommitDeferredBaselineNoLock("battle-materialized");
         }
+    }
+
+    private static void OnReplayCapabilityChanged()
+    {
+        long generation;
+        string recordId;
+        lock (Gate)
+        {
+            if (pendingHeader == null || activeRecord == null) return;
+            generation = captureGeneration;
+            recordId = activeRecord.RecordId;
+        }
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = AuraToolsIds.ModId,
+            Key = "match-replay-capability-ready:" + recordId,
+            Source = "MatchRecords.ReplayV12.CapabilityReady",
+            Phase = AuraSharedFramePhase.CriticalLifecycle,
+            Priority = 200,
+            Action = () =>
+            {
+                lock (Gate)
+                {
+                    if (generation == captureGeneration) TryCommitDeferredBaselineNoLock("capability-ready");
+                }
+            },
+            OnFailed = (_, exception) => MarkCaptureFailure("capability-ready", exception)
+        });
+    }
+
+    private static void TryCommitDeferredBaselineNoLock(string source)
+    {
+        if (pendingHeader == null
+            || preBaselineActivityMissed
+            || !BaselineGate.MaterializationObserved
+            || FightManager.Instance == null
+            || !ReplayNetworkAuthorityV12.CanHostRecord(pendingHeader.LevelId, out _)
+            || !BaselineGate.TryCommit(CaptureMaterializedBaselineGuardedNoLock))
+            return;
+        AuraToolsLog.Debug("[MatchRecords] v12 materialized baseline committed from " + source + ".");
     }
 
     internal static void BeginCardAction(object? target)
@@ -140,7 +187,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("card-action")) return;
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            FlushStableBarrierNoLock("before-card-action");
             var source = ReplayFactCaptureV12.CaptureActionSource(target, catalog!);
             var duplicate = FindOpenSourceTransactionNoLock(source);
             CardLifecycleScopes.Push(string.IsNullOrWhiteSpace(duplicate));
@@ -180,6 +227,7 @@ internal static class MatchReplayRecorder
             Ledger.Abort(transactionId);
             Transactions.Remove(transactionId);
             AddDiagnosticNoLock("action-aborted:" + transactionId + ":" + (reason ?? ""));
+            RequestStableBarrierNoLock("action-aborted", needsStateCapture: true);
         }
     }
 
@@ -189,7 +237,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("enemy-intent")) return;
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            FlushStableBarrierNoLock("before-enemy-intent");
             var slot = arguments != null && arguments.Length > 0 && arguments[0] is int value ? Math.Max(0, value) : 0;
             var card = enemy.FightAction?.TryGetCard();
             if (card == null && enemy.ActionCards != null && slot < enemy.ActionCards.Count) card = enemy.ActionCards[slot];
@@ -245,7 +293,7 @@ internal static class MatchReplayRecorder
             {
                 var remoteKey = RemoteKey(context.ActorId ?? "", context.CommandSequence);
                 if (!RemoteCardCommands.Add(remoteKey)) return;
-                DrainStableBarrierNoLock(createPassiveTransaction: true);
+                FlushStableBarrierNoLock("before-remote-command");
                 var config = context.CardData;
                 var stableId = ReplayCaptureCatalogV12.Read(config.data, "Id");
                 var descriptor = catalog!.RegisterCard(config, stableId);
@@ -301,7 +349,10 @@ internal static class MatchReplayRecorder
                 }, ElapsedTicks(), target.StatusInstanceId ?? "");
             ApplyCurrentStateNoLock(transactionId);
             if (!ContextStack.Contains(transactionId, StringComparer.Ordinal))
+            {
                 MarkSourceCompletedNoLock(transactionId);
+                RequestStableBarrierNoLock("remote-action-complete", needsStateCapture: true);
+            }
         }
     }
 
@@ -311,7 +362,7 @@ internal static class MatchReplayRecorder
         {
             if (!RequireCaptureForActivityNoLock("authoritative-status")) return;
             stateWatermark = Math.Max(stateWatermark, context?.Version ?? 0);
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            RequestStableBarrierNoLock("authoritative-status", needsStateCapture: true);
         }
     }
 
@@ -411,23 +462,20 @@ internal static class MatchReplayRecorder
             {
                 MarkSourceCompletedNoLock(transactionId);
                 ImplicitPresentationTransactions.Remove(key);
+                RequestStableBarrierNoLock("implicit-presentation-complete", needsStateCapture: true);
             }
         }
     }
 
-    internal static void ObserveStableBarrier()
+    private static void ObserveScheduledStableBarrier(long expectedGeneration)
     {
         lock (Gate)
         {
-            if (builder == null
-                && pendingHeader != null
-                && !preBaselineActivityMissed
-                && BaselineGate.MaterializationObserved
-                && FightManager.Instance != null
-                && ReplayNetworkAuthorityV12.CanHostRecord(pendingHeader.LevelId, out _)
-                && BaselineGate.TryCommit(CaptureMaterializedBaselineGuardedNoLock))
-                AuraToolsLog.Debug("[MatchRecords] deferred v12 materialized baseline committed after network negotiation.");
-            if (CanCaptureNoLock()) DrainStableBarrierNoLock(createPassiveTransaction: true);
+            if (expectedGeneration != captureGeneration)
+            {
+                return;
+            }
+            FlushStableBarrierNoLock("scheduled");
         }
     }
 
@@ -468,14 +516,12 @@ internal static class MatchReplayRecorder
         }
     }
 
-    internal static void CaptureCheckpointIfDue() => ObserveStableBarrier();
-
     internal static void SignalFightStart()
     {
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("fight-start")) return;
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            FlushStableBarrierNoLock("fight-start");
             var transactionId = BeginSystemTransactionNoLock(ReplayTransactionKindsV12.SystemPhase, "FightStart");
             builder!.AddTruthMarker(
                 transactionId,
@@ -492,7 +538,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("round-start")) return;
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            FlushStableBarrierNoLock("round-start");
             if (firstRoundSeen) roundSequence++;
             else firstRoundSeen = true;
             var transactionId = BeginSystemTransactionNoLock(ReplayTransactionKindsV12.SystemPhase, "RoundStart");
@@ -507,7 +553,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (builder == null || activeRecord == null || TerminalGate.SettlementPrepared) return;
-            DrainStableBarrierNoLock(createPassiveTransaction: true);
+            FlushStableBarrierNoLock("battle-settling");
             TerminalGate.Prepare(result);
         }
     }
@@ -539,7 +585,7 @@ internal static class MatchReplayRecorder
             else
             {
                 if (!TerminalGate.SettlementPrepared) TerminalGate.Prepare(result);
-                DrainStableBarrierNoLock(createPassiveTransaction: true);
+                FlushStableBarrierNoLock("battle-finalized");
                 var outcome = BeginSystemTransactionNoLock(ReplayTransactionKindsV12.Outcome, "Outcome");
                 var finalState = ReplayFactCaptureV12.CapturePublicState(roundSequence, actorTurnSequence, catalog!);
                 AssignEntityGenerationsNoLock(finalState);
@@ -762,7 +808,7 @@ internal static class MatchReplayRecorder
 
     private static string BeginImplicitTransactionNoLock(IScriptExecutor executor, StatusManager actor, string sourceInstanceId)
     {
-        DrainStableBarrierNoLock(createPassiveTransaction: true);
+        FlushStableBarrierNoLock("before-implicit-presentation");
         var config = executor.dataConfig;
         var descriptor = catalog!.RegisterCard(config, ReplayCaptureCatalogV12.Read(config?.data, "Id"));
         var source = new ReplayCapturedActionSourceV12
@@ -795,6 +841,7 @@ internal static class MatchReplayRecorder
         if (latest != null) Transactions[transactionId].Source = latest;
         ApplyCurrentStateNoLock(transactionId);
         MarkSourceCompletedNoLock(transactionId);
+        RequestStableBarrierNoLock("source-completed", needsStateCapture: true);
     }
 
     private static void ApplyCurrentStateNoLock(string transactionId)
@@ -893,62 +940,93 @@ internal static class MatchReplayRecorder
         Ledger.MarkSourceCompleted(transactionId, stateWatermark);
     }
 
-    private static void DrainStableBarrierNoLock(bool createPassiveTransaction)
+    private static void RequestStableBarrierNoLock(string reason, bool needsStateCapture)
     {
         if (!CanCaptureNoLock()) return;
-        var pending = Ledger.OpenEntries.Where(item => item.SourceCompleted).OrderBy(item => item.OpenSequence).ToList();
-        if (pending.Count > 0)
+        stableBarrierRequests++;
+        if (!StableBarrier.Request(reason, needsStateCapture)) return;
+
+        var generation = captureGeneration;
+        var recordId = activeRecord?.RecordId ?? generation.ToString();
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
         {
-            var stateOwner = ResolveStateOwnerNoLock(pending);
-            if (stateOwner.Length > 0) ApplyCurrentStateNoLock(stateOwner);
-            else AddDiagnosticNoLock("ambiguous-causal-ownership:state-barrier");
+            OwnerId = AuraToolsIds.ModId,
+            Key = "match-replay-stable-barrier:" + recordId,
+            Source = "MatchRecords.ReplayV12.StableBarrier",
+            Phase = AuraSharedFramePhase.Reconcile,
+            Priority = 100,
+            EstimatedCost = 2,
+            Action = () => ObserveScheduledStableBarrier(generation),
+            OnFailed = (_, exception) => MarkCaptureFailure("stable-barrier", exception)
+        });
+    }
+
+    private static void FlushStableBarrierNoLock(string reason)
+    {
+        if (!CanCaptureNoLock())
+        {
+            StableBarrier.Reset();
+            return;
         }
-        else if (createPassiveTransaction)
+
+        var completed = Ledger.OpenEntries
+            .Where(item => item.SourceCompleted)
+            .OrderBy(item => item.OpenSequence)
+            .ToList();
+        if (!StableBarrier.TryTake(out var batch) && completed.Count == 0) return;
+
+        var started = Stopwatch.GetTimestamp();
+        ReplayPublicStateV12? observed = null;
+        var hasResidualState = false;
+        if (batch.CaptureState)
         {
-            var observed = ReplayFactCaptureV12.CapturePublicState(roundSequence, actorTurnSequence, catalog!);
+            observed = ReplayFactCaptureV12.CapturePublicState(roundSequence, actorTurnSequence, catalog!);
             AssignEntityGenerationsNoLock(observed);
-            var diff = ReplayStateReducerV12.CreateDiff(builder!.CurrentState, observed);
-            if (diff.HasChanges)
-            {
-                var passive = BeginSystemTransactionNoLock(ReplayTransactionKindsV12.Passive, "PassiveState");
-                ApplyObservedStateNoLock(passive, observed);
-                MarkAndCompleteSystemTransactionNoLock(passive);
-            }
+            hasResidualState = ReplayStateReducerV12.CreateDiff(builder!.CurrentState, observed).HasChanges;
         }
+
         while (true)
         {
             var ready = Ledger.ObserveStableBarrier(stateWatermark);
             if (ready.Count == 0) break;
-            foreach (var transactionId in ready)
-            {
-                if (Transactions.TryGetValue(transactionId, out var transaction) && transaction.OwnsActorTurn)
-                    builder!.AddTruthMarker(
-                        transactionId,
-                        ReplayEventTypesV12.ActorTurnCompleted,
-                        ElapsedTicks(),
-                        transaction.Source.ActorId);
-                if (builder!.IsOpen(transactionId)) builder.CompleteTransaction(transactionId, ElapsedTicks());
-                Ledger.Complete(transactionId);
-                Transactions.Remove(transactionId);
-                foreach (var key in RemoteTransactions.Where(item => item.Value == transactionId).Select(item => item.Key).ToList())
-                    RemoteTransactions.Remove(key);
-            }
+            foreach (var transactionId in ready) CompleteSourceTransactionAtBarrierNoLock(transactionId);
         }
+
+        if (hasResidualState && observed != null)
+        {
+            var passive = BeginSystemTransactionNoLock(
+                ReplayTransactionKindsV12.Passive,
+                batch.Label + ":" + (string.IsNullOrWhiteSpace(reason) ? "reconcile" : reason));
+            ApplyObservedStateNoLock(passive, observed);
+            MarkAndCompleteSystemTransactionNoLock(passive);
+            stableBarrierStateChanges++;
+        }
+
+        stableBarrierRuns++;
+        var elapsedMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
+        stableBarrierTotalMilliseconds += elapsedMilliseconds;
+        stableBarrierMaximumMilliseconds = Math.Max(stableBarrierMaximumMilliseconds, elapsedMilliseconds);
+        if (elapsedMilliseconds >= 8d)
+            AuraToolsLog.Warn("[MatchRecords:perf] stable barrier was slow: elapsedMs="
+                              + elapsedMilliseconds.ToString("0.###")
+                              + ", completed=" + completed.Count
+                              + ", residual=" + hasResidualState
+                              + ", reasons=" + string.Join(",", batch.Reasons) + ".");
     }
 
-    private static string ResolveStateOwnerNoLock(IReadOnlyList<ReplayTransactionLedgerEntryV12> pending)
+    private static void CompleteSourceTransactionAtBarrierNoLock(string transactionId)
     {
-        if (pending.Count == 1) return pending[0].TransactionId;
-        var open = Ledger.OpenEntries.ToDictionary(item => item.TransactionId, StringComparer.Ordinal);
-        var candidate = pending.OrderByDescending(item => item.OpenSequence).First();
-        var ancestors = new HashSet<string>(StringComparer.Ordinal);
-        var parent = candidate.ParentTransactionId;
-        while (!string.IsNullOrWhiteSpace(parent) && ancestors.Add(parent) && open.TryGetValue(parent, out var value))
-            parent = value.ParentTransactionId;
-        return pending.All(item => string.Equals(item.TransactionId, candidate.TransactionId, StringComparison.Ordinal)
-                                   || ancestors.Contains(item.TransactionId))
-            ? candidate.TransactionId
-            : "";
+        if (Transactions.TryGetValue(transactionId, out var transaction) && transaction.OwnsActorTurn)
+            builder!.AddTruthMarker(
+                transactionId,
+                ReplayEventTypesV12.ActorTurnCompleted,
+                ElapsedTicks(),
+                transaction.Source.ActorId);
+        if (builder!.IsOpen(transactionId)) builder.CompleteTransaction(transactionId, ElapsedTicks());
+        Ledger.Complete(transactionId);
+        Transactions.Remove(transactionId);
+        foreach (var key in RemoteTransactions.Where(item => item.Value == transactionId).Select(item => item.Key).ToList())
+            RemoteTransactions.Remove(key);
     }
 
     private static string BeginSystemTransactionNoLock(string kind, string label)
@@ -1067,7 +1145,7 @@ internal static class MatchReplayRecorder
                     if (standalone)
                     {
                         MarkSourceCompletedNoLock(transactionId);
-                        DrainStableBarrierNoLock(createPassiveTransaction: false);
+                        RequestStableBarrierNoLock("standalone-audio-failed", needsStateCapture: false);
                     }
                     return;
                 }
@@ -1095,14 +1173,14 @@ internal static class MatchReplayRecorder
                 if (standalone)
                 {
                     MarkSourceCompletedNoLock(transactionId);
-                    DrainStableBarrierNoLock(createPassiveTransaction: false);
+                    RequestStableBarrierNoLock("standalone-audio-ready", needsStateCapture: false);
                 }
             }
         });
         if (standalone && AudioCapture.PendingCount == 0)
         {
             MarkSourceCompletedNoLock(transactionId);
-            DrainStableBarrierNoLock(createPassiveTransaction: false);
+            RequestStableBarrierNoLock("standalone-audio-ready", needsStateCapture: false);
         }
         return cue;
     }
@@ -1199,6 +1277,11 @@ internal static class MatchReplayRecorder
         activeRecord.EventCount = builder.Document.TruthEvents.Count + builder.Document.PresentationEvents.Count;
         activeRecord.StatisticsJson = AuraSharedJson.SerializeCompact(AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
         activeRecord.CaptureDiagnostics = Diagnostics.ToList();
+        AuraToolsLog.Info("[MatchRecords:perf] stable barriers: requests=" + stableBarrierRequests
+                          + ", runs=" + stableBarrierRuns
+                          + ", stateChanges=" + stableBarrierStateChanges
+                          + ", totalMs=" + stableBarrierTotalMilliseconds.ToString("0.###")
+                          + ", maxMs=" + stableBarrierMaximumMilliseconds.ToString("0.###") + ".");
         var result = new CompletionSnapshot(
             activeRecord,
             new ReplayDocumentEnvelopeV12 { Document = builder.Document },
@@ -1227,7 +1310,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             AudioCapture.Drained -= OnAudioCapturesDrained;
-            if (CanCaptureNoLock()) DrainStableBarrierNoLock(createPassiveTransaction: false);
+            if (CanCaptureNoLock()) FlushStableBarrierNoLock("audio-drained");
             AbortUndrainedNoLock();
             completion = TerminalGate.CanDetach(AudioCapture.PendingCount) ? DetachCompletionNoLock() : null;
         }
@@ -1385,12 +1468,14 @@ internal static class MatchReplayRecorder
     private static void ResetNoLock()
     {
         AudioArbiterRuntime.ResolvedPlayback -= OnResolvedPlayback;
+        ReplayNetworkAuthorityV12.CapabilityChanged -= OnReplayCapabilityChanged;
         AudioCapture.Drained -= OnAudioCapturesDrained;
         AudioCapture.Cancel();
         NativeAudioCalls.Reset();
         BaselineGate.Reset();
         TerminalGate.Reset();
         Ledger.Reset();
+        StableBarrier.Reset();
         ContextStack.Clear();
         CardLifecycleScopes.Clear();
         Transactions.Clear();
@@ -1419,6 +1504,12 @@ internal static class MatchReplayRecorder
         preBaselineActivityMissed = false;
         lastBgmClipInstanceId = 0;
         activeBgmCue = null;
+        captureGeneration++;
+        stableBarrierRequests = 0;
+        stableBarrierRuns = 0;
+        stableBarrierStateChanges = 0;
+        stableBarrierTotalMilliseconds = 0d;
+        stableBarrierMaximumMilliseconds = 0d;
     }
 
     private static T? Argument<T>(object[]? arguments, int index) =>

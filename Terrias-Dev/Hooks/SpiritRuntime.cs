@@ -21,6 +21,7 @@ public static class SpiritRuntime
     public static void Initialize(ModConfig modConfig)
     {
         SpiritCollectionApi.Initialize(modConfig);
+        SpiritArtifactWishPresenter.Initialize(modConfig);
         SpiritAdventureButtonRuntime.Initialize(modConfig);
         TerriasLibrarySubMenuRuntime.Register(new TerriasLibrarySubMenuEntry(
             "spirit-warehouse",
@@ -284,6 +285,7 @@ public static class SpiritRuntime
         }
 
         SpiritTrainingBattleRuntime.OnStatusHit(status);
+        SpiritArtifactBattleRuntime.OnStatusHit(status);
     }
 
     private static void OnFightObjectRoundCompleted(ModHookContext context)

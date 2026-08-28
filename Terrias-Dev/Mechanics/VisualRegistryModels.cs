@@ -14,6 +14,9 @@ public sealed class VisualRegistryDocument
     [JsonProperty("textures")]
     public List<TextureVisualSpec> Textures { get; set; } = new();
 
+    [JsonProperty("videos")]
+    public List<VideoVisualSpec> Videos { get; set; } = new();
+
     [JsonProperty("modeEntries")]
     public List<ModeEntryVisualSpec> ModeEntries { get; set; } = new();
 
@@ -28,6 +31,18 @@ public sealed class VisualRegistryDocument
 
     [JsonProperty("effects")]
     public List<VisualEffectVisualSpec> Effects { get; set; } = new();
+}
+
+public sealed class VideoVisualSpec
+{
+    [JsonProperty("id")]
+    public string Id { get; set; } = "";
+
+    [JsonProperty("path")]
+    public string Path { get; set; } = "";
+
+    [JsonProperty("enabled")]
+    public bool Enabled { get; set; } = true;
 }
 
 public sealed class TextureVisualSpec

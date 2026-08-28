@@ -104,7 +104,7 @@ public static class SkillCgArbiterRuntime
     public const string EventCgKind = AuraCgSubjectTypes.Event;
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-08-27-v17";
+    public const string CurrentBuildId = "aura-cg-shared-2026-08-28-v18";
     public const int CurrentProtocolVersion = 12;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
@@ -2111,6 +2111,11 @@ public static class SkillCgArbiterRuntime
                     Plan = participant,
                     DisplayName = resolved.DisplayName,
                     Frames = frames,
+                    VisibleBounds = AuraCgSceneVisibleBoundsAnalyzer.Resolve(
+                        frames,
+                        participant.RoleLayerAsset.QualifiedAssetId + "|" + participant.RoleVariantId),
+                    CanvasWidth = Math.Max(1f, frames[0].rect.width),
+                    CanvasHeight = Math.Max(1f, frames[0].rect.height),
                     FrameSeconds = resolved.FrameSeconds,
                     Loop = resolved.Loop
                 });

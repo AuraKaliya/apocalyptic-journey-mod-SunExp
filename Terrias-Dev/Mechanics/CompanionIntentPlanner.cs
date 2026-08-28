@@ -112,6 +112,12 @@ public static class CompanionIntentPlanner
             out var numericBonusPercent,
             out var appliedModifierKeys,
             out var effectiveCost);
+        SpiritArtifactBattleRuntime.ApplyPlanModifiers(
+            state,
+            intent,
+            resolvedEffects,
+            ref effectiveCost,
+            appliedModifierKeys);
         var plan = new CompanionIntentPlan
         {
             PlanId = CompanionSystemPlans.PlanId(state),

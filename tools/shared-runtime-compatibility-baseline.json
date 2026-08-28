@@ -3149,7 +3149,7 @@
         "F|AuraCg.Shared.SkillCgAlphaModes|None|String|const=\"none\"",
         "F|AuraCg.Shared.SkillCgArbiterRuntime|CardCgKind|String|const=\"card\"",
         "F|AuraCg.Shared.SkillCgArbiterRuntime|CardUseCgKind|String|const=\"cardUse\"",
-        "F|AuraCg.Shared.SkillCgArbiterRuntime|CurrentBuildId|String|const=\"aura-cg-shared-2026-08-27-v17\"",
+        "F|AuraCg.Shared.SkillCgArbiterRuntime|CurrentBuildId|String|const=\"aura-cg-shared-2026-08-28-v18\"",
         "F|AuraCg.Shared.SkillCgArbiterRuntime|CurrentProtocolVersion|Int32|const=12",
         "F|AuraCg.Shared.SkillCgArbiterRuntime|EventCgKind|String|const=\"event\"",
         "F|AuraCg.Shared.SkillCgArbiterRuntime|FeastCgKind|String|const=\"feast\"",

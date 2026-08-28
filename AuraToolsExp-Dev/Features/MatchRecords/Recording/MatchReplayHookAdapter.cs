@@ -54,11 +54,6 @@ internal static class MatchReplayHookAdapter
             "FightUI.CallActionAnimation",
             context => Observe("action-presentation-after", () => MatchReplayRecorder.CompleteActionPresentation(context.Arguments)),
             "MatchRecords.Replay.ActionPresentation"));
-        Register("after:FightManager.Update", AuraToolsHookRegistry.AfterRouted(
-            modConfig!,
-            "FightManager.Update",
-            _ => Observe("stable-barrier", MatchReplayRecorder.ObserveStableBarrier),
-            "MatchRecords.Replay.StableBarrier"));
         Register("remote-combat-actions", AuraRemoteCombatActionRouter.Register(
             modConfig!,
             AuraToolsIds.ModId + ".MatchRecords.Replay",

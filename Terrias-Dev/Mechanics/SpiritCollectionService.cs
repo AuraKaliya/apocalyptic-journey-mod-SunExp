@@ -47,6 +47,22 @@ public static class SpiritCollectionService
         }
     }
 
+    internal static T ArtifactTransaction<T>(Func<SpiritCollectionDocument, T> mutation, Func<T, bool> shouldCommit)
+    {
+        if (mutation == null) throw new ArgumentNullException(nameof(mutation));
+        if (shouldCommit == null) throw new ArgumentNullException(nameof(shouldCommit));
+        lock (SyncRoot)
+        {
+            var candidate = CloneDocument(document);
+            var result = mutation(candidate);
+            if (!shouldCommit(result)) return result;
+            SpiritArtifactInventoryService.NormalizeDocument(candidate);
+            SaveUnlocked(candidate);
+            document = candidate;
+            return result;
+        }
+    }
+
     public static int AppliedInitialRosterGrantVersion()
     {
         lock (SyncRoot)
@@ -489,6 +505,7 @@ public static class SpiritCollectionService
         source.Instances ??= new List<SpiritInstance>();
         source.ProcessedCaptureTokens ??= new Dictionary<string, string>(StringComparer.Ordinal);
         source.ProcessedBattleTokens ??= new List<string>();
+        source.ArtifactInventory ??= new SpiritArtifactInventory();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         source.Instances = source.Instances.Where(item => item?.Snapshot != null && !string.IsNullOrWhiteSpace(item.Snapshot.EnemyId))
             .Select(item =>
@@ -497,6 +514,7 @@ public static class SpiritCollectionService
                 while (!seen.Add(item.SpiritUid)) item.SpiritUid = Guid.NewGuid().ToString("N");
                 item.Snapshot.SpiritUid = item.SpiritUid;
                 item.Snapshot.SpiritElementId = "";
+                item.Snapshot.ArtifactBattle = new SpiritArtifactBattleSnapshot();
                 item.Presentation ??= new SpiritLocalizedPresentation();
                 if (sourceVersion < 6 || !HasPresentation(item.Presentation))
                 {
@@ -521,6 +539,7 @@ public static class SpiritCollectionService
                 item.GuiyuanAllocations = SpiritAscensionService.NormalizeAllocations(
                     item.GuiyuanAllocations,
                     item.GuiyuanValue);
+                item.ArtifactLoadout ??= new SpiritArtifactLoadout();
                 SpiritTrainingService.Normalize(item, legacyTraining);
                 return item;
             }).ToList();
@@ -529,6 +548,13 @@ public static class SpiritCollectionService
         source.DefaultActiveSpiritUid = source.DefaultPartySlots.Contains(normalizedDefaultActive, StringComparer.Ordinal)
             ? normalizedDefaultActive
             : "";
+        var artifactCountBeforeNormalization = source.ArtifactInventory?.Artifacts?.Count ?? 0;
+        SpiritArtifactInventoryService.NormalizeDocument(source);
+        var removedArtifactCount = artifactCountBeforeNormalization
+                                   - (source.ArtifactInventory?.Artifacts?.Count ?? 0);
+        if (removedArtifactCount > 0)
+            TerriasLog.Warn("[SpiritArtifact] removed " + removedArtifactCount
+                            + " invalid artifact record(s) while normalizing the account profile.");
         return source;
     }
 
@@ -612,6 +638,7 @@ public static class SpiritCollectionService
         normalizedSnapshot.OriginLuck = 0;
         normalizedSnapshot.OriginPerception = 0;
         normalizedSnapshot.DeploymentToken = "";
+        normalizedSnapshot.ArtifactBattle = new SpiritArtifactBattleSnapshot();
         normalizedSnapshot.SpeciesId = "";
         normalizedSnapshot.ProfileId = "";
         normalizedSnapshot.SpiritElementId = "";
@@ -683,7 +710,8 @@ public static class SpiritCollectionService
             DefaultPartySlots = new List<string>(source.DefaultPartySlots),
             DefaultActiveSpiritUid = source.DefaultActiveSpiritUid,
             ProcessedCaptureTokens = new Dictionary<string, string>(source.ProcessedCaptureTokens, StringComparer.Ordinal),
-            ProcessedBattleTokens = new List<string>(source.ProcessedBattleTokens)
+            ProcessedBattleTokens = new List<string>(source.ProcessedBattleTokens),
+            ArtifactInventory = source.ArtifactInventory?.Clone() ?? new SpiritArtifactInventory()
         };
     }
 

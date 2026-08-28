@@ -16,6 +16,12 @@ internal sealed class AuraCgSceneLayerPresentation
 
     public IReadOnlyList<Sprite> Frames { get; set; } = Array.Empty<Sprite>();
 
+    internal AuraCgNormalizedBounds VisibleBounds { get; set; } = AuraCgNormalizedBounds.Full;
+
+    internal float CanvasWidth { get; set; } = 1f;
+
+    internal float CanvasHeight { get; set; } = 1f;
+
     public float FrameSeconds { get; set; } = 0.08f;
 
     public bool Loop { get; set; } = true;

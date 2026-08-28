@@ -37,7 +37,10 @@ public static class SpiritProfileBindingPolicy
                    || (document.DefaultPartySlots?.Any(uid => !string.IsNullOrWhiteSpace(uid)) ?? false)
                    || !string.IsNullOrWhiteSpace(document.DefaultActiveSpiritUid)
                    || (document.ProcessedCaptureTokens?.Count ?? 0) > 0
-                   || (document.ProcessedBattleTokens?.Count ?? 0) > 0);
+                   || (document.ProcessedBattleTokens?.Count ?? 0) > 0
+                   || (document.ArtifactInventory?.Artifacts?.Count ?? 0) > 0
+                   || (document.ArtifactInventory?.Essence ?? 0) > 0
+                   || document.ArtifactInventory?.PreparedDraw != null);
     }
 
     public static bool ShouldRecoverLegacy(bool stableProfileExists, SpiritCollectionDocument? legacyDocument)

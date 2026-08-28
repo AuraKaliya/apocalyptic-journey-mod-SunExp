@@ -27,5 +27,9 @@
       <HintPath>..\Managed\Witch.Core.dll</HintPath>
       <Private>true</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
 </Project>

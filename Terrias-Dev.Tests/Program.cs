@@ -53,9 +53,21 @@ internal static class Program
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestSpiritManagementSelectionState();
+        TestSpiritElementDisplayPolicy();
         TestSpiritWarehouseSelectionPolicy();
         TestSpiritAdventurePartyRemoval();
         TestSpiritStatusBarText();
+        TestSpiritArtifactMath();
+        TestSpiritArtifactCarouselLayout();
+        TestSpiritArtifactTargetSelectorLayout();
+        TestSpiritArtifactRowRingPolicy();
+        TestSpiritArtifactSelectionState();
+        TestSpiritArtifactBatchSelectionState();
+        TestSpiritArtifactPresetLayoutPolicy();
+        TestSpiritVirtualGridRefreshState();
+        TestSpiritArtifactWishNavigationState();
+        TestSpiritArtifactCardStylePolicy();
+        TestTruthCurrencyAccountTransaction();
         TestPolymorphCooldownSnapshots();
         TestSpiritProfileIdentityResolver();
         TestProjectionTurnQueuePolicy();
@@ -805,6 +817,68 @@ internal static class Program
         Equal("beta", slots[1], "Returning one spirit preserves the remaining current-adventure party");
     }
 
+    private static void TestSpiritArtifactMath()
+    {
+        Equal(120, SpiritArtifactMath.ApplyDamageMultiplier(100, 2000),
+            "Artifact set damage uses a dedicated 20 percent multiplier");
+        Equal(150, SpiritArtifactMath.ApplyDamageMultiplier(125, 2000),
+            "Artifact multiplier applies after the existing passive result");
+        Equal(300, SpiritArtifactMath.ApplyDamageMultiplier(125, 2000) * 2,
+            "Elemental primary multiplier applies after artifact set damage");
+        Equal(150, SpiritArtifactMath.ApplyDamageMultiplier(100, 9000),
+            "Artifact set damage multiplier is bounded by its safety cap");
+        Equal(0, SpiritArtifactMath.ApplyDamageMultiplier(0, 2000),
+            "Zero direct damage stays zero");
+
+        var rarityWeights = new Dictionary<string, int> { ["1"] = 6500, ["2"] = 3000, ["3"] = 500 };
+        Equal(1, SpiritArtifactRollPolicy.ResolveRarity(0, 6499, rarityWeights, 30),
+            "Rarity roll keeps the 65 percent one-star interval");
+        Equal(2, SpiritArtifactRollPolicy.ResolveRarity(0, 6500, rarityWeights, 30),
+            "Rarity roll enters the two-star interval at its exact boundary");
+        Equal(3, SpiritArtifactRollPolicy.ResolveRarity(0, 9500, rarityWeights, 30),
+            "Rarity roll enters the five percent three-star interval");
+        Equal(3, SpiritArtifactRollPolicy.ResolveRarity(29, 0, rarityWeights, 30),
+            "The thirtieth draw is hard-pity three-star regardless of RNG");
+        var batch = Enumerable.Repeat(1, 10).ToList();
+        SpiritArtifactRollPolicy.EnsureMinimumTwoStar(batch, 1);
+        Equal(2, batch[^1], "Ten-pull guarantee promotes the final item when no two-star was rolled");
+        True(SpiritArtifactRollPolicy.ForceTargetSet(3, 1, true),
+            "An off-target three-star forces the next three-star into the selected set");
+        Equal(1, SpiritArtifactRollPolicy.NextTargetFate(3, false, true),
+            "Off-target three-star arms target-set fate");
+        Equal(0, SpiritArtifactRollPolicy.NextTargetFate(3, true, true),
+            "Target three-star clears target-set fate");
+
+        var first = new SpiritArtifactBattleItemSnapshot
+        {
+            ArtifactUid = "a",
+            PieceId = "piece.flower",
+            SlotId = SpiritArtifactSlots.Flower,
+            Rarity = 3,
+            Level = 2,
+            MainStat = new SpiritArtifactStatRoll { StatId = SpiritArtifactStats.Life, Value = 18 },
+            SubStatRolls = new List<SpiritArtifactStatRoll>
+            {
+                new() { StatId = SpiritArtifactStats.Magic, Value = 2 }
+            }
+        };
+        var second = new SpiritArtifactBattleItemSnapshot
+        {
+            ArtifactUid = "b",
+            PieceId = "piece.plume",
+            SlotId = SpiritArtifactSlots.Plume,
+            Rarity = 2,
+            Level = 1,
+            MainStat = new SpiritArtifactStatRoll { StatId = SpiritArtifactStats.Speed, Value = 4 }
+        };
+        var ordered = SpiritArtifactMath.LoadoutHash(new[] { first, second }, "REGISTRY");
+        var reversed = SpiritArtifactMath.LoadoutHash(new[] { second, first }, "REGISTRY");
+        Equal(ordered, reversed, "Artifact loadout hash is independent of input list order");
+        second.MainStat.Value++;
+        NotEqual(ordered, SpiritArtifactMath.LoadoutHash(new[] { first, second }, "REGISTRY"),
+            "Artifact loadout hash changes when a rolled value changes");
+    }
+
     private static void TestSpiritManagementSelectionState()
     {
         var selection = new SpiritTrainingSelectionState();
@@ -847,6 +921,393 @@ internal static class Program
             "Clicking an occupied party slot selects its occupant");
         Equal("spirit-a", occupantUid,
             "Party-slot selection normalizes the occupant id without changing party data");
+    }
+
+    private static void TestSpiritElementDisplayPolicy()
+    {
+        Equal(16f, SpiritElementDisplayPolicy.IconSize(SpiritElementDisplaySurface.WarehouseCard),
+            "Warehouse cards use a compact element icon in the name row");
+        Equal(20f, SpiritElementDisplayPolicy.IconSize(SpiritElementDisplaySurface.DetailHeader),
+            "The selected-spirit header uses the readable element icon size");
+        Equal(14f, SpiritElementDisplayPolicy.IconSize(SpiritElementDisplaySurface.PartySlot),
+            "Party slots use the dense element icon size");
+        Equal(25f, SpiritElementDisplayPolicy.NameTrailingReserve(SpiritElementDisplaySurface.WarehouseCard),
+            "Warehouse names always reserve a fixed trailing element-icon lane");
+        Equal(23f, SpiritElementDisplayPolicy.NameTrailingReserve(SpiritElementDisplaySurface.PartySlot),
+            "Party names cannot push their element icon away from its anchored lane");
+        False(SpiritElementDisplayPolicy.ShowPersistentText,
+            "Spirit management surfaces do not repeat persistent element text beside the icon");
+        False(SpiritElementDisplayPolicy.ShowAttributeSummaryRow,
+            "The attribute tab does not repeat the element already shown after the spirit name");
+    }
+
+    private static void TestTruthCurrencyAccountTransaction()
+    {
+        var runtime = Singleton<Witch.GameRuntimeData>.Instance;
+        runtime.Reset(1000);
+
+        True(TruthCurrencyApi.TrySpendAndRecord(160, "draw-a", out var debitReason),
+            "Artifact draws debit the account runtime without an active adventure RoleTable");
+        Equal("", debitReason, "A committed account debit has no failure reason");
+        Equal(840, runtime.Truth, "The account-level Truth balance pays the ten-draw cost");
+        True(TruthCurrencyApi.HasDebitToken("draw-a"),
+            "The debit receipt is stored in the account runtime transaction journal");
+        Equal(1, runtime.SaveCount,
+            "The balance and debit receipt cross the native account persistence boundary together");
+
+        True(TruthCurrencyApi.TrySpendAndRecord(160, "draw-a", out _),
+            "Replaying the same draw token is idempotent");
+        Equal(840, runtime.Truth, "An idempotent replay never charges the account twice");
+        Equal(1, runtime.SaveCount, "An idempotent replay does not rewrite the account save");
+
+        True(TruthCurrencyApi.RefundAndRemoveRecord(160, "draw-a"),
+            "A failed artifact commit refunds the account transaction");
+        Equal(1000, runtime.Truth, "The refund restores the exact account balance");
+        False(TruthCurrencyApi.HasDebitToken("draw-a"),
+            "The refunded transaction no longer owns a debit receipt");
+
+        runtime.Reset(100);
+        False(TruthCurrencyApi.TrySpendAndRecord(160, "draw-b", out var insufficientReason),
+            "An account with insufficient Truth cannot prepare a paid draw");
+        Equal("真理之晶不足。", insufficientReason,
+            "The insufficient-account failure remains player-readable");
+        Equal(100, runtime.Truth, "A rejected debit leaves the account balance unchanged");
+        False(TruthCurrencyApi.HasDebitToken("draw-b"),
+            "A rejected debit never creates an account receipt");
+
+        runtime.Reset(1000);
+        runtime.ThrowOnSave = true;
+        False(TruthCurrencyApi.TrySpendAndRecord(160, "draw-c", out var persistenceReason),
+            "A failed native account save rejects the draw transaction");
+        Equal("真理之晶扣除未能持久化，抽取已经回滚。", persistenceReason,
+            "A failed native save reports the rolled-back transaction");
+        Equal(1000, runtime.Truth, "A failed native save restores the in-memory balance");
+        False(TruthCurrencyApi.HasDebitToken("draw-c"),
+            "A failed native save restores the account token journal");
+        runtime.ThrowOnSave = false;
+    }
+
+    private static void TestSpiritArtifactCarouselLayout()
+    {
+        var geometry = SpiritArtifactCarouselPolicy.CalculateGeometry(520f, 300f);
+        Approximately(
+            SpiritArtifactCarouselPolicy.BoundaryMargin,
+            (300f - geometry.SlotSize) * 0.5f
+            - geometry.Radius * (float)Math.Cos(SpiritArtifactCarouselPolicy.ForwardTiltDegrees * Math.PI / 180d),
+            0.01f,
+            "The rotating equipment circle preserves ten pixels above and below every slot");
+
+        var slotOrder = new[]
+        {
+            SpiritArtifactSlots.Flower,
+            SpiritArtifactSlots.Sands,
+            SpiritArtifactSlots.Circlet,
+            SpiritArtifactSlots.Goblet,
+            SpiritArtifactSlots.Plume
+        };
+        var points = slotOrder
+            .Select(slot => SpiritArtifactCarouselPolicy.CalculatePoint(geometry, slot, 0f))
+            .ToArray();
+        var firstSide = CircleDistance(points[0], points[1]);
+        for (var index = 1; index < points.Length; index++)
+        {
+            var next = (index + 1) % points.Length;
+            Approximately(firstSide, CircleDistance(points[index], points[next]), 0.01f,
+                "The five equipment centers remain vertices of one inscribed regular pentagon");
+        }
+        True(firstSide > geometry.SlotSize,
+            "Responsive carousel slots remain separated at the reference equipment size");
+        Approximately(0f, points.Average(point => point.CircleX), 0.01f,
+            "The rotating pentagon remains centered horizontally around the portrait");
+        Approximately(0f, points.Average(point => point.CircleY), 0.01f,
+            "The rotating pentagon remains centered vertically around the portrait");
+
+        var compact = SpiritArtifactCarouselPolicy.CalculateGeometry(240f, 220f);
+        Approximately(SpiritArtifactCardStylePolicy.EquipmentSlotSize, compact.SlotSize, 0.01f,
+            "Compact equipment uses the approved fifty-six-pixel artifact slot");
+        Approximately(
+            SpiritArtifactCarouselPolicy.BoundaryMargin,
+            (220f - compact.SlotSize) * 0.5f
+            - compact.Radius * (float)Math.Cos(SpiritArtifactCarouselPolicy.ForwardTiltDegrees * Math.PI / 180d),
+            0.01f,
+            "Compact equipment preserves the same upper and lower circle margins");
+
+        var sandsTarget = SpiritArtifactCarouselPolicy.FocusTargetPhase(SpiritArtifactSlots.Sands);
+        var front = SpiritArtifactCarouselPolicy.CalculatePoint(
+            geometry,
+            SpiritArtifactSlots.Sands,
+            sandsTarget);
+        var focusedPoints = slotOrder
+            .Select(slot => SpiritArtifactCarouselPolicy.CalculatePoint(geometry, slot, sandsTarget))
+            .ToArray();
+        var back = focusedPoints.OrderBy(point => point.Depth).First();
+        var expectedFrontDepth = geometry.Radius
+                                 * (float)Math.Sin(SpiritArtifactCarouselPolicy.ForwardTiltDegrees * Math.PI / 180d);
+        Approximately(expectedFrontDepth, front.Depth, 0.001f,
+            "A focused equipment slot reaches the lower screen-outward point");
+        True(front.Y < 0f,
+            "The player-facing focus point is below the portrait rather than on the X axis");
+        True(front.Scale > back.Scale && front.Alpha > back.Alpha,
+            "The fifteen-degree shallow carousel makes the front slot visually dominant");
+        Approximately(front.CircleX, front.X, 0.001f,
+            "The forward tilt does not use horizontal X as the depth axis");
+        True(Math.Abs(front.Y) < Math.Abs(front.CircleY),
+            "The fifteen-degree forward tilt compresses the projected vertical axis");
+        var right = SpiritArtifactCarouselPolicy.CalculatePoint(geometry, SpiritArtifactSlots.Sands, 0f);
+        var left = SpiritArtifactCarouselPolicy.CalculatePoint(geometry, SpiritArtifactSlots.Plume, 0f);
+        Approximately(right.Depth, left.Depth, 0.001f,
+            "Left and right slots at the same height have the same player-facing depth");
+        Approximately(right.Scale, left.Scale, 0.001f,
+            "Near/far scaling follows Z depth instead of horizontal position");
+
+        var dwell = SpiritArtifactCarouselPolicy.SampleAutomaticMotion(0f, 3.1f);
+        Approximately(0f, dwell.PhaseDegrees, 0.001f,
+            "Automatic carousel dwell performs no sub-pixel RectTransform writes");
+        False(dwell.Moving || dwell.CycleComplete,
+            "Automatic carousel remains crisp throughout its dwell interval");
+        var midpoint = SpiritArtifactCarouselPolicy.SampleAutomaticMotion(0f, 3.6f);
+        Approximately(324f, midpoint.PhaseDegrees, 0.001f,
+            "Automatic carousel uses eased clockwise motion through the step midpoint");
+        True(midpoint.Moving && !midpoint.CycleComplete,
+            "The automatic transition exposes one explicit moving state");
+        var completedStep = SpiritArtifactCarouselPolicy.SampleAutomaticMotion(0f, 4f);
+        Approximately(288f, completedStep.PhaseDegrees, 0.001f,
+            "Each automatic cycle advances exactly one seventy-two-degree vertex");
+        True(completedStep.CycleComplete,
+            "The automatic cycle returns to a stable dwell after the transition");
+        Approximately(20f, SpiritArtifactCarouselPolicy.AutomaticCycleSeconds * 5f, 0.001f,
+            "Five dwell-and-transition cycles complete one twenty-second revolution");
+        Approximately(-108f,
+            SpiritArtifactCarouselPolicy.ShortestFocusDelta(0f, SpiritArtifactSlots.Sands),
+            0.001f,
+            "Focus chooses the short clockwise route when appropriate");
+        Approximately(80f,
+            SpiritArtifactCarouselPolicy.ShortestFocusDelta(100f, SpiritArtifactSlots.Flower),
+            0.001f,
+            "Focus chooses the short counter-clockwise route when appropriate");
+        True(SpiritArtifactCarouselPolicy.FocusDuration(180f)
+             <= SpiritArtifactCarouselPolicy.MaximumFocusSeconds,
+            "Functional focus motion always completes in under half a second");
+    }
+
+    private static void TestSpiritArtifactTargetSelectorLayout()
+    {
+        var large = SpiritArtifactTargetSelectorLayoutPolicy.Calculate(760f, 620f);
+        Approximately(680f, large.Width, 0.01f,
+            "The target selector caps its width inside the artifact workspace");
+        Approximately(480f, large.Height, 0.01f,
+            "The target selector caps its height inside the artifact workspace");
+        Equal(4, large.Columns,
+            "A normal artifact workspace presents twelve target sets as four columns");
+        True(large.CellWidth >= 140f && large.GridHeight + 108f <= large.Height + 0.01f,
+            "The centered target selector keeps cards and footer inside its modal bounds");
+
+        var compactLayout = SpiritArtifactTargetSelectorLayoutPolicy.Calculate(560f, 500f);
+        Equal(3, compactLayout.Columns,
+            "A compact artifact workspace switches to three target-set columns");
+        True(compactLayout.Width <= 560f && compactLayout.Height <= 500f,
+            "Responsive target selection never exceeds its owning workspace");
+    }
+
+    private static void TestSpiritArtifactRowRingPolicy()
+    {
+        Equal(0, SpiritArtifactRowRingPolicy.IncomingRowCount(4, 4, 6),
+            "Scrolling inside one logical row performs no artifact-cell binding");
+        Equal(1, SpiritArtifactRowRingPolicy.IncomingRowCount(4, 5, 6),
+            "Crossing one row binds only one incoming pooled row");
+        Equal(2, SpiritArtifactRowRingPolicy.IncomingRowCount(5, 3, 6),
+            "Reverse scrolling rotates exactly the rows entering from above");
+        Equal(6, SpiritArtifactRowRingPolicy.IncomingRowCount(2, 12, 6),
+            "A jump beyond the pool performs one bounded full rebind");
+        True(SpiritArtifactRowRingPolicy.RequiresFullRebind(-1, 0, 6),
+            "The first artifact render initializes every active pooled row once");
+        False(SpiritArtifactRowRingPolicy.RequiresFullRebind(8, 9, 6),
+            "Ordinary row scrolling never falls back to the retired full-viewport path");
+    }
+
+    private static float CircleDistance(
+        SpiritArtifactCarouselPoint left,
+        SpiritArtifactCarouselPoint right)
+    {
+        var x = left.CircleX - right.CircleX;
+        var y = left.CircleY - right.CircleY;
+        return (float)Math.Sqrt(x * x + y * y);
+    }
+
+    private static void TestSpiritArtifactSelectionState()
+    {
+        var state = new SpiritArtifactSelectionState();
+        var selected = state.Toggle("artifact-a");
+        True(selected.Changed && selected.HasSelection,
+            "Clicking an unselected artifact enters the detail-preview state");
+        Equal("artifact-a", state.SelectedArtifactUid,
+            "Artifact selection stores one authoritative instance id");
+
+        var cleared = state.Toggle("artifact-a");
+        True(cleared.Changed && !cleared.HasSelection,
+            "Clicking the selected artifact again returns to loadout summary");
+
+        state.Select("artifact-a");
+        state.Select("artifact-b");
+        Equal("artifact-b", state.SelectedArtifactUid,
+            "Clicking a different artifact switches selection without an intermediate empty state");
+        var retained = state.Reconcile(new[] { "artifact-a", "artifact-b" });
+        False(retained.Changed,
+            "Data refresh retains a selected artifact that still exists");
+        var removed = state.Reconcile(new[] { "artifact-a" });
+        True(removed.Changed && state.SelectedArtifactUid.Length == 0,
+            "Dismantling the selected artifact deterministically restores loadout summary");
+        False(state.Clear().Changed,
+            "Repeated blank-area cancellation is idempotent");
+    }
+
+    private static void TestSpiritArtifactBatchSelectionState()
+    {
+        var state = new SpiritArtifactBatchSelectionState();
+        state.Enter("artifact-a");
+        True(state.IsActive && state.Count == 1 && state.Contains("artifact-a"),
+            "Artifact batch mode carries the current detail selection into cleanup selection");
+        True(state.Toggle("artifact-b") && state.Count == 2,
+            "Artifact batch clicks add exact instance ids without binding cell objects");
+        False(state.Toggle("artifact-a"),
+            "Artifact batch clicks deterministically remove an already selected instance");
+        state.Add(new[] { "artifact-c", "artifact-d" });
+        state.Reconcile(new[] { "artifact-b", "artifact-c" });
+        True(state.Count == 2 && state.Contains("artifact-b") && state.Contains("artifact-c"),
+            "Artifact batch refresh removes vanished instances while retaining off-screen selections");
+        state.Remove(new[] { "artifact-c" });
+        True(state.Count == 1 && !state.Contains("artifact-c"),
+            "New preset protection can remove a previously selected cleanup candidate");
+        state.Replace(new[] { "artifact-e", "artifact-f" });
+        True(state.Count == 2 && state.Contains("artifact-f"),
+            "Select-all replaces the batch with the authoritative filtered candidate set");
+        state.Exit();
+        False(state.IsActive || state.Count > 0,
+            "Leaving batch mode clears its transient account inventory state");
+    }
+
+    private static void TestSpiritArtifactPresetLayoutPolicy()
+    {
+        var compact = SpiritArtifactPresetLayoutPolicy.Calculate(560f, 500f);
+        Approximately(520f, compact.Width, 0.01f,
+            "Compact preset manager preserves a 20-pixel workspace margin on both sides");
+        Approximately(180f, compact.ListWidth, 0.01f,
+            "Compact preset manager reserves a readable master-list column");
+        Approximately(50f, compact.MiniCardWidth, 0.01f,
+            "Compact preset details fit five complete artifact slots without overflow");
+        True(5f * compact.MiniCardWidth + 4f * compact.MiniCardSpacing
+             <= compact.Width - 32f - compact.ListWidth - 12f - 24f,
+            "Compact preset slot row fits inside the detail pane after all padding and master-detail spacing");
+        var expanded = SpiritArtifactPresetLayoutPolicy.Calculate(760f, 560f);
+        Approximately(680f, expanded.Width, 0.01f,
+            "Expanded preset manager caps its reading width instead of stretching");
+        Approximately(210f, expanded.ListWidth, 0.01f,
+            "Expanded preset manager gives names and status a wider list column");
+        True(5f * expanded.MiniCardWidth + 4f * expanded.MiniCardSpacing
+             <= expanded.Width - 32f - expanded.ListWidth - 12f - 24f,
+            "Expanded preset slot row preserves detail-pane breathing room");
+        Equal(5, SpiritArtifactPresetLayoutPolicy.VisibleRows(332f),
+            "Scrollable preset list exposes a stable bounded number of 60-pixel rows");
+    }
+
+    private static void TestSpiritVirtualGridRefreshState()
+    {
+        var state = new SpiritVirtualGridRefreshState();
+        True(state.Request(false), "The first virtual-grid refresh request owns the next-frame slot");
+        False(state.Request(false), "Repeated scroll refreshes coalesce into the pending next-frame slot");
+        False(state.Request(true), "A resize joins rather than duplicates an already pending grid refresh");
+        True(state.Drain(), "A coalesced resize upgrades the pending refresh to a forced rebind");
+        True(state.Request(false), "The grid can schedule a new refresh after the previous drain");
+        False(state.Drain(), "An ordinary scroll refresh preserves the non-forced path");
+        True(state.Request(true), "A later resize can schedule independently");
+        state.Cancel();
+        True(state.Request(false), "Closing a grid cancels stale pending state for its next lifecycle");
+        state.Reset();
+        True(state.ObserveViewport(640f, 320f),
+            "The first viewport observation schedules a responsive grid refresh");
+        False(state.ObserveViewport(640f, 320f),
+            "Repeated Unity layout callbacks at the same size do not form a refresh loop");
+        False(state.ObserveViewport(640.1f, 320.1f),
+            "Sub-pixel layout jitter is ignored");
+        True(state.ObserveViewport(720f, 320f),
+            "A material viewport width change schedules one new refresh");
+    }
+
+    private static void TestSpiritArtifactWishNavigationState()
+    {
+        var state = new SpiritArtifactWishNavigationState();
+        state.Reset();
+        Equal(
+            SpiritArtifactWishNavigationAction.SkipToResults,
+            state.RequestEscape(),
+            "Escape during the wish video skips forward without discarding the committed result");
+
+        state.MarkResultsVisible();
+        Equal(
+            SpiritArtifactWishNavigationAction.AcknowledgeAndClose,
+            state.RequestEscape(),
+            "Escape on the result screen acknowledges the receipt and returns to the artifact page");
+        Equal(
+            SpiritArtifactWishNavigationAction.None,
+            state.RequestClose(),
+            "Repeated result-close input is idempotent");
+
+        state.Reset();
+        state.MarkResultsVisible();
+        Equal(
+            SpiritArtifactWishNavigationAction.AcknowledgeAndClose,
+            state.RequestClose(),
+            "The visible confirmation button follows the same close transaction as Escape");
+    }
+
+    private static void TestSpiritArtifactCardStylePolicy()
+    {
+        Equal(9, SpiritArtifactCardStylePolicy.ColumnsForWidth(808f),
+            "The artifact workspace uses its former right-side gap for a ninth column");
+        Equal(7, SpiritArtifactCardStylePolicy.ColumnsForWidth(647f),
+            "Narrow artifact workspaces reduce columns without enlarging cards");
+        Equal(10, SpiritArtifactCardStylePolicy.ColumnsForWidth(890f),
+            "Wide artifact workspaces can use ten fixed-size card columns");
+        Equal(38, SpiritArtifactCardStylePolicy.HorizontalPaddingForWidth(808f, 9),
+            "Unused sub-column width is balanced across both inventory edges");
+        True(
+            SpiritArtifactCardStylePolicy.CardWidth * SpiritArtifactCardStylePolicy.CardHeight
+            < 108f * 126f * 0.5f,
+            "The redesigned artifact card occupies less than half the previous area");
+        Approximately(16f,
+            SpiritArtifactCardStylePolicy.CardHeight - SpiritArtifactCardStylePolicy.ArtHeight,
+            0.01f,
+            "The rarity artwork leaves a stable white level footer");
+        True(SpiritArtifactCardStylePolicy.ArtBottomRightRadius
+             > SpiritArtifactCardStylePolicy.CardRadius,
+            "The rarity artwork owns the approved enlarged bottom-right corner");
+        Approximately(2f, SpiritArtifactCardStylePolicy.HoverStrokeWidth, 0.01f,
+            "Hover uses a two-pixel aligned stroke");
+        True(SpiritArtifactCardStylePolicy.SelectionHaloWidth
+             > SpiritArtifactCardStylePolicy.CardWidth
+             && SpiritArtifactCardStylePolicy.SelectionHaloHeight
+             > SpiritArtifactCardStylePolicy.CardHeight,
+            "Selection uses a centered under-card halo whose covered center cannot expose a seam");
+
+        var start = SpiritArtifactCardMotionPolicy.SelectionPulse(0f);
+        var peak = SpiritArtifactCardMotionPolicy.SelectionPulse(
+            SpiritArtifactCardMotionPolicy.SelectionPeriodSeconds * 0.5f);
+        var loop = SpiritArtifactCardMotionPolicy.SelectionPulse(
+            SpiritArtifactCardMotionPolicy.SelectionPeriodSeconds);
+        Approximately(0.58f, start.Alpha, 0.001f,
+            "Selection breathing starts from the restrained alpha floor");
+        Approximately(0.96f, peak.Alpha, 0.001f,
+            "Selection breathing reaches one clear visual peak per cycle");
+        Approximately(start.Alpha, loop.Alpha, 0.001f,
+            "Selection breathing loops without a discontinuity");
+        True(peak.Scale <= 1.0181f,
+            "Selection breathing expands the covered halo without detaching it from the card");
+        True(SpiritArtifactCardMotionPolicy.ShouldRestartSelection(false, true),
+            "Selection motion starts only on an actual unselected-to-selected transition");
+        False(SpiritArtifactCardMotionPolicy.ShouldRestartSelection(true, true),
+            "Virtualized rebinds do not restart an already selected card's phase");
+        False(SpiritArtifactCardMotionPolicy.ShouldRestartSelection(true, false),
+            "Clearing selection does not create a new breathing phase");
     }
 
     private static void TestSpiritWarehouseSelectionPolicy()

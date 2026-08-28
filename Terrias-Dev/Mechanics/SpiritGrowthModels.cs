@@ -340,6 +340,8 @@ public sealed class SpiritInstance
 
     public string LoadoutHash { get; set; } = "";
 
+    public SpiritArtifactLoadout ArtifactLoadout { get; set; } = new();
+
     public bool Favorite { get; set; }
 
     public bool Locked { get; set; }
@@ -376,6 +378,7 @@ public sealed class SpiritInstance
             NewAbilityIds = new List<string>(NewAbilityIds ?? new List<string>()),
             LoadoutRevision = LoadoutRevision,
             LoadoutHash = LoadoutHash,
+            ArtifactLoadout = ArtifactLoadout?.Clone() ?? new SpiritArtifactLoadout(),
             Favorite = Favorite,
             Locked = Locked,
             CapturedAt = CapturedAt
@@ -401,6 +404,8 @@ public sealed class SpiritCollectionDocument
     public Dictionary<string, string> ProcessedCaptureTokens { get; set; } = new(StringComparer.Ordinal);
 
     public List<string> ProcessedBattleTokens { get; set; } = new();
+
+    public SpiritArtifactInventory ArtifactInventory { get; set; } = new();
 }
 
 [Serializable]
@@ -616,7 +621,8 @@ public static class SpiritModelCloner
             LoadoutRevision = source.LoadoutRevision,
             LoadoutHash = source.LoadoutHash,
             TrainingRegistryHash = source.TrainingRegistryHash,
-            DeploymentToken = source.DeploymentToken
+            DeploymentToken = source.DeploymentToken,
+            ArtifactBattle = source.ArtifactBattle?.Clone() ?? new SpiritArtifactBattleSnapshot()
         };
     }
 }

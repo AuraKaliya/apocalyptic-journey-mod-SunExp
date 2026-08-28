@@ -53,6 +53,12 @@ public static class SpiritManagementPanel
     private static Transform? detailContent;
     private static Transform? partyContent;
     private static Transform? actionContent;
+    private static Transform? pageTabContent;
+    private static Transform? selectedIdentityContent;
+    private static GameObject? normalBody;
+    private static GameObject? normalPartyBand;
+    private static GameObject? normalActions;
+    private static GameObject? artifactPage;
     private static SpiritVirtualizedGridView? virtualGrid;
     private static Text? gridEmptyText;
     private static Text? filterButtonText;
@@ -83,6 +89,7 @@ public static class SpiritManagementPanel
     public static void Close()
     {
         virtualGrid?.Release();
+        SpiritArtifactPanel.Release();
         virtualGrid = null;
         ClearChildren(gridContent);
         ClearChildren(previewContent);
@@ -95,6 +102,12 @@ public static class SpiritManagementPanel
         detailContent = null;
         partyContent = null;
         actionContent = null;
+        pageTabContent = null;
+        selectedIdentityContent = null;
+        normalBody = null;
+        normalPartyBand = null;
+        normalActions = null;
+        artifactPage = null;
         gridEmptyText = null;
         filterButtonText = null;
         sortButtonText = null;
@@ -177,9 +190,9 @@ public static class SpiritManagementPanel
         var bodyLayout = TerriasUiComponents.ConfigureHorizontalLayout(body, new RectOffset(0, 0, 0, 0), 12f);
         bodyLayout.childForceExpandHeight = true;
 
+        var rosterWidth = mode == PanelMode.Warehouse ? RosterWidth(windowSize) : 0f;
         if (mode == PanelMode.Warehouse)
         {
-            var rosterWidth = RosterWidth(windowSize);
             var left = LayoutObject("Roster", body.transform, 390f, 1f, rosterWidth);
             ApplyPanel(left, BandTint);
             TerriasUiComponents.ConfigureVerticalLayout(left, new RectOffset(10, 10, 10, 10), 8f);
@@ -212,22 +225,61 @@ public static class SpiritManagementPanel
                 BindSpiritCell);
         }
 
-        var contentColumnWidth = mode == PanelMode.Warehouse
-            ? Mathf.Clamp((windowSize.x - RosterWidth(windowSize) - 76f) * 0.38f, 210f, 380f)
-            : Mathf.Clamp((windowSize.x - 52f) * 0.45f, 320f, 570f);
-        var preview = LayoutObject("Preview", body.transform, 390f, 1f, contentColumnWidth);
+        var workspaceWidth = mode == PanelMode.Warehouse
+            ? Mathf.Max(560f, windowSize.x - 52f - rosterWidth)
+            : Mathf.Max(640f, windowSize.x - 40f);
+        var workspace = LayoutObject("SelectedSpiritWorkspace", body.transform, 390f, 1f);
+        var workspaceElement = workspace.GetComponent<LayoutElement>();
+        workspaceElement.minWidth = 520f;
+        workspaceElement.flexibleWidth = 1f;
+        TerriasUiComponents.ConfigureVerticalLayout(
+            workspace,
+            new RectOffset(0, 0, 0, 0),
+            6f,
+            childForceExpandHeight: false,
+            alignment: TextAnchor.UpperCenter);
+
+        var identity = LayoutObject("SelectedSpiritIdentity", workspace.transform, 42f);
+        ApplyPanel(identity, BandTint);
+        TerriasUiComponents.ConfigureHorizontalLayout(
+            identity,
+            new RectOffset(12, 12, 3, 3),
+            8f,
+            childForceExpandHeight: true,
+            alignment: TextAnchor.MiddleLeft);
+        selectedIdentityContent = identity.transform;
+
+        var pageTabs = LayoutObject("SelectedSpiritTabs", workspace.transform, 36f);
+        ApplyPanel(pageTabs, BandTint);
+        TerriasUiComponents.ConfigureHorizontalLayout(pageTabs, new RectOffset(8, 8, 1, 1), 8f);
+        pageTabContent = pageTabs.transform;
+        CreateDetailTabs(pageTabContent);
+
+        var inspectorContent = LayoutObject("SelectedSpiritContent", workspace.transform, 300f, 1f);
+        var normalInspector = TerriasUiComponents.CreateFillRect("NormalSpiritContent", inspectorContent.transform);
+        normalBody = normalInspector;
+        var normalLayout = TerriasUiComponents.ConfigureHorizontalLayout(
+            normalInspector,
+            new RectOffset(0, 0, 0, 0),
+            12f);
+        normalLayout.childForceExpandHeight = true;
+
+        var contentColumnWidth = Mathf.Clamp(workspaceWidth * 0.40f, 230f, 440f);
+        var preview = LayoutObject("Preview", normalInspector.transform, 390f, 1f, contentColumnWidth);
         previewContent = preview.transform;
         CreatePreviewShell(preview.transform);
 
-        var detailWidth = mode == PanelMode.Warehouse
-            ? Mathf.Max(196f, windowSize.x - 64f - RosterWidth(windowSize) - contentColumnWidth)
-            : Mathf.Max(320f, windowSize.x - 52f - contentColumnWidth);
-        var detail = LayoutObject("Detail", body.transform, 390f, 1f, detailWidth);
+        var detailWidth = Mathf.Max(280f, workspaceWidth - contentColumnWidth - 12f);
+        var detail = LayoutObject("Detail", normalInspector.transform, 390f, 1f, detailWidth);
         ApplyPanel(detail, BandTint);
         TerriasUiComponents.ConfigureVerticalLayout(detail, new RectOffset(14, 14, 12, 12), 4f);
         detailContent = detail.transform;
 
+        artifactPage = SpiritArtifactPanel.Build(inspectorContent.transform, () => selectedUid, workspaceWidth);
+        artifactPage.SetActive(false);
+
         var partyBand = LayoutObject("PartyBand", window.transform, 142f);
+        normalPartyBand = partyBand;
         ApplyPanel(partyBand, BandTint);
         TerriasUiComponents.ConfigureVerticalLayout(partyBand, new RectOffset(10, 10, 7, 7), 5f);
         TerriasUiComponents.AddTextBlock(
@@ -244,6 +296,7 @@ public static class SpiritManagementPanel
         partyContent = slots.transform;
 
         var actions = LayoutObject("Actions", window.transform, 42f);
+        normalActions = actions;
         ApplyPanel(actions, BandTint);
         TerriasUiComponents.ConfigureHorizontalLayout(actions, new RectOffset(8, 8, 4, 4), 10f);
         actionContent = actions.transform;
@@ -252,9 +305,18 @@ public static class SpiritManagementPanel
 
     private static void Refresh()
     {
+        CreateDetailTabs(pageTabContent);
+        var artifacts = detailTab == 3;
+        if (normalBody != null) normalBody.SetActive(!artifacts);
+        if (normalPartyBand != null) normalPartyBand.SetActive(!artifacts);
+        if (normalActions != null) normalActions.SetActive(!artifacts);
+        if (artifactPage != null) artifactPage.SetActive(artifacts);
         if (filterButtonText != null) filterButtonText.text = FilterName();
         if (sortButtonText != null) sortButtonText.text = SortName();
         RefreshGrid();
+        RefreshSelectedSpiritIdentity();
+        SpiritArtifactPanel.SetVisible(artifacts);
+        if (artifacts) return;
         RefreshPreviewAndDetail();
         RefreshParty();
         RefreshActions();
@@ -326,8 +388,15 @@ public static class SpiritManagementPanel
             68f,
             null,
             new Color(0.18f, 0.20f, 0.24f, 1f));
-        var nameText = TerriasUiComponents.AddTextBlock(cell.transform, "", 13,
-            TextAnchor.MiddleCenter, Pale, 20f, 1f);
+        var pinnedName = CreatePinnedElementNameRow(
+            cell.transform,
+            "NameRow",
+            "",
+            13,
+            Pale,
+            20f,
+            SpiritElementDisplaySurface.WarehouseCard);
+        var nameText = pinnedName.Name;
         var stars = TerriasUiComponents.AddTextBlock(cell.transform, "", 12,
             TextAnchor.MiddleCenter, StarGold, 18f, 1f);
         var meta = LayoutObject("Meta", cell.transform, 18f);
@@ -335,9 +404,6 @@ public static class SpiritManagementPanel
         var levelText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
         var aptitudeText = AddFixedTextBlock(meta.transform, "", 11, TextAnchor.MiddleCenter, Pale, 18f, 1f);
         var markerText = TerriasUiComponents.AddTextBlock(cell.transform, "", 11, TextAnchor.MiddleCenter, Muted, 16f, 1f);
-        var elementBadge = SpiritElementUi.CreateBadge(cell.transform, "ElementBadge", 42f, 18f, ignoreLayout: true);
-        var elementRect = elementBadge.Root.transform as RectTransform;
-        if (elementRect != null) elementRect.anchoredPosition = new Vector2(5f, -5f);
         var activeStamp = AddActiveStamp(cell.transform);
         activeStamp.SetActive(false);
         var selectionBadge = AddSelectionBadge(cell.transform);
@@ -345,7 +411,7 @@ public static class SpiritManagementPanel
         var button = cell.AddComponent<Button>();
         var view = cell.AddComponent<SpiritManagementCellView>();
         view.Initialize(backgroundSurface, portrait, nameText, stars, levelText, aptitudeText,
-            markerText, elementBadge.Icon, elementBadge.Label, outline, activeStamp, selectionBadge, button, OnSpiritCellClicked);
+            markerText, pinnedName.Element, outline, activeStamp, selectionBadge, button, OnSpiritCellClicked);
         return view;
     }
 
@@ -402,9 +468,91 @@ public static class SpiritManagementPanel
             return;
         }
         SelectSpirit(uid);
-        virtualGrid?.RefreshVisible(force: true);
-        RefreshPreviewAndDetail();
-        RefreshActions();
+        Refresh();
+    }
+
+    private static void RefreshSelectedSpiritIdentity()
+    {
+        if (selectedIdentityContent == null) return;
+        ClearChildren(selectedIdentityContent);
+        var item = SpiritCollectionApi.Find(selectedUid);
+        if (item == null)
+        {
+            AddFixedTextBlock(
+                selectedIdentityContent,
+                "请选择一只精灵",
+                17,
+                TextAnchor.MiddleLeft,
+                Muted,
+                36f,
+                1f);
+            return;
+        }
+
+        if (mode == PanelMode.Adventure) CreateIdentityArrow(selectedIdentityContent, "‹", -1);
+        AddFixedTextBlock(
+            selectedIdentityContent,
+            SpiritPresentationResolver.Name(item),
+            22,
+            TextAnchor.MiddleLeft,
+            QualityAccent(item.Aptitude),
+            36f,
+            1f);
+        var element = SpiritElementUi.CreateIcon(
+            selectedIdentityContent,
+            "ElementIcon",
+            SpiritElementDisplaySurface.DetailHeader);
+        SpiritElementUi.BindIcon(element.Icon, item.ElementId);
+        AddFixedTextBlock(
+            selectedIdentityContent,
+            "Lv." + item.Level,
+            17,
+            TextAnchor.MiddleRight,
+            Pale,
+            36f,
+            0f,
+            FontStyle.Normal,
+            62f);
+        AddFixedTextBlock(
+            selectedIdentityContent,
+            StarText(item),
+            16,
+            TextAnchor.MiddleRight,
+            StarGold,
+            36f,
+            0f,
+            FontStyle.Normal,
+            92f);
+        if (mode == PanelMode.Adventure) CreateIdentityArrow(selectedIdentityContent, "›", 1);
+    }
+
+    private static void CreateIdentityArrow(Transform parent, string label, int delta)
+    {
+        TerriasUiComponents.CreateTextButton(
+            parent,
+            label,
+            new Vector2(34f, 32f),
+            TerriasUiSprites.Button("[SpiritManagement]"),
+            BandTint,
+            Pale,
+            19,
+            () => SelectAdjacentSpirit(delta));
+    }
+
+    private static void SelectAdjacentSpirit(int delta)
+    {
+        var values = Party().PartySlots
+            .Where(uid => !string.IsNullOrWhiteSpace(uid))
+            .Distinct(StringComparer.Ordinal)
+            .Select(SpiritCollectionApi.Find)
+            .Where(item => item != null)
+            .Cast<SpiritInstance>()
+            .ToArray();
+        if (values.Length == 0) return;
+        var index = Array.FindIndex(values, item => Same(item.SpiritUid, selectedUid));
+        index = (Math.Max(0, index) + delta + values.Length) % values.Length;
+        SelectSpirit(values[index].SpiritUid);
+        Refresh();
     }
 
     private static void CreatePreviewShell(Transform parent)
@@ -428,19 +576,11 @@ public static class SpiritManagementPanel
         var image = imageRoot.AddComponent<Image>();
         image.preserveAspect = true;
         image.raycastTarget = false;
-        imageRoot.AddComponent<SpiritPreviewAnimator>().Configure(item.Snapshot.IdlePath, Portrait(item.Snapshot));
+        imageRoot.AddComponent<SpiritPreviewAnimator>().Configure(
+            item.Snapshot.IdlePath,
+            SpiritPortraitUi.Resolve(item.Snapshot, "spirit-management.preview"));
 
         var growth = SpiritCollectionApi.GrowthView(item);
-        var detailHeader = LayoutObject("DetailHeader", detailContent, 36f);
-        TerriasUiComponents.ConfigureHorizontalLayout(detailHeader, new RectOffset(0, 0, 0, 0), 8f);
-        AddFixedTextBlock(detailHeader.transform, SpiritPresentationResolver.Name(item), 23,
-            TextAnchor.MiddleLeft, QualityAccent(item.Aptitude), 36f, 1f, FontStyle.Normal);
-        var detailElement = SpiritElementUi.CreateBadge(detailHeader.transform, "Element", 58f, 24f);
-        SpiritElementUi.Bind(detailElement.Icon, detailElement.Label, growth.ElementId);
-        AddFixedTextBlock(detailHeader.transform, "Lv." + item.Level, 19,
-            TextAnchor.MiddleRight, Pale, 36f, 0f, FontStyle.Normal, 58f);
-        AddFixedTextBlock(detailHeader.transform, StarText(item), 17,
-            TextAnchor.MiddleRight, StarGold, 36f, 0f, FontStyle.Normal, 92f);
         var summary = LayoutObject("DetailSummary", detailContent, 24f);
         TerriasUiComponents.ConfigureHorizontalLayout(summary, new RectOffset(0, 0, 0, 0), 8f);
         AddFixedTextBlock(summary.transform,
@@ -448,7 +588,6 @@ public static class SpiritManagementPanel
             13, TextAnchor.MiddleLeft, Muted, 24f, 1f);
         AddFixedTextBlock(summary.transform, L("ui.spirit.aptitude_value", "value", growth.Aptitude.ToString()), 13,
             TextAnchor.MiddleRight, QualityAccent(growth.Aptitude), 24f, 0f, FontStyle.Normal, 82f);
-        CreateDetailTabs(detailContent);
         var scroll = TerriasUiComponents.CreateVerticalScrollArea(
             detailContent, "GrowthDetail", 230f, 1f, 5f, 24f, new Color(0f, 0f, 0f, 0.08f));
         if (detailTab == 0) BuildAttributeView(scroll.Content, item, growth);
@@ -484,13 +623,18 @@ public static class SpiritManagementPanel
             }
             else
             {
-                TerriasUiComponents.AddTextBlock(cell.transform, SpiritPresentationResolver.Name(item), 12,
-                    TextAnchor.MiddleCenter, QualityAccent(item.Aptitude), 18f, 1f);
+                var partyName = CreatePinnedElementNameRow(
+                    cell.transform,
+                    "PartyName",
+                    SpiritPresentationResolver.Name(item),
+                    12,
+                    QualityAccent(item.Aptitude),
+                    18f,
+                    SpiritElementDisplaySurface.PartySlot);
+                SpiritElementUi.BindIcon(partyName.Element, item.ElementId);
                 var partyMeta = LayoutObject("PartyMeta", cell.transform, 18f);
                 TerriasUiComponents.ConfigureHorizontalLayout(partyMeta, new RectOffset(0, 0, 0, 0), 3f,
                     childForceExpandHeight: false, alignment: TextAnchor.MiddleCenter);
-                var partyElement = SpiritElementUi.CreateBadge(partyMeta.transform, "Element", 34f, 16f);
-                SpiritElementUi.Bind(partyElement.Icon, partyElement.Label, item.ElementId);
                 AddFixedTextBlock(partyMeta.transform, "Lv." + item.Level + "  " + StarText(item), 11,
                     TextAnchor.MiddleCenter, StarGold, 18f, 1f);
             }
@@ -640,13 +784,14 @@ public static class SpiritManagementPanel
         }
     }
 
-    private static void CreateDetailTabs(Transform parent)
+    private static void CreateDetailTabs(Transform? parent)
     {
-        var tabs = LayoutObject("DetailTabs", parent, 36f);
-        TerriasUiComponents.ConfigureHorizontalLayout(tabs, new RectOffset(0, 0, 0, 0), 8f);
-        CreateDetailTab(tabs.transform, "属性", 0);
-        CreateDetailTab(tabs.transform, "养成", 1);
-        CreateDetailTab(tabs.transform, "归元", 2);
+        if (parent == null) return;
+        ClearChildren(parent);
+        CreateDetailTab(parent, "属性", 0);
+        CreateDetailTab(parent, "养成", 1);
+        CreateDetailTab(parent, "归元", 2);
+        CreateDetailTab(parent, "圣遗物", 3);
     }
 
     private static void CreateDetailTab(Transform parent, string label, int index)
@@ -665,7 +810,7 @@ public static class SpiritManagementPanel
                 var resetSelection = index != 2 && guiyuanSelectingDonors;
                 if (index != 2) ResetGuiyuanSelection();
                 detailTab = index;
-                RefreshPreviewAndDetail();
+                Refresh();
                 if (resetSelection)
                 {
                     RefreshGrid();
@@ -686,20 +831,6 @@ public static class SpiritManagementPanel
 
     private static void BuildAttributeView(Transform parent, SpiritInstance item, SpiritGrowthViewSnapshot growth)
     {
-        var elementRule = LayoutObject("ElementRule", parent, 32f);
-        TerriasUiComponents.ConfigureHorizontalLayout(elementRule, new RectOffset(4, 4, 3, 3), 6f,
-            childForceExpandHeight: false, alignment: TextAnchor.MiddleLeft);
-        var elementBadge = SpiritElementUi.CreateBadge(elementRule.transform, "Element", 54f, 24f);
-        SpiritElementUi.Bind(elementBadge.Icon, elementBadge.Label, growth.ElementId);
-        AddFixedTextBlock(
-            elementRule.transform,
-            L("ui.spirit.element_segment_rule", "element", SpiritElementService.DisplayName(growth.ElementId)),
-            12,
-            TextAnchor.MiddleLeft,
-            Muted,
-            24f,
-            1f);
-
         var overview = LayoutObject("AttributeOverview", parent, 218f);
         TerriasUiComponents.ConfigureHorizontalLayout(overview, new RectOffset(0, 0, 0, 0), 12f);
         var radarRoot = LayoutObject("Radar", overview.transform, 218f, 0f, 218f);
@@ -1237,6 +1368,49 @@ public static class SpiritManagementPanel
         };
     }
 
+    private static (Text Name, Image Element) CreatePinnedElementNameRow(
+        Transform parent,
+        string rowName,
+        string value,
+        int fontSize,
+        Color color,
+        float height,
+        SpiritElementDisplaySurface surface)
+    {
+        var row = LayoutObject(rowName, parent, height);
+        var nameRoot = TerriasUiComponents.CreateRect(
+            "Name",
+            row.transform,
+            Vector2.zero,
+            Vector2.one,
+            new Vector2(0.5f, 0.5f),
+            Vector2.zero);
+        var nameRect = (RectTransform)nameRoot.transform;
+        nameRect.offsetMin = new Vector2(3f, 0f);
+        nameRect.offsetMax = new Vector2(-SpiritElementDisplayPolicy.NameTrailingReserve(surface), 0f);
+        var name = TerriasUiComponents.ConfigureText(
+            nameRoot,
+            value,
+            fontSize,
+            TextAnchor.MiddleCenter,
+            color,
+            Math.Max(9, fontSize - 3));
+        name.resizeTextForBestFit = true;
+        name.resizeTextMinSize = Math.Max(9, fontSize - 3);
+        name.resizeTextMaxSize = fontSize;
+        name.horizontalOverflow = HorizontalWrapMode.Wrap;
+        name.verticalOverflow = VerticalWrapMode.Truncate;
+        name.raycastTarget = false;
+
+        var element = SpiritElementUi.CreateIcon(row.transform, "ElementIcon", surface);
+        var iconRect = (RectTransform)element.Root.transform;
+        iconRect.anchorMin = iconRect.anchorMax = iconRect.pivot = new Vector2(1f, 0.5f);
+        iconRect.anchoredPosition = new Vector2(-3f, 0f);
+        var layout = element.Root.GetComponent<LayoutElement>();
+        if (layout != null) layout.ignoreLayout = true;
+        return (name, element.Icon);
+    }
+
     private static Text AddFixedTextBlock(
         Transform parent,
         string value,
@@ -1295,14 +1469,7 @@ public static class SpiritManagementPanel
     }
 
     private static Sprite? Portrait(CapturedEnemySnapshot snapshot)
-    {
-        try
-        {
-            return TerriasResourceCache.LoadAll<Sprite>(snapshot.DictPath, "spirit-management")?.FirstOrDefault()
-                   ?? TerriasResourceCache.LoadAll<Sprite>(snapshot.IdlePath, "spirit-management")?.FirstOrDefault();
-        }
-        catch { return null; }
-    }
+        => SpiritPortraitUi.Resolve(snapshot, "spirit-management");
 
     private static GameObject LayoutObject(string name, Transform parent, float preferredHeight, float flexibleHeight = 0f, float preferredWidth = 0f)
     {
@@ -1508,6 +1675,8 @@ public sealed class SpiritPreviewAnimator : MonoBehaviour
     public void Configure(string idlePath, Sprite? fallback)
     {
         target = GetComponent<Image>();
+        frame = 0;
+        elapsed = 0f;
         try
         {
             frames = (TerriasResourceCache.LoadAll<Sprite>(idlePath, "spirit-preview") ?? Array.Empty<Sprite>())

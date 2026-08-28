@@ -59,6 +59,7 @@ public static class CompanionIntentSelector
         state.StartCooldown(intent.Id, intent.Cooldown);
         state.CurrentIntentId = intent.Id;
         SpiritTrainingBattleRuntime.OnIntentExecuted(state, intent, plan);
+        SpiritArtifactBattleRuntime.OnIntentExecuted(state, intent, plan);
         CompanionThreatService.MarkIntentUsed(
             state,
             intent,

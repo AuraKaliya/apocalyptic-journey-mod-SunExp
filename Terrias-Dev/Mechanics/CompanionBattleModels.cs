@@ -168,6 +168,10 @@ public sealed class CompanionResolvedEffect
 
     public int Value { get; set; }
 
+    public int PreArtifactValue { get; set; }
+
+    public int ArtifactDamageBonusBasisPoints { get; set; }
+
     public int RepeatCount { get; set; } = 1;
 
     public string BuffId { get; set; } = "";
@@ -181,6 +185,8 @@ public sealed class CompanionResolvedEffect
             HandlerId = HandlerId,
             TargetIds = new List<string>(TargetIds ?? new List<string>()),
             Value = Value,
+            PreArtifactValue = PreArtifactValue,
+            ArtifactDamageBonusBasisPoints = ArtifactDamageBonusBasisPoints,
             RepeatCount = RepeatCount,
             BuffId = BuffId,
             BuffStacks = BuffStacks
@@ -244,6 +250,8 @@ public sealed class CompanionBattleState
     public int LoadoutRevision { get; private set; }
 
     public string LoadoutHash { get; private set; } = "";
+
+    public SpiritArtifactBattleSnapshot ArtifactBattle { get; private set; } = new();
 
     public string CurrentIntentId { get; set; } = "";
 
@@ -319,6 +327,11 @@ public sealed class CompanionBattleState
         EquippedPassiveId = (passiveId ?? "").Trim();
         LoadoutRevision = Math.Max(0, revision);
         LoadoutHash = (hash ?? "").Trim();
+    }
+
+    public void ConfigureArtifactBattle(SpiritArtifactBattleSnapshot? snapshot)
+    {
+        ArtifactBattle = snapshot?.Clone() ?? new SpiritArtifactBattleSnapshot();
     }
 
     public int PassiveValue(string key)

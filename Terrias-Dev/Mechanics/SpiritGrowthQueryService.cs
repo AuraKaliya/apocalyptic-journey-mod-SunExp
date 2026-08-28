@@ -7,15 +7,25 @@ public static class SpiritGrowthQueryService
 {
     public static SpiritGrowthViewSnapshot Build(SpiritInstance instance)
     {
+        return Build(instance, new SpiritArtifactBattleSnapshot());
+    }
+
+    public static SpiritGrowthViewSnapshot Build(SpiritInstance instance, SpiritArtifactBattleSnapshot? artifactBattle)
+    {
         instance ??= new SpiritInstance();
+        artifactBattle ??= new SpiritArtifactBattleSnapshot();
         var sourceSnapshot = instance.Snapshot ?? new CapturedEnemySnapshot();
         var profile = SpiritGrowthRegistry.Resolve(instance);
         var maxLevel = SpiritGrowthService.MaxLevelFor(profile);
         var allocations = SpiritAscensionService.NormalizeAllocations(instance.GuiyuanAllocations, instance.GuiyuanValue);
-        var current = SpiritAscensionService.AddAllocations(
-            SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude), allocations);
-        var potential = SpiritAscensionService.AddAllocations(
-            SpiritGrowthService.OriginsAt(profile, maxLevel, instance.Aptitude), allocations);
+        var current = SpiritArtifactStatService.AddOrigins(
+            SpiritAscensionService.AddAllocations(
+                SpiritGrowthService.OriginsAt(profile, instance.Level, instance.Aptitude), allocations),
+            artifactBattle);
+        var potential = SpiritArtifactStatService.AddOrigins(
+            SpiritAscensionService.AddAllocations(
+                SpiritGrowthService.OriginsAt(profile, maxLevel, instance.Aptitude), allocations),
+            artifactBattle);
         var standard = SpiritGrowthService.OriginsAt(profile, maxLevel, SpiritGrowthService.LegacyAptitude);
         var intent = SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, sourceSnapshot.ProfileKey);
         var radar = SpiritGrowthRegistry.RadarScaleFor(profile);
@@ -38,9 +48,11 @@ public static class SpiritGrowthQueryService
             CurrentOrigins = current,
             MaxLevelOriginsAtCurrentAptitude = potential,
             StandardOriginsAtLevel50Aptitude60 = standard,
-            BattleStats = SpiritAscensionService.ApplyStarBonus(
-                SpiritGrowthService.BattleStats(profile, current, intent, instance.Speed),
-                SpiritAscensionService.StarRankFor(instance.GuiyuanValue)),
+            BattleStats = SpiritArtifactStatService.ApplyFlatBattleStats(
+                SpiritAscensionService.ApplyStarBonus(
+                    SpiritGrowthService.BattleStats(profile, current, intent, instance.Speed),
+                    SpiritAscensionService.StarRankFor(instance.GuiyuanValue)),
+                artifactBattle),
             RadarScaleId = radar.Id,
             RadarAxes = BuildRadarAxes(profile, radar, current, potential),
             CurrentAptitudeCurve = BuildCurve(profile, instance.Aptitude),

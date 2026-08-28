@@ -1,290 +1,145 @@
-# AuraToolsExp 队伍型事件 CG v2 设计
+# AuraToolsExp 队伍型事件 CG v2 运行合同
 
 > 状态：已实现的最终运行合同
-> 日期：2026-08-27  
+>
+> 日期：2026-08-28
 > 适用范围：战斗开场、普通胜利、点金手胜利、仪式胜利、诅咒胜利、战斗失败、冒险结算
 
-交互构图原型位于 [`tools/EventCgScenePrototype/index.html`](../../tools/EventCgScenePrototype/index.html)。它只用于确认有限设置窗口中的信息层级、1 至 8 人构图和资源归一化，不是第二套产品渲染器。运行 `tools/Preview-EventCgSceneV2.ps1` 可复现 17 组 Playwright 快照与几何检查。
+交互构图原型位于 [`tools/EventCgScenePrototype/index.html`](../../tools/EventCgScenePrototype/index.html)。
+它用于真实资源的构图验收，不是第二套产品播放器。运行
+`tools/Preview-EventCgSceneV2.ps1` 可复现 17 组 Playwright 快照和几何检查。
 
-## 1. 最终体验合同
+## 1. 用户体验
 
-队伍型事件 CG 必须首先是一张可读的群像，而不是把若干角色图片塞进固定网格。
+队伍型事件 CG 首先是一张可读的群像，不是把角色贴进一组高柱卡片。
 
-1. 一至八名实际冒险参与者都必须可见；不得用伤害排名决定角色是否出现。
-2. 默认保持全员等权。只有事件本身存在明确触发者时，才允许使用叙事焦点位。
-3. 开场、胜利、失败和结算使用不同的场景语法；三种特殊胜利在胜利语法上叠加独立主题。
-4. 任意角色、皮肤、非人形角色和透明边距异常资源都必须经过可见边界归一化。
-5. 配置页预览和实际全屏播放必须复用同一个规划器、资源解析器和渲染器。
-6. 玩家只选择可选背景叠层、展示时长和资源；默认构图由 `team-tableau.v2` 决定，
-   不直接编辑座位坐标、ZIndex 或裁切数字。
-7. 缺失专用姿态时按“场景姿态 -> Idle -> 静态首帧 -> 带角色名占位”确定性降级。
-8. 联机继续只传处理后的逻辑计划，不传本地路径、纹理、Alpha 边界或图片内容。
+1. 一至八名实际冒险参与者都可见，不读取伤害排名。
+2. 全员默认等权；普通群像没有 `1/2/3` 排名台阶。
+3. 开场、普通胜利、三种特殊胜利、失败和结算具有独立标题、色彩和舞台语气。
+4. 角色使用全部动画帧的联合 Alpha 可见边界归一化，透明画布边距不参与视觉尺寸。
+5. 配置页预览和全屏播放复用同一个规划器、资源解析器和
+   `AuraCgSceneCompositionRenderer`。
+6. 默认背景由程序渐变、主题洗色、共同舞台、落脚阴影、装饰纹样和姓名牌组成；玩家图片
+   只是可选低透明叠层。
+7. 七至八人优先继续使用群像；只有实际宽体资源触发阈值时才切换低对比双排肖像面板。
+8. 联机只传处理后的场景计划和 owner-qualified 逻辑资源 ID，不传路径、纹理、图片或
+   Alpha 边界。
 
-## 2. 不变边界
+## 2. 所有权
 
 | 所有者 | 职责 |
 |---|---|
-| AuraToolsExp | 事件语义、默认场景、玩家本地覆盖、设置页与预览入口 |
-| 内容 MOD | owner-qualified 角色姿态、皮肤和可选构图元数据声明 |
-| AuraCgShared | 场景规划、姿态回退、资源缓存、统一渲染、动画、网络计划与清理 |
-| 权威主机 | 冻结队伍顺序、选择场景配置、生成处理后计划并发送 |
-| 接收端 | 校验计划，按逻辑资源 ID 解析本地资产并展示，不重算事件原因 |
+| AuraToolsExp | 事件语义、七个默认场景、玩家本地背景/时长覆盖、设置页和预览入口 |
+| 内容 MOD | owner-qualified 角色、皮肤和可选 CG 资源声明 |
+| AuraCgShared | 队伍规划、资源解析、可见边界缓存、统一渲染、播放、网络身份和清理 |
+| 权威主机 | 冻结队伍顺序、选择场景配置并发送处理后的计划 |
+| 接收端 | 校验计划、解析本地资源、执行表现，不重算事件原因 |
 
-不得重新引入 DamageMeter 排名依赖、AuraToolsExp 私有播放器、第二套预览渲染器或内容 MOD 主动注册代码。
+不得重新引入 DamageMeter 排名依赖、AuraToolsExp 私有播放器、内容 MOD 主动播放路径或
+第二套设置页假预览。
 
 ## 3. 场景语法
 
-| 场景 | 构图族 | 姿态通道 | 动作预设 | 默认时长 | 叙事要求 |
-|---|---|---|---|---:|---|
-| 战斗开场 | `roster-reveal` | `opening` | `reveal-quick` | 2.2s | 快速介绍队伍，不使用排名或庆祝符号 |
-| 普通胜利 | `adaptive-tableau` | `victory` | `celebrate-soft` | 3.0s | 全员等权、清晰、明亮 |
-| 点金手胜利 | `adaptive-tableau` | `victory` | `celebrate-gold` | 3.0s | 金色粒子与财富符号，不改变队伍排序 |
-| 仪式胜利 | `adaptive-tableau` | `victory` | `celebrate-ritual` | 3.2s | 阵式、环形纹样与受控脉冲 |
-| 诅咒胜利 | `adaptive-tableau` | `victory` | `celebrate-curse` | 3.2s | 蝶影、暗色前景与高对比轮廓，避免高频闪烁 |
-| 战斗失败 | `quiet-tableau` | `defeat` | `settle-low` | 2.6s | 低位、收敛、无领奖台与庆祝粒子 |
-| 冒险结算 | `journey-photo` | `settlement` | `archive-calm` | 4.0s | 旅途合照或档案页，全员等权且便于停留观看 |
+| 场景 | 标题层级 | 构图 | 主题 |
+|---|---|---|---|
+| 战斗开场 | 战斗开场 / 队伍集结 | 快速队伍揭示 | 深蓝、冷色舞台线 |
+| 普通胜利 | 普通胜利 / 冒险队伍 | 等权群像 | 深靛、低面积暖金强调 |
+| 点金手胜利 | 点金手胜利 / 财富终局 | 等权群像 | 黑金、暖色舞台光 |
+| 仪式胜利 | 仪式胜利 / 仪式终局 | 等权群像 | 蓝紫、阵式纹样 |
+| 诅咒胜利 | 诅咒胜利 / 七咒终局 | 等权群像 | 深洋红、高对比轮廓 |
+| 战斗失败 | 战斗失败 / 队伍撤退 | 低位收敛 | 去饱和灰蓝与暗红 |
+| 冒险结算 | 冒险结算 / 旅途留影 | 稳定合照 | 深青、柔和档案语气 |
 
-默认美术不依赖整张底图。共享组件渲染器根据场景 profile 生成渐变底色、主题洗色、
-页眉/页脚线、舞台光带、角色背板与落脚线；普通胜利、点金、仪式、诅咒、开场、失败和
-结算使用独立色彩令牌。玩家图片仅作为可选背景叠层，缺失或加载失败时直接回到程序主题。
+金色等强调色只用于标题竖线、细线、纹样和姓名牌关系，不铺设大面积角色背板。
 
-## 4. 人数构图
+## 4. 人数布局
 
-| 人数 | 默认布局 | 约束 |
-|---:|---|---|
-| 1 | 单人主视觉 | 可见高度约为画面 72%，保留事件标题留白 |
-| 2 | 向内双人 | 等高、对称、角色朝向中心 |
-| 3 | 中心三角 | 中间角色略前但不显示排名，不使用 `1/2/3` 台阶 |
-| 4 | 等权弧形 | 四人可见面积差异不超过 12% |
-| 5 | `3+2` 错层 | 后排出现在前排肩部间隙，不被固定遮挡 |
-| 6 | `3+3` 错层 | 两排中心交错，后排动作幅度下降 |
-| 7 | `4+3` 或面板 | 宽体/非人形资源导致遮挡超限时切换肖像面板 |
-| 8 | `4+4` 或面板 | 角色最小可见高度不低于画面 30% |
+| 人数 | 默认布局 |
+|---:|---|
+| 1 | 单人主视觉，保留左上标题安全区 |
+| 2 | 向内双人 |
+| 3 | 中心三角，无排名含义 |
+| 4 | 等权弧形 |
+| 5 | 前三后二错层 |
+| 6 | `3+3` 错层 |
+| 7 | `4+3` 错层；宽体时双排肖像 |
+| 8 | `4+4` 错层；宽体时双排肖像 |
 
-布局选择不是随机分支。主机对候选模板计算固定评分并选最高分：
+`AuraCgAdaptiveTeamLayout` 只根据人数和 scene profile 生成稳定位置。接收端完成本地 Alpha
+分析后，七至八人中任一角色的可见宽高比达到 `0.86` 才启用肖像面板。该表现回退不改变
+SeatIndex、角色顺序、事件原因或网络事实。
 
-```text
-score = safeFrameRetention
-      + visibleAreaBalance
-      + horizontalBalance
-      + groundAlignment
-      - overlapPenalty
-      - boundaryCutPenalty
-      - titleOcclusionPenalty
-```
+## 5. 可见边界归一化
 
-相同队伍、场景、画面比例和资源元数据必须得到相同布局。评分相同时按稳定布局 ID 排序。
+`AuraCgSceneVisibleBoundsAnalyzer` 对角色资源执行以下流程：
 
-## 5. 数据合同
+1. 遍历动画的全部 Sprite 帧；
+2. 对可读纹理按固定 Alpha 阈值扫描，并将每帧边界合并为联合归一化边界；
+3. 缓存键包含 owner-qualified 资产身份、帧数和首尾 Sprite 实例；缓存只保存数值，不持有
+   Sprite 或 Texture；
+4. `AuraCgSceneFramingMath` 将可见像素中心对齐槽位水平中心，并把可见边界底部对齐落脚线；
+5. 宽度和高度同时受槽位约束，宽体资源不会被强行拉伸；
+6. AssetBundle 纹理不可读时确定性降级为完整 Sprite 矩形，不中断场景。
 
-### 5.1 SceneProfile
+联合边界只存在于本机表现层，不进入 `AuraCgScenePlan` 或 RPC。
 
-`SceneProfile` 属于 AuraToolsExp 的事件配置投影；共享层只理解其中的通用视觉字段。
+## 6. 程序组件
 
-```json
-{
-  "sceneId": "victory.standard",
-  "layoutProfileId": "AuraToolsExp:team-tableau.v2",
-  "poseChannel": "victory",
-  "motionProfileId": "AuraToolsExp:celebrate-soft.v1",
-  "backgroundAsset": {
-    "ownerModId": "AuraToolsExp",
-    "assetId": "event.background.victory.standard"
-  },
-  "foregroundAsset": {
-    "ownerModId": "AuraToolsExp",
-    "assetId": "event.foreground.victory.standard"
-  },
-  "safeFrame": {
-    "left": 0.06,
-    "right": 0.06,
-    "top": 0.08,
-    "bottom": 0.12
-  },
-  "fallbackLayoutProfileId": "AuraToolsExp:team-panels.v1",
-  "maximumParticipants": 8,
-  "showNameplates": true
-}
-```
+统一渲染器拥有且清理以下组件：
 
-`backgroundAsset` 是稳定逻辑槽位，不意味着必须存在位图。解析器没有返回图片时，组件
-渲染器使用程序主题。玩家本地配置只保存与默认值不同的字段；恢复默认即删除当前场景
-覆盖，不复制默认完整对象。
+- 64×64 程序渐变；
+- 可选背景的低透明 Envelope 叠层；
+- 主题洗色、共同舞台面、舞台细线和椭圆柔光；
+- 页眉/页脚细线、左右导轨和小型菱形纹样；
+- 左上标题块、右上参与人数信息；
+- 每名角色的落脚阴影、归一化角色层和低调姓名牌；
+- 仅在宽体回退时启用的深色面板与 `RectMask2D`。
 
-### 5.2 LayoutProfile
+这些简单几何保持代码原生和确定性，不依赖生成式位图。后续若增加复杂透明前景资源，必须
+先建立 owner-qualified foreground 协议；不得从共享渲染器硬编码 AuraToolsExp 私有路径。
 
-`LayoutProfile` 是共享规划器使用的版本化、只读构图资料。玩家不直接编辑。
+## 7. 生命周期和性能
 
-```json
-{
-  "profileId": "AuraToolsExp:team-tableau.v2",
-  "family": "adaptive-tableau",
-  "supportedParticipantCounts": [1, 2, 3, 4, 5, 6, 7, 8],
-  "wideAssetThreshold": 0.86,
-  "maximumOverlapRatio": 0.22,
-  "minimumVisibleHeight": 0.30,
-  "fallbackProfileId": "AuraToolsExp:team-panels.v1",
-  "templates": {
-    "4": ["arc-equal-a", "arc-equal-b"],
-    "6": ["stagger-3x3-a", "stagger-3x3-b"],
-    "8": ["stagger-4x4-a", "portrait-panels-8"]
-  }
-}
-```
+- `Image.sprite` 只在动画帧序号变化时赋值；
+- Alpha 边界只在资源首次绑定时分析，结果进入有界数值缓存；
+- 所有图形 `raycastTarget=false`，事件 CG 不阻塞原生 UI；
+- 嵌入预览 Lease 可以在 host 先销毁后安全 Dispose；销毁路径不再对已销毁 Image 写 Sprite；
+- 共享渲染器释放自己的程序 Texture/Sprite，角色媒体继续由 `AuraCgUnityMediaRepository`
+  所有；
+- 模块关闭、场景结束、战斗重开和设置页关闭都进入同一幂等清理路径。
 
-模板包含语义槽位：目标可见高度、落脚锚点、朝向、最大宽度、Z 层和标题避让区。模板不包含具体角色 ID。
+## 8. 网络与兼容
 
-### 5.3 RolePoseProfile
+网络计划继续使用 `AuraCgSceneProtocol v1`，携带：
 
-`RolePoseProfile` 由 owner-qualified 角色或皮肤资源提供。Alpha 边界允许写 `auto`，由资源缓存对整组帧计算联合可见边界。
+- `LayoutId`、`PresentationProfileId`；
+- 每个成员的位置、大小、ZIndex 和镜像；
+- owner-qualified 背景和角色层逻辑资源。
 
-```json
-{
-  "ownerModId": "Terrias",
-  "roleId": "Terrias_wuna_wuna",
-  "variantId": "default",
-  "poseChannel": "victory",
-  "assetId": "role.pose.victory",
-  "framing": {
-    "visibleBounds": "auto",
-    "groundAnchorX": 0.5,
-    "groundAnchorY": 0.96,
-    "facing": "right",
-    "bodyKind": "humanoid",
-    "preferredScale": 1.0
-  },
-  "animation": {
-    "loop": true,
-    "phasePolicy": "seat-offset",
-    "entranceClass": "soft"
-  }
-}
-```
+本轮没有把标题文本、Alpha 边界、面板判定、纹理或本地路径加入 RPC。共享 CG build id
+升级为 `aura-cg-shared-2026-08-28-v18`；协议版本不变。
 
-`bodyKind` 只允许通用视觉类别，例如 `humanoid`、`wide`、`floating`、`object`。它不携带 Terrias 或游戏主体语义。
+## 9. 迁移与删除
 
-## 6. 可见边界归一化
+最终运行时只保留一套队伍场景渲染：
 
-当前资源画布尺寸和透明边距差异很大，因此 v2 必须按联合 Alpha 边界映射角色：
+1. `team-tableau.v2` 是七个事件场景的唯一布局入口；
+2. 旧的每角色金色 Border/Plate/Ground 高柱构图已删除；
+3. 设置页和全屏播放复用同一 renderer；
+4. 单张 `DPS-CG.png` 默认背景和运行依赖保持退役；
+5. 不保留第二播放器、固定排名台阶或 DamageMeter 队伍筛选路径。
 
-1. 加载姿态的全部帧并计算联合 Alpha 包围盒；Alpha 阈值由共享层固定。
-2. 使用联合包围盒而不是单帧包围盒，避免动画过程中尺寸和位置跳动。
-3. 将联合包围盒的落脚点对齐槽位 `groundAnchor`。
-4. 以目标可见高度计算缩放，再应用 provider 的有限 `preferredScale`。
-5. 对 `wide`、`floating`、`object` 使用独立宽度与落脚约束。
-6. 缓存键包含 owner、资产 ID、内容哈希和姿态通道；资源更新后不得复用旧边界。
+## 10. 验证
 
-自动结果越界、可见面积过小或与标题重叠时，设置页显示警告并提供有限的“水平、垂直、缩放”二级调整，不公开原始裁切坐标。
+纯行为测试覆盖：
 
-## 7. 动画与无障碍
+- 1 至 8 人布局稳定且有界；
+- Alpha framing 的中心和落脚点计算；
+- 7/8 人宽体阈值与普通群像分支；
+- 开场、胜利和失败场景身份彼此独立；
+- v1 计划仍不携带本地表现数据。
 
-角色层使用确定性入场顺序和动画相位：
-
-- 入场延迟由场景、座位和事件 token 的稳定哈希计算；
-- 相同队伍在所有客户端保持相同节奏；
-- `Image.sprite` 只在帧序号变化时赋值；
-- 五人以上时后排禁用非必要角色特效；
-- 缺少专用动作时使用 Idle，但仍应用座位相位偏移；
-- “减少动态效果”关闭位移、缩放脉冲、循环前景和闪烁，仅保留淡入淡出；
-- 任何全屏闪烁都必须通过现有照片敏感性门禁。
-
-程序主题组件、可选背景叠层与动态角色层由一个共享 scene renderer 管理。全屏场景仍由
-一个共享 Overlay 生命周期所有，设置页嵌入模式只创建同一 renderer 的有界 host，不允许
-每个事件创建自己的播放器或 Canvas。
-
-## 8. 预览合同
-
-设置页中的 16:9 预览窗口使用共享 `AuraCgSceneRenderer` 的嵌入模式：
-
-```text
-AuraCgScenePlanner -> AuraCgScenePlan -> AuraCgSceneAssetResolver
-                   -> AuraCgSceneRenderer(hostRect)
-```
-
-全屏播放只是在同一渲染器上使用全屏 hostRect。预览不得重写构图公式或创建姓名占位版替身。
-
-预览提供以下设计测试输入：
-
-- 人数：1 至 8；
-- 事件：七种固定场景；
-- 画面：16:9、16:10、4:3、21:9；
-- 资源状态：完整、缺姿态、缺皮肤、宽体、非人形；
-- 动态：默认、减少动态效果。
-
-这些输入只服务预览与验收，不写入冒险队伍数据。
-
-## 9. 网络与协议
-
-P0 不升级 `AuraCgSceneProtocol v1`。现有计划已经携带：
-
-- `LayoutId`；
-- `PresentationProfileId`；
-- 每个成员的位置、大小、层级与镜像；
-- owner-qualified 背景和角色层逻辑资产。
-
-主机使用 v2 资料生成现有形状的处理后计划，接收端按计划展示。Alpha 边界、缓存结果、纹理和本地路径不进入 RPC。
-
-只有后续必须把“明确焦点成员、成对互动或独立前景资产”作为权威事件事实传输时，才设计 `AuraCgSceneProtocol v2`；不得为了本地渲染便利提前扩展网络载荷。
-
-## 10. 迁移与删除
-
-实施完成时必须一次性完成以下切换：
-
-1. 七个 AuraToolsExp 事件注册项已从 `team-stage.v1` 切换到 `team-tableau.v2`。
-2. 单一 `DPS-CG.png` 默认背景及发布资产已删除；旧配置中的该路径只作为一次性迁移输入
-   被消费为空的程序主题选择。
-3. `AuraCgTeamSceneLayout` 的 v1 固定排布已删除，替换为覆盖 1 至 8 人的确定性自适应布局。
-4. 设置页姓名方块假预览已删除，改为共享组件渲染器嵌入模式。
-5. 删除每帧无条件重复写入 Sprite 的路径。
-6. 配置若增加构图覆盖，则进行一次性 schema 迁移；不得长期保留两套 writer。
-
-## 11. 验证矩阵
-
-### 纯行为
-
-- 1 至 8 人每种人数都得到稳定布局；
-- 同输入重复规划得到字节等价的处理后计划；
-- 可见面积差、遮挡率、边界裁切和标题遮挡均在预算内；
-- 宽体与非人形资源触发面板回退；
-- 缺姿态、缺皮肤和缺资源按固定链路降级；
-- v1 网络计划仍不包含路径、图片、Alpha 边界或本地缓存键。
-
-### Unity 视觉
-
-- `1280x720` 与 `922x838`；
-- 16:9、16:10、4:3、21:9；
-- 开场、普通胜利、三种特殊胜利、失败、结算；
-- 1、2、3、4、6、8 人代表样本；
-- 默认与减少动态效果；
-- 非空像素、边界、安全区、遮挡和文本对比检查。
-
-### 性能
-
-- 记录每场 Sprite 实际赋值次数，不得按渲染帧无条件增长；
-- 记录背景 Canvas 和角色 Canvas rebuild；
-- 八人、每人二十四帧资源下验证峰值内存与释放；
-- 场景结束、战斗重开、模块关闭和退出冒险后无残留 Sprite、Material 或 Canvas。
-
-## 12. 实施顺序
-
-1. `RolePoseProfile`、联合 Alpha 边界缓存与姿态回退。
-2. `LayoutProfile`、人数模板和稳定评分器。
-3. `SceneProfile`、七套程序主题令牌和可选背景叠层。
-4. 统一 `AuraCgSceneRenderer`，切换全屏与嵌入预览。
-5. 动画相位、减少动态效果、Sprite 赋值与 Canvas 性能修复。
-6. 配置迁移、v1 删除、注册表切换、测试与发布物同步。
-
-每一步都必须成为最终架构的一部分；不保留临时第二播放器、临时网络字段或长期双布局路径。
-
-## 13. 调研依据
-
-- [FINAL FANTASY XIV Patch 6.3 portraits](https://na.finalfantasyxiv.com/lodestone/topics/detail/2ebebcdeedfecd2af0bf4cd5ce2d707e35f50d70)
-- [Splatoon 3 victory emotes](https://splatoon.nintendo.com/en/weapons/)
-- [Splatoon 3 update history](https://en-americas-support.nintendo.com/app/answers/detail/a_id/61257/)
-- [Knockout City victory and defeat poses](https://blog.playstation.com/?p=346625)
-- [Overwatch team-focused end flow](https://gameinformer.com/b/features/archive/2016/08/24/designing-overwatch-from-titan-to-torbjorn.aspx)
-- [Destiny 2 commendation accessibility](https://www.bungie.net/7/en/News/article/destiny-2-accessibility-set)
-- [Unity UI optimization](https://unity.com/how-to/unity-ui-optimization-tips)
-- [Xbox visual motion guideline](https://learn.microsoft.com/en-us/gaming/accessibility/xbox-accessibility-guidelines/117)
-- [Adobe automatic image cropping research](https://research.adobe.com/publication/automatic-image-cropping-using-visual-composition-boundary-simplicity-and-content-preservation-models/)
-- [Microsoft AutoCollage research](https://www.microsoft.com/en-us/research/publication/autocollage/)
+视觉原型覆盖 17 张截图，包括七类事件、1 至 8 人、`1280×720`、`922×838`、安全区和
+宽体肖像回退。Unity 运行验收还应检查：首次播放、设置页反复开关、全屏播放后下一原生
+界面可点击、角色尺寸一致，以及日志中不存在 `AuraCgSceneCompositionRenderer.Hide/Dispose`
+异常。

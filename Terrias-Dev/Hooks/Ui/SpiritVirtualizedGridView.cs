@@ -19,7 +19,6 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
     private Text? aptitudeText;
     private Text? markerText;
     private Image? elementIcon;
-    private Text? elementText;
     private Outline? outline;
     private GameObject? activeStamp;
     private GameObject? selectionBadge;
@@ -36,7 +35,6 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         Text nextAptitudeText,
         Text nextMarkerText,
         Image nextElementIcon,
-        Text nextElementText,
         Outline nextOutline,
         GameObject nextActiveStamp,
         GameObject nextSelectionBadge,
@@ -51,7 +49,6 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         aptitudeText = nextAptitudeText;
         markerText = nextMarkerText;
         elementIcon = nextElementIcon;
-        elementText = nextElementText;
         outline = nextOutline;
         activeStamp = nextActiveStamp;
         selectionBadge = nextSelectionBadge;
@@ -97,7 +94,7 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         if (levelText != null) { levelText.text = "Lv." + Math.Max(1, item?.Level ?? 1); levelText.color = primaryColor; }
         if (aptitudeText != null) { aptitudeText.text = aptitude ?? ""; aptitudeText.color = nameColor; }
         if (markerText != null) { markerText.text = marker ?? ""; markerText.color = markerColor; }
-        SpiritElementUi.Bind(elementIcon, elementText, item?.ElementId ?? "");
+        SpiritElementUi.BindIcon(elementIcon, item?.ElementId ?? "");
         if (outline != null) { outline.enabled = outlined; outline.effectColor = outlineColor; }
         if (selectionBadge != null) selectionBadge.SetActive(selected);
         if (activeStamp != null) activeStamp.SetActive(active);
@@ -127,7 +124,6 @@ internal sealed class SpiritManagementCellView : TerriasPooledUiBehaviour
         spiritUid = "";
         if (portrait != null) portrait.sprite = null;
         if (elementIcon != null) { elementIcon.sprite = null; elementIcon.color = Color.clear; }
-        if (elementText != null) elementText.text = "";
         if (outline != null) outline.enabled = false;
         if (selectionBadge != null) selectionBadge.SetActive(false);
         if (activeStamp != null) activeStamp.SetActive(false);
@@ -156,6 +152,7 @@ internal sealed class SpiritVirtualizedGridView : MonoBehaviour
     private int columns;
     private int firstVisibleRow = -1;
     private bool released;
+    private readonly SpiritVirtualGridRefreshState refreshState = new();
 
     public int ActiveCellCount => cells.Count;
 
@@ -179,6 +176,7 @@ internal sealed class SpiritVirtualizedGridView : MonoBehaviour
         bindCell = nextBindCell;
         scroll.onValueChanged.AddListener(OnScroll);
         released = false;
+        refreshState.Reset();
     }
 
     public void SetItems(IEnumerable<SpiritInstance>? values, bool resetScroll)
@@ -224,6 +222,7 @@ internal sealed class SpiritVirtualizedGridView : MonoBehaviour
     {
         if (released) return;
         released = true;
+        refreshState.Reset();
         if (scroll != null) scroll.onValueChanged.RemoveListener(OnScroll);
         foreach (var cell in cells)
         {
@@ -235,24 +234,37 @@ internal sealed class SpiritVirtualizedGridView : MonoBehaviour
 
     private void OnRectTransformDimensionsChange()
     {
-        if (released) return;
-        EnsurePool();
-        firstVisibleRow = -1;
-        RefreshVisible(force: true);
+        if (released || viewport == null) return;
+        var size = viewport.rect.size;
+        if (!refreshState.ObserveViewport(size.x, size.y)) return;
+        ScheduleRefresh(force: true);
     }
 
     private void OnDestroy() => Release();
 
     private void OnScroll(Vector2 _)
     {
-        var key = "SpiritVirtualGrid.Scroll." + GetInstanceID();
-        if (!TerriasFrameScheduler.RunOnceNextFrame(key, () =>
+        ScheduleRefresh(force: false);
+    }
+
+    private void ScheduleRefresh(bool force)
+    {
+        if (released || viewport == null || content == null || !refreshState.Request(force)) return;
+        var key = "SpiritVirtualGrid.Refresh." + GetInstanceID();
+        if (TerriasFrameScheduler.RunOnceNextFrame(key, () =>
             {
-                if (this != null && !released) RefreshVisible();
+                if (this == null || released) return;
+                var forceRefresh = refreshState.Drain();
+                if (forceRefresh) firstVisibleRow = -1;
+                RefreshVisible(forceRefresh);
             }))
         {
-            RefreshVisible();
+            return;
         }
+        refreshState.Cancel();
+        TerriasLog.WarnOnce(
+            "SpiritVirtualGrid.Refresh.ScheduleRejected",
+            "Spirit roster grid could not schedule its layout-safe next-frame refresh.");
     }
 
     private void EnsurePool()

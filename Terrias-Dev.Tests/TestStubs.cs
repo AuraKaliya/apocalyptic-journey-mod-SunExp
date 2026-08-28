@@ -243,8 +243,51 @@ namespace UnityEngine
     {
     }
 
+    public sealed class Sprite
+    {
+    }
+
     public sealed class Transform
     {
+    }
+}
+
+namespace Witch
+{
+    public sealed class GameRuntimeData
+    {
+        private int truth;
+
+        public Dictionary<string, string> Variables = new(StringComparer.Ordinal);
+
+        public int Truth
+        {
+            get => truth;
+            set
+            {
+                if (truth == value) return;
+                truth = value;
+                Save();
+            }
+        }
+
+        public int SaveCount { get; private set; }
+
+        public bool ThrowOnSave { get; set; }
+
+        public void Save()
+        {
+            SaveCount++;
+            if (ThrowOnSave) throw new System.IO.IOException("simulated account save failure");
+        }
+
+        public void Reset(int balance)
+        {
+            truth = balance;
+            Variables = new Dictionary<string, string>(StringComparer.Ordinal);
+            SaveCount = 0;
+            ThrowOnSave = false;
+        }
     }
 }
 
@@ -744,6 +787,15 @@ namespace Terrias.Dll.GameApi
 
 namespace Terrias.Dll.Infrastructure
 {
+    public static class TerriasResourceCache
+    {
+        public static T? Load<T>(string path, bool warnIfMissing, string purpose)
+            where T : class
+        {
+            return null;
+        }
+    }
+
     public static class TerriasLog
     {
         public static void Warn(string message)

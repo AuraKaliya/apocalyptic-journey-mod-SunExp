@@ -330,7 +330,9 @@ payload 中的 issuer、owner 或 actor 不能用于授权。重试使用同一 
 - `FightUI.DoCardUseAnimation`、`CallActionAnimation`、`DOActionAnimation`；
 - `ActionCommandBase.Execute` 的远端公开命令；
 - status command、`StatusDataTransfer.Populate`、Buff/变量和实体索引观察；
-- `FightManager.Update` 完成 `ProcessQueuedEvents` 与 `SyncChangedStatusData` 后的稳定屏障。
+- card/skill/intent source 完成、权威 status 到达、必需资产完成和战斗生命周期边界提交的
+  稳定屏障请求。请求由 `AuraSharedFrameScheduler` 按 record owner/key 合并到下一帧执行；
+  Recording 不再 Hook `FightManager.Update`，空闲帧不得扫描完整战斗状态。
 
 这些类型和方法只允许出现在 Recording/native-observer 边界。Playback 项目不得引用它们。
 
@@ -346,8 +348,10 @@ skill 或 intent 事务，协调器从原生 executor/status、允许的 provena
 `ReplayCausalContext` 和显式稳定屏障归属，而不是仅凭相邻帧猜测。
 
 该规则覆盖使用游戏主体表现接口、但不经过玩家 `TrueUse` 的 Partner 或内容 MOD。它不是
-Terrias 特例，投影只是该规则的验收样本。若两个开放事务的事实无法确定唯一归属，记录
-必须成为 `Rejected: ambiguous-causal-ownership`，不得按时间接近程度猜测。
+Terrias 特例，投影只是该规则的验收样本。无法绑定到唯一开放事务的表现事实仍必须成为
+`Rejected: ambiguous-causal-ownership`，不得按时间接近程度猜测。多个已经完成的并列源事务
+可以在同一个显式稳定屏障中一起关闭：源事务结束时已经捕获各自直接状态；下一帧才出现的
+残余公共状态由独立 `Passive/StableBarrier` 系统事务承接，不伪造为任意一个兄弟事务的状态。
 
 ### 7.4 收口条件
 
@@ -362,9 +366,18 @@ Terrias 特例，投影只是该规则的验收样本。若两个开放事务的
 6. 必需表现消息、portable descriptors 和资产均已封存或验证上传完成。
 
 未完成事务由 `CanonicalTransactionLedger` 持久追踪。owner 是 host replay authority；drain
-trigger 是 server end-of-update、缺失事实/资产到达或 `BattleFinalized`。终局仍未完成时写
+trigger 是合并后的事件驱动稳定屏障、缺失事实/资产到达或 `BattleFinalized`。联机能力收据
+通过 capability-changed 事件唤醒延迟基线提交，不依赖逐帧轮询。终局仍未完成时写
 `TransactionAborted` 并使整份结构化记录成为 `Rejected`，不能制造默认动画、空目标或合并
 终态来通过验证。
+
+### 7.5 性能不变量
+
+- Recording 不注册 `FightManager.Update` 或其它逐帧完整状态观察器；
+- 同一帧的多个动作、权威状态和资产完成请求合并为一次稳定屏障；
+- 稳定屏障只在存在责任时捕获公共状态，空闲战斗帧分配量为零；
+- 每场记录输出 requests、runs、stateChanges、totalMs 和 maxMs，单次超过 8ms 输出有界慢日志；
+- JSON 规范化、哈希、压缩和数据库写入继续在不可变快照离开主线程后执行。
 
 ## 8. 联机权威与复制
 

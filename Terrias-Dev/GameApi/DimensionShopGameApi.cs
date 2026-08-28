@@ -20,8 +20,6 @@ namespace Terrias.Dll.GameApi;
 
 public static class DimensionShopGameApi
 {
-    private const string TruthCurrencyResourcePath = "Icon/UI_Icons/Native/Icon/\u771f\u7406\u4e4b\u6676";
-    private const string TruthCurrencyFallbackResourcePath = "Icon/\u6210\u5c31/\u771f\u7406\u4e4b\u6676";
     private static readonly object RolePersistGate = new();
     private static bool rolePersistPending;
     private static string pendingRolePersistSource = "";
@@ -40,57 +38,17 @@ public static class DimensionShopGameApi
 
     public static int TruthBalance()
     {
-        try
-        {
-            var runtime = Singleton<GameRuntimeData>.Instance;
-            return runtime == null ? 0 : runtime.Truth;
-        }
-        catch
-        {
-            return 0;
-        }
+        return TruthCurrencyApi.Balance();
     }
 
     public static bool TrySpendTruth(int amount)
     {
-        amount = Math.Max(0, amount);
-        try
-        {
-            var runtime = Singleton<GameRuntimeData>.Instance;
-            if (runtime == null || runtime.Truth < amount)
-            {
-                return false;
-            }
-
-            runtime.Truth -= amount;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[DimensionShopGameApi] truth spend failed: " + ex.Message);
-            return false;
-        }
+        return TruthCurrencyApi.TrySpend(amount);
     }
 
     public static void RefundTruth(int amount)
     {
-        if (amount <= 0)
-        {
-            return;
-        }
-
-        try
-        {
-            var runtime = Singleton<GameRuntimeData>.Instance;
-            if (runtime != null)
-            {
-                runtime.Truth += amount;
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Error("[DimensionShopGameApi] truth refund failed", ex);
-        }
+        TruthCurrencyApi.Refund(amount);
     }
 
     public static bool TryGrantCardToReserve(string cardId, out string error)
@@ -246,22 +204,7 @@ public static class DimensionShopGameApi
 
     public static Sprite? TruthCurrencySprite()
     {
-        try
-        {
-            return TerriasResourceCache.Load<Sprite>(
-                TruthCurrencyResourcePath,
-                loadFromMod: false,
-                category: "dimension.shop.truth.currency")
-                   ?? TerriasResourceCache.Load<Sprite>(
-                       TruthCurrencyFallbackResourcePath,
-                       loadFromMod: false,
-                       category: "dimension.shop.truth.currency.fallback");
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[DimensionShopGameApi] truth currency icon lookup failed: " + ex.Message);
-            return null;
-        }
+        return TruthCurrencyApi.CurrencySprite();
     }
 
     public static bool ShowCardSellMenu(Transform anchor, string label, Action sell)

@@ -6,6 +6,48 @@
       "id": "solar_memory.event_map_card",
       "path": "Mods/Terrias/ModResource/Images/MapNode/日耀回忆-事件.png",
       "enabled": true
+    },
+    {
+      "id": "spirit.artifact.wish.background",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/splash-background-runtime",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.wish.result-card",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/resultcard-bg-runtime",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.empty.flower",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/空素材/生之花.png",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.empty.plume",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/空素材/死之羽.png",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.empty.sands",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/空素材/时之沙.png",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.empty.goblet",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/空素材/空之杯.png",
+      "enabled": true
+    },
+    {
+      "id": "spirit.artifact.empty.circlet",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/空素材/理之冠.png",
+      "enabled": true
+    }
+  ],
+  "videos": [
+    {
+      "id": "spirit.artifact.wish.video",
+      "path": "Mods/Terrias/ModResource/Images/Artifacts/祈愿动画-runtime.mp4",
+      "enabled": true
     }
   ],
   "modeEntries": [

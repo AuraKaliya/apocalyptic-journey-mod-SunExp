@@ -406,25 +406,43 @@ internal static class AuraCgAdaptiveTeamLayout
         var profile = (presentationProfileId ?? "").ToLowerInvariant();
         var verticalOffset = profile.Contains("defeat")
             ? -0.04f
-            : profile.Contains("opening") ? 0.02f : 0f;
+            : profile.Contains("opening") ? 0.025f
+            : profile.Contains("settlement") ? 0.01f : 0f;
+        var heightScale = profile.Contains("defeat") ? 0.94f : 1f;
 
         var result = new List<AuraCgTeamSceneSlot>(count);
         if (count == 1)
         {
-            result.Add(Slot(0.5f, 0.47f + verticalOffset, 0.46f, 0.84f, 10));
+            result.Add(Slot(0.5f, 0.50f + verticalOffset, 0.42f, 0.78f * heightScale, 10));
             return result;
         }
 
-        if (count <= 4)
+        if (count == 2)
         {
-            AddArc(result, count, 0.47f + verticalOffset, count == 2 ? 0.34f : 0.28f, 0.75f, 10);
+            AddArc(result, count, 0.45f + verticalOffset, 0.32f, 0.70f * heightScale, 10);
+            return result;
+        }
+
+        if (count == 3)
+        {
+            AddArc(result, count, 0.43f + verticalOffset, 0.30f, 0.66f * heightScale, 10);
+            return result;
+        }
+
+        if (count == 4)
+        {
+            AddArc(result, count, 0.42f + verticalOffset, 0.24f, 0.62f * heightScale, 10);
             return result;
         }
 
         var frontCount = count <= 6 ? 3 : 4;
         var backCount = count - frontCount;
-        AddRow(result, frontCount, 0.40f + verticalOffset, frontCount == 3 ? 0.27f : 0.23f, 0.66f, 10);
-        AddRow(result, backCount, 0.64f + verticalOffset, backCount <= 3 ? 0.24f : 0.21f, 0.52f, 0);
+        var frontWidth = frontCount == 3 ? 0.25f : 0.205f;
+        var frontHeight = count <= 6 ? 0.50f : 0.46f;
+        var backWidth = backCount <= 2 ? 0.23f : backCount == 3 ? 0.21f : 0.19f;
+        var backHeight = count <= 6 ? 0.38f : 0.36f;
+        AddRow(result, frontCount, 0.31f + verticalOffset, frontWidth, frontHeight * heightScale, 20);
+        AddRow(result, backCount, 0.70f + verticalOffset, backWidth, backHeight * heightScale, 0);
         return result;
     }
 

@@ -9,6 +9,7 @@ public static class SpiritBattleDeploymentService
     private static readonly object SyncRoot = new();
     private static List<string> partyUids = new();
     private static SpiritInstance? active;
+    private static SpiritArtifactBattleSnapshot activeArtifacts = new();
     private static string deploymentToken = "";
     private static string battleToken = "";
     private static int battleExperience;
@@ -28,6 +29,9 @@ public static class SpiritBattleDeploymentService
                 && byUid.TryGetValue(activeUid, out var selected)
                     ? selected.Clone()
                     : null;
+            activeArtifacts = active == null
+                ? new SpiritArtifactBattleSnapshot()
+                : SpiritArtifactLoadoutResolver.Resolve(collection, active).Battle;
             deploymentToken = active == null ? "" : epoch + ":" + active.SpiritUid + ":" + Guid.NewGuid().ToString("N");
             battleToken = "spirit-xp:" + epoch + ":" + Guid.NewGuid().ToString("N");
             battleExperience = Math.Max(0, experienceReward);
@@ -63,6 +67,7 @@ public static class SpiritBattleDeploymentService
             snapshot.LoadoutRevision = active.LoadoutRevision;
             snapshot.LoadoutHash = active.LoadoutHash;
             snapshot.TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
+            snapshot.ArtifactBattle = activeArtifacts.Clone();
             snapshot.DeploymentToken = deploymentToken;
             return snapshot;
         }
@@ -77,12 +82,22 @@ public static class SpiritBattleDeploymentService
 
         var profile = SpiritIntentRegistry.ResolveProfileIdentity(snapshot.ProfileId, snapshot.ProfileKey).Profile;
         var stats = CompanionStatsService.SpiritStats(snapshot, profile);
-        return new SpiritCardBattleState
+        var result = new SpiritCardBattleState
         {
             MaxHp = stats.MaxHp,
             CurrentHp = stats.MaxHp,
             CurrentMagic = stats.MaxMagic
         };
+        if (snapshot.ArtifactBattle?.StartExtraordinary > 0)
+        {
+            result.VisibleStatuses.Add(new SpiritVisibleStatusSnapshot
+            {
+                Kind = "Buff",
+                Id = Terrias.Dll.Infrastructure.TerriasIds.Extraordinary,
+                Stacks = snapshot.ArtifactBattle.StartExtraordinary
+            });
+        }
+        return result;
     }
 
     public static bool CanSummon(CapturedEnemySnapshot snapshot, string ownerStatusId, bool acceptRemotePayload, out string reason)
@@ -103,6 +118,10 @@ public static class SpiritBattleDeploymentService
                 return false;
             }
             if (!SpiritElementService.ValidateDeploymentSnapshot(snapshot, out reason))
+            {
+                return false;
+            }
+            if (!SpiritArtifactLoadoutResolver.ValidateBattleSnapshot(snapshot.ArtifactBattle, out reason))
             {
                 return false;
             }
@@ -143,6 +162,7 @@ public static class SpiritBattleDeploymentService
         {
             partyUids.Clear();
             active = null;
+            activeArtifacts = new SpiritArtifactBattleSnapshot();
             deploymentToken = "";
             battleToken = "";
             battleExperience = 0;

@@ -71,6 +71,11 @@ public static class CompanionIntentExecutor
                     .Append('=').Append(snapshot.DisplayText)
                     .Append("/base=").Append(snapshot.AuthoritativeValue)
                     .Append("/handler=").Append(snapshot.HandlerId);
+                if (effect.ArtifactDamageBonusBasisPoints > 0)
+                {
+                    diagnostic.Append("/preArtifact=").Append(effect.PreArtifactValue)
+                        .Append("/artifactBps=").Append(effect.ArtifactDamageBonusBasisPoints);
+                }
                 if (snapshot.RepeatCount > 1)
                 {
                     diagnostic.Append("/hits=").Append(snapshot.RepeatCount);

@@ -178,6 +178,25 @@ internal static partial class AuraToolsTestSuite
         Assert(ledger.OpenCount == 0,
             "an explicitly aborted native skill cannot leak an open replay ledger entry");
 
+        ledger.Begin("sibling-a", ReplayTransactionKindsV12.Card, "player", "card-a");
+        ledger.Begin("sibling-b", ReplayTransactionKindsV12.Skill, "player", "skill-b");
+        ledger.MarkSourceCompleted("sibling-a", 6);
+        ledger.MarkSourceCompleted("sibling-b", 6);
+        var siblingReady = ledger.ObserveStableBarrier(6);
+        Assert(siblingReady.SequenceEqual(new[] { "sibling-a", "sibling-b" }),
+            "one explicit stable barrier drains completed sibling actions without guessing a unique state owner");
+        ledger.Complete("sibling-a");
+        ledger.Complete("sibling-b");
+
+        var barrierCoordinator = new ReplayStableBarrierCoordinatorV12();
+        Assert(barrierCoordinator.Request("card-completed", needsStateCapture: true)
+               && !barrierCoordinator.Request("skill-completed", needsStateCapture: true)
+               && barrierCoordinator.TryTake(out var barrierBatch)
+               && barrierBatch.CaptureState
+               && barrierBatch.Reasons.SequenceEqual(new[] { "card-completed", "skill-completed" })
+               && barrierCoordinator.Request("next-action", needsStateCapture: false),
+            "stable-barrier requests coalesce within one frame and reopen only after the scheduled batch drains");
+
         var checkpoint = envelope.Document.TruthCheckpoints.First();
         var seekReducer = new ReplayStateReducerV12();
         var checkpointTruthSequence = envelope.Document.TruthEvents

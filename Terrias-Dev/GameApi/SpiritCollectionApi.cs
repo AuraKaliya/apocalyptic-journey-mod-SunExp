@@ -209,23 +209,39 @@ public static class SpiritCollectionApi
 
     public static SpiritOriginVector Origins(SpiritInstance instance)
     {
-        return SpiritAscensionService.EffectiveOrigins(instance);
+        return SpiritArtifactStatService.AddOrigins(
+            SpiritAscensionService.EffectiveOrigins(instance),
+            ArtifactBattleFor(instance));
     }
 
     public static CompanionStats Stats(SpiritInstance instance)
     {
         var profile = SpiritGrowthRegistry.Resolve(instance);
-        return SpiritAscensionService.ApplyStarBonus(SpiritGrowthService.BattleStats(
-            profile,
-            SpiritAscensionService.EffectiveOrigins(instance),
-            SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot.ProfileKey),
-            instance.Speed),
-            SpiritAscensionService.StarRankFor(instance.GuiyuanValue));
+        var artifacts = ArtifactBattleFor(instance);
+        return SpiritArtifactStatService.ApplyFlatBattleStats(
+            SpiritAscensionService.ApplyStarBonus(SpiritGrowthService.BattleStats(
+                    profile,
+                    SpiritArtifactStatService.AddOrigins(SpiritAscensionService.EffectiveOrigins(instance), artifacts),
+                    SpiritIntentRegistry.ProfileForIdentity(instance.ProfileId, instance.Snapshot.ProfileKey),
+                    instance.Speed),
+                SpiritAscensionService.StarRankFor(instance.GuiyuanValue)),
+            artifacts);
     }
 
-    public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance) => SpiritGrowthQueryService.Build(instance);
+    public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance)
+        => SpiritGrowthQueryService.Build(instance, ArtifactBattleFor(instance));
 
     public static SpiritTrainingViewSnapshot TrainingView(SpiritInstance instance) => SpiritTrainingService.BuildView(instance);
+
+    private static SpiritArtifactBattleSnapshot ArtifactBattleFor(SpiritInstance instance)
+    {
+        if (instance == null || !EnsureProfileBound() || !SpiritArtifactRegistry.IsReady)
+            return new SpiritArtifactBattleSnapshot();
+        var collection = SpiritCollectionService.Snapshot();
+        var persisted = collection.Instances.FirstOrDefault(value =>
+            string.Equals(value.SpiritUid, instance.SpiritUid, StringComparison.Ordinal)) ?? instance;
+        return SpiritArtifactLoadoutResolver.Resolve(collection, persisted).Battle;
+    }
 
     public static bool EquipIntent(string uid, int slotIndex, string intentId)
         => EnsureProfileBound() && SpiritCollectionService.EquipIntent(uid, slotIndex, intentId);
@@ -502,6 +518,8 @@ public static class SpiritCollectionApi
             }
         }
     }
+
+    internal static bool EnsureProfileBoundForArtifact() => EnsureProfileBound();
 
     private static void EnsureInitialRosterCatalogListener()
     {

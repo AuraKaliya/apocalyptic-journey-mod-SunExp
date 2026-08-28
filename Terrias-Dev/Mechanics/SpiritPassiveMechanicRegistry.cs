@@ -532,6 +532,11 @@ public static class SpiritVisibleStatusService
                 ? SpiritPassiveMechanicRegistry.VisibleStatus(state, passive)
                 : new SpiritVisibleStatusSnapshot { Kind = "Mechanic", Id = passive.Id });
         }
+        if (state != null && result.Count < SpiritSystemContract.MaximumVisibleStatuses)
+        {
+            result.AddRange(SpiritArtifactBattleRuntime.VisibleStatuses(state)
+                .Take(SpiritSystemContract.MaximumVisibleStatuses - result.Count));
+        }
         return result.Take(SpiritSystemContract.MaximumVisibleStatuses).Select(item => item.Clone()).ToArray();
     }
 }

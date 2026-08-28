@@ -279,6 +279,30 @@ for (var count = 1; count <= AuraCgSceneProtocol.MaximumParticipants; count++)
         "adaptive team tableau remains deterministic and bounded for participant count " + count);
 }
 
+var normalizedFraming = AuraCgSceneFramingMath.FitVisibleBounds(
+    new AuraCgNormalizedBounds(0.20f, 0.10f, 0.50f, 0.80f),
+    1000f,
+    1000f,
+    250f,
+    500f);
+Assert(Near(normalizedFraming.ImageWidth, 500f)
+       && Near(normalizedFraming.ImageHeight, 500f)
+       && Near(normalizedFraming.OffsetX, 25f)
+       && Near(normalizedFraming.OffsetY, -50f),
+    "visible-bounds framing centers opaque pixels and aligns their lower edge instead of scaling transparent canvas margins");
+Assert(!AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(8, Enumerable.Repeat(0.55f, 8))
+       && AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(8, new[] { 0.55f, 1.05f })
+       && !AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(6, new[] { 1.20f }),
+    "seven-to-eight member scenes keep the tableau unless a wide asset requires the bounded portrait-panel fallback");
+var openingIdentity = AuraCgSceneProfileIdentity.Resolve("opening", "battle-opening");
+var defeatIdentity = AuraCgSceneProfileIdentity.Resolve("defeat", "battle-defeat");
+var victoryIdentity = AuraCgSceneProfileIdentity.Resolve("default", "victory.standard");
+Assert(openingIdentity.Title == "战斗开场"
+       && defeatIdentity.Title == "战斗失败"
+       && victoryIdentity.Title == "普通胜利"
+       && openingIdentity.Id != defeatIdentity.Id,
+    "scene profiles expose distinct player-facing hierarchy for opening, victory, and defeat grammars");
+
 var sceneEntry = new AuraCgRegistryEntry
 {
     OwnerModId = "AuraToolsExp",
