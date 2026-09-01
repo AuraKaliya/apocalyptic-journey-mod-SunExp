@@ -1399,6 +1399,18 @@ public static class CombatPlayerObservationBoundary
         return result;
     }
 
+    /// <summary>
+    /// Re-sanitizes a normalized, exclusively owned observation after semantic
+    /// and strategy providers have enriched it. This is deliberately not a
+    /// general normalization entry point: callers must not pass shared or raw
+    /// host state because the method mutates the supplied graph in place.
+    /// </summary>
+    public static CombatStateObservation FinalizePreparedOwned(
+        CombatStateObservation owned)
+    {
+        return FinalizeOwnedSimulationProjection(owned);
+    }
+
     public static PlayerCombatObservation Wrap(CombatStateObservation state)
     {
         var normalized = Normalize(state);

@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using AuraToolsExp.Dll.Infrastructure;
 using UiTransitionGuardShared;
+using UnityEngine;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
@@ -24,33 +26,17 @@ internal static class MatchReplayLaunchCoordinator
             return;
         }
 
-        var originCommitted = false;
-        try
+        var transition = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
+            CommitAfterRenderBarrier(
+                returnState,
+                export: false,
+                started: null,
+                failed));
+        if (transition == null)
         {
-            MatchReplayReturnCoordinator.Arm(returnState);
-            MatchReplayPlayer.CommitOrigin();
-            originCommitted = true;
-            UiTransitionGuardRuntime.BeginTransition(
-                null,
-                AuraToolsIds.ModId,
-                "Match replay launch commit",
-                8);
-            MatchReplayUiLifecycle.CloseOriginUi("Match replay launch commit");
-            UiTransitionGuardRuntime.RunAfterGuard(
-                null,
-                AuraToolsIds.ModId,
-                "Match replay launch activate",
-                () => MatchReplayPlayer.TryActivatePrepared(out _),
-                2);
-        }
-        catch (Exception ex)
-        {
-            var detail = "无法提交回放界面切换：" + ex.Message;
-            MatchReplayPlayer.FailCommittedStart(detail);
-            if (!originCommitted)
-            {
-                failed?.Invoke(detail);
-            }
+            const string detail = "无法调度回放主渲染帧确认。";
+            MatchReplayPlayer.FailPreparedStart(detail);
+            failed?.Invoke(detail);
         }
     }
 
@@ -71,22 +57,50 @@ internal static class MatchReplayLaunchCoordinator
             return false;
         }
 
+        var transition = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
+            CommitAfterRenderBarrier(
+                returnState,
+                export: true,
+                started,
+                failed));
+        if (transition == null)
+        {
+            message = "无法调度视频导出的主渲染帧确认。";
+            MatchReplayPlayer.FailPreparedStart(message);
+            failed?.Invoke(message);
+            return false;
+        }
+        message = "回放首帧已生成，正在等待游戏主渲染帧确认。";
+        return true;
+    }
+
+    private static IEnumerator CommitAfterRenderBarrier(
+        MatchRecordLibraryViewState returnState,
+        bool export,
+        Action? started,
+        Action<string>? failed)
+    {
+        yield return new WaitForEndOfFrame();
+        if (!MatchReplayPlayer.TryConfirmPreparedRenderBarrier(out var barrierMessage))
+        {
+            MatchReplayPlayer.FailPreparedStart(barrierMessage);
+            failed?.Invoke(barrierMessage);
+            yield break;
+        }
+
         var originCommitted = false;
         try
         {
             MatchReplayReturnCoordinator.Arm(returnState);
             MatchReplayPlayer.CommitOrigin();
             originCommitted = true;
-            UiTransitionGuardRuntime.BeginTransition(
-                null,
-                AuraToolsIds.ModId,
-                "Match replay video export commit",
-                8);
-            MatchReplayUiLifecycle.CloseOriginUi("Match replay video export commit");
+            var source = export ? "Match replay video export commit" : "Match replay launch commit";
+            UiTransitionGuardRuntime.BeginTransition(null, AuraToolsIds.ModId, source, 8);
+            MatchReplayUiLifecycle.CloseOriginUi(source);
             UiTransitionGuardRuntime.RunAfterGuard(
                 null,
                 AuraToolsIds.ModId,
-                "Match replay video export activate",
+                export ? "Match replay video export activate" : "Match replay launch activate",
                 () =>
                 {
                     if (!MatchReplayPlayer.TryActivatePrepared(out var activation))
@@ -94,22 +108,16 @@ internal static class MatchReplayLaunchCoordinator
                         failed?.Invoke(activation);
                         return;
                     }
-
                     started?.Invoke();
                 },
                 2);
-            message = "回放视图已准备，正在进入视频导出。";
-            return true;
         }
         catch (Exception ex)
         {
-            message = "无法提交视频导出界面切换：" + ex.Message;
-            MatchReplayPlayer.FailCommittedStart(message);
-            if (!originCommitted)
-            {
-                failed?.Invoke(message);
-            }
-            return false;
+            var detail = (export ? "无法提交视频导出界面切换：" : "无法提交回放界面切换：")
+                         + ex.Message;
+            MatchReplayPlayer.FailCommittedStart(detail);
+            if (!originCommitted) failed?.Invoke(detail);
         }
     }
 

@@ -65,7 +65,7 @@ AuraCombatAI/
 
 转移审计至少有一个完整且 ID 唯一的 case，并且必须满足：相同压缩状态和动作不能因被省略的完整状态而产生不同下一压缩状态、下一完整状态、结果或结算；实机结算哈希必须等于模拟结算哈希。完整状态哈希应基于决策相关的规范状态生成，不包含纯表现字段。失败包可以提供知识，但不能进入底模合并与训练。
 
-训练 Episode 由所在 package manifest 及其 SHA-256 授权。AuraTools 读取后会重新计算动作 owner，并在内存中绑定本次合并后的 `ContentSetHash`、`OwnerModSetHash` 与 `RulesetHash`，再随 schema 14 Worker 任务送入底模 replay。源文件不应预填最终 `ContentSetHash`，否则会形成“文件摘要参与集合哈希、文件内容又引用集合哈希”的循环。任一已声明训练文件为空、行损坏、owner 未注册或 Episode 不完整，整次底模训练都会拒绝启动。单文件上限 128 MiB，内容集合总上限 256 MiB/8192 条 Episode。`authoritativeContentReplayShare` 默认 `0.20`、可在高级训练设置中调到 `0..0.50`，用于保证注册语料不会被大规模自博弈 replay 完全挤出。
+训练 Episode 由所在 package manifest 及其 SHA-256 授权。AuraTools 读取后会重新计算动作 owner，并在内存中绑定本次合并后的 `ContentSetHash`、`OwnerModSetHash` 与 `RulesetHash`，再随 schema 17 Worker 任务送入底模 replay。源文件不应预填最终 `ContentSetHash`，否则会形成“文件摘要参与集合哈希、文件内容又引用集合哈希”的循环。任一已声明训练文件为空、行损坏、owner 未注册或 Episode 不完整，整次底模训练都会拒绝启动。单文件上限 128 MiB，内容集合总上限 256 MiB/8192 条 Episode。`authoritativeContentReplayShare` 默认 `0.20`、可在高级训练设置中调到 `0..0.50`，用于保证注册语料不会被大规模自博弈 replay 完全挤出。
 
 ### 内容低秩适配器
 
@@ -92,7 +92,7 @@ AuraTools 对激活包按 owner/package 排序，使用规范化后的依赖、�
 
 ```text
 AuraShared/Data/AuraToolsExp/AuraCombatAI/Datasets/Live/<ContentSetHash>/
-  auto-battle-training-v7.jsonl
+  auto-battle-training-v9.jsonl
   live-combat-episodes-v5.jsonl
   journey-episodes-v1.jsonl
 ```

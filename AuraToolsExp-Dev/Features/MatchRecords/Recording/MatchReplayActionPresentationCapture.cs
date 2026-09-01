@@ -9,8 +9,6 @@ internal sealed class MatchReplayActionPresentationState
 {
     public string ActorAnimationState { get; set; } = "";
     public string EffectName { get; set; } = "";
-    public int EffectDelayMilliseconds { get; set; } = 50;
-    public int PresentationDurationMilliseconds { get; set; } = 1040;
     public List<MatchReplayTargetPresentationState> Targets { get; set; } = new();
 }
 
@@ -47,9 +45,7 @@ internal static class MatchReplayActionPresentationCapture
                 Read(executor.dataConfig?.data, "Action")),
             EffectName = First(
                 Read(executor.dataConfig?.Vars, "Effects"),
-                Read(executor.dataConfig?.data, "Effects")),
-            EffectDelayMilliseconds = 50,
-            PresentationDurationMilliseconds = 1040
+                Read(executor.dataConfig?.data, "Effects"))
         };
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var target in (executor.Object ?? new List<IStatusManager>())

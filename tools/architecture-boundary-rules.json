@@ -259,27 +259,27 @@
           "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
         },
         {
-          "id": "replay-v11-core-purity",
-          "description": "Replay v11 models, canonical hashing, validation, and projection must remain pure .NET.",
-          "roots": ["AuraToolsExp-Dev/Features/MatchRecords/Replay/Core"],
+          "id": "replay-v17-core-purity",
+          "description": "Replay v17 visible-state and resolved-instruction contracts, canonical hashing, validation, and reduction must remain pure .NET.",
+          "roots": ["AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core"],
           "filePattern": "*.cs",
           "deny": [
             "using\\s+UnityEngine",
             "using\\s+Witch",
             "using\\s+Mirror",
-            "using\\s+System\\.IO",
             "using\\s+System\\.Diagnostics"
           ]
         },
         {
-          "id": "replay-v11-native-view-containment",
-          "description": "Native replay may build presentation-only FightUI objects but must not execute gameplay, RPC, AI, or network-host lifecycles.",
+          "id": "replay-v17-isolated-native-presentation",
+          "description": "Replay may instantiate sanitized native presentation prefabs, but must not initialize FightUI/FightInit gameplay, scripts, RPC, AI, rewards, or network-host lifecycles.",
           "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
           "filePattern": "*.cs",
           "deny": [
             "StartLocalHost",
             "RpcLoadRoles",
             "new\\s+FightInit\\s*\\(",
+            "ReplayPov|ReplayNativeSurface|AuraReplayPresentationContributor",
             "\\.RunScript\\s*\\(",
             "\\.ActionExecute\\s*\\(",
             "NetworkServer\\.(?:Listen|Shutdown)",
@@ -288,8 +288,8 @@
           ]
         },
         {
-          "id": "replay-v11-retired-paths",
-          "description": "The v11 native replay product must not restore the synthetic scene, screen capture, listener recording, AVI fallback, or PATH encoder discovery.",
+          "id": "replay-v17-retired-paths",
+          "description": "The v17 native-presentation replay product must not restore pre-v17 players, fixed anchors, DOM snapshots, POV sidecars, screen capture, AVI fallback, legacy timeline control, or PATH encoder discovery; ReplayBattleSceneRuntimeV17 is the only structured player.",
           "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
           "filePattern": "*.cs",
           "deny": [
@@ -297,8 +297,9 @@
             "FindAnyObjectByType<AudioListener>",
             "\\bMjpegAviWriter\\b",
             "\\bReplayFrameSpool\\b",
-            "\\bReplaySceneRuntime\\b",
             "\\bReplayTimelineController\\b",
+            "\\bReplaySceneRuntime\\b",
+            "ReplayV1[1-6]|ReplayPov|ReplayNativeSurface|NativeSnapshot",
             "aura-replay-2d",
             "native-or-silence",
             "Environment\\.GetEnvironmentVariable\\(\\\"PATH\\\"\\)",

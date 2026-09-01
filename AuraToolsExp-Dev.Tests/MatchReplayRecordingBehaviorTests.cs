@@ -4,13 +4,6 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestMatchReplayNativeAudioCallTracking()
     {
-        Assert(ReplayAudioCapturePolicy.SelectReadPath(isStreamingClip: true)
-               == ReplayAudioReadPath.UnitySampleProvider,
-            "streaming native clips never enter AudioClip.GetData and use Unity's decoder-backed sample provider");
-        Assert(ReplayAudioCapturePolicy.SelectReadPath(isStreamingClip: false)
-               == ReplayAudioReadPath.AudioClipGetData,
-            "non-streaming native clips keep the deterministic sliced AudioClip.GetData path");
-
         var tracker = new ReplayNativeAudioCallTracker();
         tracker.BeginSymbolic("Effect", new[] { "NewSounds/Card/Draw" });
         Assert(tracker.PendingCount == 1,
@@ -43,13 +36,11 @@ internal static partial class AuraToolsTestSuite
 
         var terminal = new MatchReplayTerminalGate();
         terminal.Prepare("Win");
-        Assert(!terminal.CanDetach(0),
+        Assert(!terminal.CanFinalize,
             "settlement preparation alone cannot detach a replay before terminal UI cleanup");
         terminal.SealTerminalFrame("Ended");
-        Assert(terminal.Result == "Win" && terminal.CanDetach(0),
+        Assert(terminal.Result == "Win" && terminal.CanFinalize,
             "the post-cleanup terminal frame preserves the real outcome and opens replay finalization");
-        Assert(!terminal.CanDetach(1),
-            "pending PCM capture still holds finalization after the terminal frame is sealed");
 
         var baseline = new MatchReplayBaselineGate();
         baseline.Arm();

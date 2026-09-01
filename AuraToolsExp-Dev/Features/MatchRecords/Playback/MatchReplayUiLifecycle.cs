@@ -12,12 +12,12 @@ using WitchUiManager = Witch.UI.UIManager;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
-/// <summary>Owns only the menu-to-replay UI boundary; combat UI is never initialized.</summary>
+/// <summary>Owns the menu-to-isolated-native-presentation UI boundary.</summary>
 internal static class MatchReplayUiLifecycle
 {
     internal static void PrepareForReplayView()
     {
-        var stale = GameObject.Find("AuraToolsReplaySceneV12");
+        var stale = GameObject.Find("AuraToolsReplayBattleWorldV17");
         if (stale != null) ForceDestroyRoot(stale, "Match replay stale scene cleanup");
     }
 

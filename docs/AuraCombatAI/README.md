@@ -26,9 +26,9 @@
 |---|---|
 | 在线决策 | `risk-aware-root-sampling-puct-mpc` |
 | 搜索预算 | `dynamic`，质量档 `fast / balanced / deep` |
-| 在线样本 | `aura.combat-ai.sample.v7`，特征 10 |
-| 选择轨迹 | `aura.combat-ai.selection.v1` |
-| 长期轨迹 | `aura.combat-ai.episode.v7`，特征 27；附带对象 Observation、独立决策序列、真实 transition、terminal-known 与策略适用掩码 |
+| 在线样本 | `aura.combat-ai.sample.v9`，特征 11；v8 只允许单向迁移，v7 及更早版本不冒充当前语义 |
+| 选择轨迹 | `aura.combat-ai.selection.v2`；记录 receipt、用途、决策权威、模型、观测修订与排队/计算耗时 |
+| 长期轨迹 | `aura.combat-ai.episode.v8`，特征 30；附带对象 Observation、独立决策序列、真实 transition、terminal-known 与策略适用掩码 |
 | 策略价值编码 | `partitioned-v4`；状态/动作/隐藏 2048×1024×512，状态碰撞目标 3%、硬上限 5% |
 | 策略价值模型 | `aura.combat-policy-value.mlp.v2`，16 分位动作 Q |
 | 内容包 | `aura.combat-ai.content-package.v1` |
@@ -37,8 +37,10 @@
 | Transformer 教师 | `aura.combat-transformer-world-model.v4` / sparse dataset v3；6 层、384 hidden、8 heads、1536 FFN；1024 active frames 启动、active+backlog generation 事务、有界增量+回放、逐策略 applicability、Policy/World 稳定教师分轨、固定权重蒸馏；signed Seed 只在 NumPy legacy 边界映射 uint32，checkpoint RunSeed 控制恢复随机流，确定性配置/协议/执行边界故障会保存断点并阻断正式底模，Training |
 | Transformer 运行时 | `aura.transformer-runtime-probe.v1`，自动发现/验证 Python、PyTorch、NumPy 与 CPU/CUDA |
 | Transformer 适配器 | `aura.combat-ai.transformer-adapter.v2`，可选内容工件，未取得在线控制权 |
-| 在线治理 | 基础/影子路径保留动态预算、风险治理与安全回退；`trial/full` 路径由策略价值网络独占候选选择，规则与质量信号仅作诊断。加载失败、推理超时/异常、事务无进展触发技术兜底，连续三次失败后按战斗隔离；Actor 裁剪默认关闭 |
-| Worker | schema 16（schema 15 仅作前代读取边界；旧训练语义因角色被动契约升级而不得继续恢复） |
+| 在线治理 | 单一 `LiveCombatSession` 使用专用单槽决策线程；执行请求可抢占影子/教师请求，PUCT 在根覆盖、模拟、叶评估和模型边界检查取消。基础/影子保留动态预算与风险治理；`trial/full` 由策略价值网络独占候选选择。只有模型加载、推理异常或硬截止计入模型技术故障；UI/事务失败交还玩家，不污染模型健康。Actor 裁剪默认关闭 |
+| Worker | schema 17（schema 16 是前代读取边界；schema 13 仅走显式修复迁移） |
+| 游戏内资源边界 | 默认单树搜索；状态只做一次决策准备，搜索 arena 跨决策复用并在战斗终局收缩；训练/进化/大规模模拟仅由 `TrainingWorker` 独立进程运行 |
+| 在线记录器 | 待写队列与未结束会话合计上限 32 MiB，单会话 8 MiB / 2048 帧；writer 故障可见且停止接收，`BattleFinalized` 通过终局控制回执封口并释放会话 |
 | 训练持久化 | `AURAFES5` 有界二进制快照；Replay v2 self-contained shard Token Catalog + checksummed 事务索引，v1 只做提交/回读验证后的可恢复迁移；checkpoint catalog 使用 generation/checksum 与 artifact hash，GC 取有效 primary + backup 两代可达集并保留 active `.bak` 的快照，uncertain 状态一律禁止破坏性 GC；reset 以 durable marker 先使恢复指针失效再删除工件；当前 Worker 存储/恢复与教师安全聚合门禁基线为 70 条断言 |
 | 训练治理 | `foundation-governance-v29-source-audit-partitioned-v4` + `foundation-stagnation-v3-behavior-vs-pipeline-progress` + `paired-evidence-v8-tiered-same-model` |
 | 自动并发规划 | `foundation-parallelism-v4-phase-aware-128m-reserve` + `foundation-auto-tune-v12-signed-microbenchmark`；推理计划按硬件、模型协议/特征版本、张量形状和并发档位签名复用，仅在真实 Replay 输入上运行有界微基准；运行期健康失败切换 direct 并进入持久化冷却。常规阶段固定保留 128 MiB，Transformer 阶段按预测峰值另保留 128 MiB；隔离 Worker 冷启动保守，后续按真实 Worker/Python 峰值、私有内存和 GC 碎片逐级恢复每进程 2–3 轮与模型训练并行，压力出现时退回 1/12。跨进程 Replay 检查点最多携带 512 Episodes / 48000 Frames / 256 MiB 估算常驻量，其余进入压缩磁盘仓库 |

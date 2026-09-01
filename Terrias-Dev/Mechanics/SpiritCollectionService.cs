@@ -14,6 +14,8 @@ public static class SpiritCollectionService
     private static readonly object SyncRoot = new();
     private static ISpiritCollectionStore? store;
     private static SpiritCollectionDocument document = Normalize(new SpiritCollectionDocument());
+    private static Dictionary<string, SpiritInstance> instancesByUid = BuildInstanceIndex(document);
+    private static long stateGeneration;
 
     public static void Configure(ISpiritCollectionStore profileStore)
     {
@@ -23,8 +25,11 @@ public static class SpiritCollectionService
             var loaded = store.Load();
             var requiresMigrationSave = loaded.Version < CurrentVersion;
             document = Normalize(loaded);
+            RebuildIndexesUnlocked();
+            stateGeneration++;
             if (requiresMigrationSave)
             {
+                document.Revision = Math.Max(1, document.Revision);
                 store.Save(CloneDocument(document));
                 TerriasLog.Info("[SpiritCollection] migrated collection to version " + CurrentVersion + ".");
             }
@@ -43,8 +48,22 @@ public static class SpiritCollectionService
     {
         lock (SyncRoot)
         {
-            return document.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid))?.Clone();
+            if (!instancesByUid.TryGetValue((spiritUid ?? "").Trim(), out var instance))
+            {
+                return null;
+            }
+            return instance.Clone();
         }
+    }
+
+    public static long Revision
+    {
+        get { lock (SyncRoot) return document.Revision; }
+    }
+
+    public static long StateGeneration
+    {
+        get { lock (SyncRoot) return stateGeneration; }
     }
 
     internal static T ArtifactTransaction<T>(Func<SpiritCollectionDocument, T> mutation, Func<T, bool> shouldCommit)
@@ -57,8 +76,7 @@ public static class SpiritCollectionService
             var result = mutation(candidate);
             if (!shouldCommit(result)) return result;
             SpiritArtifactInventoryService.NormalizeDocument(candidate);
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return result;
         }
     }
@@ -151,8 +169,7 @@ public static class SpiritCollectionService
             }
 
             candidate.InitialRosterGrantVersion = SpiritSystemContract.InitialRosterGrantVersion;
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return new SpiritInitialRosterGrantResult
             {
                 Success = true,
@@ -205,8 +222,7 @@ public static class SpiritCollectionService
             var normalizedParty = NormalizeParty(party, candidate);
             var addedToParty = AddToFirstEmpty(normalizedParty.PartySlots, instance.SpiritUid);
             AddToFirstEmpty(candidate.DefaultPartySlots, instance.SpiritUid);
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             CopyParty(normalizedParty, party);
             return new SpiritCaptureRecordResult
             {
@@ -227,8 +243,7 @@ public static class SpiritCollectionService
             candidate.DefaultActiveSpiritUid = candidate.DefaultPartySlots.Contains(normalizedActiveUid, StringComparer.Ordinal)
                 ? normalizedActiveUid
                 : "";
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -272,8 +287,7 @@ public static class SpiritCollectionService
             }
 
             SpiritElementService.Assign(instance, elementId, source);
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -285,8 +299,7 @@ public static class SpiritCollectionService
             var candidate = CloneDocument(document);
             var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
             if (instance == null || !SpiritTrainingService.EquipIntent(instance, slotIndex, intentId)) return false;
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -298,8 +311,7 @@ public static class SpiritCollectionService
             var candidate = CloneDocument(document);
             var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
             if (instance == null || !SpiritTrainingService.EquipPassive(instance, passiveId)) return false;
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -312,8 +324,7 @@ public static class SpiritCollectionService
             var instance = candidate.Instances.FirstOrDefault(item => Same(item.SpiritUid, spiritUid));
             if (instance == null || !SpiritAscensionService.IsValidAllocation(allocations, instance.GuiyuanValue)) return false;
             instance.GuiyuanAllocations = allocations.Clone();
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -361,8 +372,7 @@ public static class SpiritCollectionService
             target.LoadoutHash = SpiritTrainingService.LoadoutHash(target);
             var donorSet = new HashSet<string>(distinctUids, StringComparer.Ordinal);
             candidate.Instances.RemoveAll(item => donorSet.Contains(item.SpiritUid));
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return new SpiritGuiyuanResult
             {
                 Success = true,
@@ -389,8 +399,7 @@ public static class SpiritCollectionService
             }
 
             var result = SpiritGrowthService.GrantExperience(instance, amount);
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return result;
         }
     }
@@ -428,13 +437,12 @@ public static class SpiritCollectionService
             {
                 candidate.ProcessedBattleTokens.RemoveRange(0, candidate.ProcessedBattleTokens.Count - OperationHistoryLimit);
             }
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return results;
         }
     }
 
-    public static bool ImportLegacy(IReadOnlyList<CapturedEnemySnapshot> snapshots)
+    public static bool ImportLegacy(IReadOnlyList<LegacySpiritCardMigrationRecord> snapshots)
     {
         lock (SyncRoot)
         {
@@ -444,28 +452,19 @@ public static class SpiritCollectionService
             }
 
             var candidate = CloneDocument(document);
-            foreach (var source in snapshots ?? Array.Empty<CapturedEnemySnapshot>())
+            foreach (var legacy in snapshots ?? Array.Empty<LegacySpiritCardMigrationRecord>())
             {
+                var source = legacy?.Source;
                 if (source == null || string.IsNullOrWhiteSpace(source.EnemyId))
                 {
                     continue;
                 }
 
                 var snapshot = SpiritModelCloner.CloneSnapshot(source);
-                snapshot.SpiritUid = UniqueUid(candidate, snapshot.SpiritUid);
-                snapshot.SpeciesId = "";
-                snapshot.ProfileId = "";
-                snapshot.SpiritElementId = "";
-                snapshot.SpiritGuiyuanValue = 0;
-                snapshot.SpiritStarRank = 0;
-                snapshot.GuiyuanAllocationMagic = 0;
-                snapshot.GuiyuanAllocationSpirit = 0;
-                snapshot.GuiyuanAllocationLuck = 0;
-                snapshot.GuiyuanAllocationPerception = 0;
                 var identity = SpiritGrowthRegistry.ResolveIdentity(snapshot);
                 var imported = new SpiritInstance
                 {
-                    SpiritUid = snapshot.SpiritUid,
+                    SpiritUid = UniqueUid(candidate, legacy?.SpiritUid ?? ""),
                     SpeciesId = identity.SpeciesId,
                     ProfileId = identity.ProfileId,
                     Snapshot = snapshot,
@@ -477,12 +476,11 @@ public static class SpiritCollectionService
                 SpiritElementService.AssignCaptureDefault(imported, identity.Profile, legacy: true);
                 SpiritTrainingService.Normalize(imported, legacy: true);
                 candidate.Instances.Add(imported);
-                AddToFirstEmpty(candidate.DefaultPartySlots, snapshot.SpiritUid);
+                AddToFirstEmpty(candidate.DefaultPartySlots, imported.SpiritUid);
             }
 
             candidate.LegacyCardMigrationVersion = LegacyCardMigrationVersion;
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return true;
         }
     }
@@ -501,6 +499,7 @@ public static class SpiritCollectionService
         var sourceVersion = source.Version;
         var legacyTraining = sourceVersion < 5;
         source.Version = CurrentVersion;
+        source.Revision = Math.Max(0, source.Revision);
         source.InitialRosterGrantVersion = Math.Max(0, source.InitialRosterGrantVersion);
         source.Instances ??= new List<SpiritInstance>();
         source.ProcessedCaptureTokens ??= new Dictionary<string, string>(StringComparer.Ordinal);
@@ -510,11 +509,9 @@ public static class SpiritCollectionService
         source.Instances = source.Instances.Where(item => item?.Snapshot != null && !string.IsNullOrWhiteSpace(item.Snapshot.EnemyId))
             .Select(item =>
             {
+                SpiritComponentNormalizer.Normalize(item);
                 item.SpiritUid = string.IsNullOrWhiteSpace(item.SpiritUid) ? Guid.NewGuid().ToString("N") : item.SpiritUid.Trim();
                 while (!seen.Add(item.SpiritUid)) item.SpiritUid = Guid.NewGuid().ToString("N");
-                item.Snapshot.SpiritUid = item.SpiritUid;
-                item.Snapshot.SpiritElementId = "";
-                item.Snapshot.ArtifactBattle = new SpiritArtifactBattleSnapshot();
                 item.Presentation ??= new SpiritLocalizedPresentation();
                 if (sourceVersion < 6 || !HasPresentation(item.Presentation))
                 {
@@ -623,30 +620,13 @@ public static class SpiritCollectionService
         out SpiritProfileIdentity identity)
     {
         var normalizedSnapshot = SpiritModelCloner.CloneSnapshot(source);
-        normalizedSnapshot.SpiritUid = UniqueUid(owner, normalizedSnapshot.SpiritUid);
+        var spiritUid = UniqueUid(owner, "");
         normalizedSnapshot.InstanceId = "";
-        normalizedSnapshot.SpiritLevel = 0;
-        normalizedSnapshot.SpiritAptitude = 0;
-        normalizedSnapshot.SpiritGuiyuanValue = 0;
-        normalizedSnapshot.SpiritStarRank = 0;
-        normalizedSnapshot.GuiyuanAllocationMagic = 0;
-        normalizedSnapshot.GuiyuanAllocationSpirit = 0;
-        normalizedSnapshot.GuiyuanAllocationLuck = 0;
-        normalizedSnapshot.GuiyuanAllocationPerception = 0;
-        normalizedSnapshot.OriginMagic = 0;
-        normalizedSnapshot.OriginSpirit = 0;
-        normalizedSnapshot.OriginLuck = 0;
-        normalizedSnapshot.OriginPerception = 0;
-        normalizedSnapshot.DeploymentToken = "";
-        normalizedSnapshot.ArtifactBattle = new SpiritArtifactBattleSnapshot();
-        normalizedSnapshot.SpeciesId = "";
-        normalizedSnapshot.ProfileId = "";
-        normalizedSnapshot.SpiritElementId = "";
         identity = SpiritGrowthRegistry.ResolveIdentity(normalizedSnapshot);
         var aptitudeRoll = SpiritGrowthRegistry.AptitudeRollFor(identity.Profile);
         var instance = new SpiritInstance
         {
-            SpiritUid = normalizedSnapshot.SpiritUid,
+            SpiritUid = spiritUid,
             SpeciesId = identity.SpeciesId,
             ProfileId = identity.ProfileId,
             Snapshot = normalizedSnapshot,
@@ -656,7 +636,7 @@ public static class SpiritCollectionService
             Aptitude = Math.Max(aptitudeRoll.Minimum, Math.Min(aptitudeRoll.Maximum,
                 fixedAptitude ?? SpiritGrowthService.RollAptitude(
                     identity.Profile,
-                    (operationToken ?? "") + ":" + normalizedSnapshot.SpiritUid))),
+                    (operationToken ?? "") + ":" + spiritUid))),
             CapturedAt = string.IsNullOrWhiteSpace(normalizedSnapshot.CapturedAt)
                 ? DateTimeOffset.UtcNow.ToString("O")
                 : normalizedSnapshot.CapturedAt
@@ -681,7 +661,29 @@ public static class SpiritCollectionService
         {
             throw new InvalidOperationException("Spirit collection store has not been configured.");
         }
+        candidate.Version = CurrentVersion;
+        candidate.Revision = Math.Max(document.Revision, candidate.Revision) + 1;
         store.Save(candidate);
+    }
+
+    private static void CommitUnlocked(SpiritCollectionDocument candidate)
+    {
+        SaveUnlocked(candidate);
+        document = candidate;
+        RebuildIndexesUnlocked();
+        stateGeneration++;
+    }
+
+    private static void RebuildIndexesUnlocked()
+    {
+        instancesByUid = BuildInstanceIndex(document);
+    }
+
+    private static Dictionary<string, SpiritInstance> BuildInstanceIndex(SpiritCollectionDocument source)
+    {
+        return (source?.Instances ?? new List<SpiritInstance>())
+            .Where(item => item != null && !string.IsNullOrWhiteSpace(item.SpiritUid))
+            .ToDictionary(item => item.SpiritUid, StringComparer.Ordinal);
     }
 
     private static bool ToggleFlag(string spiritUid, bool favorite)
@@ -693,8 +695,7 @@ public static class SpiritCollectionService
             if (instance == null) return false;
             if (favorite) instance.Favorite = !instance.Favorite;
             else instance.Locked = !instance.Locked;
-            SaveUnlocked(candidate);
-            document = candidate;
+            CommitUnlocked(candidate);
             return favorite ? instance.Favorite : instance.Locked;
         }
     }
@@ -704,6 +705,7 @@ public static class SpiritCollectionService
         return new SpiritCollectionDocument
         {
             Version = source.Version,
+            Revision = source.Revision,
             LegacyCardMigrationVersion = source.LegacyCardMigrationVersion,
             InitialRosterGrantVersion = source.InitialRosterGrantVersion,
             Instances = source.Instances.Select(item => item.Clone()).ToList(),

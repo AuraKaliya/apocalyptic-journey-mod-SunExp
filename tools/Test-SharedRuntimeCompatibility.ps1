@@ -39,6 +39,15 @@ if ($compileIncludes -notcontains $toolingCompile) {
     throw "Aura.Shared must compile the public tooling protocol through: $toolingCompile"
 }
 
+$replayVisibleStateCompile = "..\AuraReplayVisibleStateShared\*.cs"
+if ($compileIncludes -notcontains $replayVisibleStateCompile) {
+    throw "Aura.Shared must compile the public replay visible-state protocol through: $replayVisibleStateCompile"
+}
+$replayPresentationCompile = "..\AuraReplayPresentationShared\*.cs"
+if ($compileIncludes -notcontains $replayPresentationCompile) {
+    throw "Aura.Shared must compile the public replay presentation protocol through: $replayPresentationCompile"
+}
+
 $baseline = Get-Content -Raw -LiteralPath $baselinePath | ConvertFrom-Json
 if ($baseline.schemaVersion -ne 1) {
     throw "Unsupported shared runtime compatibility schemaVersion: $($baseline.schemaVersion)"

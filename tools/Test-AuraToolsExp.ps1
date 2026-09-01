@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Configuration = "Release"
 )
 
@@ -28,7 +28,7 @@ $requiredProtocolFeatures = @{
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
     "presentation.event-cg" = @(1, 1)
-    "records.match-replay" = @(12, 12)
+    "records.match-replay" = @(17, 17)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
         -or $protocolManifest.releaseBaseline -ne $modConfig.ModVersion `
@@ -51,16 +51,30 @@ if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
 }
 $replayProtocol = @($protocolManifest.features | Where-Object id -eq "records.match-replay")[0]
 $requiredReplayCapabilities = @(
-    "causal-transactions.v1",
-    "authoritative-public-state.v1",
-    "dual-journal-lane.v1",
-    "full-checkpoints.v1",
-    "portable-presentation.v1",
-    "independent-replay-scene.v1",
-    "embedded-assets.v1")
+    "causal-transactions.v2",
+    "perspective-visible-state.v1",
+    "resolved-instruction-stream.v1",
+    "unified-transaction-order.v1",
+    "deterministic-visible-reducer.v1",
+    "visible-state-checkpoints.v1",
+    "native-resource-projection.v3",
+    "measured-native-layout.v1",
+    "native-prefab-presentation.v1",
+    "shared-mod-presentation.v1",
+    "observed-overlap-tracks.v1",
+    "visual-state-commit.v1",
+    "native-card-view.v1",
+    "observed-presentation-timeline.v3",
+    "native-fight-ui.v1",
+    "native-renderer-profile.v1",
+    "pixel-readback-preflight.v1",
+    "shared-presentation-modules.v1",
+    "incremental-persistence.v1",
+    "crash-resumable-finalization.v1",
+    "owner-qualified-replay-extensions.v1")
 if (@(Compare-Object @($replayProtocol.requiredCapabilities) $requiredReplayCapabilities).Count -ne 0 `
         -or $replayProtocol.fallback -ne "reject-structured-replay-and-retain-summary-analysis-verified-mp4") {
-    throw "AuraToolsExp match-replay v12 protocol capabilities or fallback are incomplete."
+    throw "AuraToolsExp match-replay v17 protocol capabilities or fallback are incomplete."
 }
 
 $ffmpegRoot = Join-Path $repoRoot "AuraToolsExp\Runtime\ffmpeg\win-x64"
@@ -245,26 +259,144 @@ finally {
 
 $replaySources = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords") -Recurse -File -Filter "*.cs")
 $replayText = ($replaySources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
-if ($replayText -match 'ReplayDocumentV11|ReplayProtocolV11|SaveV11|LoadV11|MatchReplayFightSandboxInitializer|ReplayNativeDocumentAdapter|ReplayNativeViewRuntime|MatchReplayNativePresentationApi|ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+$recordingSources = @($replaySources | Where-Object { $_.FullName -match '[\\/]Recording[\\/]' })
+$recordingText = ($recordingSources | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
+if ($replayText -match 'ReplayDocumentV1[1-6]|ReplayProtocolV1[1-6]|SaveV1[1-6]|LoadV1[1-6]|ReplayV1[4-6]\b|ReplayPov|ReplayNativeSurface|NativeSnapshot|MatchReplayFightSandboxInitializer|ReplayNativeDocumentAdapter|ReplayNativeViewRuntime|MatchReplayNativePresentationApi|ScreenCapture\.CaptureScreenshotAsTexture|StartLocalHost|RpcLoadRoles|ReplayTimelineController|native-or-silence|MjpegAviWriter|ReplayFrameSpool|GetEnvironmentVariable\("PATH"\)|falling back to built-in AVI' `
+        -or $recordingText -match 'FindObjectsOfTypeAll|GetPixels(?:32)?\s*\(|ReadPixels\s*\(|EncodeToPNG\s*\(|AudioClipGetData|ReplayAudioAssetCapture|RenderTexture\.active' `
+        -or $replayText -match '1_040_000|360_000|PresentationDurationMilliseconds|EffectDelayMilliseconds' `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV12")) `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV13")) `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV14")) `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV15")) `
+        -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV16")) `
         -or $replayText -match '\bTerrias\b' `
         -or (Test-Path -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\GameApi\MatchReplayNativePresentationApi.cs")) `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsMatchRecordSettings.cs")) -match 'PreferMp4|FfmpegPath' `
         -or (Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj")) -match 'UnityEngine\.ScreenCaptureModule') {
-    throw "AuraToolsExp v12 release still contains a retired v11/native-player, AVI, screenshot, PATH FFmpeg, or silent-audio path."
+    throw "AuraToolsExp v17 release still contains a retired DOM/POV player, AVI, screenshot, PATH FFmpeg, or silent-audio path."
 }
-$portablePlaybackText = (@(Get-ChildItem -LiteralPath (
-            Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV12\Playback") -File -Filter "*.cs") |
+$nativePlaybackText = (@(Get-ChildItem -LiteralPath (
+            Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Playback") -File -Filter "*.cs") |
         ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
 $playerText = Get-Content -Raw -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplayPlayer.cs")
-if ($portablePlaybackText -match '\bFightManager\b|\bFightUI\b|\bRoleTable\b|\bIScriptExecutor\b|using\s+Witch(?:\.Core)?\s*;' `
+if ($nativePlaybackText -match 'using\s+Witch(?:\.Core|\.UI[^;]*)?\s*;|typeof\s*\(\s*FightUI\s*\)|GetUI\s*<\s*FightUI\s*>|FightManager\s*\.|RoleTable\s*\.|\bIScriptExecutor\s+[A-Za-z_]' `
         -or $playerText -match '\bFightManager\b|\bFightUI\b|MatchReplayEnvironmentScope|MatchReplayFightSandboxInitializer' `
-        -or $playerText -notmatch 'ReplaySceneRuntime' `
-        -or $replayText -notmatch 'ReplayNetworkAuthorityV12' `
+        -or $playerText -notmatch 'ReplayBattleSceneRuntimeV17' `
+        -or $replayText -notmatch 'ReplayVisibleStateV17' `
+        -or $replayText -notmatch 'ReplayVisibleBattleViewV17' `
+        -or $replayText -notmatch 'HasMeasuredLayout' `
+        -or $replayText -notmatch 'ReplayCombatHudProjectionV17' `
+        -or $replayText -notmatch 'BackIconResourcePath' `
+        -or $replayText -notmatch 'ReplayFrameSequenceContractV17' `
+        -or $replayText -notmatch 'ReplayNativeFrameNameComparerV17' `
+        -or $replayText -notmatch 'ReplayIntentVisualCompatibilityApi\.ResolveIcon' `
+        -or $replayText -match 'ReplayIntentVisualDocumentRepairV17|ReplaceReadyV17AfterRepair|replay-v17-resolved-intent-visual-paths-v1' `
+        -or $replayText -notmatch 'ReplayNativePrefabInstanceV17' `
+        -or $replayText -notmatch 'ReplayCustomEntityPresentationV17' `
+        -or $replayText -notmatch 'VisualStateCommitted' `
+        -or $replayText -notmatch 'TruthEventSequence' `
+        -or $replayText -notmatch 'NativeVisualTemplateRequired' `
+        -or $replayText -notmatch 'CardTravel' `
+        -or $replayText -notmatch 'StateCommit' `
+        -or $replayText -notmatch 'ActorTurnPrelude' `
+        -or $replayText -notmatch 'ReplayPresentationTimingV17\.EffectiveTimeTicks' `
+        -or $replayText -notmatch 'TransformSamples' `
+        -or $replayText -notmatch 'WorldTransformSamples' `
+        -or $replayText -notmatch 'AuraReplayPresentationRuntime' `
+        -or $replayText -notmatch 'NativePrefabSanitized' `
+        -or $nativePlaybackText -notmatch 'ReplayNativeFightUI' `
+        -or $nativePlaybackText -notmatch 'templates\.HpTemplate' `
+        -or $nativePlaybackText -notmatch 'CardTemplate' `
+        -or $nativePlaybackText -notmatch 'descriptor\.Description' `
+        -or $playerText -notmatch 'deferredVisualTruthSequences' `
+        -or $playerText -notmatch 'BuildVisualCommitIndex' `
+        -or $playerText -notmatch 'VisualStateAtTicks' `
+        -or $playerText -notmatch 'OrderBy\(PlaybackTicks\)' `
+        -or $replayText -match 'FrameNames\.Distinct' `
+        -or $nativePlaybackText -match '\bHorizontalLayoutGroup\b|\bTextMesh\b|ReplayLayoutAnchorV' `
+        -or $replayText -notmatch 'DetachAssets' `
+        -or $replayText -notmatch 'ReplayCaptureBatchV17' `
+        -or $replayText -notmatch 'SaveFinalizingCaptureV17' `
+        -or $replayText -notmatch 'SealPendingPresentationTimingsNoLock' `
+        -or $replayText -notmatch 'SealSourcesAtTerminal' `
+        -or $replayText -match 'if\s*\(PendingActionObservations\.Count\s*>\s*0\s*\|\|\s*PendingCardMotionObservations\.Count\s*>\s*0\)\s*return' `
+        -or $replayText -match 'ReplayPov|ReplayNativeSurface|NativeSnapshot' `
+        -or $replayText -notmatch 'PendingCleanup' `
+        -or $replayText -notmatch 'CardMotionObservation' `
+        -or $replayText -notmatch 'ReplayNetworkAuthorityV17' `
         -or $replayText -notmatch 'DeclaredDocumentRoot' `
         -or $replayText -notmatch 'TruthRoot' `
         -or $replayText -notmatch 'PresentationRoot') {
-    throw "AuraToolsExp portable replay boundary, network authority, or canonical-root contract is invalid."
+    throw "AuraToolsExp perspective-instruction replay boundary, durability, network authority, or canonical-root contract is invalid."
+}
+
+$renderHostPath = Join-Path $repoRoot (
+    "AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Playback\ReplayRenderHostV17.cs")
+$rendererIsolationPath = Join-Path $repoRoot (
+    "AuraToolsExp-Dev\GameApi\ReplayUrpRendererIsolationApi.cs")
+$rendererFeaturePolicyPath = Join-Path $repoRoot (
+    "AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Core\ReplayRendererFeaturePolicyV17.cs")
+$intermediateColorFeaturePath = Join-Path $repoRoot (
+    "AuraToolsExp-Dev\GameApi\ReplayIntermediateColorRendererFeatureV17.cs")
+$renderSurfacePath = Join-Path $repoRoot (
+    "AuraToolsExp-Dev\Features\MatchRecords\Media\ReplayRenderSurfaceV17.cs")
+if (-not (Test-Path -LiteralPath $renderHostPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $rendererIsolationPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $rendererFeaturePolicyPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $intermediateColorFeaturePath -PathType Leaf)) {
+    throw "AuraToolsExp replay must own its camera and dedicated URP renderer."
+}
+$renderHostText = Get-Content -Raw -LiteralPath $renderHostPath
+$rendererIsolationText = Get-Content -Raw -LiteralPath $rendererIsolationPath
+$rendererFeaturePolicyText = Get-Content -Raw -LiteralPath $rendererFeaturePolicyPath
+$intermediateColorFeatureText = Get-Content -Raw -LiteralPath $intermediateColorFeaturePath
+$renderSurfaceText = Get-Content -Raw -LiteralPath $renderSurfacePath
+$playbackOutsideHostText = (@(Get-ChildItem -LiteralPath (
+            Join-Path $repoRoot "AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Playback") `
+            -File -Filter "*.cs" | Where-Object Name -ne "ReplayRenderHostV17.cs") |
+        ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join "`n"
+if ($renderHostText -notmatch 'ReplayRenderHostContractV17' `
+        -or $renderHostText -notmatch 'camera\.enabled\s*=\s*false' `
+        -or $renderHostText -match 'camera\.enabled\s*=\s*true' `
+        -or $renderHostText -notmatch 'camera\.forceIntoRenderTexture\s*=\s*true' `
+        -or $renderHostText -notmatch 'ReplayUrpRendererIsolationApi\.Acquire\s*\(' `
+        -or $renderHostText -notmatch 'ConfirmFrameBarrier\s*\(' `
+        -or $renderHostText -notmatch 'PreflightRender\s*\(' `
+        -or $renderHostText -notmatch 'AcquireExportTarget\s*\(' `
+        -or $rendererIsolationText -notmatch 'Object\.Instantiate\s*\(sourceData\)' `
+        -or $rendererIsolationText -notmatch 'Object\.Instantiate\s*\(item\.Feature\)' `
+        -or $rendererIsolationText -notmatch 'ReferenceEquals\s*\(sourceFeatures,\s*targetFeatures\)' `
+        -or $rendererIsolationText -notmatch 'ReferenceEquals\s*\(sourceFeatureMap,\s*featureMap\)' `
+        -or $rendererIsolationText -notmatch 'targetFeatures\.Clear\s*\(\)' `
+        -or $rendererIsolationText -notmatch 'ReplayRendererFeaturePolicyV17\.Decide' `
+        -or $rendererIsolationText -notmatch 'ReplayIntermediateColorRendererFeatureV17' `
+        -or $rendererIsolationText -notmatch 'feature-profile' `
+        -or $rendererIsolationText -match 'preserved-features' `
+        -or $rendererIsolationText -notmatch 'DedicatedRendererDataName' `
+        -or $rendererIsolationText -match 'ScriptableRendererFeature[^\r\n]*SetActive\s*\(' `
+        -or $rendererFeaturePolicyText -notmatch 'RetainOwnedClone' `
+        -or $rendererFeaturePolicyText -notmatch 'ExcludeFromReplay' `
+        -or $rendererFeaturePolicyText -notmatch 'RejectProfile' `
+        -or $rendererFeaturePolicyText -notmatch 'FullScreenPassRendererFeature' `
+        -or $rendererFeaturePolicyText -notmatch 'UIBlurGrabPassFeature' `
+        -or $intermediateColorFeatureText -notmatch 'ConfigureInput\s*\(ScriptableRenderPassInput\.Color\)' `
+        -or $intermediateColorFeatureText -notmatch 'RecordRenderGraph\s*\(' `
+        -or $intermediateColorFeatureText -match '\bBlit\s*\(|\bDraw\w*\s*\(' `
+        -or $renderSurfaceText -match '\bRenderCamera\b|targetTexture\s*=' `
+        -or $renderSurfaceText -cmatch '\bCamera\s+[A-Za-z_]' `
+        -or $playbackOutsideHostText -match 'camera\.Render\s*\(|targetTexture\s*=' `
+        -or $playerText -notmatch 'scene\.PreflightRender\s*\(\)' `
+        -or $renderHostText -notmatch 'ValidateRenderedPixels\s*\(' `
+        -or $playerText -notmatch 'WaitForEndOfFrame\s*\(' `
+        -or $playerText -notmatch 'TryConfirmPreparedRenderBarrier\s*\(' `
+        -or $playerText -notmatch 'scene\.ActivateDisplay\s*\(') {
+    throw "AuraToolsExp replay rendering must keep dedicated URP renderer, target, frame-barrier, and export ownership."
+}
+
+& pwsh -NoProfile -File (Join-Path $repoRoot "tools\Test-AuraToolsUrpReplayRendererContractV17.ps1")
+if ($LASTEXITCODE -ne 0) {
+    throw "AuraToolsExp replay URP renderer compatibility gate failed."
 }
 
 & dotnet run --project $project -c $Configuration
@@ -764,12 +896,24 @@ if ($moduleSource -notmatch 'AuraToolsModuleActivationPolicy\.Activate' `
 
 $autoBattleRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleRuntime.cs")
+$autoBattleSource = @(
+    Get-ChildItem -LiteralPath (
+        Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle") `
+        -File -Filter "*.cs"
+) | ForEach-Object { Get-Content -Raw -Encoding UTF8 -LiteralPath $_.FullName }
+$autoBattleText = $autoBattleSource -join "`n"
 if ($autoBattleRuntimeSource -match 'ChooseDecision\(state,\s*"prediction"\)' `
         -or $autoBattleRuntimeSource -match 'private\s+CombatDecision\s+(?:ChooseDecision|RunDecisionEngine)\s*\(' `
-        -or $autoBattleRuntimeSource -notmatch 'AutoBattle\.PredictionDecision' `
-        -or $autoBattleRuntimeSource -notmatch 'CancelOwner' `
+        -or $autoBattleRuntimeSource -notmatch 'CombatLiveDecisionLane' `
+        -or $autoBattleRuntimeSource -notmatch 'CombatLiveDecisionPurpose\.Prediction' `
+        -or $autoBattleRuntimeSource -notmatch 'CombatLiveDecisionPriority\.Opportunistic' `
+        -or $autoBattleRuntimeSource -notmatch 'CancelSession' `
+        -or $autoBattleRuntimeSource -match 'AutoBattle\.PredictionDecision' `
+        -or $autoBattleRuntimeSource -match 'Parallel\.Invoke' `
+        -or $autoBattleRuntimeSource -match 'CreateIsolatedWorker' `
+        -or $autoBattleText -match 'AuraSharedBackgroundWorkKind\.Cpu' `
         -or $autoBattleRuntimeSource -match 'OwnerId\s*=\s*AuraToolsIds\.ModId\s*,') {
-    throw "AuraToolsExp hot-path work must keep prediction search out of native hooks."
+    throw "AuraToolsExp live decision work must use its cancellable priority lane instead of native hooks or the shared CPU queue."
 }
 
 $lobbySnapshotSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (

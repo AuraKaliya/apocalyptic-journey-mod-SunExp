@@ -2,7 +2,9 @@ namespace Terrias.Dll.Mechanics;
 
 public static class SpiritSystemContract
 {
-    public const int CollectionVersion = 11;
+    public const int CollectionVersion = 12;
+    public const int DeploymentProtocolVersion = 1;
+    public const int ReadModelVersion = 1;
     public const int InitialRosterGrantVersion = 1;
     public const int InitialRosterProfileCount = 58;
     public const string InitialRosterConfigurationKey = "GrantAllSpiritsOnFirstLoad";

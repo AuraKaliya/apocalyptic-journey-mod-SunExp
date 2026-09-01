@@ -114,7 +114,7 @@ public static class SpiritElementService
         instance.ElementAssignmentRevision = Math.Max(AssignmentRevision, instance.ElementAssignmentRevision);
     }
 
-    public static bool ValidateDeploymentSnapshot(CapturedEnemySnapshot? snapshot, out string reason)
+    public static bool ValidateDeploymentSnapshot(SpiritDeploymentSnapshot? snapshot, out string reason)
     {
         if (snapshot == null || !TryParse(snapshot.SpiritElementId, out _))
         {

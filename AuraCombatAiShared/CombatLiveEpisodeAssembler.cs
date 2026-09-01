@@ -72,7 +72,11 @@ public static class CombatLiveEpisodeAssembler
             1,
             (int)Math.Round(Feature(terminal.StateFeatures, "playerMaxHp")));
         var policyIds = samples
-            .Select(sample => sample.Selection.ExecutedBy)
+            .Select(sample => sample.Selection.AuthorityKnown
+                && !string.IsNullOrWhiteSpace(
+                    sample.Selection.DecisionAuthority)
+                    ? sample.Selection.DecisionAuthority
+                    : sample.Selection.ExecutedBy)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -241,7 +245,7 @@ public static class CombatLiveEpisodeAssembler
                    StringComparison.OrdinalIgnoreCase)
                && string.Equals(
                    sample.Selection.Protocol,
-                   "aura.combat-ai.selection.v1",
+                   CombatTrainingProtocol.SelectionProtocol,
                    StringComparison.Ordinal)
                && !string.IsNullOrWhiteSpace(
                    sample.Selection.ExecutedCandidateId);

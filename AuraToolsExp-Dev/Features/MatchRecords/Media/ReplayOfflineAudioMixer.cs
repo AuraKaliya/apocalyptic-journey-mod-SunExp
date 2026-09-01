@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
-using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
@@ -17,7 +17,7 @@ internal static class ReplayOfflineAudioMixer
     private const int MaximumDecodedClipSamples = 32 * 1024 * 1024;
 
     internal static long MixToWave(
-        ReplayDocumentV12 document,
+        ReplayDocumentV17 document,
         long videoFrameCount,
         int framesPerSecond,
         Func<string, string> resolveAsset,
@@ -38,12 +38,16 @@ internal static class ReplayOfflineAudioMixer
                      .Select(item => item!))
         {
             if (string.IsNullOrWhiteSpace(cue.AssetSha256))
-                throw new InvalidDataException("v12 回放音频缺少冻结的 PCM 资源。");
+            {
+                if (string.IsNullOrWhiteSpace(cue.ResourcePath))
+                    throw new InvalidDataException("v17 回放音频既没有资源引用，也没有内嵌 PCM。");
+                continue;
+            }
             if (!cache.TryGetValue(cue.AssetSha256, out var audio))
             {
                 var path = resolveAsset(cue.AssetSha256);
                 if (!TryReadPcm16Wave(path, out var decoded))
-                    throw new InvalidDataException("v12 回放音频资源无法解码：" + cue.AssetSha256);
+                    throw new InvalidDataException("v17 回放音频资源无法解码：" + cue.AssetSha256);
                 audio = decoded;
                 decodedSampleCount += audio.Samples.LongLength;
                 if (decodedSampleCount > 64L * 1024L * 1024L)
@@ -58,7 +62,7 @@ internal static class ReplayOfflineAudioMixer
         using var transaction = AuraSharedFileStore.BeginWrite(AuraToolsIds.ModId, outputPath, overwrite: true);
         using (var writer = new BinaryWriter(transaction.Stream, Encoding.UTF8, leaveOpen: true))
         {
-            writer.Write(ReplayPcm16WaveContractV12.BuildHeader(sampleFrames, Channels, SampleRate));
+            writer.Write(ReplayPcm16WaveContractV17.BuildHeader(sampleFrames, Channels, SampleRate));
             var block = new float[BlockFrames * Channels];
             for (var blockStart = 0L; blockStart < sampleFrames; blockStart += BlockFrames)
             {
@@ -145,8 +149,8 @@ internal static class ReplayOfflineAudioMixer
         try
         {
             var payload = File.ReadAllBytes(path);
-            if (!ReplayPcm16WaveContractV12.TryRead(payload, out var wave, out _)) return false;
-            var samples = ReplayPcm16WaveContractV12.DecodeSamples(
+            if (!ReplayPcm16WaveContractV17.TryRead(payload, out var wave, out _)) return false;
+            var samples = ReplayPcm16WaveContractV17.DecodeSamples(
                 payload,
                 wave,
                 MaximumDecodedClipSamples);
@@ -165,12 +169,12 @@ internal static class ReplayOfflineAudioMixer
 
     private readonly struct DecodedCue
     {
-        internal DecodedCue(ReplayAudioCueV12 cue, DecodedAudio audio)
+        internal DecodedCue(ReplayAudioCueV17 cue, DecodedAudio audio)
         {
             Cue = cue;
             Audio = audio;
         }
-        internal ReplayAudioCueV12 Cue { get; }
+        internal ReplayAudioCueV17 Cue { get; }
         internal DecodedAudio Audio { get; }
     }
 

@@ -151,7 +151,7 @@ public static class SpiritRuntime
         try
         {
             var party = SpiritCollectionApi.CurrentParty();
-            var collection = SpiritCollectionApi.Collection();
+            var collection = SpiritCollectionApi.ReadModel().Collection;
             SpiritBattleDeploymentService.Begin(
                 party,
                 collection,

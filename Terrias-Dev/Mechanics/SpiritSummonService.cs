@@ -85,16 +85,14 @@ public static class SpiritSummonService
     }
 
     public static void ResolveNetworkSummon(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string token,
         int exchangeCount,
         SpiritCardBattleState battleState,
         TerriasRpcSender sender,
         int protocolVersion,
-        int battleEpoch,
-        string registryHash,
-        string trainingRegistryHash)
+        int battleEpoch)
     {
         if (!ClaimToken(token))
         {
@@ -102,7 +100,7 @@ public static class SpiritSummonService
         }
 
         var rejection = ValidateNetworkRequest(snapshot, ownerStatusId, exchangeCount, battleState, sender,
-            protocolVersion, battleEpoch, registryHash, trainingRegistryHash);
+            protocolVersion, battleEpoch);
         if (rejection.Length > 0)
         {
             Broadcast(CreateRejection(snapshot, ownerStatusId, token, exchangeCount, battleState, rejection), "SpiritSummonService.ResolveNetworkSummon.Reject");
@@ -148,8 +146,11 @@ public static class SpiritSummonService
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
             || (snapshot.Accepted && string.IsNullOrWhiteSpace(snapshot.ExecutionRoutePlayerId))
-            || !string.Equals(snapshot.RegistryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal)
-            || !string.Equals(snapshot.TrainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal))
+            || !SpiritBattleDeploymentService.CanSummon(
+                snapshot.Deployment,
+                snapshot.OwnerStatusId,
+                acceptRemotePayload: true,
+                out _))
         {
             TerriasLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
             return;
@@ -203,7 +204,7 @@ public static class SpiritSummonService
 
         ObserveGeneration(snapshot.OwnerPlayerId, snapshot.OwnerStatusId, snapshot.Generation);
         Spawn(
-            snapshot.CapturedEnemy,
+            snapshot.Deployment,
             snapshot.OwnerStatusId,
             snapshot.OwnerPlayerId,
             snapshot.StatusId,
@@ -218,7 +219,7 @@ public static class SpiritSummonService
         return CanSummon(card, owner, out reason, out _);
     }
 
-    private static bool CanSummon(IDataConfig? card, IStatusManager? owner, out string reason, out CapturedEnemySnapshot? snapshot)
+    private static bool CanSummon(IDataConfig? card, IStatusManager? owner, out string reason, out SpiritDeploymentSnapshot? snapshot)
     {
         var started = TerriasPerformanceCounters.Timestamp();
         var result = CanSummonCore(card, owner, out reason, out snapshot);
@@ -232,10 +233,15 @@ public static class SpiritSummonService
         return result;
     }
 
-    private static bool CanSummonCore(IDataConfig? card, IStatusManager? owner, out string reason, out CapturedEnemySnapshot? snapshot)
+    private static bool CanSummonCore(IDataConfig? card, IStatusManager? owner, out string reason, out SpiritDeploymentSnapshot? snapshot)
     {
-        snapshot = SpiritCardFactory.Read(card);
-        if (owner == null || snapshot == null)
+        if (!SpiritCardFactory.TryRead(card, out var decoded, out reason))
+        {
+            snapshot = null;
+            return false;
+        }
+        snapshot = decoded;
+        if (owner == null)
         {
             reason = "召唤信息已经失效。";
             return false;
@@ -263,7 +269,7 @@ public static class SpiritSummonService
     }
 
     private static bool TrySummonLocal(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string source,
         bool broadcast,
@@ -318,7 +324,7 @@ public static class SpiritSummonService
     }
 
     private static bool Spawn(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string ownerPlayerId,
         string statusId,
@@ -378,7 +384,7 @@ public static class SpiritSummonService
                     Math.Max(1, networkState.MaxMagic),
                     Math.Max(1, networkState.Attack),
                     Math.Max(1, networkState.Armor),
-                    Math.Max(1, networkState.Speed));
+                    Math.Max(1, networkState.Deployment.SpiritSpeed));
             if (networkState != null)
             {
                 stats.SetCurrentMagic(networkState.CurrentMagic);
@@ -479,7 +485,7 @@ public static class SpiritSummonService
         }
     }
 
-    public static DataConfig CreateSpiritDataConfig(CapturedEnemySnapshot snapshot, CompanionStats stats)
+    public static DataConfig CreateSpiritDataConfig(SpiritDeploymentSnapshot snapshot, CompanionStats stats)
     {
         var handle = AuraGameDataHostApi.ResolveHandle(DataType.Enemy, snapshot.EnemyId)
             ?? throw new InvalidOperationException("Spirit enemy definition is not registered: " + snapshot.EnemyId);
@@ -614,13 +620,11 @@ public static class SpiritSummonService
         {
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
-            RegistryHash = SpiritIntentRegistry.RegistryHash,
-            TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash,
             Revision = state?.Revision ?? 0,
             Generation = spiritState?.Generation ?? 1,
             ExchangeCount = spiritState?.ExchangeCount ?? 0,
             Accepted = true,
-            CapturedEnemy = spirit.Snapshot,
+            Deployment = spirit.Snapshot.Clone(),
             OwnerStatusId = spirit.OwnerStatusId,
             OwnerPlayerId = spirit.OwnerPlayerId,
             ExecutionRoutePlayerId = spirit.ExecutionRoutePlayerId,
@@ -634,11 +638,6 @@ public static class SpiritSummonService
             Armor = state?.Stats.Armor ?? 1,
             MaxMagic = state?.Stats.MaxMagic ?? 1,
             CurrentMagic = state?.Stats.CurrentMagic ?? 0,
-            Speed = state?.Stats.Speed ?? spirit.Snapshot.SpiritSpeed,
-            EquippedIntentIds = state == null ? new List<string>() : new List<string>(state.EquippedIntentIds),
-            EquippedPassiveId = state?.EquippedPassiveId ?? "",
-            LoadoutRevision = state?.LoadoutRevision ?? 0,
-            LoadoutHash = state?.LoadoutHash ?? "",
             PassiveState = state == null
                 ? new Dictionary<string, int>()
                 : state.PassiveStateSnapshot().ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal),
@@ -662,10 +661,10 @@ public static class SpiritSummonService
 
         state.Stats.SetCurrentMagic(snapshot.CurrentMagic);
         state.ConfigureLoadout(
-            snapshot.EquippedIntentIds,
-            snapshot.EquippedPassiveId,
-            snapshot.LoadoutRevision,
-            snapshot.LoadoutHash);
+            snapshot.Deployment.EquippedIntentIds,
+            snapshot.Deployment.EquippedPassiveId,
+            snapshot.Deployment.LoadoutRevision,
+            snapshot.Deployment.LoadoutHash);
         state.ApplyPassiveState(snapshot.PassiveState);
         state.ApplyVisibleStatuses(snapshot.VisibleStatuses);
         state.ApplyReadyOnTurn(snapshot.ReadyOnTurn);
@@ -717,15 +716,13 @@ public static class SpiritSummonService
     }
 
     private static string ValidateNetworkRequest(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         int exchangeCount,
         SpiritCardBattleState battleState,
         TerriasRpcSender sender,
         int protocolVersion,
-        int battleEpoch,
-        string registryHash,
-        string trainingRegistryHash)
+        int battleEpoch)
     {
         if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
         {
@@ -734,14 +731,6 @@ public static class SpiritSummonService
         if (battleEpoch != CompanionAuthorityService.BattleEpoch)
         {
             return "battle-epoch-mismatch";
-        }
-        if (!string.Equals(registryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal))
-        {
-            return "registry-mismatch";
-        }
-        if (!string.Equals(trainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal))
-        {
-            return "training-registry-mismatch";
         }
         if (!sender.IsAvailable || !sender.IsLobbyMember)
         {
@@ -809,7 +798,7 @@ public static class SpiritSummonService
     }
 
     private static void BroadcastRejection(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string token,
         int exchangeCount,
@@ -832,7 +821,7 @@ public static class SpiritSummonService
     }
 
     private static SpiritCompanionSnapshot CreateRejection(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string token,
         int exchangeCount,
@@ -848,13 +837,11 @@ public static class SpiritSummonService
             ProtocolVersion = CompanionAuthorityService.ProjectionProtocolVersion,
             BattleEpoch = CompanionAuthorityService.BattleEpoch,
             Token = normalizedToken,
-            CapturedEnemy = snapshot ?? new CapturedEnemySnapshot(),
+            Deployment = snapshot?.Clone() ?? new SpiritDeploymentSnapshot(),
             OwnerStatusId = ownerStatusId ?? "",
             Accepted = false,
-            ReturnedCard = snapshot,
+            ReturnedDeployment = snapshot?.Clone(),
             ReturnedExchangeCount = Math.Max(0, Math.Min(MaxExchangeCount, exchangeCount)),
-            ReturnedTurnIndex = returnBattleState.TurnIndex,
-            ReturnedReadyOnTurn = new Dictionary<string, int>(returnBattleState.ReadyOnTurn),
             ReturnedBattleState = returnBattleState,
             CardGrantEventId = normalizedToken + ":refund",
             RejectionReason = reason ?? ""
@@ -866,9 +853,10 @@ public static class SpiritSummonService
         ScriptExecutor? preferredExecutor,
         string source)
     {
-        if (snapshot.ReturnedCard == null
+        if (snapshot.ReturnedDeployment == null
             || string.IsNullOrWhiteSpace(snapshot.CardGrantEventId)
-            || !IsLocalOwner(snapshot.OwnerStatusId))
+            || !IsLocalOwner(snapshot.OwnerStatusId)
+            || !SpiritDeploymentCodec.ValidateIntegrity(snapshot.ReturnedDeployment, out _))
         {
             return;
         }
@@ -876,13 +864,9 @@ public static class SpiritSummonService
         var pending = new PendingCardGrant(
             snapshot.CardGrantEventId,
             snapshot.OwnerStatusId,
-            snapshot.ReturnedCard,
+            snapshot.ReturnedDeployment,
             snapshot.ReturnedExchangeCount,
-            snapshot.ReturnedBattleState ?? new SpiritCardBattleState
-            {
-                TurnIndex = snapshot.ReturnedTurnIndex,
-                ReadyOnTurn = snapshot.ReturnedReadyOnTurn ?? new Dictionary<string, int>()
-            });
+            snapshot.ReturnedBattleState ?? new SpiritCardBattleState());
         lock (NetworkSync)
         {
             if (GrantedCardEvents.Contains(pending.EventId))
@@ -1125,13 +1109,13 @@ public static class SpiritSummonService
         public PendingCardGrant(
             string eventId,
             string ownerStatusId,
-            CapturedEnemySnapshot card,
+            SpiritDeploymentSnapshot card,
             int exchangeCount,
             SpiritCardBattleState battleState)
         {
             EventId = eventId ?? "";
             OwnerStatusId = ownerStatusId ?? "";
-            Card = card ?? new CapturedEnemySnapshot();
+            Card = card ?? new SpiritDeploymentSnapshot();
             ExchangeCount = Math.Max(0, Math.Min(MaxExchangeCount, exchangeCount));
             BattleState = battleState ?? new SpiritCardBattleState();
         }
@@ -1140,7 +1124,7 @@ public static class SpiritSummonService
 
         public string OwnerStatusId { get; }
 
-        public CapturedEnemySnapshot Card { get; }
+        public SpiritDeploymentSnapshot Card { get; }
 
         public int ExchangeCount { get; }
 

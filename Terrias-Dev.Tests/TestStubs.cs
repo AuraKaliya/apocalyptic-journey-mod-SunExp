@@ -3,6 +3,22 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
+public enum FightType
+{
+    None,
+    Player,
+    Partner,
+    Win,
+    Loss,
+    Escape
+}
+
+public sealed class FightManager
+{
+    public static FightManager? Instance { get; set; }
+    public FightType fightType { get; set; }
+}
+
 namespace AuraCombatAi.Shared
 {
     public enum CombatPromptKind

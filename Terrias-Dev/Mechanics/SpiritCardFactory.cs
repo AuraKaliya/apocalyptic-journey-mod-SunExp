@@ -11,7 +11,7 @@ public static class SpiritCardFactory
 {
     private const int MaxExchangeCount = 999;
 
-    public static CardGrantResult GrantDeploymentToHand(ScriptExecutor self, CapturedEnemySnapshot snapshot)
+    public static CardGrantResult GrantDeploymentToHand(ScriptExecutor self, SpiritDeploymentSnapshot snapshot)
     {
         return Grant(
             self,
@@ -23,7 +23,7 @@ public static class SpiritCardFactory
 
     public static CardGrantResult GrantReturnedToHand(
         ScriptExecutor self,
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         int exchangeCount,
         SpiritCardBattleState battleState,
         string source)
@@ -33,7 +33,7 @@ public static class SpiritCardFactory
 
     private static CardGrantResult Grant(
         ScriptExecutor self,
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         int exchangeCount,
         SpiritCardBattleState battleState,
         string source)
@@ -133,61 +133,26 @@ public static class SpiritCardFactory
         return result;
     }
 
-    public static CapturedEnemySnapshot? Read(IDataConfig? config)
+    public static SpiritDeploymentSnapshot? Read(IDataConfig? config)
     {
+        return TryRead(config, out var snapshot, out _) ? snapshot : null;
+    }
+
+    public static bool TryRead(
+        IDataConfig? config,
+        out SpiritDeploymentSnapshot snapshot,
+        out string reason)
+    {
+        snapshot = new SpiritDeploymentSnapshot();
         if (!IsSpiritCard(config))
         {
-            return null;
+            reason = "目标卡牌不是精灵部署卡。";
+            return false;
         }
-
-        var runtimeConfig = config!;
-        var enemyId = RuntimeValue(runtimeConfig, TerriasIds.SpiritEnemyIdKey);
-        if (enemyId.Length == 0)
-        {
-            return null;
-        }
-
-        return new CapturedEnemySnapshot
-        {
-            SpiritUid = RuntimeValue(runtimeConfig, TerriasIds.SpiritUidKey),
-            SourceModId = RuntimeValue(runtimeConfig, TerriasIds.SpiritSourceModIdKey),
-            SpeciesId = RuntimeValue(runtimeConfig, TerriasIds.SpiritSpeciesIdKey),
-            ProfileId = RuntimeValue(runtimeConfig, TerriasIds.SpiritGrowthProfileIdKey),
-            SpiritElementId = RuntimeValue(runtimeConfig, TerriasIds.SpiritElementIdKey),
-            EnemyId = enemyId,
-            VariantId = RuntimeValue(runtimeConfig, TerriasIds.SpiritVariantIdKey, enemyId),
-            DisplayName = RuntimeValue(runtimeConfig, TerriasIds.SpiritDisplayNameKey, RuntimeValue(runtimeConfig, "Name")),
-            Description = RuntimeValue(runtimeConfig, TerriasIds.SpiritDescriptionKey),
-            AnimationPath = RuntimeValue(runtimeConfig, TerriasIds.SpiritAnimationPathKey),
-            DictPath = RuntimeValue(runtimeConfig, TerriasIds.SpiritDictPathKey),
-            IdlePath = RuntimeValue(runtimeConfig, TerriasIds.SpiritIdlePathKey),
-            CaptureOrigin = RuntimeValue(runtimeConfig, TerriasIds.SpiritCaptureOriginKey),
-            CapturedAt = RuntimeValue(runtimeConfig, TerriasIds.SpiritCapturedAtKey),
-            BaseHp = RuntimeInt(runtimeConfig, "TerriasSpiritBaseHp"),
-            BaseAttack = RuntimeInt(runtimeConfig, "TerriasSpiritBaseAttack"),
-            BaseArmor = RuntimeInt(runtimeConfig, "TerriasSpiritBaseArmor"),
-            Rarity = RuntimeInt(runtimeConfig, "TerriasSpiritEnemyRarity"),
-            SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritSourceEnemyCardIds")),
-            SpiritLevel = RuntimeInt(runtimeConfig, "TerriasSpiritLevel"),
-            SpiritAptitude = RuntimeInt(runtimeConfig, "TerriasSpiritAptitude"),
-            SpiritGuiyuanValue = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanValue"),
-            SpiritStarRank = RuntimeInt(runtimeConfig, "TerriasSpiritStarRank"),
-            GuiyuanAllocationMagic = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationMagic"),
-            GuiyuanAllocationSpirit = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationSpirit"),
-            GuiyuanAllocationLuck = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationLuck"),
-            GuiyuanAllocationPerception = RuntimeInt(runtimeConfig, "TerriasSpiritGuiyuanAllocationPerception"),
-            OriginMagic = RuntimeInt(runtimeConfig, "TerriasSpiritOriginMagic"),
-            OriginSpirit = RuntimeInt(runtimeConfig, "TerriasSpiritOriginSpirit"),
-            OriginLuck = RuntimeInt(runtimeConfig, "TerriasSpiritOriginLuck"),
-            OriginPerception = RuntimeInt(runtimeConfig, "TerriasSpiritOriginPerception"),
-            SpiritSpeed = RuntimeInt(runtimeConfig, "TerriasSpiritSpeed", 100),
-            EquippedIntentIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritEquippedIntentIds")),
-            EquippedPassiveId = RuntimeValue(runtimeConfig, "TerriasSpiritEquippedPassiveId"),
-            LoadoutRevision = RuntimeInt(runtimeConfig, "TerriasSpiritLoadoutRevision"),
-            LoadoutHash = RuntimeValue(runtimeConfig, "TerriasSpiritLoadoutHash"),
-            TrainingRegistryHash = RuntimeValue(runtimeConfig, "TerriasSpiritTrainingRegistryHash"),
-            DeploymentToken = RuntimeValue(runtimeConfig, "TerriasSpiritDeploymentToken")
-        };
+        return SpiritDeploymentCodec.TryDeserialize(
+            RuntimeValue(config!, TerriasIds.SpiritDeploymentPayloadKey),
+            out snapshot,
+            out reason);
     }
 
     public static bool IsSpiritCard(IDataConfig? config)
@@ -207,7 +172,7 @@ public static class SpiritCardFactory
     }
 
     private static Dictionary<string, string> BuildRuntime(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         int exchangeCount,
         SpiritCardBattleState battleState)
     {
@@ -229,21 +194,7 @@ public static class SpiritCardFactory
                 TerriasTextCatalog.GetForLocale("card.spirit.description", locale, arguments));
         }
         Set(runtime, TerriasIds.RuntimeMarkersKey, TerriasIds.SpiritCardMarker);
-        Set(runtime, TerriasIds.SpiritUidKey, snapshot.SpiritUid);
-        Set(runtime, TerriasIds.SpiritSourceModIdKey, snapshot.SourceModId);
-        Set(runtime, TerriasIds.SpiritSpeciesIdKey, snapshot.SpeciesId);
-        Set(runtime, TerriasIds.SpiritGrowthProfileIdKey, snapshot.ProfileId);
-        Set(runtime, TerriasIds.SpiritElementIdKey, snapshot.SpiritElementId);
-        Set(runtime, TerriasIds.SpiritEnemyIdKey, snapshot.EnemyId);
-        Set(runtime, TerriasIds.SpiritVariantIdKey, snapshot.VariantId);
-        Set(runtime, TerriasIds.SpiritDisplayNameKey, names.Resolve(TerriasLocale.ZhHans, snapshot.EnemyId));
-        Set(runtime, TerriasIds.SpiritDescriptionKey, descriptions.Resolve(TerriasLocale.ZhHans));
-        Set(runtime, TerriasIds.SpiritAnimationPathKey, snapshot.AnimationPath);
-        Set(runtime, TerriasIds.SpiritDictPathKey, snapshot.DictPath);
-        Set(runtime, TerriasIds.SpiritIdlePathKey, snapshot.IdlePath);
-        Set(runtime, TerriasIds.SpiritProfileVersionKey, SpiritIntentRegistry.RegistryHash);
-        Set(runtime, TerriasIds.SpiritCaptureOriginKey, snapshot.CaptureOrigin);
-        Set(runtime, TerriasIds.SpiritCapturedAtKey, snapshot.CapturedAt);
+        Set(runtime, TerriasIds.SpiritDeploymentPayloadKey, SpiritDeploymentCodec.Serialize(snapshot));
         Set(runtime, TerriasIds.SpiritExchangeCountKey, exchangeCount.ToString());
         Set(runtime, TerriasIds.SpiritIntentTurnIndexKey, Math.Max(0, battleState?.TurnIndex ?? 0).ToString());
         Set(runtime, TerriasIds.SpiritIntentReadyOnTurnKey, AuraSharedJson.Serialize(
@@ -251,30 +202,6 @@ public static class SpiritCardFactory
         Set(runtime, TerriasIds.SpiritBattleStateKey, AuraSharedJson.SerializeCompact(
             battleState ?? new SpiritCardBattleState()));
         Set(runtime, "TotalExCost", exchangeCount.ToString());
-        Set(runtime, "TerriasSpiritBaseHp", snapshot.BaseHp.ToString());
-        Set(runtime, "TerriasSpiritBaseAttack", snapshot.BaseAttack.ToString());
-        Set(runtime, "TerriasSpiritBaseArmor", snapshot.BaseArmor.ToString());
-        Set(runtime, "TerriasSpiritEnemyRarity", snapshot.Rarity.ToString());
-        Set(runtime, "TerriasSpiritSourceEnemyCardIds", string.Join(",", snapshot.SourceEnemyCardIds ?? new List<string>()));
-        Set(runtime, "TerriasSpiritLevel", snapshot.SpiritLevel.ToString());
-        Set(runtime, "TerriasSpiritAptitude", snapshot.SpiritAptitude.ToString());
-        Set(runtime, "TerriasSpiritGuiyuanValue", snapshot.SpiritGuiyuanValue.ToString());
-        Set(runtime, "TerriasSpiritStarRank", snapshot.SpiritStarRank.ToString());
-        Set(runtime, "TerriasSpiritGuiyuanAllocationMagic", snapshot.GuiyuanAllocationMagic.ToString());
-        Set(runtime, "TerriasSpiritGuiyuanAllocationSpirit", snapshot.GuiyuanAllocationSpirit.ToString());
-        Set(runtime, "TerriasSpiritGuiyuanAllocationLuck", snapshot.GuiyuanAllocationLuck.ToString());
-        Set(runtime, "TerriasSpiritGuiyuanAllocationPerception", snapshot.GuiyuanAllocationPerception.ToString());
-        Set(runtime, "TerriasSpiritOriginMagic", snapshot.OriginMagic.ToString());
-        Set(runtime, "TerriasSpiritOriginSpirit", snapshot.OriginSpirit.ToString());
-        Set(runtime, "TerriasSpiritOriginLuck", snapshot.OriginLuck.ToString());
-        Set(runtime, "TerriasSpiritOriginPerception", snapshot.OriginPerception.ToString());
-        Set(runtime, "TerriasSpiritSpeed", snapshot.SpiritSpeed.ToString());
-        Set(runtime, "TerriasSpiritEquippedIntentIds", string.Join(",", snapshot.EquippedIntentIds ?? new List<string>()));
-        Set(runtime, "TerriasSpiritEquippedPassiveId", snapshot.EquippedPassiveId);
-        Set(runtime, "TerriasSpiritLoadoutRevision", snapshot.LoadoutRevision.ToString());
-        Set(runtime, "TerriasSpiritLoadoutHash", snapshot.LoadoutHash);
-        Set(runtime, "TerriasSpiritTrainingRegistryHash", snapshot.TrainingRegistryHash);
-        Set(runtime, "TerriasSpiritDeploymentToken", snapshot.DeploymentToken);
 
         return runtime;
     }
@@ -318,9 +245,4 @@ public static class SpiritCardFactory
         return Math.Max(0, Math.Min(MaxExchangeCount, value));
     }
 
-    private static List<string> Split(string value)
-    {
-        return (value ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(id => id.Trim()).Where(id => id.Length > 0).Distinct(StringComparer.Ordinal).ToList();
-    }
 }

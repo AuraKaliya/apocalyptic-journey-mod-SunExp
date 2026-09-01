@@ -9,6 +9,7 @@ using static CombatAiTestFixtures;
 
 ResetAssertions();
 CombatAgentRuntimeBehaviorTests.Run();
+CombatLiveDecisionLaneBehaviorTests.Run();
 CombatAiDecisionBehaviorTests.Run();
 RuntimeDecisionSafetyBehaviorTests.Run();
 SemanticCausalityBehaviorTests.Run();

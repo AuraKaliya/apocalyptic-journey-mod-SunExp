@@ -4,23 +4,23 @@ using System.Linq;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
-using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 
 internal static class MatchAnalysisBuilder
 {
-    internal static MatchAnalysisReport BuildV12(MatchRecord record, ReplayDocumentV12 document)
+    internal static MatchAnalysisReport BuildV17(MatchRecord record, ReplayDocumentV17 document)
     {
         var snapshot = ReadSnapshot(record.StatisticsJson);
         var turns = new Dictionary<int, MatchAnalysisTurn>();
         var cards = new Dictionary<string, MatchAnalysisCard>(StringComparer.Ordinal);
         var transactionCards = new Dictionary<string, MatchAnalysisCard>(StringComparer.Ordinal);
-        var transactions = new Dictionary<string, ReplayCausalTransactionV12>(StringComparer.Ordinal);
+        var transactions = new Dictionary<string, ReplayCausalTransactionV17>(StringComparer.Ordinal);
         var flows = new Dictionary<string, MatchAnalysisDamageFlow>(StringComparer.Ordinal);
         var moments = new List<MatchAnalysisMoment>();
         var descriptors = document.Presentation.Cards.ToDictionary(item => item.DescriptorId, StringComparer.Ordinal);
-        var reducer = new ReplayStateReducerV12();
+        var reducer = new ReplayStateReducerV17();
         reducer.Reset(document.InitialState);
         foreach (var value in document.TruthEvents.OrderBy(item => item.Sequence))
         {
@@ -31,10 +31,10 @@ internal static class MatchAnalysisBuilder
                 turns[round] = turn;
             }
             turn.LastEventSequence = value.Sequence;
-            if (value.EventType == ReplayEventTypesV12.TransactionStarted && value.Transaction != null)
+            if (value.EventType == ReplayEventTypesV17.TransactionStarted && value.Transaction != null)
             {
                 transactions[value.TransactionId] = value.Transaction;
-                if (value.Transaction.Kind is ReplayTransactionKindsV12.Card or ReplayTransactionKindsV12.Skill)
+                if (value.Transaction.Kind is ReplayTransactionKindsV17.Card or ReplayTransactionKindsV17.Skill)
                 {
                     turn.ActionCount++;
                     turn.CardUses++;
@@ -57,7 +57,7 @@ internal static class MatchAnalysisBuilder
                     analysisCard.Uses++;
                     transactionCards[value.TransactionId] = analysisCard;
                 }
-                else if (value.Transaction.Kind is ReplayTransactionKindsV12.Intent or ReplayTransactionKindsV12.ImplicitNative)
+                else if (value.Transaction.Kind is ReplayTransactionKindsV17.Intent or ReplayTransactionKindsV17.ImplicitObserved)
                 {
                     turn.ActionCount++;
                 }
@@ -78,7 +78,7 @@ internal static class MatchAnalysisBuilder
                 var sourceId = transactions.TryGetValue(value.TransactionId, out var transaction)
                     ? transaction.ActorId
                     : value.ActorId;
-                var sourceTeam = TeamV12(after, sourceId);
+                var sourceTeam = TeamV17(after, sourceId);
                 var targetTeam = target.Team ?? "Unknown";
                 var flowKey = sourceTeam + "|" + targetTeam;
                 if (!flows.TryGetValue(flowKey, out var flow))
@@ -98,7 +98,7 @@ internal static class MatchAnalysisBuilder
                                 + " 造成 " + damage + " 点伤害",
                         TurnIndex = round,
                         EventSequence = value.Sequence,
-                        ElapsedMilliseconds = value.TimeTicks * 1000L / ReplayProtocolV12.TimebaseTicksPerSecond,
+                        ElapsedMilliseconds = value.TimeTicks * 1000L / ReplayProtocolV17.TimebaseTicksPerSecond,
                         Value = damage
                     });
             }
@@ -125,10 +125,10 @@ internal static class MatchAnalysisBuilder
             KeyMoments = moments.OrderBy(item => item.EventSequence).Take(24).ToList()
         };
         report.TotalDamage = combatants.Sum(item => item.Damage);
-        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV12.Friendly).Sum(item => item.Damage);
-        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV12.Enemy).Sum(item => item.Damage);
-        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV12.Friendly).Sum(FlowDamage);
-        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV12.Enemy).Sum(FlowDamage);
+        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV17.Friendly).Sum(item => item.Damage);
+        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV17.Enemy).Sum(item => item.Damage);
+        report.FriendlyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV17.Friendly).Sum(FlowDamage);
+        report.EnemyDamageTaken = report.DamageFlows.Where(item => item.TargetTeam == ReplayTeamsV17.Enemy).Sum(FlowDamage);
         report.HpDamage = report.DamageFlows.Sum(item => item.HpDamage);
         report.ShieldDamage = report.DamageFlows.Sum(item => item.ShieldDamage);
         var best = orderedTurns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
@@ -157,8 +157,8 @@ internal static class MatchAnalysisBuilder
             Combatants = combatants
         };
         report.TotalDamage = combatants.Sum(item => item.Damage);
-        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV12.Friendly).Sum(item => item.Damage);
-        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV12.Enemy).Sum(item => item.Damage);
+        report.FriendlyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV17.Friendly).Sum(item => item.Damage);
+        report.EnemyDamageDealt = combatants.Where(item => item.Team == ReplayTeamsV17.Enemy).Sum(item => item.Damage);
         var best = turns.OrderByDescending(item => item.Damage).ThenBy(item => item.TurnIndex).FirstOrDefault();
         report.BestTurnDamage = best?.Damage ?? 0;
         report.BestTurnIndex = best?.TurnIndex ?? 0;
@@ -199,7 +199,7 @@ internal static class MatchAnalysisBuilder
 
     private static long FlowDamage(MatchAnalysisDamageFlow item) => item.HpDamage + item.ShieldDamage;
 
-    private static string TeamV12(ReplayPublicStateV12 state, string entityId)
+    private static string TeamV17(ReplayVisibleStateV17 state, string entityId)
     {
         return state.Entities.LastOrDefault(item => string.Equals(item.EntityId, entityId, StringComparison.Ordinal))?.Team
                ?? "Unknown";

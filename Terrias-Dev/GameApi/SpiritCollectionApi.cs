@@ -228,19 +228,34 @@ public static class SpiritCollectionApi
             artifacts);
     }
 
-    public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance)
-        => SpiritGrowthQueryService.Build(instance, ArtifactBattleFor(instance));
+    internal static SpiritReadModelSnapshot ReadModel()
+        => EnsureProfileBound() ? SpiritReadModelStore.Current() : new SpiritReadModelSnapshot();
 
-    public static SpiritTrainingViewSnapshot TrainingView(SpiritInstance instance) => SpiritTrainingService.BuildView(instance);
+    internal static SpiritInstance? FindReadModel(string uid) => ReadModel().Find(uid);
+
+    public static IReadOnlyList<SpiritCodexEntryView> Codex()
+        => EnsureProfileBound() ? SpiritReadModelStore.Current().Codex : Array.Empty<SpiritCodexEntryView>();
+
+    public static SpiritGrowthViewSnapshot GrowthView(SpiritInstance instance)
+        => instance == null
+            ? SpiritGrowthQueryService.Build(new SpiritInstance())
+            : SpiritReadModelStore.Current().Detail(instance.SpiritUid)?.Growth
+              ?? SpiritGrowthQueryService.Build(instance, ArtifactBattleFor(instance));
+
+    public static SpiritTrainingViewSnapshot TrainingView(SpiritInstance instance)
+        => instance == null
+            ? SpiritTrainingService.BuildView(new SpiritInstance())
+            : SpiritReadModelStore.Current().Detail(instance.SpiritUid)?.Training
+              ?? SpiritTrainingService.BuildView(instance);
 
     private static SpiritArtifactBattleSnapshot ArtifactBattleFor(SpiritInstance instance)
     {
         if (instance == null || !EnsureProfileBound() || !SpiritArtifactRegistry.IsReady)
             return new SpiritArtifactBattleSnapshot();
-        var collection = SpiritCollectionService.Snapshot();
-        var persisted = collection.Instances.FirstOrDefault(value =>
-            string.Equals(value.SpiritUid, instance.SpiritUid, StringComparison.Ordinal)) ?? instance;
-        return SpiritArtifactLoadoutResolver.Resolve(collection, persisted).Battle;
+        var readModel = SpiritReadModelStore.Current();
+        var persisted = readModel.Find(instance.SpiritUid) ?? instance;
+        return readModel.Detail(persisted.SpiritUid)?.Artifacts
+               ?? SpiritArtifactLoadoutResolver.Resolve(readModel.Collection, persisted).Battle;
     }
 
     public static bool EquipIntent(string uid, int slotIndex, string intentId)
@@ -299,17 +314,20 @@ public static class SpiritCollectionApi
             return 0;
         }
 
-        var cards = role.cardList.Concat(role.UnCardList)
-            .Where(card => SpiritCardFactory.IsSpiritCard(card))
-            .GroupBy(card => string.IsNullOrWhiteSpace(SpiritCardFactory.Read(card)?.SpiritUid)
-                ? card.InstanceID ?? Guid.NewGuid().ToString("N")
-                : SpiritCardFactory.Read(card)!.SpiritUid, StringComparer.Ordinal)
-            .Select(group => group.First())
+        var legacyCards = role.cardList.Concat(role.UnCardList)
+            .Select(card => (Card: card, Record: LegacySpiritCardMigrationReader.Read(card)))
+            .Where(value => value.Record != null)
+            .ToArray();
+        var snapshots = legacyCards
+            .GroupBy(value => string.IsNullOrWhiteSpace(value.Record!.SpiritUid)
+                ? value.Card.InstanceID ?? Guid.NewGuid().ToString("N")
+                : value.Record.SpiritUid, StringComparer.Ordinal)
+            .Select(group => group.First().Record!)
             .ToList();
-        var snapshots = cards.Select(SpiritCardFactory.Read).Where(item => item != null).Cast<CapturedEnemySnapshot>().ToList();
         SpiritCollectionService.ImportLegacy(snapshots);
-        var removed = RemoveLegacyCards(role.cardList);
-        removed += RemoveLegacyCards(role.UnCardList);
+        var removalSet = new HashSet<DataConfig>(legacyCards.Select(value => value.Card));
+        var removed = RemoveLegacyCards(role.cardList, removalSet);
+        removed += RemoveLegacyCards(role.UnCardList, removalSet);
         if (removed > 0)
         {
             TerriasLog.Info("[SpiritCollection] migrated and removed legacy spirit cards=" + removed + ".");
@@ -317,10 +335,12 @@ public static class SpiritCollectionApi
         return removed;
     }
 
-    private static int RemoveLegacyCards(System.Collections.ObjectModel.ObservableCollection<DataConfig> cards)
+    private static int RemoveLegacyCards(
+        System.Collections.ObjectModel.ObservableCollection<DataConfig> cards,
+        ISet<DataConfig> removalSet)
     {
         var removed = 0;
-        foreach (var card in cards.Where(SpiritCardFactory.IsSpiritCard).ToArray())
+        foreach (var card in cards.Where(removalSet.Contains).ToArray())
         {
             if (cards.Remove(card)) removed++;
         }
@@ -655,8 +675,7 @@ public static class SpiritCollectionApi
             }
             try
             {
-                var loaded = JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(path))
-                             ?? new SpiritCollectionDocument();
+                var loaded = SpiritCollectionDocumentCodec.Deserialize(File.ReadAllText(path));
                 loadState = ProfileLoadState.Existing;
                 return loaded;
             }
@@ -687,7 +706,7 @@ public static class SpiritCollectionApi
             AuraSharedFileStore.WriteAllText(
                 TerriasIds.ModId,
                 path,
-                JsonConvert.SerializeObject(document, Formatting.Indented),
+                SpiritCollectionDocumentCodec.Serialize(document),
                 createBackup: true);
             loadState = ProfileLoadState.Existing;
         }
@@ -716,7 +735,7 @@ public static class SpiritCollectionApi
                 SpiritCollectionDocument? legacy;
                 try
                 {
-                    legacy = JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(legacyPath));
+                    legacy = SpiritCollectionDocumentCodec.Deserialize(File.ReadAllText(legacyPath));
                 }
                 catch (Exception ex)
                 {
@@ -747,7 +766,7 @@ public static class SpiritCollectionApi
             {
                 var backup = path + ".bak";
                 return File.Exists(backup)
-                    ? JsonConvert.DeserializeObject<SpiritCollectionDocument>(File.ReadAllText(backup))
+                    ? SpiritCollectionDocumentCodec.Deserialize(File.ReadAllText(backup))
                     : null;
             }
             catch { return null; }

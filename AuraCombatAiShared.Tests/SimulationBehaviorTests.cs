@@ -3866,6 +3866,8 @@ internal static class CombatAiSimulationBehaviorTests
                 }
             }
         };
+        var knowledgeRevisionBeforeRegistration =
+            CombatKnowledgeRegistry.Revision;
         using (CombatKnowledgeRegistry.RegisterPackage(
                    knowledgePackage,
                    out var knowledgeErrors))
@@ -3904,6 +3906,8 @@ internal static class CombatAiSimulationBehaviorTests
             CombatAiRegistry.ApplySemantics(knowledgeState, knowledgeState.Actions[0]);
             var coverage = CombatKnowledgeRegistry.EvaluateCoverage(knowledgeState);
             Assert(knowledgeErrors.Count == 0
+                   && CombatKnowledgeRegistry.Revision
+                      > knowledgeRevisionBeforeRegistration
                    && knowledgeState.Actions[0].Semantics.Draw == 1d
                    && knowledgeState.Actions[0].Semantics.DamageMultiplierGain == 0.04d
                    && knowledgeState.Actions[0].SemanticFidelity

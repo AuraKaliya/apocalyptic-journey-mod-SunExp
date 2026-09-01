@@ -64,7 +64,7 @@ internal static class SpiritArtifactPresetPanel
         CloseInternal(invokeCallback: false);
         currentSpiritUid = (spiritUid ?? "").Trim();
         closed = onClosed;
-        collection = SpiritCollectionApi.Collection();
+        collection = SpiritCollectionApi.ReadModel().Collection;
         var parentRect = parent as RectTransform;
         var availableHeight = parentRect != null && parentRect.rect.height > 1f ? parentRect.rect.height : 560f;
         layout = SpiritArtifactPresetLayoutPolicy.Calculate(workspaceWidth, availableHeight);
@@ -239,7 +239,7 @@ internal static class SpiritArtifactPresetPanel
 
     private static void Rebuild()
     {
-        collection = SpiritCollectionApi.Collection();
+        collection = SpiritCollectionApi.ReadModel().Collection;
         protectedArtifactUids = SpiritArtifactPresetService.ProtectedArtifactUids(collection);
         var full = collection.ArtifactInventory.Presets.Count >= SpiritSystemContract.ArtifactPresetCapacity;
         if (presetCountText != null)

@@ -10,13 +10,11 @@ public sealed class SpiritCompanionSnapshot
 {
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
-    public string RegistryHash { get; set; } = "";
-    public string TrainingRegistryHash { get; set; } = "";
     public int Revision { get; set; }
     public int Generation { get; set; }
     public int ExchangeCount { get; set; }
     public string Token { get; set; } = "";
-    public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
+    public SpiritDeploymentSnapshot Deployment { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
     public string OwnerPlayerId { get; set; } = "";
     public string ExecutionRoutePlayerId { get; set; } = "";
@@ -31,11 +29,6 @@ public sealed class SpiritCompanionSnapshot
     public int Armor { get; set; }
     public int MaxMagic { get; set; }
     public int CurrentMagic { get; set; }
-    public int Speed { get; set; } = 100;
-    public List<string> EquippedIntentIds { get; set; } = new();
-    public string EquippedPassiveId { get; set; } = "";
-    public int LoadoutRevision { get; set; }
-    public string LoadoutHash { get; set; } = "";
     public Dictionary<string, int> PassiveState { get; set; } = new();
     public List<SpiritVisibleStatusSnapshot> VisibleStatuses { get; set; } = new();
     public int TurnIndex { get; set; }
@@ -43,10 +36,8 @@ public sealed class SpiritCompanionSnapshot
     public CompanionThreatSnapshot? Threat { get; set; }
     public CompanionIntentPlan? IntentPlan { get; set; }
     public string ReplacedStatusId { get; set; } = "";
-    public CapturedEnemySnapshot? ReturnedCard { get; set; }
+    public SpiritDeploymentSnapshot? ReturnedDeployment { get; set; }
     public int ReturnedExchangeCount { get; set; }
-    public int ReturnedTurnIndex { get; set; }
-    public Dictionary<string, int> ReturnedReadyOnTurn { get; set; } = new();
     public SpiritCardBattleState ReturnedBattleState { get; set; } = new();
     public string CardGrantEventId { get; set; } = "";
     public bool ReturnedCardOnly { get; set; }
@@ -72,41 +63,31 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
-    public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
+    public SpiritDeploymentSnapshot Deployment { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
     public string Token { get; set; } = "";
     public int ExchangeCount { get; set; }
-    public int TurnIndex { get; set; }
-    public Dictionary<string, int> ReadyOnTurn { get; set; } = new();
     public SpiritCardBattleState BattleState { get; set; } = new();
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
     public int BattleEpoch { get; set; }
-    public string RegistryHash { get; set; } = "";
-    public string TrainingRegistryHash { get; set; } = "";
 
     public RpcSpiritSummonRequest()
     {
     }
 
     public RpcSpiritSummonRequest(
-        CapturedEnemySnapshot capturedEnemy,
+        SpiritDeploymentSnapshot deployment,
         string ownerStatusId,
         string token,
         int exchangeCount,
         SpiritCardBattleState battleState)
     {
-        CapturedEnemy = capturedEnemy ?? new CapturedEnemySnapshot();
+        Deployment = deployment ?? new SpiritDeploymentSnapshot();
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
         ExchangeCount = Math.Max(0, exchangeCount);
-        TurnIndex = Math.Max(0, battleState?.TurnIndex ?? 0);
-        ReadyOnTurn = battleState?.ReadyOnTurn == null
-            ? new Dictionary<string, int>()
-            : new Dictionary<string, int>(battleState.ReadyOnTurn);
         BattleState = battleState ?? new SpiritCardBattleState();
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
-        RegistryHash = SpiritIntentRegistry.RegistryHash;
-        TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
     }
 
     public void BindServerSender(TerriasRpcSender sender)
@@ -117,26 +98,17 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
     public override void CmdExecute()
     {
         SpiritSummonService.ResolveNetworkSummon(
-            CapturedEnemy,
+            Deployment,
             OwnerStatusId,
             Token,
             ExchangeCount,
-            BattleState ?? new SpiritCardBattleState
-            {
-                TurnIndex = TurnIndex,
-                ReadyOnTurn = ReadyOnTurn
-            },
+            BattleState ?? new SpiritCardBattleState(),
             serverSender,
             ProtocolVersion,
-            BattleEpoch,
-            RegistryHash,
-            TrainingRegistryHash);
-        CapturedEnemy = new CapturedEnemySnapshot();
+            BattleEpoch);
+        Deployment = new SpiritDeploymentSnapshot();
         OwnerStatusId = "";
-        ReadyOnTurn = new Dictionary<string, int>();
         BattleState = new SpiritCardBattleState();
-        RegistryHash = "";
-        TrainingRegistryHash = "";
     }
 
     public override void RpcExecute()

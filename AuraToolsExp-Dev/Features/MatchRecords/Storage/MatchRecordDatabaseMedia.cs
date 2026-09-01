@@ -222,8 +222,7 @@ internal sealed partial class MatchRecordDatabase
         using (var query = connection.Prepare(
                    "SELECT a.asset_sha256, a.file_path FROM replay_assets a "
                    + "LEFT JOIN replay_asset_refs r ON r.asset_sha256=a.asset_sha256 "
-                   + "LEFT JOIN replay_pov_asset_refs p ON p.asset_sha256=a.asset_sha256 "
-                   + "WHERE r.asset_sha256 IS NULL AND p.asset_sha256 IS NULL;"))
+                   + "WHERE r.asset_sha256 IS NULL;"))
             while (query.Read())
             {
                 var path = ResolveStoredPath(query.Text(1));
@@ -248,11 +247,9 @@ internal sealed partial class MatchRecordDatabase
                 {
                     using var delete = connection.Prepare(
                         "DELETE FROM replay_assets WHERE asset_sha256=? "
-                        + "AND NOT EXISTS(SELECT 1 FROM replay_asset_refs WHERE asset_sha256=?) "
-                        + "AND NOT EXISTS(SELECT 1 FROM replay_pov_asset_refs WHERE asset_sha256=?);");
+                        + "AND NOT EXISTS(SELECT 1 FROM replay_asset_refs WHERE asset_sha256=?);");
                     delete.Bind(1, candidate.Sha256);
                     delete.Bind(2, candidate.Sha256);
-                    delete.Bind(3, candidate.Sha256);
                     delete.Execute();
                 }
                 connection.Execute("COMMIT;");

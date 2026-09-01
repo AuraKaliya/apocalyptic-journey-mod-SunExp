@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseBaseline": "0.7.0",
+  "releaseBaseline": "0.11.0",
   "globalExactModVersionRequired": false,
   "features": [
     {
@@ -48,16 +48,30 @@
     },
     {
       "id": "records.match-replay",
-      "currentVersion": 12,
-      "minimumSupportedVersion": 12,
+      "currentVersion": 17,
+      "minimumSupportedVersion": 17,
       "requiredCapabilities": [
-        "causal-transactions.v1",
-        "authoritative-public-state.v1",
-        "dual-journal-lane.v1",
-        "full-checkpoints.v1",
-        "portable-presentation.v1",
-        "independent-replay-scene.v1",
-        "embedded-assets.v1"
+        "causal-transactions.v2",
+        "perspective-visible-state.v1",
+        "resolved-instruction-stream.v1",
+        "unified-transaction-order.v1",
+        "deterministic-visible-reducer.v1",
+        "visible-state-checkpoints.v1",
+        "native-resource-projection.v3",
+        "measured-native-layout.v1",
+        "native-prefab-presentation.v1",
+        "shared-mod-presentation.v1",
+        "observed-overlap-tracks.v1",
+        "visual-state-commit.v1",
+        "native-card-view.v1",
+        "observed-presentation-timeline.v3",
+        "native-fight-ui.v1",
+        "native-renderer-profile.v1",
+        "pixel-readback-preflight.v1",
+        "shared-presentation-modules.v1",
+        "incremental-persistence.v1",
+        "crash-resumable-finalization.v1",
+        "owner-qualified-replay-extensions.v1"
       ],
       "fallback": "reject-structured-replay-and-retain-summary-analysis-verified-mp4"
     }

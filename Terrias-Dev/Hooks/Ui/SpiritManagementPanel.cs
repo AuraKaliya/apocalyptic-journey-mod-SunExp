@@ -79,6 +79,7 @@ public static class SpiritManagementPanel
     private static string guiyuanTargetUid = "";
     private static readonly HashSet<string> GuiyuanDonorUids = new(StringComparer.Ordinal);
     private static bool guiyuanConfirmArmed;
+    private static SpiritReadModelSnapshot? currentReadModel;
 
     public static bool IsOpen => root != null;
 
@@ -115,6 +116,7 @@ public static class SpiritManagementPanel
         gridForbiddenDonors.Clear();
         gridActiveUid = "";
         gridGuiyuanTargetSpeciesId = "";
+        currentReadModel = null;
         warehouseSelectionNeedsInitialization = false;
         ResetGuiyuanSelection();
     }
@@ -133,7 +135,7 @@ public static class SpiritManagementPanel
             var party = Party();
             if (mode == PanelMode.Adventure)
             {
-                var collectionCount = SpiritCollectionApi.Collection().Instances.Count;
+                var collectionCount = ReadModel().Collection.Instances.Count;
                 TerriasLog.Info("[SpiritManagement] adventure panel opened; collection="
                                 + collectionCount
                                 + ", carried="
@@ -305,6 +307,7 @@ public static class SpiritManagementPanel
 
     private static void Refresh()
     {
+        currentReadModel = SpiritCollectionApi.ReadModel();
         CreateDetailTabs(pageTabContent);
         var artifacts = detailTab == 3;
         if (normalBody != null) normalBody.SetActive(!artifacts);
@@ -325,7 +328,7 @@ public static class SpiritManagementPanel
     private static void RefreshGrid(bool resetScroll = false)
     {
         if (virtualGrid == null) return;
-        var collection = SpiritCollectionApi.Collection();
+        var collection = ReadModel().Collection;
         var party = Party();
         gridCarried = new HashSet<string>(party.PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid)), StringComparer.Ordinal);
         gridForbiddenDonors = guiyuanSelectingDonors ? GuiyuanForbiddenUids() : new HashSet<string>(StringComparer.Ordinal);
@@ -475,7 +478,7 @@ public static class SpiritManagementPanel
     {
         if (selectedIdentityContent == null) return;
         ClearChildren(selectedIdentityContent);
-        var item = SpiritCollectionApi.Find(selectedUid);
+        var item = FindSpirit(selectedUid);
         if (item == null)
         {
             AddFixedTextBlock(
@@ -544,7 +547,7 @@ public static class SpiritManagementPanel
         var values = Party().PartySlots
             .Where(uid => !string.IsNullOrWhiteSpace(uid))
             .Distinct(StringComparer.Ordinal)
-            .Select(SpiritCollectionApi.Find)
+            .Select(FindSpirit)
             .Where(item => item != null)
             .Cast<SpiritInstance>()
             .ToArray();
@@ -565,7 +568,7 @@ public static class SpiritManagementPanel
         if (previewContent == null || detailContent == null) return;
         ClearChildren(previewContent);
         ClearChildren(detailContent);
-        var item = SpiritCollectionApi.Find(selectedUid);
+        var item = FindSpirit(selectedUid);
         if (item == null)
         {
             TerriasUiComponents.AddTextBlock(detailContent, "请选择一只精灵", 17, TextAnchor.MiddleCenter, Pale, 80f);
@@ -604,7 +607,7 @@ public static class SpiritManagementPanel
         {
             var index = slot;
             var uid = party.PartySlots[index];
-            var item = SpiritCollectionApi.Find(uid);
+            var item = FindSpirit(uid);
             var cell = LayoutObject("PartySlot-" + index, partyContent, 96f, 0f, PartySlotWidth());
             ApplyPanel(cell, item == null ? ItemTint : QualityTint(item.Aptitude), true);
             TerriasUiComponents.ConfigureVerticalLayout(cell, new RectOffset(5, 5, 4, 4), 2f, alignment: TextAnchor.MiddleCenter);
@@ -655,7 +658,7 @@ public static class SpiritManagementPanel
             return;
         }
         var party = Party();
-        var selected = SpiritCollectionApi.Find(selectedUid);
+        var selected = FindSpirit(selectedUid);
         TerriasUiComponents.AddTextBlock(actionContent,
             selected == null
                 ? L("ui.spirit.none_selected")
@@ -768,6 +771,11 @@ public static class SpiritManagementPanel
     {
         return mode == PanelMode.Adventure ? SpiritCollectionApi.CurrentParty() : SpiritCollectionApi.DefaultParty();
     }
+
+    private static SpiritReadModelSnapshot ReadModel()
+        => currentReadModel ??= SpiritCollectionApi.ReadModel();
+
+    private static SpiritInstance? FindSpirit(string uid) => ReadModel().Find(uid);
 
     private static void SelectSpirit(string? uid, bool rememberWarehouseSelection = true)
     {
@@ -1007,7 +1015,7 @@ public static class SpiritManagementPanel
 
     private static void AdjustGuiyuanAllocation(string uid, string key, int delta)
     {
-        var item = SpiritCollectionApi.Find(uid);
+        var item = FindSpirit(uid);
         if (item == null) return;
         var value = SpiritAscensionService.NormalizeAllocations(item.GuiyuanAllocations, item.GuiyuanValue);
         switch (key)
@@ -1024,7 +1032,7 @@ public static class SpiritManagementPanel
 
     private static void BeginGuiyuanSelection()
     {
-        var target = SpiritCollectionApi.Find(selectedUid);
+        var target = FindSpirit(selectedUid);
         if (mode != PanelMode.Warehouse || target == null
             || SpiritAscensionService.StarRankFor(target.GuiyuanValue) >= SpiritAscensionService.MaximumStarRank) return;
         guiyuanSelectingDonors = true;
@@ -1044,14 +1052,14 @@ public static class SpiritManagementPanel
     private static void RefreshGuiyuanActions()
     {
         if (actionContent == null) return;
-        var target = SpiritCollectionApi.Find(guiyuanTargetUid);
+        var target = FindSpirit(guiyuanTargetUid);
         if (target == null)
         {
             ResetGuiyuanSelection();
             Refresh();
             return;
         }
-        var donors = GuiyuanDonorUids.Select(SpiritCollectionApi.Find).Where(item => item != null).Cast<SpiritInstance>().ToList();
+        var donors = GuiyuanDonorUids.Select(FindSpirit).Where(item => item != null).Cast<SpiritInstance>().ToList();
         var preview = SpiritAscensionService.Preview(target, donors);
         var summary = donors.Count == 0
             ? L("ui.spirit.guiyuan.choose_same_species")

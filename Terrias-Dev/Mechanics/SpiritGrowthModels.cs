@@ -288,100 +288,58 @@ public sealed class SpiritProfileIdentity
 [Serializable]
 public sealed class SpiritInstance
 {
-    public string SpiritUid { get; set; } = "";
+    public SpiritIdentityComponent Identity { get; set; } = new();
+    public SpiritSourceComponent Source { get; set; } = new();
+    public SpiritGrowthComponent Growth { get; set; } = new();
+    public SpiritElementComponent Element { get; set; } = new();
+    public SpiritAscensionComponent Ascension { get; set; } = new();
+    public SpiritTrainingComponent Training { get; set; } = new();
+    public SpiritEquipmentComponent Equipment { get; set; } = new();
+    public SpiritMetadataComponent Metadata { get; set; } = new();
 
-    public string SpeciesId { get; set; } = "";
-
-    public string ProfileId { get; set; } = "";
-
-    public string ElementId { get; set; } = "";
-
-    public string ElementSource { get; set; } = "";
-
-    public int ElementAssignmentRevision { get; set; }
-
-    public CapturedEnemySnapshot Snapshot { get; set; } = new();
-
-    public SpiritLocalizedPresentation Presentation { get; set; } = new();
-
-    public int Level { get; set; } = 1;
-
-    public int Experience { get; set; }
-
-    public int Aptitude { get; set; } = 60;
-
-    public int Speed { get; set; }
-
-    public int GuiyuanValue { get; set; }
-
-    public SpiritOriginVector GuiyuanAllocations { get; set; } = new();
-
-    public int TrainingPlanVersion { get; set; }
-
-    public int InherentAbilityPlanVersion { get; set; }
-
-    public List<string> ResolvedInherentIntentIds { get; set; } = new();
-
-    public string ResolvedInherentPassiveId { get; set; } = "";
-
-    public List<string> LearnedIntentIds { get; set; } = new();
-
-    public List<string> EquippedIntentIds { get; set; } = new();
-
-    public List<string> LearnedPassiveIds { get; set; } = new();
-
-    public string EquippedPassiveId { get; set; } = "";
-
-    public List<SpiritUnlockNode> UnlockPlan { get; set; } = new();
-
-    public List<string> NewAbilityIds { get; set; } = new();
-
-    public int LoadoutRevision { get; set; }
-
-    public string LoadoutHash { get; set; } = "";
-
-    public SpiritArtifactLoadout ArtifactLoadout { get; set; } = new();
-
-    public bool Favorite { get; set; }
-
-    public bool Locked { get; set; }
-
-    public string CapturedAt { get; set; } = "";
+    [Newtonsoft.Json.JsonIgnore] public string SpiritUid { get => (Identity ??= new()).SpiritUid; set => (Identity ??= new()).SpiritUid = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public string SpeciesId { get => (Identity ??= new()).SpeciesId; set => (Identity ??= new()).SpeciesId = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public string ProfileId { get => (Identity ??= new()).ProfileId; set => (Identity ??= new()).ProfileId = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public string ElementId { get => (Element ??= new()).ElementId; set => (Element ??= new()).ElementId = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public string ElementSource { get => (Element ??= new()).Source; set => (Element ??= new()).Source = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public int ElementAssignmentRevision { get => (Element ??= new()).AssignmentRevision; set => (Element ??= new()).AssignmentRevision = value; }
+    [Newtonsoft.Json.JsonIgnore] public CapturedEnemySnapshot Snapshot { get => (Source ??= new()).Capture ??= new CapturedEnemySnapshot(); set => (Source ??= new()).Capture = value ?? new CapturedEnemySnapshot(); }
+    [Newtonsoft.Json.JsonIgnore] public SpiritLocalizedPresentation Presentation { get => (Source ??= new()).Presentation ??= new SpiritLocalizedPresentation(); set => (Source ??= new()).Presentation = value ?? new SpiritLocalizedPresentation(); }
+    [Newtonsoft.Json.JsonIgnore] public int Level { get => (Growth ??= new()).Level; set => (Growth ??= new()).Level = value; }
+    [Newtonsoft.Json.JsonIgnore] public int Experience { get => (Growth ??= new()).Experience; set => (Growth ??= new()).Experience = value; }
+    [Newtonsoft.Json.JsonIgnore] public int Aptitude { get => (Growth ??= new()).Aptitude; set => (Growth ??= new()).Aptitude = value; }
+    [Newtonsoft.Json.JsonIgnore] public int Speed { get => (Growth ??= new()).Speed; set => (Growth ??= new()).Speed = value; }
+    [Newtonsoft.Json.JsonIgnore] public int GuiyuanValue { get => (Ascension ??= new()).GuiyuanValue; set => (Ascension ??= new()).GuiyuanValue = value; }
+    [Newtonsoft.Json.JsonIgnore] public SpiritOriginVector GuiyuanAllocations { get => (Ascension ??= new()).Allocations ??= new SpiritOriginVector(); set => (Ascension ??= new()).Allocations = value ?? new SpiritOriginVector(); }
+    [Newtonsoft.Json.JsonIgnore] public int TrainingPlanVersion { get => (Training ??= new()).TrainingPlanVersion; set => (Training ??= new()).TrainingPlanVersion = value; }
+    [Newtonsoft.Json.JsonIgnore] public int InherentAbilityPlanVersion { get => (Training ??= new()).InherentAbilityPlanVersion; set => (Training ??= new()).InherentAbilityPlanVersion = value; }
+    [Newtonsoft.Json.JsonIgnore] public List<string> ResolvedInherentIntentIds { get => (Training ??= new()).ResolvedInherentIntentIds ??= new List<string>(); set => (Training ??= new()).ResolvedInherentIntentIds = value ?? new List<string>(); }
+    [Newtonsoft.Json.JsonIgnore] public string ResolvedInherentPassiveId { get => (Training ??= new()).ResolvedInherentPassiveId; set => (Training ??= new()).ResolvedInherentPassiveId = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public List<string> LearnedIntentIds { get => (Training ??= new()).LearnedIntentIds ??= new List<string>(); set => (Training ??= new()).LearnedIntentIds = value ?? new List<string>(); }
+    [Newtonsoft.Json.JsonIgnore] public List<string> EquippedIntentIds { get => (Training ??= new()).EquippedIntentIds ??= new List<string>(); set => (Training ??= new()).EquippedIntentIds = value ?? new List<string>(); }
+    [Newtonsoft.Json.JsonIgnore] public List<string> LearnedPassiveIds { get => (Training ??= new()).LearnedPassiveIds ??= new List<string>(); set => (Training ??= new()).LearnedPassiveIds = value ?? new List<string>(); }
+    [Newtonsoft.Json.JsonIgnore] public string EquippedPassiveId { get => (Training ??= new()).EquippedPassiveId; set => (Training ??= new()).EquippedPassiveId = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public List<SpiritUnlockNode> UnlockPlan { get => (Training ??= new()).UnlockPlan ??= new List<SpiritUnlockNode>(); set => (Training ??= new()).UnlockPlan = value ?? new List<SpiritUnlockNode>(); }
+    [Newtonsoft.Json.JsonIgnore] public List<string> NewAbilityIds { get => (Training ??= new()).NewAbilityIds ??= new List<string>(); set => (Training ??= new()).NewAbilityIds = value ?? new List<string>(); }
+    [Newtonsoft.Json.JsonIgnore] public int LoadoutRevision { get => (Training ??= new()).LoadoutRevision; set => (Training ??= new()).LoadoutRevision = value; }
+    [Newtonsoft.Json.JsonIgnore] public string LoadoutHash { get => (Training ??= new()).LoadoutHash; set => (Training ??= new()).LoadoutHash = value ?? ""; }
+    [Newtonsoft.Json.JsonIgnore] public SpiritArtifactLoadout ArtifactLoadout { get => (Equipment ??= new()).ArtifactLoadout ??= new SpiritArtifactLoadout(); set => (Equipment ??= new()).ArtifactLoadout = value ?? new SpiritArtifactLoadout(); }
+    [Newtonsoft.Json.JsonIgnore] public bool Favorite { get => (Metadata ??= new()).Favorite; set => (Metadata ??= new()).Favorite = value; }
+    [Newtonsoft.Json.JsonIgnore] public bool Locked { get => (Metadata ??= new()).Locked; set => (Metadata ??= new()).Locked = value; }
+    [Newtonsoft.Json.JsonIgnore] public string CapturedAt { get => (Source ??= new()).CapturedAt; set => (Source ??= new()).CapturedAt = value ?? ""; }
 
     public SpiritInstance Clone()
     {
         return new SpiritInstance
         {
-            SpiritUid = SpiritUid,
-            SpeciesId = SpeciesId,
-            ProfileId = ProfileId,
-            ElementId = ElementId,
-            ElementSource = ElementSource,
-            ElementAssignmentRevision = ElementAssignmentRevision,
-            Snapshot = SpiritModelCloner.CloneSnapshot(Snapshot),
-            Presentation = (Presentation ?? new SpiritLocalizedPresentation()).Clone(),
-            Level = Level,
-            Experience = Experience,
-            Aptitude = Aptitude,
-            Speed = Speed,
-            GuiyuanValue = GuiyuanValue,
-            GuiyuanAllocations = GuiyuanAllocations?.Clone() ?? new SpiritOriginVector(),
-            TrainingPlanVersion = TrainingPlanVersion,
-            InherentAbilityPlanVersion = InherentAbilityPlanVersion,
-            ResolvedInherentIntentIds = new List<string>(ResolvedInherentIntentIds ?? new List<string>()),
-            ResolvedInherentPassiveId = ResolvedInherentPassiveId,
-            LearnedIntentIds = new List<string>(LearnedIntentIds ?? new List<string>()),
-            EquippedIntentIds = new List<string>(EquippedIntentIds ?? new List<string>()),
-            LearnedPassiveIds = new List<string>(LearnedPassiveIds ?? new List<string>()),
-            EquippedPassiveId = EquippedPassiveId,
-            UnlockPlan = (UnlockPlan ?? new List<SpiritUnlockNode>()).Select(value => value.Clone()).ToList(),
-            NewAbilityIds = new List<string>(NewAbilityIds ?? new List<string>()),
-            LoadoutRevision = LoadoutRevision,
-            LoadoutHash = LoadoutHash,
-            ArtifactLoadout = ArtifactLoadout?.Clone() ?? new SpiritArtifactLoadout(),
-            Favorite = Favorite,
-            Locked = Locked,
-            CapturedAt = CapturedAt
+            Identity = (Identity ?? new SpiritIdentityComponent()).Clone(),
+            Source = (Source ?? new SpiritSourceComponent()).Clone(),
+            Growth = (Growth ?? new SpiritGrowthComponent()).Clone(),
+            Element = (Element ?? new SpiritElementComponent()).Clone(),
+            Ascension = (Ascension ?? new SpiritAscensionComponent()).Clone(),
+            Training = (Training ?? new SpiritTrainingComponent()).Clone(),
+            Equipment = (Equipment ?? new SpiritEquipmentComponent()).Clone(),
+            Metadata = (Metadata ?? new SpiritMetadataComponent()).Clone()
         };
     }
 }
@@ -390,6 +348,8 @@ public sealed class SpiritInstance
 public sealed class SpiritCollectionDocument
 {
     public int Version { get; set; } = SpiritCollectionService.CurrentVersion;
+
+    public long Revision { get; set; }
 
     public int LegacyCardMigrationVersion { get; set; }
 
@@ -583,7 +543,6 @@ public static class SpiritModelCloner
         source ??= new CapturedEnemySnapshot();
         return new CapturedEnemySnapshot
         {
-            SpiritUid = source.SpiritUid,
             SourceModId = source.SourceModId,
             EnemyId = source.EnemyId,
             VariantId = source.VariantId,
@@ -599,30 +558,7 @@ public static class SpiritModelCloner
             BaseAttack = source.BaseAttack,
             BaseArmor = source.BaseArmor,
             Rarity = source.Rarity,
-            SourceEnemyCardIds = (source.SourceEnemyCardIds ?? new List<string>()).ToList(),
-            SpeciesId = source.SpeciesId,
-            ProfileId = source.ProfileId,
-            SpiritElementId = source.SpiritElementId,
-            SpiritLevel = source.SpiritLevel,
-            SpiritAptitude = source.SpiritAptitude,
-            SpiritGuiyuanValue = source.SpiritGuiyuanValue,
-            SpiritStarRank = source.SpiritStarRank,
-            GuiyuanAllocationMagic = source.GuiyuanAllocationMagic,
-            GuiyuanAllocationSpirit = source.GuiyuanAllocationSpirit,
-            GuiyuanAllocationLuck = source.GuiyuanAllocationLuck,
-            GuiyuanAllocationPerception = source.GuiyuanAllocationPerception,
-            OriginMagic = source.OriginMagic,
-            OriginSpirit = source.OriginSpirit,
-            OriginLuck = source.OriginLuck,
-            OriginPerception = source.OriginPerception,
-            SpiritSpeed = source.SpiritSpeed,
-            EquippedIntentIds = new List<string>(source.EquippedIntentIds ?? new List<string>()),
-            EquippedPassiveId = source.EquippedPassiveId,
-            LoadoutRevision = source.LoadoutRevision,
-            LoadoutHash = source.LoadoutHash,
-            TrainingRegistryHash = source.TrainingRegistryHash,
-            DeploymentToken = source.DeploymentToken,
-            ArtifactBattle = source.ArtifactBattle?.Clone() ?? new SpiritArtifactBattleSnapshot()
+            SourceEnemyCardIds = (source.SourceEnemyCardIds ?? new List<string>()).ToList()
         };
     }
 }

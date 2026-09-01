@@ -1,5 +1,6 @@
 using System.IO;
 using AuraToolsExp.Dll.Features.DamageMeter.Storage;
+using AuraToolsExp.Dll.Infrastructure;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
@@ -19,6 +20,9 @@ internal static class MatchRecordStorage
                     var history = DamageHistoryStorage.Database;
                     database = new MatchRecordDatabase(history.DatabasePath);
                     database.Initialize();
+                    var recovered = database.RecoverFinalizingCapturesV17();
+                    if (recovered > 0)
+                        AuraToolsLog.Info("[MatchRecords] recovered " + recovered + " finalizing v17 replay(s).");
                 }
 
                 return database;

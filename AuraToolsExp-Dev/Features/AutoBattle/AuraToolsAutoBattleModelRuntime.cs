@@ -443,10 +443,9 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static long residentGeneration;
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
         new(StringComparer.Ordinal);
-    private static readonly Dictionary<string, CancellationTokenSource> CancellationByProfile =
-        new(StringComparer.Ordinal);
     private static readonly string[] TrainingFiles =
     {
+        "auto-battle-training-v9.jsonl",
         "auto-battle-training-v7.jsonl"
     };
 
@@ -1785,113 +1784,12 @@ internal static class AuraToolsAutoBattleModelRuntime
         Action<string>? completed = null)
     {
         var profile = NormalizeProfile(decisionProfile);
-        if (AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
-        {
-            return false;
-        }
-        CancellationTokenSource ownedCancellation;
-        lock (StatusGate)
-        {
-            if (StatusByProfile.TryGetValue(profile, out var current) && current.Busy)
-            {
-                return false;
-            }
-            if (StatusByProfile.Values.Any(item => item.Busy))
-            {
-                return false;
-            }
-            if (CancellationByProfile.TryGetValue(profile, out var previous))
-            {
-                previous.Dispose();
-            }
-            ownedCancellation = new CancellationTokenSource();
-            CancellationByProfile[profile] = ownedCancellation;
-        }
-
-        var options = ToTrainingOptions(
-            AuraToolsConfigService.MatchExperience.AutoBattle.Training);
-        SetStatus(profile, AutoBattleTrainingStage.Queued, "训练任务已排队");
-        var queued = AuraSharedBackgroundWorkScheduler.Queue(
-            new AuraSharedBackgroundWorkRequest<TrainingWorkResult>
-            {
-                OwnerId = AuraToolsIds.ModId + ".AutoBattle",
-                Key = "AutoBattle.Train:" + profile,
-                Source = "AutoBattle.LocalResidualTraining",
-                Kind = AuraSharedBackgroundWorkKind.Cpu,
-                Work = schedulerToken =>
-                {
-                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-                        schedulerToken,
-                        ownedCancellation.Token);
-                    try
-                    {
-                        return GenerateCandidate(
-                            profile,
-                            options,
-                            linked.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        return TrainingWorkResult.CancelledResult();
-                    }
-                },
-                ApplyOnMainThread = result =>
-                {
-                    if (result.Cancelled)
-                    {
-                        var cancelledStatus = GetTrainingStatus(profile);
-                        SetStatus(
-                            profile,
-                            AutoBattleTrainingStage.Cancelled,
-                            "候选训练已取消",
-                            cancelledStatus.SampleCount,
-                            cancelledStatus.InvalidLineCount,
-                            cancelledStatus.PreferencePairCount);
-                        completed?.Invoke("候选训练已取消");
-                    }
-                    else if (result.Success)
-                    {
-                        SetStatus(
-                            profile,
-                            AutoBattleTrainingStage.CandidateReady,
-                            result.Message,
-                            result.SampleCount,
-                            result.InvalidLineCount,
-                            result.PreferencePairCount,
-                            result.WeightCount,
-                            result.CandidatePath);
-                        AuraToolsLog.Info("[AutoBattle][Training] " + result.Message);
-                    }
-                    else
-                    {
-                        SetStatus(
-                            profile,
-                            AutoBattleTrainingStage.Failed,
-                            result.Message,
-                            result.SampleCount,
-                            result.InvalidLineCount,
-                            result.PreferencePairCount);
-                        AuraToolsLog.Warn("[AutoBattle][Training] " + result.Message);
-                    }
-                    completed?.Invoke(result.Message);
-                },
-                OnFailedOnMainThread = ex =>
-                {
-                    var message = "本地训练任务失败：" + ex.Message;
-                    SetStatus(profile, AutoBattleTrainingStage.Failed, message);
-                    AuraToolsLog.Warn("[AutoBattle][Training] " + message);
-                    completed?.Invoke(message);
-                }
-            });
-        if (queued)
-        {
-            AuraToolsLog.Info("[AutoBattle][Training] 已提交本地训练任务，决策风格=" + profile);
-        }
-        else
-        {
-            SetStatus(profile, AutoBattleTrainingStage.Failed, "训练任务未能提交，请稍后重试");
-        }
-        return queued;
+        const string message =
+            "游戏内候选训练已停用；请从 TrainingWorker 启动独立训练器";
+        SetStatus(profile, AutoBattleTrainingStage.Failed, message);
+        AuraToolsLog.Warn("[AutoBattle][Training] " + message);
+        completed?.Invoke(message);
+        return false;
     }
 
     public static bool QueueImportCandidate(
@@ -1985,27 +1883,6 @@ internal static class AuraToolsAutoBattleModelRuntime
             SetStatus(profile, AutoBattleTrainingStage.Failed, "冠军模型回退任务未能提交");
         }
         return queued;
-    }
-
-    public static void CancelTraining(string decisionProfile)
-    {
-        var profile = NormalizeProfile(decisionProfile);
-        lock (StatusGate)
-        {
-            if (!StatusByProfile.TryGetValue(profile, out var current)
-                || !current.Busy
-                || current.Stage == AutoBattleTrainingStage.Importing)
-            {
-                return;
-            }
-            if (CancellationByProfile.TryGetValue(profile, out var source))
-            {
-                source.Cancel();
-            }
-            current.Stage = AutoBattleTrainingStage.Cancelling;
-            current.Message = "正在取消候选训练";
-            current.UpdatedUtc = DateTime.UtcNow;
-        }
     }
 
     public static bool AnyTrainingBusy()
@@ -2539,6 +2416,10 @@ internal static class AuraToolsAutoBattleModelRuntime
                 try
                 {
                     var sample = AuraSharedJson.Deserialize<CombatTrainingSample>(line);
+                    if (sample != null)
+                    {
+                        CombatTrainingProtocol.UpgradeInPlace(sample);
+                    }
                     if (CombatTrainingProtocol.IsCompatible(sample)
                         && string.Equals(
                             sample!.ContentSetHash,

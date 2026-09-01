@@ -24,7 +24,7 @@ public sealed class SpiritOtherObj : Partner
     private CompanionBattleState? battleState;
     private ObjectCard? intentCard;
 
-    public CapturedEnemySnapshot Snapshot { get; private set; } = new();
+    public SpiritDeploymentSnapshot Snapshot { get; private set; } = new();
 
     public string OwnerStatusId { get; private set; } = "";
 
@@ -35,7 +35,7 @@ public sealed class SpiritOtherObj : Partner
     public override string Type => "Spirit";
 
     public bool InitSpirit(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         int slotIndex,
         CompanionStats stats,
@@ -101,11 +101,19 @@ public sealed class SpiritOtherObj : Partner
 
     public void Activate(string source)
     {
+        if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+        {
+            return;
+        }
         RefreshIntent(source);
     }
 
     public void ActivateAfterHydration(CompanionIntentPlan? authoritativePlan, string source)
     {
+        if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+        {
+            return;
+        }
         var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
         if (state == null)
         {
@@ -129,6 +137,10 @@ public sealed class SpiritOtherObj : Partner
 
     public override IEnumerator DoAction()
     {
+        if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+        {
+            yield break;
+        }
         FightManager.Instance?.ChangeUnit(FightType.Partner);
         if (!CompanionAuthorityService.IsAuthoritative())
         {
@@ -162,7 +174,9 @@ public sealed class SpiritOtherObj : Partner
         ProjectionActionExecutor.Execute(this, battleState!, action);
         yield return new WaitForSeconds(1f);
 
-        if (Status.CurHp > 0 && Status.state != IStatusManager.State.Dead && FightManager.Instance?.fightType != FightType.Loss)
+        if (Status.CurHp > 0
+            && Status.state != IStatusManager.State.Dead
+            && BattleLifecycleApi.AcceptsCompanionContinuation)
         {
             battleState?.Stats.RecoverMagic(1);
             battleState?.AdvanceTurn();
@@ -179,6 +193,10 @@ public sealed class SpiritOtherObj : Partner
     {
         try
         {
+            if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+            {
+                return;
+            }
             var state = battleState ?? CompanionBattleStateStore.Find(InstanceId);
             if (state == null || Status == null || Status.state == IStatusManager.State.Dead)
             {
@@ -211,11 +229,7 @@ public sealed class SpiritOtherObj : Partner
                && (battleState?.TurnIndex ?? 0) < expectedTurn
                && Status != null
                && Status.state != IStatusManager.State.Dead
-               && FightManager.Instance != null
-               && FightManager.Instance.fightType is not (FightType.None
-                   or FightType.Win
-                   or FightType.Loss
-                   or FightType.Escape))
+               && BattleLifecycleApi.AcceptsCompanionContinuation)
         {
             yield return null;
         }

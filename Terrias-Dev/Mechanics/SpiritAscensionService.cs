@@ -157,7 +157,7 @@ public static class SpiritAscensionService
         };
     }
 
-    public static bool ValidateDeploymentSnapshot(CapturedEnemySnapshot? snapshot, out string reason)
+    public static bool ValidateDeploymentSnapshot(SpiritDeploymentSnapshot? snapshot, out string reason)
     {
         if (snapshot == null
             || snapshot.SpiritGuiyuanValue < 0
@@ -184,7 +184,7 @@ public static class SpiritAscensionService
         var profile = !string.IsNullOrWhiteSpace(snapshot.ProfileId)
                       && SpiritGrowthRegistry.TryFind(snapshot.ProfileId, out var fixedProfile)
             ? fixedProfile
-            : SpiritGrowthRegistry.Resolve(snapshot);
+            : SpiritGrowthRegistry.Resolve(snapshot.Source);
         var roll = SpiritGrowthRegistry.AptitudeRollFor(profile);
         var maxLevel = SpiritGrowthService.MaxLevelFor(profile);
         if (snapshot.SpiritLevel < 1 || snapshot.SpiritLevel > maxLevel

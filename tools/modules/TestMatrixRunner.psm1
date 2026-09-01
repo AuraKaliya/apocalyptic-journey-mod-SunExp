@@ -40,6 +40,32 @@ function Convert-MatrixArguments {
     return $result
 }
 
+function Convert-MatrixProcessArguments {
+    param([hashtable]$Arguments)
+
+    $result = [System.Collections.Generic.List[string]]::new()
+    foreach ($name in @($Arguments.Keys | Sort-Object)) {
+        $value = $Arguments[$name]
+        if ($value -is [bool]) {
+            if ($value) {
+                $result.Add("-$name")
+            }
+            continue
+        }
+
+        $result.Add("-$name")
+        if ($value -is [System.Collections.IEnumerable] -and $value -isnot [string]) {
+            foreach ($item in $value) {
+                $result.Add([string]$item)
+            }
+        }
+        else {
+            $result.Add([string]$value)
+        }
+    }
+    return $result.ToArray()
+}
+
 function Invoke-TestMatrix {
     [CmdletBinding()]
     param(
@@ -82,6 +108,10 @@ function Invoke-TestMatrix {
         if (@(Get-MatrixValues -Object $step -Name "impactTags").Count -eq 0 -or
             @(Get-MatrixValues -Object $step -Name "profiles").Count -eq 0) {
             throw "Test matrix step '$($step.id)' must declare impactTags and profiles."
+        }
+        $isolateProcessProperty = $step.PSObject.Properties["isolateProcess"]
+        if ($null -ne $isolateProcessProperty -and $isolateProcessProperty.Value -isnot [bool]) {
+            throw "Test matrix step '$($step.id)' isolateProcess must be boolean."
         }
     }
 
@@ -163,9 +193,21 @@ function Invoke-TestMatrix {
 
         Write-Host "Running test matrix step: $($step.id) [$($step.owner)/$($step.category)/$($step.cost)]"
         $global:LASTEXITCODE = 0
-        & {
-            Set-StrictMode -Off
-            & $script @arguments
+        $isolateProcessProperty = $step.PSObject.Properties["isolateProcess"]
+        $isolateProcess = $null -ne $isolateProcessProperty -and $isolateProcessProperty.Value -eq $true
+        if ($isolateProcess) {
+            $pwsh = Join-Path $PSHOME "pwsh.exe"
+            if (-not (Test-Path -LiteralPath $pwsh -PathType Leaf)) {
+                throw "PowerShell process host is missing for isolated matrix step '$($step.id)': $pwsh"
+            }
+            $processArguments = Convert-MatrixProcessArguments -Arguments $arguments
+            & $pwsh -NoLogo -NoProfile -NonInteractive -File $script @processArguments
+        }
+        else {
+            & {
+                Set-StrictMode -Off
+                & $script @arguments
+            }
         }
         if ($LASTEXITCODE -ne 0) {
             throw "Test matrix step failed: $($step.id)"

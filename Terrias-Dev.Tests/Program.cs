@@ -79,6 +79,7 @@ internal static class Program
         TestProjectionCardExecutionPolicy();
         TestProjectionNativeStatusRouting();
         TestProjectionScriptExecutionScope();
+        TestBattleLifecycleApi();
         TestProjectionProtocolState();
         TestEndlessSeaReplicationClock();
         TestSolarMemoryRoleCommitPendingState();
@@ -137,6 +138,29 @@ internal static class Program
             "a removed projection no longer participates in native status routing");
         False(CompanionNativeStatusRouting.Register(routes, "", "projection-2"),
             "projection routing rejects missing owner identity");
+    }
+
+    private static void TestBattleLifecycleApi()
+    {
+        True(BattleLifecycleApi.IsActiveFightType(FightType.Player)
+             && BattleLifecycleApi.IsActiveFightType(FightType.Partner),
+            "companion continuation accepts active native player and partner phases");
+        False(BattleLifecycleApi.IsActiveFightType(FightType.None)
+              || BattleLifecycleApi.IsActiveFightType(FightType.Win)
+              || BattleLifecycleApi.IsActiveFightType(FightType.Loss)
+              || BattleLifecycleApi.IsActiveFightType(FightType.Escape),
+            "companion continuation closes for every native terminal fight type");
+        AuraBattleLifecycleStateRuntime.ResetForTests();
+        FightManager.Instance = new FightManager { fightType = FightType.Partner };
+        AuraBattleLifecycleStateRuntime.Begin(1);
+        AuraBattleLifecycleStateRuntime.Activate(1);
+        True(BattleLifecycleApi.AcceptsCompanionContinuation,
+            "synthetic companions may continue only while both shared and native battle phases are active");
+        AuraBattleLifecycleStateRuntime.EnterOutcome(1, AuraBattleOutcome.Win);
+        False(BattleLifecycleApi.AcceptsCompanionContinuation,
+            "OutcomeEntering closes delayed spirit and projection presentation producers before cleanup");
+        FightManager.Instance = null;
+        AuraBattleLifecycleStateRuntime.ResetForTests();
     }
 
     private static void TestEndlessSeaReplicationClock()

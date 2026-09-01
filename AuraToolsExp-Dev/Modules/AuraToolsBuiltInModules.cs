@@ -563,7 +563,7 @@ internal static class AuraToolsBuiltInModules
                     summary,
                     attention: status.ModelIsolatedForBattle
                         ? status.Diagnostic
-                        : "",
+                        : AuraToolsAutoBattleRuntime.TrainingRecorderDiagnostic,
                     experimental: true);
             },
             AuraToolsAutoBattleSettingsPage.Show,

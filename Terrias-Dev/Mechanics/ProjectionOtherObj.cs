@@ -107,6 +107,10 @@ public sealed class ProjectionOtherObj : Partner
         CompanionIntentPlan? authoritativePlan,
         string source)
     {
+        if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+        {
+            return;
+        }
         if (Status is StatusManager status && status.actionContent != null)
         {
             status.actionContent.SetActive(false);
@@ -116,6 +120,10 @@ public sealed class ProjectionOtherObj : Partner
     public override IEnumerator DoAction()
     {
         LastAutoTurnResult = null;
+        if (!BattleLifecycleApi.AcceptsCompanionContinuation)
+        {
+            yield break;
+        }
         FightManager.Instance?.ChangeUnit(FightType.Partner);
         if (!CompanionAuthorityService.IsAuthoritative())
         {
@@ -160,11 +168,7 @@ public sealed class ProjectionOtherObj : Partner
         while (runner.Result == null)
         {
             if (Status.state == IStatusManager.State.Dead
-                || FightManager.Instance == null
-                || FightManager.Instance.fightType is FightType.None
-                    or FightType.Win
-                    or FightType.Loss
-                    or FightType.Escape)
+                || !BattleLifecycleApi.AcceptsCompanionContinuation)
             {
                 break;
             }
@@ -176,7 +180,7 @@ public sealed class ProjectionOtherObj : Partner
 
         if (Status.CurHp > 0
             && Status.state != IStatusManager.State.Dead
-            && FightManager.Instance?.fightType != FightType.Loss)
+            && BattleLifecycleApi.AcceptsCompanionContinuation)
         {
             battleState?.AdvanceTurn();
             ProjectionSummonService.BroadcastTurnCompleted(

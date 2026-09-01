@@ -108,7 +108,7 @@ internal static class MatchRecordLibraryPresenter
             {
                 var since = dateRangeDays <= 0 ? (DateTime?)null : DateTime.UtcNow.AddDays(-dateRangeDays);
                 var filtered = MatchRecordStorage.Database.SearchRecords(collection, searchText, resultFilter, since)
-                    .Where(item => !compatibleOnly || CanPlayV12(item))
+                    .Where(item => !compatibleOnly || CanPlayV17(item))
                     .ToList();
                 var offset = pageIndex * MatchRecordDatabase.DefaultPageSize;
                 var items = filtered.Skip(offset).Take(MatchRecordDatabase.DefaultPageSize).ToList();
@@ -259,7 +259,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
     {
-        var canPlay = CanPlayV12(item);
+        var canPlay = CanPlayV17(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
         AuraUiStableId.Assign(row, "match-record." + item.RecordId);
         AuraToolsUi.SetFixedHeight(row, 72f);
@@ -413,7 +413,7 @@ internal static class MatchRecordLibraryPresenter
             });
     }
 
-    private static bool CanPlayV12(MatchRecord item)
+    private static bool CanPlayV17(MatchRecord item)
     {
         return item.ReplayProtocol == MatchReplayProtocol.Version
                && string.Equals(item.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal);
@@ -421,7 +421,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static string ReplayAvailabilityLabel(MatchRecord item)
     {
-        if (CanPlayV12(item)) return "v12 可回放";
+        if (CanPlayV17(item)) return "v17 可回放";
         if (string.Equals(item.ReplayState, MatchReplayStates.Rejected, StringComparison.OrdinalIgnoreCase))
             return "记录已拒绝，仅保留摘要";
         if (string.Equals(item.ReplayState, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase))

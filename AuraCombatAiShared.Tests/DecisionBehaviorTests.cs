@@ -955,7 +955,11 @@ internal static class CombatAiDecisionBehaviorTests
                && trainingSample.Candidates.Single(candidate =>
                    candidate.CandidateId == "attack").SourceId == "attack",
             "training sample captures the selected action and every candidate");
-        Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
+        Assert(trainingSample.Selection.Protocol
+                   == CombatTrainingProtocol.SelectionProtocol
+               && trainingSample.Selection.AuthorityKnown
+               && trainingSample.Selection.DecisionAuthority
+                  == "rule-baseline"
                && trainingSample.Selection.ExecutedBy == "policy"
                && trainingSample.Selection.LabelKind == "policy-trajectory"
                && trainingSample.Selection.ExecutedCandidateId == "attack"
@@ -970,6 +974,22 @@ internal static class CombatAiDecisionBehaviorTests
                && trainingSample.BattleOutcome == "victory"
                && trainingSample.RewardComponents.TerminalBonus == 50d,
             "training sample captures terminal outcome reward");
+        var terminalWithoutFinalCapture = CombatTrainingSampleBuilder.Create(
+            state,
+            after: null,
+            combatDecision,
+            2,
+            43,
+            CombatActionTransactionState.Completed.ToString(),
+            "authoritative battle finalization",
+            terminal: true,
+            gameBuild: "test-game",
+            sharedBuild: "test-shared",
+            battleOutcomeOverride: "defeat");
+        Assert(terminalWithoutFinalCapture.BattleOutcome == "defeat"
+               && terminalWithoutFinalCapture.RewardComponents.TerminalBonus
+                  == -50d,
+            "authoritative lifecycle outcome supplies terminal reward when the final UI snapshot is unavailable");
         Assert(!trainingSample.Features.ContainsKey("nonFinite"),
             "training features reject non-finite values");
 
@@ -1155,6 +1175,28 @@ internal static class CombatAiDecisionBehaviorTests
         Assert(!double.IsNaN(guidanceModel.PolicyLogit(originalFeatures))
                && guidanceModel.DeathRisk(humanSample.StateFeatures) == 0d,
             "untrained one-class terminal risk does not manufacture a death predictor");
+        var previousPolicySample = new CombatTrainingSample
+        {
+            ModelProtocol = CombatTrainingProtocol.PreviousSampleProtocol,
+            FeatureSchemaVersion = CombatTrainingProtocol.FeatureSchemaVersion,
+            CompletionState = "Completed",
+            Selection = new CombatTrainingSelectionTrace
+            {
+                Protocol = CombatTrainingProtocol.PreviousSelectionProtocol,
+                ExecutedBy = "policy",
+                ExecutedCandidateId = "legacy-policy"
+            }
+        };
+        Assert(CombatTrainingProtocol.UpgradeInPlace(previousPolicySample)
+               && CombatTrainingProtocol.IsCompatible(previousPolicySample)
+               && !previousPolicySample.Selection.AuthorityKnown
+               && previousPolicySample.Selection.DecisionAuthority
+                  == "legacy-policy-unknown"
+               && previousPolicySample.Selection.DecisionPurpose
+                  == "legacy-execution",
+            "previous sample/selection protocol migrates once without inventing legacy policy authority");
+        Assert(!CombatTrainingProtocol.UpgradeInPlace(previousPolicySample),
+            "training protocol migration is one-way and idempotent at the current contract");
         var incompatibleLegacySample = new CombatTrainingSample
         {
             ModelProtocol = "aura.combat-ai.sample.v3",

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -44,6 +45,18 @@ public sealed class CombatDecisionEngine
     {
         if (state == null) throw new ArgumentNullException(nameof(state));
         var prepared = CombatPlayerObservationBoundary.Normalize(state);
+        return PrepareNormalizedOwnedStateForIsolatedWorker(prepared);
+    }
+
+    /// <summary>
+    /// Applies the frozen decision-preparation registry to a normalized state
+    /// that is exclusively owned by the caller. Only provider-mutated fields
+    /// are re-sanitized; the complete observation graph is not cloned again.
+    /// </summary>
+    public CombatStateObservation PrepareNormalizedOwnedStateForIsolatedWorker(
+        CombatStateObservation prepared)
+    {
+        if (prepared == null) throw new ArgumentNullException(nameof(prepared));
         if (!HasDecisionPreparation)
         {
             return prepared;
@@ -51,7 +64,9 @@ public sealed class CombatDecisionEngine
 
         foreach (var action in prepared.Actions)
         {
-            if (action == null || !action.Legal)
+            if (action == null
+                || !action.Legal
+                || action.Kind == CombatActionKind.EndTurn)
             {
                 continue;
             }
@@ -80,7 +95,7 @@ public sealed class CombatDecisionEngine
             CombatHandTransformPolicy.Enrich(prepared, action);
         }
         EnrichSkillTimings(prepared);
-        return CombatPlayerObservationBoundary.Normalize(prepared);
+        return CombatPlayerObservationBoundary.FinalizePreparedOwned(prepared);
     }
 
     public ICombatSimulationRule[] SnapshotSimulationRulesForIsolatedWorker()
@@ -104,9 +119,41 @@ public sealed class CombatDecisionEngine
     public CombatDecision Choose(
         CombatStateObservation state,
         CombatDecisionProfile? profile = null,
-        CombatSearchExplorationOptions? exploration = null)
+        CombatSearchExplorationOptions? exploration = null,
+        CancellationToken cancellationToken = default)
     {
-        return Choose(state, profile, exploration, out _);
+        return Choose(
+            state,
+            profile,
+            exploration,
+            out _,
+            cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Chooses from a state whose public boundary and decision preparation have
+    /// already been applied and whose ownership has been transferred to the
+    /// caller's worker. No defensive state clone is performed.
+    /// </summary>
+    public CombatDecision ChoosePrepared(
+        CombatStateObservation state,
+        CombatDecisionProfile? profile = null,
+        CombatSearchExplorationOptions? exploration = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Choose(
+            state,
+            profile,
+            exploration,
+            out _,
+            stateIsNormalizedAndOwned: true,
+            stateIsDecisionPrepared: true,
+            cancellationToken: cancellationToken);
+    }
+
+    public long ReleaseRetainedMemory()
+    {
+        return chancePuctPlanner.ReleaseRetainedMemory();
     }
 
     internal CombatDecision Choose(
@@ -114,8 +161,11 @@ public sealed class CombatDecisionEngine
         CombatDecisionProfile? profile,
         CombatSearchExplorationOptions? exploration,
         out CombatStateObservation? preparedState,
-        bool stateIsNormalizedAndOwned = false)
+        bool stateIsNormalizedAndOwned = false,
+        bool stateIsDecisionPrepared = false,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var allocationStart = ReadThreadAllocatedBytes();
         preparedState = null;
         var selectedProfile = profile ?? new CombatDecisionProfile();
@@ -131,7 +181,7 @@ public sealed class CombatDecisionEngine
             state = CombatPlayerObservationBoundary.Normalize(state);
         }
         preparedState = state;
-        if (HasDecisionPreparation)
+        if (HasDecisionPreparation && !stateIsDecisionPrepared)
         {
             foreach (var action in state.Actions.Where(action =>
                          action != null
@@ -171,6 +221,7 @@ public sealed class CombatDecisionEngine
             && !IsVisibleFake(action));
         for (var i = 0; i < state.Actions.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var action = state.Actions[i];
             if (action == null)
             {
@@ -218,11 +269,14 @@ public sealed class CombatDecisionEngine
                     action,
                     out rejectionReason);
             }
-            if (legal && HasDecisionPreparation)
+            if (legal && HasDecisionPreparation && !stateIsDecisionPrepared)
             {
                 legal = EvaluatePreflight(state, action, out rejectionReason);
             }
-            CombatHandTransformPolicy.Enrich(state, action);
+            if (!stateIsDecisionPrepared)
+            {
+                CombatHandTransformPolicy.Enrich(state, action);
+            }
 
             var utility = BuildUtility(state, action, selectedProfile);
             BuildFeaturesInto(
@@ -349,7 +403,8 @@ public sealed class CombatDecisionEngine
             state,
             evaluations,
             selectedProfile,
-            exploration);
+            exploration,
+            cancellationToken);
         var searchEnd = ReadThreadAllocatedBytes();
         CombatDecisionAllocationDiagnostics.Record(
             searchStart - allocationStart,

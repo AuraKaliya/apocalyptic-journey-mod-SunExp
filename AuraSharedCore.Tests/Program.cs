@@ -464,6 +464,8 @@ try
     TestDirectorContracts();
 
     TestGameDataCatalog();
+    TestReplayVisibleStateRuntime();
+    TestReplayPresentationRuntime();
     Console.WriteLine($"AuraSharedCore tests passed: {assertions} assertions.");
 }
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AuraCombatAi.Shared;
 
@@ -202,6 +203,11 @@ public static class CombatKnowledgeRegistry
     private static readonly object Gate = new();
     private static readonly Dictionary<string, CombatKnowledgePackage> Packages =
         new(StringComparer.OrdinalIgnoreCase);
+    private static Dictionary<string, ActionSelection> actionIndex =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static long revision;
+
+    public static long Revision => Volatile.Read(ref revision);
 
     public static IDisposable RegisterPackage(
         CombatKnowledgePackage package,
@@ -219,6 +225,7 @@ public static class CombatKnowledgeRegistry
         lock (Gate)
         {
             Packages[key] = package;
+            RebuildActionIndexNoLock();
         }
 
         return new Registration(() =>
@@ -226,6 +233,7 @@ public static class CombatKnowledgeRegistry
             lock (Gate)
             {
                 Packages.Remove(key);
+                RebuildActionIndexNoLock();
             }
         });
     }
@@ -244,16 +252,8 @@ public static class CombatKnowledgeRegistry
         out CombatKnowledgeFidelity fidelity,
         out string source)
     {
-        var definitions = SnapshotPackages()
-            .SelectMany(package => package.Actions.Select(item => new { package, item }))
-            .Where(pair => string.Equals(
-                pair.item.SourceId,
-                action.SourceId,
-                StringComparison.OrdinalIgnoreCase))
-            .OrderBy(pair => pair.item.Fidelity)
-            .ThenByDescending(pair => pair.item.Confidence)
-            .ToList();
-        if (definitions.Count == 0)
+        var index = Volatile.Read(ref actionIndex);
+        if (!index.TryGetValue(action.SourceId ?? "", out var selected))
         {
             semantics = new CombatActionSemantics();
             fidelity = CombatKnowledgeFidelity.Unsupported;
@@ -261,11 +261,25 @@ public static class CombatKnowledgeRegistry
             return false;
         }
 
-        var selected = definitions[0];
-        semantics = CloneSemantics(selected.item.Semantics);
-        fidelity = selected.item.Fidelity;
-        source = selected.package.OwnerId + ":" + selected.package.PackageId;
+        semantics = CloneSemantics(selected.Definition.Semantics);
+        fidelity = selected.Definition.Fidelity;
+        source = selected.Source;
         return fidelity != CombatKnowledgeFidelity.Unsupported;
+    }
+
+    public static bool TryResolveActionOwner(
+        string sourceId,
+        out string ownerId)
+    {
+        var index = Volatile.Read(ref actionIndex);
+        if (index.TryGetValue(sourceId ?? "", out var selected)
+            && !string.IsNullOrWhiteSpace(selected.OwnerId))
+        {
+            ownerId = selected.OwnerId;
+            return true;
+        }
+        ownerId = "";
+        return false;
     }
 
     public static CombatKnowledgeCoverageReport EvaluateCoverage(CombatStateObservation state)
@@ -578,6 +592,51 @@ public static class CombatKnowledgeRegistry
     private static string Key(string owner, string id)
     {
         return owner.Trim() + ":" + id.Trim();
+    }
+
+    private static void RebuildActionIndexNoLock()
+    {
+        var next = new Dictionary<string, ActionSelection>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var group in Packages.Values
+                     .SelectMany(package => package.Actions.Select(definition =>
+                         new ActionSelection(
+                             definition,
+                             package.OwnerId,
+                             package.OwnerId + ":" + package.PackageId)))
+                     .Where(item => !string.IsNullOrWhiteSpace(
+                         item.Definition.SourceId))
+                     .GroupBy(
+                         item => item.Definition.SourceId,
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            next[group.Key] = group
+                .OrderBy(item => item.Definition.Fidelity)
+                .ThenByDescending(item => item.Definition.Confidence)
+                .ThenBy(item => item.Source, StringComparer.Ordinal)
+                .First();
+        }
+        Volatile.Write(ref actionIndex, next);
+        Interlocked.Increment(ref revision);
+    }
+
+    private sealed class ActionSelection
+    {
+        public ActionSelection(
+            CombatKnowledgeActionDefinition definition,
+            string ownerId,
+            string source)
+        {
+            Definition = definition;
+            OwnerId = ownerId;
+            Source = source;
+        }
+
+        public CombatKnowledgeActionDefinition Definition { get; }
+
+        public string OwnerId { get; }
+
+        public string Source { get; }
     }
 
     private sealed class Registration : IDisposable

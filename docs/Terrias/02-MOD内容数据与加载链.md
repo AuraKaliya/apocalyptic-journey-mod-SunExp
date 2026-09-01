@@ -28,7 +28,7 @@ Terrias/
 
 - `ModName = Terrias`；
 - `ModAuthor = Aura`；
-- `ModVersion = 0.5.2`；
+- `ModVersion = 0.5.4`；
 - `Enabled = true`；
 - `Dependencies = []`；
 - `MustSame = true`。

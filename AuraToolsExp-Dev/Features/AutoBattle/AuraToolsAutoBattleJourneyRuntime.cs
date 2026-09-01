@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using AuraCombatSimulation.Shared;
 using AuraMode.Shared;
@@ -18,7 +17,6 @@ namespace AuraToolsExp.Dll.Features.AutoBattle;
 internal static class AuraToolsAutoBattleJourneyRuntime
 {
     private const string HandlerId = "AutoBattleJourneyTraining";
-    private static readonly object WriteGate = new();
     private static bool initialized;
     private static ModConfig? currentConfig;
     private static bool settlementWritten;
@@ -103,6 +101,16 @@ internal static class AuraToolsAutoBattleJourneyRuntime
                + (run.Complete ? " · 已结束" : " · 记录中");
     }
 
+    internal static void ObserveExecutedAction(bool automated)
+    {
+        var run = current;
+        if (run == null || run.Complete)
+        {
+            return;
+        }
+        MergePolicyId(run, automated ? "policy" : "human");
+    }
+
     private static void BeginAdventure()
     {
         if (!AuraToolsConfigService.MatchExperience.AutoBattle.CaptureTrainingSamples)
@@ -125,7 +133,7 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             JourneyId = "witch.world-simulation.live",
             ModeId = string.IsNullOrWhiteSpace(modeId) ? "Normal" : modeId,
             Source = "live-world-simulation",
-            PolicyId = AuraToolsAutoBattleRuntime.Active ? "policy" : "human",
+            PolicyId = "unknown",
             OwnerModSetHash = content.OwnerModSetHash,
             ContentSetHash = content.ContentSetHash,
             BaseModelId = autoBattle.SelectedModelId ?? "",
@@ -400,6 +408,28 @@ internal static class AuraToolsAutoBattleJourneyRuntime
         return "";
     }
 
+    private static void MergePolicyId(
+        CombatJourneyTrainingEpisode episode,
+        string policyId)
+    {
+        if (string.IsNullOrWhiteSpace(episode.PolicyId)
+            || string.Equals(
+                episode.PolicyId,
+                "unknown",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            episode.PolicyId = policyId;
+            return;
+        }
+        if (!string.Equals(
+                episode.PolicyId,
+                policyId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            episode.PolicyId = "mixed";
+        }
+    }
+
     private static bool HasAdditionalCopy(
         IEnumerable<string> before,
         IEnumerable<string> after,
@@ -447,14 +477,11 @@ internal static class AuraToolsAutoBattleJourneyRuntime
 
     private static void WriteJourney(CombatJourneyTrainingEpisode episode)
     {
-        var path = Path.Combine(
-            AuraToolsCombatContentRuntime.LiveDatasetDirectory(
-                episode.ContentSetHash),
-            "journey-episodes-v1.jsonl");
-        lock (WriteGate)
+        if (!AuraToolsAutoBattleRuntime.RecordJourney(episode))
         {
-            using var writer = new StreamWriter(path, append: true);
-            writer.WriteLine(AuraSharedJson.SerializeCompact(episode));
+            AuraToolsLog.Warn(
+                "[AutoBattle][JourneyTraining] writer unavailable or byte budget exceeded; journey rejected: runId="
+                + episode.JourneyRunId);
         }
     }
 

@@ -11,6 +11,11 @@ only image generation. Pair it with `terrias-mod-dev`; pair it with
 Pair it with `terrias-shared-runtime-dev` when Skill CG or shared resource
 manifests change.
 
+For AuraToolsExp structured battle replay, isolated FightUI projection,
+first-frame pixel gates, or URP/RenderGraph replay crashes, use
+`aura-battle-replay-dev` as the owning workflow and this skill as its visual
+runtime adjunct.
+
 ## Workflow
 
 1. Classify ownership before implementation:

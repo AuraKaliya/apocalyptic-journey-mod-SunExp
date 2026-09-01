@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
@@ -157,6 +158,28 @@ public sealed class WitchCombatRuntime :
         CombatActionObservation action,
         Action<CombatStateObservation>? prepareFreshState)
     {
+        return ExecuteCore(
+            action,
+            prepareFreshState,
+            stateAlreadyFresh: false);
+    }
+
+    /// <summary>
+    /// Executes an action that has just been rebound to the current normalized
+    /// observation by CombatDecisionFreshnessPolicy. This avoids a third full
+    /// combat capture for end-turn while retaining the public defensive API.
+    /// </summary>
+    public CombatExecutionResult ExecutePrepared(
+        CombatActionObservation action)
+    {
+        return ExecuteCore(action, null, stateAlreadyFresh: true);
+    }
+
+    private CombatExecutionResult ExecuteCore(
+        CombatActionObservation action,
+        Action<CombatStateObservation>? prepareFreshState,
+        bool stateAlreadyFresh)
+    {
         if (action == null)
         {
             return CombatExecutionResult.Rejected("action is null");
@@ -182,21 +205,33 @@ public sealed class WitchCombatRuntime :
                     {
                         return CombatExecutionResult.Rejected("end-turn button is unavailable");
                     }
-                    if (!TryCapture(out var freshState, out var captureReason))
+                    CombatStateObservation? freshState = null;
+                    if (!stateAlreadyFresh
+                        && !TryCapture(
+                            out freshState,
+                            out var captureReason))
                     {
                         return CombatExecutionResult.Rejected(
                             "end-turn recapture failed: " + captureReason);
                     }
-                    prepareFreshState?.Invoke(freshState);
-                    var assessment =
-                        CombatEndTurnSafety.AssessObservation(freshState);
-                    if (assessment.Prohibited)
+                    if (!stateAlreadyFresh)
                     {
-                        return CombatExecutionResult.Rejected(
-                            "end-turn state changed: "
-                            + assessment.Reason
-                            + "; "
-                            + assessment.Trace.ToCompactString());
+                        if (freshState == null)
+                        {
+                            return CombatExecutionResult.Rejected(
+                                "end-turn recapture returned no state");
+                        }
+                        prepareFreshState?.Invoke(freshState);
+                        var assessment =
+                            CombatEndTurnSafety.AssessObservation(freshState);
+                        if (assessment.Prohibited)
+                        {
+                            return CombatExecutionResult.Rejected(
+                                "end-turn state changed: "
+                                + assessment.Reason
+                                + "; "
+                                + assessment.Trace.ToCompactString());
+                        }
                     }
 
                     fightUi.turnButton.onClick.Invoke();
@@ -2030,6 +2065,8 @@ public sealed class WitchCombatLifecycleEstimate
 
 public static class WitchCombatValueEstimator
 {
+    private static readonly ConditionalWeakTable<IDataConfig, EstimateCache>
+        EstimateCaches = new();
     private static readonly string[] TrueDamageTokens = { "truedamage", "piercingdamage", "unblockabledamage" };
     private static readonly string[] DamageOverTimeTokens = { "damageovertime", "dotdamage", "poison", "toxin", "burn" };
     private static readonly string[] HitCountTokens = { "hitcount", "attackcount", "times" };
@@ -2052,8 +2089,10 @@ public static class WitchCombatValueEstimator
         {
             return 0d;
         }
-        return CombatEndTurnSafety.ScoreNativeEndTurnPurpose(
-            CombinedScript(config));
+        return CachedDerived(
+            config,
+            "end-turn-purpose",
+            CombatEndTurnSafety.ScoreNativeEndTurnPurpose);
     }
 
     public static double EstimateSummonPotential(IDataConfig? config)
@@ -2062,15 +2101,17 @@ public static class WitchCombatValueEstimator
         {
             return 0d;
         }
-        var script = CombinedScript(config);
-        return ContainsAny(
-            script,
-            "AddEnemy(",
-            "AddEnemy (",
-            "SummonEnemy",
-            "ChangeSummon")
-            ? 1d
-            : 0d;
+        return CachedDerived(
+            config,
+            "summon-potential",
+            script => ContainsAny(
+                script,
+                "AddEnemy(",
+                "AddEnemy (",
+                "SummonEnemy",
+                "ChangeSummon")
+                ? 1d
+                : 0d);
     }
 
     public static double EstimateSupportPotential(IDataConfig? config)
@@ -2079,17 +2120,19 @@ public static class WitchCombatValueEstimator
         {
             return 0d;
         }
-        var script = CombinedScript(config);
-        return ContainsAny(
-            script,
-            "Heal(",
-            "Cure(",
-            "RecoverHp",
-            "AddBuff(",
-            "ChangeDefend(",
-            "ChangeDefence(")
-            ? 1d
-            : 0d;
+        return CachedDerived(
+            config,
+            "support-potential",
+            script => ContainsAny(
+                script,
+                "Heal(",
+                "Cure(",
+                "RecoverHp",
+                "AddBuff(",
+                "ChangeDefend(",
+                "ChangeDefence(")
+                ? 1d
+                : 0d);
     }
 
     public static double EstimateMaximumHpLossFraction(IDataConfig? config)
@@ -2098,62 +2141,74 @@ public static class WitchCombatValueEstimator
         {
             return 0d;
         }
-        var script = CombinedScript(config);
-        var divisor = Regex.Match(
-            script,
-            "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*/\\s*(\\d+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (divisor.Success
-            && double.TryParse(divisor.Groups[1].Value, out var denominator)
-            && denominator > 0d)
+        return CachedDerived(config, "maximum-hp-loss", script =>
         {
-            return Math.Min(1d, 1d / denominator);
-        }
-        var percentage = Regex.Match(
-            script,
-            "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*\\*\\s*(0?\\.\\d+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        return percentage.Success
-               && double.TryParse(
-                   percentage.Groups[1].Value,
-                   System.Globalization.NumberStyles.Float,
-                   System.Globalization.CultureInfo.InvariantCulture,
-                   out var ratio)
-            ? Math.Max(0d, Math.Min(1d, ratio))
-            : 0d;
+            var divisor = Regex.Match(
+                script,
+                "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*/\\s*(\\d+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (divisor.Success
+                && double.TryParse(
+                    divisor.Groups[1].Value,
+                    out var denominator)
+                && denominator > 0d)
+            {
+                return Math.Min(1d, 1d / denominator);
+            }
+            var percentage = Regex.Match(
+                script,
+                "ChangeHp\\s*\\(\\s*\\(\\s*-\\s*(?:Self|Player|FightPlayer)\\.MaxHp\\s*\\*\\s*(0?\\.\\d+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return percentage.Success
+                   && double.TryParse(
+                       percentage.Groups[1].Value,
+                       System.Globalization.NumberStyles.Float,
+                       System.Globalization.CultureInfo.InvariantCulture,
+                       out var ratio)
+                ? Math.Max(0d, Math.Min(1d, ratio))
+                : 0d;
+        });
     }
 
     public static Dictionary<string, double> EstimateDirectStatusChanges(
         IDataConfig? config)
     {
-        var result = new Dictionary<string, double>(
-            StringComparer.OrdinalIgnoreCase);
         if (config == null)
         {
-            return result;
+            return new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
         }
-        var script = CombinedScript(config);
-        var statusIds = Regex.Matches(
-                script,
-                "GetBuff\\s*\\(\\s*(?:DataId\\.)?([A-Za-z_][A-Za-z0-9_]*)\\s*\\)",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-            .Cast<Match>()
-            .Select(match => match.Groups[1].Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        var decrement = Regex.Match(
-            script,
-            "buffConfig\\.Level\\s*=\\s*Math\\.Max\\s*\\(\\s*0\\s*,[^;]*buffConfig\\.Level\\s*-\\s*(\\d+)",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (statusIds.Count == 1
-            && decrement.Success
-            && double.TryParse(decrement.Groups[1].Value, out var amount)
-            && amount > 0d)
+        var cached = CachedDerived(config, "direct-status-changes", script =>
         {
-            result[statusIds[0]] = -amount;
-        }
-        return result;
+            var result = new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+            var statusIds = Regex.Matches(
+                    script,
+                    "GetBuff\\s*\\(\\s*(?:DataId\\.)?([A-Za-z_][A-Za-z0-9_]*)\\s*\\)",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
+                .Cast<Match>()
+                .Select(match => match.Groups[1].Value)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var decrement = Regex.Match(
+                script,
+                "buffConfig\\.Level\\s*=\\s*Math\\.Max\\s*\\(\\s*0\\s*,[^;]*buffConfig\\.Level\\s*-\\s*(\\d+)",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            if (statusIds.Count == 1
+                && decrement.Success
+                && double.TryParse(
+                    decrement.Groups[1].Value,
+                    out var amount)
+                && amount > 0d)
+            {
+                result[statusIds[0]] = -amount;
+            }
+            return result;
+        });
+        return new Dictionary<string, double>(
+            cached,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public static double EstimateHeldActionCostDelta(IDataConfig? config)
@@ -2162,97 +2217,135 @@ public static class WitchCombatValueEstimator
         {
             return 0d;
         }
-        var script = CombinedScript(config);
-        if (!Regex.IsMatch(
-                script,
-                "AddEvent\\s*\\(\\s*\"Action\"",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        return CachedDerived(config, "held-action-cost-delta", script =>
         {
-            return 0d;
-        }
-        var match = Regex.Match(
-            script,
-            "Vars\\s*\\[\\s*\"ExCost\"\\s*\\][^;]*-\\s*(\\d+)\\s*\\)\\s*\\.ToString",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        return match.Success
-               && double.TryParse(match.Groups[1].Value, out var amount)
-            ? -Math.Max(0d, amount)
-            : 0d;
+            if (!Regex.IsMatch(
+                    script,
+                    "AddEvent\\s*\\(\\s*\"Action\"",
+                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            {
+                return 0d;
+            }
+            var match = Regex.Match(
+                script,
+                "Vars\\s*\\[\\s*\"ExCost\"\\s*\\][^;]*-\\s*(\\d+)\\s*\\)\\s*\\.ToString",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+            return match.Success
+                   && double.TryParse(match.Groups[1].Value, out var amount)
+                ? -Math.Max(0d, amount)
+                : 0d;
+        });
     }
 
     public static WitchCombatLifecycleEstimate EstimateLifecycle(
         IDataConfig? config)
     {
-        var result = new WitchCombatLifecycleEstimate();
         if (config == null)
         {
-            return result;
+            return new WitchCombatLifecycleEstimate();
         }
-        var script = CombinedScript(config);
-        var endTurn = ContainsAny(
-            script,
-            "AddEvent(\"EndRound\"",
-            "AddEvent (\"EndRound\"",
-            "TurnEnded");
-        var startTurn = ContainsAny(
-            script,
-            "AddEvent(\"StartRound\"",
-            "AddEvent (\"StartRound\"",
-            "TurnStarted",
-            "RoundStart",
-            "TurnStart");
-        if (!endTurn && !startTurn)
+        var cached = CachedDerived(config, "lifecycle", script =>
         {
-            return result;
-        }
-        if (endTurn && startTurn)
-        {
-            result.UnknownEffectCount = 1;
-            return result;
-        }
+            var result = new WitchCombatLifecycleEstimate();
+            var endTurn = ContainsAny(
+                script,
+                "AddEvent(\"EndRound\"",
+                "AddEvent (\"EndRound\"",
+                "TurnEnded");
+            var startTurn = ContainsAny(
+                script,
+                "AddEvent(\"StartRound\"",
+                "AddEvent (\"StartRound\"",
+                "TurnStarted",
+                "RoundStart",
+                "TurnStart");
+            if (!endTurn && !startTurn)
+            {
+                return result;
+            }
+            if (endTurn && startTurn)
+            {
+                result.UnknownEffectCount = 1;
+                return result;
+            }
 
-        var semantics = Estimate(
-            config,
-            forceAttack: false,
-            CombatTargetKind.Self);
-        var hpLoss = Math.Max(
-            0d,
-            Math.Max(
-                semantics.EndOfCycleSelfHpLoss,
-                semantics.SelfHpLoss));
-        var recognized = hpLoss > 0d
-                         || semantics.Heal > 0d
-                         || semantics.Defend > 0d
-                         || semantics.EnergyGain > 0d
-                         || semantics.Draw > 0d
-                         || EstimateEndTurnPurpose(config) > 0d;
-        if (endTurn)
-        {
-            result.EndTurnHpLoss = hpLoss;
-            result.EndTurnHeal = Math.Max(0d, semantics.Heal);
-            result.EndTurnDefend = Math.Max(0d, semantics.Defend);
-            result.EndTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
-            result.EndTurnDraw = Math.Max(0d, semantics.Draw);
-        }
-        else
-        {
-            result.StartTurnHpLoss = hpLoss;
-            result.StartTurnHeal = Math.Max(0d, semantics.Heal);
-            result.StartTurnDefend = Math.Max(0d, semantics.Defend);
-            result.StartTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
-            result.StartTurnDraw = Math.Max(0d, semantics.Draw);
-        }
-        if (!recognized || semantics.Uncertainty >= 1.5d)
-        {
-            result.UnknownEffectCount = 1;
-        }
-        return result;
+            var semantics = Estimate(
+                config,
+                forceAttack: false,
+                CombatTargetKind.Self);
+            var hpLoss = Math.Max(
+                0d,
+                Math.Max(
+                    semantics.EndOfCycleSelfHpLoss,
+                    semantics.SelfHpLoss));
+            var recognized = hpLoss > 0d
+                             || semantics.Heal > 0d
+                             || semantics.Defend > 0d
+                             || semantics.EnergyGain > 0d
+                             || semantics.Draw > 0d
+                             || EstimateEndTurnPurpose(config) > 0d;
+            if (endTurn)
+            {
+                result.EndTurnHpLoss = hpLoss;
+                result.EndTurnHeal = Math.Max(0d, semantics.Heal);
+                result.EndTurnDefend = Math.Max(0d, semantics.Defend);
+                result.EndTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
+                result.EndTurnDraw = Math.Max(0d, semantics.Draw);
+            }
+            else
+            {
+                result.StartTurnHpLoss = hpLoss;
+                result.StartTurnHeal = Math.Max(0d, semantics.Heal);
+                result.StartTurnDefend = Math.Max(0d, semantics.Defend);
+                result.StartTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
+                result.StartTurnDraw = Math.Max(0d, semantics.Draw);
+            }
+            if (!recognized || semantics.Uncertainty >= 1.5d)
+            {
+                result.UnknownEffectCount = 1;
+            }
+            return result;
+        });
+        return CloneLifecycle(cached);
     }
 
     public static CombatActionSemantics Estimate(
         IDataConfig? config,
         bool forceAttack,
         CombatTargetKind targetKind)
+    {
+        if (config == null)
+        {
+            return new CombatActionSemantics { Uncertainty = 3d };
+        }
+        var revision = SemanticRevision(config);
+        var cache = EstimateCaches.GetOrCreateValue(config);
+        lock (cache.Gate)
+        {
+            var key = ((int)targetKind << 1) | (forceAttack ? 1 : 0);
+            if (cache.Entries.TryGetValue(key, out var entry)
+                && entry.Revision == revision)
+            {
+                return CombatKnowledgeRegistry.CloneSemantics(entry.Semantics);
+            }
+            var script = CachedScriptNoLock(config, cache, revision);
+            var semantics = EstimateUncached(
+                config,
+                forceAttack,
+                targetKind,
+                script);
+            cache.Entries[key] = new EstimateCacheEntry(
+                revision,
+                CombatKnowledgeRegistry.CloneSemantics(semantics));
+            return semantics;
+        }
+    }
+
+    private static CombatActionSemantics EstimateUncached(
+        IDataConfig? config,
+        bool forceAttack,
+        CombatTargetKind targetKind,
+        string script)
     {
         var result = new CombatActionSemantics();
         if (config == null)
@@ -2263,7 +2356,6 @@ public static class WitchCombatValueEstimator
 
         ReadDictionary(config.data, result);
         ReadDictionary(config.Vars, result);
-        var script = CombinedScript(config);
         ReadMechanicalSemantics(script, result);
         var descriptiveValue = LargestDescriptiveValue(config);
         var constantSelfHpLoss = ConstantSelfHpLoss(
@@ -2421,6 +2513,134 @@ public static class WitchCombatValueEstimator
         }
 
         return result;
+    }
+
+    private static long SemanticRevision(IDataConfig config)
+    {
+        unchecked
+        {
+            var hash = 1469598103934665603L;
+            AddRevision(config.data, ref hash);
+            AddRevision(config.Vars, ref hash);
+            return hash;
+        }
+    }
+
+    private static T CachedDerived<T>(
+        IDataConfig config,
+        string key,
+        Func<string, T> factory)
+    {
+        var revision = SemanticRevision(config);
+        var cache = EstimateCaches.GetOrCreateValue(config);
+        lock (cache.Gate)
+        {
+            if (cache.DerivedEntries.TryGetValue(key, out var entry)
+                && entry.Revision == revision
+                && entry.Value is T cached)
+            {
+                return cached;
+            }
+            var script = CachedScriptNoLock(config, cache, revision);
+            var value = factory(script);
+            cache.DerivedEntries[key] = new DerivedEstimateCacheEntry(
+                revision,
+                value!);
+            return value;
+        }
+    }
+
+    private static string CachedScriptNoLock(
+        IDataConfig config,
+        EstimateCache cache,
+        long revision)
+    {
+        if (cache.ScriptRevision != revision)
+        {
+            cache.Script = CombinedScript(config);
+            cache.ScriptRevision = revision;
+        }
+        return cache.Script;
+    }
+
+    private static WitchCombatLifecycleEstimate CloneLifecycle(
+        WitchCombatLifecycleEstimate source)
+    {
+        return new WitchCombatLifecycleEstimate
+        {
+            EndTurnHpLoss = source.EndTurnHpLoss,
+            EndTurnHeal = source.EndTurnHeal,
+            EndTurnDefend = source.EndTurnDefend,
+            EndTurnPowerGain = source.EndTurnPowerGain,
+            EndTurnDraw = source.EndTurnDraw,
+            StartTurnHpLoss = source.StartTurnHpLoss,
+            StartTurnHeal = source.StartTurnHeal,
+            StartTurnDefend = source.StartTurnDefend,
+            StartTurnPowerGain = source.StartTurnPowerGain,
+            StartTurnDraw = source.StartTurnDraw,
+            UnknownEffectCount = source.UnknownEffectCount
+        };
+    }
+
+    private static void AddRevision(
+        IDictionary<string, string>? values,
+        ref long hash)
+    {
+        if (values == null)
+        {
+            hash = hash * 1099511628211L;
+            return;
+        }
+        hash ^= values.Count;
+        foreach (var pair in values)
+        {
+            hash ^= StringComparer.Ordinal.GetHashCode(pair.Key ?? "");
+            hash *= 1099511628211L;
+            hash ^= StringComparer.Ordinal.GetHashCode(pair.Value ?? "");
+            hash *= 1099511628211L;
+        }
+    }
+
+    private sealed class EstimateCache
+    {
+        public object Gate { get; } = new();
+
+        public Dictionary<int, EstimateCacheEntry> Entries { get; } = new();
+
+        public Dictionary<string, DerivedEstimateCacheEntry> DerivedEntries
+            { get; } = new(StringComparer.Ordinal);
+
+        public long ScriptRevision { get; set; } = long.MinValue;
+
+        public string Script { get; set; } = "";
+    }
+
+    private sealed class DerivedEstimateCacheEntry
+    {
+        public DerivedEstimateCacheEntry(long revision, object value)
+        {
+            Revision = revision;
+            Value = value;
+        }
+
+        public long Revision { get; }
+
+        public object Value { get; }
+    }
+
+    private sealed class EstimateCacheEntry
+    {
+        public EstimateCacheEntry(
+            long revision,
+            CombatActionSemantics semantics)
+        {
+            Revision = revision;
+            Semantics = semantics;
+        }
+
+        public long Revision { get; }
+
+        public CombatActionSemantics Semantics { get; }
     }
 
     private static void ReadMechanicalSemantics(

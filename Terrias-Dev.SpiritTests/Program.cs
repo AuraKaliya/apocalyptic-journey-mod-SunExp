@@ -3,15 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Reflection;
+using AuraReplay.VisibleState.Shared;
+using AuraReplay.Presentation.Shared;
+using AuraShared.Core;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 
 var assertions = 0;
 
-if (args.Length != 1 || !File.Exists(args[0]))
-    throw new ArgumentException("Expected the shipped spirit.artifact.registry.json path.");
+if (args.Length is < 1 or > 2 || !File.Exists(args[0]) || args.Length == 2 && !File.Exists(args[1]))
+    throw new ArgumentException("Expected the shipped spirit.artifact.registry.json path and optional live profile path.");
 var artifactRegistryDocument = JsonConvert.DeserializeObject<SpiritArtifactRegistryDocument>(File.ReadAllText(args[0]))
     ?? throw new InvalidDataException("Artifact registry deserialization failed.");
 typeof(SpiritArtifactRegistry).GetMethod("NormalizeAndValidate", BindingFlags.NonPublic | BindingFlags.Static)!
@@ -20,6 +24,110 @@ typeof(SpiritArtifactRegistry).GetMethod("SetDocument", BindingFlags.NonPublic |
     .Invoke(null, new object[] { artifactRegistryDocument });
 typeof(SpiritArtifactRegistry).GetField("ready", BindingFlags.NonPublic | BindingFlags.Static)!
     .SetValue(null, true);
+
+var replayProviderType = typeof(SpiritBattleDeploymentService).Assembly.GetType(
+    "Terrias.Dll.Hooks.TerriasSpiritReplayVisibleStateProvider",
+    throwOnError: true)!;
+replayProviderType.GetMethod("Initialize", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, null);
+var replayVisibleProvider = AuraReplayVisibleStateRuntime.Snapshot()
+    .Single(provider => provider.OwnerModId == TerriasIds.ModId && provider.TypeId == "SpiritDeployment");
+var projectionReplayVisibleProvider = AuraReplayVisibleStateRuntime.Snapshot()
+    .Single(provider => provider.OwnerModId == TerriasIds.ModId && provider.TypeId == "ProjectionDeployment");
+var replayEntityProvider = AuraReplayEntityPresentationRuntime.Snapshot()
+    .Single(provider => provider.OwnerModId == TerriasIds.ModId);
+var replayPresentationModule = AuraReplayPresentationRuntime.SnapshotModules()
+    .Single(module => module.OwnerModId == TerriasIds.ModId
+                      && module.TypeId == "SpiritBattlePresentation");
+var projectionReplayPresentationModule = AuraReplayPresentationRuntime.SnapshotModules()
+    .Single(module => module.OwnerModId == TerriasIds.ModId
+                      && module.TypeId == "ProjectionBattlePresentation");
+var starScoreReplayModule = AuraReplayPresentationRuntime.SnapshotModules()
+    .Single(module => module.OwnerModId == TerriasIds.ModId
+                      && module.TypeId == "StarScoreHudPresentation");
+var wunaOrbitReplayModule = AuraReplayPresentationRuntime.SnapshotModules()
+    .Single(module => module.OwnerModId == TerriasIds.ModId
+                      && module.TypeId == "WunaOrbitFirePresentation");
+var emptyReplayContext = new AuraReplayVisibleCaptureContext { RecordId = "spirit-replay-test" };
+Assert(replayVisibleProvider.SchemaVersion == 1
+       && replayEntityProvider.SchemaVersion == 1
+       && replayPresentationModule.SchemaVersion == 1
+       && replayPresentationModule.Portability == AuraReplayPresentationPortability.ProviderRequired
+       && replayPresentationModule.RendererCapability == "owner-attached-spirit.v1"
+       && projectionReplayVisibleProvider.SchemaVersion == 1
+       && projectionReplayPresentationModule.SchemaVersion == 1
+       && projectionReplayPresentationModule.Portability == AuraReplayPresentationPortability.Portable
+       && string.IsNullOrWhiteSpace(projectionReplayPresentationModule.RendererCapability)
+       && starScoreReplayModule.Portability == AuraReplayPresentationPortability.ProviderRequired
+       && starScoreReplayModule.RendererCapability == "terrias-star-score-hud.v1"
+       && wunaOrbitReplayModule.Portability == AuraReplayPresentationPortability.ProviderRequired
+       && wunaOrbitReplayModule.RendererCapability == "terrias-wuna-orbit-fire.v1"
+       && replayVisibleProvider.Capture(emptyReplayContext).Count == 0
+       && projectionReplayVisibleProvider.Capture(emptyReplayContext).Count == 0
+       && replayEntityProvider.Capture(emptyReplayContext).Count == 0,
+    "companion replay initialization registers Spirit and Projection visible state plus owner-qualified presentation contracts without a Terrias dependency in AuraTools");
+
+var crossModCaptured = new List<AuraReplayCapturedPresentationEvent>();
+using (AuraReplayPresentationRuntime.BeginCapture("terrias-canonical-payload", crossModCaptured.Add))
+{
+    var spiritPublished = AuraReplayPresentationRuntime.Publish(new AuraReplayPresentationEvent
+    {
+        EventId = "terrias-spirit-canonical",
+        OwnerModId = TerriasIds.ModId,
+        TypeId = "SpiritBattlePresentation",
+        SchemaVersion = 1,
+        Kind = AuraReplayPresentationKinds.VisibilityChanged,
+        ActorEntityId = "ss-test",
+        PayloadJson = AuraSharedJson.SerializeCompact(new
+        {
+            visible = true,
+            Generation = 1,
+            SlotIndex = 2,
+            SpiritElementId = "fire"
+        }),
+        Persistent = true
+    });
+    var projectionPublished = AuraReplayPresentationRuntime.Publish(new AuraReplayPresentationEvent
+    {
+        EventId = "terrias-projection-canonical",
+        OwnerModId = TerriasIds.ModId,
+        TypeId = "ProjectionBattlePresentation",
+        SchemaVersion = 1,
+        Kind = AuraReplayPresentationKinds.VisibilityChanged,
+        ActorEntityId = "projection-test",
+        PayloadJson = AuraSharedJson.SerializeCompact(new
+        {
+            visible = true,
+            generation = "generation-1",
+            SlotIndex = 1,
+            RoleId = "role-test"
+        }),
+        Persistent = true
+    });
+    Assert(spiritPublished == AuraReplayPresentationPublishResult.Published
+           && projectionPublished == AuraReplayPresentationPublishResult.Published,
+        "Terrias Spirit and Projection multi-field replay payloads publish through the shared canonical boundary");
+}
+Assert(crossModCaptured.Count == 2
+       && crossModCaptured[0].Event.PayloadJson
+       == "{\"Generation\":1,\"SlotIndex\":2,\"SpiritElementId\":\"fire\",\"visible\":true}"
+       && crossModCaptured[1].Event.PayloadJson
+       == "{\"RoleId\":\"role-test\",\"SlotIndex\":1,\"generation\":\"generation-1\",\"visible\":true}",
+    "captured Terrias presentation payloads are canonical before AuraToolsExp receives them");
+
+if (args.Length == 2)
+{
+    var liveProfile = SpiritCollectionDocumentCodec.Deserialize(File.ReadAllText(args[1]));
+    Assert(liveProfile.Instances.Count > 0
+           && liveProfile.Instances.All(instance => instance.Identity != null
+                                                    && instance.Source != null
+                                                    && instance.Growth != null
+                                                    && instance.Element != null
+                                                    && instance.Ascension != null
+                                                    && instance.Training != null
+                                                    && instance.Equipment != null
+                                                    && instance.Metadata != null),
+        "the live player profile can be read through the one-way component migration boundary");
+}
 
 Assert(SpiritCaptureRollService.ChanceBasisPoints(100, 100) == 1000,
     "full-health capture chance is 10 percent");
@@ -61,12 +169,22 @@ var returnedBattleState = new SpiritCardBattleState
     }
 };
 var spiritSummonRequest = new Terrias.Dll.Network.RpcSpiritSummonRequest(
-    Captured("request-enemy", "request-spirit"),
+    SpiritDeploymentCodec.Seal(new SpiritDeploymentSnapshot
+    {
+        Identity = new SpiritDeploymentIdentity
+        {
+            SpiritUid = "request-spirit",
+            SpeciesId = "request-species",
+            ProfileId = "request-profile"
+        },
+        Source = Captured("request-enemy", "request-spirit")
+    }),
     "owner-request",
     "request-token",
     2,
     returnedBattleState);
-Assert(spiritSummonRequest.BattleState.TurnIndex == 4
+Assert(spiritSummonRequest.Deployment.SpiritUid == "request-spirit"
+       && spiritSummonRequest.BattleState.TurnIndex == 4
        && spiritSummonRequest.BattleState.ReadyOnTurn["intent-a"] == 7
        && spiritSummonRequest.BattleState.MaxHp == 35
        && spiritSummonRequest.BattleState.CurrentHp == 19
@@ -75,6 +193,13 @@ Assert(spiritSummonRequest.BattleState.TurnIndex == 4
        && spiritSummonRequest.BattleState.PassiveState["passive-a"] == 3
        && spiritSummonRequest.BattleState.VisibleStatuses.Single().Stacks == 2,
     "remote Spirit summon requests preserve the complete withdrawn battle state");
+Assert(typeof(Terrias.Dll.Network.RpcSpiritSummonRequest).GetProperty("CapturedEnemy") == null
+       && typeof(Terrias.Dll.Network.RpcSpiritSummonRequest).GetProperty("RegistryHash") == null
+       && typeof(Terrias.Dll.Network.RpcSpiritSummonRequest).GetProperty("ReadyOnTurn") == null
+       && typeof(Terrias.Dll.Network.SpiritCompanionSnapshot).GetProperty("Deployment") != null
+       && typeof(Terrias.Dll.Network.SpiritCompanionSnapshot).GetProperty("ReturnedDeployment") != null
+       && typeof(Terrias.Dll.Network.SpiritCompanionSnapshot).GetProperty("ReturnedTurnIndex") == null,
+    "the network schema exposes one deployment payload and removes retired duplicate identity/hash fields");
 
 var state = new CompanionBattleState("spirit-1", "role-1", "owner-1", 2, stats, "player-1");
 Assert(state.IsReady("intent-a"), "new companion intents are ready");
@@ -137,10 +262,12 @@ Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
     "companion lifecycle advances the authoritative battle epoch");
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 22
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 23
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
-       && SpiritSystemContract.CollectionVersion == 11
+       && SpiritSystemContract.CollectionVersion == 12
+       && SpiritSystemContract.DeploymentProtocolVersion == 1
+       && SpiritSystemContract.ReadModelVersion == 1
        && SpiritSystemContract.ArtifactInventoryVersion == 2
        && SpiritSystemContract.ArtifactPresetCapacity == 20
        && SpiritSystemContract.ArtifactBattleProtocolVersion == 1
@@ -150,6 +277,9 @@ Assert(CompanionAuthorityService.ProjectionProtocolVersion == 22
        && SpiritSystemContract.GrowthRegistrySchemaVersion == 3
        && SpiritSystemContract.TrainingRegistrySchemaVersion == 2,
     "the current Spirit save, registry, and Partner protocol contract stays synchronized");
+Assert(SpiritDeploymentFeatureRegistry.FeatureIds().SequenceEqual(
+        new[] { "core", "element", "ascension", "training", "artifact" }, StringComparer.Ordinal),
+    "every current Spirit subsystem contributes to deployment through one ordered feature registry");
 
 var artifactPool = SpiritArtifactRegistry.Pools().First();
 var artifactInventory = new SpiritArtifactInventory
@@ -359,10 +489,10 @@ var legacyArtifactStore = new MemorySpiritStore(new SpiritCollectionDocument
 SpiritCollectionService.Configure(legacyArtifactStore);
 var migratedArtifactCollection = SpiritCollectionService.Snapshot();
 Assert(legacyArtifactStore.SaveCount == 1
-       && migratedArtifactCollection.Version == 11
+       && migratedArtifactCollection.Version == SpiritSystemContract.CollectionVersion
        && migratedArtifactCollection.ArtifactInventory.Version == 2
        && migratedArtifactCollection.ArtifactInventory.Presets.Count == 0,
-    "collection schema 11 performs one durable migration to the account preset inventory contract");
+    "the current collection schema performs one durable migration to the account preset inventory contract");
 
 var artifactCombatState = new CompanionBattleState(
     "artifact-spirit", "role", "owner", -1, new CompanionStats(100, 10, 30, 20),
@@ -726,7 +856,7 @@ var existingRosterSnapshot = RosterSnapshot(existingRosterProfile, "existing-ros
 existingRosterSnapshot.CaptureOrigin = "preexisting-capture";
 var existingRosterInstance = new SpiritInstance
 {
-    SpiritUid = existingRosterSnapshot.SpiritUid,
+    SpiritUid = "existing-roster-spirit",
     SpeciesId = existingRosterProfile.SpeciesId,
     ProfileId = existingRosterProfile.ProfileId,
     Snapshot = existingRosterSnapshot,
@@ -799,6 +929,102 @@ Assert(initialRosterWriteFailed
        && SpiritCollectionService.AppliedInitialRosterGrantVersion() == 0,
     "a failed initial roster save commits neither the fifty-eight instances nor the completion marker");
 
+// Retain this migration contract while V11 player profiles remain supported; remove it with the V11 reader.
+var legacyV11Root = new JObject
+{
+    ["Version"] = 11,
+    ["Instances"] = new JArray
+    {
+        new JObject
+        {
+            ["SpiritUid"] = "legacy-v11-component",
+            ["SpeciesId"] = "legacy-v11-species",
+            ["ProfileId"] = "legacy-v11-profile",
+            ["ElementId"] = "pyro",
+            ["ElementSource"] = SpiritElementService.ExplicitOverrideSource,
+            ["ElementAssignmentRevision"] = SpiritElementService.AssignmentRevision,
+            ["Snapshot"] = JObject.FromObject(Captured("legacy-v11-enemy", "legacy-v11-component")),
+            ["Presentation"] = JObject.FromObject(new SpiritLocalizedPresentation()),
+            ["Level"] = 7,
+            ["Experience"] = 5,
+            ["Aptitude"] = 73,
+            ["Speed"] = 88,
+            ["GuiyuanValue"] = 2,
+            ["GuiyuanAllocations"] = JObject.FromObject(new SpiritOriginVector { Magic = 2, Spirit = 4 }),
+            ["TrainingPlanVersion"] = SpiritSystemContract.TrainingPlanVersion,
+            ["InherentAbilityPlanVersion"] = SpiritSystemContract.InherentAbilityPlanVersion,
+            ["ResolvedInherentIntentIds"] = new JArray(),
+            ["ResolvedInherentPassiveId"] = "",
+            ["LearnedIntentIds"] = new JArray(),
+            ["EquippedIntentIds"] = new JArray(),
+            ["LearnedPassiveIds"] = new JArray(),
+            ["EquippedPassiveId"] = "",
+            ["UnlockPlan"] = new JArray(),
+            ["NewAbilityIds"] = new JArray(),
+            ["LoadoutRevision"] = 1,
+            ["LoadoutHash"] = "legacy-loadout",
+            ["ArtifactLoadout"] = JObject.FromObject(new SpiritArtifactLoadout()),
+            ["Favorite"] = true,
+            ["Locked"] = false,
+            ["CapturedAt"] = "2026-08-01T00:00:00Z"
+        }
+    },
+    ["DefaultPartySlots"] = new JArray("legacy-v11-component", "", "", "", "", ""),
+    ["DefaultActiveSpiritUid"] = "legacy-v11-component",
+    ["ProcessedCaptureTokens"] = new JObject(),
+    ["ProcessedBattleTokens"] = new JArray(),
+    ["ArtifactInventory"] = JObject.FromObject(new SpiritArtifactInventory())
+};
+var decodedV11 = SpiritCollectionDocumentCodec.Deserialize(legacyV11Root.ToString(Formatting.None));
+Assert(decodedV11.Version == 11
+       && decodedV11.Instances.Count == 1
+       && decodedV11.Instances[0].Identity.SpiritUid == "legacy-v11-component"
+       && decodedV11.Instances[0].Growth.Level == 7
+       && decodedV11.Instances[0].Growth.Aptitude == 73
+       && decodedV11.Instances[0].Ascension.GuiyuanValue == 2
+       && decodedV11.Instances[0].Metadata.Favorite,
+    "V11 flat Spirit records migrate deterministically into typed components before normalization");
+var invalidCurrentRoot = (JObject)legacyV11Root.DeepClone();
+invalidCurrentRoot["Version"] = SpiritSystemContract.CollectionVersion;
+var invalidCurrentRejected = false;
+try { SpiritCollectionDocumentCodec.Deserialize(invalidCurrentRoot.ToString(Formatting.None)); }
+catch (InvalidOperationException) { invalidCurrentRejected = true; }
+Assert(invalidCurrentRejected,
+    "the current collection schema rejects a flat instance instead of keeping a permanent dual reader");
+var componentMigrationStore = new MemorySpiritStore(decodedV11);
+SpiritCollectionService.Configure(componentMigrationStore);
+var componentMigrated = SpiritCollectionService.Snapshot();
+var componentSerialized = SpiritCollectionDocumentCodec.Serialize(componentMigrated);
+var componentJson = JObject.Parse(componentSerialized);
+var componentJsonInstance = (JObject)componentJson["Instances"]![0]!;
+Assert(componentMigrated.Version == SpiritSystemContract.CollectionVersion
+       && componentMigrated.Revision >= 1
+       && componentMigrationStore.SaveCount == 1
+       && componentJsonInstance["Identity"] != null
+       && componentJsonInstance["Growth"] != null
+       && componentJsonInstance["Training"] != null
+       && componentJsonInstance["Equipment"] != null
+       && componentJsonInstance["SpiritUid"] == null
+       && componentJsonInstance["Level"] == null
+       && componentJsonInstance["ArtifactLoadout"] == null
+       && !componentSerialized.Contains('\n'),
+    "the V12 cutover saves only component state and removes the retired flat schema");
+var readModelStoreType = typeof(SpiritCollectionService).Assembly.GetType("Terrias.Dll.Mechanics.SpiritReadModelStore")
+                         ?? throw new TypeLoadException("SpiritReadModelStore");
+var readModelCurrent = readModelStoreType.GetMethod("Current", BindingFlags.Public | BindingFlags.Static)
+                       ?? throw new MissingMethodException("SpiritReadModelStore.Current");
+var firstReadModel = readModelCurrent.Invoke(null, null)!;
+var repeatedReadModel = readModelCurrent.Invoke(null, null)!;
+SpiritCollectionService.ToggleLocked("legacy-v11-component");
+var invalidatedReadModel = readModelCurrent.Invoke(null, null)!;
+var codexView = (IReadOnlyList<SpiritCodexEntryView>)(invalidatedReadModel.GetType()
+    .GetProperty("Codex")?.GetValue(invalidatedReadModel)
+    ?? throw new MissingMemberException("SpiritReadModelSnapshot.Codex"));
+Assert(ReferenceEquals(firstReadModel, repeatedReadModel)
+       && !ReferenceEquals(firstReadModel, invalidatedReadModel)
+       && codexView.Count == SpiritGrowthRegistry.RegisteredProfiles().Count,
+    "the read model is reused within one account generation, invalidated by a commit, and materializes the complete codex");
+
 var legacyStore = new MemorySpiritStore(new SpiritCollectionDocument
 {
     Version = 2,
@@ -861,6 +1087,7 @@ Assert(otherPlayerParty.PartySlots.All(string.IsNullOrWhiteSpace),
     "a persisted adventure party never crosses the player-owner boundary");
 
 var party = new SpiritAdventureParty();
+var capturedUids = new List<string>();
 for (var index = 0; index < 7; index++)
 {
     var result = SpiritCollectionService.Capture(
@@ -870,23 +1097,26 @@ for (var index = 0; index < 7; index++)
         60);
     Assert(result.Success && result.Instance?.Level == 1 && result.Instance.Aptitude == 60,
         "captured spirit creates an independent level-one individual");
+    capturedUids.Add(result.Instance!.SpiritUid);
 }
 Assert(SpiritCollectionService.Snapshot().Instances.Count == 7
        && party.PartySlots.Count(uid => !string.IsNullOrWhiteSpace(uid)) == 6
        && SpiritCollectionService.Snapshot().Instances.Select(item => item.ElementId).Distinct(StringComparer.Ordinal).Count() == 1
        && SpiritCollectionService.Snapshot().Instances.All(item => item.ElementSource == SpiritElementService.CaptureDefaultSource),
     "captured duplicate species freeze the same configured default element while the adventure party remains capped at six");
-var capturedDefaultElement = SpiritCollectionService.Find("uid-0")!.ElementId;
+var capturedUid0 = capturedUids[0];
+var capturedUid1 = capturedUids[1];
+var capturedDefaultElement = SpiritCollectionService.Find(capturedUid0)!.ElementId;
 var individualOverrideElement = capturedDefaultElement == "electro" ? "pyro" : "electro";
-Assert(SpiritCollectionService.SetElement("uid-1", individualOverrideElement)
-       && SpiritCollectionService.Find("uid-1") is
+Assert(SpiritCollectionService.SetElement(capturedUid1, individualOverrideElement)
+       && SpiritCollectionService.Find(capturedUid1) is
        {
            ElementSource: SpiritElementService.ExplicitOverrideSource
        }
-       && SpiritCollectionService.Find("uid-1")?.ElementId == individualOverrideElement
-       && SpiritCollectionService.Find("uid-0")?.ElementId == capturedDefaultElement,
+       && SpiritCollectionService.Find(capturedUid1)?.ElementId == individualOverrideElement
+       && SpiritCollectionService.Find(capturedUid0)?.ElementId == capturedDefaultElement,
     "element belongs to the individual so same-species Spirits can diverge without rewriting their species default");
-var capturedInstance = SpiritCollectionService.Find("uid-0")!;
+var capturedInstance = SpiritCollectionService.Find(capturedUid0)!;
 var growthView = SpiritGrowthQueryService.Build(capturedInstance);
 Assert(!string.IsNullOrWhiteSpace(capturedInstance.SpeciesId)
        && !string.IsNullOrWhiteSpace(capturedInstance.ProfileId)
@@ -913,9 +1143,9 @@ Assert(capturedInstance.Speed is >= 80 and <= 120
        && capturedInstance.LoadoutRevision >= 1
        && !string.IsNullOrWhiteSpace(capturedInstance.LoadoutHash),
     "capture freezes uniform speed and five hidden, deterministic, non-duplicated future unlock nodes into the individual record");
-Assert(SpiritCollectionService.ToggleFavorite("uid-0")
-       && SpiritCollectionService.ToggleLocked("uid-0")
-       && SpiritCollectionService.Find("uid-0") is { Favorite: true, Locked: true },
+Assert(SpiritCollectionService.ToggleFavorite(capturedUid0)
+       && SpiritCollectionService.ToggleLocked(capturedUid0)
+       && SpiritCollectionService.Find(capturedUid0) is { Favorite: true, Locked: true },
     "favorite and lock flags persist through collection mutation");
 var duplicateCapture = SpiritCollectionService.Capture(Captured("same-species", "different"), "capture-0", party, 99);
 Assert(duplicateCapture.Success && duplicateCapture.DuplicateOperation
@@ -927,23 +1157,23 @@ try { SpiritCollectionService.Capture(Captured("same-species", "uid-failed"), "c
 catch (IOException) { failedDurableCapture = true; }
 Assert(failedDurableCapture
        && SpiritCollectionService.Snapshot().Instances.Count == 7
-       && party.PartySlots.All(uid => uid != "uid-failed"),
+       && party.PartySlots.Where(uid => !string.IsNullOrWhiteSpace(uid)).All(capturedUids.Contains),
     "failed durable writes do not commit the captured individual or mutate the run party");
-party.ActiveSpiritUid = "uid-0";
+party.ActiveSpiritUid = capturedUid0;
 var experience = SpiritCollectionService.GrantBattleExperience(
     party.PartySlots,
     party.ActiveSpiritUid,
     20,
     "battle-1");
 Assert(experience.Count == 6
-       && experience.Single(result => result.Instance.SpiritUid == "uid-0").GainedExperience == 20
-       && experience.Where(result => result.Instance.SpiritUid != "uid-0").All(result => result.GainedExperience == 5),
+       && experience.Single(result => result.Instance.SpiritUid == capturedUid0).GainedExperience == 20
+       && experience.Where(result => result.Instance.SpiritUid != capturedUid0).All(result => result.GainedExperience == 5),
     "battle experience grants 100 percent to active and 25 percent to other carried spirits");
 Assert(SpiritCollectionService.GrantBattleExperience(party.PartySlots, party.ActiveSpiritUid, 20, "battle-1").Count == 0,
     "battle experience tokens prevent duplicate settlement");
 SpiritBattleDeploymentService.Begin(party, SpiritCollectionService.Snapshot(), 10, 20);
 var deployment = SpiritBattleDeploymentService.DeploymentCardSnapshot();
-Assert(deployment?.SpiritUid == "uid-0"
+Assert(deployment?.SpiritUid == capturedUid0
        && deployment.SpeciesId == capturedInstance.SpeciesId
        && deployment.ProfileId == capturedInstance.ProfileId
        && deployment.SpiritLevel == 2
@@ -969,16 +1199,18 @@ Assert(withdrawnBattleState.CurrentMagic == Math.Max(0, initialStats.MaxMagic - 
     "withdrawing and resummoning preserves remaining magic instead of refilling it per summon");
 Assert(SpiritBattleDeploymentService.CanSummon(deployment!, "owner", false, out _),
     "the frozen deployment card is initially legal");
-var forgedSpeed = SpiritModelCloner.CloneSnapshot(deployment!);
-forgedSpeed.SpiritSpeed = forgedSpeed.SpiritSpeed == SpiritTrainingService.MaximumSpeed
+var forgedSpeed = deployment!.Clone();
+forgedSpeed.Growth.Speed = forgedSpeed.SpiritSpeed == SpiritTrainingService.MaximumSpeed
     ? SpiritTrainingService.MinimumSpeed
     : forgedSpeed.SpiritSpeed + 1;
-forgedSpeed.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedSpeed);
+forgedSpeed.Training.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedSpeed);
+forgedSpeed = SpiritDeploymentCodec.Seal(forgedSpeed);
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedSpeed, "owner", true, out _),
     "remote deployment rejects a client-rehashed speed that differs from the captured individual's deterministic roll");
-var forgedAbility = SpiritModelCloner.CloneSnapshot(deployment!);
-forgedAbility.EquippedIntentIds = new List<string> { commonIntentIds[0] };
-forgedAbility.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedAbility);
+var forgedAbility = deployment.Clone();
+forgedAbility.Training.EquippedIntentIds = new List<string> { commonIntentIds[0] };
+forgedAbility.Training.LoadoutHash = SpiritTrainingService.LoadoutHash(forgedAbility);
+forgedAbility = SpiritDeploymentCodec.Seal(forgedAbility);
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedAbility, "owner", true, out _),
     "remote deployment reconstructs hidden progression and rejects an equipped ability that is not unlocked at this level");
 SpiritBattleDeploymentService.MarkSummoned("owner");
@@ -1122,12 +1354,42 @@ Assert(starDeployment.SpiritStarRank == 5
     "battle deployment freezes allocated origins and star rank while applying only the three permitted final-stat bonuses");
 Assert(SpiritBattleDeploymentService.CanSummon(starDeployment, "star-owner", false, out _),
     "a consistent frozen guiyuan deployment snapshot passes authority validation");
-var forgedAllocation = SpiritModelCloner.CloneSnapshot(starDeployment);
-forgedAllocation.GuiyuanAllocationLuck++;
+var deploymentJson = SpiritDeploymentCodec.Serialize(starDeployment);
+Assert(SpiritDeploymentCodec.TryDeserialize(deploymentJson, out var deploymentRoundTrip, out _)
+       && deploymentRoundTrip.SpiritUid == starDeployment.SpiritUid
+       && deploymentRoundTrip.SpiritStarRank == 5
+       && deploymentRoundTrip.ArtifactBattle.RegistryHash == SpiritArtifactRegistry.RegistryHash
+       && deploymentRoundTrip.IntentRegistryHash == SpiritIntentRegistry.RegistryHash
+       && deploymentRoundTrip.TrainingRegistryHash == SpiritTrainingRegistry.RegistryHash,
+    "the authoritative deployment codec round-trips every registered Spirit feature component");
+var runtimeBuilder = typeof(SpiritCardFactory).GetMethod("BuildRuntime", BindingFlags.NonPublic | BindingFlags.Static)
+                     ?? throw new MissingMethodException("SpiritCardFactory.BuildRuntime");
+var deploymentRuntime = (Dictionary<string, string>)runtimeBuilder.Invoke(
+    null,
+    new object[] { starDeployment, 0, SpiritBattleDeploymentService.CreateInitialBattleState(starDeployment) })!;
+Assert(deploymentRuntime.TryGetValue(TerriasIds.SpiritDeploymentPayloadKey, out var cardPayload)
+       && SpiritDeploymentCodec.TryDeserialize(cardPayload, out var cardRoundTrip, out _)
+       && cardRoundTrip.PayloadHash == starDeployment.PayloadHash
+       && !deploymentRuntime.ContainsKey("TerriasSpiritTrainingRegistryHash")
+       && !deploymentRuntime.ContainsKey("TerriasSpiritDeploymentToken"),
+    "the real Spirit card runtime writes one versioned deployment payload and no retired flat battle fields");
+var tamperedDeployment = JObject.Parse(deploymentJson);
+tamperedDeployment["Growth"]!["Level"] = 99;
+Assert(!SpiritDeploymentCodec.TryDeserialize(
+        tamperedDeployment.ToString(Formatting.None), out _, out var tamperReason)
+       && tamperReason.Contains("哈希", StringComparison.Ordinal),
+    "deployment integrity rejects a card or network payload whose component data changed after sealing");
+Assert(!SpiritDeploymentCodec.TryDeserialize(
+        new string('x', SpiritDeploymentCodec.MaximumSerializedBytes + 1), out _, out _),
+    "deployment payload guards reject an oversized card or RPC body before deserialization");
+var forgedAllocation = starDeployment.Clone();
+forgedAllocation.Ascension.Allocations.Luck++;
+forgedAllocation = SpiritDeploymentCodec.Seal(forgedAllocation);
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedAllocation, "star-owner", true, out _),
     "remote deployment rejects guiyuan allocations that do not match the frozen effective origins");
-var forgedElement = SpiritModelCloner.CloneSnapshot(starDeployment);
-forgedElement.SpiritElementId = "void";
+var forgedElement = starDeployment.Clone();
+forgedElement.Element.ElementId = "void";
+forgedElement = SpiritDeploymentCodec.Seal(forgedElement);
 Assert(!SpiritBattleDeploymentService.CanSummon(forgedElement, "star-owner", true, out _),
     "remote deployment rejects elements outside the seven-type Spirit contract");
 SpiritBattleDeploymentService.Clear();
@@ -1148,7 +1410,6 @@ CapturedEnemySnapshot Captured(string enemyId, string uid)
 {
     return new CapturedEnemySnapshot
     {
-        SpiritUid = uid,
         EnemyId = enemyId,
         VariantId = enemyId,
         DisplayName = enemyId,
@@ -1167,7 +1428,6 @@ CapturedEnemySnapshot RosterSnapshot(SpiritSpeciesGrowthProfile profile, string 
         : match.VariantId;
     return new CapturedEnemySnapshot
     {
-        SpiritUid = uid,
         SourceModId = match.SourceModId ?? "",
         EnemyId = enemyId,
         VariantId = variantId,

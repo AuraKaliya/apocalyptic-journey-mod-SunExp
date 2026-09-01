@@ -112,7 +112,7 @@ public static class AuraToolsReplaySettingsPage
         var migrationRow = CreateInlineRow(content, "ReplayProtocol");
         AuraToolsUi.AddText(
             migrationRow.transform,
-            "Replay Document v12 · 独立场景 · 内嵌表现资源 · v11 仅保留摘要与分析",
+            "Replay Document v17 · 实测原生布局 · 屏幕空间状态 UI · pre-v17 仅保留摘要、分析与已有视频",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,

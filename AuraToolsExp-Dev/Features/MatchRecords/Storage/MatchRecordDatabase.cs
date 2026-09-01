@@ -498,10 +498,10 @@ internal sealed partial class MatchRecordDatabase
                            + "width INTEGER NOT NULL, height INTEGER NOT NULL, frames_per_second REAL NOT NULL, file_bytes INTEGER NOT NULL, "
                            + "sha256 TEXT NOT NULL, timeline_payload BLOB NOT NULL, error_text TEXT NOT NULL);");
         connection.Execute("CREATE INDEX IF NOT EXISTS ix_replay_media_record ON replay_media(record_id, created_utc DESC);");
-        ApplyV11ToV12Cutover(connection);
+        ApplyPreV17Cutover(connection);
         connection.Execute("DROP TABLE IF EXISTS replay_timeline_chunks;");
         connection.Execute("DROP TABLE IF EXISTS replay_chunks;");
-        EnsureV12Tables(connection);
+        EnsureV17Tables(connection);
         MatchRecordsDatabaseMigrator.Apply(connection);
         MatchRecordsDatabaseMigrator.Validate(connection);
         NormalizeMediaPaths(connection);
@@ -573,6 +573,10 @@ internal sealed partial class MatchRecordDatabase
     {
         return string.Equals(state, MatchReplayStates.Incomplete, StringComparison.OrdinalIgnoreCase)
             ? MatchReplayStates.Incomplete
+            : string.Equals(state, MatchReplayStates.Recording, StringComparison.OrdinalIgnoreCase)
+                ? MatchReplayStates.Recording
+            : string.Equals(state, MatchReplayStates.Finalizing, StringComparison.OrdinalIgnoreCase)
+                ? MatchReplayStates.Finalizing
             : string.Equals(state, MatchReplayStates.SummaryOnly, StringComparison.OrdinalIgnoreCase)
                 ? MatchReplayStates.SummaryOnly
             : string.Equals(state, MatchReplayStates.Rejected, StringComparison.OrdinalIgnoreCase)
@@ -645,7 +649,7 @@ internal sealed partial class MatchRecordDatabase
 
     private static void DeleteRecord(WinSqliteConnection connection, string recordId)
     {
-        DeleteReplayV12(connection, recordId);
+        DeleteReplayV17(connection, recordId);
         using (var media = connection.Prepare("DELETE FROM replay_media WHERE record_id = ?;"))
         {
             media.Bind(1, recordId);

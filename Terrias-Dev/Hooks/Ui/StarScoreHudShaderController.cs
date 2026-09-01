@@ -90,6 +90,20 @@ public sealed class StarScoreHudShaderController : MonoBehaviour
         enabled = true;
     }
 
+    public void SetReplayLogicalTime(float logicalSeconds)
+    {
+        flowTime = Mathf.Max(0f, logicalSeconds);
+        pulseUntil = 0f;
+        for (var i = 0; i < currentLit.Length; i++)
+        {
+            currentLit[i] = targetLit[i];
+            slotPulseUntil[i] = 0f;
+            slotPulseStrength[i] = 0f;
+        }
+        ApplyVisuals(0f);
+        enabled = false;
+    }
+
     private void Update()
     {
         var delta = Mathf.Max(Time.unscaledDeltaTime, 0f);

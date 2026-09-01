@@ -29,6 +29,12 @@ LEARNED_FEATURES = {
     "categorySupport", "categorySkill", "categoryOther",
 }
 
+CURRENT_SAMPLE_PROTOCOL = "aura.combat-ai.sample.v9"
+PREVIOUS_SAMPLE_PROTOCOL = "aura.combat-ai.sample.v8"
+CURRENT_SELECTION_PROTOCOL = "aura.combat-ai.selection.v2"
+PREVIOUS_SELECTION_PROTOCOL = "aura.combat-ai.selection.v1"
+CURRENT_FEATURE_SCHEMA = 11
+
 
 def finite(value: object) -> float:
     try:
@@ -36,6 +42,36 @@ def finite(value: object) -> float:
     except (TypeError, ValueError):
         return 0.0
     return number if math.isfinite(number) else 0.0
+
+
+def upgrade_sample_in_place(sample: dict) -> bool:
+    selection = sample.get("Selection") or {}
+    if (
+        sample.get("ModelProtocol") == CURRENT_SAMPLE_PROTOCOL
+        and int(sample.get("FeatureSchemaVersion", 0))
+        == CURRENT_FEATURE_SCHEMA
+        and selection.get("Protocol") == CURRENT_SELECTION_PROTOCOL
+    ):
+        return True
+    if not (
+        sample.get("ModelProtocol") == PREVIOUS_SAMPLE_PROTOCOL
+        and int(sample.get("FeatureSchemaVersion", 0))
+        == CURRENT_FEATURE_SCHEMA
+        and selection.get("Protocol") == PREVIOUS_SELECTION_PROTOCOL
+    ):
+        return False
+
+    executed_by = str(selection.get("ExecutedBy") or "").lower()
+    known = executed_by in {"human", "emergency-baseline"}
+    selection["Protocol"] = CURRENT_SELECTION_PROTOCOL
+    selection["AuthorityKnown"] = known
+    selection["DecisionAuthority"] = (
+        executed_by if known else "legacy-policy-unknown"
+    )
+    selection["DecisionPurpose"] = "legacy-execution"
+    sample["Selection"] = selection
+    sample["ModelProtocol"] = CURRENT_SAMPLE_PROTOCOL
+    return True
 
 
 def load_samples(path: Path) -> list[dict]:
@@ -49,11 +85,10 @@ def load_samples(path: Path) -> list[dict]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
             if (
-                sample.get("ModelProtocol") == "aura.combat-ai.sample.v7"
-                and int(sample.get("FeatureSchemaVersion", 0)) == 6
+                upgrade_sample_in_place(sample)
                 and sample.get("CompletionState") == "Completed"
                 and (sample.get("Selection") or {}).get("Protocol")
-                == "aura.combat-ai.selection.v1"
+                == CURRENT_SELECTION_PROTOCOL
                 and (sample.get("Selection") or {}).get(
                     "ExecutedCandidateId"
                 )
@@ -91,8 +126,8 @@ def selection_trace(sample: dict) -> dict[str, object]:
         "policyPreselectedCandidateId": policy_id,
         "humanPolicyAgreement": agreement,
         "policyVisibleToHuman": visible_to_human,
-        "hasSelectionV1": selection.get("Protocol")
-        == "aura.combat-ai.selection.v1",
+        "hasSelectionV2": selection.get("Protocol")
+        == CURRENT_SELECTION_PROTOCOL,
     }
 
 
@@ -240,7 +275,7 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
     hidden_human_samples = 0
     visible_human_agreements = 0
     hidden_human_agreements = 0
-    selection_v1_count = 0
+    selection_v2_count = 0
     policy_rewards: list[float] = []
     policy_returns: list[float] = []
 
@@ -249,8 +284,8 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
         selection = selection_trace(sample)
         actor = str(selection["executedBy"])
         actor_counts[actor] += 1
-        if selection["hasSelectionV1"]:
-            selection_v1_count += 1
+        if selection["hasSelectionV2"]:
+            selection_v2_count += 1
 
         executed = candidates.get(str(selection["executedCandidateId"]))
         proposed = candidates.get(str(selection["policyPreselectedCandidateId"]))
@@ -282,11 +317,11 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
     human_total = human_agreements + human_disagreements
     return {
         "ReportProtocol": "aura.combat-ai.training-report.v1",
-        "SampleProtocol": "aura.combat-ai.sample.v7",
-        "SelectionProtocol": "aura.combat-ai.selection.v1",
+        "SampleProtocol": CURRENT_SAMPLE_PROTOCOL,
+        "SelectionProtocol": CURRENT_SELECTION_PROTOCOL,
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "SampleCount": len(samples),
-        "SelectionCount": selection_v1_count,
+        "SelectionCount": selection_v2_count,
         "ActorCounts": dict(sorted(actor_counts.items())),
         "HumanPolicyAgreementCount": human_agreements,
         "HumanPolicyDisagreementCount": human_disagreements,
@@ -449,12 +484,12 @@ def train(
 def self_test() -> int:
     samples = [
         {
-            "ModelProtocol": "aura.combat-ai.sample.v7",
-            "FeatureSchemaVersion": 6,
+            "ModelProtocol": CURRENT_SAMPLE_PROTOCOL,
+            "FeatureSchemaVersion": CURRENT_FEATURE_SCHEMA,
             "CompletionState": "Completed",
             "BattleSessionId": index,
             "Selection": {
-                "Protocol": "aura.combat-ai.selection.v1",
+                "Protocol": CURRENT_SELECTION_PROTOCOL,
                 "ExecutedBy": "human",
                 "ExecutedCandidateId": "attack",
                 "PolicyPreselectedCandidateId": "shield",
@@ -479,12 +514,12 @@ def self_test() -> int:
     ]
     samples.append(
         {
-            "ModelProtocol": "aura.combat-ai.sample.v7",
-            "FeatureSchemaVersion": 6,
+            "ModelProtocol": CURRENT_SAMPLE_PROTOCOL,
+            "FeatureSchemaVersion": CURRENT_FEATURE_SCHEMA,
             "CompletionState": "Completed",
             "BattleSessionId": 99,
             "Selection": {
-                "Protocol": "aura.combat-ai.selection.v1",
+                "Protocol": CURRENT_SELECTION_PROTOCOL,
                 "ExecutedBy": "policy",
                 "ExecutedCandidateId": "shield",
                 "PolicyPreselectedCandidateId": "shield",
@@ -613,7 +648,7 @@ def main() -> int:
         "ModelProtocol": "aura.decision-residual.linear.v1",
         "ModelId": "aura-combat-linear-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "ProtocolVersion": 1,
-        "FeatureSchemaVersion": 6,
+        "FeatureSchemaVersion": CURRENT_FEATURE_SCHEMA,
         "ApplicabilityProtocolVersion": 1,
         "DecisionProfile": args.profile,
         "Bias": 0.0,

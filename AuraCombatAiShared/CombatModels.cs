@@ -976,7 +976,14 @@ public interface ICombatTrainingSampleSink
 
 public static class CombatTrainingProtocol
 {
-    public const string SampleProtocol = "aura.combat-ai.sample.v8";
+    public const string SampleProtocol = "aura.combat-ai.sample.v9";
+
+    public const string PreviousSampleProtocol = "aura.combat-ai.sample.v8";
+
+    public const string SelectionProtocol = "aura.combat-ai.selection.v2";
+
+    public const string PreviousSelectionProtocol =
+        "aura.combat-ai.selection.v1";
 
     public const int FeatureSchemaVersion = 11;
 
@@ -991,10 +998,52 @@ public static class CombatTrainingProtocol
                && sample.Selection != null
                && string.Equals(
                    sample.Selection.Protocol,
-                   "aura.combat-ai.selection.v1",
+                   SelectionProtocol,
                    StringComparison.Ordinal)
                && !string.IsNullOrWhiteSpace(
                    sample.Selection.ExecutedCandidateId);
+    }
+
+    public static bool UpgradeInPlace(CombatTrainingSample? sample)
+    {
+        if (sample == null
+            || !string.Equals(
+                sample.ModelProtocol,
+                PreviousSampleProtocol,
+                StringComparison.Ordinal)
+            || sample.FeatureSchemaVersion != FeatureSchemaVersion
+            || sample.Selection == null
+            || !string.Equals(
+                sample.Selection.Protocol,
+                PreviousSelectionProtocol,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+        var executedBy = sample.Selection.ExecutedBy ?? "";
+        sample.Selection.Protocol = SelectionProtocol;
+        sample.Selection.AuthorityKnown = string.Equals(
+                                               executedBy,
+                                               "human",
+                                               StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(
+                                               executedBy,
+                                               "emergency-baseline",
+                                               StringComparison.OrdinalIgnoreCase);
+        sample.Selection.DecisionAuthority = string.Equals(
+            executedBy,
+            "human",
+            StringComparison.OrdinalIgnoreCase)
+            ? "human"
+            : string.Equals(
+                executedBy,
+                "emergency-baseline",
+                StringComparison.OrdinalIgnoreCase)
+                ? "emergency-baseline"
+                : "legacy-policy-unknown";
+        sample.Selection.DecisionPurpose = "legacy-execution";
+        sample.ModelProtocol = SampleProtocol;
+        return true;
     }
 }
 
@@ -1078,7 +1127,26 @@ public sealed class CombatTrainingSample
 
 public sealed class CombatTrainingSelectionTrace
 {
-    public string Protocol { get; set; } = "aura.combat-ai.selection.v1";
+    public string Protocol { get; set; } =
+        CombatTrainingProtocol.SelectionProtocol;
+
+    public long ReceiptId { get; set; }
+
+    public string DecisionPurpose { get; set; } = "execution";
+
+    public string DecisionAuthority { get; set; } = "rule-baseline";
+
+    public string DecisionModelId { get; set; } = "none";
+
+    public bool AuthorityKnown { get; set; } = true;
+
+    public string FallbackKind { get; set; } = "";
+
+    public long ObservationRevision { get; set; }
+
+    public double QueueMilliseconds { get; set; }
+
+    public double ComputeMilliseconds { get; set; }
 
     public string ExecutedBy { get; set; } = "policy";
 

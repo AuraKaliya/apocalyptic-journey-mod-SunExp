@@ -31,9 +31,17 @@ public static class WunaOrbitFireRuntime
         });
         TerriasBattleLifecycleRouter.Register("WunaOrbitFire", new TerriasBattleLifecycleSubscription
         {
-            BattleOpening = _ => ReconcileActionSubscription(),
+            BattleOpening = _ =>
+            {
+                TerriasWunaOrbitReplayPresentationModule.BeginBattle();
+                ReconcileActionSubscription();
+            },
             BattleRestarting = _ => ReleaseActionSubscription(),
-            OutcomeEntering = _ => ReleaseActionSubscription()
+            OutcomeEntering = _ =>
+            {
+                TerriasWunaOrbitReplayPresentationModule.EndBattle();
+                ReleaseActionSubscription();
+            }
         });
         TerriasLog.Info(LogPrefix + " runtime initialized");
     }
@@ -181,7 +189,9 @@ public static class WunaOrbitFireRuntime
         if (!string.IsNullOrWhiteSpace(action))
         {
             controller.BoostForAction(action);
+            TerriasWunaOrbitReplayPresentationModule.PublishBoost(status.InstanceId, action);
         }
+        TerriasWunaOrbitReplayPresentationModule.PublishVisible(status.InstanceId);
     }
 
     private static IEnumerable<StatusManager> StatusesFromFightUi(object? target)

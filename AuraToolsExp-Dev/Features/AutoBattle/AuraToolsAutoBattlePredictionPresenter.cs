@@ -16,6 +16,9 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
     private static readonly Color EnemyColor = new(1f, 0.16f, 0.12f, 0.72f);
     private static readonly Color FriendlyColor = new(0.18f, 1f, 0.32f, 0.72f);
     private static readonly Color ActionColor = new(1f, 0.78f, 0.08f, 0.86f);
+    private static readonly Color ModelColor = new(0.64f, 0.38f, 1f, 0.9f);
+    private static readonly Color ShadowColor = new(0.24f, 0.78f, 1f, 0.9f);
+    private static readonly Color EmergencyColor = new(1f, 0.42f, 0.12f, 0.92f);
 
     private readonly Vector3[] worldCorners = new Vector3[4];
     private readonly Vector2[] localCorners = new Vector2[4];
@@ -50,6 +53,9 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         CombatActionObservation action,
         UnityEngine.Component actionComponent,
         StatusManager? target,
+        CombatLiveDecisionAuthority authority =
+            CombatLiveDecisionAuthority.RuleBaseline,
+        bool shadow = false,
         float actionHoldSeconds = 0f)
     {
         Clear();
@@ -69,6 +75,15 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         actionFallbackSize = FallbackSize(action.Kind);
         holdActionUntil = Time.unscaledTime + Mathf.Max(0f, actionHoldSeconds);
         EnsureActionFrame(fightUi);
+        SetActionColor(shadow
+            ? ShadowColor
+            : authority switch
+            {
+                CombatLiveDecisionAuthority.Model => ModelColor,
+                CombatLiveDecisionAuthority.EmergencyBaseline =>
+                    EmergencyColor,
+                _ => ActionColor
+            });
         SyncActionFrame();
         ShowUnitMarker(action, target);
         return actionFrame != null && actionFrame.gameObject.activeSelf;
@@ -159,6 +174,18 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         image.color = ActionColor;
         image.raycastTarget = false;
         return rect;
+    }
+
+    private void SetActionColor(Color color)
+    {
+        for (var index = 0; index < actionEdges.Length; index++)
+        {
+            var image = actionEdges[index]?.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = color;
+            }
+        }
     }
 
     private void SyncActionFrame()

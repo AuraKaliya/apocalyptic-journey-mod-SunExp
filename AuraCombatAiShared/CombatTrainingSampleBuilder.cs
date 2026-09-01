@@ -20,7 +20,15 @@ public static class CombatTrainingSampleBuilder
         string sharedBuild,
         string demonstrator = "policy",
         string recommendedCandidateId = "",
-        bool policyVisibleToHuman = false)
+        bool policyVisibleToHuman = false,
+        long receiptId = 0L,
+        string decisionPurpose = "execution",
+        string decisionAuthority = "",
+        string decisionModelId = "none",
+        string fallbackKind = "",
+        long observationRevision = 0L,
+        CombatLiveDecisionTiming? decisionTiming = null,
+        string battleOutcomeOverride = "")
     {
         if (before == null)
         {
@@ -36,7 +44,12 @@ public static class CombatTrainingSampleBuilder
         after = after == null
             ? null
             : CombatPlayerObservationBoundary.Normalize(after);
-        var reward = BuildReward(before, after, decision.Action, terminal);
+        var reward = BuildReward(
+            before,
+            after,
+            decision.Action,
+            terminal,
+            battleOutcomeOverride);
         var executedBy = string.Equals(
             demonstrator,
             "human",
@@ -62,6 +75,14 @@ public static class CombatTrainingSampleBuilder
         var policyPreselectedDisplayName = FindCandidateDisplayName(
             decision,
             policyPreselectedCandidateId);
+        var resolvedAuthority = string.IsNullOrWhiteSpace(decisionAuthority)
+            ? executedBy switch
+            {
+                "human" => "human",
+                "emergency-baseline" => "emergency-baseline",
+                _ => "rule-baseline"
+            }
+            : decisionAuthority.Trim();
         var sample = new CombatTrainingSample
         {
             GameBuild = gameBuild ?? "",
@@ -75,6 +96,25 @@ public static class CombatTrainingSampleBuilder
             DecisionProfile = decision.ProfileId,
             Selection = new CombatTrainingSelectionTrace
             {
+                ReceiptId = Math.Max(0L, receiptId),
+                DecisionPurpose = string.IsNullOrWhiteSpace(decisionPurpose)
+                    ? "execution"
+                    : decisionPurpose.Trim(),
+                DecisionAuthority = resolvedAuthority,
+                DecisionModelId = string.IsNullOrWhiteSpace(decisionModelId)
+                    ? "none"
+                    : decisionModelId.Trim(),
+                AuthorityKnown = true,
+                FallbackKind = fallbackKind?.Trim() ?? "",
+                ObservationRevision = Math.Max(
+                    0L,
+                    observationRevision),
+                QueueMilliseconds = Math.Max(
+                    0d,
+                    decisionTiming?.QueueMilliseconds ?? 0d),
+                ComputeMilliseconds = Math.Max(
+                    0d,
+                    decisionTiming?.ComputeMilliseconds ?? 0d),
                 ExecutedBy = executedBy,
                 LabelKind = executedBy switch
                 {
@@ -113,7 +153,9 @@ public static class CombatTrainingSampleBuilder
                 + reward.TurnCost
                 + reward.TerminalBonus),
             Terminal = terminal,
-            BattleOutcome = ResolveOutcome(after, terminal),
+            BattleOutcome = string.IsNullOrWhiteSpace(battleOutcomeOverride)
+                ? ResolveOutcome(after, terminal)
+                : battleOutcomeOverride.Trim().ToLowerInvariant(),
             CompletionState = completionState ?? "",
             TerminalReason = terminalReason ?? ""
         };
@@ -134,12 +176,29 @@ public static class CombatTrainingSampleBuilder
         CombatStateObservation before,
         CombatStateObservation? after,
         CombatActionObservation action,
-        bool terminal)
+        bool terminal,
+        string battleOutcomeOverride)
     {
         var reward = new CombatTrainingReward
         {
             TurnCost = action.Kind == CombatActionKind.EndTurn ? -0.25d : 0d
         };
+        if (terminal
+            && string.Equals(
+                battleOutcomeOverride,
+                "victory",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            reward.TerminalBonus = 50d;
+        }
+        else if (terminal
+                 && string.Equals(
+                     battleOutcomeOverride,
+                     "defeat",
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            reward.TerminalBonus = -50d;
+        }
         if (after == null)
         {
             return reward;
@@ -160,11 +219,14 @@ public static class CombatTrainingSampleBuilder
         reward.HandChange = after.HandCount - before.HandCount;
         if (terminal)
         {
-            if (after.Enemies.Count == 0 && after.Player.CurrentHp > 0)
+            if (string.IsNullOrWhiteSpace(battleOutcomeOverride)
+                && after.Enemies.Count == 0
+                && after.Player.CurrentHp > 0)
             {
                 reward.TerminalBonus = 50d;
             }
-            else if (after.Player.CurrentHp <= 0)
+            else if (string.IsNullOrWhiteSpace(battleOutcomeOverride)
+                     && after.Player.CurrentHp <= 0)
             {
                 reward.TerminalBonus = -50d;
             }

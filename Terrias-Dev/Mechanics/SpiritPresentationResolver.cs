@@ -60,28 +60,46 @@ public static class SpiritPresentationResolver
 
     public static string Name(CapturedEnemySnapshot? snapshot, string? locale = null)
     {
-        return Name(snapshot, LocalFallback(snapshot), locale);
+        return Name(snapshot, null, locale);
     }
 
     public static string Description(CapturedEnemySnapshot? snapshot, string? locale = null)
     {
-        return Description(snapshot, LocalFallback(snapshot), locale);
+        return Description(snapshot, null, locale);
     }
+
+    public static string Name(SpiritDeploymentSnapshot? snapshot, string? locale = null)
+        => snapshot == null ? "" : Name(snapshot.Source, snapshot.Presentation, locale);
+
+    public static string Description(SpiritDeploymentSnapshot? snapshot, string? locale = null)
+        => snapshot == null ? "" : Description(snapshot.Source, snapshot.Presentation, locale);
 
     public static TerriasLocalizedText Names(CapturedEnemySnapshot? snapshot)
     {
         snapshot ??= new CapturedEnemySnapshot();
         var live = Capture(snapshot).Name;
-        var persisted = LocalFallback(snapshot)?.Name ?? new TerriasLocalizedText();
-        return Merge(live, persisted, snapshot.DisplayName, snapshot.EnemyId);
+        return Merge(live, null, snapshot.DisplayName, snapshot.EnemyId);
     }
 
     public static TerriasLocalizedText Descriptions(CapturedEnemySnapshot? snapshot)
     {
         snapshot ??= new CapturedEnemySnapshot();
         var live = Capture(snapshot).Description;
-        var persisted = LocalFallback(snapshot)?.Description ?? new TerriasLocalizedText();
-        return Merge(live, persisted, snapshot.Description, "");
+        return Merge(live, null, snapshot.Description, "");
+    }
+
+    public static TerriasLocalizedText Names(SpiritDeploymentSnapshot? snapshot)
+    {
+        snapshot ??= new SpiritDeploymentSnapshot();
+        var source = snapshot.Source ?? new CapturedEnemySnapshot();
+        return Merge(Capture(source).Name, snapshot.Presentation?.Name, source.DisplayName, source.EnemyId);
+    }
+
+    public static TerriasLocalizedText Descriptions(SpiritDeploymentSnapshot? snapshot)
+    {
+        snapshot ??= new SpiritDeploymentSnapshot();
+        var source = snapshot.Source ?? new CapturedEnemySnapshot();
+        return Merge(Capture(source).Description, snapshot.Presentation?.Description, source.Description, "");
     }
 
     private static string Name(
@@ -105,12 +123,6 @@ public static class SpiritPresentationResolver
         var live = Capture(snapshot).Description;
         return Merge(live, persisted?.Description, snapshot.Description, "")
             .Resolve(locale ?? TerriasLanguageApi.CurrentLocale);
-    }
-
-    private static SpiritLocalizedPresentation? LocalFallback(CapturedEnemySnapshot? snapshot)
-    {
-        var uid = snapshot?.SpiritUid?.Trim() ?? "";
-        return uid.Length == 0 ? null : SpiritCollectionService.Find(uid)?.Presentation;
     }
 
     private static Dictionary<string, string>? ResolveEnemyRow(string enemyId)

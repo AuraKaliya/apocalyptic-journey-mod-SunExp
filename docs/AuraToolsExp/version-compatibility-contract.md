@@ -58,21 +58,54 @@ CG 展示统一使用信号注册表 v4 与处理后队伍场景协议 v1。冒�
 
 ### 对局回放和分析
 
-回放持久化协议和包协议固定为 `Replay Document v12` / `.aurareplay v12`，可读范围为
-12/12。联机 replay authority 协议独立为 v1，并要求 causal transaction、authoritative
-public state、双 journal lane、完整检查点、portable presentation、独立场景和内嵌资产能力。
+回放持久化协议和包协议固定为 `Replay Document v17` / `.aurareplay v17`，可读范围为
+17/17。联机 replay authority 协议独立为 v1，并要求 causal transaction v2、固定视角可见
+状态、resolved instruction stream、全局事务顺序、可见状态检查点、实测原生布局、sanitized
+原生 prefab、完整 FightUI、共享 MOD renderer、实测重叠轨道、相机/视觉状态提交、原生卡牌视图、
+原生 renderer profile、像素 readback、增量持久化和可恢复 finalization 能力。
 任一房间节点缺少能力时，本场不发送 replay RPC，只保留摘要/分析；其它 AuraToolsExp 功能
 不受影响。
+
+v17 的全局 sequence 表示摄取和因果顺序。Truth `TimeTicks` 必须随 sequence 单调；Presentation
+`TimeTicks` 表示真实观测时刻，允许 owner-qualified MOD 事件因实体物化而以更高 sequence 晚到。
+播放统一按 effective presentation time、再按 sequence 排序。增量 batch 只能越过已经关闭的事务和
+完成采样的轨迹；已持久化事件不可被后续钩子改写。此语义属于既有
+`observed-presentation-timeline.v3` 能力的缺陷修复，不改变 v17 字段或读取范围。
 
 联机只有主机写 canonical 文档。主机通过 sender-bound 公开命令和权威 status 观察远端动作，
 终局封存后把 envelope 与精确 asset payload set 分块复制；客户端必须重组并重新验证两条
 事件链、检查点、资产清单、truthRoot、presentationRoot 和 documentRoot，全部通过后才能
 提交相同 `Ready` 记录。中断或不完整 transfer 不产生客户端第二 writer。
 
-v12 播放器使用 AuraToolsExp 自有 ReplayScene，不依赖录制时的内容 MOD、运行时指纹或游戏
-战斗初始化，也不提供降级播放器。验证失败的结构化记录保存为 `Rejected` 摘要；分析仍是可
-从 canonical 文档重建的派生缓存。所有 pre-v12 记录一次性改为 `SummaryOnly`，保留摘要、
-分析、收藏信息和已验证 MP4，删除旧文档/chunk/asset 引用；旧包不进入 v12 importer。
+v17 播放器从固定视角状态、实测布局和资源指令创建隔离 battle world，不初始化真实战斗，也不执行玩法
+脚本。游戏构建不匹配时拒绝播放，不回退到 DOM、sidecar 或旧播放器。录制依次经过
+`Recording -> Finalizing -> Ready`；进程中断后只能从完整 Finalizing 草稿恢复，战斗中断则标为
+`Incomplete`。验证失败的结构化记录保存为 `Rejected` 摘要；分析仍可从 canonical truth 文档
+重建。所有 pre-v17 记录一次性改为 `SummaryOnly`，保留摘要、分析、收藏信息和已验证 MP4，
+删除旧文档/chunk/POV/DOM/asset 引用；旧包不进入 v17 importer。
+
+其它 MOD 的原生 Status/卡牌/FightUI 行为由通用观察器记录；原生表面之外的状态、布局和表现必须通过
+Aura 共享回放 provider/module 以 owner-qualified 身份声明。Portable 模块使用通用原语；
+ProviderRequired 模块缺少匹配 renderer/build 时拒绝播放，而不是静默漏画面。
+共享表现发布边界负责把合法 JSON 递归规范化为 v17 canonical payload；重复属性、尾随内容、超深度和
+超预算在进入 capture sink 前拒绝。内容 MOD 不承担属性排序责任，v17 文档验证仍独立要求 payload
+已经 canonical。
+
+池化战斗卡牌必须在回池/重绑前通过共享 CardPresentation Reset 释放表现世代。回放 recorder 按精确
+visual root 与 source instance 关闭轨迹；原生非池化中央卡仍以 Destroy 结束。失活与实例重绑是通用
+防线，固定 timeout 只拒绝真正没有到达任何生命周期边界的视图，不能替代 Reset 或被延长来掩盖泄漏。
+
+原生动作来源按 `IDataConfig.Type` 进入唯一表现目录：`Card` 对应卡牌 descriptor，`EnemyCard` 和
+`PartnerCard` 对应意图 descriptor/`Intent` 事务。MOD 名称、内容 ID 和图标路径不得参与分类；未知类型
+以及事务/descriptor 目录不一致会使录制验证失败。这是 v17 writer 对既有原生意图语义的缺陷修复，
+不改变字段或 17/17 可读范围。由旧缺陷 writer 封存的错误 v17 文档不做播放端转换，因为它没有完整
+意图字段且转换会破坏根哈希；需要在修复版本中重新录制。
+
+v17 的 `native-renderer-profile.v1` 要求回放使用独占 Feature 实例和显式兼容性 profile：保留的
+FullScreen Pass 通过回放自有 Color-input Pass 获得中间 `cameraColor`；仅兼容旧渲染路径的主相机
+UIBlur Pass 被明确排除；未知活跃 Feature 在首帧前拒绝。不得把 RendererData 浅克隆、Feature 类型
+列表相同或反射成员存在误报为运行时兼容，也不得修改原生 Renderer 的 Feature 实例/active 状态。
+该修复不改变回放文档字段或 17/17 读取范围。
 
 ### 卡牌视觉
 

@@ -169,7 +169,7 @@ public static class SpiritTrainingService
         return DeterministicRange((spiritUid ?? "") + ":" + (profileId ?? "") + ":speed", MinimumSpeed, MaximumSpeed);
     }
 
-    public static bool ValidateDeploymentSnapshot(CapturedEnemySnapshot? snapshot, out string reason)
+    public static bool ValidateDeploymentSnapshot(SpiritDeploymentSnapshot? snapshot, out string reason)
     {
         if (snapshot == null
             || !string.Equals(snapshot.TrainingRegistryHash, SpiritTrainingRegistry.RegistryHash, StringComparison.Ordinal)
@@ -193,7 +193,7 @@ public static class SpiritTrainingService
             SpiritUid = snapshot.SpiritUid,
             SpeciesId = snapshot.SpeciesId,
             ProfileId = snapshot.ProfileId,
-            Snapshot = SpiritModelCloner.CloneSnapshot(snapshot),
+            Snapshot = SpiritModelCloner.CloneSnapshot(snapshot.Source),
             Level = Math.Max(1, snapshot.SpiritLevel),
             Speed = 0
         };
@@ -224,7 +224,7 @@ public static class SpiritTrainingService
             instance.LoadoutRevision);
     }
 
-    public static string LoadoutHash(CapturedEnemySnapshot snapshot)
+    public static string LoadoutHash(SpiritDeploymentSnapshot snapshot)
     {
         return ComputeLoadoutHash(
             snapshot?.SpiritSpeed ?? 100,

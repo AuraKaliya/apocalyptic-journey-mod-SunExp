@@ -1,7 +1,7 @@
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.MatchRecords.Recording;
-using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
@@ -35,6 +35,11 @@ public static class AuraToolsMatchRecordsRuntime
         }
 
         initialized = true;
+        try { _ = MatchRecordStorage.Database; }
+        catch (System.Exception ex)
+        {
+            AuraToolsLog.Warn("[MatchRecords] database preflight failed: " + ex.Message);
+        }
         AuraToolsDamageMeterRuntime.Initialize(modConfig);
         MatchReplayHookAdapter.Initialize(modConfig);
         AuraToolsConfigService.SubscribeModule(
@@ -46,7 +51,7 @@ public static class AuraToolsMatchRecordsRuntime
         ApplyModuleActivation();
         EnsureDriver();
         AuraToolsLog.Info("[MatchRecords] runtime initialized; replay protocol v"
-                          + ReplayProtocolV12.DocumentVersion + ".");
+                          + ReplayProtocolV17.DocumentVersion + ".");
     }
 
     internal static Coroutine? StartRuntimeCoroutine(IEnumerator routine)

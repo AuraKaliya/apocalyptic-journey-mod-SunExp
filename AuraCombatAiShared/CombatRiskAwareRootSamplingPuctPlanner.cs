@@ -1,10 +1,10 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -98,7 +98,8 @@ public sealed class CombatSearchResult
 
 public sealed class CombatRiskAwareRootSamplingPuctPlanner
 {
-    private static readonly ConcurrentBag<WeakReference<
+    private static readonly object InstancesGate = new();
+    private static readonly List<WeakReference<
         CombatRiskAwareRootSamplingPuctPlanner>> Instances = new();
     private static readonly CombatPolicyValuePrediction EmptyPrediction = new();
     private readonly IDecisionResidualModel residualModel;
@@ -106,6 +107,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
     private readonly ICombatSimulationRule[] isolatedSimulationRules;
+    private readonly object memoryGate = new();
     private Dictionary<ulong, SearchNode> transpositions = new();
     private Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache =
         new();
@@ -115,8 +117,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private ulong[] cycleHashPathBuffer = Array.Empty<ulong>();
     private CombatSimulationState[] cycleStatePathBuffer =
         Array.Empty<CombatSimulationState>();
-    private readonly CombatStateObservation scoreObservation = new();
-    private readonly CombatActionObservation scoreAction = new();
+    private CombatStateObservation scoreObservation = new();
+    private CombatActionObservation scoreAction = new();
     private readonly Dictionary<string, double> scoreStateFeatures =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> scoreActionFeatures =
@@ -160,6 +162,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private bool modelBudgetExhausted;
     private SearchNode? activeRootNode;
     private CombatPolicyValuePrediction? rootNetworkPrediction;
+    private CancellationToken searchCancellation;
 
     public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
@@ -174,22 +177,30 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         this.useRuntimeRegistries = useRuntimeRegistries;
         isolatedSimulationRules = simulationRules?.Where(rule => rule != null).ToArray()
                                   ?? Array.Empty<ICombatSimulationRule>();
-        Instances.Add(new WeakReference<CombatRiskAwareRootSamplingPuctPlanner>(
-            this));
+        lock (InstancesGate)
+        {
+            Instances.Add(new WeakReference<
+                CombatRiskAwareRootSamplingPuctPlanner>(this));
+        }
     }
 
     public static CombatSearchMemoryTrimReport TrimRetainedSearchMemory()
     {
         long retained = 0;
         var planners = 0;
-        foreach (var weak in Instances)
+        lock (InstancesGate)
         {
-            if (!weak.TryGetTarget(out var planner))
+            for (var index = Instances.Count - 1; index >= 0; index--)
             {
-                continue;
+                var weak = Instances[index];
+                if (!weak.TryGetTarget(out var planner))
+                {
+                    Instances.RemoveAt(index);
+                    continue;
+                }
+                retained += planner.ReleaseRetainedMemory();
+                planners++;
             }
-            retained += planner.TrimRetainedMemory();
-            planners++;
         }
         return new CombatSearchMemoryTrimReport
         {
@@ -198,27 +209,87 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         };
     }
 
-    private long TrimRetainedMemory()
+    internal long ReleaseRetainedMemory()
     {
-        long retained = stateArena.Trim();
-        retained += searchObjectArena.Trim();
-        retained += actionModelArena.Trim();
-        retained += transpositions.Count * 64L;
-        retained += policyValueCache.Count * 128L;
-        transpositions = new Dictionary<ulong, SearchNode>();
-        policyValueCache =
-            new Dictionary<ulong, CombatPolicyValuePrediction>();
-        actions = Array.Empty<SearchAction>();
-        reusableSimulationRoot = null;
-        return retained;
+        lock (memoryGate)
+        {
+            long retained = stateArena.Trim();
+            retained += searchObjectArena.Trim();
+            retained += actionModelArena.Trim();
+            retained += transpositions.Count * 64L;
+            retained += policyValueCache.Count * 128L;
+            retained += nodePathBuffer.Length * IntPtr.Size;
+            retained += edgePathBuffer.Length * IntPtr.Size;
+            retained += rewardPathBuffer.Length * sizeof(double);
+            retained += cycleHashPathBuffer.Length * sizeof(ulong);
+            retained += cycleStatePathBuffer.Length * IntPtr.Size;
+            transpositions = new Dictionary<ulong, SearchNode>();
+            policyValueCache =
+                new Dictionary<ulong, CombatPolicyValuePrediction>();
+            nodePathBuffer = Array.Empty<SearchNode>();
+            edgePathBuffer = Array.Empty<SearchEdge>();
+            rewardPathBuffer = Array.Empty<double>();
+            cycleHashPathBuffer = Array.Empty<ulong>();
+            cycleStatePathBuffer = Array.Empty<CombatSimulationState>();
+            actions = Array.Empty<SearchAction>();
+            rootObservation = new CombatStateObservation();
+            profile = new CombatDecisionProfile();
+            simulationRules = Array.Empty<ICombatSimulationRule>();
+            rootBelief = new CombatBeliefState();
+            reusableSimulationRoot = null;
+            rootExploration = null;
+            activeRootNode = null;
+            rootNetworkPrediction = null;
+            searchCancellation = default;
+            usablePolicyCandidates.Clear();
+            determinizationUnknownWorkspace.Clear();
+            determinizationKnowledgeValues.Clear();
+            scoreObservation = new CombatStateObservation();
+            scoreAction = new CombatActionObservation();
+            scoreStateFeatures.Clear();
+            scoreActionFeatures.Clear();
+            leafFeatures.Clear();
+            ClearPolicyInput(leafInput);
+            ClearPolicyInput(rootPolicyInput);
+            ClearPolicyInput(edgePolicyInput);
+            return retained;
+        }
+    }
+
+    private static void ClearPolicyInput(CombatPolicyValueInput input)
+    {
+        input.StateFeatures = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        input.Candidates = new List<CombatPolicyValueCandidate>();
     }
 
     public CombatSearchResult Choose(
         CombatStateObservation state,
         IReadOnlyList<CombatCandidateEvaluation> candidates,
         CombatDecisionProfile selectedProfile,
-        CombatSearchExplorationOptions? exploration = null)
+        CombatSearchExplorationOptions? exploration = null,
+        CancellationToken cancellationToken = default)
     {
+        lock (memoryGate)
+        {
+            return ChooseCore(
+                state,
+                candidates,
+                selectedProfile,
+                exploration,
+                cancellationToken);
+        }
+    }
+
+    private CombatSearchResult ChooseCore(
+        CombatStateObservation state,
+        IReadOnlyList<CombatCandidateEvaluation> candidates,
+        CombatDecisionProfile selectedProfile,
+        CombatSearchExplorationOptions? exploration,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        searchCancellation = cancellationToken;
         var allocationStart = ReadThreadAllocatedBytes();
         rootObservation = state;
         profile = selectedProfile;
@@ -351,6 +422,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         // Every legal root action receives evidence before PUCT may concentrate the budget.
         for (var i = 0; i < actions.Count && nodeCount < nodeBudget; i++)
         {
+            searchCancellation.ThrowIfCancellationRequested();
             var edge = root.Edges[i];
             if (edge == null)
             {
@@ -385,6 +457,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                     && simulations < extendedSimulationBudget
                     && ShouldExtendLowConfidenceSearch(root, budget))))
         {
+            searchCancellation.ThrowIfCancellationRequested();
             if (budget.TimeBudgetMilliseconds > 0
                 && ElapsedMilliseconds(searchStarted)
                 >= budget.TimeBudgetMilliseconds)
@@ -771,6 +844,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
     {
+        searchCancellation.ThrowIfCancellationRequested();
         var detailedAllocations =
             CombatDecisionAllocationDiagnostics.DetailedEnabled;
         var simulationAllocationStart = detailedAllocations
@@ -808,6 +882,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
 
         for (var ply = 0; ply < searchMaxPly; ply++)
         {
+            searchCancellation.ThrowIfCancellationRequested();
             if (currentState.AllEnemiesDefeated)
             {
                 var terminal = EvaluateLeaf(currentState);
@@ -1933,6 +2008,7 @@ CompleteSimulation:
 
     private CombatLeafEvaluation EvaluateLeaf(CombatSimulationState state)
     {
+        searchCancellation.ThrowIfCancellationRequested();
         var detailedAllocations =
             CombatDecisionAllocationDiagnostics.DetailedEnabled;
         var allocationStart = detailedAllocations
@@ -2101,6 +2177,7 @@ CompleteSimulation:
     private CombatPolicyValuePrediction EvaluatePolicyValue(
         CombatPolicyValueInput input)
     {
+        searchCancellation.ThrowIfCancellationRequested();
         if (modelEvaluations >= modelEvaluationBudget)
         {
             modelBudgetExhausted = true;

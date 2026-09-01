@@ -3,7 +3,7 @@ namespace Terrias.Dll.Mechanics;
 public sealed class SpiritState
 {
     public SpiritState(
-        CapturedEnemySnapshot snapshot,
+        SpiritDeploymentSnapshot snapshot,
         string ownerStatusId,
         string ownerPlayerId,
         SpiritOtherObj spirit,
@@ -20,7 +20,7 @@ public sealed class SpiritState
         Generation = System.Math.Max(1, generation);
     }
 
-    public CapturedEnemySnapshot Snapshot { get; }
+    public SpiritDeploymentSnapshot Snapshot { get; }
 
     public string StatusId => Spirit?.InstanceId ?? "";
 

@@ -193,7 +193,6 @@ public static class EnemyCatalogApi
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
         return new CapturedEnemySnapshot
         {
-            SpiritUid = Guid.NewGuid().ToString("N"),
             SourceModId = sourceModId ?? "",
             EnemyId = enemyId ?? "",
             VariantId = variantId ?? "",

@@ -62,9 +62,15 @@
     <Compile Include="..\AuraDirectorShared\AuraDirectorSessionState.cs" Link="Director\AuraDirectorSessionState.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorStartGateContracts.cs" Link="Director\AuraDirectorStartGateContracts.cs" />
     <Compile Include="..\AuraDirectorShared\AuraDirectorFoundationTrust.cs" Link="Director\AuraDirectorFoundationTrust.cs" />
+    <Compile Include="..\AuraReplayVisibleStateShared\AuraReplayVisibleStateRuntime.cs" Link="Replay\AuraReplayVisibleStateRuntime.cs" />
+    <Compile Include="..\AuraReplayPresentationShared\AuraReplayPresentationRuntime.cs" Link="Replay\AuraReplayPresentationRuntime.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
       <Private>true</Private>

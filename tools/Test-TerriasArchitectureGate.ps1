@@ -19,11 +19,18 @@ function Invoke-Fixture {
         [string]$Expected
     )
 
-    $output = & dotnet run --project $project -c Release --no-build -- `
-        --repo-root (Join-Path $fixtures $Name) `
-        --rules $rules `
-        --exceptions $exceptions `
-        2>&1
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & dotnet run --project $project -c Release --no-build -- `
+            --repo-root (Join-Path $fixtures $Name) `
+            --rules $rules `
+            --exceptions $exceptions `
+            2>&1
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
     $exitCode = $LASTEXITCODE
     $text = [string]::Join("`n", @($output))
     if ($ShouldPass -and $exitCode -ne 0) {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AuraCombatAi.Shared;
 
@@ -137,6 +138,29 @@ public static class CombatAiRegistry
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ICombatTrainingSampleSink> TrainingSinks =
         new(StringComparer.OrdinalIgnoreCase);
+    private static CombatDecisionPreparationSnapshot decisionPreparationSnapshot =
+        CombatDecisionPreparationSnapshot.Empty;
+    private static PreflightRegistration[] preflightSnapshot =
+        Array.Empty<PreflightRegistration>();
+    private static RuntimePreflightRegistration[] runtimePreflightSnapshot =
+        Array.Empty<RuntimePreflightRegistration>();
+    private static SemanticRegistration[] semanticSnapshot =
+        Array.Empty<SemanticRegistration>();
+    private static RoleStrategyRegistration[] roleStrategySnapshot =
+        Array.Empty<RoleStrategyRegistration>();
+    private static SkillTimingRegistration[] skillTimingSnapshot =
+        Array.Empty<SkillTimingRegistration>();
+    private static ThreatRegistration[] threatSnapshot =
+        Array.Empty<ThreatRegistration>();
+    private static EffectRegistration[] effectSnapshot =
+        Array.Empty<EffectRegistration>();
+    private static ICombatSimulationRule[] simulationRuleSnapshot =
+        Array.Empty<ICombatSimulationRule>();
+    private static ICombatTrainingSampleSink[] trainingSinkSnapshot =
+        Array.Empty<ICombatTrainingSampleSink>();
+    private static long revision;
+
+    public static long Revision => Volatile.Read(ref revision);
 
     public static IDisposable RegisterSemanticProvider(
         string ownerModId,
@@ -153,6 +177,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             SemanticProviders[key] = new SemanticRegistration(provider, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -160,6 +185,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 SemanticProviders.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -180,6 +206,7 @@ public static class CombatAiRegistry
         {
             RoleStrategyProviders[key] =
                 new RoleStrategyRegistration(provider, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -187,6 +214,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 RoleStrategyProviders.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -207,6 +235,7 @@ public static class CombatAiRegistry
         {
             SkillTimingProviders[key] =
                 new SkillTimingRegistration(provider, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -214,6 +243,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 SkillTimingProviders.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -233,6 +263,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             PreflightRules[key] = new PreflightRegistration(rule, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -240,6 +271,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 PreflightRules.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -259,6 +291,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             RuntimePreflightRules[key] = new RuntimePreflightRegistration(rule, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -266,6 +299,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 RuntimePreflightRules.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -284,6 +318,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             TrainingSinks[key] = sink;
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -291,6 +326,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 TrainingSinks.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -310,6 +346,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             ThreatProviders[key] = new ThreatRegistration(provider, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -317,6 +354,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 ThreatProviders.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -336,6 +374,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             EffectResolvers[key] = new EffectRegistration(resolver, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -343,6 +382,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 EffectResolvers.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -362,6 +402,7 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             SimulationRules[key] = new SimulationRuleRegistration(rule, priority);
+            RebuildSnapshotsNoLock();
         }
 
         return new Registration(() =>
@@ -369,6 +410,7 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 SimulationRules.Remove(key);
+                RebuildSnapshotsNoLock();
             }
         });
     }
@@ -378,11 +420,7 @@ public static class CombatAiRegistry
         CombatActionObservation action,
         out string reason)
     {
-        PreflightRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = PreflightRules.Values.OrderByDescending(item => item.Priority).ToArray();
-        }
+        var snapshot = Volatile.Read(ref preflightSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -400,23 +438,7 @@ public static class CombatAiRegistry
     {
         lock (Gate)
         {
-            return new CombatDecisionPreparationSnapshot(
-                SemanticProviders.Values
-                    .OrderByDescending(item => item.Priority)
-                    .Select(item => item.Provider)
-                    .ToArray(),
-                RoleStrategyProviders.Values
-                    .OrderByDescending(item => item.Priority)
-                    .Select(item => item.Provider)
-                    .ToArray(),
-                SkillTimingProviders.Values
-                    .OrderByDescending(item => item.Priority)
-                    .Select(item => item.Provider)
-                    .ToArray(),
-                PreflightRules.Values
-                    .OrderByDescending(item => item.Priority)
-                    .Select(item => item.Rule)
-                    .ToArray());
+            return decisionPreparationSnapshot;
         }
     }
 
@@ -426,13 +448,7 @@ public static class CombatAiRegistry
         CombatRuntimeActionContext runtime,
         out string reason)
     {
-        RuntimePreflightRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = RuntimePreflightRules.Values
-                .OrderByDescending(item => item.Priority)
-                .ToArray();
-        }
+        var snapshot = Volatile.Read(ref runtimePreflightSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -450,11 +466,7 @@ public static class CombatAiRegistry
         CombatStateObservation state,
         CombatActionObservation action)
     {
-        SemanticRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = SemanticProviders.Values.OrderByDescending(item => item.Priority).ToArray();
-        }
+        var snapshot = Volatile.Read(ref semanticSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -485,13 +497,7 @@ public static class CombatAiRegistry
         {
             return false;
         }
-        RoleStrategyRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = RoleStrategyProviders.Values
-                .OrderByDescending(item => item.Priority)
-                .ToArray();
-        }
+        var snapshot = Volatile.Read(ref roleStrategySnapshot);
         var enriched = false;
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -506,13 +512,7 @@ public static class CombatAiRegistry
         {
             return false;
         }
-        SkillTimingRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = SkillTimingProviders.Values
-                .OrderByDescending(item => item.Priority)
-                .ToArray();
-        }
+        var snapshot = Volatile.Read(ref skillTimingSnapshot);
         var enriched = false;
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -525,11 +525,7 @@ public static class CombatAiRegistry
         CombatStateObservation state,
         out CombatThreatForecast forecast)
     {
-        ThreatRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = ThreatProviders.Values.OrderByDescending(item => item.Priority).ToArray();
-        }
+        var snapshot = Volatile.Read(ref threatSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -548,11 +544,7 @@ public static class CombatAiRegistry
         CombatActionObservation action,
         out CombatActionModel model)
     {
-        EffectRegistration[] snapshot;
-        lock (Gate)
-        {
-            snapshot = EffectResolvers.Values.OrderByDescending(item => item.Priority).ToArray();
-        }
+        var snapshot = Volatile.Read(ref effectSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -590,20 +582,13 @@ public static class CombatAiRegistry
     {
         lock (Gate)
         {
-            return SimulationRules.Values
-                .OrderByDescending(item => item.Priority)
-                .Select(item => item.Rule)
-                .ToArray();
+            return Volatile.Read(ref simulationRuleSnapshot).ToArray();
         }
     }
 
     public static void RecordTrainingSample(CombatTrainingSample sample)
     {
-        ICombatTrainingSampleSink[] snapshot;
-        lock (Gate)
-        {
-            snapshot = TrainingSinks.Values.ToArray();
-        }
+        var snapshot = Volatile.Read(ref trainingSinkSnapshot);
 
         for (var i = 0; i < snapshot.Length; i++)
         {
@@ -616,6 +601,52 @@ public static class CombatAiRegistry
         var owner = string.IsNullOrWhiteSpace(ownerModId) ? "unknown" : ownerModId.Trim();
         var local = string.IsNullOrWhiteSpace(id) ? Guid.NewGuid().ToString("N") : id.Trim();
         return owner + ":" + local;
+    }
+
+    private static void RebuildSnapshotsNoLock()
+    {
+        var semantics = SemanticProviders.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var roleStrategies = RoleStrategyProviders.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var skillTimings = SkillTimingProviders.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var preflights = PreflightRules.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var runtimePreflights = RuntimePreflightRules.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var threats = ThreatProviders.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var effects = EffectResolvers.Values
+            .OrderByDescending(item => item.Priority)
+            .ToArray();
+        var simulationRules = SimulationRules.Values
+            .OrderByDescending(item => item.Priority)
+            .Select(item => item.Rule)
+            .ToArray();
+        var trainingSinks = TrainingSinks.Values.ToArray();
+        var decisionPreparation = new CombatDecisionPreparationSnapshot(
+            semantics.Select(item => item.Provider).ToArray(),
+            roleStrategies.Select(item => item.Provider).ToArray(),
+            skillTimings.Select(item => item.Provider).ToArray(),
+            preflights.Select(item => item.Rule).ToArray());
+        Volatile.Write(ref semanticSnapshot, semantics);
+        Volatile.Write(ref roleStrategySnapshot, roleStrategies);
+        Volatile.Write(ref skillTimingSnapshot, skillTimings);
+        Volatile.Write(ref preflightSnapshot, preflights);
+        Volatile.Write(ref runtimePreflightSnapshot, runtimePreflights);
+        Volatile.Write(ref threatSnapshot, threats);
+        Volatile.Write(ref effectSnapshot, effects);
+        Volatile.Write(ref simulationRuleSnapshot, simulationRules);
+        Volatile.Write(ref trainingSinkSnapshot, trainingSinks);
+        Volatile.Write(ref decisionPreparationSnapshot, decisionPreparation);
+        Interlocked.Increment(ref revision);
     }
 
     private sealed class SemanticRegistration

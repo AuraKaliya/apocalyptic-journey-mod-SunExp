@@ -9,7 +9,7 @@ using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
-using AuraToolsExp.Dll.Features.MatchRecords.ReplayV12.Core;
+using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using AuraToolsExp.Dll.Infrastructure;
 using UnityEngine;
@@ -73,11 +73,11 @@ internal static class MatchReplayVideoExporter
         }
 
         ReplayEncoderDependency dependency;
-        ReplayDocumentEnvelopeV12? envelope;
+        ReplayDocumentEnvelopeV17? envelope;
         try
         {
             dependency = ReplayEncoderDependency.LoadVerified();
-            envelope = MatchRecordStorage.Database.LoadV12(recordId);
+            envelope = MatchRecordStorage.Database.LoadV17(recordId);
         }
         catch (Exception ex)
         {
@@ -87,7 +87,7 @@ internal static class MatchReplayVideoExporter
 
         if (envelope == null)
         {
-            message = "这条记录没有经过验证的 Replay Document v12。";
+            message = "这条记录没有经过验证的 Replay Document v17。";
             return false;
         }
 
@@ -185,7 +185,7 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency = null,
-        ReplayDocumentEnvelopeV12? envelope = null)
+        ReplayDocumentEnvelopeV17? envelope = null)
     {
         Exception? failure = null;
         var core = ExportCore(job, settings, dependency, envelope);
@@ -208,7 +208,7 @@ internal static class MatchReplayVideoExporter
         {
             var committing = job.State == MatchReplayExportStates.Committing;
             Fail(job, committing ? "commit-interrupted" : "export-failed", failure.Message, deleteStaging: !committing);
-            AuraToolsLog.Warn("[MatchRecords] v12 portable video export failed: " + failure);
+            AuraToolsLog.Warn("[MatchRecords] v17 perspective replay video export failed: " + failure);
         }
         if (MatchReplayPlayer.IsActive)
         {
@@ -229,9 +229,9 @@ internal static class MatchReplayVideoExporter
         MatchReplayExportJob job,
         MatchReplayVideoSettings settings,
         ReplayEncoderDependency? dependency,
-        ReplayDocumentEnvelopeV12? envelope)
+        ReplayDocumentEnvelopeV17? envelope)
     {
-        ReplayRenderSurfaceV12? surface = null;
+        ReplayRenderSurfaceV17? surface = null;
         RenderTexture? target = null;
         Texture2D? reader = null;
         ReplayFramePipeline? pipeline = null;
@@ -240,8 +240,8 @@ internal static class MatchReplayVideoExporter
         try
         {
             dependency ??= ReplayEncoderDependency.LoadVerified();
-            envelope ??= MatchRecordStorage.Database.LoadV12(job.RecordId)
-                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v12。");
+            envelope ??= MatchRecordStorage.Database.LoadV17(job.RecordId)
+                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v17。");
             if (!MatchReplayPlayer.IsActive
                 && !MatchReplayPlayer.TryStartForExport(job.RecordId, out var startMessage))
                 throw new InvalidOperationException(startMessage);
@@ -278,7 +278,7 @@ internal static class MatchReplayVideoExporter
             target.Create();
             reader = new Texture2D(job.Width, job.Height, TextureFormat.RGB24, mipChain: false);
             Time.captureFramerate = job.FramesPerSecond;
-            surface = new ReplayRenderSurfaceV12(target, settings.IncludeUi);
+            surface = new ReplayRenderSurfaceV17(target, settings.IncludeUi);
             pipeline = new ReplayFramePipeline(
                 dependency,
                 job.StagingPath,
@@ -387,16 +387,28 @@ internal static class MatchReplayVideoExporter
         }
         finally
         {
-            pipeline?.Dispose();
-            surface?.Dispose();
-            Time.captureFramerate = previousCaptureFramerate;
-            if (target != null)
+            try
             {
-                target.Release();
-                Object.Destroy(target);
+                pipeline?.Dispose();
             }
-            if (reader != null) Object.Destroy(reader);
-            DeleteIfExists(audioPath);
+            finally
+            {
+                try
+                {
+                    surface?.Dispose();
+                }
+                finally
+                {
+                    Time.captureFramerate = previousCaptureFramerate;
+                    if (target != null)
+                    {
+                        target.Release();
+                        Object.Destroy(target);
+                    }
+                    if (reader != null) Object.Destroy(reader);
+                    DeleteIfExists(audioPath);
+                }
+            }
         }
     }
 
@@ -584,10 +596,10 @@ internal static class MatchReplayVideoExporter
                + (settings.IncludeUi ? ".hud" : ".clean");
     }
 
-    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV12 document, int fps)
+    private static IReadOnlyList<MatchMediaTimelineEntry> BuildTimeline(ReplayDocumentV17 document, int fps)
     {
         return document.TruthEvents
-            .Where(item => item.EventType == ReplayEventTypesV12.RoundStarted)
+            .Where(item => item.EventType == ReplayEventTypesV17.RoundStarted)
             .GroupBy(item => item.RoundSequence)
             .Select(group => group.First())
             .OrderBy(item => item.RoundSequence)
@@ -595,16 +607,16 @@ internal static class MatchReplayVideoExporter
             {
                 TurnIndex = item.RoundSequence,
                 EventSequence = item.Sequence,
-                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV12.TimebaseTicksPerSecond
+                VideoMilliseconds = item.TimeTicks * 1000L / ReplayProtocolV17.TimebaseTicksPerSecond
             })
             .ToList();
     }
 
-    private static long EstimateOutputBytes(ReplayDocumentV12 document, int width, int height, int fps, bool includeAudio)
+    private static long EstimateOutputBytes(ReplayDocumentV17 document, int width, int height, int fps, bool includeAudio)
     {
         var events = document.TruthEvents.Concat(document.PresentationEvents).ToList();
         var durationSeconds = Math.Max(1d,
-            events.Count == 0 ? 1d : events.Max(item => item.TimeTicks) / (double)ReplayProtocolV12.TimebaseTicksPerSecond + 1d);
+            events.Count == 0 ? 1d : events.Max(item => item.TimeTicks) / (double)ReplayProtocolV17.TimebaseTicksPerSecond + 1d);
         var bitsPerSecond = width >= 1920 ? 12_000_000L : 6_000_000L;
         var waveBytes = includeAudio
             ? (long)(durationSeconds * ReplayOfflineAudioMixer.SampleRate * ReplayOfflineAudioMixer.Channels * 2d)

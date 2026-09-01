@@ -20,6 +20,8 @@ internal static class AuraToolsCombatContentRuntime
     private static readonly object Gate = new();
     private static readonly List<IDisposable> Registrations = new();
     private static List<CombatContentLoadedPackage> packages = new();
+    private static Dictionary<string, string> ownerBySourceId =
+        new(StringComparer.OrdinalIgnoreCase);
     private static CombatContentSetSnapshot contentSet = CombatContentSetProtocol.Create(
         Array.Empty<CombatContentLoadedPackage>(), "");
     private static bool initialized;
@@ -54,6 +56,19 @@ internal static class AuraToolsCombatContentRuntime
                     FoundationTrainingReady = item.FoundationTrainingReady
                 }).ToList()
             };
+        }
+    }
+
+    public static void SnapshotContentIdentity(
+        out string contentSetHash,
+        out string ownerModSetHash,
+        out long revision)
+    {
+        lock (Gate)
+        {
+            contentSetHash = contentSet.ContentSetHash;
+            ownerModSetHash = contentSet.OwnerModSetHash;
+            revision = observedCatalogRevision;
         }
     }
 
@@ -270,25 +285,9 @@ internal static class AuraToolsCombatContentRuntime
         }
         lock (Gate)
         {
-            foreach (var item in packages)
+            if (ownerBySourceId.TryGetValue(source, out var owner))
             {
-                var coverage = item.Package.DeclaredCoverage
-                               ?? new CombatFoundationDeclaredCoverage();
-                if ((coverage.CardIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase)
-                    || (coverage.RoleSkillCardIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase)
-                    || (coverage.EnemyIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase)
-                    || (coverage.StatusIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase)
-                    || (coverage.RelicIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase)
-                    || (coverage.BlessingIds ?? new List<string>()).Contains(
-                        source, StringComparer.OrdinalIgnoreCase))
-                {
-                    return item.Package.OwnerModId;
-                }
+                return owner;
             }
         }
         if (source.StartsWith("AuraToolsExp_", StringComparison.OrdinalIgnoreCase))
@@ -302,18 +301,11 @@ internal static class AuraToolsCombatContentRuntime
         {
             return "witch.base-game";
         }
-        var knowledgeOwner = CombatKnowledgeRegistry.SnapshotPackages()
-            .Where(package => (package.Actions
-                               ?? new List<CombatKnowledgeActionDefinition>())
-                .Any(action => string.Equals(
-                    action.SourceId,
-                    source,
-                    StringComparison.OrdinalIgnoreCase)))
-            .Select(package => package.OwnerId)
-            .FirstOrDefault(owner => !string.IsNullOrWhiteSpace(owner));
-        return string.IsNullOrWhiteSpace(knowledgeOwner)
-            ? "unregistered"
-            : knowledgeOwner;
+        return CombatKnowledgeRegistry.TryResolveActionOwner(
+            source,
+            out var knowledgeOwner)
+            ? knowledgeOwner
+            : "unregistered";
     }
 
     public static bool TryApplyFoundationContent(
@@ -527,6 +519,7 @@ internal static class AuraToolsCombatContentRuntime
                 accepted,
                 CurrentGameBuild());
             packages = accepted;
+            ownerBySourceId = BuildOwnerIndex(accepted);
             contentSet = batch.ContentSet;
             observedCatalogRevision = batch.Revision;
             refreshQueued = false;
@@ -544,6 +537,39 @@ internal static class AuraToolsCombatContentRuntime
         // A catalog event can arrive while this batch is in flight. Re-query once
         // after applying so that such a revision cannot be lost behind refreshQueued.
         RequestRefresh();
+    }
+
+    private static Dictionary<string, string> BuildOwnerIndex(
+        IEnumerable<CombatContentLoadedPackage> loaded)
+    {
+        var result = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var item in loaded
+                     .OrderBy(value => value.Package.OwnerModId,
+                         StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(value => value.Package.PackageId,
+                         StringComparer.OrdinalIgnoreCase))
+        {
+            var coverage = item.Package.DeclaredCoverage
+                           ?? new CombatFoundationDeclaredCoverage();
+            foreach (var sourceId in new IEnumerable<string>[]
+                     {
+                         coverage.CardIds ?? new List<string>(),
+                         coverage.RoleSkillCardIds ?? new List<string>(),
+                         coverage.EnemyIds ?? new List<string>(),
+                         coverage.StatusIds ?? new List<string>(),
+                         coverage.RelicIds ?? new List<string>(),
+                         coverage.BlessingIds ?? new List<string>()
+                     }.SelectMany(values => values))
+            {
+                if (!string.IsNullOrWhiteSpace(sourceId)
+                    && !result.ContainsKey(sourceId))
+                {
+                    result[sourceId] = item.Package.OwnerModId;
+                }
+            }
+        }
+        return result;
     }
 
     private static void ValidateDependencies(ContentLoadBatch batch)

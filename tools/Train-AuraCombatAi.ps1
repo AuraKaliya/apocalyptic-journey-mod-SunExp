@@ -11,15 +11,20 @@ $ErrorActionPreference = "Stop"
 $trainer = Join-Path $PSScriptRoot "train_aura_combat_ai.py"
 if ([string]::IsNullOrWhiteSpace($InputPath)) {
     $datasetRoot = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Data\AuraToolsExp\AuraCombatAI\Datasets\Live"
-    $latest = Get-ChildItem -LiteralPath $datasetRoot -Filter "auto-battle-training-v7.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
+    $latest = Get-ChildItem -LiteralPath $datasetRoot -Filter "auto-battle-training-v9.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
+    if ($null -eq $latest) {
+        $latest = Get-ChildItem -LiteralPath $datasetRoot -Filter "auto-battle-training-v7.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First 1
+    }
     if ($null -ne $latest) {
         $InputPath = $latest.FullName
     }
 }
 if (-not (Test-Path -LiteralPath $InputPath)) {
-    throw "Training data does not exist. Pass -InputPath or capture v7 data under AuraShared/Data/AuraToolsExp/AuraCombatAI/Datasets/Live/<content-set-hash>."
+    throw "Training data does not exist. Pass -InputPath or capture v9 data under AuraShared/Data/AuraToolsExp/AuraCombatAI/Datasets/Live/<content-set-hash>."
 }
 if (-not (Test-Path -LiteralPath $trainer)) {
     throw "Trainer does not exist: $trainer"

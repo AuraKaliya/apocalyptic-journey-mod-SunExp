@@ -17,20 +17,20 @@ public static class SpiritArtifactApplicationService
     {
         if (!IsReady) return new SpiritArtifactInventory();
         ReconcilePreparedDraw();
-        return SpiritCollectionService.Snapshot().ArtifactInventory;
+        return SpiritReadModelStore.Current().Collection.ArtifactInventory.Clone();
     }
 
     public static SpiritArtifactLoadoutView LoadoutView(string spiritUid)
     {
         if (!IsReady) return new SpiritArtifactLoadoutView();
-        var collection = SpiritCollectionService.Snapshot();
+        var collection = SpiritReadModelStore.Current().Collection;
         var spirit = collection.Instances.FirstOrDefault(value => Same(value.SpiritUid, spiritUid));
         return SpiritArtifactLoadoutResolver.Resolve(collection, spirit);
     }
 
     public static IReadOnlyList<SpiritArtifactInstance> PendingReveal(string token = "")
     {
-        var collection = SpiritCollectionService.Snapshot();
+        var collection = SpiritReadModelStore.Current().Collection;
         var receipt = string.IsNullOrWhiteSpace(token)
             ? collection.ArtifactInventory.PendingReveals.FirstOrDefault()
             : collection.ArtifactInventory.PendingReveals.FirstOrDefault(value => Same(value.Token, token));
@@ -209,7 +209,7 @@ public static class SpiritArtifactApplicationService
     public static string EquippedSpiritUid(string artifactUid)
     {
         if (!IsReady) return "";
-        var document = SpiritCollectionService.Snapshot();
+        var document = SpiritReadModelStore.Current().Collection;
         return SpiritArtifactInventoryService.EquippedSpiritUid(document, artifactUid);
     }
 
@@ -220,7 +220,7 @@ public static class SpiritArtifactApplicationService
     public static void ReconcilePreparedDraw()
     {
         if (!SpiritArtifactRegistry.IsReady || !SpiritCollectionApi.EnsureProfileBoundForArtifact()) return;
-        var pending = SpiritCollectionService.Snapshot().ArtifactInventory.PreparedDraw;
+        var pending = SpiritReadModelStore.Current().Collection.ArtifactInventory.PreparedDraw;
         if (pending == null || string.IsNullOrWhiteSpace(pending.Token)) return;
         try
         {

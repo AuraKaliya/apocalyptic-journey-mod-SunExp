@@ -8,7 +8,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 internal static class MatchRecordsDatabaseMigrator
 {
-    internal const int CurrentVersion = 9;
+    internal const int CurrentVersion = 14;
 
     internal static void BackupBeforeUpgrade(string databasePath)
     {
@@ -71,8 +71,8 @@ internal static class MatchRecordsDatabaseMigrator
         VerifyNoOrphans(connection, "replay_truth_checkpoints");
         VerifyNoOrphans(connection, "replay_presentation_checkpoints");
         VerifyNoOrphans(connection, "replay_asset_refs");
-        VerifyNoOrphans(connection, "replay_pov_sidecars");
-        VerifyNoOrphans(connection, "replay_pov_asset_refs");
+        VerifyNoOrphans(connection, "replay_capture_sessions");
+        VerifyNoOrphans(connection, "replay_capture_batches");
         VerifyNoOrphans(connection, "replay_export_jobs");
     }
 

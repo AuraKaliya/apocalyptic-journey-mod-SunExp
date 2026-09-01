@@ -26,6 +26,7 @@ public sealed class StarScoreHudView : MonoBehaviour
     private StarScoreHudShaderController? shaderController;
     private StarScoreDisplaySnapshot? currentSnapshot;
     private StarScoreDisplaySnapshot? pendingSnapshot;
+    private bool replayMode;
     private float holdUntil;
     private bool pointerInside;
 
@@ -41,6 +42,13 @@ public sealed class StarScoreHudView : MonoBehaviour
 
     public void ApplySnapshot(StarScoreDisplaySnapshot snapshot)
     {
+        if (replayMode)
+        {
+            pendingSnapshot = null;
+            holdUntil = 0f;
+            Render(snapshot);
+            return;
+        }
         if (!snapshot.HasNotes)
         {
             pendingSnapshot = null;
@@ -103,8 +111,22 @@ public sealed class StarScoreHudView : MonoBehaviour
         }
     }
 
+    public void SetReplayMode(bool enabled)
+    {
+        replayMode = enabled;
+        if (!enabled) return;
+        pendingSnapshot = null;
+        holdUntil = 0f;
+    }
+
+    public void SetReplayLogicalTime(float logicalSeconds) =>
+        shaderController?.SetReplayLogicalTime(logicalSeconds);
+
+    internal StarScoreDisplaySnapshot? CaptureReplaySnapshot() => currentSnapshot;
+
     private void Update()
     {
+        if (replayMode) return;
         if (pendingSnapshot != null && Time.unscaledTime >= holdUntil)
         {
             var snapshot = pendingSnapshot;

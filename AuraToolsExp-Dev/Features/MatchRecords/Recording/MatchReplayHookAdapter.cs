@@ -47,13 +47,42 @@ internal static class MatchReplayHookAdapter
         Register("before:FightUI.CallActionAnimation", AuraToolsHookRegistry.BeforeRouted(
             modConfig!,
             "FightUI.CallActionAnimation",
-            context => Observe("action-presentation-before", () => MatchReplayRecorder.CaptureActionPresentation(context.Arguments)),
+            context => Observe("action-presentation-before", () => MatchReplayRecorder.CaptureActionPresentation(context.Target, context.Arguments)),
             "MatchRecords.Replay.ActionPresentation"));
         Register("after:FightUI.CallActionAnimation", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "FightUI.CallActionAnimation",
-            context => Observe("action-presentation-after", () => MatchReplayRecorder.CompleteActionPresentation(context.Arguments)),
+            context => Observe("action-presentation-after", () => MatchReplayRecorder.CompleteActionPresentation(context.Target, context.Arguments)),
             "MatchRecords.Replay.ActionPresentation"));
+        Register("before:FightUI.DoCardUseAnimation", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "FightUI.DoCardUseAnimation",
+            context => Observe("native-card-motion-before", () => MatchReplayRecorder.BeginNativeCardMotion(context.Target, context.Arguments)),
+            "MatchRecords.Replay.NativeCardMotion"));
+        Register("after:FightUI.DoCardUseAnimation", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "FightUI.DoCardUseAnimation",
+            context => Observe("native-card-motion-after", () => MatchReplayRecorder.EndNativeCardMotion(context.Target, context.Arguments)),
+            "MatchRecords.Replay.NativeCardMotion"));
+        Register("after:CardItem.EffectOfThrowCard", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "CardItem.EffectOfThrowCard",
+            context => Observe("native-card-throw", () => MatchReplayRecorder.ObserveNativeCardExitMotion(
+                context.Target,
+                "Discard")),
+            "MatchRecords.Replay.NativeCardExit"));
+        Register("after:CardItem.EffectOfBurnCard", AuraToolsHookRegistry.AfterRouted(
+            modConfig!,
+            "CardItem.EffectOfBurnCard",
+            context => Observe("native-card-burn", () => MatchReplayRecorder.ObserveNativeCardExitMotion(
+                context.Target,
+                "Burn")),
+            "MatchRecords.Replay.NativeCardExit"));
+        Register("before:UIManager.ShowPopUpDamage", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!,
+            "UIManager.ShowPopUpDamage",
+            context => Observe("native-damage-text", () => MatchReplayRecorder.CaptureNativeDamagePopup(context.Arguments)),
+            "MatchRecords.Replay.NativeDamageText"));
         Register("remote-combat-actions", AuraRemoteCombatActionRouter.Register(
             modConfig!,
             AuraToolsIds.ModId + ".MatchRecords.Replay",
@@ -100,6 +129,17 @@ internal static class MatchReplayHookAdapter
             "AudioManager.PlayBGMList",
             context => Observe("bgm-after", () => MatchReplayRecorder.CaptureNativeBgm(context.Target, context.Arguments)),
             "MatchRecords.Replay.Audio.Bgm"));
+        Register("card-presentation-reset", AuraCardPresentationRuntime.Register(
+            modConfig!,
+            AuraToolsIds.ModId,
+            "MatchRecords.Replay.CardVisualLifecycle",
+            new AuraCardPresentationSubscription
+            {
+                Priority = int.MaxValue,
+                Reset = context => Observe(
+                    "card-presentation-reset",
+                    () => MatchReplayRecorder.ObserveCardPresentationReset(context))
+            }));
         Register("card-actions", AuraCardActionTransactionRouter.Register(
             modConfig,
             AuraToolsIds.ModId,

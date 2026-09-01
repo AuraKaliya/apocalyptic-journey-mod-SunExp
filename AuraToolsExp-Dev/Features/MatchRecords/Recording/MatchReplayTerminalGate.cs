@@ -25,10 +25,7 @@ internal sealed class MatchReplayTerminalGate
         TerminalFrameSealed = true;
     }
 
-    internal bool CanDetach(int pendingAudioCaptures)
-    {
-        return SettlementPrepared && TerminalFrameSealed && pendingAudioCaptures <= 0;
-    }
+    internal bool CanFinalize => SettlementPrepared && TerminalFrameSealed;
 
     internal void Reset()
     {

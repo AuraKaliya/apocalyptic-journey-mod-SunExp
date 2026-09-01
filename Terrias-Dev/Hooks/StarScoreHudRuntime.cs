@@ -49,6 +49,7 @@ public static class StarScoreHudRuntime
                 return;
             }
 
+            TerriasStarScoreReplayPresentationModule.Publish(snapshot);
             pendingSnapshot = snapshot;
             var view = EnsureView();
             if (view == null)
@@ -98,6 +99,9 @@ public static class StarScoreHudRuntime
 
     public static void Close(string source)
     {
+        var replayOwner = activeView?.CaptureReplaySnapshot()?.OwnerStatusId ?? "";
+        if (!string.IsNullOrWhiteSpace(replayOwner))
+            TerriasStarScoreReplayPresentationModule.PublishHidden(replayOwner);
         pendingSnapshot = null;
         hostRetryCount = 0;
         if (activeView == null)
@@ -133,6 +137,15 @@ public static class StarScoreHudRuntime
     public static void ExtendCadencePreviewUntil(float unscaledTime)
     {
         activeView?.ExtendCadencePreviewUntil(unscaledTime);
+    }
+
+    internal static bool TryCaptureReplaySnapshot(
+        out StarScoreDisplaySnapshot? snapshot,
+        out GameObject? root)
+    {
+        snapshot = activeView?.CaptureReplaySnapshot();
+        root = activeView?.gameObject;
+        return snapshot != null && root != null;
     }
 
     private static void ScheduleHostRetry()

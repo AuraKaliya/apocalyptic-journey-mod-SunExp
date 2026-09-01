@@ -58,7 +58,15 @@ public sealed class AutoBattleSettings
     public int DecisionTimeBudgetMs { get; set; } = 250;
 
     [JsonProperty("inferenceParallelism")]
-    public int InferenceParallelism { get; set; } = 2;
+    private int LegacyInferenceParallelism
+    {
+        set
+        {
+            // Schema <= 32 used this value to launch two complete PUCT trees.
+            // The live lane is intentionally single-tree; consume the legacy
+            // field once and never serialize it again.
+        }
+    }
 
     [JsonProperty("lowConfidenceFallback")]
     public bool LowConfidenceFallback { get; set; } = true;
@@ -159,7 +167,6 @@ public sealed class AutoBattleSettings
         DecisionTimeBudgetMs = Math.Max(
             50,
             Math.Min(1000, DecisionTimeBudgetMs));
-        InferenceParallelism = Math.Max(1, Math.Min(2, InferenceParallelism));
         MinimumSearchConfidence = Math.Max(
             0.1d,
             Math.Min(0.8d, MinimumSearchConfidence));

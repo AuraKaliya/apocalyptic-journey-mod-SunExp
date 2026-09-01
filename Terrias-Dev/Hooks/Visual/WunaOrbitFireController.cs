@@ -63,7 +63,13 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private bool configureDiagnosticLogged;
     private bool geometryDiagnosticLogged;
     private bool lateUpdateDiagnosticLogged;
+    private bool replayPresentationOverride;
+    private float replayLogicalTime;
+    private float replayDeltaTime;
     private readonly HashSet<string> runtimeDiagnostics = new(StringComparer.Ordinal);
+
+    private float CurrentTime => replayPresentationOverride ? replayLogicalTime : Time.unscaledTime;
+    private float CurrentDeltaTime => replayPresentationOverride ? replayDeltaTime : Time.unscaledDeltaTime;
 
     public void Configure(SpriteRenderer renderer)
     {
@@ -83,6 +89,24 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         TryBuildGeometryFromTarget("configure", force: true);
     }
 
+    public void ConfigureReplay(SpriteRenderer renderer)
+    {
+        replayPresentationOverride = true;
+        replayLogicalTime = 0f;
+        replayDeltaTime = 0f;
+        Configure(renderer);
+    }
+
+    public void SetReplayLogicalTime(float logicalSeconds)
+    {
+        if (!replayPresentationOverride) return;
+        var next = Mathf.Max(0f, logicalSeconds);
+        replayDeltaTime = Mathf.Max(0f, next - replayLogicalTime);
+        replayLogicalTime = next;
+        TryBuildGeometryFromTarget("replay-clock", force: true);
+        replayDeltaTime = 0f;
+    }
+
     public void BoostForAction(string action)
     {
         var normalized = (action ?? "").Trim();
@@ -91,7 +115,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             : string.Equals(normalized, "Attack", StringComparison.OrdinalIgnoreCase)
                 ? 0.68f
                 : 0.42f;
-        boostUntil = Time.unscaledTime + DefaultBoostSeconds;
+        boostUntil = CurrentTime + DefaultBoostSeconds;
     }
 
     private void LateUpdate()
@@ -113,7 +137,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
-        if (!TerriasPerformanceSettings.WunaOrbitFireEnabled)
+        if (!replayPresentationOverride && !TerriasPerformanceSettings.WunaOrbitFireEnabled)
         {
             if (!meshesClearedForPerformance)
             {
@@ -126,7 +150,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         }
 
         meshesClearedForPerformance = false;
-        var now = Time.unscaledTime;
+        var now = CurrentTime;
         var sprite = targetRenderer.sprite;
         SyncSorting();
         var bounds = GetOrbitBounds(sprite);
@@ -136,7 +160,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
-        actionPulse = Mathf.MoveTowards(actionPulse, now < boostUntil ? boostAmount : 0f, Time.unscaledDeltaTime * 2.8f);
+        actionPulse = Mathf.MoveTowards(actionPulse, now < boostUntil ? boostAmount : 0f, CurrentDeltaTime * 2.8f);
         var intensity = 0.55f + actionPulse * 0.42f;
         UpdateMaterial(backCoreMaterial, -1f, intensity * 0.52f);
         UpdateMaterial(backDetailMaterial, -1f, intensity * 0.58f);
@@ -348,14 +372,14 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         }
     }
 
-    private static void UpdateMaterial(Material? material, float layer, float intensity)
+    private void UpdateMaterial(Material? material, float layer, float intensity)
     {
         if (material == null)
         {
             return;
         }
 
-        SetFloatIfPresent(material, WunaOrbitFireShaderIds.FlowTime, Time.unscaledTime);
+        SetFloatIfPresent(material, WunaOrbitFireShaderIds.FlowTime, CurrentTime);
         SetFloatIfPresent(material, WunaOrbitFireShaderIds.Intensity, intensity);
         SetFloatIfPresent(material, WunaOrbitFireShaderIds.Layer, layer);
     }
@@ -389,7 +413,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private void BuildCoreLayer(Mesh? mesh, Bounds bounds, bool frontLayer, float intensity)
     {
         BeginMesh();
-        var time = Time.unscaledTime;
+        var time = CurrentTime;
         foreach (var rail in Rails)
         {
             AddCoreRibbon(rail, bounds, time, frontLayer, intensity);
@@ -401,7 +425,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private void BuildDetailLayer(Mesh? mesh, Bounds bounds, bool frontLayer, float intensity)
     {
         BeginMesh();
-        var time = Time.unscaledTime;
+        var time = CurrentTime;
         for (var railIndex = 0; railIndex < Rails.Length; railIndex++)
         {
             AddFlameTongues(Rails[railIndex], railIndex, bounds, time, frontLayer, intensity);
@@ -555,7 +579,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private void BuildParticleLayer(Mesh? mesh, Bounds bounds, bool frontLayer, float intensity)
     {
         BeginMesh();
-        var time = Time.unscaledTime;
+        var time = CurrentTime;
         var flamesPerRail = TerriasPerformanceSettings.WunaOrbitFlamesPerRail;
         if (flamesPerRail <= 0)
         {
@@ -616,7 +640,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     private void BuildStreamLayer(Mesh? mesh, Bounds bounds, bool frontLayer, float intensity, bool outerVeil)
     {
         BeginMesh();
-        var time = Time.unscaledTime;
+        var time = CurrentTime;
         foreach (var rail in Rails)
         {
             AddStreamRibbon(rail, bounds, time, frontLayer, intensity, outerVeil);

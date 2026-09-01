@@ -12,9 +12,9 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 internal static class MatchReplayControlsPresenter
 {
     private const string RootName = "AuraToolsMatchReplayControls";
-    private const float ExpandedY = 22f;
-    private const float CollapsedY = -29f;
-    private const float AutoHideDelayMilliseconds = 2200f;
+    private const float ExpandedY = 10f;
+    private const float CollapsedY = -56f;
+    private const float AutoHideDelayMilliseconds = 1200f;
     private const float SlideSpeed = 320f;
     private static GameObject? root;
     private static RectTransform? toolbarRect;
@@ -58,7 +58,7 @@ internal static class MatchReplayControlsPresenter
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
             new Vector2(0.5f, 0f),
-            new Vector2(1160f, 66f));
+            new Vector2(1120f, 58f));
         toolbar.GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, ExpandedY);
         toolbarRect = toolbar.GetComponent<RectTransform>();
         AuraToolsUi.AddListRowImage(toolbar, AuraToolsUi.Background);
@@ -88,7 +88,7 @@ internal static class MatchReplayControlsPresenter
             TextAnchor.MiddleCenter,
             AuraToolsUi.MutedText);
         var layout = toolbar.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(10, 10, 8, 8);
+        layout.padding = new RectOffset(10, 10, 5, 5);
         layout.spacing = 8f;
         layout.childControlWidth = true;
         layout.childControlHeight = true;

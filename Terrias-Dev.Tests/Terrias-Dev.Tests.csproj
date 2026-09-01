@@ -30,6 +30,7 @@
     <Compile Include="..\Terrias-Dev\GameApi\TruthCurrencyApi.cs" Link="Source\TruthCurrencyApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CombatCardViewPoolApi.cs" Link="Source\CombatCardViewPoolApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CombatCardApi.cs" Link="Source\CombatCardApi.cs" />
+    <Compile Include="..\Terrias-Dev\GameApi\BattleLifecycleApi.cs" Link="Source\BattleLifecycleApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\FightUiCardTerminalApi.cs" Link="Source\FightUiCardTerminalApi.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs" Link="Source\CombatCardViewPoolCatalog.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\PooledCardViewExit.cs" Link="Source\PooledCardViewExit.cs" />

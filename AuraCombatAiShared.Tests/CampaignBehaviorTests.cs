@@ -328,6 +328,7 @@ internal static class CombatAiCampaignBehaviorTests
             "isolated simulation policies retain a frozen semantic and role-strategy snapshot after registry lifetimes end");
 
         var countingSemanticProvider = new CountingSemanticProvider("cycle-a");
+        var registryRevisionBeforeCounting = CombatAiRegistry.Revision;
         using (CombatAiRegistry.RegisterSemanticProvider(
                    "Tests",
                    "single-pass-decision-semantics",
@@ -336,8 +337,11 @@ internal static class CombatAiCampaignBehaviorTests
         {
             var countingState = CombatPlayerObservationBoundary.Normalize(
                 frozenPreparationPolicy.LastObservation!);
-            new CombatDecisionEngine().Choose(
-                countingState,
+            var countingEngine = new CombatDecisionEngine();
+            var preparedCountingState = countingEngine
+                .PrepareNormalizedOwnedStateForIsolatedWorker(countingState);
+            countingEngine.ChoosePrepared(
+                preparedCountingState,
                 new CombatDecisionProfile
                 {
                     SearchBudgetMode = "fixed",
@@ -347,8 +351,10 @@ internal static class CombatAiCampaignBehaviorTests
                     SearchMinimumSimulations = 1
                 });
         }
-        Assert(countingSemanticProvider.CallCount == 1,
-            "decision preparation applies authoritative semantics once per legal candidate");
+        Assert(countingSemanticProvider.CallCount == 1
+               && CombatAiRegistry.Revision
+                  > registryRevisionBeforeCounting,
+            "published registry snapshots advance their revision and prepared decisions apply authoritative semantics once per legal candidate");
 
         var roleSkillRulesBuilder = new CombatRulesetBuilder("role-skill-rules");
         roleSkillRulesBuilder.RegisterCard(new CombatCardDefinition

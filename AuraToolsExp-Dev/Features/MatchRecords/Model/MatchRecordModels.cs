@@ -5,8 +5,8 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Model;
 
 internal static class MatchReplayProtocol
 {
-    internal const int Version = 12;
-    internal const int MinimumSupportedVersion = 12;
+    internal const int Version = 17;
+    internal const int MinimumSupportedVersion = 17;
 }
 
 internal static class MatchRecordCollections
@@ -18,6 +18,8 @@ internal static class MatchRecordCollections
 internal static class MatchReplayStates
 {
     internal const string Ready = "Ready";
+    internal const string Recording = "Recording";
+    internal const string Finalizing = "Finalizing";
     internal const string Incomplete = "Incomplete";
     internal const string SummaryOnly = "SummaryOnly";
     internal const string Rejected = "Rejected";

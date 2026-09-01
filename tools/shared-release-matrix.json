@@ -121,7 +121,8 @@
       "impactTags": ["combat-ai", "training-artifact", "foundation"],
       "profiles": ["combat-ai", "foundation", "full-release"],
       "enabled": true,
-      "passConfiguration": true
+      "passConfiguration": true,
+      "isolateProcess": true
     },
     {
       "id": "combat-ai-simulation-acceptance",

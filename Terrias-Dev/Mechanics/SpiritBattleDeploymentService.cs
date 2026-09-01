@@ -8,8 +8,7 @@ public static class SpiritBattleDeploymentService
 {
     private static readonly object SyncRoot = new();
     private static List<string> partyUids = new();
-    private static SpiritInstance? active;
-    private static SpiritArtifactBattleSnapshot activeArtifacts = new();
+    private static SpiritDeploymentSnapshot? active;
     private static string deploymentToken = "";
     private static string battleToken = "";
     private static int battleExperience;
@@ -25,55 +24,27 @@ public static class SpiritBattleDeploymentService
             var byUid = collection.Instances.ToDictionary(item => item.SpiritUid, StringComparer.Ordinal);
             partyUids = (party.PartySlots ?? new List<string>()).Where(byUid.ContainsKey).Distinct(StringComparer.Ordinal).ToList();
             var activeUid = party.ActiveSpiritUid ?? "";
-            active = partyUids.Contains(activeUid, StringComparer.Ordinal)
-                && byUid.TryGetValue(activeUid, out var selected)
-                    ? selected.Clone()
+            var selected = partyUids.Contains(activeUid, StringComparer.Ordinal)
+                && byUid.TryGetValue(activeUid, out var selectedInstance)
+                    ? selectedInstance
                     : null;
-            activeArtifacts = active == null
-                ? new SpiritArtifactBattleSnapshot()
-                : SpiritArtifactLoadoutResolver.Resolve(collection, active).Battle;
-            deploymentToken = active == null ? "" : epoch + ":" + active.SpiritUid + ":" + Guid.NewGuid().ToString("N");
+            deploymentToken = selected == null ? "" : epoch + ":" + selected.SpiritUid + ":" + Guid.NewGuid().ToString("N");
+            active = selected == null ? null : SpiritDeploymentProjector.Project(collection, selected, deploymentToken);
             battleToken = "spirit-xp:" + epoch + ":" + Guid.NewGuid().ToString("N");
             battleExperience = Math.Max(0, experienceReward);
         }
     }
 
-    public static CapturedEnemySnapshot? DeploymentCardSnapshot()
+    public static SpiritDeploymentSnapshot? DeploymentCardSnapshot()
     {
         lock (SyncRoot)
         {
             if (active == null) return null;
-            var origins = SpiritAscensionService.EffectiveOrigins(active);
-            var snapshot = SpiritModelCloner.CloneSnapshot(active.Snapshot);
-            snapshot.SpeciesId = active.SpeciesId;
-            snapshot.ProfileId = active.ProfileId;
-            snapshot.SpiritElementId = active.ElementId;
-            snapshot.SpiritLevel = active.Level;
-            snapshot.SpiritAptitude = active.Aptitude;
-            snapshot.SpiritGuiyuanValue = active.GuiyuanValue;
-            snapshot.SpiritStarRank = SpiritAscensionService.StarRankFor(active.GuiyuanValue);
-            var allocations = SpiritAscensionService.NormalizeAllocations(active.GuiyuanAllocations, active.GuiyuanValue);
-            snapshot.GuiyuanAllocationMagic = allocations.Magic;
-            snapshot.GuiyuanAllocationSpirit = allocations.Spirit;
-            snapshot.GuiyuanAllocationLuck = allocations.Luck;
-            snapshot.GuiyuanAllocationPerception = allocations.Perception;
-            snapshot.OriginMagic = origins.Magic;
-            snapshot.OriginSpirit = origins.Spirit;
-            snapshot.OriginLuck = origins.Luck;
-            snapshot.OriginPerception = origins.Perception;
-            snapshot.SpiritSpeed = active.Speed;
-            snapshot.EquippedIntentIds = new List<string>(active.EquippedIntentIds ?? new List<string>());
-            snapshot.EquippedPassiveId = active.EquippedPassiveId;
-            snapshot.LoadoutRevision = active.LoadoutRevision;
-            snapshot.LoadoutHash = active.LoadoutHash;
-            snapshot.TrainingRegistryHash = SpiritTrainingRegistry.RegistryHash;
-            snapshot.ArtifactBattle = activeArtifacts.Clone();
-            snapshot.DeploymentToken = deploymentToken;
-            return snapshot;
+            return active.Clone();
         }
     }
 
-    public static SpiritCardBattleState CreateInitialBattleState(CapturedEnemySnapshot snapshot)
+    public static SpiritCardBattleState CreateInitialBattleState(SpiritDeploymentSnapshot snapshot)
     {
         if (snapshot == null)
         {
@@ -100,7 +71,7 @@ public static class SpiritBattleDeploymentService
         return result;
     }
 
-    public static bool CanSummon(CapturedEnemySnapshot snapshot, string ownerStatusId, bool acceptRemotePayload, out string reason)
+    public static bool CanSummon(SpiritDeploymentSnapshot snapshot, string ownerStatusId, bool acceptRemotePayload, out string reason)
     {
         lock (SyncRoot)
         {
@@ -109,19 +80,7 @@ public static class SpiritBattleDeploymentService
                 reason = "这张精灵卡不属于本场战斗的出战快照。";
                 return false;
             }
-            if (!SpiritTrainingService.ValidateDeploymentSnapshot(snapshot, out reason))
-            {
-                return false;
-            }
-            if (!SpiritAscensionService.ValidateDeploymentSnapshot(snapshot, out reason))
-            {
-                return false;
-            }
-            if (!SpiritElementService.ValidateDeploymentSnapshot(snapshot, out reason))
-            {
-                return false;
-            }
-            if (!SpiritArtifactLoadoutResolver.ValidateBattleSnapshot(snapshot.ArtifactBattle, out reason))
+            if (!SpiritDeploymentFeatureRegistry.Validate(snapshot, out reason))
             {
                 return false;
             }
@@ -162,7 +121,6 @@ public static class SpiritBattleDeploymentService
         {
             partyUids.Clear();
             active = null;
-            activeArtifacts = new SpiritArtifactBattleSnapshot();
             deploymentToken = "";
             battleToken = "";
             battleExperience = 0;

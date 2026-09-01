@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Battle Replay"
+  short_description: "Diagnose and develop AuraTools battle replay safely"
+  default_prompt: "Use $aura-battle-replay-dev to diagnose this battle replay failure and design the validated final fix."

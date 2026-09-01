@@ -286,23 +286,16 @@ public static class AuraToolsAutoBattleSettingsPage
             1f);
         var generateButton = AuraToolsUi.AddButton(
             modelRow.transform,
-            "训练玩家偏好",
+            "打开独立训练器",
             () =>
             {
-                if (!AuraToolsAutoBattleModelRuntime.QueueGenerateCandidate(
-                        autoBattle.Profile))
-                {
-                    AuraToolsLog.Warn(
-                        "[AutoBattle][Training] 玩家残差任务正在运行或未能提交");
-                }
+                FileResourceUtil.OpenDirectory(Path.Combine(
+                    AuraToolsConfigService.ModDirectory,
+                    "TrainingWorker"));
             },
             128f);
-        var cancelTrainingButton = AuraToolsUi.AddButton(
-            modelRow.transform,
-            "取消",
-            () => AuraToolsAutoBattleModelRuntime.CancelTraining(
-                autoBattle.Profile),
-            66f);
+        trainingStatusText.text =
+            "训练、进化和大规模模拟只在独立 Worker 中运行；游戏进程仅记录样本与加载结果。";
 
         var promotionRow = CreateInlineRow(
             parent,
@@ -341,15 +334,7 @@ public static class AuraToolsAutoBattleSettingsPage
                 }
             },
             112f);
-        parent.gameObject
-            .AddComponent<AuraToolsAutoBattleTrainingStatusView>()
-            .Configure(
-                autoBattle.Profile,
-                trainingStatusText,
-                generateButton,
-                importButton,
-                rollbackButton,
-                cancelTrainingButton);
+        AttachAutoBattleWorkLock(modelRow, generateButton);
     }
 
     private static void CreateAutoBattleAdvancedDiagnosticsSection(
@@ -1870,27 +1855,14 @@ public static class AuraToolsAutoBattleSettingsPage
             "AutoBattleSimulationActionRow");
         var primaryButton = AuraToolsUi.AddButton(
             actionRow.transform,
-            AutoBattleEvolutionView ? "开始进化" : "运行标准评估",
+            "打开独立训练器",
             () =>
             {
-                var queued = AutoBattleEvolutionView
-                    ? AuraToolsAutoBattleSimulationRuntime.QueueEvolution(
-                        autoBattle,
-                        out var message)
-                    : AuraToolsAutoBattleSimulationRuntime.QueueRun(
-                        autoBattle,
-                        out message);
-                if (!queued)
-                {
-                    AuraToolsLog.Warn("[AutoBattle][Simulation] " + message);
-                }
+                FileResourceUtil.OpenDirectory(Path.Combine(
+                    AuraToolsConfigService.ModDirectory,
+                    "TrainingWorker"));
             },
-            92f);
-        var cancelButton = AuraToolsUi.AddButton(
-            actionRow.transform,
-            "取消",
-            AuraToolsAutoBattleSimulationRuntime.Cancel,
-            66f);
+            128f);
         var resultButton = AuraToolsUi.AddButton(
             actionRow.transform,
             "打开结果",
@@ -1906,17 +1878,16 @@ public static class AuraToolsAutoBattleSettingsPage
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
-        actionRow.AddComponent<AuraToolsAutoBattleSimulationStatusView>().Configure(
-            autoBattle.Profile,
-            evaluationModelId,
-            AutoBattleEvolutionView,
-            statusText,
-            operationDetailText,
-            primaryButton,
-            cancelButton,
-            resultButton,
-            scenarios.Count > 0,
-            lockedControls);
+        statusText.text = "离线评估已迁移到独立 Worker，不再占用游戏进程 CPU 队列。";
+        operationDetailText.text =
+            "请从 TrainingWorker 目录启动控制中心；结果仍可在此处查看。";
+        primaryButton.interactable = Directory.Exists(Path.Combine(
+            AuraToolsConfigService.ModDirectory,
+            "TrainingWorker"));
+        foreach (var control in lockedControls)
+        {
+            if (control != null) control.interactable = false;
+        }
 
         AuraToolsUi.AddText(
             parent,
@@ -2506,6 +2477,7 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
         return owner switch
         {
             "model" => "模型决策",
+            "model-shadow" => "影子模型",
             "emergency-baseline" => "技术兜底",
             _ => "观察/基础策略"
         };

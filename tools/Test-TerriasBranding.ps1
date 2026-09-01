@@ -110,7 +110,7 @@ try {
     $modConfig = Get-Content -LiteralPath $modConfigPath -Raw | ConvertFrom-Json
     Assert-True ($modConfig.ModName -eq "Terrias") "ModConfig ModName must be Terrias."
     Assert-True ($modConfig.ModAuthor -eq "Aura") "ModConfig ModAuthor must remain Aura."
-    Assert-True ($modConfig.ModVersion -eq "0.5.2") "ModConfig ModVersion must be 0.5.2."
+    Assert-True ($modConfig.ModVersion -eq "0.5.4") "ModConfig ModVersion must be 0.5.4."
     Assert-True ($modConfig.PublishedFileId -eq $expectedWorkshopId) "ModConfig must preserve the existing Workshop item."
 
     $modProjectId = (Get-Content -LiteralPath (Join-Path $repoRoot "Terrias\Terrias.modproj") -Raw).Trim()

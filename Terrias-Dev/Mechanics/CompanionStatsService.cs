@@ -17,13 +17,13 @@ public static class CompanionStatsService
         return SpiritGrowthService.BattleStats(new SpiritOriginVector(), profile);
     }
 
-    public static CompanionStats SpiritStats(CapturedEnemySnapshot snapshot, SpiritIntentProfile? profile)
+    public static CompanionStats SpiritStats(SpiritDeploymentSnapshot snapshot, SpiritIntentProfile? profile)
     {
-        snapshot ??= new CapturedEnemySnapshot();
+        snapshot ??= new SpiritDeploymentSnapshot();
         var growthProfile = !string.IsNullOrWhiteSpace(snapshot.ProfileId)
                             && SpiritGrowthRegistry.TryFind(snapshot.ProfileId, out var fixedProfile)
             ? fixedProfile
-            : SpiritGrowthRegistry.Resolve(snapshot);
+            : SpiritGrowthRegistry.Resolve(snapshot.Source);
         var artifactBattle = snapshot.ArtifactBattle ?? new SpiritArtifactBattleSnapshot();
         var origins = SpiritArtifactStatService.AddOrigins(new SpiritOriginVector
         {

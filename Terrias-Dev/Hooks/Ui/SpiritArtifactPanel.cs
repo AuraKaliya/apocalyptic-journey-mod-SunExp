@@ -206,7 +206,7 @@ internal static class SpiritArtifactPanel
     public static void Refresh(bool resetScroll)
     {
         if (root == null || !root.activeSelf) return;
-        var collection = SpiritCollectionApi.Collection();
+        var collection = SpiritCollectionApi.ReadModel().Collection;
         boundCollection = collection;
         var uid = selectedSpiritUid?.Invoke() ?? "";
         var spirit = collection.Instances.FirstOrDefault(value => value.SpiritUid == uid);

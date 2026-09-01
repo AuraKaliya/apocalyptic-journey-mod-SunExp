@@ -509,15 +509,18 @@ internal static partial class AuraToolsTestSuite
             "auto-battle training presets apply a complete reproducible parameter set");
     
         var trainedModel = JsonConvert.DeserializeObject<AutoBattleSettings>(
-            "{\"trainedModelMode\":\"active\",\"experimentalModelAcknowledgement\":\"  sha256:abc  \"}")!;
+            "{\"trainedModelMode\":\"active\",\"inferenceParallelism\":2,\"experimentalModelAcknowledgement\":\"  sha256:abc  \"}")!;
         trainedModel.Normalize();
         Assert(trainedModel.TrainedModelMode == "trial"
                && trainedModel.ModelRiskAcknowledgements.SequenceEqual(
                    new[] { "sha256:abc" })
                && !JsonConvert.SerializeObject(trainedModel).Contains(
                    "experimentalModelAcknowledgement",
+                   StringComparison.Ordinal)
+               && !JsonConvert.SerializeObject(trainedModel).Contains(
+                   "inferenceParallelism",
                    StringComparison.Ordinal),
-            "legacy active mode and acknowledgement migrate into the multi-model risk ledger without retaining the retired field");
+            "legacy active mode, acknowledgement and dual-tree input migrate without retaining retired fields");
         trainedModel.TrainedModelMode = "full";
         trainedModel.ModelRiskAcknowledgements.Add("sha256:def");
         trainedModel.Normalize();
