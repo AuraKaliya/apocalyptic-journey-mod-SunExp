@@ -25,6 +25,7 @@ internal static class AuraToolsCgEventSignalService
 
     public static void BeginAdventure(ModHookContext context)
     {
+        if (!Settings().Enabled) return;
         adventureSequence++;
         battleId = "";
         adventureSettlementEmitted = false;
@@ -35,6 +36,7 @@ internal static class AuraToolsCgEventSignalService
 
     public static void BattleOpening(ModHookContext context)
     {
+        if (!Settings().Enabled) return;
         battleId = ResolveBattleId(context);
         terminalBattleSceneEmitted = false;
         AuraToolsCgOutcomeReasonService.Reset();
@@ -54,6 +56,7 @@ internal static class AuraToolsCgEventSignalService
     public static void OutcomeEntering(AuraBattleOutcomeContext context)
     {
         var settings = Settings();
+        if (!settings.Enabled) return;
         var reason = AuraToolsCgOutcomeReasonService.Consume(context.Outcome);
         if (context.Outcome == AuraBattleOutcome.Win
             || string.Equals(reason, AuraToolsEventCgOutcomeReasons.MidasEscape, StringComparison.OrdinalIgnoreCase))
@@ -88,6 +91,7 @@ internal static class AuraToolsCgEventSignalService
 
     public static void BattleRestarting()
     {
+        if (!Settings().Enabled) return;
         terminalBattleSceneEmitted = false;
         AuraToolsCgOutcomeReasonService.Reset();
         AuraToolsCgTeamSnapshotService.Refresh();
@@ -150,6 +154,7 @@ internal static class AuraToolsCgEventSignalService
 
     internal static SkillCgRequest? BuildPreviewRequest(string sceneId, int participantCount, int roleOffset)
     {
+        if (!AuraToolsEventCgAvailability.IsAvailable) return null;
         var normalizedSceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
         var settings = Settings();
         var scene = settings.GetScene(normalizedSceneId);

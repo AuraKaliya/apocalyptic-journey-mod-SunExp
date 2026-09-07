@@ -79,6 +79,7 @@ TestPixelEmojiCore();
 TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();
 TestUnifiedEventCgSettingsAndLegacyMigration();
+TestEventCgSuspension();
 TestRoleCgContextSelections();
 TestRoleCgSkillIdentityAliases();
 TestLowHealthNativePresentationLatch();

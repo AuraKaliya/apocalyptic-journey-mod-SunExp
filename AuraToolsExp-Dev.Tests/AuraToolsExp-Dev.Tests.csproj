@@ -41,6 +41,7 @@
              Link="Config\AuraToolsConfigModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraTools*Settings.cs"
              Link="Config\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsEventCgAvailability.cs" Link="Config\AuraToolsEventCgAvailability.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsVoiceSkillBindingMigration.cs"
              Link="Config\AuraToolsVoiceSkillBindingMigration.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Config\AuraToolsVoiceNativeStateBindingMigration.cs"

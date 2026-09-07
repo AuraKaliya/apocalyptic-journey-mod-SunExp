@@ -7,6 +7,8 @@ using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules.Contracts;
+using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Modules;
 using Witch.Core;
 
 namespace AuraToolsExp.Dll.Features.Settings;
@@ -32,6 +34,8 @@ internal static class AuraToolsPlayerDisplay
 
     internal static string ModuleStatus(AuraToolModuleState state)
     {
+        if (state.ModuleId == AuraToolModuleIds.EventCg && !AuraToolsEventCgAvailability.IsAvailable)
+            return AuraToolsEventCgAvailability.Status;
         return state.Availability switch
         {
             AuraToolModuleAvailability.Unavailable => "当前不可用",

@@ -277,7 +277,7 @@
     const settingsControl = module.settings
       ? `<button type="button" class="icon-button module-settings" title="设置 ${module.name}" aria-label="设置 ${module.name}"><img src="${iconRoot}settings.png" alt=""></button>`
       : "";
-    const status = module.attention
+    const status = module.status || module.attention
       || (module.availability === "error"
         ? "当前不可用"
         : module.availability === "busy"
@@ -291,7 +291,7 @@
         ${status ? `<span class="module-status" title="${status}">${status}</span>` : ""}
       </span>
       <span class="settings-slot${module.settings ? "" : " empty"}">${settingsControl}</span>
-      ${module.enableControl === false ? "" : `<span class="enable-control"><span>启用</span><button type="button" class="toolbox-checkbox" role="checkbox" aria-label="启用 ${module.name}" aria-checked="${module.enabled}" ${module.availability === "error" || module.availability === "busy" ? "disabled" : ""}></button></span>`}`;
+      ${module.enableControl === false ? "" : `<span class="enable-control"><span>启用</span><button type="button" class="toolbox-checkbox" role="checkbox" aria-label="启用 ${module.name}" aria-checked="${module.enabled}" ${module.availability === "error" || module.availability === "busy" || module.availability === "unavailable" ? "disabled" : ""}></button></span>`}`;
 
     row.querySelector(".module-settings")?.addEventListener("click", event => openOverlay(module, event.currentTarget));
     row.querySelector(".toolbox-checkbox")?.addEventListener("click", event => {

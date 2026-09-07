@@ -183,6 +183,7 @@ public static class AuraToolsConfigService
         SaveModuleSetting(
             AuraToolModuleIds.EventCg,
             SkillCg.EventCg);
+        SkillCg.EventCg.MarkDisabledStateCommitted();
     }
 
     public static void SaveSkin()
@@ -554,6 +555,11 @@ public static class AuraToolsConfigService
             AuraToolModuleIds.EventCg,
             SkillCg.EventCg,
             ref migrated);
+        // Clear an older persisted enable flag once, retaining all scene values.
+        // Future-schema documents keep their existing read-only protection.
+        if (SkillCg.EventCg.RequiresDisabledStateCommit
+            && !ModuleStore.IsReadOnly(AuraToolModuleIds.EventCg))
+            SaveEventCg();
         Skin = LoadModuleSetting(
             AuraToolModuleIds.Skin,
             Skin,
@@ -621,6 +627,7 @@ public static class AuraToolsConfigService
         {
             migratedCount++;
             if (!ModuleStore.Save(moduleId, value, out _)) throw new AuraToolsConfigCommitException(moduleId);
+            if (value is AuraToolsEventCgSettings eventCg) eventCg.MarkDisabledStateCommitted();
         }
         return value;
     }

@@ -15,6 +15,9 @@
 
 ## 当前实施状态
 
+- 事件 CG 当前暂时停用：保留条目与关闭的灰色开关，隐藏设置入口；旧开启状态统一关闭并保留
+  场景参数，方案导入不能绕过产品开放策略。角色 CG 与卡牌 CG 保持独立可用。
+
 > 一级页面的视觉改版、原生内容隔离和新控件方案见
 > [toolbox-ui-redesign-proposal.md](toolbox-ui-redesign-proposal.md)。
 

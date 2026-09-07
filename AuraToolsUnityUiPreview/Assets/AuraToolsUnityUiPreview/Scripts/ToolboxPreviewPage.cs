@@ -37,6 +37,7 @@ namespace AuraTools.UnityUiPreview
                 Status.color = color;
                 Status.text = !string.IsNullOrWhiteSpace(Module.Attention)
                     ? Module.Attention
+                    : Module.Availability == "unavailable" ? Module.Summary
                     : Module.Availability == "error"
                         ? "当前不可用"
                         : Module.Availability == "busy"
@@ -45,7 +46,7 @@ namespace AuraTools.UnityUiPreview
                 Status.gameObject.SetActive(Status.text.Length > 0);
                 Icon.color = Module.Enabled ? PreviewTheme.Text : PreviewTheme.MutedText;
                 Checkbox.Value = Module.Enabled;
-                Checkbox.Interactable = Module.Availability != "error" && Module.Availability != "busy";
+                Checkbox.Interactable = Module.Availability != "error" && Module.Availability != "busy" && Module.Availability != "unavailable";
             }
 
             private static Color StatusColor(PreviewModule module)
@@ -208,6 +209,11 @@ namespace AuraTools.UnityUiPreview
                 {
                     errors.Add("module row height drifted: " + row.Module.Id);
                 }
+                if (row.Module.Id == "presentation.event-cg"
+                    && (row.Module.Enabled || row.Checkbox.Interactable
+                        || row.Root.transform.Find("Settings").GetComponentsInChildren<Button>(true).Length != 0
+                        || row.Status.text != "暂时停用"))
+                    errors.Add("suspended event CG must be visible, off, locked and have no settings action");
             }
 
             var pointer = new PointerEventData(EventSystem.current)

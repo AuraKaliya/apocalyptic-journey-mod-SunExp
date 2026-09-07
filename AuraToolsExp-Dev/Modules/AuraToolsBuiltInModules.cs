@@ -677,11 +677,13 @@ internal static class AuraToolsBuiltInModules
             270,
             132,
             "事件 CG",
-            "管理战斗开场、胜负与冒险结算的队伍场景。",
+            AuraToolsEventCgAvailability.Description,
             context => AuraToolsSkillCgRuntime.Initialize(context.ModConfig),
             () => AuraToolsConfigService.SkillCg.EventCg.Enabled,
             enabled =>
             {
+                if (enabled && !AuraToolsEventCgAvailability.IsAvailable)
+                    throw new InvalidOperationException(AuraToolsEventCgAvailability.Description);
                 AuraToolsConfigService.SkillCg.EventCg.Enabled = enabled;
                 AuraToolsConfigService.SaveEventCg();
             },
@@ -689,13 +691,25 @@ internal static class AuraToolsBuiltInModules
             {
                 var settings = AuraToolsConfigService.SkillCg.EventCg;
                 var triggerCount = settings.Scenes.Values.Count(scene => scene.Enabled);
-                return State(
+                var state = State(
                     AuraToolModuleIds.EventCg,
                     settings.Enabled,
                     "场景 " + triggerCount + "/" + AuraToolsEventCgSceneIds.All.Length + " · 队伍自动布局",
                     triggerCount);
+                if (!AuraToolsEventCgAvailability.IsAvailable)
+                {
+                    state.ConfiguredEnabled = false;
+                    state.EffectiveEnabled = false;
+                    state.Availability = AuraToolModuleAvailability.Unavailable;
+                    state.EnableControlInteractable = false;
+                    state.SettingsControlInteractable = false;
+                    state.Summary = AuraToolsEventCgAvailability.Status;
+                    state.Attention = "";
+                    state.ItemCount = null;
+                }
+                return state;
             },
-            AuraToolsEventCgSettingsPage.Show,
+            AuraToolsEventCgAvailability.IsAvailable ? (Action<UnityEngine.Transform>)AuraToolsEventCgSettingsPage.Show : null,
             new[] { "事件", "CG", "战斗开场", "胜利", "失败", "冒险结算", "队伍" });
     }
 

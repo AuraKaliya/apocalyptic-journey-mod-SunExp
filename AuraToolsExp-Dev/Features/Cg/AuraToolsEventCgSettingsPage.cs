@@ -39,6 +39,7 @@ public static class AuraToolsEventCgSettingsPage
 
     public static void Show(Transform parent)
     {
+        if (!AuraToolsEventCgAvailability.IsAvailable) return;
         var window = AuraToolsUi.CreateOverlay(
             "AuraTools.EventCgSettings",
             parent,

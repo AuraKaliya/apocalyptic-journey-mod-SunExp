@@ -61,7 +61,7 @@ namespace AuraTools.UnityUiPreview
             Module("presentation.pixel-emoji", "presentation", "像素表情", "制作、收藏并在联机中展示像素表情。", "作品 12 · 收藏 5", "pixel-emoji", true, true),
             Module("presentation.skill-cg", "presentation", "角色 CG", "按角色配置技能、美餐和低生命表现。", "角色资源 4 个 · 联机同步开启", "skill-cg", true, true),
             Module("presentation.card-use-cg", "presentation", "卡牌使用 CG", "管理注册卡牌的使用演出。", "已启用 4/7 个注册项", "card-use-cg", true, true),
-            Module("presentation.event-cg", "presentation", "事件 CG", "配置胜利、战斗与冒险结算场景。", "场景 7/7 · 队伍自动布局", "skill-cg", true, true),
+            Module("presentation.event-cg", "presentation", "事件 CG", "事件 CG 暂时停用，待后续调整后开放。", "暂时停用", "skill-cg", false, false, availability: "unavailable"),
             Module("presentation.card-visual", "presentation", "卡牌视觉", "管理卡框主题与动态效果。", "", "skin", true, true),
             Module("records.damage-statistics", "records", "伤害统计", "记录本场伤害并提供局内和冒险统计。", "本场 · 全部阵营 · 表格", "damage-statistics", true, true),
             Module("records.battle-replay", "records", "战斗回放", "自动记录对局并提供回放与视频导出。", "自动保存上限 20", "battle-replay", true, true),
@@ -131,7 +131,8 @@ namespace AuraTools.UnityUiPreview
             bool enabled,
             bool settings,
             bool experimental = false,
-            bool showEnableControl = true)
+            bool showEnableControl = true,
+            string availability = null)
         {
             return new PreviewModule
             {
@@ -146,7 +147,7 @@ namespace AuraTools.UnityUiPreview
                 HasSettings = settings,
                 Experimental = experimental,
                 ShowEnableControl = showEnableControl,
-                Availability = enabled ? "ready" : "disabled"
+                Availability = availability ?? (enabled ? "ready" : "disabled")
             };
         }
     }

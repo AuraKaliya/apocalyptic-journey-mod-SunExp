@@ -43,7 +43,7 @@ window.AURA_TOOLBOX_PREVIEW_SPEC = Object.freeze({
     { id: "presentation.pixel-emoji", category: "presentation", name: "像素表情", description: "制作、收藏并在联机中展示像素表情。", summary: "作品 12 · 收藏 5", icon: "pixel-emoji", enabled: true, settings: true },
     { id: "presentation.skill-cg", category: "presentation", name: "角色 CG", description: "管理技能、美餐与低生命信号触发的角色表现。", summary: "技能规则 6 条 · 低生命 30% · 联机同步开启", icon: "skill-cg", enabled: true, settings: true },
     { id: "presentation.card-use-cg", category: "presentation", name: "卡牌 CG", description: "管理按卡牌使用信号触发的注册表现。", summary: "已启用 4/7 个注册项", icon: "card-use-cg", enabled: true, settings: true },
-    { id: "presentation.event-cg", category: "presentation", name: "事件 CG", description: "管理特殊开场、胜负与冒险结算的队伍场景。", summary: "事件 4/4 · 特殊战斗 2 条", icon: "skill-cg", enabled: true, settings: true },
+    { id: "presentation.event-cg", category: "presentation", name: "事件 CG", description: "事件 CG 暂时停用，待后续调整后开放。", summary: "暂时停用", status: "暂时停用", availability: "unavailable", icon: "skill-cg", enabled: false, settings: false },
     { id: "presentation.card-visual", category: "presentation", name: "卡牌视觉", description: "管理卡框主题与动态效果。", summary: "", icon: "skin", enabled: true, settings: true },
     { id: "records.damage-statistics", category: "records", name: "伤害统计", description: "记录本场伤害并提供局内和冒险统计。", summary: "本场 · 全部阵营 · 表格", icon: "damage-statistics", enabled: true, settings: true },
     { id: "records.battle-replay", category: "records", name: "战斗回放", description: "自动记录对局并提供回放与视频导出。", summary: "自动保存上限 20", icon: "battle-replay", enabled: true, settings: true },

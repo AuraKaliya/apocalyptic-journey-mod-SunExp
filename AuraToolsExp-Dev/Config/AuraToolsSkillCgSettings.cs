@@ -325,12 +325,26 @@ public sealed class AuraToolsEventCgSettings
     private Dictionary<string, AuraToolsEventCgSceneSettings> scenes =
         new(StringComparer.OrdinalIgnoreCase);
     private bool hasExplicitScenes;
+    private bool enabled;
+
+    [JsonIgnore]
+    internal bool RequiresDisabledStateCommit { get; private set; }
+
+    internal void MarkDisabledStateCommitted() => RequiresDisabledStateCommit = false;
 
     [JsonProperty("schemaVersion")]
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     [JsonProperty("enabled")]
-    public bool Enabled { get; set; } = true;
+    public bool Enabled
+    {
+        get => AuraToolsEventCgAvailability.IsAvailable && enabled;
+        set
+        {
+            RequiresDisabledStateCommit |= value && !AuraToolsEventCgAvailability.IsAvailable;
+            enabled = value && AuraToolsEventCgAvailability.IsAvailable;
+        }
+    }
 
     [JsonProperty("syncRemote")]
     public bool SyncRemote { get; set; } = true;

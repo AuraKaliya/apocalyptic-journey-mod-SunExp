@@ -119,6 +119,15 @@ async function verifyInteractions(page, productionModuleIds, report) {
   assert(["presentation.skill-cg", "presentation.card-use-cg", "presentation.event-cg"]
     .every(id => presentationIds.includes(id)), "presentation category must expose Role, Card, and Event CG");
   assert(!presentationIds.includes("presentation.feast-cg"), "legacy Feast CG must remain hidden from the toolbox");
+  const eventCg = page.locator('[data-module-id="presentation.event-cg"]');
+  assert(await eventCg.locator('.toolbox-checkbox').isDisabled(), "suspended Event CG must keep a disabled enable control");
+  assert(await eventCg.locator('.toolbox-checkbox').getAttribute('aria-checked') === 'false', "suspended Event CG must display off");
+  assert(await eventCg.locator('.module-settings').count() === 0, "suspended Event CG must hide settings");
+  assert((await eventCg.locator('.module-status').innerText()) === '暂时停用', "suspension reason must remain visible");
+  for (const id of ['presentation.skill-cg', 'presentation.card-use-cg']) {
+    assert(await page.locator(`[data-module-id="${id}"] .toolbox-checkbox`).isEnabled(), "other CG controls must remain available");
+    assert(await page.locator(`[data-module-id="${id}"] .module-settings`).count() === 1, "other CG settings remain available");
+  }
   const presentationPath = path.join(outputRoot, "interaction-presentation-cg.png");
   await page.screenshot({ path: presentationPath, animations: "disabled" });
   await page.locator("#module-list").evaluate(element => { element.scrollTop = element.scrollHeight; });
