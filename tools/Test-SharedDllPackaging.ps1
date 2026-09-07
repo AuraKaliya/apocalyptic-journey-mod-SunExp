@@ -52,7 +52,8 @@ foreach ($relative in $consumerProjects) {
         throw "Consumer still compiles private shared source: $relative"
     }
 
-    if ($text -match 'CopyAuraSharedDllToMod|CopyEntryDllToMod') {
+    [xml]$projectXml = $text
+    if (@($projectXml.SelectNodes('//Target/Copy')).Count -gt 0) {
         throw "Product consumer project must not write packaged DLLs directly: $relative"
     }
 }
@@ -82,32 +83,22 @@ foreach ($consumer in $consumers) {
         throw "Product package publish manifest must contain one record for $($consumer.id)."
     }
 
-    $packagePath = ([string]$consumer.packagePath).Replace('\', '/').TrimEnd('/')
-    $entrySource = Get-SharedConsumerAssemblyPath `
-        -RepoRoot $repoRoot `
-        -Consumer $consumer `
-        -Configuration $Configuration
-    $expectedFiles = @(
+    $expectedFiles = @(foreach ($artifact in Get-SharedConsumerPackageArtifacts -RepoRoot $repoRoot -Consumer $consumer -Configuration $Configuration) {
         [pscustomobject]@{
-            Kind = "entry"
-            Target = "$packagePath/Entry.dll"
-            Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $entrySource).Hash
-        },
-        [pscustomobject]@{
-            Kind = "shared"
-            Target = "$packagePath/Aura.Shared.dll"
-            Sha256 = $expectedHash
+            Kind = $artifact.Kind
+            Target = $artifact.Target
+            Sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.Source).Hash
         }
-    )
+    })
     $actualFiles = @($manifestConsumer[0].files | Where-Object { $_.kind -ne 'payload' })
     if ($actualFiles.Count -ne $expectedFiles.Count) {
         throw "Product package publish manifest file set is stale: $($consumer.id)"
     }
 
     foreach ($expectedFile in $expectedFiles) {
-        $actualFile = @($actualFiles | Where-Object { [string]$_.kind -eq $expectedFile.Kind })
+        $actualFile = @($actualFiles | Where-Object { [string]$_.target -eq $expectedFile.Target })
         if ($actualFile.Count -ne 1 `
-            -or [string]$actualFile[0].target -ne $expectedFile.Target `
+            -or [string]$actualFile[0].kind -ne $expectedFile.Kind `
             -or [string]$actualFile[0].sha256 -ne $expectedFile.Sha256) {
             throw "Product package publish manifest entry is stale: $($consumer.id)/$($expectedFile.Kind)"
         }

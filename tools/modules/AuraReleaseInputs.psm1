@@ -1,8 +1,16 @@
 Set-StrictMode -Version Latest
+Import-Module (Join-Path $PSScriptRoot 'SharedConsumerManifest.psm1')
 
 function Get-AuraReleaseFiles {
     param([Parameter(Mandatory)][string]$RepoRoot)
     $root = [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\','/')
+    # Package DLLs are transaction outputs; their sources remain release inputs.
+    $generatedFiles = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($consumer in @(Get-SharedConsumers -RepoRoot $root -Classification product -DefaultOnly)) {
+        foreach ($artifact in @(Get-SharedConsumerPackageArtifacts -RepoRoot $root -Consumer $consumer -Configuration Release)) {
+            [void]$generatedFiles.Add([string]$artifact.Target)
+        }
+    }
     $files = New-Object 'System.Collections.Generic.List[string]'
     $roots = @(Get-ChildItem -LiteralPath $root -Directory | Where-Object {
         $_.Name -in @('Terrias','AuraToolsExp','Managed','tools') -or $_.Name -match '(?:Shared|SharedCore|SharedRuntime-Dev|-Dev|Tests)$'
@@ -21,7 +29,7 @@ function Get-AuraReleaseFiles {
           foreach ($file in Get-ChildItem -LiteralPath $currentDirectory -File) {
             $relative = $file.FullName.Substring($root.Length + 1).Replace('\','/')
             if ($relative -match '/(?:bin|obj|Library|Temp|Logs|node_modules|\.git|UnderTest)/' -or $relative -match '/VisualAssets/UnityProject/') { continue }
-            if ($relative -match '\.publish-[a-f0-9]+\.(tmp|bak)$' -or $relative -match '^(Terrias|AuraToolsExp)/Scripts/(Entry|Aura.Shared)\.dll$') { continue }
+            if ($relative -match '\.publish-[a-f0-9]+\.(tmp|bak)$' -or $generatedFiles.Contains($relative)) { continue }
             $package = $relative -match '^(Terrias|AuraToolsExp)/'
             if (-not $package -and $file.Extension -notin @('.cs','.csproj','.props','.targets','.ps1','.psm1','.json','.dll','.txt','.py','.yaml','.yml','.asmdef','.unity','.prefab','.asset','.meta','.csv')) { continue }
             if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "Release input is a reparse point: $relative" }

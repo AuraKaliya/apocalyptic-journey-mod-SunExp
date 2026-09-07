@@ -55,20 +55,16 @@ public static class OlimyaGameApi
         return status?.fatherObject is Enemy && StatusApi.IsAlive(status);
     }
 
-    public static bool SetGoldenization(IStatusManager target, bool active)
+    public static bool ApplyGoldenization(IStatusManager target)
     {
-        if (active)
-        {
-            target.AddBuff(OlimyaIds.Goldenized, 1);
-            return BuffApi.Level(target, OlimyaIds.Goldenized) > 0;
-        }
-        if (BuffApi.Level(target, OlimyaIds.Goldenized) > 0) target.RemoveBuff(OlimyaIds.Goldenized);
-        return true;
+        // The target owns the native one-stack, one-turn Buff lifetime.
+        target.AddBuff(OlimyaIds.Goldenized, 1);
+        return BuffApi.Level(target, OlimyaIds.Goldenized) > 0;
     }
 
     public static bool AwardAttackGold(IStatusManager? recipient, int amount)
     {
-        if (recipient == null || amount <= 0) return false;
+        if (recipient?.fatherObject is not FightPlayer || amount <= 0) return false;
         var executor = DamageApi.CreateCardSourceExecutor(recipient, OlimyaIds.GoldenTouch, "Olimya.GoldenizedIncome");
         if (executor == null) return false;
         // A fresh executor preserves native target ownership routing. The remote

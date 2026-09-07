@@ -12,6 +12,32 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording;
 internal static partial class MatchReplayRecorder
 {
     private static readonly Dictionary<int, string> ObservedHandViews = new();
+    private static int handInputFeedbackDepth;
+
+    internal static void PrepareHandHover(object? target)
+    {
+        handInputFeedbackDepth++;
+        if (target is CardItem card && !card.draging && card.enabled && CardItem.canUse && !card.hasUse)
+            PrepareHandInput(card);
+    }
+
+    internal static void FinishHandHover() => handInputFeedbackDepth = Math.Max(0, handInputFeedbackDepth - 1);
+
+    // Native CardItem.OnBeginDrag stops its arrival/layout tween before input
+    // starts moving the view. Finish that exact automatic lifetime at this
+    // boundary; a long hold must not remain hidden inside an Arrival track.
+    internal static void PrepareHandInput(object? target)
+    {
+        if (MatchReplaySessionState.IsPlayback || target is not CardItem card
+            || FightUI.SelectedCard.Contains(card)) return;
+        lock (Gate)
+        {
+            if (!CanCaptureNoLock()) return;
+            var existing = MotionFor(card);
+            if (existing.Value == null || !existing.Value.IsHandMotion || existing.Value.NativeExitStarted) return;
+            CompleteCardMotionObservationNoLock(existing.Key, existing.Value, ElapsedTicks(), "NativeInputTakeover");
+        }
+    }
 
     internal static void ObserveHandRequest(object? target)
     {
@@ -65,9 +91,9 @@ internal static partial class MatchReplayRecorder
         if (MatchReplaySessionState.IsPlayback || target is not FightUI ui) return;
         lock (Gate)
         {
-            if (!CanCaptureNoLock()) return;
+            if (!CanCaptureNoLock() || DecisionCapture.IsWaiting || nativeSelectionOpen && !nativeSelectionCommitted) return;
             foreach (var card in NativeHandViews(ui))
-                if (!card.ignore) ObserveHandViewNoLock(card);
+                if (!card.ignore && !card.draging) ObserveHandViewNoLock(card);
         }
     }
 
@@ -78,7 +104,8 @@ internal static partial class MatchReplayRecorder
         // once at the existing frame/action barrier. Nested native layouts do
         // not each need a full combat snapshot and a storage batch.
         lock (Gate)
-            if (CanCaptureNoLock()) RequestStableBarrierNoLock("native-hand-layout", needsStateCapture: true);
+            if (CanCaptureNoLock() && !DecisionCapture.IsWaiting && (!nativeSelectionOpen || nativeSelectionCommitted))
+                RequestStableBarrierNoLock("native-hand-layout", needsStateCapture: true);
     }
 
     private static IEnumerable<CardItem> NativeHandViews(FightUI ui) =>
@@ -99,6 +126,7 @@ internal static partial class MatchReplayRecorder
         var sourceId = card.dataConfig.InstanceID ?? "";
         var rootId = card.GetInstanceID();
         var arrival = !ObservedHandViews.TryGetValue(rootId, out var previous) || previous != sourceId;
+        if (!arrival && (DecisionCapture.IsWaiting || nativeSelectionOpen && !nativeSelectionCommitted || card.draging)) return;
         ObservedHandViews[rootId] = sourceId;
         var existing = MotionFor(card);
         if (existing.Value != null)

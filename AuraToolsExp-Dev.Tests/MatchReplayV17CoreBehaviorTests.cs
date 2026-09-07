@@ -50,6 +50,7 @@ internal static partial class AuraToolsTestSuite
         TestCheckpointSeek(envelope);
         TestChunkAndPayloadBoundaries(envelope);
         TestCausalLedgerAndStableBarrier();
+        TestDecisionTimeline();
     }
 
     private static void TestActionSourceClassification()

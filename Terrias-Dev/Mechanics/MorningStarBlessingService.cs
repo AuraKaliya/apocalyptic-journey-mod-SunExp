@@ -80,7 +80,7 @@ public static class MorningStarBlessingService
             () =>
             {
                 self.SetStatus("Self");
-                self.ChangeHp("-5");
+                self.ChangeHp("-3");
                 self.SetStatus("Self");
                 self.ChangePower("1");
             });

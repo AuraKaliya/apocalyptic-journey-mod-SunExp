@@ -94,6 +94,7 @@ internal static class Host
     public static readonly Dictionary<string, Action<ModHookContext>> BeforeHooks = new(), AfterHooks = new();
     public static readonly Dictionary<string, IStatusManager> Statuses = new();
     public static readonly Dictionary<string, string> CompanionOwners = new();
+    public static readonly Dictionary<string, string> SpiritOwners = new(), ProjectionOwners = new();
     public static readonly List<string> GoldRecipients = new(), Warnings = new(), Errors = new();
     public static TerriasBattleLifecycleSubscription Battle = null!;
     public static string? Form;
@@ -118,6 +119,7 @@ internal static class Host
     {
         Terrias.Dll.Application.OlimyaRoleApplication.EndBattle();
         BeforeHooks.Clear(); AfterHooks.Clear(); Statuses.Clear(); CompanionOwners.Clear();
+        SpiritOwners.Clear(); ProjectionOwners.Clear();
         GoldRecipients.Clear(); Warnings.Clear(); Errors.Clear(); Form = null;
         Server = true; ClientOnly = false; Sender = "player-a"; Epoch++; Cooldown = 0; Sent = 0;
         AuraShared.Core.AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation = true;
@@ -129,19 +131,26 @@ internal static class Host
         OlimyaNetworkAdapter.Initialize();
         Battle.BattleOpening!(new ModHookContext());
     }
-    public static void Hit(IStatusManager target, IStatusManager source, int amount, bool bypassShield = false, Action? duringHurt = null)
+    public static void Hit(IStatusManager target, IStatusManager? source, int amount, bool bypassShield = false, Action? duringHurt = null)
     {
         var type = new CustomDamageType { ignoreDefend = bypassShield };
-        var args = new object[] { target, amount, new object(), source, amount, "Normal", "test-card" };
+        var args = new object[] { target, amount, new object(), source!, amount, "Normal", "test-card" };
         Before("CustomDamageType.ApplyDamage", type, args);
         var shield = bypassShield ? 0 : Math.Min(Math.Max(0, target.Defend), Math.Max(0, amount));
         target.Defend -= shield;
         target.CurHp = Math.Max(0, target.CurHp - Math.Max(0, amount - shield));
         duringHurt?.Invoke();
-        Before("CustomDamageType.ShowDamage", type, target, amount, new object(), source, amount);
+        Before("CustomDamageType.ShowDamage", type, target, amount, new object(), source!, amount);
         After("CustomDamageType.ApplyDamage", type, args);
     }
     public static void StartTurn() => Battle.PlayerTurnEntering!(new ModHookContext());
+    // Verified native OtherObj.EndRound -> CheckAllBuff -> DurationCheck contract.
+    // The content gate independently binds Goldenization to ReducePerTurn = 1.
+    public static void EndEnemyTurn(IStatusManager target)
+    {
+        if (Server && target.CurHp > 0 && target.Buffs.ContainsKey(OlimyaIds.Goldenized))
+            target.RemoveBuff(OlimyaIds.Goldenized);
+    }
     public static ScriptExecutor Skill(IStatusManager? target = null) => new() { Self = FightPlayer.Instance!.Status, Target = target };
 }
 
@@ -213,8 +222,10 @@ namespace Terrias.Dll.Mechanics
         public static CompanionIdentity? Find(string id) => Host.CompanionOwners.TryGetValue(id, out var owner) ? new() { SemanticOwnerStatusId = owner } : null;
     }
     public sealed class ChildState { public string OwnerStatusId = ""; }
-    public static class SpiritStateStore { public static ChildState? Find(string id) => null; }
-    public static class ProjectionStateStore { public static ChildState? Find(string id) => null; }
+    public static class SpiritStateStore
+    { public static ChildState? Find(string id) => Host.SpiritOwners.TryGetValue(id, out var owner) ? new() { OwnerStatusId = owner } : null; }
+    public static class ProjectionStateStore
+    { public static ChildState? Find(string id) => Host.ProjectionOwners.TryGetValue(id, out var owner) ? new() { OwnerStatusId = owner } : null; }
 }
 namespace Terrias.Dll.Hooks
 {

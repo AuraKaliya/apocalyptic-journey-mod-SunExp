@@ -9,13 +9,14 @@ using Witch.UI.Window;
 // Native game API and journal sink are fixture boundaries. The hand arrival,
 // layout, identity/deduplication and commit adapter itself is production code.
 public sealed class DataConfig { public string InstanceID = ""; public string Name = ""; public int Cost; }
-public sealed class CardItem : MonoBehaviour { public DataConfig dataConfig; public bool draging; public bool ignore; public bool hasDone; }
+public sealed class CardItem : MonoBehaviour { public DataConfig dataConfig; public static bool canUse = true; public bool draging; public bool ignore; public bool hasDone; public bool hasUse; }
 public sealed class CardContainer : MonoBehaviour { }
 namespace Witch.UI.Window
 {
     public sealed class FightUI : MonoBehaviour
     {
         public static List<CardItem> cardItemList = new();
+        public static List<CardItem> SelectedCard = new();
         public CardContainer cardContainer;
     }
 }
@@ -41,6 +42,10 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording
     {
         private static readonly object Gate = new();
         private static readonly object catalog = new();
+        private static readonly ReplayDecisionCaptureV17 DecisionCapture = new();
+        private static bool nativeSelectionOpen, nativeSelectionCommitted;
+        internal static void SetFixtureSelection(bool committed) { nativeSelectionOpen = true; nativeSelectionCommitted = committed; }
+        internal static void SetFixtureWaiting(bool waiting) => DecisionCapture.Observe(waiting ? ReplayDecisionTimelineV17.Player : "", Clock, (_, _, _, _) => { });
         private static readonly Dictionary<string, CardMotionObservation> PendingCardMotionObservations = new();
         private static readonly Dictionary<string, PendingPresentationTiming> PendingCardMotions = new();
         internal static readonly List<(long Time, string[] Cards)> Commits = new();
@@ -49,7 +54,11 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording
         internal static bool StateBarrierRequested;
         private static bool CanCaptureNoLock() => true;
         private static long ElapsedTicks() => Clock;
-        private static string BeginSourceTransactionNoLock(ReplayCapturedActionSourceV17 source, bool pushContext) => source.SourceInstanceId;
+        private static string BeginSourceTransactionNoLock(ReplayCapturedActionSourceV17 source, bool pushContext)
+        {
+            DecisionCapture.Close(ReplayDecisionTimelineV17.Interrupted, Clock, (_, _, _, _) => { });
+            return source.SourceInstanceId;
+        }
         private static string BeginSystemTransactionNoLock(string kind, string source) => source;
         private static void ApplyCurrentStateNoLock(string tx) => Commits.Add((Clock, FightUI.cardItemList.Where(card => !card.hasDone).Select(card => card.dataConfig.InstanceID).ToArray()));
         private static void MarkAndCompleteSystemTransactionNoLock(string tx) { }
@@ -74,6 +83,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording
         }
         internal static void ResetFixture()
         {
+            DecisionCapture.Reset(); handInputFeedbackDepth = 0; nativeSelectionOpen = false; nativeSelectionCommitted = false; FightUI.SelectedCard.Clear();
             ObservedHandViews.Clear(); PendingCardMotionObservations.Clear(); PendingCardMotions.Clear();
             Starts.Clear(); Commits.Clear(); Clock = 0; FightUI.cardItemList.Clear();
             StateBarrierRequested = false;
@@ -84,11 +94,13 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Recording
             var pair = MotionFor(card);
             if (pair.Value != null) { PendingCardMotionObservations.Remove(pair.Key); PendingCardMotions.Remove(pair.Key); }
         }
+        private static void CompleteCardMotionObservationNoLock(string key, CardMotionObservation observation, long ticks, string reason)
+        { PendingCardMotionObservations.Remove(key); PendingCardMotions.Remove(key); }
         internal static ReplayVisibleCardStateV17 FixtureSnapshot(CardItem card) => PendingCardMotions[MotionFor(card).Key].Event.Presentation.CardView;
         private sealed class CardMotionObservation
         {
             internal CardItem Visual;
-            internal bool IsHandMotion, PointerReleased, AwaitNativeHandSettled, CaptureStateOnComplete, AwaitingInitialCardBinding;
+            internal bool IsHandMotion, PointerReleased, AwaitNativeHandSettled, CaptureStateOnComplete, AwaitingInitialCardBinding, NativeExitStarted;
         }
         private sealed class PendingPresentationTiming { internal ReplayJournalEventV17 Event; }
     }

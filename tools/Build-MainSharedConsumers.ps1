@@ -32,6 +32,21 @@ if (-not $SkipSharedBuild) {
 
 $consumers = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)
 
+$builtDependencies = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+foreach ($consumer in $consumers) {
+    foreach ($dependency in @(Get-SharedConsumerRuntimeDependencies -Consumer $consumer)) {
+        $projectPath = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$dependency.projectPath)
+        if (-not $builtDependencies.Add($projectPath)) { continue }
+        Write-Host "Building product runtime dependency: $($dependency.projectPath)"
+        dotnet build $projectPath `
+            -c $Configuration `
+            /p:ManagedPath="$ManagedPath" `
+            /p:BuildProjectReferences=false `
+            /v:minimal
+        if ($LASTEXITCODE -ne 0) { throw "Product runtime dependency build failed: $($dependency.projectPath)" }
+    }
+}
+
 foreach ($consumer in $consumers) {
     $projectPath = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$consumer.projectPath)
     Write-Host "Building main shared runtime consumer: $($consumer.id)"

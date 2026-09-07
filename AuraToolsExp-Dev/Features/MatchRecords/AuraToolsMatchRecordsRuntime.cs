@@ -107,6 +107,8 @@ public static class AuraToolsMatchRecordsRuntime
 
 internal sealed class AuraToolsMatchRecordsDriver : MonoBehaviour
 {
+    private void LateUpdate() => MatchReplayRecorder.ObserveDecisionReadiness();
+
     private void Update()
     {
         ReplayBackgroundWork.Pump();

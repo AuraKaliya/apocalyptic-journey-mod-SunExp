@@ -9,9 +9,8 @@ namespace Terrias.Dll.Application;
 
 public static class OlimyaRoleApplication
 {
-    private static readonly OlimyaGoldenizationLedger Marks = new();
+    private static readonly OlimyaGoldenizationLedger Commands = new();
     private static long nextSequence;
-    private static bool awaitingNextTurn;
     private static bool battleReady;
     public static Func<OlimyaGoldenizationCommand, bool>? DispatchCommand { private get; set; }
 
@@ -31,7 +30,6 @@ public static class OlimyaRoleApplication
         var command = Command(OlimyaGoldenizationCommandKind.Apply, self.Self.InstanceId, target!.InstanceId);
         TargetApi.SetStatusForTarget(self, target, "Target");
         if (DispatchCommand?.Invoke(command) != true) return false;
-        awaitingNextTurn = true;
         PlayerApi.SetSkillTime(OlimyaIds.GoldenTouch, OlimyaIds.GoldenTouchCooldown);
         return true;
     }
@@ -45,34 +43,18 @@ public static class OlimyaRoleApplication
             OlimyaGameApi.ClearLocalShield();
             PlayerApi.SetSkillTime(OlimyaIds.GoldenTouch, Math.Max(0, PlayerApi.GetSkillTime(OlimyaIds.GoldenTouch) - 1));
         }
-        // Marks expire on the caster's turn even if that player has since
-        // changed form and neither of Olimya's career passives is active.
-        if (awaitingNextTurn && DispatchCommand?.Invoke(Command(
-                OlimyaGoldenizationCommandKind.OwnerTurnStarted, status.InstanceId, "")) == true)
-            awaitingNextTurn = false;
     }
 
     public static bool HandleAuthoritative(OlimyaGoldenizationCommand command, bool senderOwnsStatus)
     {
         if (!battleReady || !CompanionAuthorityService.IsAuthoritative() || !AuraBattleLifecycleStateRuntime.AcceptsCombatPresentation) return false;
-        if (Marks.BattleEpoch != CompanionAuthorityService.BattleEpoch) Marks.Reset(CompanionAuthorityService.BattleEpoch);
-        if (!Marks.TryAccept(command, senderOwnsStatus)) return false;
+        if (Commands.BattleEpoch != CompanionAuthorityService.BattleEpoch) Commands.Reset(CompanionAuthorityService.BattleEpoch);
+        if (!Commands.TryAccept(command, senderOwnsStatus)) return false;
         var owner = StatusApi.FindById(command.OwnerStatusId);
         if (owner == null) return false;
-        if (command.Kind == OlimyaGoldenizationCommandKind.OwnerTurnStarted)
-        {
-            foreach (var targetId in Marks.TakeExpired(command.OwnerStatusId))
-            {
-                var target = StatusApi.FindById(targetId);
-                if (target != null) OlimyaGameApi.SetGoldenization(target, false);
-            }
-            return true;
-        }
         if (!StatusApi.IsAlive(owner) || !OlimyaRules.IsOlimya(PolymorphStateStore.EffectiveCombatRoleIdFor(owner))) return false;
         var enemy = StatusApi.FindById(command.TargetStatusId);
-        if (!OlimyaGameApi.IsHostileEnemy(enemy) || !OlimyaGameApi.SetGoldenization(enemy!, true)) return false;
-        Marks.Mark(command.TargetStatusId, command.OwnerStatusId);
-        return true;
+        return OlimyaGameApi.IsHostileEnemy(enemy) && OlimyaGameApi.ApplyGoldenization(enemy!);
     }
 
     public static bool HandleLocalAuthoritative(OlimyaGoldenizationCommand command)
@@ -84,8 +66,7 @@ public static class OlimyaRoleApplication
     public static void EndBattle()
     {
         battleReady = false;
-        Marks.Reset(0);
-        awaitingNextTurn = false;
+        Commands.Reset(0);
         nextSequence = 0;
         OlimyaDamageService.Clear();
         OlimyaEconomyService.ClearTransient();

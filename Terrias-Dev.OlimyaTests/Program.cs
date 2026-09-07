@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Terrias.Dll.Application;
 using Terrias.Dll.Contracts;
+using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using Terrias.Dll.Network;
@@ -151,8 +152,7 @@ Host.Before("CustomDamageType.ShowDamage", new CustomDamageType(), enemy, 100, n
 Check(Host.GoldRecipients.Count == 1, "a replicated damage presentation outside an application frame never awards gold twice");
 Host.Form = "career_other";
 Host.StartTurn();
-Check(!enemy.Buffs.ContainsKey(OlimyaIds.Goldenized) && Host.Cooldown == 3,
-    "marks expire on the caster's next turn after changing form, while her cooldown remains frozen");
+Check(Host.Cooldown == 3, "the active skill cooldown remains frozen after changing form");
 Host.Form = OlimyaIds.Career;
 Host.StartTurn();
 Check(Host.Cooldown == 2, "the active career resumes cooldown progression");
@@ -170,9 +170,35 @@ Host.Statuses[spirit.InstanceId] = spirit;
 Host.CompanionOwners[spirit.InstanceId] = ally.InstanceId;
 Host.Hit(enemy, spirit, 8);
 Check(ally.Wallet.Money == 120 && Host.GoldRecipients.Last() == "player-b", "a companion's income belongs to its semantic owner");
+Host.CompanionOwners.Clear();
+Host.SpiritOwners[spirit.InstanceId] = ally.InstanceId;
+Host.Hit(enemy, spirit, 3);
+var projection = new Status { InstanceId = "projection-b", Role = "projection" };
+Host.Statuses[projection.InstanceId] = projection;
+Host.ProjectionOwners[projection.InstanceId] = ally.InstanceId;
+Host.Hit(enemy, projection, 4);
+Check(ally.Wallet.Money == 127 && RoleTable.Instance!.Money == 100,
+    "spirit and projection ownership fallbacks both credit their bound player, regardless of career");
+Host.Form = "career_other";
+Host.Hit(enemy, player, 6);
+Check(RoleTable.Instance!.Money == 106, "a local non-Olimya player receives Goldenization income without the manufacture passive");
+Host.Hit(enemy, ally, 5, bypassShield: true);
+Host.Hit(enemy, ally, 2, bypassShield: true);
+Check(ally.Wallet.Money == 134, "player-owned periodic damage instances retain their player recipient");
+Host.Hit(player, enemy, 3, duringHurt: () => Host.Hit(enemy, ally, 4));
+Check(ally.Wallet.Money == 138, "nested reflected damage with a player source is rewarded exactly once");
 var environmental = Enemy("unowned-source");
 Host.Hit(enemy, environmental, 7);
-Check(ally.Wallet.Money == 120 && RoleTable.Instance!.Money == 100, "unowned non-player sources cannot manufacture a player payout");
+Host.Hit(enemy, null, 7);
+Host.Hit(enemy, new Status { InstanceId = "unknown-source" }, 7);
+Host.SpiritOwners[spirit.InstanceId] = "missing-player";
+Host.Hit(enemy, spirit, 7);
+Check(ally.Wallet.Money == 138 && RoleTable.Instance!.Money == 106,
+    "monster, null, unknown and orphaned companion sources cannot manufacture a player payout");
+Check(!OlimyaGameApi.AwardAttackGold(environmental, 7), "non-player recipients are skipped before creating a money executor");
+var rewardsBefore = Host.GoldRecipients.Count;
+Host.Hit(enemy, ally, 0);
+Check(Host.GoldRecipients.Count == rewardsBefore, "zero damage does not issue a money reward");
 
 Host.Reset();
 enemy = Enemy("refresh-target");
@@ -183,11 +209,25 @@ Check(OlimyaRoleApplication.HandleAuthoritative(markA, true), "the owner can app
 Check(!OlimyaRoleApplication.HandleAuthoritative(markA, true), "duplicate commands are rejected");
 Check(OlimyaRoleApplication.HandleAuthoritative(markB, true) && enemy.Buffs[OlimyaIds.Goldenized] == 1,
     "a second caster refreshes the single mark without stacking");
-var endA = Command("player-a", "", 2, OlimyaGoldenizationCommandKind.OwnerTurnStarted);
-OlimyaRoleApplication.HandleAuthoritative(endA, true);
-Check(enemy.Buffs.ContainsKey(OlimyaIds.Goldenized), "the earlier caster's turn does not clear a refreshed mark");
-OlimyaRoleApplication.HandleAuthoritative(Command("player-b", "", 2, OlimyaGoldenizationCommandKind.OwnerTurnStarted), true);
-Check(!enemy.Buffs.ContainsKey(OlimyaIds.Goldenized), "the current caster's turn clears the mark");
+Host.StartTurn();
+Host.Form = "career_other";
+Host.StartTurn();
+Check(enemy.Buffs[OlimyaIds.Goldenized] == 1, "caster turns and form changes never advance the target's Buff lifetime");
+Host.EndEnemyTurn(Enemy("other-target"));
+Check(enemy.Buffs.ContainsKey(OlimyaIds.Goldenized), "another target's turn does not expire the mark");
+var removedCommand = Command("player-a", enemy.InstanceId, 2, (OlimyaGoldenizationCommandKind)2);
+Check(!OlimyaRoleApplication.HandleAuthoritative(removedCommand, true), "removed caster-expiration commands are rejected");
+var oldProtocol = Command("player-a", enemy.InstanceId, 2);
+oldProtocol.Version = 1;
+Check(!OlimyaRoleApplication.HandleAuthoritative(oldProtocol, true), "the previous caster-lifetime protocol cannot apply a mark");
+Host.EndEnemyTurn(enemy);
+Check(!enemy.Buffs.ContainsKey(OlimyaIds.Goldenized), "the target native turn decay removes the one-turn mark");
+var expiredBalance = RoleTable.Instance!.Money;
+Host.Hit(enemy, FightPlayer.Instance!.Status, 5);
+Check(RoleTable.Instance.Money == expiredBalance, "expired Goldenization no longer rewards damage");
+Host.Form = null;
+Check(OlimyaRoleApplication.HandleAuthoritative(Command("player-a", enemy.InstanceId, 2), true),
+    "a valid new application works after native expiration without a stale caster ledger");
 Check(!OlimyaRoleApplication.HandleAuthoritative(Command("player-a", enemy.InstanceId, 3), false), "unowned requests are rejected");
 Host.Epoch++;
 Check(!OlimyaRoleApplication.HandleAuthoritative(Command("player-a", enemy.InstanceId, 4, epoch: Host.Epoch - 1), true),

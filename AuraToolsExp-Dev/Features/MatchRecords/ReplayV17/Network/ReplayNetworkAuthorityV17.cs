@@ -100,7 +100,7 @@ internal static class ReplayNetworkAuthorityV17
         var command = new ReplayCapabilityCommandV17
         {
             LevelId = levelId ?? "",
-            RequiredCapabilities = ReplayCapabilitiesV17.Required.OrderBy(item => item, StringComparer.Ordinal).ToList()
+            RequiredCapabilities = ReplayCapabilitiesV17.RecordingRequired.OrderBy(item => item, StringComparer.Ordinal).ToList()
         };
         if (IsHost)
         {
@@ -137,7 +137,7 @@ internal static class ReplayNetworkAuthorityV17
             var missing = expected.Where(playerId => !Capabilities.TryGetValue(playerId, out var receipt)
                                                      || receipt.ProtocolVersion != ReplayNetworkProtocolV17.Version
                                                      || !string.Equals(receipt.LevelId, levelId ?? "", StringComparison.Ordinal)
-                                                     || ReplayCapabilitiesV17.Required.Any(capability =>
+                                                     || ReplayCapabilitiesV17.RecordingRequired.Any(capability =>
                                                          !receipt.RequiredCapabilities.Contains(capability, StringComparer.Ordinal)))
                 .ToList();
             if (missing.Count == 0) return true;
@@ -158,7 +158,7 @@ internal static class ReplayNetworkAuthorityV17
             || command.LevelId.Length > 256
             || command.RequiredCapabilities == null
             || command.RequiredCapabilities.Count > 32
-            || ReplayCapabilitiesV17.Required.Any(capability =>
+            || ReplayCapabilitiesV17.RecordingRequired.Any(capability =>
                 !command.RequiredCapabilities.Contains(capability, StringComparer.Ordinal)))
         {
             rejection = "replay capability protocol mismatch";

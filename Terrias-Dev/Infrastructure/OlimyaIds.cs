@@ -13,14 +13,13 @@ public static class OlimyaIds
 
 public enum OlimyaGoldenizationCommandKind
 {
-    Apply = 1,
-    OwnerTurnStarted = 2
+    Apply = 1
 }
 
 [System.Serializable]
 public sealed class OlimyaGoldenizationCommand
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public int BattleEpoch { get; set; }
     public OlimyaGoldenizationCommandKind Kind { get; set; }
     public string OwnerStatusId { get; set; } = "";

@@ -59,10 +59,38 @@ internal static class MatchReplayHookAdapter
             "FightUI.DoCardUseAnimation",
             context => Observe("native-card-motion-before", () => MatchReplayRecorder.BeginNativeCardMotion(context.Target, context.Arguments)),
             "MatchRecords.Replay.NativeCardMotion"));
-        Register("after:CardItem.OnBeginDrag", AuraToolsHookRegistry.AfterRouted(
+        Register("before:FightUI.onChangeTurnBtn", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!, "FightUI.onChangeTurnBtn",
+            context => Observe("end-turn-commit", () => MatchReplayRecorder.ObserveEndTurn(context.Target)),
+            "MatchRecords.Replay.Decisions"));
+        Register("before:CardItem.OnBeginDrag", AuraToolsHookRegistry.BeforeRouted(
             modConfig!, "CardItem.OnBeginDrag",
-            context => Observe("card-drag-start", () => MatchReplayRecorder.BeginCardDrag(context.Target)),
-            "MatchRecords.Replay.CardDrag"));
+            context => Observe("hand-input-takeover", () => MatchReplayRecorder.PrepareHandInput(context.Target)),
+            "MatchRecords.Replay.HandInput"));
+        Register("before:CardItem.OnPointerEnter", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!, "CardItem.OnPointerEnter",
+            context => Observe("hand-hover-takeover", () => MatchReplayRecorder.PrepareHandHover(context.Target)),
+            "MatchRecords.Replay.HandInput"));
+        Register("after:CardItem.OnPointerEnter", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "CardItem.OnPointerEnter",
+            _ => Observe("hand-hover-complete", MatchReplayRecorder.FinishHandHover),
+            "MatchRecords.Replay.HandInput"));
+        Register("before:CardItem.HandleSelectModeClick", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!, "CardItem.HandleSelectModeClick",
+            context => Observe("hand-selection-takeover", () => MatchReplayRecorder.PrepareHandInput(context.Target)),
+            "MatchRecords.Replay.HandInput"));
+        Register("after:FightUI.SelectInit", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "FightUI.SelectInit",
+            context => Observe("selection-open", () => MatchReplayRecorder.ObserveSelectionOpened(context.Target)),
+            "MatchRecords.Replay.Decisions"));
+        Register("after:FightUI.Yes", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "FightUI.Yes",
+            context => Observe("selection-commit", () => MatchReplayRecorder.ObserveSelectionConfirmed(context.Target)),
+            "MatchRecords.Replay.Decisions"));
+        Register("before:FightUI.ResetSelectState", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!, "FightUI.ResetSelectState",
+            _ => Observe("selection-reset", MatchReplayRecorder.ObserveSelectionReset),
+            "MatchRecords.Replay.Decisions"));
         foreach (var target in new[] { "CardItem.DrawEffect", "CommonCardItem.DrawEffect", "AttackCardItem.DrawEffect" })
             Register("before:" + target, AuraToolsHookRegistry.BeforeRouted(
                 modConfig!, target, context => Observe("card-arrival", () => MatchReplayRecorder.ObserveCardDraw(context.Target)),
@@ -83,11 +111,6 @@ internal static class MatchReplayHookAdapter
             modConfig!, "FightUI.UpdateCardItemPos",
             context => Observe("hand-layout-after", () => MatchReplayRecorder.EndHandLayout(context.Target)),
             "MatchRecords.Replay.HandLayoutAfter"));
-        foreach (var target in new[] { "CommonCardItem.OnEndDrag", "CardItem.OnEndDrag", "CardItem.CancelUseDrag" })
-            Register("after:" + target, AuraToolsHookRegistry.AfterRouted(
-                modConfig!, target,
-                context => Observe("card-drag-end", () => MatchReplayRecorder.EndCardDrag(context.Target)),
-                "MatchRecords.Replay.CardDragEnd"));
         Register("after:FightUI.DoCardUseAnimation", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "FightUI.DoCardUseAnimation",

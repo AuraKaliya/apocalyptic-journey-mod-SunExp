@@ -8,7 +8,6 @@
     <Nullable>enable</Nullable>
     <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
     <DllPath>$(ManagedPath)</DllPath>
-    <ModScriptsPath>..\Terrias\Scripts</ModScriptsPath>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
@@ -126,14 +125,5 @@
       <Private>false</Private>
     </Reference>
   </ItemGroup>
-
-  <Target Name="CopyAuraDirectorProviderToMod" AfterTargets="Build">
-    <MakeDir Directories="$(ModScriptsPath)" />
-    <ItemGroup>
-      <AuraDirectorRuntimeBinary Include="..\AuraDirectorDetour-Dev\bin\$(Configuration)\net472\Aura.Director.DetourBackend.dll" />
-      <AuraDirectorRuntimeBinary Include="..\AuraDirectorDetour-Dev\bin\$(Configuration)\net472\0Harmony.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(AuraDirectorRuntimeBinary)" DestinationFolder="$(ModScriptsPath)" SkipUnchangedFiles="true" />
-  </Target>
 
 </Project>

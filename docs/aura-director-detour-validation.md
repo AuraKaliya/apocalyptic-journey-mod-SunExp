@@ -55,8 +55,16 @@ in-game verification appropriate to their impact.
 
 ## Packaging
 
-`Terrias-Dev/Terrias.Dll.csproj` builds the provider project and copies
-`Aura.Director.DetourBackend.dll` plus `0Harmony.dll` to `Terrias/Scripts`.
+`tools/shared-consumers.json` declares the Terrias provider project and its
+`Aura.Director.DetourBackend.dll` and `0Harmony.dll` outputs.
+`Build-MainSharedConsumers.ps1` builds the shared runtime, provider, and products
+in that order. `Publish-MainSharedConsumers.ps1` publishes both dependency DLLs
+to `Terrias/Scripts` in the same rollback transaction as Entry and Aura.Shared.
+Direct MSBuild compilation does not update the package. Release input snapshots
+track dependency sources and package references; the generated DLLs are bound
+by hash in validation receipts and the package manifest.
+`Rebuild-All.ps1` finishes trainer publication before taking the MOD input
+snapshot so the final manifest also covers the current training executables.
 The release test rejects those binaries from every other shipped MOD script
 root. Multiplayer plan distribution is intentionally deferred; each client
 owns only its local opening and local hold.

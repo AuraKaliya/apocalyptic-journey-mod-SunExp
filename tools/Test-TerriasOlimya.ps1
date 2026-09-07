@@ -30,7 +30,7 @@ foreach ($suffix in @('', '_zh-Hant', '_en', '_ja')) {
 }
 $buff = @(Rows 'Data/Buff/terrias.csv' | Where-Object Id -eq '*olimya_goldenized')
 Assert-Olimya ($buff.Count -eq 1 -and $buff[0].Type -eq '负面' -and [int]$buff[0].UpperBound -eq 1) 'Goldenization must be an internal, single-layer debuff.'
-Assert-Olimya ([int]$buff[0].ReducePerTurn -eq 0) 'Goldenization expires on its caster turn, not its target turn.'
+Assert-Olimya ([int]$buff[0].ReducePerTurn -eq 1 -and [int]$buff[0].ReducePerAttacked -eq 0 -and [int]$buff[0].ReducePerUse -eq 0) 'Goldenization must expire through the target native one-turn Buff decay, not attacks or actions.'
 
 $animationRoot = Join-Path $modRoot 'ModResource/AnimationLib/Olimya'
 $idle = @(Get-ChildItem -LiteralPath (Join-Path $animationRoot 'Idle') -File -Filter '*.png')

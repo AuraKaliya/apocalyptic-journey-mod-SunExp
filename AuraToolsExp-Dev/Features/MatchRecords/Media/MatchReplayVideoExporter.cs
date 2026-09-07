@@ -170,7 +170,7 @@ internal static partial class MatchReplayVideoExporter
                 Math.Max(1000L, MatchReplayPlayer.DurationMilliseconds)
                 / 1000d * settings.FramesPerSecond) + 1L);
             job.FrameCount = frameCount;
-            var sourceDocument = envelope.Document;
+            var sourceDocument = MatchReplayPlayer.ViewingDocument;
             var prepareMedia = new ReplayIoOperation<long>("PrepareVideoMedia", () =>
             {
                 DeleteIfExists(job.StagingPath); DeleteIfExists(audioPath);
@@ -271,7 +271,7 @@ internal static partial class MatchReplayVideoExporter
             job.FrameCount = verification.FrameCount;
             Transition(job, MatchReplayExportStates.Committing, 0.96f, "正在原子提交已验证 MP4");
             var snapshot = ReplayCanonicalJsonV17.Clone(job);
-            var document = envelope.Document;
+            var document = MatchReplayPlayer.ViewingDocument;
             var commit = new ReplayIoOperation<MatchReplayExportJob>("CommitVideo", () =>
             {
                 ThrowPersistenceFailure(snapshot.JobId);
@@ -500,6 +500,7 @@ internal static partial class MatchReplayVideoExporter
     {
         var dimensions = Dimensions(settings.Quality);
         return MatchReplayVideoEncodingPolicy.CodecProfileId + "." + dimensions.width + "x" + dimensions.height
+               + "." + ReplayDecisionTimelineV17.Profile
                + "." + settings.FramesPerSecond + "fps"
                + (settings.IncludeAudio ? ".audio" : ".silent")
                + (settings.IncludeUi ? ".hud" : ".clean");
@@ -523,9 +524,8 @@ internal static partial class MatchReplayVideoExporter
 
     private static long EstimateOutputBytes(ReplayDocumentV17 document, int width, int height, int fps, bool includeAudio)
     {
-        var events = document.TruthEvents.Concat(document.PresentationEvents).ToList();
-        var durationSeconds = Math.Max(1d,
-            events.Count == 0 ? 1d : events.Max(item => item.TimeTicks) / (double)ReplayProtocolV17.TimebaseTicksPerSecond + 1d);
+        var durationSeconds = Math.Max(1d, new ReplayDecisionTimelineV17(document).DurationTicks
+            / (double)ReplayProtocolV17.TimebaseTicksPerSecond);
         var bitsPerSecond = width >= 1920 ? 12_000_000L : 6_000_000L;
         var waveBytes = includeAudio
             ? (long)(durationSeconds * ReplayOfflineAudioMixer.SampleRate * ReplayOfflineAudioMixer.Channels * 2d)

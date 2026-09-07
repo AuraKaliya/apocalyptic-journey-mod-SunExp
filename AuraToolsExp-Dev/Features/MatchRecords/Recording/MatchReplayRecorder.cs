@@ -342,9 +342,9 @@ internal static partial class MatchReplayRecorder
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("card-action")) return;
-            if (target is CardItem card) EnsureHandMotionNoLock(card, released: true);
-            FlushStableBarrierNoLock("before-card-action");
             var source = ReplayFactCaptureV17.CaptureActionSource(target, catalog!);
+            ObserveAcceptedSourceNoLock(source);
+            FlushStableBarrierNoLock("before-card-action");
             var duplicate = FindOpenSourceTransactionNoLock(source);
             CardLifecycleScopes.Push(string.IsNullOrWhiteSpace(duplicate));
             if (string.IsNullOrWhiteSpace(duplicate)) BeginSourceTransactionNoLock(source);
@@ -473,7 +473,10 @@ internal static partial class MatchReplayRecorder
                 };
                 var startedTransactionId = FindOpenSourceTransactionNoLock(source);
                 if (string.IsNullOrWhiteSpace(startedTransactionId))
+                {
+                    DecisionCapture.Commit("Card", source.SourceInstanceId, ElapsedTicks(), EmitDecisionBoundaryNoLock);
                     startedTransactionId = BeginSourceTransactionNoLock(source, pushContext: false);
+                }
                 RemoteTransactions[remoteKey] = startedTransactionId;
                 return;
             }
@@ -847,6 +850,7 @@ internal static partial class MatchReplayRecorder
         lock (Gate)
         {
             if (builder == null || activeRecord == null || TerminalGate.SettlementPrepared) return;
+            DecisionCapture.Close(ReplayDecisionTimelineV17.Terminal, ElapsedTicks(), EmitDecisionBoundaryNoLock);
             FlushStableBarrierNoLock("battle-settling");
             TerminalGate.Prepare(result);
         }
@@ -1072,6 +1076,7 @@ internal static partial class MatchReplayRecorder
 
     private static string BeginSourceTransactionNoLock(ReplayCapturedActionSourceV17 source, bool pushContext = true)
     {
+        InterruptDecisionWaitNoLock();
         var parent = ContextStack.LastOrDefault() ?? "";
         var ownsActorTurn = string.IsNullOrWhiteSpace(parent) && IsActorActionKind(source.Kind);
         if (ownsActorTurn)
@@ -1272,6 +1277,8 @@ internal static partial class MatchReplayRecorder
 
     private static void ApplyObservedStateNoLock(string transactionId, ReplayVisibleStateV17 observed, ReplayStateDiffV17? diff = null)
     {
+        diff ??= builder!.CreateObservedDiff(observed);
+        if (diff.HasChanges) InterruptDecisionWaitNoLock();
         var added = builder!.ApplyObservedState(transactionId, observed, ElapsedTicks(), diff);
         stateWatermark++;
         foreach (var delta in added.Where(item => item.EventType == ReplayEventTypesV17.StateDeltaApplied))
@@ -1609,6 +1616,11 @@ internal static partial class MatchReplayRecorder
         string usage,
         string provenance)
     {
+        // Hover/cancel feedback and bored-idle vocals are not consequences of a
+        // committed decision. Continuous battle music keeps its own cue lifetime.
+        if ((DecisionCapture.IsWaiting || handInputFeedbackDepth > 0)
+            && !string.Equals(bus, "Bgm", StringComparison.OrdinalIgnoreCase))
+            return new ReplayAudioCueV17();
         var standalone = ContextStack.Count == 0;
         var transactionId = standalone
             ? BeginSystemTransactionNoLock(ReplayTransactionKindsV17.SystemPhase, kind)
@@ -1852,6 +1864,10 @@ internal static partial class MatchReplayRecorder
 
     private static void ResetNoLock()
     {
+        DecisionCapture.Reset();
+        handInputFeedbackDepth = 0;
+        nativeSelectionOpen = false;
+        nativeSelectionCommitted = false;
         try { sharedPresentationCapture?.Dispose(); }
         catch (Exception ex) { AuraToolsLog.Warn("[MatchRecords] shared presentation capture cleanup failed: " + ex.Message); }
         sharedPresentationCapture = null;

@@ -24,6 +24,9 @@ public static class AuraToolsReplaySettingsPage
     private static void BuildDetails(Transform content, Transform overlayParent)
     {
         var replay = AuraToolsConfigService.MatchExperience.MatchRecords.Replay;
+        AuraToolsUi.AddText(content,
+            "新录制的回放省去思考与取消操作，按确认的决策和结果播放；视频采用相同节奏。旧记录保留原始节奏。",
+            AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, 48f);
         var replayLimitRow = CreateInlineRow(content, "Limit");
         AuraToolsUi.AddText(
             replayLimitRow.transform,

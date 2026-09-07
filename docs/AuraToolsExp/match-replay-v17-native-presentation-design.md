@@ -55,6 +55,10 @@ owner-qualified 扩展状态。稳定边界比较规范化前后状态，写入 
 
 保存原生观察时间，不再把动作改写为固定的“卡牌→角色→命中”串行时间：
 
+原始观察时间与观看时间分离。新写入器声明 `confirmed-decisions.v1`，用不可变的输入等待开始/
+结束和决策确认事件保存边界。播放器从封存文档派生统一节奏；动作内部的必要重叠仍保留。
+完整观看契约见[回放与定位](match-records-replay-export-and-analysis.md#回放与定位)。
+
 - 卡牌丢弃、返回和焚毁记录实际 Canvas 位置、尺寸、旋转、比例、透明度和 CardBurn `_Fade`；原生
   中央卡牌以 Destroy 结束轨迹，池化战斗卡牌以共享 CardPresentation Reset、失活或实例重绑结束；
 - 角色动作/受击记录实际世界位置、root/body 比例、body 偏移、sorting layer/order 和相机状态；
@@ -173,6 +177,10 @@ renderer profile 产生黑画面，即使 `Camera.Render()` 没抛异常也不�
 
 交互回放和 MP4 使用同一个 battle world。播放器和 provider renderer 都接收整数微秒逻辑时钟；
 倍速只改变逻辑时钟推进量，不改变文档事件时间。
+
+这里的播放逻辑时钟采用派生观看时间。检查点时间、暂态起止、轨道样本偏移、音频采样位置和
+MP4 时间轴均来自同一个 `ReplayDecisionTimelineV17`，不单独在播放器 Update 中快进。
+未声明决策边界的历史文档保持原始时间映射和根哈希。
 
 ## 持久化、迁移与兼容
 

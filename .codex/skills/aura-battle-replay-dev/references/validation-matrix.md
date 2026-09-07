@@ -13,6 +13,7 @@ serially because product consumers share DLL outputs.
 | Native UI clone | exclude runtime-only owned subtrees before activation; retain normal graphics and source prefab; nested/inactive owners and reopening |
 | Database/package | Recording→Finalizing→Ready, recovery, immutable roots, import budgets, migration/cutover, asset reachability |
 | Playback core | event ordering, state commit, transient/persistent reconstruction, seek/speed/export clock parity |
+| Decision cadence | explicit input waits, accepted/rejected input, cancellation, nested choices, preserved overlap, immutable source roots, one projected clock for checkpoints/tracks/audio/video; older-record cadence disclosure |
 | Renderer ownership | camera/target/renderer leases, Feature policy, deep-cloned Feature identity, intermediate color declaration, generation replacement, duplicate/foreign release, teardown |
 | Managed compatibility | current Unity/URP members and current game `Managed/` signatures |
 | Product | `tools\Test-AuraToolsExp.ps1` and warning-free Release build |

@@ -120,6 +120,8 @@
              Link="MatchRecords\MatchRecordModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Core\*.cs"
              Link="MatchRecords\ReplayV17\Core\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayDecisionCapture.cs" Link="MatchRecords\MatchReplayDecisionCapture.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\GameApi\ReplayDecisionInputApi.cs" Link="MatchRecords\ReplayDecisionInputApi.cs" />
     <Compile Include="..\AuraReplayPresentationShared\AuraReplayPresentationModuleDescriptor.cs"
              Link="Shared\AuraReplayPresentationModuleDescriptor.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Storage\*.cs"

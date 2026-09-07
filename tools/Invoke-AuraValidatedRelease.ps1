@@ -40,11 +40,13 @@ Invoke-Check 'RPC authority' { & (Join-Path $PSScriptRoot 'Test-NetworkRpcAuthor
 Invoke-Check 'Unity replay and resource adapters' { & (Join-Path $PSScriptRoot 'Test-AuraToolsReplayNativeUi.ps1') -UnityPath $UnityPath }
 $null=Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $inputPath
 $assemblies=@(foreach($consumer in Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly){
-    $path=Get-SharedConsumerAssemblyPath -RepoRoot $repoRoot -Consumer $consumer -Configuration $Configuration
-    [pscustomobject]@{id=$consumer.id;sha256=(Get-FileHash -LiteralPath $path).Hash}
+    $files=@(foreach($artifact in Get-SharedConsumerPackageArtifacts -RepoRoot $repoRoot -Consumer $consumer -Configuration $Configuration){
+        [pscustomobject]@{target=$artifact.Target;sha256=(Get-FileHash -LiteralPath $artifact.Source).Hash}
+    })
+    [pscustomobject]@{id=$consumer.id;files=$files}
 })
 $receiptPath=Join-Path $artifactRoot 'validation.json'
-[ordered]@{schemaVersion=1;success=$true;inputFingerprint=$snapshot.fingerprint;sharedSha256=(Get-FileHash -LiteralPath (Join-Path $repoRoot "AuraSharedRuntime-Dev/bin/$Configuration/net472/Aura.Shared.dll")).Hash;completedUtc=[DateTime]::UtcNow.ToString('O');checks=$checks.ToArray();assemblies=$assemblies;runtimeAcceptance='Real game and multiplayer acceptance remain separate from automated validation.'}|
+[ordered]@{schemaVersion=2;success=$true;inputFingerprint=$snapshot.fingerprint;sharedSha256=(Get-FileHash -LiteralPath (Join-Path $repoRoot "AuraSharedRuntime-Dev/bin/$Configuration/net472/Aura.Shared.dll")).Hash;completedUtc=[DateTime]::UtcNow.ToString('O');checks=$checks.ToArray();assemblies=$assemblies;runtimeAcceptance='Real game and multiplayer acceptance remain separate from automated validation.'}|
     ConvertTo-Json -Depth 7|Set-Content -LiteralPath $receiptPath -Encoding UTF8
 & (Join-Path $PSScriptRoot 'Publish-MainSharedConsumers.ps1') -Configuration $Configuration -InputSnapshotPath $inputPath -ValidationReceiptPath $receiptPath
 Invoke-Check 'DLL package integrity' { & (Join-Path $PSScriptRoot 'Test-SharedDllPackaging.ps1') -Configuration $Configuration }

@@ -26,6 +26,10 @@ internal static class MatchReplayPlayer
     private static readonly ReplayStateReducerV17 VisualReducer = new();
     private static MatchRecord? record;
     private static ReplayDocumentEnvelopeV17? envelope;
+    private static ReplayDecisionTimelineV17? timeline;
+    internal static ReplayDocumentV17 ViewingDocument => timeline?.Document
+        ?? throw new InvalidOperationException("Replay viewing timeline is not prepared.");
+    internal static bool HasDecisionTiming => timeline?.HasDecisionTiming == true;
     private static ReplayBattleSceneRuntimeV17? scene;
     private static List<ReplayJournalEventV17> events = new();
     private static HashSet<string> actionTransactions = new(StringComparer.Ordinal);
@@ -58,7 +62,7 @@ internal static class MatchReplayPlayer
     internal static float Speed => Speeds[speedIndex];
     internal static int EventIndex => eventIndex;
     internal static int EventCount => events.Count;
-    internal static int ActionCount => actionTransactions.Count;
+    internal static int ActionCount => HasDecisionTiming ? timeline!.DecisionSequences.Count : actionTransactions.Count;
     internal static int CompletedActionCount => completedActionCount;
     internal static bool IsSeeking => seeking;
     internal static bool IsFinished => IsActive && eventIndex >= events.Count && logicalTicks >= durationTicks;
@@ -128,7 +132,7 @@ internal static class MatchReplayPlayer
             else
             {
                 scene.RestoreTimedPresentationsAt(
-                    envelope.Document.PresentationEvents,
+                    ViewingDocument.PresentationEvents,
                     logicalTicks,
                     includeAudio: !externalClock);
                 scene.Tick(logicalTicks);
@@ -327,8 +331,9 @@ internal static class MatchReplayPlayer
 
             record = loadedRecord;
             envelope = loadedEnvelope;
-            events = loadedEnvelope.Document.TruthEvents
-                .Concat(loadedEnvelope.Document.PresentationEvents)
+            timeline = new ReplayDecisionTimelineV17(loadedEnvelope.Document);
+            events = ViewingDocument.TruthEvents
+                .Concat(ViewingDocument.PresentationEvents)
                 .OrderBy(PlaybackTicks)
                 .ThenBy(item => item.Sequence)
                 .ToList();
@@ -338,8 +343,8 @@ internal static class MatchReplayPlayer
                                && IsAction(item.Transaction.Kind))
                 .Select(item => item.TransactionId)
                 .ToHashSet(StringComparer.Ordinal);
-            BuildVisualCommitIndex(loadedEnvelope.Document);
-            durationTicks = CalculateDurationTicks(events);
+            BuildVisualCommitIndex(ViewingDocument);
+            durationTicks = timeline.DurationTicks;
             pendingStartTicks = ResolveStartTicks(events, startSequence);
             eventIndex = 0;
             completedActionCount = 0;
@@ -358,7 +363,7 @@ internal static class MatchReplayPlayer
             Reducer.Reset(loadedEnvelope.Document.InitialState);
             VisualReducer.Reset(loadedEnvelope.Document.InitialState);
             MatchReplayUiLifecycle.PrepareForReplayView();
-            scene = new ReplayBattleSceneRuntimeV17(loadedEnvelope.Document, includeHud: true);
+            scene = new ReplayBattleSceneRuntimeV17(ViewingDocument, includeHud: true);
             logicalTicks = 0;
             scene.Tick(0);
             scene.Restore(Reducer.Current, null);
@@ -434,12 +439,14 @@ internal static class MatchReplayPlayer
                         VisualReducer.Apply(value, verifyHashes: false);
                         scene?.ApplyState(VisualReducer.Current);
                     }
-                    if (value.EventType == ReplayEventTypesV17.TransactionCompleted
+                    if (!HasDecisionTiming && value.EventType == ReplayEventTypesV17.TransactionCompleted
                         && actionTransactions.Contains(value.TransactionId))
                         completedActionCount++;
                 }
                 else
                 {
+                    if (HasDecisionTiming && value.EventType == ReplayEventTypesV17.DecisionCommitted)
+                        completedActionCount++;
                     if (value.EventType == ReplayEventTypesV17.VisualStateCommitted
                         && value.Presentation != null
                         && visualCommitStates.TryGetValue(value.Presentation.TruthEventSequence, out var committedState))
@@ -474,23 +481,23 @@ internal static class MatchReplayPlayer
         try
         {
             var target = Math.Max(0L, Math.Min(durationTicks, targetTicks));
-            var truthCheckpoint = envelope.Document.TruthCheckpoints
+            var truthCheckpoint = ViewingDocument.TruthCheckpoints
                 .Where(item => item.TimeTicks <= target)
                 .OrderBy(item => item.TimeTicks)
                 .ThenBy(item => item.EventSequence)
                 .LastOrDefault();
             var checkpointSequence = truthCheckpoint?.EventSequence ?? 0L;
-            var checkpointTruthSequence = envelope.Document.TruthEvents
+            var checkpointTruthSequence = ViewingDocument.TruthEvents
                 .Where(item => item.Sequence <= checkpointSequence)
                 .Select(item => item.Sequence)
                 .DefaultIfEmpty(0L)
                 .Max();
-            Reducer.Reset(truthCheckpoint?.State ?? envelope.Document.InitialState, checkpointTruthSequence);
-            foreach (var truth in envelope.Document.TruthEvents
+            Reducer.Reset(truthCheckpoint?.State ?? ViewingDocument.InitialState, checkpointTruthSequence);
+            foreach (var truth in ViewingDocument.TruthEvents
                          .Where(item => item.Sequence > checkpointTruthSequence && item.TimeTicks <= target)
                          .OrderBy(item => item.Sequence))
                 Reducer.Apply(truth);
-            var lastTruthSequence = envelope.Document.TruthEvents
+            var lastTruthSequence = ViewingDocument.TruthEvents
                 .Where(item => item.TimeTicks <= target)
                 .Select(item => item.Sequence)
                 .DefaultIfEmpty(0L)
@@ -503,10 +510,12 @@ internal static class MatchReplayPlayer
             logicalTicks = target;
             scene.Restore(visualState, PresentationBindingsAtTicks(target, visualState));
             completedActionCount = events.Take(eventIndex)
-                .Count(item => item.EventType == ReplayEventTypesV17.TransactionCompleted
-                               && actionTransactions.Contains(item.TransactionId));
+                .Count(item => HasDecisionTiming
+                    ? item.EventType == ReplayEventTypesV17.DecisionCommitted
+                    : item.EventType == ReplayEventTypesV17.TransactionCompleted
+                      && actionTransactions.Contains(item.TransactionId));
             scene.RestoreTimedPresentationsAt(
-                envelope.Document.PresentationEvents,
+                ViewingDocument.PresentationEvents,
                 logicalTicks,
                 includeAudio: !externalClock);
             scene.Tick(logicalTicks);
@@ -573,6 +582,7 @@ internal static class MatchReplayPlayer
         envelope = null;
         events.Clear();
         actionTransactions.Clear();
+        timeline = null;
         deferredVisualTruthSequences.Clear();
         visualCommitStates.Clear();
         eventIndex = 0;
@@ -619,11 +629,11 @@ internal static class MatchReplayPlayer
         if (envelope == null || ticks < 0) return envelope?.Document.InitialState ?? new ReplayVisibleStateV17();
         var truthReducer = new ReplayStateReducerV17();
         var visualReducer = new ReplayStateReducerV17();
-        truthReducer.Reset(envelope.Document.InitialState);
-        visualReducer.Reset(envelope.Document.InitialState);
-        var visual = ReplayStateReducerV17.Normalize(envelope.Document.InitialState);
-        var combined = envelope.Document.TruthEvents.Cast<ReplayJournalEventV17>()
-            .Concat(envelope.Document.PresentationEvents)
+        truthReducer.Reset(ViewingDocument.InitialState);
+        visualReducer.Reset(ViewingDocument.InitialState);
+        var visual = ReplayStateReducerV17.Normalize(ViewingDocument.InitialState);
+        var combined = ViewingDocument.TruthEvents.Cast<ReplayJournalEventV17>()
+            .Concat(ViewingDocument.PresentationEvents)
             .Where(item => PlaybackTicks(item) <= ticks)
             .OrderBy(PlaybackTicks)
             .ThenBy(item => item.Sequence);
@@ -659,7 +669,7 @@ internal static class MatchReplayPlayer
         var active = state.Entities
             .Select(item => item.EntityId + "|" + item.SpawnGeneration)
             .ToHashSet(StringComparer.Ordinal);
-        var bindings = envelope.Document.PresentationEvents
+        var bindings = ViewingDocument.PresentationEvents
             .Where(item => PlaybackTicks(item) <= ticks && item.Presentation?.EntityBinding != null)
             .OrderBy(PlaybackTicks)
             .ThenBy(item => item.Sequence)
@@ -706,19 +716,6 @@ internal static class MatchReplayPlayer
                || kind == ReplayTransactionKindsV17.Passive
                || kind == ReplayTransactionKindsV17.Transform
                || kind == ReplayTransactionKindsV17.ImplicitObserved;
-    }
-
-    private static long CalculateDurationTicks(IEnumerable<ReplayJournalEventV17> values)
-    {
-        var maximum = 0L;
-        foreach (var value in values)
-        {
-            var duration = Math.Max(0L, value.Presentation?.DurationTicks ?? 0L);
-            if (value.Presentation?.Audio is { } audio && audio.DurationSamples > 0)
-                duration = Math.Max(duration, audio.DurationSamples * ReplayProtocolV17.TimebaseTicksPerSecond / 48_000L);
-            maximum = Math.Max(maximum, PlaybackTicks(value) + duration);
-        }
-        return maximum == 0 ? 0 : maximum + ReplayProtocolV17.TimebaseTicksPerSecond / 2;
     }
 
     private static long ResolveStartTicks(IEnumerable<ReplayJournalEventV17> values, long sequence)

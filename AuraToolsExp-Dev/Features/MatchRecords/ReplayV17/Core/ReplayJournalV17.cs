@@ -632,6 +632,7 @@ internal static class ReplayDocumentValidatorV17
             ValidateEvents(document, result);
             ValidatePresentation(document, result);
             ReplayHandLifecycleContractV17.Validate(document, result.Errors);
+            ReplayDecisionTimelineV17.Validate(document, result.Errors);
             ValidateCheckpoints(document, result);
             if (!string.Equals(ReplayCanonicalJsonV17.TruthRoot(document), header.TruthRoot, StringComparison.OrdinalIgnoreCase))
                 result.Errors.Add("truth-root-invalid");

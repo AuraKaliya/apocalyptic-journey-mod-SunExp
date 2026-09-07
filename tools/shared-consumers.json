@@ -7,7 +7,13 @@
       "defaultBuild": true,
       "projectPath": "Terrias-Dev/Terrias.Dll.csproj",
       "assemblyName": "Terrias.Aura",
-      "packagePath": "Terrias/Scripts"
+      "packagePath": "Terrias/Scripts",
+      "runtimeDependencies": [
+        {
+          "projectPath": "AuraDirectorDetour-Dev/Aura.Director.DetourBackend.csproj",
+          "files": ["Aura.Director.DetourBackend.dll", "0Harmony.dll"]
+        }
+      ]
     },
     {
       "id": "AuraToolsExp",

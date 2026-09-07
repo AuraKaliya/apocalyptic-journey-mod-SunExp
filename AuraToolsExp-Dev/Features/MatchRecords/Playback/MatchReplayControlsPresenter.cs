@@ -164,7 +164,9 @@ internal static class MatchReplayControlsPresenter
         {
             status.text = MatchReplayPlayer.IsRuntimeReady
                 ? "回合 " + MatchReplayPlayer.CurrentTurn + "/" + Math.Max(1, MatchReplayPlayer.TurnCount)
-                  + "   动作 " + MatchReplayPlayer.CompletedActionCount + "/" + MatchReplayPlayer.ActionCount
+                  + (MatchReplayPlayer.HasDecisionTiming ? "   决策 " : "   动作 ")
+                  + MatchReplayPlayer.CompletedActionCount + "/" + MatchReplayPlayer.ActionCount
+                  + (MatchReplayPlayer.HasDecisionTiming ? "   统一节奏" : "   原始节奏（旧记录）")
                   + (string.IsNullOrWhiteSpace(MatchReplayPlayer.PlaybackIssue)
                       ? ""
                       : "   " + MatchReplayPlayer.PlaybackIssue)

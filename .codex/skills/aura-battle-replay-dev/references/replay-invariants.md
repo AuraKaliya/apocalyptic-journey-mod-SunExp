@@ -29,10 +29,11 @@ Current recording refinements:
   the observed call, excluding earlier/claimed views. Its synchronous exit
   hook is part of that call, not a second visual. Reject ambiguous candidates.
 
-- Observe actual hand dragging through release, return or native exit. Native
-  attack cards retain their own targeting behavior. Physical visual identity
-  distinguishes hand and centre views of one logical card; its static hand
-  view is hidden while recorded motion owns the visible card.
+- Normal viewing omits uncommitted hand dragging, holds and returns. Preserve
+  native acquisition/layout and committed exits; do not lose automatic motion
+  when input interrupts a view. Physical identity still distinguishes hand and
+  centre views of one logical card; its static view is hidden while recorded
+  motion owns that card. Historical recorded drag tracks keep their sealed bytes.
 - Preserve both ends of stationary intervals in compressed card/actor tracks.
   Removing all repeated poses makes interpolation move during a hold. Enter
   burn only at its observed phase and recognize the native shader, rather than
@@ -177,3 +178,5 @@ Keep owner-attached module pulses independent from underlying status tracks.
 
 Before removing a long quiet interval, verify its actor/round boundaries in the
 record. Recorded player think time is not evidence of a lost enemy animation.
+New viewing cadence additionally requires the explicit input-wait witnesses in
+[decision timing](decision-timing.md); silence alone never authorizes a cut.

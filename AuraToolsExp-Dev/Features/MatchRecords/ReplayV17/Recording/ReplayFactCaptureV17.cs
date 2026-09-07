@@ -85,7 +85,11 @@ internal sealed class ReplayCaptureCatalogV17
 
     internal ReplaySceneDescriptorV17 Scene { get; } = CreateSceneDescriptor();
 
-    internal ReplayUiTemplateDescriptorV17 Ui { get; } = new() { HandPresentationContract = ReplayHandLifecycleContractV17.Contract };
+    internal ReplayUiTemplateDescriptorV17 Ui { get; } = new()
+    {
+        HandPresentationContract = ReplayHandLifecycleContractV17.Contract,
+        DecisionTimingContract = ReplayDecisionTimelineV17.Contract
+    };
 
     internal int AssetCount => assets.Count;
     internal long AssetBytes => assets.Values.Sum(asset => asset.Payload?.LongLength ?? asset.ByteLength);

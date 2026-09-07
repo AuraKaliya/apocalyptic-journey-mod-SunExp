@@ -9,6 +9,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
+Import-Module (Join-Path $repoRoot "tools\modules\AuraReleaseInputs.psm1") -Force
 
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
@@ -21,6 +22,8 @@ if ($null -eq (Get-Command dotnet -ErrorAction SilentlyContinue)) {
     throw "The .NET SDK is not available on PATH."
 }
 
+$releaseMutex = Enter-AuraReleaseLock -RepoRoot $repoRoot
+try {
 function Invoke-BuildStep {
     param(
         [string]$Name,
@@ -46,20 +49,21 @@ Write-Host "Rebuilding repository deliverables"
 Write-Host "Configuration: $Configuration"
 Write-Host "Managed references: $ManagedPath"
 
-Invoke-BuildStep `
-    -Name "Main MOD assemblies" `
-    -Script "Build-MainSharedConsumers.ps1" `
-    -Arguments @{
-        Configuration = $Configuration
-        ManagedPath = $ManagedPath
-    }
-
+# Trainer deliverables are package payload inputs to the MOD release snapshot.
 Invoke-BuildStep `
     -Name "External foundation trainer" `
     -Script "Build-AuraFoundationTrainer.ps1" `
     -Arguments @{
         Configuration = $Configuration
         StopRunningTrainer = $StopRunningFoundationTrainer
+    }
+
+Invoke-BuildStep `
+    -Name "Main MOD assemblies" `
+    -Script "Build-MainSharedConsumers.ps1" `
+    -Arguments @{
+        Configuration = $Configuration
+        ManagedPath = $ManagedPath
     }
 
 if ($RunTests) {
@@ -80,12 +84,12 @@ if ($RunTests) {
 
 $expectedOutputs = @(
     foreach ($consumer in @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)) {
-        $package = ([string]$consumer.packagePath).Replace('/', '\')
-        "$package\Entry.dll"
-        "$package\Aura.Shared.dll"
+        Get-SharedConsumerPackageArtifacts -RepoRoot $repoRoot -Consumer $consumer -Configuration $Configuration |
+            ForEach-Object { $_.Target }
     }
     "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.Worker.exe",
-    "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.ControlCenter.exe"
+    "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.ControlCenter.exe",
+    "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.SimulationViewer.exe"
 )
 
 $artifacts = foreach ($relativePath in $expectedOutputs) {
@@ -107,3 +111,5 @@ Write-Host ""
 Write-Host "All repository deliverables rebuilt successfully." `
     -ForegroundColor Green
 $artifacts | Format-Table -AutoSize
+
+} finally { $releaseMutex.ReleaseMutex(); $releaseMutex.Dispose() }

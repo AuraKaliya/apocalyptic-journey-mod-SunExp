@@ -29,6 +29,8 @@ $sources = @(
     "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayBoundsProjectionV17.cs",
     "AuraToolsExp-Dev/Features/MatchRecords/Recording/MatchReplayHandCapture.cs",
     "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayHandLifecycleContractV17.cs",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayDecisionCaptureV17.cs",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayDecisionTimelineV17.cs",
     "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayCardInstructionProjectionV17.cs",
     "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayHandProjectionV17.cs",
     "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayCanonicalJsonV17.cs",

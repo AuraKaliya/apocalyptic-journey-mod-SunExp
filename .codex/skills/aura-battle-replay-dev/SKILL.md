@@ -10,6 +10,11 @@ The product contract is recorded visible data plus deterministic re-enactment;
 playback must not execute gameplay scripts, AI, rewards, save mutations, RPCs,
 or a second native battle.
 
+Normal viewing follows confirmed decisions and their consequences. Player think
+time and uncommitted hand dragging/cancellation are not battle actions. For
+recording cadence, input boundaries, seeking or export timing, read
+[decision timing](references/decision-timing.md).
+
 ## Route Before Acting
 
 - For a defect fix, migration, compatibility change, or retired path, apply
@@ -64,6 +69,11 @@ Do not move Terrias content semantics into AuraToolsExp or Aura shared/core.
 - Truth time is monotonic state authority. Presentation observations may arrive
   late but retain observed time. Persist only the immutable durability prefix;
   never rewrite already durable events.
+- Keep observed recording time separate from viewing time. Retiming requires
+  explicit native input-wait witnesses and one derived plan shared by playback,
+  checkpoints, transient tracks, audio, progress and video export. Never infer
+  think time from event sparsity or impose a fixed interval on every low-level
+  event. Preserve causal chains and required overlapping presentation.
 - Canonicalize extension JSON at the shared publish boundary and validate it
   again at document sealing. Preserve array order and reject duplicate keys.
 - Presentation lifetime is not C# object lifetime. For pooled views, close the

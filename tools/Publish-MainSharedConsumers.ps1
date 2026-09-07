@@ -17,7 +17,7 @@ $inputSnapshot = Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $Inpu
 $validation = $null
 if (-not [string]::IsNullOrWhiteSpace($ValidationReceiptPath)) {
     $validation = Get-Content -LiteralPath $ValidationReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if (-not $validation.success -or $validation.inputFingerprint -ne $inputSnapshot.fingerprint) { throw 'Validation receipt does not cover these release inputs.' }
+    if ($validation.schemaVersion -ne 2 -or -not $validation.success -or $validation.inputFingerprint -ne $inputSnapshot.fingerprint) { throw 'Validation receipt does not cover these release inputs and runtime dependencies. Revalidate the current build.' }
 }
 
 $consumers = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)
@@ -41,28 +41,28 @@ $manifestPath = Join-Path $artifactRoot "shared-package-manifest.json"
 
 try {
     foreach ($consumer in $consumers) {
-        $entrySource = Get-SharedConsumerAssemblyPath `
-            -RepoRoot $repoRoot `
-            -Consumer $consumer `
-            -Configuration $Configuration
-        if (-not (Test-Path -LiteralPath $entrySource -PathType Leaf)) {
-            throw "Consumer assembly is missing: $($consumer.id) -> $entrySource"
-        }
+        $artifacts = @(Get-SharedConsumerPackageArtifacts -RepoRoot $repoRoot -Consumer $consumer -Configuration $Configuration)
         if ($null -ne $validation) {
             $validatedAssembly = @($validation.assemblies | Where-Object id -eq $consumer.id)
-            if ($validatedAssembly.Count -ne 1 -or $validatedAssembly[0].sha256 -ne (Get-FileHash -LiteralPath $entrySource).Hash) {
-                throw "Product assembly changed after validation: $($consumer.id)"
+            if ($validatedAssembly.Count -ne 1 -or @($validatedAssembly[0].files).Count -ne $artifacts.Count) {
+                throw "Validation receipt does not cover all product artifacts: $($consumer.id)"
             }
         }
 
         $packageRoot = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$consumer.packagePath)
         [System.IO.Directory]::CreateDirectory($packageRoot) | Out-Null
-        foreach ($item in @(
-            [pscustomobject]@{ Source = $entrySource; Name = "Entry.dll"; Kind = "entry" },
-            [pscustomobject]@{ Source = $sharedSource; Name = "Aura.Shared.dll"; Kind = "shared" }
-        )) {
-            $target = Join-Path $packageRoot $item.Name
+        foreach ($item in $artifacts) {
+            if (-not (Test-Path -LiteralPath $item.Source -PathType Leaf)) {
+                throw "Product artifact is missing: $($consumer.id) -> $($item.Source)"
+            }
+            $target = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath $item.Target
             $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $item.Source).Hash
+            if ($null -ne $validation) {
+                $validatedFile = @($validatedAssembly[0].files | Where-Object target -eq $item.Target)
+                if ($validatedFile.Count -ne 1 -or $validatedFile[0].sha256 -ne $sourceHash) {
+                    throw "Product artifact changed after validation: $($item.Target)"
+                }
+            }
             $operation = [pscustomobject]@{
                 Consumer = [string]$consumer.id
                 Kind = [string]$item.Kind

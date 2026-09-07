@@ -60,6 +60,7 @@ internal static class ReplayCapabilitiesV17
     internal const string MeasuredAttachmentBounds = "measured-attachment-bounds.v1";
     internal const string CardViewIdentity = "observed-card-view-identity.v1";
     internal const string HandLifecycle = "observed-hand-arrival-and-layout.v1";
+    internal const string DecisionTimeline = "confirmed-decision-timeline.v1";
 
     internal static IEnumerable<string> RequiredFor(ReplayDocumentV17 document)
     {
@@ -72,6 +73,9 @@ internal static class ReplayCapabilitiesV17
         if (document.Presentation.Ui.HandPresentationContract != null
             || document.PresentationEvents.Any(item => item.Presentation?.CardView != null))
             yield return HandLifecycle;
+        if (document.Presentation.Ui.DecisionTimingContract != null
+            || document.PresentationEvents.Any(item => ReplayDecisionTimelineV17.IsBoundary(item.EventType)))
+            yield return DecisionTimeline;
     }
 
     internal static readonly string[] Required =
@@ -104,6 +108,9 @@ internal static class ReplayCapabilitiesV17
         OptionalEmbeddedDynamicAssets,
         FixedRenderTextureMp4
     };
+
+    // Live recording negotiation is stricter than reading older sealed v17 data.
+    internal static IEnumerable<string> RecordingRequired => Required.Concat(new[] { DecisionTimeline });
 }
 
 internal static class ReplayJournalLanesV17
@@ -172,6 +179,9 @@ internal static class ReplayEventTypesV17
     internal const string TurnTransitionPresented = "TurnTransitionPresented";
     internal const string ExtensionPresented = "ExtensionPresented";
     internal const string VisualStateCommitted = "VisualStateCommitted";
+    internal const string InputWaitStarted = "InputWaitStarted";
+    internal const string InputWaitEnded = "InputWaitEnded";
+    internal const string DecisionCommitted = "DecisionCommitted";
 
     internal static readonly HashSet<string> Truth = new(StringComparer.Ordinal)
     {
@@ -203,7 +213,10 @@ internal static class ReplayEventTypesV17
         DamageTextPresented,
         TurnTransitionPresented,
         ExtensionPresented,
-        VisualStateCommitted
+        VisualStateCommitted,
+        InputWaitStarted,
+        InputWaitEnded,
+        DecisionCommitted
     };
 }
 
@@ -897,6 +910,9 @@ internal sealed class ReplaySceneDescriptorV17
 
 internal sealed class ReplayUiTemplateDescriptorV17
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? DecisionTimingContract { get; set; }
+
     [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
     public string? HandPresentationContract { get; set; }
     public string FightUiResourcePath { get; set; } = "UI/FightUI";

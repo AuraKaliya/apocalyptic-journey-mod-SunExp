@@ -2,17 +2,55 @@ param()
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $PSScriptRoot 'modules/AuraReleaseInputs.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'modules/SharedConsumerManifest.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'modules/AuraProductDeployment.psm1') -Force
 $fixture=Join-Path $repoRoot ('output/release-contract-tests/'+[Guid]::NewGuid().ToString('N'))
 $null=[IO.Directory]::CreateDirectory((Join-Path $fixture 'Terrias/SharedResources'))
 $null=[IO.Directory]::CreateDirectory((Join-Path $fixture 'tools'))
+$consumerManifest=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'shared-consumers.json') -Raw | ConvertFrom-Json
+$consumerManifest.consumers=@($consumerManifest.consumers | Where-Object classification -eq 'product')
+$consumerManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $fixture 'tools/shared-consumers.json') -Encoding UTF8
+foreach($consumer in $consumerManifest.consumers){
+    $projects=@([string]$consumer.projectPath)+@(Get-SharedConsumerRuntimeDependencies $consumer | ForEach-Object projectPath)
+    foreach($relative in $projects){
+        $project=Join-Path $fixture $relative
+        $null=[IO.Directory]::CreateDirectory((Split-Path -Parent $project))
+        [IO.File]::WriteAllText($project,'<Project />')
+    }
+}
+$dependencySource=Join-Path $fixture 'AuraDirectorDetour-Dev/Backend.cs'
+[IO.File]::WriteAllText($dependencySource,'// source version 1')
+$null=[IO.Directory]::CreateDirectory((Join-Path $fixture 'Terrias/Scripts'))
+$inputDll=Join-Path $fixture 'Terrias/Scripts/External.dll'
+[IO.File]::WriteAllText($inputDll,'external dependency version 1')
 $asset=Join-Path $fixture 'Terrias/SharedResources/fixture.json'
 [IO.File]::WriteAllText($asset,'{"version":1}')
 [IO.File]::WriteAllText((Join-Path $fixture 'tools/check.py'),'print(1)')
 $snapshotPath=Join-Path $fixture 'input.json'
 $snapshot=New-AuraReleaseInputSnapshot $fixture $snapshotPath
-if(@($snapshot.files).Count -ne 2){throw 'Snapshot omitted package or test inputs.'}
+foreach($required in @('Terrias/SharedResources/fixture.json','tools/check.py','tools/shared-consumers.json','AuraDirectorDetour-Dev/Backend.cs','AuraDirectorDetour-Dev/Aura.Director.DetourBackend.csproj','Terrias/Scripts/External.dll')){
+    if(@($snapshot.files.path) -notcontains $required){throw "Snapshot omitted release input: $required"}
+}
 $null=Assert-AuraReleaseInputSnapshot $fixture $snapshotPath
+# A clean package and an existing package have the same input inventory.
+foreach($consumer in $consumerManifest.consumers){
+    foreach($artifact in Get-SharedConsumerPackageArtifacts $fixture $consumer Release){
+        $packageFile=Join-Path $fixture $artifact.Target
+        $null=[IO.Directory]::CreateDirectory((Split-Path -Parent $packageFile))
+        [IO.File]::WriteAllText($packageFile,'old package output')
+        $null=Assert-AuraReleaseInputSnapshot $fixture $snapshotPath
+        [IO.File]::WriteAllText($packageFile,'rebuilt package output')
+        $null=Assert-AuraReleaseInputSnapshot $fixture $snapshotPath
+    }
+}
+foreach($inputFile in @($dependencySource,$inputDll)){
+    $originalInput=[IO.File]::ReadAllText($inputFile)
+    [IO.File]::WriteAllText($inputFile,'modified input')
+    $rejected=$false
+    try{$null=Assert-AuraReleaseInputSnapshot $fixture $snapshotPath}catch{$rejected=$true}
+    if(-not $rejected){throw "Snapshot allowed a modified dependency input: $inputFile"}
+    [IO.File]::WriteAllText($inputFile,$originalInput)
+}
 [IO.File]::WriteAllText($asset,'{"version":2}')
 $rejected=$false
 try{$null=Assert-AuraReleaseInputSnapshot $fixture $snapshotPath}catch{$rejected=$true}

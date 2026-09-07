@@ -34,6 +34,63 @@ public sealed class ReplayHandCaptureTests
         card.dataConfig = new DataConfig { InstanceID = id, Name = id, Cost = 1 };
         return card;
     }
+
+    [Test] public void InputTakeoverEndsArrivalAndCancelledDragDoesNotCreateALayoutAction()
+    {
+        var card = NewCard("interrupted-draw");
+        NativeCreate(card);
+        MatchReplayRecorder.FlushFixtureBarrier();
+        var starts = MatchReplayRecorder.Starts.Count;
+        MatchReplayRecorder.PrepareHandInput(card);
+        card.draging = true;
+        MatchReplayRecorder.SetFixtureWaiting(true);
+        card.transform.localPosition = new Vector3(600, 200, 0);
+        MatchReplayRecorder.Clock += 30_000_000;
+        MatchReplayRecorder.BeginHandLayout(ui);
+        MatchReplayRecorder.EndHandLayout(ui);
+        card.draging = false;
+        MatchReplayRecorder.BeginHandLayout(ui);
+        MatchReplayRecorder.EndHandLayout(ui);
+        Assert.AreEqual(starts, MatchReplayRecorder.Starts.Count);
+        Assert.IsFalse(MatchReplayRecorder.StateBarrierRequested);
+        // An actual subsequent draw must still bring both arrival and reflow.
+        var next = NewCard("next-draw");
+        NativeCreate(next);
+        Assert.Greater(MatchReplayRecorder.Starts.Count, starts);
+        Assert.IsTrue(MatchReplayRecorder.StateBarrierRequested);
+    }
+
+    [Test] public void AcceptedSelectionKeepsReflowBeforeNativeSelectionReset()
+    {
+        var card = NewCard("retained-card");
+        NativeCreate(card);
+        MatchReplayRecorder.EndFixtureMotion(card);
+        MatchReplayRecorder.FlushFixtureBarrier();
+        var starts = MatchReplayRecorder.Starts.Count;
+        MatchReplayRecorder.SetFixtureSelection(false);
+        MatchReplayRecorder.BeginHandLayout(ui);
+        Assert.AreEqual(starts, MatchReplayRecorder.Starts.Count);
+        MatchReplayRecorder.SetFixtureSelection(true);
+        MatchReplayRecorder.BeginHandLayout(ui);
+        MatchReplayRecorder.EndHandLayout(ui);
+        Assert.AreEqual(starts + 1, MatchReplayRecorder.Starts.Count);
+        Assert.IsTrue(MatchReplayRecorder.StateBarrierRequested);
+    }
+
+    [Test] public void HoverTakeoverEndsTheOldAutomaticLayoutBeforePointerMotion()
+    {
+        var card = NewCard("hovered-card");
+        NativeCreate(card);
+        MatchReplayRecorder.FlushFixtureBarrier();
+        MatchReplayRecorder.PrepareHandHover(card);
+        MatchReplayRecorder.FinishHandHover();
+        MatchReplayRecorder.SetFixtureWaiting(true);
+        card.transform.localPosition = new Vector3(300, 500, 0);
+        var starts = MatchReplayRecorder.Starts.Count;
+        MatchReplayRecorder.Clock += 20_000_000;
+        MatchReplayRecorder.BeginHandLayout(ui);
+        Assert.AreEqual(starts, MatchReplayRecorder.Starts.Count);
+    }
     private void NativeCreate(CardItem card)
     {
         MatchReplayRecorder.ObserveCardDraw(card);

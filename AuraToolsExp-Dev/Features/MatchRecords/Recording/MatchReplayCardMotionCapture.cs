@@ -14,46 +14,8 @@ internal static partial class MatchReplayRecorder
 {
     private static readonly Dictionary<string, Stack<string>> NativeCardCreates = new(StringComparer.Ordinal);
 
-    internal static void BeginCardDrag(object? target)
-    {
-        if (MatchReplaySessionState.IsPlayback || target is not CardItem card || !card.draging) return;
-        lock (Gate) { if (CanCaptureNoLock()) EnsureHandMotionNoLock(card, released: false); }
-    }
-
-    internal static void EndCardDrag(object? target)
-    {
-        if (target is not CardItem card) return;
-        lock (Gate)
-        {
-            var pair = MotionFor(card);
-            if (pair.Value == null) return;
-            pair.Value.PointerReleased = true;
-            CaptureCardMotionSampleNoLock(pair.Key, pair.Value, ElapsedTicks());
-        }
-    }
-
     private static KeyValuePair<string, CardMotionObservation> MotionFor(CardItem card) =>
         PendingCardMotionObservations.FirstOrDefault(pair => ReferenceEquals(pair.Value.Visual, card));
-
-    private static void EnsureHandMotionNoLock(CardItem card, bool released)
-    {
-        if (card.dataConfig == null || builder == null || !card.gameObject.activeInHierarchy) return;
-        var existing = MotionFor(card);
-        if (existing.Value != null)
-        {
-            existing.Value.PointerReleased = released;
-            existing.Value.CaptureStateOnComplete = true;
-            return;
-        }
-        var source = ReplayFactCaptureV17.CaptureActionSource(card, catalog!);
-        source.Kind = ReplayTransactionKindsV17.Passive;
-        source.Label = "HandCardMotion";
-        var transactionId = BeginSourceTransactionNoLock(source, pushContext: false);
-        var key = StartMotionNoLock(source.SourceInstanceId, transactionId, card, card.GetComponentInParent<FightUI>(), "Hand", true);
-        var observation = PendingCardMotionObservations[key];
-        observation.IsHandMotion = true;
-        observation.PointerReleased = released;
-    }
 
     private static string OpenCardTransaction(string sourceId) => ContextStack.LastOrDefault(id =>
         Transactions.TryGetValue(id, out var entry) && entry.Source.SourceInstanceId == sourceId && builder!.IsOpen(id))
