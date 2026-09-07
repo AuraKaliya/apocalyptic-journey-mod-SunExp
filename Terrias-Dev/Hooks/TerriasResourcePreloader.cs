@@ -63,6 +63,11 @@ public static class TerriasResourcePreloader
             AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => TerriasResourceCache.Load<Texture>(path, true, "visual") != null);
             AddPolymorphCardFaceItems();
             AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => TerriasResourceCache.Load<Sprite>(path, true, "ui") != null);
+            if (VisualRegistry.FieldPresentation.Enabled && VisualRegistry.FieldPresentation.BackgroundsEnabled
+                && TerriasPerformanceSettings.FieldVisualsEnabled)
+                AddItems(VisualRegistry.FieldVisuals().Where(spec => spec.Enabled).Select(spec => spec.BackgroundPath),
+                    "field-presentation", 110, WarmupTier.Opportunity,
+                    path => TerriasResourceCache.Load<Texture>(path, true, "field-presentation") != null);
         }
 
         TerriasPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");

@@ -31,6 +31,12 @@ public sealed class VisualRegistryDocument
 
     [JsonProperty("effects")]
     public List<VisualEffectVisualSpec> Effects { get; set; } = new();
+
+    [JsonProperty("fieldPresentation")]
+    public FieldPresentationOptions FieldPresentation { get; set; } = new();
+
+    [JsonProperty("fields")]
+    public List<FieldVisualSpec> Fields { get; set; } = new();
 }
 
 public sealed class VideoVisualSpec

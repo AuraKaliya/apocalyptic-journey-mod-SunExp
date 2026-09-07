@@ -75,6 +75,10 @@ public static class VisualRegistry
         return ActiveDocument().Effects.FirstOrDefault(item => IsEnabled(item.Enabled, item.Id, id));
     }
 
+    public static FieldPresentationOptions FieldPresentation => ActiveDocument().FieldPresentation;
+
+    public static IReadOnlyList<FieldVisualSpec> FieldVisuals() => ActiveDocument().Fields.ToArray();
+
     public static string ResolveContentPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -205,6 +209,9 @@ public static class VisualRegistry
         current.MapNodeArt = Merge(current.MapNodeArt, fallback.MapNodeArt, spec => spec.Id, NormalizeMapNodeArt);
         current.Shaders = Merge(current.Shaders, fallback.Shaders, spec => spec.Id, NormalizeShader);
         current.Effects = Merge(current.Effects, fallback.Effects, spec => spec.Id, NormalizeEffect);
+        current.FieldPresentation ??= new FieldPresentationOptions();
+        current.FieldPresentation.Normalize();
+        current.Fields = Merge(current.Fields, fallback.Fields, spec => spec.Id, spec => spec.Normalize());
         return current;
     }
 
@@ -369,6 +376,7 @@ internal static class VisualRegistryDefaults
         {
             SchemaVersion = 1,
             OwnerModId = "Terrias",
+            Fields = FieldVisualSpec.Defaults(),
             Textures = new List<TextureVisualSpec>
             {
                 new()

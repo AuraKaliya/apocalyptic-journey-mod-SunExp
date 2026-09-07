@@ -1,0 +1,72 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 3
+  tags: []
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - Enemy
+  - Water
+  - UI
+  - Player
+  - PostProcess
+  - Effect
+  - InkEffect
+  - UpperUI
+  - live2d
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  - ''
+  m_SortingLayers:
+  - name: background
+    uniqueID: 3484499031
+    locked: 0
+  - name: middleground
+    uniqueID: 592929821
+    locked: 0
+  - name: role
+    uniqueID: 3314914711
+    locked: 0
+  - name: foreground
+    uniqueID: 615308629
+    locked: 0
+  - name: effect
+    uniqueID: 2497271261
+    locked: 0
+  - name: uiscene
+    uniqueID: 3947820495
+    locked: 0
+  - name: ui
+    uniqueID: 3292245449
+    locked: 0
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: uieffect
+    uniqueID: 214784029
+    locked: 0
+  - name: loading
+    uniqueID: 3229050777
+    locked: 0
+  m_RenderingLayers:
+  - Default

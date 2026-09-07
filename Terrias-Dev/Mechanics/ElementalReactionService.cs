@@ -110,6 +110,7 @@ public static class ElementalReactionService
         result.IsLunarReaction = plan.IsLunarReaction;
         if (plan.HasReaction)
         {
+            if (plan.IsLunarReaction) FieldPresentationSignals.Trigger(TerriasFieldId.MoonDomain);
             PlayerApi.ShowCaption(plan.IsLunarReaction
                 ? LunarReactionService.DisplayName(plan.Reaction!.Reaction, plan.Reaction.DisplayName)
                 : plan.Reaction!.DisplayName);

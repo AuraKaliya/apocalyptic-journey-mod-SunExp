@@ -9,6 +9,7 @@ public static class TerriasPerformanceSettings
     public const string SharedDiagnosticsOwnerId = "AuraShared";
     public const string SharedDiagnosticsFeatureId = "Diagnostics.Performance";
     public const string UiPoolingFeatureId = "UI.ObjectPooling";
+    public const string FieldVisualFeatureId = "Field.EnvironmentPresentation";
 
     private const string LegacyCountersKey = "TerriasPerfCounters";
     private const string WunaOrbitFireEnabledKey = "TerriasWunaOrbitFireEnabled";
@@ -23,6 +24,17 @@ public static class TerriasPerformanceSettings
     private static bool cachedCountersEnabled;
     private static bool cachedWunaOrbitFireEnabled;
     private static bool cachedUiPoolEnabled = true;
+    private static bool cachedFieldVisualsEnabled = true;
+
+    public static bool FieldVisualsEnabled
+    {
+        get { RefreshIfNeeded(); return cachedFieldVisualsEnabled; }
+    }
+
+    public static float FieldVisualGeometryInterval(bool lowQuality, bool reducedMotion) =>
+        reducedMotion ? 1f / 12f : lowQuality ? 1f / 15f : 1f / 30f;
+
+    public static int FieldVisualParticleBudget(bool lowQuality) => lowQuality ? 12 : 36;
 
     public static bool CountersEnabled
     {
@@ -75,6 +87,8 @@ public static class TerriasPerformanceSettings
         }
 
         featureDefaultsRegistered = true;
+        AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, FieldVisualFeatureId,
+            defaultEnabled: true, "Terrias field presentation default");
         AuraFeatureSwitchRuntime.RegisterFeature(
             SharedDiagnosticsOwnerId,
             SharedDiagnosticsFeatureId,
@@ -147,12 +161,15 @@ public static class TerriasPerformanceSettings
                 && !ReadFlag(WunaOrbitFireDisabledKey, false);
             cachedUiPoolEnabled = AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, UiPoolingFeatureId)
                                   && ReadDefaultOnFlag(LegacyUiPoolKey);
+            cachedFieldVisualsEnabled = AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, FieldVisualFeatureId)
+                                        && ReadDefaultOnFlag("TerriasFieldVisuals");
         }
         catch
         {
             cachedCountersEnabled = false;
             cachedWunaOrbitFireEnabled = false;
             cachedUiPoolEnabled = true;
+            cachedFieldVisualsEnabled = true;
         }
 
         lastRefreshTick = now;

@@ -3,6 +3,18 @@
   "name": "Terrias validation gate",
   "steps": [
     {
+      "id": "terrias-field-presentation",
+      "kind": "script",
+      "path": "tools/Test-TerriasFieldPresentation.ps1",
+      "owner": "Terrias",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["field-presentation", "visuals", "resources", "csharp"],
+      "profiles": ["csharp", "resources", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "build-terrias",
       "kind": "script",
       "path": "tools/Build-TerriasDll.ps1",

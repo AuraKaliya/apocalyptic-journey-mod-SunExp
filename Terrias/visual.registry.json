@@ -1,6 +1,42 @@
 {
   "schemaVersion": 1,
   "ownerModId": "Terrias",
+  "fieldPresentation": {
+    "enabled": true,
+    "quality": "standard",
+    "intensity": 0.8,
+    "reducedMotion": false,
+    "backgroundsEnabled": true
+  },
+  "fields": [
+    {
+      "id": "scorching_canopy",
+      "enabled": true,
+      "backgroundPath": "Mods/Terrias/ModResource/Images/Field/scorching_canopy.png",
+      "primaryColor": "#EF7946",
+      "accentColor": "#FFC676",
+      "particleCount": 32,
+      "backgroundOpacity": 1.0
+    },
+    {
+      "id": "samsara_garden",
+      "enabled": true,
+      "backgroundPath": "Mods/Terrias/ModResource/Images/Field/samsara_garden.png",
+      "primaryColor": "#73C9AE",
+      "accentColor": "#F1ACCD",
+      "particleCount": 24,
+      "backgroundOpacity": 1.0
+    },
+    {
+      "id": "moon_domain",
+      "enabled": true,
+      "backgroundPath": "Mods/Terrias/ModResource/Images/Field/moon_domain.png",
+      "primaryColor": "#9BAEEF",
+      "accentColor": "#E5D8FF",
+      "particleCount": 28,
+      "backgroundOpacity": 1.0
+    }
+  ],
   "textures": [
     {
       "id": "solar_memory.event_map_card",
@@ -219,6 +255,7 @@
     }
   ],
   "shaders": [
+    { "id": "field.environment.unlit", "shaderName": "Sprites/Default", "enabled": true },
     {
       "id": "terrias.star_score_hud",
       "shaderName": "Terrias/StarScoreHud",
@@ -245,6 +282,7 @@
     }
   ],
   "effects": [
+    { "id": "field.environment", "kind": "field-mesh", "shaderId": "field.environment.unlit", "enabled": true },
     {
       "id": "terrias.star_score_hud.lit_slot",
       "kind": "ui-material",
