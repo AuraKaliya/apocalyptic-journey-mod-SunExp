@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections;
 using System.Linq;

@@ -1050,21 +1050,44 @@ internal static partial class AuraToolsTestSuite
             "the transmitted scene plan contains logical assets and positions, never rich player or damage source data");
     }
     
-    public static void TestUnifiedCgAnimationSpec()
+    public static void TestEventCgArtCatalog()
     {
-        var native = AuraToolsCgAnimationSpec.FromJson(
-            "{\"FrameCount\":2,\"FrameRate\":8}",
-            new[] { "Idle_10", "Idle_00", "Idle_01" });
-        Assert(native.OrderedFrameNames.SequenceEqual(new[] { "Idle_00", "Idle_01" })
-               && Math.Abs(native.FrameSeconds - 0.125f) < 0.001f,
-            "native idle animation config uses frame count and frame rate");
-    
-        var shared = AuraToolsCgAnimationSpec.FromJson(
-            "{\"AnimationPerFrame\":0.2,\"isLoop\":false,\"Direction\":\"Left\"}",
-            new[] { "matte_00002", "matte_00001" });
-        Assert(shared.OrderedFrameNames.SequenceEqual(new[] { "matte_00001", "matte_00002" })
-               && Math.Abs(shared.FrameSeconds - 0.2f) < 0.001f
-               && !shared.Loop,
-            "the unified CG asset resolver uses one deterministic idle animation parser");
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "tools", "shared-consumers.json")))
+            directory = directory.Parent;
+        if (directory == null) throw new InvalidOperationException("Repository root not found.");
+        var root = Path.Combine(directory.FullName, "AuraToolsExp", "SharedResources", "EventCg");
+        var catalog = AuraToolsEventCgArtCatalog.Parse(File.ReadAllText(Path.Combine(root, "event-cg.art.json")));
+        Assert(catalog.Characters.Count == 15 && catalog.PoseCount == 6 && catalog.Themes.Count == 7,
+            "the event CG catalog contains the reviewed character range, six poses, and seven themes");
+        Assert(catalog.Assets.Values.All(asset => File.Exists(AuraToolsEventCgArtCatalog.ResolveAssetPath(root, asset.Path))),
+            "all event CG logical assets resolve inside the published art package");
+        var caroline = catalog.FindCharacter("career_5")!;
+        Assert(catalog.ResolvePose(caroline, AuraToolsEventCgSceneIds.BattleDefeat) != caroline.Neutral
+               && catalog.ResolvePose(caroline, AuraToolsEventCgSceneIds.BattleOpening) == caroline.Neutral,
+            "event poses are selected by event and absent poses use the same character's neutral portrait");
+        Assert(catalog.FindCharacter("career_5", "Other:skin") == null
+               && catalog.FindCharacter("career_11")!.Id == "caroline-alt",
+            "custom skins do not accidentally select default art and alternate forms keep separate identities");
+        var escaped = false;
+        try { AuraToolsEventCgArtCatalog.ResolveAssetPath(root, "../outside.png"); }
+        catch (InvalidDataException) { escaped = true; }
+        Assert(escaped, "packaged artwork paths cannot escape the art directory");
+        var legacy = JsonConvert.DeserializeObject<AuraToolsEventCgSceneSettings>(@"{""hold"":2}")!;
+        legacy.Normalize(AuraToolsEventCgSceneIds.VictoryStandard);
+        Assert(legacy.MotionEnabled && legacy.EffectiveHold == 2f, "old event settings retain duration and gain the motion default");
+        legacy.MotionEnabled = false;
+        var roundTrip = JsonConvert.DeserializeObject<AuraToolsEventCgSceneSettings>(JsonConvert.SerializeObject(legacy))!;
+        Assert(!roundTrip.MotionEnabled, "reduced-motion choice survives settings serialization");
+        var localArtwork = new AuraCgSceneArtwork
+        {
+            CameraPush = 0.02f,
+            Layers = new List<AuraCgSceneArtLayerSpec> { new() { MotionX = 0.02f, MotionY = 0.01f, Pulse = 0.1f } }
+        };
+        AuraToolsEventCgArtCatalog.ApplyMotionPreference(localArtwork, roundTrip.MotionEnabled);
+        Assert(localArtwork.CameraPush == 0f && localArtwork.Layers.All(layer => layer.MotionX == 0f && layer.MotionY == 0f && layer.Pulse == 0f),
+            "a recipient's reduced-motion preference disables camera, layer movement, and light pulses");
+        roundTrip.ResetPresentation();
+        Assert(roundTrip.MotionEnabled && roundTrip.UsesDefaultPresentation, "reset restores the complete event presentation default");
     }
 }

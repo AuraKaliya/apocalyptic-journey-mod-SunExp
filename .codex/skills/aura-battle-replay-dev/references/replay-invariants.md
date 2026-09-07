@@ -5,6 +5,52 @@ counterfactual decision it is meant to change and its applicability boundary.
 
 ## Journal Time and Durability
 
+Current recording refinements:
+
+- Hand acquisition has separate request, materialization and motion boundaries.
+  `CreateCardItem` may only queue or reject a draw. Observe native DrawEffect
+  before DrawScript can auto-use a view; commit hand state after actual creation
+  and layout, without waiting for another action. Observe the existing cards'
+  reflow as well as the incoming card. Finish at native tween completion and
+  the measured hand pose; do not use an invented flight path or a fixed delay.
+- For nested card creation, finalize a new view's name/cost snapshot only for
+  the exact configuration passed to that completed native creation call.
+  Other pending views may still be inside their own Init. Later draws must not
+  rewrite a prior arrival snapshot. Completed/destroyed native cards do not
+  re-enter the static hand simply because a native list still references them.
+- New writers declare `observed-arrival-and-layout.v1` in the UI descriptor
+  and require `observed-hand-arrival-and-layout.v1`. Missing arrival witnesses,
+  repeated use of an old arrival for a redraw, and hand interaction before any
+  appearance reject the document. Legacy records omit the marker and retain
+  their original bytes; missing trajectories are not synthesized into them.
+
+- Native `DoCardUseAnimation` leaves its centre CardItem's `dataConfig` null
+  when `needInit=false`. Bind the one newly created direct centre child within
+  the observed call, excluding earlier/claimed views. Its synchronous exit
+  hook is part of that call, not a second visual. Reject ambiguous candidates.
+
+- Observe actual hand dragging through release, return or native exit. Native
+  attack cards retain their own targeting behavior. Physical visual identity
+  distinguishes hand and centre views of one logical card; its static hand
+  view is hidden while recorded motion owns the visible card.
+- Preserve both ends of stationary intervals in compressed card/actor tracks.
+  Removing all repeated poses makes interpolation move during a hold. Enter
+  burn only at its observed phase and recognize the native shader, rather than
+  any material exposing `_Fade`.
+- Companion anchors use measured collider geometry and recorded owner pose.
+  Legacy records retain their recorded idle geometry. Attack sprite extents
+  are not anchors. Detached Spirit HUDs omit the additional element badge.
+- Added nullable geometry/view identities omit absent fields from canonical
+  JSON; documents containing them declare reader capabilities. Do not invent
+  missing drag samples or collider measurements in retained documents.
+- Capture batches retain an integrity hash. Provisional event/state hash chains
+  are deferred until finalization after mutable tracks close. A prepared diff
+  is reusable only at its original source state version.
+- Transaction snapshots use independent typed copies; indexed transaction
+  starts determine the durability watermark. Pin owner provenance per battle
+  instead of scanning assemblies for every buff. Canonical serializers are
+  local to their thread.
+
 Invariant: truth events keep monotonic logical state time; presentation events
 keep their actual observed time even if actor/owner binding makes them arrive at
 a higher sequence later. Open transactions and mutable motion tracks hold back
@@ -91,7 +137,11 @@ Feature instances, and active state untouched.
 
 Invariant: AuraToolsExp automatically records native visible surfaces. Private
 MOD state/layout/presentation is portable only through owner-qualified shared
-providers/modules with declared schema, build, and renderer capability.
+providers/modules with declared schema, portability and renderer capability.
+Build identity records provenance; it is not a module compatibility version.
+Match the owner/type and declared contract exactly. Breaking payload or renderer
+changes must version that contract; unrelated recompilation must not invalidate
+a sealed record. Keep recorded build identities and document roots unchanged.
 
 This prevents AuraToolsExp from reflecting arbitrary Terrias objects or making
 Terrias an implicit shared framework. It does not require a provider for a MOD
@@ -99,3 +149,31 @@ object already represented completely by native Status/Card/Intent surfaces.
 
 For Terrias, independently cover Spirit and Projection spawn, state, intent,
 action, despawn, owner attachment, and provider-required renderer behavior.
+
+## Native UI Subtree Ownership
+
+Removing a UI controller does not remove its authored graphics or initialization
+requirements. Classify runtime-only owned subtrees while their components still
+exist and remove those subtrees from the inactive replay clone before activation.
+Native tutorial previews must not survive as masks, portraits or dialogue after
+their owner is stripped. Match component identity rather than names or sibling
+indexes; leave the original prefab and ordinary battle presentation intact.
+
+Exercise this boundary in Unity with active, inactive, nested and renamed
+owners, same-name ordinary graphics, first activation, teardown and reopening.
+
+## Observed Geometry and Independent Tracks
+
+Recorded screen/canvas coordinates must be converted through the playback
+canvas before use under an offset or scaled native container. Preserve the
+coordinate origin, native canvas scale contract, prefab pivot and observed
+cost. A single mutable card view cannot represent overlapping trajectories.
+
+Source metadata does not authorize an invented card animation: a skill can use
+a Card data descriptor while remaining a skill action. Instantiate moving cards
+only from their observed tracks. Bind actor sampling to its actual native
+generation and resolved state; a global busy flag can retain unrelated actions.
+Keep owner-attached module pulses independent from underlying status tracks.
+
+Before removing a long quiet interval, verify its actor/round boundaries in the
+record. Recorded player think time is not evidence of a lost enemy animation.

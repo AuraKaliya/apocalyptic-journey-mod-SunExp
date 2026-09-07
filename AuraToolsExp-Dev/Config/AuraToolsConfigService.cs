@@ -20,6 +20,7 @@ public static class AuraToolsConfigService
     private static readonly Dictionary<string, bool> LastModuleSaveResults = new(StringComparer.Ordinal);
     private static readonly AuraToolModuleConfigStore ModuleStore = new();
     private static AuraToolsLoggingSettings lastCommittedLogging = new();
+    private static string committedRoot = "{}";
 
     public static AuraToolsRootConfig Root { get; internal set; } = new();
 
@@ -107,7 +108,6 @@ public static class AuraToolsConfigService
             AuraToolsPaths.Initialize(config);
             ReloadNoLock();
             AuraToolsPerformanceSettings.PublishSharedOverride();
-            SaveAllNoLock();
             AuraToolsLog.Info("[Config] package=" + ModDirectory + ", data=" + DataRootDirectory);
         }
     }
@@ -158,8 +158,7 @@ public static class AuraToolsConfigService
         PixelEmoji.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.PixelEmoji,
-            PixelEmoji,
-            () => SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile));
+            PixelEmoji);
     }
 
     public static void SaveSkillCg()
@@ -167,8 +166,7 @@ public static class AuraToolsConfigService
         SkillCg.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.SkillCg,
-            SkillCg,
-            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
+            SkillCg);
     }
 
     public static void SaveCardUseCg()
@@ -176,8 +174,7 @@ public static class AuraToolsConfigService
         SkillCg.CardUseCg.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.CardUseCg,
-            SkillCg.CardUseCg,
-            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
+            SkillCg.CardUseCg);
     }
 
     public static void SaveEventCg()
@@ -185,8 +182,7 @@ public static class AuraToolsConfigService
         SkillCg.EventCg.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.EventCg,
-            SkillCg.EventCg,
-            () => SaveModule(SkillCg, Root.SkillCg.ConfigFile));
+            SkillCg.EventCg);
     }
 
     public static void SaveSkin()
@@ -194,8 +190,7 @@ public static class AuraToolsConfigService
         Skin.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.Skin,
-            Skin,
-            () => SaveModule(Skin, Root.Skin.ConfigFile));
+            Skin);
     }
 
     public static void SaveLogging()
@@ -248,25 +243,25 @@ public static class AuraToolsConfigService
     public static void SavePresetLibrary()
     {
         PresetLibrary.Normalize();
-        SaveModuleSetting(AuraToolModuleIds.PresetLibrary, PresetLibrary, () => { });
+        SaveModuleSetting(AuraToolModuleIds.PresetLibrary, PresetLibrary);
     }
 
     public static void SaveModHealth()
     {
         ModHealth.Normalize();
-        SaveModuleSetting(AuraToolModuleIds.ModHealth, ModHealth, () => { });
+        SaveModuleSetting(AuraToolModuleIds.ModHealth, ModHealth);
     }
 
     public static void SaveLobbyStatus()
     {
         LobbyStatus.Normalize();
-        SaveModuleSetting(AuraToolModuleIds.LobbyStatus, LobbyStatus, () => { });
+        SaveModuleSetting(AuraToolModuleIds.LobbyStatus, LobbyStatus);
     }
 
     public static void SaveAdventureArchive()
     {
         AdventureArchive.Normalize();
-        SaveModuleSetting(AuraToolModuleIds.AdventureArchive, AdventureArchive, () => { });
+        SaveModuleSetting(AuraToolModuleIds.AdventureArchive, AdventureArchive);
     }
 
     public static void SaveBattleBgm()
@@ -274,8 +269,7 @@ public static class AuraToolsConfigService
         Audio.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.BattleBgm,
-            Audio.BattleBgm,
-            () => SaveModule(Audio, Root.Audio.ConfigFile));
+            Audio.BattleBgm);
     }
 
     public static void SaveCardUseAudio()
@@ -283,8 +277,7 @@ public static class AuraToolsConfigService
         Audio.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.CardUseAudio,
-            Audio.CardUse,
-            () => SaveModule(Audio, Root.Audio.ConfigFile));
+            Audio.CardUse);
     }
 
     public static void SaveVoice()
@@ -292,8 +285,7 @@ public static class AuraToolsConfigService
         Audio.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.Voice,
-            Audio.Voice,
-            () => SaveModule(Audio, Root.Audio.ConfigFile));
+            Audio.Voice);
     }
 
     public static void PersistVoiceMigration()
@@ -301,10 +293,8 @@ public static class AuraToolsConfigService
         Audio.Normalize();
         lock (Gate)
         {
-            if (SaveModuleSettingNoNotify(AuraToolModuleIds.Voice, Audio.Voice, out _))
-            {
-                SaveModule(Audio, Root.Audio.ConfigFile);
-            }
+            if (!SaveModuleSettingNoNotify(AuraToolModuleIds.Voice, Audio.Voice, out _))
+                throw new AuraToolsConfigCommitException(AuraToolModuleIds.Voice);
         }
     }
 
@@ -313,8 +303,7 @@ public static class AuraToolsConfigService
         CardVisual.Normalize();
         SaveModuleSetting(
             AuraToolModuleIds.CardVisual,
-            CardVisual,
-            () => SaveModule(CardVisual, Root.CardVisual.ConfigFile));
+            CardVisual);
     }
 
     public static void SaveAudioFeature(bool battleBgm)
@@ -348,7 +337,6 @@ public static class AuraToolsConfigService
                 return false;
             }
 
-            SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
         }
 
         AuraToolConfigChangeBus.Publish(AuraToolModuleIds.StarterDeck, revision);
@@ -469,6 +457,7 @@ public static class AuraToolsConfigService
         Root.Skin.Enabled = true;
         Root.CardVisual.Enabled = true;
         Root.Logging.Enabled = true;
+        committedRoot = JsonConvert.SerializeObject(Root);
         Audio = LoadOrDefault(Root.Audio.ConfigFile, new AuraToolsAudioSettings());
         MatchExperience = LoadOrDefault(Root.MatchExperience.ConfigFile, new AuraToolsMatchExperienceSettings());
         PixelEmoji = LoadOrDefault(Root.PixelEmoji.ConfigFile, new AuraToolsPixelEmojiSettings());
@@ -617,12 +606,8 @@ public static class AuraToolsConfigService
     private static void SaveAllNoLock()
     {
         SaveModule(Root, AuraToolsIds.RootConfigFileName);
-        SaveModule(Audio, Root.Audio.ConfigFile);
-        SaveModule(MatchExperience, Root.MatchExperience.ConfigFile);
-        SaveModule(PixelEmoji, Root.PixelEmoji.ConfigFile);
-        SaveModule(SkillCg, Root.SkillCg.ConfigFile);
-        SaveModule(Skin, Root.Skin.ConfigFile);
-        SaveModule(CardVisual, Root.CardVisual.ConfigFile);
+        // Legacy aggregate files remain read-only migration inputs. Each
+        // module has exactly one authoritative persisted document.
         SaveAllModuleSettingsNoLock();
     }
 
@@ -635,118 +620,94 @@ public static class AuraToolsConfigService
         if (migrated)
         {
             migratedCount++;
+            if (!ModuleStore.Save(moduleId, value, out _)) throw new AuraToolsConfigCommitException(moduleId);
         }
         return value;
     }
 
     private static void SaveAllModuleSettingsNoLock()
     {
-        SaveModuleSettingNoNotify(
+        SaveModuleSetting(
             AuraToolModuleIds.BattleBgm,
-            Audio.BattleBgm,
-            out _);
-        SaveModuleSettingNoNotify(
+            Audio.BattleBgm);
+        SaveModuleSetting(
             AuraToolModuleIds.CardUseAudio,
-            Audio.CardUse,
-            out _);
-        SaveModuleSettingNoNotify(
+            Audio.CardUse);
+        SaveModuleSetting(
             AuraToolModuleIds.Voice,
-            Audio.Voice,
-            out _);
-        SaveModuleSettingNoNotify(
+            Audio.Voice);
+        SaveModuleSetting(
             AuraToolModuleIds.StarterDeck,
-            MatchExperience.StarterDeck,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.StarterDeck);
+        SaveModuleSetting(
             AuraToolModuleIds.CardRefresh,
-            MatchExperience.CardRefresh,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.CardRefresh);
+        SaveModuleSetting(
             AuraToolModuleIds.Feast,
-            MatchExperience.Feast,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.Feast);
+        SaveModuleSetting(
             AuraToolModuleIds.FeastCg,
-            MatchExperience.Feast.Cg,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.Feast.Cg);
+        SaveModuleSetting(
             AuraToolModuleIds.SafeBox,
-            MatchExperience.SafeBox,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.SafeBox);
+        SaveModuleSetting(
             AuraToolModuleIds.ModSync,
-            MatchExperience.ModSync,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.ModSync);
+        SaveModuleSetting(
             AuraToolModuleIds.DamageStatistics,
-            MatchExperience.DamageMeter,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.DamageMeter);
+        SaveModuleSetting(
             AuraToolModuleIds.BattleReplay,
-            MatchExperience.MatchRecords.Replay,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.MatchRecords.Replay);
+        SaveModuleSetting(
             AuraToolModuleIds.AutoBattle,
-            MatchExperience.AutoBattle,
-            out _);
-        SaveModuleSettingNoNotify(
+            MatchExperience.AutoBattle);
+        SaveModuleSetting(
             AuraToolModuleIds.PixelEmoji,
-            PixelEmoji,
-            out _);
-        SaveModuleSettingNoNotify(
+            PixelEmoji);
+        SaveModuleSetting(
             AuraToolModuleIds.SkillCg,
-            SkillCg,
-            out _);
-        SaveModuleSettingNoNotify(
+            SkillCg);
+        SaveModuleSetting(
             AuraToolModuleIds.CardUseCg,
-            SkillCg.CardUseCg,
-            out _);
-        SaveModuleSettingNoNotify(
+            SkillCg.CardUseCg);
+        SaveModuleSetting(
             AuraToolModuleIds.EventCg,
-            SkillCg.EventCg,
-            out _);
-        SaveModuleSettingNoNotify(
+            SkillCg.EventCg);
+        SaveModuleSetting(
             AuraToolModuleIds.Skin,
-            Skin,
-            out _);
-        SaveModuleSettingNoNotify(
+            Skin);
+        SaveModuleSetting(
             AuraToolModuleIds.CardVisual,
-            CardVisual,
-            out _);
-        SaveModuleSettingNoNotify(
+            CardVisual);
+        SaveModuleSetting(
             AuraToolModuleIds.FileLogging,
-            Logging,
-            out _);
-        SaveModuleSettingNoNotify(
+            Logging);
+        SaveModuleSetting(
             AuraToolModuleIds.PresetLibrary,
-            PresetLibrary,
-            out _);
-        SaveModuleSettingNoNotify(
+            PresetLibrary);
+        SaveModuleSetting(
             AuraToolModuleIds.ModHealth,
-            ModHealth,
-            out _);
-        SaveModuleSettingNoNotify(
+            ModHealth);
+        SaveModuleSetting(
             AuraToolModuleIds.LobbyStatus,
-            LobbyStatus,
-            out _);
-        SaveModuleSettingNoNotify(
+            LobbyStatus);
+        SaveModuleSetting(
             AuraToolModuleIds.AdventureArchive,
-            AdventureArchive,
-            out _);
+            AdventureArchive);
     }
 
     private static void SaveMatchExperienceModule<T>(string moduleId, T settings)
     {
         SaveModuleSetting(
             moduleId,
-            settings,
-            () => SaveModule(MatchExperience, Root.MatchExperience.ConfigFile));
+            settings);
     }
 
     private static void SaveModuleSetting<T>(
         string moduleId,
-        T settings,
-        Action saveLegacy)
+        T settings)
     {
         long revision;
         lock (Gate)
@@ -754,10 +715,11 @@ public static class AuraToolsConfigService
             if (!SaveModuleSettingNoNotify(moduleId, settings, out revision))
             {
                 LastModuleSaveResults[moduleId] = false;
-                return;
+                MatchExperience.MatchRecords.Enabled = MatchExperience.MatchRecords.Statistics.Enabled
+                    || MatchExperience.MatchRecords.Replay.Enabled;
+                throw new AuraToolsConfigCommitException(moduleId);
             }
             LastModuleSaveResults[moduleId] = true;
-            saveLegacy();
         }
         AuraToolConfigChangeBus.Publish(moduleId, revision);
     }
@@ -767,7 +729,9 @@ public static class AuraToolsConfigService
         T settings,
         out long revision)
     {
-        return ModuleStore.Save(moduleId, settings, out revision);
+        var saved = ModuleStore.Save(moduleId, settings, out revision);
+        LastModuleSaveResults[moduleId] = saved;
+        return saved;
     }
 
     private static bool TryCommitLogging(
@@ -866,7 +830,8 @@ public static class AuraToolsConfigService
                 AuraToolsLog.Warn(
                     "Refusing to overwrite newer read-only config: "
                     + safeName);
-                return;
+                JsonConvert.PopulateObject(committedRoot, Root, new JsonSerializerSettings { ObjectCreationHandling = ObjectCreationHandling.Replace });
+                throw new AuraToolsConfigCommitException(safeName);
             }
             var expectedRevision = Revisions.TryGetValue(safeName, out var revision) ? revision : 0;
             var result = AuraSharedConfigStore.WriteOwner(
@@ -880,10 +845,12 @@ public static class AuraToolsConfigService
             if (!result.Success)
             {
                 AuraToolsLog.Warn("Failed to save config " + safeName + ": " + result.Message);
-                return;
+                JsonConvert.PopulateObject(committedRoot, Root, new JsonSerializerSettings { ObjectCreationHandling = ObjectCreationHandling.Replace });
+                throw new AuraToolsConfigCommitException(safeName);
             }
 
             Revisions[safeName] = result.Revision;
+            committedRoot = JsonConvert.SerializeObject(Root);
         }
     }
 

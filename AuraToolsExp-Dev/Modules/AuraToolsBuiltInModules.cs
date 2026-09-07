@@ -493,10 +493,18 @@ internal static class AuraToolsBuiltInModules
             () =>
             {
                 var replay = AuraToolsConfigService.MatchExperience.MatchRecords.Replay;
-                return State(
+                var state = State(
                     AuraToolModuleIds.BattleReplay,
                     BattleReplayEnabled(),
                     "自动保存上限 " + replay.AutoRecordLimit + " 场");
+                if (BattleReplayEnabled() && !AuraToolsMatchRecordsRuntime.StorageReady)
+                {
+                    state.EffectiveEnabled = false;
+                    state.Availability = AuraToolModuleAvailability.Unavailable;
+                    state.Summary = AuraToolsMatchRecordsRuntime.StorageStatus;
+                    state.Attention = AuraToolsMatchRecordsRuntime.StorageStatus;
+                }
+                return state;
             },
             AuraToolsReplaySettingsPage.Show,
             new[] { "回放", "录像", "对局", "视频" });

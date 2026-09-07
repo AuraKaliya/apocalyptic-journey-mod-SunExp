@@ -30,6 +30,9 @@
              Link="Shared\AuraSharedHooks.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBackgroundWorkScheduler.cs"
              Link="Shared\AuraSharedBackgroundWorkScheduler.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedOrderedWorkQueue.cs"
+             Link="Shared\AuraSharedOrderedWorkQueue.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedInitializationReport.cs" Link="Shared\AuraSharedInitializationReport.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsPerformanceSettings.cs"
              Link="Infrastructure\AuraToolsPerformanceSettings.cs" />
     <Compile Include="..\AuraSharedCore\AuraRpcSender.cs"
@@ -92,8 +95,9 @@
              Link="DamageMeter\OutOfRunDamageHistoryBuilder.cs" />
     <Compile Include="..\AuraCgShared\AuraCgSceneContracts.cs"
              Link="Cg\AuraCgSceneContracts.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgAnimationSpec.cs"
-             Link="Cg\AuraToolsCgAnimationSpec.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSceneFraming.cs" Link="Cg\AuraCgSceneFraming.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSceneArtContracts.cs" Link="Cg\AuraCgSceneArtContracts.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsEventCgArtCatalog.cs" Link="Cg\AuraToolsEventCgArtCatalog.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgOutcomeReasonPolicy.cs"
              Link="Cg\AuraToolsCgOutcomeReasonPolicy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Cg\AuraToolsCgSettingsLayoutPolicy.cs"
@@ -116,6 +120,8 @@
              Link="MatchRecords\MatchRecordModels.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Core\*.cs"
              Link="MatchRecords\ReplayV17\Core\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraReplayPresentationShared\AuraReplayPresentationModuleDescriptor.cs"
+             Link="Shared\AuraReplayPresentationModuleDescriptor.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\ReplayV17\Storage\*.cs"
              Link="MatchRecords\ReplayV17\Storage\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Playback\MatchReplaySessionState.cs"
@@ -128,6 +134,8 @@
              Link="MatchRecords\Recording\MatchReplayTerminalGate.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Recording\MatchReplayBaselineGate.cs"
              Link="MatchRecords\Recording\MatchReplayBaselineGate.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Recording\ReplayBackgroundWork.cs"
+             Link="MatchRecords\Recording\ReplayBackgroundWork.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\AuraToolsPanelBuildState.cs"
              Link="Settings\AuraToolsPanelBuildState.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\Settings\AuraToolsContentIdentity.cs"
@@ -166,6 +174,9 @@
              Link="MatchRecords\MatchRecordDatabaseV17.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordDatabaseCaptureV17.cs"
              Link="MatchRecords\MatchRecordDatabaseCaptureV17.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordDatabaseIncomingV17.cs" Link="MatchRecords\MatchRecordDatabaseIncomingV17.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordDatabaseReadV17.cs" Link="MatchRecords\MatchRecordDatabaseReadV17.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\ReplayReplicaStoreV17.cs" Link="MatchRecords\ReplayReplicaStoreV17.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Storage\MatchRecordDatabaseMedia.cs"
              Link="MatchRecords\MatchRecordDatabaseMedia.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\MatchRecords\Analysis\MatchAnalysisBuilder.cs"

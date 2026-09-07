@@ -34,11 +34,10 @@ internal static class DamageMeterNetworkRuntime
 
     public static string CurrentAdventureId => EnsureAdventureId();
 
-    public static bool IsMultiplayer => PlayerManager.Instance != null;
+    public static bool NetworkActive => GameApi.AuraToolsNetworkSession.NetworkActive;
+    public static bool IsHost => GameApi.AuraToolsNetworkSession.IsAuthority;
 
-    public static bool IsHost => !IsMultiplayer || PlayerManager.Instance?.isServer == true;
-
-    public static string LocalPlayerId => PlayerManager.Instance?.PlayerId ?? "single-player";
+    public static string LocalPlayerId => GameApi.AuraToolsNetworkSession.LocalPlayerId;
 
     public static void ResetTransient()
     {
@@ -55,7 +54,7 @@ internal static class DamageMeterNetworkRuntime
     {
         ResetTransient();
         EnsureRunAggregateStarted();
-        if (!IsMultiplayer)
+        if (!NetworkActive)
         {
             LedgerInstance.StartFight(Guid.NewGuid().ToString("N"), sharedEnabled);
             NotifyChanged();
@@ -101,7 +100,7 @@ internal static class DamageMeterNetworkRuntime
 
     public static void Tick()
     {
-        if (!IsMultiplayer || PendingSubmitBatch.Count == 0)
+        if (!NetworkActive || PendingSubmitBatch.Count == 0)
         {
             return;
         }
@@ -173,7 +172,7 @@ internal static class DamageMeterNetworkRuntime
         }
 
         var desiredRound = ++hostRoundSignalCount;
-        if (!IsMultiplayer)
+        if (!NetworkActive)
         {
             LedgerInstance.StartRound(desiredRound);
             NotifyChanged();
@@ -198,7 +197,7 @@ internal static class DamageMeterNetworkRuntime
 
         FlushPendingSubmissions(immediate: true);
 
-        if (!IsMultiplayer)
+        if (!NetworkActive)
         {
             LedgerInstance.EndFight();
             ArchiveSnapshot(LedgerInstance.CreateSnapshot(), result);
@@ -232,7 +231,7 @@ internal static class DamageMeterNetworkRuntime
         damage.RoundIndex = Math.Max(1, LedgerInstance.CurrentRoundIndex);
         damage.ClientTimestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        if (!IsMultiplayer)
+        if (!NetworkActive)
         {
             damage.ServerSequence = LedgerInstance.NextServerSequence();
             if (LedgerInstance.Apply(damage))
@@ -251,7 +250,7 @@ internal static class DamageMeterNetworkRuntime
 
     public static void FlushPendingSubmissions(bool immediate = false)
     {
-        if (!IsMultiplayer || PendingSubmitBatch.Count == 0)
+        if (!NetworkActive || PendingSubmitBatch.Count == 0)
         {
             PendingSubmitBatch.Clear();
             nextSubmitBatchFlushAtMs = 0;
@@ -668,7 +667,7 @@ internal static class DamageMeterNetworkRuntime
 
     public static void RequestSnapshot()
     {
-        if (!IsMultiplayer || snapshotRequestPending)
+        if (!NetworkActive || snapshotRequestPending)
         {
             return;
         }

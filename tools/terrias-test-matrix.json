@@ -41,7 +41,7 @@
     {
       "id": "terrias-content",
       "kind": "script",
-      "path": ".codex/skills/terrias-mod-dev/scripts/validate-terrias.ps1",
+      "path": "tools/Test-TerriasContent.ps1",
       "owner": "Terrias",
       "category": "content",
       "cost": "fast",
@@ -61,9 +61,32 @@
       "enabled": true
     },
     {
+      "id": "terrias-moon-homecoming",
+      "kind": "script",
+      "path": "tools/Test-TerriasMoonHomecoming.ps1",
+      "owner": "Terrias",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["content", "columbina", "moon-homecoming"],
+      "profiles": ["content", "csharp", "columbina", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-olimya",
+      "kind": "script",
+      "path": "tools/Test-TerriasOlimya.ps1",
+      "owner": "Terrias",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["olimya", "role", "content", "currency", "damage", "rpc"],
+      "profiles": ["olimya", "csharp", "content", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "terrias-events",
       "kind": "script",
-      "path": ".codex/skills/terrias-event-dev/scripts/validate-terrias-events.ps1",
+      "path": "tools/Test-TerriasEvents.ps1",
       "owner": "Terrias",
       "category": "content",
       "cost": "fast",

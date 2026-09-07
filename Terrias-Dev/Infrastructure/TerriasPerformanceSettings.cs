@@ -9,13 +9,11 @@ public static class TerriasPerformanceSettings
     public const string SharedDiagnosticsOwnerId = "AuraShared";
     public const string SharedDiagnosticsFeatureId = "Diagnostics.Performance";
     public const string UiPoolingFeatureId = "UI.ObjectPooling";
-    public const string CombatCardViewPoolingFeatureId = "Combat.CardViewPooling";
 
     private const string LegacyCountersKey = "TerriasPerfCounters";
     private const string WunaOrbitFireEnabledKey = "TerriasWunaOrbitFireEnabled";
     private const string WunaOrbitFireDisabledKey = "TerriasWunaOrbitFireDisabled";
     private const string LegacyUiPoolKey = "TerriasUiPool";
-    private const string CombatCardViewPoolKey = "TerriasCombatCardViewPool";
     private const int RefreshMilliseconds = 1000;
 
     private static MethodInfo? getGameVarMethod;
@@ -25,7 +23,6 @@ public static class TerriasPerformanceSettings
     private static bool cachedCountersEnabled;
     private static bool cachedWunaOrbitFireEnabled;
     private static bool cachedUiPoolEnabled = true;
-    private static bool cachedCombatCardViewPoolEnabled = true;
 
     public static bool CountersEnabled
     {
@@ -55,19 +52,6 @@ public static class TerriasPerformanceSettings
     }
 
     public static int UiPoolCapacityPerKey => 64;
-
-    public static bool CombatCardViewPoolEnabled
-    {
-        get
-        {
-            RefreshIfNeeded();
-            return cachedCombatCardViewPoolEnabled;
-        }
-    }
-
-    public static int CombatCardViewPoolCommonCapacity => 8;
-
-    public static int CombatCardViewPoolAttackCapacity => 6;
 
     public static int FrameSchedulerBudget => 32;
 
@@ -101,11 +85,6 @@ public static class TerriasPerformanceSettings
             UiPoolingFeatureId,
             defaultEnabled: true,
             "Terrias UI pooling default");
-        AuraFeatureSwitchRuntime.RegisterFeature(
-            TerriasIds.ModId,
-            CombatCardViewPoolingFeatureId,
-            defaultEnabled: true,
-            "Terrias combat card pooling default");
         lastRefreshTick = int.MinValue;
     }
 
@@ -142,12 +121,6 @@ public static class TerriasPerformanceSettings
             + " effective="
             + cachedUiPoolEnabled
             + "; "
-            + CombatCardViewPoolKey
-            + " raw="
-            + FormatRawValue(ReadGameVarSafe(CombatCardViewPoolKey))
-            + " effective="
-            + cachedCombatCardViewPoolEnabled
-            + "; "
             + WunaOrbitFireEnabledKey
             + " raw="
             + FormatRawValue(ReadGameVarSafe(WunaOrbitFireEnabledKey))
@@ -174,17 +147,12 @@ public static class TerriasPerformanceSettings
                 && !ReadFlag(WunaOrbitFireDisabledKey, false);
             cachedUiPoolEnabled = AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, UiPoolingFeatureId)
                                   && ReadDefaultOnFlag(LegacyUiPoolKey);
-            cachedCombatCardViewPoolEnabled = AuraFeatureSwitchRuntime.IsEnabled(
-                                                  TerriasIds.ModId,
-                                                  CombatCardViewPoolingFeatureId)
-                                              && ReadDefaultOnFlag(CombatCardViewPoolKey);
         }
         catch
         {
             cachedCountersEnabled = false;
             cachedWunaOrbitFireEnabled = false;
             cachedUiPoolEnabled = true;
-            cachedCombatCardViewPoolEnabled = true;
         }
 
         lastRefreshTick = now;

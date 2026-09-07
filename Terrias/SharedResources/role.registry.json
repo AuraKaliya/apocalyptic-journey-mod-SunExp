@@ -6,31 +6,61 @@
     {
       "roleId": "Terrias_loneer_loneer",
       "displayName": "洛奈尔",
-      "aliases": ["loneer"],
+      "aliases": [
+        "loneer"
+      ],
       "packBelong": "Terrias",
       "icon": "Mods/Terrias/ModResource/Images/Icon/Loneer",
       "priority": 100,
-      "tags": ["playable-role", "terrias"],
+      "tags": [
+        "playable-role",
+        "terrias"
+      ],
       "enabled": true
     },
     {
       "roleId": "Terrias_wuna_wuna",
       "displayName": "乌娜",
-      "aliases": ["wuna"],
+      "aliases": [
+        "wuna"
+      ],
       "packBelong": "Terrias",
       "icon": "Mods/Terrias/ModResource/Images/Icon/WuNa",
       "priority": 100,
-      "tags": ["playable-role", "terrias"],
+      "tags": [
+        "playable-role",
+        "terrias"
+      ],
       "enabled": true
     },
     {
       "roleId": "Terrias_columbina_columbina",
       "displayName": "哥伦比娅",
-      "aliases": ["columbina"],
+      "aliases": [
+        "columbina"
+      ],
       "packBelong": "Terrias",
       "icon": "Mods/Terrias/ModResource/Images/Icon/Columbina",
       "priority": 100,
-      "tags": ["playable-role", "terrias"],
+      "tags": [
+        "playable-role",
+        "terrias"
+      ],
+      "enabled": true
+    },
+    {
+      "roleId": "Terrias_olimya_olimya",
+      "displayName": "奥莉米娅",
+      "aliases": [
+        "olimya"
+      ],
+      "packBelong": "Terrias",
+      "icon": "Mods/Terrias/ModResource/Images/Icon/Olimya",
+      "priority": 100,
+      "tags": [
+        "playable-role",
+        "terrias"
+      ],
       "enabled": true
     }
   ]

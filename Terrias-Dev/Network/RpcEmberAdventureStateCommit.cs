@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
 using Terrias.Dll.Infrastructure;
@@ -69,7 +70,7 @@ public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ITerriasServe
             return false;
         }
 
-        if ((remoteRpc || TerriasNetworkRuntime.IsMultiplayerSession()) && !sender.IsAvailable)
+        if ((remoteRpc || TerriasNetworkRuntime.NetworkActive()) && !sender.IsAvailable)
         {
             rejection = "missing sender";
             return false;

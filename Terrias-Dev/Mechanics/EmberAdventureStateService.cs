@@ -93,12 +93,12 @@ public static class EmberAdventureStateService
         };
 
         ApplySnapshot(snapshot, "local:" + safeSource);
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             return snapshot.Level;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             TerriasNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot), safeSource);
             return snapshot.Level;
@@ -241,13 +241,13 @@ public static class EmberAdventureStateService
 
     private static bool IsLocalOwner(string ownerPlayerId, string ownerStatusId)
     {
-        return TerriasNetworkRuntime.IsLocalPlayer(ownerPlayerId)
+        return TerriasNetworkQueries.IsLocalPlayer(ownerPlayerId)
             || string.Equals(ownerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
     }
 
     private static string ResolveOwnerPlayerId(IStatusManager? status)
     {
-        var playerId = TerriasNetworkRuntime.LocalPlayerId();
+        var playerId = TerriasNetworkQueries.LocalPlayerId();
         if (!string.IsNullOrWhiteSpace(playerId))
         {
             return NormalizeId(playerId);

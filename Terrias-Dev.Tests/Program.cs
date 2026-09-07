@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +12,7 @@ using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using Witch.UI.Window;
 
-internal static class Program
+internal static partial class Program
 {
     private static int assertions;
     private const string WhiteRadiance = "\u767d\u66dc";
@@ -19,6 +20,8 @@ internal static class Program
     private static void Main()
     {
         TestDictionaryUtil();
+        TestLedgerCommitFailures();
+        TestProjectionWireIdentity();
         TestRuntimeMemberApi();
         TestTerriasLocalizationValues();
         TestCardCostHelpers();
@@ -37,7 +40,6 @@ internal static class Program
         TestMorningStarCurseFormula();
         TestSunCardPackSelectionMigration();
         TestCardGrantRequest();
-        TestCombatCardViewPoolCatalog();
         TestCombatCardTerminalBoundary();
         TestPerformanceSettings();
         TestCardMutationService();
@@ -346,9 +348,9 @@ internal static class Program
 
     private static void TestBuffPresentationDependencies()
     {
-        Equal(55, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Count,
+        Equal(57, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Count,
             "Every shipped Terrias Buff has an explicit presentation dependency rule");
-        Equal(55, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Distinct(StringComparer.Ordinal).Count(),
+        Equal(57, TerriasBuffPresentationDependencyCatalog.OwnedBuffIds.Distinct(StringComparer.Ordinal).Count(),
             "Terrias Buff presentation dependency ids are unique");
         foreach (var buffId in TerriasBuffPresentationDependencyCatalog.OwnedBuffIds)
         {
@@ -2058,193 +2060,6 @@ internal static class Program
         Equal(TerriasIds.SolarBossSaintWunaMapId, maps[3], "Solar Memory isolation rejects an exclusive replacement result");
         False(SolarMemoryContentIsolationService.RequiresReplacement("map_0", "event_2001"), "Solar Memory isolation accepts ordinary map selections");
         True(SolarMemoryContentIsolationService.RequiresReplacement("map_0", TerriasIds.SolarMemoryFullEventIds[0]), "Solar Memory isolation detects exclusive event ids independently");
-    }
-
-    private static void TestCombatCardViewPoolCatalog()
-    {
-        const int viewRootId = 10101;
-        const int viewGeneration = 29;
-        const int rendererId = 10201;
-        var nativeMaterial = new FakePresentationMaterial(100);
-        var effectMaterial = new FakePresentationMaterial(200);
-        var burnMaterial = new FakePresentationMaterial(300);
-        object? currentMaterial = nativeMaterial;
-        var releasedMaterials = new List<int>();
-
-        var cardEffectLease = AcquireLayer("AuraTools.CardEffect", effectMaterial);
-        var exitAnimationLease = AcquireLayer("Terrias.ExitBurn", burnMaterial);
-        True(cardEffectLease.Release().IsPending
-             && ReferenceEquals(currentMaterial, burnMaterial)
-             && !AuraPresentationMaterialCoordinator.IsViewClean(
-                 viewRootId,
-                 viewGeneration,
-                 out _),
-            "a pooled card stays non-reusable when its lower visual layer is waiting for exit cleanup");
-        True(exitAnimationLease.Release().IsClean
-             && ReferenceEquals(currentMaterial, nativeMaterial)
-             && releasedMaterials.SequenceEqual(new[] { 300, 200 }),
-            "dynamic effect and burn-animation owners unwind through one stack to the native pooled-card material");
-        True(AuraPresentationMaterialCoordinator.IsViewClean(
-                viewRootId,
-                viewGeneration,
-                out _),
-            "the pooled card becomes reusable only after its authoritative material stack is empty");
-
-        var staleExitLease = AcquireLayer("Terrias.StaleExit", burnMaterial, viewGeneration + 1);
-        var foreignMaterial = new FakePresentationMaterial(999);
-        currentMaterial = foreignMaterial;
-        True(staleExitLease.Release().IsBlocked
-             && ReferenceEquals(currentMaterial, foreignMaterial)
-             && !AuraPresentationMaterialCoordinator.IsViewClean(
-                 viewRootId,
-                 viewGeneration + 1,
-                 out _),
-            "a stale exit animation marks the pooled view dirty instead of reattaching a destroyed predecessor material");
-        AuraPresentationMaterialCoordinator.AbandonView(viewRootId, viewGeneration + 1);
-
-        AuraPresentationMaterialLease AcquireLayer(
-            string owner,
-            FakePresentationMaterial material,
-            int generation = viewGeneration)
-        {
-            var acquired = AuraPresentationMaterialCoordinator.TryAcquire(
-                new AuraPresentationMaterialAcquireRequest
-                {
-                    ViewRootInstanceId = viewRootId,
-                    ViewGeneration = generation,
-                    TargetInstanceId = rendererId,
-                    OwnerId = owner,
-                    AppliedMaterial = material,
-                    IsTargetAlive = () => true,
-                    ReadCurrentMaterial = () => currentMaterial,
-                    WriteCurrentMaterial = value => currentMaterial = value,
-                    MaterialInstanceId = value => (value as FakePresentationMaterial)?.Id ?? 0,
-                    ReleaseAppliedMaterial = value => releasedMaterials.Add(
-                        ((FakePresentationMaterial)value).Id)
-                },
-                out var lease,
-                out var failure);
-            True(acquired && lease != null,
-                "pooled card visual layer acquires through the shared material coordinator: " + failure);
-            return lease!;
-        }
-
-        Equal(PooledCardExitKind.MoveToDiscard,
-            PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DiscardTargetPath),
-            "Native discard visuals retain their discard destination adapter");
-        Equal(PooledCardExitKind.MoveToDrawPile,
-            PooledCardViewExit.ClassifyThrowTarget(PooledCardViewExit.DrawPileTargetPath),
-            "Ouroboros-style visuals retain their draw-pile destination adapter");
-        Equal(PooledCardExitKind.Unsupported,
-            PooledCardViewExit.ClassifyThrowTarget("Canvas/FightUI/FutureSpecialZone"),
-            "Unknown future card exits fail closed instead of being treated as discard");
-        True(PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.Burn)
-             && PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.MoveToDiscard)
-             && PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.MoveToDrawPile)
-             && !PooledCardViewExit.RequiresHandLayout(PooledCardExitKind.Unsupported),
-            "Every supported pooled card exit, including burn, commits one authoritative hand layout");
-        True(PooledCardViewExit.UsesDetachedExitLayer(PooledCardExitKind.Burn)
-             && !PooledCardViewExit.UsesDetachedExitLayer(PooledCardExitKind.Unsupported),
-            "Supported exit animations leave the live hand hierarchy before sibling and sorting repair");
-
-        var close = new DataConfig(new Dictionary<string, string>
-        {
-            ["Id"] = TerriasIds.StellarOvertureCloseCardId
-        });
-        True(CombatCardViewPoolCatalog.TryResolveBucket(close, out var closeBucket), "Stellar Overture Close is eligible for combat card pooling");
-        Equal(CombatCardViewPoolCatalog.AttackBucket, closeBucket, "Stellar Overture Close always uses an attack-card view");
-
-        var turn = new DataConfig(new Dictionary<string, string>
-        {
-            ["Id"] = TerriasIds.StellarOvertureTurnCardId
-        });
-        True(CombatCardViewPoolCatalog.TryResolveBucket(turn, out var turnBucket), "Stellar Overture Turn is eligible for combat card pooling");
-        Equal(CombatCardViewPoolCatalog.AttackBucket, turnBucket, "Stellar Overture Turn always uses an attack-card view");
-
-        var heartChange = new DataConfig(new Dictionary<string, string>
-        {
-            ["Id"] = "Terrias_terrias_heart_change"
-        });
-        True(CombatCardViewPoolCatalog.TryResolveBucket(heartChange, out var heartChangeBucket), "Heart Change is eligible for combat card pooling");
-        Equal(CombatCardViewPoolCatalog.AttackBucket, heartChangeBucket, "Heart Change always uses an attack-card view");
-
-        var projectionRole = new DataConfig(new Dictionary<string, string>
-        {
-            ["Id"] = TerriasIds.ProjectionRoleTemplateCardId
-        });
-        True(CombatCardViewPoolCatalog.TryResolveBucket(projectionRole, out var projectionBucket), "Projection role cards are eligible for combat card pooling");
-        Equal(CombatCardViewPoolCatalog.CommonBucket, projectionBucket, "Projection role cards use common-card views");
-
-        close.Vars["BaseScript"] = "AttackCardItem";
-        True(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Initialized attack cards match their selected pool bucket");
-        close.Vars["BaseScript"] = "CommonCardItem";
-        False(CombatCardViewPoolCatalog.MatchesInitializedBucket(close, closeBucket, out _), "Pool validation rejects an initialized component mismatch");
-
-        var guidance = new DataConfig(
-            new Dictionary<string, string> { ["Id"] = "foreign_guidance_card", ["Description"] = "dynamic" },
-            new Dictionary<string, string>
-            {
-                [TerriasIds.RuntimeMarkersKey] = TerriasIds.LoneerDerivedMarker + "," + TerriasIds.LoneerGuidanceMarker,
-                ["BaseScript"] = "AttackCardItem",
-                ["OnceExCost"] = "1"
-            });
-        True(CombatCardViewPoolCatalog.IsEligible(guidance), "Loneer guidance copies participate in the shared dynamic-card materialization path");
-        True(CombatCardViewPoolCatalog.TryResolveInitializedBucket(guidance, out var initializedBucket), "Pool archetypes are resolved only after InitScript has selected a native component");
-        Equal(CombatCardViewPoolCatalog.AttackBucket, initializedBucket, "Initialized guidance copies keep their exact attack-card archetype");
-        var structuralSignature = CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket);
-        guidance.Vars["OnceExCost"] = "3";
-        Equal(structuralSignature, CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Dynamic cost deltas do not invalidate an otherwise reusable card presentation lease");
-        guidance.Vars["SpecialTag"] = "new-structural-tag";
-        False(structuralSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket), "Structural tag changes invalidate a reusable card presentation lease");
-        var taggedSignature = CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket);
-        guidance.data = new Dictionary<string, string>(guidance.data)
-        {
-            ["FuturePresentationField"] = "future-value"
-        };
-        False(taggedSignature == CombatCardViewPoolCatalog.PresentationSignature(guidance, initializedBucket),
-            "previously unknown card data fields invalidate lightweight presentation reuse by default");
-
-        var orderedA = new DataConfig(
-            new Dictionary<string, string>
-            {
-                ["Id"] = "ordered-card",
-                ["Description"] = "same",
-                ["Name"] = "Ordered"
-            },
-            new Dictionary<string, string>
-            {
-                ["BaseScript"] = "CommonCardItem",
-                ["Tag"] = "Alpha"
-            });
-        var orderedB = new DataConfig(
-            new Dictionary<string, string>
-            {
-                ["Name"] = "Ordered",
-                ["Description"] = "same",
-                ["Id"] = "ordered-card"
-            },
-            new Dictionary<string, string>
-            {
-                ["Tag"] = "Alpha",
-                ["BaseScript"] = "CommonCardItem"
-            });
-        Equal(CombatCardViewPoolCatalog.PresentationSignature(
-                orderedA,
-                CombatCardViewPoolCatalog.CommonBucket),
-            CombatCardViewPoolCatalog.PresentationSignature(
-                orderedB,
-                CombatCardViewPoolCatalog.CommonBucket),
-            "presentation signatures are deterministic across dictionary insertion order");
-
-        var readDefaultOnFlag = typeof(TerriasPerformanceSettings).GetMethod(
-            "ReadDefaultOnFlag",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "0");
-        Equal(true, (bool)readDefaultOnFlag!.Invoke(null, new object[] { "PoolFlagTest" })!,
-            "The game's ambiguous missing-value zero keeps default-on presentation pooling enabled");
-        ScriptExecutor.PlayerInfo.SetGameVar("PoolFlagTest", "false");
-        Equal(false, (bool)readDefaultOnFlag.Invoke(null, new object[] { "PoolFlagTest" })!,
-            "An explicit textual false disables a default-on local presentation feature");
     }
 
     private static void TestCombatCardTerminalBoundary()

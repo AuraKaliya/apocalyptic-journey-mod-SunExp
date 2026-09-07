@@ -31,6 +31,10 @@ straight lines, regular polygons, rings, or other geometric line work.
 - Foreground color counts exclude the pure-black background and count visually
   distinct painted colors rather than minor antialiasing pixels.
 
+Resolve palette and approval scope with
+[the benchmark reference](references/palette-and-benchmark.md). An approval
+already given for this series remains valid when the task continues.
+
 ## Series Approval Gate
 
 Before drawing a complete series:
@@ -97,6 +101,9 @@ prompt that merely describes a staged process.
 Resize the stage-3 image proportionally to exactly `256x256`. Use high-quality
 downsampling. Do not regenerate, crop, redraw, recolor, or recompose it during
 this step.
+
+Inspect any resizing helper before use; historical preprocessing scripts may
+also key backgrounds or crop the subject and therefore do not implement this step.
 
 ## Working Artifacts
 

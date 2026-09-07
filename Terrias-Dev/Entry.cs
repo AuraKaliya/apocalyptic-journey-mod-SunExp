@@ -19,18 +19,33 @@ namespace Terrias.Dll;
 
 public static class Entry
 {
+    public static AuraSharedInitializationReport Initialization { get; } = new();
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
+        Initialization.Reset();
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "Terrias"));
         RunStep("shared game data", RegisterSharedGameData);
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
         RunStep("rpc authority", () => TerriasRpcAuthorityRuntime.Initialize(modConfig));
+        RunStep("Olimya goldenization network", OlimyaNetworkAdapter.Initialize, "shared core", "rpc authority");
         RunStep("semantic status ownership", () =>
             TerriasStatusOwnershipPolicy.ConfigureSemanticOwnerResolver(statusId =>
                 CompanionOwnershipService.Find(statusId)?.SemanticOwnerPlayerId));
-        RunStep("endless sea application network", EndlessSeaNetworkAdapter.Initialize);
+        RunStep("gameplay service bindings", () =>
+        {
+            BuffApi.ConfigureClassification(TerriasBuffClassificationPolicy.IsExcludedFromPositiveEffects);
+            BuffApi.ConfigureEmberPersistence((status, level, source) => EmberAdventureStateService.CommitLocal(status, level, source));
+            ProjectionLifecycle.Configure(new Application.ProjectionLifecycleOwner());
+            Application.ProjectionSummonService.ConfigureTransport(new Network.ProjectionNetworkAdapter());
+            RuntimeHooks.ConfigureCardStateReset(Scripting.CardScripts.ResetFightState);
+            CardApi.ConfigureNativeDrawAcknowledgement((card, source) => TerriasCardInvalidationService.Acknowledge(card, TerriasCardDirtyFields.TagIndex, source));
+            PolymorphUiApi.Configure(Hooks.Ui.PolymorphRoleSelectionWindow.Open, Hooks.Ui.PolymorphRoleSelectionWindow.Close);
+            ProjectionUiApi.Configure(self => Hooks.Ui.PolymorphRoleSelectionWindow.Open(self, Hooks.Ui.PolymorphRoleSelectionRequest.Projection(self)), Hooks.Ui.PolymorphRoleSelectionWindow.Close);
+            WunaVisualApi.Configure(WunaOrbitFireRuntime.AttachFromExecutor);
+        });
+        RunStep("endless sea application network", EndlessSeaNetworkAdapter.Initialize, "shared core", "rpc authority");
         RunStep("endless sea state projection", EndlessSeaStateProjectionRuntime.Initialize);
         RunStep("localization catalog", () => TerriasTextCatalog.Load(modConfig));
         RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
@@ -40,20 +55,23 @@ public static class Entry
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("dimension shop config", () => DimensionShopConfigStore.Load(modConfig));
         RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
-        RunStep("card use effect runtime", () => TerriasCardUseFxRuntime.Initialize(modConfig));
+        RunStep("card use effect runtime", () => Hooks.Visual.TerriasCardUseFxRuntime.Initialize(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));
         RunStep("mode runtime", () => TerriasModeApi.Initialize(modConfig));
         RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "Terrias"));
         RunStep("performance runtime", () => TerriasFrameScheduler.Initialize(modConfig));
         RunStep("replay companion state and presentation", TerriasSpiritReplayVisibleStateProvider.Initialize);
-        TerriasLog.Info("Terrias C# entry loaded");
-        RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
+        RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig), "shared core", "shared game data", "rpc authority", "performance runtime", "gameplay service bindings");
         RunStep("special tags", () => SpecialTagRuntime.Initialize(modConfig));
+        TerriasLog.Info("Terrias initialization: " + Initialization.Summary);
+        foreach (var step in Initialization.Steps)
+            if (step.State == AuraInitializationState.Blocked) TerriasLog.Warn("Initialization blocked: " + step.Name + "; requires=" + step.Detail);
     }
 
-    private static void RunStep(string name, Action action)
+    private static void RunStep(string name, Action action, params string[] dependencies)
     {
-        AuraSharedHooks.RunStep(name, action, (step, ex) => TerriasLog.Error("Initialization step failed: " + step, ex));
+        if (dependencies.Length == 0 && name != "shared core" && name != "XLua assembly registration") dependencies = new[] { "shared core" };
+        Initialization.Run(name, action, (step, ex) => TerriasLog.Error("Initialization step failed: " + step, ex), dependencies);
     }
 
     private static void RegisterSharedFeatureDefaults()
@@ -127,7 +145,9 @@ public static class Entry
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.DuskPartnerScripts'), 'Terrias DuskPartnerScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.StarClayDollScripts'), 'Terrias StarClayDollScripts unavailable');"
                 + "assert(xlua.import_type('Terrias.Dll.Scripting.ElementalScripts'), 'Terrias ElementalScripts unavailable');"
-                + "assert(xlua.import_type('Terrias.Dll.Scripting.ColumbinaScripts'), 'Terrias ColumbinaScripts unavailable');",
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.ColumbinaScripts'), 'Terrias ColumbinaScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.MoonHomecomingScripts'), 'Terrias MoonHomecomingScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.OlimyaScripts'), 'Terrias OlimyaScripts unavailable');",
                 "Terrias.RegisterLuaVisibleAssembly");
             TerriasLog.Info("Registered C# script assembly for XLua: " + assemblyName);
         }

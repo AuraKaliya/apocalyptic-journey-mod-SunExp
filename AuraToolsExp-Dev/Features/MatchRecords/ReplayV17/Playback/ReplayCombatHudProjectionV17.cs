@@ -4,7 +4,6 @@ using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.GameApi;
-using Newtonsoft.Json.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -30,6 +29,10 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
     private readonly SpriteRenderer shieldFill;
     private readonly TMP_Text hpText;
     private readonly TMP_Text shieldText;
+    private readonly GameObject shieldCounter;
+    private readonly Vector2 hpTextSize;
+    private readonly Vector2 shieldTextSize;
+    private readonly float intentSpacing;
     private readonly RectTransform buffContent;
     private readonly RectTransform intentContent;
     private readonly RectTransform intentRect;
@@ -77,7 +80,6 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
                          ?? throw new InvalidOperationException("Native replay StatusBarUI has no RectTransform.");
         statusRect.anchorMin = new Vector2(0.5f, 0.5f);
         statusRect.anchorMax = new Vector2(0.5f, 0.5f);
-        statusRect.pivot = new Vector2(0.5f, 1f);
         statusRect.sizeDelta = size;
         statusRoot.transform.localScale = Vector3.one * ReplayPresentationPrimitivesV17.FromQ16(binding.HudScaleQ16);
 
@@ -103,6 +105,10 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
                  ?? ReplayUiV17.Tmp(statusRoot.transform, "HpText", templates.Font, 18f, TextAlignmentOptions.Center);
         shieldText = hpItem.transform.Find("DefendShow/val")?.GetComponent<TMP_Text>()
                      ?? ReplayUiV17.Tmp(statusRoot.transform, "ShieldText", templates.Font, 14f, TextAlignmentOptions.Center);
+        shieldCounter = hpItem.transform.Find("DefendShow")?.gameObject
+                        ?? throw new InvalidOperationException("Native replay HpItem has no defense counter.");
+        hpTextSize = hpText.rectTransform.sizeDelta;
+        shieldTextSize = shieldText.rectTransform.sizeDelta;
 
         var buffBar = ReplayNativePrefabInstanceV17.Clone(
             templates.BuffBarTemplate,
@@ -122,8 +128,10 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
             {
                 statusRoot.transform.Find("Name")?.gameObject.SetActive(false);
                 buffBar.SetActive(false);
+                ConfigureVerticalText(hpText);
+                ConfigureVerticalText(shieldText);
             }
-            if (!string.IsNullOrWhiteSpace(customPresentation.BadgeIconResourcePath))
+            if (!detachedHud && !string.IsNullOrWhiteSpace(customPresentation.BadgeIconResourcePath))
             {
                 var badge = ReplayUiV17.Rect(
                     "PresentationBadge", statusRoot.transform,
@@ -143,10 +151,14 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
             canvasParent,
             "ReplayIntents:" + binding.EntityId);
         intentRoot.transform.localScale = Vector3.one * ReplayPresentationPrimitivesV17.FromQ16(binding.HudScaleQ16);
+        // The v1 detached presentation uses compact intents independently of
+        // the vertical HP bar's declared scale.
+        if (detachedHud) intentRoot.transform.localScale *= 0.60f;
         intentContent = intentRoot.transform.Find("content") as RectTransform
                         ?? throw new InvalidOperationException("Native replay ActionContent has no content RectTransform.");
         intentRect = intentRoot.GetComponent<RectTransform>()
                      ?? throw new InvalidOperationException("Native replay ActionContent has no root RectTransform.");
+        intentSpacing = entity.Archetype == ReplayEntityArchetypesV17.EnemyCombatant ? 0f : 40f;
         intentRoot.SetActive(false);
     }
 
@@ -169,19 +181,26 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
             ? VerticalDigits(Math.Max(0, value.CurrentHp))
             : Math.Max(0, value.CurrentHp).ToString();
         hpText.color = value.IsAlive ? Color.white : new Color(0.65f, 0.65f, 0.68f, 1f);
-        if (detachedHud) shieldText.text = value.Defense > 0 ? VerticalDigits(value.Defense) : "";
+        if (detachedHud)
+        {
+            ResizeVerticalText(hpText, hpTextSize, Math.Max(0, value.CurrentHp));
+            shieldText.text = VerticalDigits(value.Defense);
+            ResizeVerticalText(shieldText, shieldTextSize, Math.Max(0, value.Defense));
+        }
         else ReplayNativeUiPresentationApi.SetDigitText(
-            shieldText,
-            value.Defense > 0 ? value.Defense.ToString() : "");
+            shieldText, Math.Max(0, value.Defense).ToString());
+        shieldCounter.SetActive(true);
+        shieldCounter.transform.Find("Large")?.gameObject.SetActive(value.Defense >= 100);
+        shieldCounter.transform.Find("Small")?.gameObject.SetActive(value.Defense < 100);
         shieldFill.gameObject.SetActive(value.Defense > 0);
-        shieldText.gameObject.SetActive(value.Defense > 0);
+        shieldText.gameObject.SetActive(true);
+        hpText.ForceMeshUpdate();
 
         var buffs = value.Buffs
             .Select(item => (State: item, Descriptor: Descriptor(item.DescriptorId, buffDescriptors)))
             .OrderBy(item => item.Descriptor.SortOrder)
             .ThenBy(item => item.Descriptor.DescriptorId, StringComparer.Ordinal)
             .ThenBy(item => item.State.InstanceId, StringComparer.Ordinal)
-            .Take(12)
             .ToList();
         EnsureBuffSlots(buffs.Count);
         for (var index = 0; index < buffSlots.Count; index++)
@@ -221,11 +240,9 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
                 descriptor.IconResourcePath,
                 "intent-icon:" + descriptor.DescriptorId);
             intentSlots[index].Icon.SetNativeSize();
-            intentSlots[index].Value.text = state.DisplayValue ?? "";
-            intentSlots[index].Root.GetComponent<RectTransform>().anchoredPosition = new Vector2(
-                (index - (orderedIntents.Count - 1) * 0.5f) * 58f,
-                0f);
+            ReplayNativeUiPresentationApi.SetDigitText(intentSlots[index].Value, state.DisplayValue ?? "");
         }
+        LayoutIntents(orderedIntents.Count);
         intentsVisible = orderedIntents.Count > 0;
         if (!intentsVisible && extensionIntent != null)
         {
@@ -235,21 +252,17 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
         intentRoot.SetActive(intentsVisible && visible);
     }
 
-    internal void PresentExtensionIntent(JObject payload)
+    internal void PresentExtensionIntent(ReplayExtensionIntentVisualV17 visual)
     {
-        if (payload == null || payload.Value<bool?>("isWait") == true)
+        if (visual.IsWait)
         {
             ClearExtensionIntent();
             return;
         }
-        var icon = payload.Value<string>("iconResourcePath") ?? "";
-        var background = payload.Value<string>("backIconResourcePath") ?? "";
-        if (string.IsNullOrWhiteSpace(icon) || string.IsNullOrWhiteSpace(background))
-            throw new InvalidOperationException("Replay extension intent has no resolved native icon resources.");
         extensionIntent = new ExtensionIntent(
-            icon,
-            background,
-            payload.Value<string>("displayValue") ?? "");
+            visual.IconResourcePath,
+            visual.BackgroundResourcePath,
+            visual.DisplayValue);
         ApplyExtensionIntentSlot();
         intentsVisible = true;
         intentRoot.SetActive(present && visible);
@@ -277,8 +290,10 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
         Project(
             statusRoot.GetComponent<RectTransform>(),
             statusPoint,
-            detached ? new Vector2(14f, 0f) : new Vector2(0f, -4f));
-        if (intentsVisible) Project(intentRect, headWorldPosition, new Vector2(0f, 8f));
+            detached ? new Vector2(14f, 0f) : Vector2.zero);
+        if (intentsVisible) Project(intentRect,
+            detached ? new Vector3(bodyBounds.center.x, bodyBounds.max.y, bodyBounds.center.z) : headWorldPosition,
+            detached ? new Vector2(0f, 14f) : Vector2.zero);
         else intentRoot.SetActive(false);
     }
 
@@ -333,6 +348,10 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
                        ?? throw new InvalidOperationException("Native replay ActionMsg has no Icon/child image.");
             var value = root.transform.Find("Icon/val")?.GetComponent<TMP_Text>()
                         ?? throw new InvalidOperationException("Native replay ActionMsg has no Icon/val text.");
+            // This is the native intent-consumption animation, not its idle icon.
+            // Playback state controls visibility; an authored Animator cannot run
+            // this effect independently of the recorded action clock.
+            root.transform.Find("Icon/DesAni")?.gameObject.SetActive(false);
             intentSlots.Add(new IntentSlot(root, background, icon, value));
         }
     }
@@ -351,8 +370,40 @@ internal sealed class ReplayCombatHudProjectionV17 : IDisposable
             extensionIntent.IconResourcePath,
             "extension-intent-icon");
         slot.Icon.SetNativeSize();
-        slot.Value.text = extensionIntent.DisplayValue;
-        slot.Root.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+        ReplayNativeUiPresentationApi.SetDigitText(slot.Value, extensionIntent.DisplayValue);
+        LayoutIntents(1);
+    }
+
+    private void LayoutIntents(int count)
+    {
+        var width = 0f;
+        for (var index = 0; index < count; index++)
+            width += intentSlots[index].Root.GetComponent<RectTransform>().sizeDelta.x + intentSpacing;
+        var cursor = -width * 0.5f;
+        for (var index = 0; index < count; index++)
+        {
+            var rect = intentSlots[index].Root.GetComponent<RectTransform>();
+            var advance = rect.sizeDelta.x + intentSpacing;
+            rect.anchoredPosition = new Vector2(cursor + advance * 0.5f, 0f);
+            cursor += advance;
+        }
+    }
+
+    private static void ConfigureVerticalText(TMP_Text text)
+    {
+        text.alignment = TextAlignmentOptions.Center;
+        text.textWrappingMode = TextWrappingModes.NoWrap;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.enableAutoSizing = false;
+        text.lineSpacing = -10f;
+    }
+
+    private static void ResizeVerticalText(TMP_Text text, Vector2 originalSize, int value)
+    {
+        var lines = Math.Max(1, Math.Max(0, value).ToString().Length);
+        var lineHeight = originalSize.y > 0.01f ? originalSize.y : Mathf.Max(1f, text.fontSize * 1.15f);
+        text.rectTransform.sizeDelta = new Vector2(originalSize.x, lineHeight * lines);
+        text.ForceMeshUpdate();
     }
 
     private void Project(RectTransform target, Vector3 worldPosition, Vector2 offset)

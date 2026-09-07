@@ -87,6 +87,8 @@ internal static class ReplayFastCloneV17
 
     internal static ReplayPresentationMessageV17 Presentation(ReplayPresentationMessageV17 value) => new()
     {
+        VisualInstanceId = value.VisualInstanceId,
+        CardView = value.CardView == null ? null : ReplayStateReducerV17.Clone(value.CardView),
         Kind = value.Kind ?? "",
         DescriptorId = value.DescriptorId ?? "",
         ActorId = value.ActorId ?? "",
@@ -130,6 +132,7 @@ internal static class ReplayFastCloneV17
         WorldTransformSamples = (value.WorldTransformSamples ?? new List<ReplayWorldTransformSampleV17>())
             .Select(item => new ReplayWorldTransformSampleV17
             {
+                AttachmentBounds = Bounds(item.AttachmentBounds),
                 OffsetTicks = item.OffsetTicks,
                 WorldPosition = Vector(item.WorldPosition),
                 RootScale = Vector(item.RootScale),
@@ -148,6 +151,7 @@ internal static class ReplayFastCloneV17
 
     internal static ReplayEntityPresentationBindingV17 Binding(ReplayEntityPresentationBindingV17 value) => new()
     {
+        AttachmentBounds = Bounds(value.AttachmentBounds),
         EntityId = value.EntityId ?? "",
         SpawnGeneration = value.SpawnGeneration,
         DescriptorId = value.DescriptorId ?? "",
@@ -212,6 +216,11 @@ internal static class ReplayFastCloneV17
     {
         X = value?.X ?? 0,
         Y = value?.Y ?? 0
+    };
+
+    internal static ReplayBoundsQ16V17? Bounds(ReplayBoundsQ16V17? value) => value == null ? null : new()
+    {
+        Center = Vector(value.Center), Size = Vector(value.Size)
     };
 
     internal static ReplayVector3Q16V17 Vector(ReplayVector3Q16V17? value) => new()

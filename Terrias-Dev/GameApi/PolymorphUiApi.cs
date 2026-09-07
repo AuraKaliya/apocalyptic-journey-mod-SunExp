@@ -1,21 +1,19 @@
-using Terrias.Dll.Hooks.Ui;
+using System;
 
 namespace Terrias.Dll.GameApi;
 
 public static class PolymorphUiApi
 {
+    private static Func<ScriptExecutor, bool>? open;
+    private static Action<string>? close;
+    public static void Configure(Func<ScriptExecutor, bool> show, Action<string> hide) { open = show; close = hide; }
     public static bool OpenRoleSelection(ScriptExecutor self)
     {
-        return PolymorphRoleSelectionWindow.Open(self);
-    }
-
-    public static bool OpenRoleSelection(ScriptExecutor self, PolymorphRoleSelectionRequest request)
-    {
-        return PolymorphRoleSelectionWindow.Open(self, request);
+        return open?.Invoke(self) ?? false;
     }
 
     public static void CloseRoleSelection(string source)
     {
-        PolymorphRoleSelectionWindow.Close(source);
+        close?.Invoke(source);
     }
 }

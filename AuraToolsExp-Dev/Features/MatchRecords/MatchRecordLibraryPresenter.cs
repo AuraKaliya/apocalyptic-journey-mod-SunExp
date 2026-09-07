@@ -20,7 +20,7 @@ using UnityEngine.UI;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords;
 
-internal static class MatchRecordLibraryPresenter
+internal static partial class MatchRecordLibraryPresenter
 {
     private const string OverlayName = "AuraToolsMatchRecordLibrary";
     private const string AdventureCollection = "Adventures";
@@ -55,6 +55,8 @@ internal static class MatchRecordLibraryPresenter
         MatchRecordLibraryViewState? returnState,
         string returnMessage)
     {
+        ResetQueryState();
+        var viewGeneration = queryGeneration;
         host = parent;
         RestoreState(returnState);
         message = returnMessage ?? "";
@@ -66,7 +68,7 @@ internal static class MatchRecordLibraryPresenter
             OverlayName,
             parent,
             "对局记录",
-            () => ResetState(),
+            () => { if (viewGeneration == queryGeneration) ResetState(); },
             maxWidth: 1120f);
         body = AuraToolsUi.CreateLayout("MatchRecordBody", window.transform).transform;
         var layout = body.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -86,43 +88,25 @@ internal static class MatchRecordLibraryPresenter
             return;
         }
 
+        if (collection == AdventureCollection)
+        {
+            if (!EnsureQuery()) return;
+            var adventureScroll = pendingScrollRestore ?? CaptureScrollState();
+            pendingScrollRestore = null;
+            AuraToolsUi.ClearChildren(body);
+            BuildAdventureView(adventureScroll);
+            return;
+        }
+        if (!EnsureQuery() || cachedPage == null) return;
+        var page = cachedPage;
         var viewState = pendingScrollRestore ?? CaptureScrollState();
         pendingScrollRestore = null;
         recordScrollContent = null;
+        var hadSearchFocus = searchField != null && searchField.isFocused;
+        var caret = searchField?.caretPosition ?? 0;
+        SelectionViews.Clear();
+        RecordRows.Clear();
         AuraToolsUi.ClearChildren(body);
-        if (collection == AdventureCollection)
-        {
-            BuildAdventureView(viewState);
-            return;
-        }
-
-        MatchRecordPage page;
-        try
-        {
-            var filtering = searchText.Length > 0 || resultFilter.Length > 0 || dateRangeDays > 0 || compatibleOnly;
-            if (!filtering)
-            {
-                page = MatchRecordStorage.Database.LoadPage(collection, Cursors[pageIndex]);
-            }
-            else
-            {
-                var since = dateRangeDays <= 0 ? (DateTime?)null : DateTime.UtcNow.AddDays(-dateRangeDays);
-                var filtered = MatchRecordStorage.Database.SearchRecords(collection, searchText, resultFilter, since)
-                    .Where(item => !compatibleOnly || CanPlayV17(item))
-                    .ToList();
-                var offset = pageIndex * MatchRecordDatabase.DefaultPageSize;
-                var items = filtered.Skip(offset).Take(MatchRecordDatabase.DefaultPageSize).ToList();
-                var hasMore = offset + items.Count < filtered.Count;
-                page = new MatchRecordPage(items, hasMore ? pageIndex + 2 : 0, hasMore, filtered.Count);
-            }
-        }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[MatchRecords] library query failed: " + ex.Message);
-            AuraToolsUi.AddText(body, "读取对局记录失败：" + ex.Message, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.WarningText, 52f, 1f);
-            return;
-        }
-
         var tabs = AuraToolsUi.CreateLayout("CollectionTabs", body);
         AuraToolsUi.SetFixedHeight(tabs, AuraToolsUi.ToolbarHeight);
         var tabsLayout = tabs.AddComponent<HorizontalLayoutGroup>();
@@ -133,7 +117,7 @@ internal static class MatchRecordLibraryPresenter
         tabsLayout.childForceExpandHeight = false;
         AddCompactButton(tabs.transform, "自动记录 " + AuraToolsMatchRecordsRuntime.AutoRecordCount, () => SwitchCollection(MatchRecordCollections.Auto), 112f);
         AddCompactButton(tabs.transform, "收藏对局 " + AuraToolsMatchRecordsRuntime.FavoriteRecordCount, () => SwitchCollection(MatchRecordCollections.Favorite), 112f);
-        AddCompactButton(tabs.transform, "冒险统计 " + AuraToolsDamageMeterRuntime.OutOfRunHistoryCount, () => SwitchCollection(AdventureCollection), 112f);
+        AddCompactButton(tabs.transform, "冒险统计 " + MatchRecordStorage.AdventureCount, () => SwitchCollection(AdventureCollection), 112f);
         AuraToolsUi.AddText(
             tabs.transform,
             collection == MatchRecordCollections.Auto
@@ -179,7 +163,7 @@ internal static class MatchRecordLibraryPresenter
         filterLayout.childControlHeight = true;
         filterLayout.childForceExpandWidth = false;
         filterLayout.childForceExpandHeight = false;
-        AddFlexibleInput(filters.transform, searchText, "搜索关卡、标签或备注…", value => SetSearch(value));
+        searchField = AddFlexibleInput(filters.transform, searchText, "搜索关卡、标签或备注…", value => SetSearch(value));
         AddCompactButton(filters.transform, ResultFilterLabel(), CycleResultFilter, 88f);
         AddCompactButton(filters.transform, DateFilterLabel(), CycleDateFilter, 88f);
         AddCompactButton(filters.transform, compatibleOnly ? "仅可回放" : "全部兼容", () =>
@@ -191,24 +175,18 @@ internal static class MatchRecordLibraryPresenter
         ToolboxIconButtonV2.Create(filters.transform, "selection.all", "选择本页", () =>
         {
             foreach (var item in page.Items) SelectedIds.Add(item.RecordId);
-            Build();
+            UpdateSelectionUi();
         }, 42f, "全");
-        if (SelectedIds.Count > 0)
-        {
-            AddCompactButton(filters.transform, "导出已选 " + SelectedIds.Count, ExportSelected, 112f);
+            selectionExportButton = AddCompactButton(filters.transform, "导出已选", ExportSelected, 112f);
             ToolboxIconButtonV2.Create(
                 filters.transform,
                 "action.clear",
                 "取消全部选择",
-                () => { SelectedIds.Clear(); Build(); },
+                () => { SelectedIds.Clear(); UpdateSelectionUi(); },
                 42f,
                 "消");
-        }
-
-        if (!string.IsNullOrWhiteSpace(message))
-        {
-            AuraToolsUi.AddText(body, message, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.WarningText, 44f, 1f);
-        }
+        statusLabel = AuraToolsUi.AddText(body, message, AuraToolsUi.HintFontSize, TextAnchor.MiddleLeft, AuraToolsUi.WarningText, 44f, 1f);
+        statusLabel.gameObject.SetActive(!string.IsNullOrWhiteSpace(message));
 
 
         if (pendingImportPreview != null)
@@ -255,9 +233,25 @@ internal static class MatchRecordLibraryPresenter
         var next = AuraToolsUi.AddButton(footer.transform, "下一页", () => NextPage(page.NextCursor), 88f);
         AuraToolsUi.SetButtonAvailable(next, page.HasMore, "已经是最后一页");
         RestoreScrollState(scroll, viewState);
+        UpdateSelectionUi();
+        if (hadSearchFocus && searchField != null)
+        {
+            searchField.ActivateInputField();
+            searchField.caretPosition = Math.Min(caret, searchField.text.Length);
+        }
     }
 
     private static void AddRecordRow(Transform parent, MatchRecord item)
+    {
+        var unit = AuraToolsUi.CreateLayout("RecordUnit-" + item.RecordId, parent).transform;
+        var layout = unit.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.childControlWidth = true; layout.childControlHeight = true;
+        layout.childForceExpandWidth = true; layout.childForceExpandHeight = false;
+        RecordRows[item.RecordId] = (unit, item);
+        AddRecordContents(unit, item);
+    }
+
+    private static void AddRecordContents(Transform parent, MatchRecord item)
     {
         var canPlay = CanPlayV17(item);
         var row = AuraToolsUi.CreateLayout("MatchRecord-" + item.RecordId, parent);
@@ -283,7 +277,7 @@ internal static class MatchRecordLibraryPresenter
                      + "   " + FormatBytes(item.CompressedBytes)
                      + "   " + ReplayAvailabilityLabel(item)
                      + (string.IsNullOrWhiteSpace(item.Tags) ? "" : "   标签 " + item.Tags);
-        ToolboxCheckboxV2.Create(
+        SelectionViews[item.RecordId] = ToolboxCheckboxV2.Create(
             row.transform,
             SelectedIds.Contains(item.RecordId),
             _ => ToggleSelection(item.RecordId),
@@ -401,6 +395,8 @@ internal static class MatchRecordLibraryPresenter
 
     private static void Replay(string recordId)
     {
+        message = "正在读取回放数据…";
+        RefreshStatus();
         var returnState = CaptureReturnState(recordId);
         MatchReplayLaunchCoordinator.Start(
             recordId,
@@ -443,6 +439,7 @@ internal static class MatchRecordLibraryPresenter
     {
         searchText = (value ?? "").Trim();
         ResetPaging();
+        queryDue = Time.unscaledTime + 0.15f;
         Build();
     }
 
@@ -473,11 +470,12 @@ internal static class MatchRecordLibraryPresenter
     private static void ToggleSelection(string recordId)
     {
         if (!SelectedIds.Add(recordId)) SelectedIds.Remove(recordId);
-        Build();
+        UpdateSelectionUi();
     }
 
     private static void EditMetadata(MatchRecord item)
     {
+        var previous = editingId;
         if (editingId == item.RecordId)
         {
             editingId = "";
@@ -489,220 +487,15 @@ internal static class MatchRecordLibraryPresenter
             editingNotes = item.Notes;
         }
 
-        Build();
-    }
-
-    private static void SaveMetadata()
-    {
-        if (MatchRecordStorage.Database.UpdateMetadata(editingId, editingTags, editingNotes))
-        {
-            message = "标签和备注已保存。";
-            editingId = "";
-        }
-        else
-        {
-            message = "标签和备注保存失败：记录不存在。";
-        }
-
-        Build();
-    }
-
-    private static void ExportSelected()
-    {
-        var exported = 0;
-        var failed = new List<string>();
-        foreach (var recordId in SelectedIds.ToList())
-        {
-            try
-            {
-                MatchReplayPackageService.Export(recordId);
-                exported++;
-            }
-            catch (Exception ex)
-            {
-                failed.Add(ex.Message);
-            }
-        }
-
-        message = "已批量导出 " + exported + " 条回放。";
-        if (failed.Count > 0) message += " 失败 " + failed.Count + " 条：" + string.Join("；", failed.Take(2));
-        SelectedIds.Clear();
-        Build();
-    }
-
-    private static void Move(MatchRecord item)
-    {
-        var destination = item.Collection == MatchRecordCollections.Favorite
-            ? MatchRecordCollections.Auto
-            : MatchRecordCollections.Favorite;
-        MatchRecordStorage.Database.SetCollection(item.RecordId, destination);
-        if (destination == MatchRecordCollections.Auto)
-        {
-            MatchRecordStorage.Database.EnforceAutoLimit(
-                AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit);
-        }
-
-        message = destination == MatchRecordCollections.Favorite ? "已移入收藏对局。" : "已移回自动记录。";
-        Build();
-    }
-
-    private static void ImportPackages()
-    {
-        try
-        {
-            var files = Directory.GetFiles(MatchRecordStorage.ImportsDirectory, "*.aurareplay", SearchOption.TopDirectoryOnly);
-            if (files.Length == 0)
-            {
-                message = "导入目录中没有回放包。";
-            }
-            else
-            {
-                pendingImportPath = files.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).First();
-                pendingImportPreview = MatchReplayPackageService.Inspect(pendingImportPath);
-                message = "导入目录中有 " + files.Length + " 个回放包；请先确认当前预览，再继续扫描下一条。";
-            }
-        }
-        catch (Exception ex)
-        {
-            message = "导入失败：" + ex.Message;
-        }
-
-        Build();
-    }
-
-    private static void PickPackage()
-    {
-        OptionalFileDialog.PickFileAsync(
-            "导入 AuraTools 对局回放",
-            new[]
-            {
-                new OptionalFileDialogFilter("AuraTools 回放包", "*.aurareplay"),
-                new OptionalFileDialogFilter("所有文件", "*.*")
-            },
-            "aurareplay",
-            MatchRecordStorage.ImportsDirectory,
-            result =>
-            {
-                if (result.Selected)
-                {
-                    try
-                    {
-                        pendingImportPreview = MatchReplayPackageService.Inspect(result.Path);
-                        pendingImportPath = result.Path;
-                        message = pendingImportPreview.CompatibilityMessage + " 请检查来源、体积、依赖和重复状态后确认导入。";
-                    }
-                    catch (Exception ex)
-                    {
-                        message = "导入失败：" + ex.Message;
-                    }
-
-                    Build();
-                }
-                else if (result.Status != OptionalFileDialogStatus.Cancelled)
-                {
-                    message = "文件选择器不可用，可将回放包放入导入目录后再打开本页面。";
-                    Build();
-                }
-            });
-    }
-
-    private static void ConfirmImport()
-    {
-        if (pendingImportPreview == null || string.IsNullOrWhiteSpace(pendingImportPath)) return;
-        try
-        {
-            var importedPath = pendingImportPath;
-            MatchReplayPackageService.Import(importedPath);
-            var archiveWarning = "";
-            var inbox = Path.GetFullPath(MatchRecordStorage.ImportsDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var sourceDirectory = Path.GetFullPath(Path.GetDirectoryName(importedPath) ?? "").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (string.Equals(inbox, sourceDirectory, StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var completed = Path.Combine(MatchRecordStorage.ImportsDirectory, "Imported");
-                    Directory.CreateDirectory(completed);
-                    AuraSharedFileStore.MoveFile(
-                        AuraToolsIds.ModId,
-                        importedPath,
-                        UniqueLibraryPath(Path.Combine(completed, Path.GetFileName(importedPath))));
-                }
-                catch (Exception ex)
-                {
-                    archiveWarning = " 但源文件未能归档：" + ex.Message;
-                }
-            }
-            collection = MatchRecordCollections.Favorite;
-            pageIndex = 0;
-            Cursors.Clear();
-            Cursors.Add(0);
-            pendingImportPath = "";
-            pendingImportPreview = null;
-            message = "回放包已原子写入收藏对局。" + archiveWarning;
-        }
-        catch (Exception ex)
-        {
-            message = "导入失败：" + ex.Message;
-        }
-
-        Build();
-    }
-
-    private static void Delete(string recordId)
-    {
-        if (!string.Equals(armedDeleteId, recordId, StringComparison.Ordinal))
-        {
-            armedDeleteId = recordId;
-            message = "再次点击同一条记录的“确认删除”即可永久删除。";
-            Build();
-            return;
-        }
-
-        MatchRecordStorage.Database.Delete(recordId);
-        SelectedIds.Remove(recordId);
-        armedDeleteId = "";
-        message = "对局记录已删除。";
-        Build();
-    }
-
-    private static void ClearCurrent()
-    {
-        if (!clearArmed)
-        {
-            clearArmed = true;
-            message = "再次点击“确认清空”将删除当前分类中的全部回放。";
-            Build();
-            return;
-        }
-
-        var removed = collection == AdventureCollection
-            ? DamageHistoryStorage.Database.ClearAdventures()
-            : MatchRecordStorage.Database.Clear(collection);
-        clearArmed = false;
-        SelectedIds.Clear();
-        pageIndex = 0;
-        Cursors.Clear();
-        Cursors.Add(0);
-        message = collection == AdventureCollection
-            ? "已清空 " + removed + " 条冒险统计。"
-            : "已清空 " + removed + " 条对局记录。";
-        Build();
+        RefreshRecordRow(previous);
+        RefreshRecordRow(item.RecordId);
     }
 
     private static void BuildAdventureView(MatchRecordLibraryScrollState? viewState)
     {
         if (body == null) return;
-        DamageHistoryPage<OutOfRunDamageHistoryRecord> page;
-        try
-        {
-            page = DamageHistoryStorage.Database.LoadAdventurePage(Cursors[pageIndex], DamageHistoryDatabase.DefaultPageSize);
-        }
-        catch (Exception ex)
-        {
-            AuraToolsUi.AddText(body, "读取冒险统计失败：" + ex.Message, AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft, AuraToolsUi.WarningText, 52f, 1f);
-            return;
-        }
+        var page = cachedAdventurePage;
+        if (page == null) return;
 
         var tabs = AuraToolsUi.CreateLayout("CollectionTabs", body);
         AuraToolsUi.SetFixedHeight(tabs, AuraToolsUi.ToolbarHeight);
@@ -939,8 +732,7 @@ internal static class MatchRecordLibraryPresenter
     {
         try
         {
-            var path = MatchRecordStorage.Database.DatabasePath;
-            return File.Exists(path) ? "数据库 " + FormatBytes(new FileInfo(path).Length) : "数据库 0 B";
+            return "数据库 " + FormatBytes(MatchRecordStorage.DatabaseBytes);
         }
         catch
         {
@@ -969,6 +761,7 @@ internal static class MatchRecordLibraryPresenter
 
     private static void ResetState()
     {
+        ResetQueryState();
         host = null;
         body = null;
         recordScrollContent = null;

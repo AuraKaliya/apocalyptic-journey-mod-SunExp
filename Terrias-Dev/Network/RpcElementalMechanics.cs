@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
 using Terrias.Dll.Mechanics;

@@ -78,12 +78,10 @@ internal sealed partial class MatchRecordDatabase
             ReplayJournalLanesV17.Presentation,
             document.PresentationEvents,
             chunkTargetBytes);
-        var skeleton = CloneV17WithoutTransientPayload(envelope);
-        skeleton.Document.TruthEvents.Clear();
-        skeleton.Document.PresentationEvents.Clear();
-        skeleton.Document.TruthCheckpoints.Clear();
-        skeleton.Document.PresentationCheckpoints.Clear();
+        var skeleton = ReplayDocumentSkeletonV17.Create(envelope);
         var documentPayload = ReplayPayloadV17.Encode(skeleton);
+        var truthCheckpoints = document.TruthCheckpoints.Select(item => (Item: item, Payload: ReplayPayloadV17.Encode(item))).ToList();
+        var presentationCheckpoints = document.PresentationCheckpoints.Select(item => (Item: item, Payload: ReplayPayloadV17.Encode(item))).ToList();
         var attachmentMoves = new List<AttachmentMove>();
 
         lock (gate)
@@ -115,8 +113,8 @@ internal sealed partial class MatchRecordDatabase
                 record.CompressedBytes = documentPayload.LongLength
                                          + truthChunks.Sum(item => (long)item.Payload.Length)
                                          + presentationChunks.Sum(item => (long)item.Payload.Length)
-                                         + document.TruthCheckpoints.Sum(item => (long)ReplayPayloadV17.Encode(item).Length)
-                                         + document.PresentationCheckpoints.Sum(item => (long)ReplayPayloadV17.Encode(item).Length);
+                                         + truthCheckpoints.Sum(item => (long)item.Payload.Length)
+                                         + presentationCheckpoints.Sum(item => (long)item.Payload.Length);
                 record.ContentSha256 = envelope.DeclaredDocumentRoot;
                 record.ModFingerprint = "";
                 record.RequiredCapabilities = document.Header.RequiredCapabilities.ToList();
@@ -158,7 +156,7 @@ internal sealed partial class MatchRecordDatabase
                 }
                 InsertChunksV17(connection, "replay_truth_chunks", record.RecordId, truthChunks);
                 InsertChunksV17(connection, "replay_presentation_chunks", record.RecordId, presentationChunks);
-                InsertCheckpointsV17(connection, record.RecordId, document);
+                InsertCheckpointsV17(connection, record.RecordId, truthCheckpoints, presentationCheckpoints);
                 InsertAssetsV17(connection, record.RecordId, document);
                 if (analysis != null)
                 {
@@ -177,53 +175,6 @@ internal sealed partial class MatchRecordDatabase
                 CleanupCommittedAttachments(attachmentMoves);
                 throw;
             }
-        }
-    }
-
-    internal ReplayDocumentEnvelopeV17? LoadV17(string recordId, bool loadAssetPayloads = false)
-    {
-        if (string.IsNullOrWhiteSpace(recordId)) return null;
-        lock (gate)
-        {
-            EnsureInitialized();
-            using var connection = Open();
-            ReplayDocumentEnvelopeV17 envelope;
-            using (var query = connection.Prepare(
-                       "SELECT document_version, document_state, document_root, document_payload FROM replay_documents "
-                       + "WHERE record_id=? LIMIT 1;"))
-            {
-                query.Bind(1, recordId.Trim());
-                if (!query.Read()) return null;
-                if (query.Int64(0) != ReplayProtocolV17.DocumentVersion
-                    || !string.Equals(query.Text(1), MatchReplayStates.Ready, StringComparison.Ordinal))
-                    return null;
-                envelope = ReplayPayloadV17.Decode<ReplayDocumentEnvelopeV17>(query.Blob(3));
-                if (!string.Equals(envelope.DeclaredDocumentRoot, query.Text(2), StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Stored Replay Document v17 root does not match its envelope.");
-            }
-            envelope.Document.TruthEvents = LoadChunksV17(
-                connection,
-                "replay_truth_chunks",
-                recordId,
-                ReplayJournalLanesV17.Truth).ToList();
-            envelope.Document.PresentationEvents = LoadChunksV17(
-                connection,
-                "replay_presentation_chunks",
-                recordId,
-                ReplayJournalLanesV17.Presentation).ToList();
-            LoadCheckpointsV17(connection, recordId, envelope.Document);
-            if (loadAssetPayloads)
-            {
-                foreach (var asset in envelope.Document.Assets)
-                {
-                    var path = AttachmentPathV17(asset);
-                    if (File.Exists(path)) asset.Payload = File.ReadAllBytes(path);
-                }
-            }
-            var validation = ReplayDocumentValidatorV17.Validate(envelope);
-            if (!validation.IsValid)
-                throw new InvalidDataException("Stored Replay Document v17 is invalid: " + validation.Message);
-            return envelope;
         }
     }
 
@@ -323,7 +274,7 @@ internal sealed partial class MatchRecordDatabase
         }
     }
 
-    private static IReadOnlyList<ReplayJournalEventV17> LoadChunksV17(
+    private static IReadOnlyList<ReplayJournalChunkV17> ReadChunksV17(
         WinSqliteConnection connection,
         string table,
         string recordId,
@@ -347,66 +298,38 @@ internal sealed partial class MatchRecordDatabase
                 Sha256 = query.Text(6),
                 Payload = query.Blob(7)
             });
-        return ReplayJournalChunkerV17.Decode(lane, chunks);
+        return chunks;
     }
 
     private static void InsertCheckpointsV17(
         WinSqliteConnection connection,
         string recordId,
-        ReplayDocumentV17 document)
+        IReadOnlyList<(ReplayTruthCheckpointV17 Item, byte[] Payload)> truth,
+        IReadOnlyList<(ReplayPresentationCheckpointV17 Item, byte[] Payload)> presentation)
     {
-        foreach (var checkpoint in document.TruthCheckpoints)
+        foreach (var prepared in truth)
         {
+            var checkpoint = prepared.Item;
             using var insert = connection.Prepare(
                 "INSERT INTO replay_truth_checkpoints(record_id, event_sequence, time_ticks, sha256, payload) VALUES(?, ?, ?, ?, ?);");
             insert.Bind(1, recordId);
             insert.Bind(2, checkpoint.EventSequence);
             insert.Bind(3, checkpoint.TimeTicks);
             insert.Bind(4, checkpoint.CheckpointSha256);
-            insert.Bind(5, ReplayPayloadV17.Encode(checkpoint));
+            insert.Bind(5, prepared.Payload);
             insert.Execute();
         }
-        foreach (var checkpoint in document.PresentationCheckpoints)
+        foreach (var prepared in presentation)
         {
+            var checkpoint = prepared.Item;
             using var insert = connection.Prepare(
                 "INSERT INTO replay_presentation_checkpoints(record_id, event_sequence, time_ticks, sha256, payload) VALUES(?, ?, ?, ?, ?);");
             insert.Bind(1, recordId);
             insert.Bind(2, checkpoint.EventSequence);
             insert.Bind(3, checkpoint.TimeTicks);
             insert.Bind(4, checkpoint.CheckpointSha256);
-            insert.Bind(5, ReplayPayloadV17.Encode(checkpoint));
+            insert.Bind(5, prepared.Payload);
             insert.Execute();
-        }
-    }
-
-    private static void LoadCheckpointsV17(
-        WinSqliteConnection connection,
-        string recordId,
-        ReplayDocumentV17 document)
-    {
-        document.TruthCheckpoints.Clear();
-        using (var query = connection.Prepare(
-                   "SELECT sha256, payload FROM replay_truth_checkpoints WHERE record_id=? ORDER BY event_sequence;"))
-        {
-            query.Bind(1, recordId);
-            while (query.Read())
-            {
-                var value = ReplayPayloadV17.Decode<ReplayTruthCheckpointV17>(query.Blob(1));
-                if (!string.Equals(value.CheckpointSha256, query.Text(0), StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Stored replay truth checkpoint hash mismatch.");
-                document.TruthCheckpoints.Add(value);
-            }
-        }
-        document.PresentationCheckpoints.Clear();
-        using var presentation = connection.Prepare(
-            "SELECT sha256, payload FROM replay_presentation_checkpoints WHERE record_id=? ORDER BY event_sequence;");
-        presentation.Bind(1, recordId);
-        while (presentation.Read())
-        {
-            var value = ReplayPayloadV17.Decode<ReplayPresentationCheckpointV17>(presentation.Blob(1));
-            if (!string.Equals(value.CheckpointSha256, presentation.Text(0), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Stored replay presentation checkpoint hash mismatch.");
-            document.PresentationCheckpoints.Add(value);
         }
     }
 
@@ -478,15 +401,9 @@ internal sealed partial class MatchRecordDatabase
         return Path.Combine(AttachmentDirectory, asset.Sha256.ToLowerInvariant() + NormalizeExtension(asset.Extension));
     }
 
-    private static ReplayDocumentEnvelopeV17 CloneV17WithoutTransientPayload(ReplayDocumentEnvelopeV17 envelope)
-    {
-        var clone = ReplayCanonicalJsonV17.Clone(envelope);
-        foreach (var asset in clone.Document.Assets) asset.Payload = Array.Empty<byte>();
-        return clone;
-    }
-
     private static void EnsureV17Tables(WinSqliteConnection connection)
     {
+        connection.Execute("CREATE TABLE IF NOT EXISTS replay_incoming_v17(transfer_id TEXT PRIMARY KEY, document_root TEXT NOT NULL, payload_sha256 TEXT NOT NULL, payload BLOB NOT NULL, state TEXT NOT NULL, error TEXT NOT NULL, created_utc TEXT NOT NULL);");
         connection.Execute("CREATE TABLE IF NOT EXISTS replay_documents("
                            + "record_id TEXT PRIMARY KEY, document_version INTEGER NOT NULL CHECK(document_version=17), "
                            + "document_state TEXT NOT NULL, document_root TEXT NOT NULL, truth_root TEXT NOT NULL, "

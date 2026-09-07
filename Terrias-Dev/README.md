@@ -1,21 +1,21 @@
-# Terrias C# DLL
+# Terrias C# implementation
 
-This project builds the C# mod entry assembly for Terrias.
+This project compiles Terrias content behavior into the Terrias.Aura assembly.
+The game loads the published file as Terrias/Scripts/Entry.dll.
 
-`Docs/` contains development notes and workshop copy moved out of the runtime mod folder.
-
-Build:
-
-```powershell
-dotnet build .\Terrias.Dll.csproj -c Release
-```
-
-Test:
+From the repository root:
 
 ```powershell
-..\tools\Test-TerriasCSharp.ps1
+tools/Test-TerriasGate.ps1 -Profile csharp
 ```
 
-The build target copies the compiled assembly to `..\Terrias\Scripts\Entry.dll`, which is the file name loaded by the game.
+This builds the shared runtime and both product consumers once, publishes their
+packages through the shared transaction, and runs Terrias C# behavior tests.
 
-The internal assembly name is `Terrias.Aura` to avoid runtime conflicts with other mods that also ship an `Entry.dll`.
+A direct `dotnet build Terrias-Dev/Terrias.Dll.csproj -c Release` compiles but
+does not update the MOD package. Use tools/Build-MainSharedConsumers.ps1 when
+publishing a product C# change without that test profile.
+
+See [technical docs](../docs/Terrias/README.md),
+[content development](../.codex/skills/terrias-mod-dev/SKILL.md), and
+[validation selection](../.codex/skills/aura-project-dev/references/validation.md).

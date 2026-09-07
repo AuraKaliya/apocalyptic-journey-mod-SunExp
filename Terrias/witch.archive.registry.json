@@ -115,6 +115,44 @@
         "zh-Hans": "Config/WitchArchive/Text/columbina/background.zh-Hans.txt"
       },
       "enabled": true
+    },
+    {
+      "id": "olimya",
+      "roleId": "Terrias_olimya_olimya",
+      "careerId": "olimya",
+      "sort": 40,
+      "avatarPath": "Mods/Terrias/ModResource/Images/Icon/Olimya",
+      "portraitPath": "Mods/Terrias/ModResource/Images/Character/Olimya1",
+      "portraitOffsetX": 0,
+      "portraitOffsetY": 0,
+      "name": {
+        "zh-Hans": "奥莉米娅",
+        "zh-Hant": "奧莉米婭",
+        "en": "Olimya",
+        "ja": "オリミヤ"
+      },
+      "title": {
+        "zh-Hans": "黄金的魔女",
+        "zh-Hant": "黃金的魔女",
+        "en": "Witch of Gold",
+        "ja": "黄金の魔女"
+      },
+      "summary": {
+        "zh-Hans": "以紫晶之心编织黄金梦乡的魔女。黑日之后，她开始学会让梦里的一把椅子空着。",
+        "zh-Hant": "以紫晶之心編織黃金夢鄉的魔女。黑日之後，她開始學會讓夢裡的一把椅子空著。",
+        "en": "A witch who wove the Golden Dream with her amethyst heart. After the Black Sun, she began learning to leave one chair in her dream empty.",
+        "ja": "紫晶の心で黄金の夢郷を織った魔女。黒日の災いの後、夢の中の椅子を一つ空けておくことを学び始めた。"
+      },
+      "background": {
+        "zh-Hans": "以紫晶之心编织黄金梦乡的魔女。黑日之后，她开始学会让梦里的一把椅子空着。",
+        "zh-Hant": "以紫晶之心編織黃金夢鄉的魔女。黑日之後，她開始學會讓夢裡的一把椅子空著。",
+        "en": "A witch who wove the Golden Dream with her amethyst heart. After the Black Sun, she began learning to leave one chair in her dream empty.",
+        "ja": "紫晶の心で黄金の夢郷を織った魔女。黒日の災いの後、夢の中の椅子を一つ空けておくことを学び始めた。"
+      },
+      "backgroundFiles": {
+        "zh-Hans": "Config/WitchArchive/Text/olimya/background.zh-Hans.txt"
+      },
+      "enabled": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
 using Terrias.Dll.Infrastructure;
@@ -59,7 +60,7 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ITerriasServerBoun
         if (!serverSender.IsAvailable)
         {
             rejection = "missing sender";
-            return !TerriasNetworkRuntime.IsMultiplayerSession();
+            return !TerriasNetworkRuntime.NetworkActive();
         }
 
         if (!serverSender.IsLobbyMember)

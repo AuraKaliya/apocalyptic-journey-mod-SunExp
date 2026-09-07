@@ -1,7 +1,0 @@
-interface:
-  display_name: "Terrias Complete Solution Gate"
-  short_description: "Require root-cause final designs and remove legacy paths."
-  default_prompt: "Use $terrias-complete-solution-gate before proposing or implementing Terrias, AuraToolsExp, or Aura shared/core fixes, migrations, compatibility changes, and refactors; deliver one complete target architecture and clean the retired implementation."
-
-policy:
-  allow_implicit_invocation: true

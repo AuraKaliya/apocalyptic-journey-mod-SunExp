@@ -193,11 +193,13 @@ internal sealed class AuraToolModuleConfigStore
         new(StringComparer.Ordinal);
     private readonly HashSet<string> incompatible =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (object Value, string Json)> committed = new(StringComparer.Ordinal);
 
     public void Reset()
     {
         revisions.Clear();
         incompatible.Clear();
+        committed.Clear();
     }
 
     public T Load<T>(string moduleId, T fallback, out bool migrated)
@@ -230,7 +232,7 @@ internal sealed class AuraToolModuleConfigStore
             AuraToolsLog.Warn(
                 "Module config uses a newer schema and was not overwritten: "
                 + moduleId);
-            return fallback;
+            return Remember(moduleId, fallback);
         }
         if (!snapshot.Found
             || snapshot.Value == null
@@ -240,15 +242,15 @@ internal sealed class AuraToolModuleConfigStore
                 StringComparison.Ordinal))
         {
             migrated = true;
-            return fallback;
+            return Remember(moduleId, fallback);
         }
 
         if (snapshot.Value.Settings is null)
         {
             migrated = true;
-            return fallback;
+            return Remember(moduleId, fallback);
         }
-        return snapshot.Value.Settings;
+        return Remember(moduleId, snapshot.Value.Settings);
     }
 
     public bool Save<T>(string moduleId, T settings, out long revision)
@@ -260,6 +262,7 @@ internal sealed class AuraToolModuleConfigStore
                 : 0;
             AuraToolsLog.Warn(
                 "Refusing to overwrite newer module config schema: " + moduleId);
+            Restore(moduleId, settings);
             return false;
         }
         var expected = revisions.TryGetValue(moduleId, out var known)
@@ -281,11 +284,34 @@ internal sealed class AuraToolModuleConfigStore
         {
             AuraToolsLog.Warn(
                 "Failed to save module config " + moduleId + ": " + result.Message);
+            Restore(moduleId, settings);
             return false;
         }
 
         revisions[moduleId] = result.Revision;
+        Remember(moduleId, settings);
         return true;
+    }
+
+    private T Remember<T>(string moduleId, T value)
+    {
+        if (value != null) committed[moduleId] = (value, JsonConvert.SerializeObject(value));
+        return value;
+    }
+
+    private void Restore<T>(string moduleId, T value)
+    {
+        if (value == null || !committed.TryGetValue(moduleId, out var snapshot)) return;
+        // Child modules own their own commits. Restoring an aggregate must
+        // neither replace their live objects nor bless unsaved parent edits.
+        var children = value.GetType().GetProperties()
+            .Where(property => property.CanRead && property.CanWrite && property.GetIndexParameters().Length == 0)
+            .Select(property => new { Property = property, Value = property.GetValue(value) })
+            .Where(child => child.Value != null && committed.Any(pair => pair.Key != moduleId && ReferenceEquals(pair.Value.Value, child.Value)))
+            .ToArray();
+        JsonConvert.PopulateObject(snapshot.Json, value,
+            new JsonSerializerSettings { ObjectCreationHandling = ObjectCreationHandling.Replace });
+        foreach (var child in children) child.Property.SetValue(value, child.Value);
     }
 
     public bool IsReadOnly(string moduleId)

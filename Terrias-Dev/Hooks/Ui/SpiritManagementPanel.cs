@@ -325,6 +325,19 @@ public static class SpiritManagementPanel
         RefreshActions();
     }
 
+    private static void RefreshSelection()
+    {
+        if (currentReadModel == null) { Refresh(); return; }
+        virtualGrid?.RefreshVisible(force: true);
+        RefreshSelectedSpiritIdentity();
+        if (detailTab != 3)
+        {
+            RefreshPreviewAndDetail();
+            RefreshParty();
+            RefreshActions();
+        }
+    }
+
     private static void RefreshGrid(bool resetScroll = false)
     {
         if (virtualGrid == null) return;
@@ -471,7 +484,7 @@ public static class SpiritManagementPanel
             return;
         }
         SelectSpirit(uid);
-        Refresh();
+        RefreshSelection();
     }
 
     private static void RefreshSelectedSpiritIdentity()
@@ -555,7 +568,7 @@ public static class SpiritManagementPanel
         var index = Array.FindIndex(values, item => Same(item.SpiritUid, selectedUid));
         index = (Math.Max(0, index) + delta + values.Length) % values.Length;
         SelectSpirit(values[index].SpiritUid);
-        Refresh();
+        RefreshSelection();
     }
 
     private static void CreatePreviewShell(Transform parent)
@@ -729,7 +742,7 @@ public static class SpiritManagementPanel
         }
 
         SelectSpirit(occupantUid);
-        Refresh();
+        RefreshSelection();
     }
 
     private static void SetActive()

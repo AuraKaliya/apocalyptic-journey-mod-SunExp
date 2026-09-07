@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">四人普通胜利CG：构图与保留区示意</title>
+  <desc id="desc">卡洛琳在左前，可可在左后，乌娜在右前，阿米莉娅在右后。椭圆代表脸部保留区，小矩形代表手势区。此图为绘制规划，未生成新的角色立绘。</desc>
+  <defs>
+    <linearGradient id="ground" x2="0" y2="1"><stop stop-color="#162338"/><stop offset="1" stop-color="#263e4b"/></linearGradient>
+    <linearGradient id="beam" x2="1" y2="1"><stop stop-color="#e8d9b5" stop-opacity=".35"/><stop offset="1" stop-color="#e8d9b5" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#ground)"/>
+  <path d="M150 0 L560 0 L1590 950 L1210 1080 Z" fill="url(#beam)"/>
+  <path d="M0 770 Q450 680 970 840 T1920 740 L1920 1080 L0 1080 Z" fill="#152c34" opacity=".55"/>
+  <g fill="none" stroke="#c1c8c9" stroke-opacity=".28" stroke-width="2"><rect x="48" y="54" width="1824" height="972"/><path d="M960 54 V1026 M48 540 H1872" stroke-dasharray="8 14"/></g>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#edf1ec">
+    <rect x="106" y="70" width="518" height="140" fill="#172534" stroke="#d9c494" stroke-width="2" stroke-dasharray="9 8"/>
+    <text x="132" y="125" font-size="38">标题留白区</text><text x="132" y="177" font-size="27" fill="#bdc9cd">“胜利”＋可选副文案</text>
+    <text x="1110" y="98" font-size="28">构图规划 · 原点左上 · 非插画成稿</text>
+  </g>
+  <g fill="#9cb8d2" fill-opacity=".16" stroke="#9cb8d2" stroke-opacity=".50" stroke-width="3">
+    <path d="M800 400 Q670 350 555 380 Q390 425 390 790 Q510 655 655 670 L665 930 L1030 930 L1015 650 Q1130 590 1180 610 Q1120 390 905 380 Z"/>
+    <path d="M1500 390 Q1390 510 1390 840 L1780 900 Q1840 640 1700 390 Z"/>
+    <path d="M1420 330 Q1390 200 1540 185 L1515 113 Q1590 180 1660 138 L1690 238 Q1820 250 1840 355 Q1710 310 1650 359 Z"/>
+  </g>
+  <g fill="#cb8580" fill-opacity=".25" stroke="#cb8580" stroke-opacity=".65" stroke-width="3"><path d="M345 515 Q280 570 185 680 L90 980 L720 980 L672 650 Q585 545 510 515 Z"/></g>
+  <g fill="#dec795" fill-opacity=".20" stroke="#dec795" stroke-opacity=".68" stroke-width="3">
+    <circle cx="1217" cy="376" r="190" fill="none" stroke-width="9"/>
+    <path d="M1145 525 Q1060 595 1020 720 L883 986 L1545 986 L1510 670 Q1475 592 1410 555 L1350 572 L1340 650 Q1290 559 1300 535 Z"/>
+  </g>
+  <g fill="#132837" stroke="#f0ddab" stroke-width="4">
+    <ellipse cx="441.6" cy="464.4" rx="86.4" ry="91.8"/>
+    <ellipse cx="825.6" cy="367.2" rx="82.56" ry="86.4"/>
+    <ellipse cx="1228.8" cy="475.2" rx="88.32" ry="91.8"/>
+    <ellipse cx="1574.4" cy="356.4" rx="82.56" ry="86.4"/>
+  </g>
+  <g fill="#152e38" fill-opacity=".9" stroke="#97c5c6" stroke-width="3" stroke-dasharray="7 6">
+    <rect x="470.4" y="604.8" width="192" height="140.4" rx="18"/>
+    <rect x="739.2" y="550.8" width="268.8" height="151.2" rx="18"/>
+    <rect x="1344" y="529.2" width="163.2" height="129.6" rx="18"/>
+    <rect x="1689.6" y="216" width="124.8" height="113.4" rx="18"/>
+    <rect x="1450" y="670" width="280" height="150" rx="18"/>
+  </g>
+  <g font-family="Microsoft YaHei, sans-serif" text-anchor="middle" fill="#f4efdf">
+    <text x="441.6" y="458" font-size="31">卡洛琳</text><text x="441.6" y="499" font-size="25">左前</text>
+    <text x="825.6" y="361" font-size="31">可可</text><text x="825.6" y="402" font-size="25">左后</text>
+    <text x="1228.8" y="469" font-size="31">乌娜</text><text x="1228.8" y="510" font-size="25">右前</text>
+    <text x="1574.4" y="350" font-size="29">阿米莉娅</text><text x="1574.4" y="391" font-size="25">右后</text>
+    <text x="566" y="670" font-size="27">收拢披风</text><text x="566" y="710" font-size="23" fill="#b9d8d8">手势保留区</text>
+    <text x="874" y="615" font-size="27">勾画后收势</text><text x="874" y="654" font-size="23" fill="#b9d8d8">手势保留区</text>
+    <text x="1426" y="580" font-size="26">掌上余火</text><text x="1426" y="621" font-size="22" fill="#b9d8d8">手势保留区</text>
+    <text x="1752" y="266" font-size="24">扶帽檐</text><text x="1752" y="305" font-size="21" fill="#b9d8d8">保留手指</text>
+    <text x="1590" y="753" font-size="27">书本与持握手</text>
+  </g>
+  <path d="M0 963 Q260 875 520 962 T1120 950 T1920 925 L1920 1080 L0 1080 Z" fill="#12242c" opacity=".9"/>
+  <g font-family="Microsoft YaHei, sans-serif" fill="#d8e3e0" font-size="26">
+    <text x="103" y="1020">底部裁切由轻雾连接；署名后置排版</text>
+    <text x="1112" y="1020">金色椭圆：面部保留　青色虚框：手势保留</text>
+  </g>
+</svg>

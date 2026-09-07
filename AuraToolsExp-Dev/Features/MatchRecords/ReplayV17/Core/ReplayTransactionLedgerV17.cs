@@ -48,8 +48,18 @@ internal sealed class ReplayTransactionLedgerV17
     internal IReadOnlyList<ReplayTransactionLedgerEntryV17> OpenEntries => entries.Values
         .Where(item => !item.Terminal)
         .OrderBy(item => item.OpenSequence)
-        .Select(ReplayCanonicalJsonV17.Clone)
+        .Select(CloneEntry)
         .ToList();
+
+    private static ReplayTransactionLedgerEntryV17 CloneEntry(ReplayTransactionLedgerEntryV17 value) => new()
+    {
+        TransactionId = value.TransactionId, ParentTransactionId = value.ParentTransactionId,
+        Kind = value.Kind, ActorId = value.ActorId, SourceInstanceId = value.SourceInstanceId,
+        OpenSequence = value.OpenSequence, RequiredStateWatermark = value.RequiredStateWatermark,
+        SourceCompleted = value.SourceCompleted, TerminalSourceSealed = value.TerminalSourceSealed,
+        StableBarrierObserved = value.StableBarrierObserved, Terminal = value.Terminal,
+        PendingAssets = new HashSet<string>(value.PendingAssets, StringComparer.OrdinalIgnoreCase)
+    };
 
     internal void Begin(
         string transactionId,

@@ -186,7 +186,7 @@ public static class EnemyCaptureSettlementApi
         if (suppression == null
             || suppression.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || suppression.BattleEpoch != CompanionAuthorityService.BattleEpoch
-            || TerriasNetworkRuntime.IsServer())
+            || TerriasNetworkQueries.IsServer())
         {
             return;
         }
@@ -268,7 +268,7 @@ public static class EnemyCaptureSettlementApi
 
     private static void AnnounceSuppression(RpcSpiritEnemySuppressed suppression)
     {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession() || !TerriasNetworkRuntime.IsServer())
+        if (!TerriasNetworkQueries.NetworkActive() || !TerriasNetworkQueries.IsServer())
         {
             return;
         }

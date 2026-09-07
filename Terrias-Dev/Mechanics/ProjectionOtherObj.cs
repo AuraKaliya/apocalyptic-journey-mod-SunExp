@@ -49,7 +49,7 @@ public sealed class ProjectionOtherObj : Partner
         ExecutionRoutePlayerId = string.IsNullOrWhiteSpace(executionRoutePlayerId)
             ? CompanionExecutionRouteApi.ResolveAuthoritativePlayerId(OwnerPlayerId)
             : executionRoutePlayerId.Trim();
-        dataConfig = ProjectionSummonService.CreateProjectionDataConfig(role, stats);
+        dataConfig = ProjectionLifecycle.Current.CreateDataConfig(role, stats);
         data = dataConfig.data;
         FightAction = new ObjectAction(this);
         ApplyEnemyMaterial();
@@ -82,7 +82,7 @@ public sealed class ProjectionOtherObj : Partner
         }
 
         Status = status;
-        ProjectionSummonService.RegisterFightState(
+        ProjectionLifecycle.Current.Register(
             this,
             "ProjectionOtherObj.InitProjection");
         dataConfig.scriptExecutor.Self = Status;
@@ -183,7 +183,7 @@ public sealed class ProjectionOtherObj : Partner
             && BattleLifecycleApi.AcceptsCompanionContinuation)
         {
             battleState?.AdvanceTurn();
-            ProjectionSummonService.BroadcastTurnCompleted(
+            ProjectionLifecycle.Current.CompleteTurn(
                 this,
                 "ActorTurnAdvanced");
         }
@@ -278,7 +278,7 @@ public sealed class ProjectionOtherObj : Partner
             if (state.RemoteTurnGate.ShouldQuery(now, idleSeconds: 2d, minimumIntervalSeconds: 1.5d))
             {
                 state.RemoteTurnGate.MarkQuery(now);
-                ProjectionSummonService.RequestRuntimeState(this, "RemoteTurnWait");
+                ProjectionLifecycle.Current.RequestState(this, "RemoteTurnWait");
             }
             if (now - startedAt >= 12d)
             {
@@ -312,7 +312,7 @@ public sealed class ProjectionOtherObj : Partner
         };
         cardState?.CompleteTurn(Status);
         battleState?.AdvanceTurn();
-        ProjectionSummonService.BroadcastTurnCompleted(
+        ProjectionLifecycle.Current.CompleteTurn(
             this,
             "ActorTurnSkipped." + source);
     }

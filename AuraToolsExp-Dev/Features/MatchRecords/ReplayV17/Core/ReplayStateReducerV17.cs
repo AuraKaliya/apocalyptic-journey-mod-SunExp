@@ -6,6 +6,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
 internal sealed class ReplayStateDiffV17
 {
+    internal long SourceStateVersion { get; set; }
     internal List<ReplayEntityStateV17> Spawned { get; } = new();
 
     internal List<ReplayEntityStateV17> Despawned { get; } = new();
@@ -20,9 +21,11 @@ internal sealed class ReplayStateReducerV17
     private ReplayVisibleStateV17 current = new();
     private long lastTruthSequence;
     private string currentStateHash = "";
+    private readonly bool computeHashes;
 
-    internal ReplayStateReducerV17()
+    internal ReplayStateReducerV17(bool computeHashes = true)
     {
+        this.computeHashes = computeHashes;
         Reset(new ReplayVisibleStateV17());
     }
 
@@ -31,12 +34,16 @@ internal sealed class ReplayStateReducerV17
     internal long LastTruthSequence => lastTruthSequence;
 
     internal string CurrentStateHash => currentStateHash;
+    internal int RoundSequence => current.RoundSequence;
+    internal int ActorTurnSequence => current.ActorTurnSequence;
+    internal long StateVersion => current.StateVersion;
+    internal ReplayStateDiffV17 Diff(ReplayVisibleStateV17 observed) => CreateNormalizedDiff(current, Normalize(observed));
 
     internal void Reset(ReplayVisibleStateV17 state, long truthSequence = 0)
     {
         current = Normalize(state);
         lastTruthSequence = Math.Max(0, truthSequence);
-        currentStateHash = ReplayCanonicalJsonV17.Sha256(current);
+        currentStateHash = computeHashes ? ReplayCanonicalJsonV17.Sha256(current) : "";
     }
 
     internal void Apply(ReplayJournalEventV17 value, bool verifyHashes = true)
@@ -76,7 +83,7 @@ internal sealed class ReplayStateReducerV17
         {
             current.StateVersion++;
             current = Normalize(current);
-            currentStateHash = ReplayCanonicalJsonV17.Sha256(current);
+            currentStateHash = computeHashes ? ReplayCanonicalJsonV17.Sha256(current) : "";
         }
         lastTruthSequence = value.Sequence;
         var after = currentStateHash;
@@ -89,11 +96,12 @@ internal sealed class ReplayStateReducerV17
     }
 
     internal static ReplayStateDiffV17 CreateDiff(ReplayVisibleStateV17 before, ReplayVisibleStateV17 after)
+        => CreateNormalizedDiff(Normalize(before), Normalize(after));
+
+    private static ReplayStateDiffV17 CreateNormalizedDiff(ReplayVisibleStateV17 left, ReplayVisibleStateV17 right)
     {
-        var left = Normalize(before);
-        var right = Normalize(after);
         right.StateVersion = left.StateVersion;
-        var result = new ReplayStateDiffV17();
+        var result = new ReplayStateDiffV17 { SourceStateVersion = left.StateVersion };
         if (!string.Equals(left.PerspectivePlayerId, right.PerspectivePlayerId, StringComparison.Ordinal))
             throw new InvalidOperationException("Replay perspective identity changed inside one battle.");
         if (!string.Equals(left.BattlePhase, right.BattlePhase, StringComparison.Ordinal))

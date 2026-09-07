@@ -62,7 +62,7 @@ if (-not (Test-Path -LiteralPath $publishManifestPath -PathType Leaf)) {
     throw "Product package publish manifest is missing: $publishManifestPath"
 }
 $publishManifest = Get-Content -Raw -LiteralPath $publishManifestPath | ConvertFrom-Json
-if ($publishManifest.schemaVersion -ne 1 `
+if ($publishManifest.schemaVersion -ne 2 `
     -or [string]$publishManifest.configuration -ne $Configuration `
     -or [string]$publishManifest.transactionId -notmatch '^[0-9a-f]{32}$' `
     -or $publishManifest.sharedSha256 -ne $expectedHash) {
@@ -99,7 +99,7 @@ foreach ($consumer in $consumers) {
             Sha256 = $expectedHash
         }
     )
-    $actualFiles = @($manifestConsumer[0].files)
+    $actualFiles = @($manifestConsumer[0].files | Where-Object { $_.kind -ne 'payload' })
     if ($actualFiles.Count -ne $expectedFiles.Count) {
         throw "Product package publish manifest file set is stale: $($consumer.id)"
     }
@@ -119,6 +119,19 @@ foreach ($consumer in $consumers) {
         if ($publishedHash -ne $expectedFile.Sha256) {
             throw "Published package file does not match its manifest: $($expectedFile.Target)"
         }
+    }
+}
+
+$inputSnapshot = Get-Content -LiteralPath (Join-Path $repoRoot "artifacts/shared-release/$Configuration/build-input.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($inputSnapshot.fingerprint -ne $publishManifest.inputFingerprint) { throw 'Manifest input fingerprint is stale.' }
+foreach ($consumer in $publishManifest.consumers) {
+    $prefix = [string]$consumer.id + '/'
+    $expectedPayload = @($inputSnapshot.files | Where-Object { ([string]$_.path).StartsWith($prefix,[StringComparison]::Ordinal) })
+    $payload = @($consumer.files | Where-Object kind -eq 'payload')
+    if ($payload.Count -ne $expectedPayload.Count) { throw "Payload inventory differs: $($consumer.id)" }
+    foreach ($entry in $expectedPayload) {
+        $matches = @($payload | Where-Object target -eq $entry.path)
+        if ($matches.Count -ne 1 -or $matches[0].sha256 -ne $entry.sha256 -or (Get-FileHash -LiteralPath (Join-Path $repoRoot $entry.path)).Hash -ne $entry.sha256) { throw "Payload is missing or changed: $($entry.path)" }
     }
 }
 

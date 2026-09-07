@@ -96,8 +96,9 @@ namespace AuraShared.Core
 
     public static class AuraSharedConfigStore
     {
-        private static readonly Dictionary<string, (object Value, long Revision, int SchemaVersion)>
+        private static readonly Dictionary<string, (string Json, long Revision, int SchemaVersion)>
             Values = new();
+        public static bool FailNextWriteForTests { get; set; }
 
         public static AuraSharedConfigSnapshot<T> ReadOwner<T>(
             string ownerModId,
@@ -106,8 +107,7 @@ namespace AuraShared.Core
             T fallback)
         {
             var key = ownerModId + "|" + system + "|" + fileName;
-            if (!Values.TryGetValue(key, out var stored)
-                || stored.Value is not T value)
+            if (!Values.TryGetValue(key, out var stored))
             {
                 return new AuraSharedConfigSnapshot<T>
                 {
@@ -120,7 +120,7 @@ namespace AuraShared.Core
                 Found = true,
                 Revision = stored.Revision,
                 SchemaVersion = stored.SchemaVersion,
-                Value = value
+                Value = Newtonsoft.Json.JsonConvert.DeserializeObject<T>(stored.Json)!
             };
         }
 
@@ -133,10 +133,14 @@ namespace AuraShared.Core
             int schemaVersion = 1)
         {
             var key = ownerModId + "|" + system + "|" + fileName;
-            var revision = Values.TryGetValue(key, out var stored)
-                ? stored.Revision + 1
-                : 1;
-            Values[key] = (value!, revision, schemaVersion);
+            var currentRevision = Values.TryGetValue(key, out var stored) ? stored.Revision : 0;
+            if (FailNextWriteForTests || expectedRevision >= 0 && expectedRevision != currentRevision)
+            {
+                FailNextWriteForTests = false;
+                return new AuraSharedConfigWriteResult { Success = false, Revision = currentRevision, Message = "injected failure or revision conflict" };
+            }
+            var revision = currentRevision + 1;
+            Values[key] = (Newtonsoft.Json.JsonConvert.SerializeObject(value), revision, schemaVersion);
             return new AuraSharedConfigWriteResult
             {
                 Success = true,
@@ -144,7 +148,7 @@ namespace AuraShared.Core
             };
         }
 
-        public static void ResetForTests() => Values.Clear();
+        public static void ResetForTests() { Values.Clear(); FailNextWriteForTests = false; }
 
         public static void SetForTests<T>(
             string ownerModId,
@@ -155,7 +159,7 @@ namespace AuraShared.Core
             int schemaVersion)
         {
             var key = ownerModId + "|" + system + "|" + fileName;
-            Values[key] = (value!, revision, schemaVersion);
+            Values[key] = (Newtonsoft.Json.JsonConvert.SerializeObject(value), revision, schemaVersion);
         }
     }
 }

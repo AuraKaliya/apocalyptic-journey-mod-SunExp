@@ -15,257 +15,205 @@ namespace AuraToolsExp.Dll.Features.Cg;
 public sealed class AuraToolsCgSceneAssetResolver
 {
     public const string BackgroundAssetPrefix = "event.background.";
-    public const string RoleIdleAssetId = "role.idle";
+    public const string RolePortraitAssetPrefix = "event.role.";
+    public const string ArtworkAssetPrefix = "event.art.";
+    private static AuraToolsEventCgArtCatalog? catalog;
+    private static string catalogRoot = "";
+    private static bool catalogAttempted;
 
     public string ProviderId => AuraToolsIds.ModId + ".Cg.SceneAssets";
-
     public string OwnerModId => AuraToolsIds.ModId;
-
     public int Priority => 100;
 
-    public AuraCgResolvedSceneAsset? ResolveSceneAsset(
-        string assetId,
-        string roleId,
-        string roleVariantId)
-    {
-        if (TryResolveBackgroundScene(assetId, out var sceneId))
-        {
-            return ResolveBackground(assetId, sceneId);
-        }
-
-        return string.Equals(assetId, RoleIdleAssetId, StringComparison.OrdinalIgnoreCase)
-            ? ResolveRoleIdle(assetId, roleId, roleVariantId)
-            : null;
-    }
-
-    public static string BackgroundAssetId(string sceneId)
-    {
-        return BackgroundAssetPrefix + AuraToolsEventCgSceneIds.Normalize(sceneId);
-    }
-
-    private static bool TryResolveBackgroundScene(string assetId, out string sceneId)
+    public AuraCgResolvedSceneAsset? ResolveSceneAsset(string assetId, string roleId, string roleVariantId)
     {
         var value = (assetId ?? "").Trim();
-        if (!value.StartsWith(BackgroundAssetPrefix, StringComparison.OrdinalIgnoreCase))
+        if (value.StartsWith(BackgroundAssetPrefix, StringComparison.OrdinalIgnoreCase))
+            return ResolveBackground(AuraToolsEventCgSceneIds.Normalize(value.Substring(BackgroundAssetPrefix.Length)));
+        if (value.StartsWith(RolePortraitAssetPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            sceneId = "";
-            return false;
+            var suffix = value.Substring(RolePortraitAssetPrefix.Length);
+            var scene = AuraToolsEventCgSceneIds.All.FirstOrDefault(id =>
+                string.Equals(id, suffix, StringComparison.OrdinalIgnoreCase)
+                || suffix.StartsWith(id + ".", StringComparison.OrdinalIgnoreCase));
+            if (scene == null) return null;
+            var portrait = ResolveRole(value, scene, roleId, roleVariantId);
+            if (portrait != null) AuraToolsEventCgArtCatalog.ApplyMotionPreference(portrait.Artwork,
+                AuraToolsConfigService.SkillCg.EventCg.GetScene(scene).MotionEnabled);
+            return portrait;
         }
-
-        sceneId = AuraToolsEventCgSceneIds.Normalize(value.Substring(BackgroundAssetPrefix.Length));
-        return true;
+        if (value.StartsWith(ArtworkAssetPrefix, StringComparison.OrdinalIgnoreCase))
+            return ResolveArtwork(value.Substring(ArtworkAssetPrefix.Length));
+        return null;
     }
 
-    private static AuraCgResolvedSceneAsset? ResolveBackground(string assetId, string sceneId)
+    public static string BackgroundAssetId(string sceneId) =>
+        BackgroundAssetPrefix + AuraToolsEventCgSceneIds.Normalize(sceneId);
+    public static string RoleAssetId(string sceneId) =>
+        RolePortraitAssetPrefix + AuraToolsEventCgSceneIds.Normalize(sceneId);
+
+    internal static IReadOnlyList<string> PreviewRoleIds => EnsureCatalog()?.PreviewRoles ?? new List<string>();
+    internal static string CoverageSummary
     {
-        var resource = AuraToolsConfigService.SkillCg.EventCg.GetScene(sceneId).EffectiveBackgroundResource;
-        var resolvedAssetId = assetId + "." + StableHash(resource);
+        get
+        {
+            var current = EnsureCatalog();
+            return current == null ? "主题素材未就绪"
+                : current.Characters.Count + " 套形象 · " + current.PoseCount + " 张事件姿势 · " + current.Themes.Count + " 个主题";
+        }
+    }
+
+    internal static void ReloadCatalog()
+    {
+        catalogAttempted = false;
+        catalog = null;
+        EnsureCatalog();
+    }
+
+    private static AuraToolsEventCgArtCatalog? EnsureCatalog()
+    {
+        var directory = Path.Combine(AuraToolsPaths.PackageDirectory, "SharedResources", "EventCg");
+        if (catalogAttempted && string.Equals(directory, catalogRoot, StringComparison.OrdinalIgnoreCase)) return catalog;
+        catalogRoot = directory;
+        catalogAttempted = true;
         try
         {
-            var sprite = AuraToolsResourceCache.Load<Sprite>(resource, true);
-            if (sprite != null)
-            {
-                return Direct(resolvedAssetId, new[] { sprite }, ownsSprites: false, frameSeconds: 1f, loop: false);
-            }
+            catalog = AuraToolsEventCgArtCatalog.Parse(File.ReadAllText(Path.Combine(directory, "event-cg.art.json")));
+            foreach (var asset in catalog.Assets.Values)
+                if (!File.Exists(AuraToolsEventCgArtCatalog.ResolveAssetPath(directory, asset.Path)))
+                    throw new FileNotFoundException("Packaged event CG artwork is missing: " + asset.Path);
         }
-        catch
+        catch (Exception error)
         {
+            catalog = null;
+            AuraToolsLog.Warn("[EventCG] artwork catalog unavailable: " + error.Message);
         }
-
-        var path = AuraToolsConfigService.ResolveConfiguredPath(resource);
-        return File.Exists(path)
-            ? new AuraCgResolvedSceneAsset
-            {
-                OwnerModId = AuraToolsIds.ModId,
-                AssetId = resolvedAssetId,
-                ImagePath = path,
-                MediaType = SkillCgMediaTypes.Image,
-                Loop = false
-            }
-            : null;
+        return catalog;
     }
 
-    private static AuraCgResolvedSceneAsset? ResolveRoleIdle(
-        string assetId,
-        string roleId,
-        string roleVariantId)
+    private static AuraCgResolvedSceneAsset? ResolveBackground(string sceneId)
+    {
+        var current = EnsureCatalog();
+        if (current == null || !current.Themes.TryGetValue(sceneId, out var theme)) return null;
+        var background = ResolveArtwork(theme.Background);
+        if (background == null) return null;
+        var custom = AuraToolsConfigService.SkillCg.EventCg.GetScene(sceneId).BackgroundResource;
+        if (!string.IsNullOrWhiteSpace(custom))
+        {
+            var replacement = ResolvePortraitResource(custom, BackgroundAssetId(sceneId) + "." + StableHash(custom), "");
+            if (replacement != null) background = replacement;
+            else AuraToolsLog.Warn("[EventCG] custom background unavailable; using the registered theme.");
+        }
+        background.Artwork = new AuraCgSceneArtwork
+        {
+            DarkTitle = string.IsNullOrWhiteSpace(custom) && theme.DarkTitle,
+            CameraPush = theme.CameraPush,
+            Layers = theme.Layers.Select(ToSharedLayer).ToList()
+        };
+        AuraToolsEventCgArtCatalog.ApplyMotionPreference(background.Artwork,
+            AuraToolsConfigService.SkillCg.EventCg.GetScene(sceneId).MotionEnabled);
+        return background;
+    }
+
+    private static AuraCgResolvedSceneAsset? ResolveRole(string assetId, string sceneId, string roleId, string roleVariantId)
     {
         var normalizedRole = RoleCatalog.NormalizeRoleId(roleId);
-        if (string.IsNullOrWhiteSpace(normalizedRole))
-        {
-            return null;
-        }
-        var resolvedAssetId = assetId + "." + CacheSegment(normalizedRole);
+        if (string.IsNullOrWhiteSpace(normalizedRole)) return null;
+        var current = EnsureCatalog();
+        var character = current?.FindCharacter(normalizedRole, roleVariantId);
         var displayName = RoleCatalog.GetDisplayName(normalizedRole);
-
-        var skin = SkinRegistry.FindQualified(roleVariantId, effectiveOnly: false);
-        var animationDirectory = skin?.Assets?.Animation ?? "";
-        if (!string.IsNullOrWhiteSpace(animationDirectory))
+        if (character == null && !string.IsNullOrWhiteSpace(roleVariantId))
         {
-            var skinAssetId = resolvedAssetId
-                              + "." + CacheSegment(roleVariantId)
-                              + "." + StableHash(animationDirectory);
-            var idleDirectory = Path.Combine(animationDirectory, "Idle");
-            if (Directory.Exists(idleDirectory)
-                && Directory.EnumerateFiles(idleDirectory, "*.png", SearchOption.TopDirectoryOnly).Any())
+            var skin = SkinRegistry.FindQualified(roleVariantId, effectiveOnly: false);
+            foreach (var resource in new[] { skin?.Assets?.Character, skin?.Assets?.CareerImage })
             {
-                var spec = AuraToolsCgAnimationSpec.FromJson(
-                    ReadFile(Path.Combine(idleDirectory, "config.json")),
-                    Directory.EnumerateFiles(idleDirectory, "*.png", SearchOption.TopDirectoryOnly)
-                        .Select(Path.GetFileNameWithoutExtension));
-                return new AuraCgResolvedSceneAsset
-                {
-                    OwnerModId = AuraToolsIds.ModId,
-                    AssetId = skinAssetId,
-                    DisplayName = displayName,
-                    ImagePath = idleDirectory,
-                    MediaType = SkillCgMediaTypes.Sequence,
-                    FrameSeconds = spec.FrameSeconds,
-                    Loop = spec.Loop
-                };
+                if (string.IsNullOrWhiteSpace(resource)) continue;
+                var portrait = ResolvePortraitResource(resource!, assetId + "." + StableHash(normalizedRole + "|" + roleVariantId + "|" + resource), displayName);
+                if (portrait != null) return portrait;
             }
         }
-
-        return ResolveRegisteredCareerIdle(resolvedAssetId + ".career", normalizedRole, displayName);
+        character ??= current?.FindCharacter(normalizedRole);
+        if (current != null && character != null)
+        {
+            var portrait = ResolveArtwork(current.ResolvePose(character, sceneId));
+            if (portrait != null) { portrait.DisplayName = displayName; return portrait; }
+        }
+        if (!CareerConfigApi.TryCreate(normalizedRole, out var career) || career == null) return null;
+        foreach (var field in new[] { "Character", "CareerImage" })
+        {
+            var path = ReadData(career, field);
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            var portrait = ResolvePortraitResource(path, assetId + "." + StableHash(normalizedRole + "|" + path), displayName);
+            if (portrait != null) return portrait;
+        }
+        return null;
     }
 
-    private static AuraCgResolvedSceneAsset? ResolveRegisteredCareerIdle(
-        string assetId,
-        string roleId,
-        string displayName)
+    private static AuraCgResolvedSceneAsset? ResolveArtwork(string id)
     {
-        if (!CareerConfigApi.TryCreate(roleId, out var career) || career == null)
-        {
-            return null;
-        }
-
-        var animation = ReadData(career, "Animation");
-        if (string.IsNullOrWhiteSpace(animation))
-        {
-            return null;
-        }
-
-        var idleDirectory = animation.TrimEnd('/', '\\') + "/Idle";
-        var textures = AuraToolsResourceCache.LoadAll<Texture2D>(idleDirectory)
-            .Where(texture => texture != null)
-            .ToList();
-        if (textures.Count == 0)
-        {
-            return null;
-        }
-
-        var byName = textures.ToDictionary(texture => texture.name, StringComparer.OrdinalIgnoreCase);
-        var spec = AuraToolsCgAnimationSpec.FromJson(
-            LoadResourceConfig(idleDirectory),
-            byName.Keys);
-        var sprites = new List<Sprite>();
-        foreach (var name in spec.OrderedFrameNames)
-        {
-            if (!byName.TryGetValue(name, out var texture)) continue;
-            sprites.Add(Sprite.Create(
-                texture,
-                new Rect(0f, 0f, texture.width, texture.height),
-                new Vector2(0.5f, 0.5f),
-                100f));
-        }
-
-        return sprites.Count == 0
-            ? null
-            : Direct(
-                assetId,
-                sprites,
-                ownsSprites: true,
-                frameSeconds: spec.FrameSeconds,
-                loop: spec.Loop,
-                displayName: displayName);
-    }
-
-    private static AuraCgResolvedSceneAsset Direct(
-        string assetId,
-        IEnumerable<Sprite> sprites,
-        bool ownsSprites,
-        float frameSeconds,
-        bool loop,
-        string displayName = "")
-    {
+        var current = EnsureCatalog();
+        if (current == null || !current.Assets.TryGetValue(id, out var asset)) return null;
+        var path = AuraToolsEventCgArtCatalog.ResolveAssetPath(catalogRoot, asset.Path);
+        if (!File.Exists(path)) return null;
         return new AuraCgResolvedSceneAsset
         {
             OwnerModId = AuraToolsIds.ModId,
-            AssetId = assetId,
-            DisplayName = displayName,
-            MediaType = SkillCgMediaTypes.Sequence,
-            FrameSeconds = frameSeconds,
-            Loop = loop,
-            DirectSprites = sprites.Where(sprite => sprite != null).ToList(),
-            OwnsDirectSprites = ownsSprites
+            AssetId = ArtworkAssetPrefix + id + "." + StableHash(current.Revision),
+            ImagePath = path, MediaType = SkillCgMediaTypes.Image, Loop = false, FrameSeconds = 1f,
+            Artwork = new AuraCgSceneArtwork { Portrait = asset.Portrait, Layers = asset.Layers.Select(ToSharedLayer).ToList() }
         };
     }
 
-    private static string ReadData(DataConfig dataConfig, string key)
+    private static AuraCgSceneArtLayerSpec ToSharedLayer(AuraToolsEventCgCompanionArt layer) => new()
+    {
+        Asset = new AuraCgSceneAssetReference { OwnerModId = AuraToolsIds.ModId, AssetId = ArtworkAssetPrefix + layer.Asset },
+        Foreground = layer.Foreground, Required = layer.Required, Opacity = layer.Opacity,
+        MotionX = layer.MotionX, MotionY = layer.MotionY, Pulse = layer.Pulse
+    };
+
+    private static AuraCgResolvedSceneAsset? ResolvePortraitResource(string resource, string assetId, string name)
     {
         try
         {
-            return dataConfig.data != null && dataConfig.data.TryGetValue(key, out var value)
-                ? value ?? ""
-                : "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    private static string LoadResourceConfig(string idleDirectory)
-    {
-        foreach (var path in new[] { idleDirectory + "/config", idleDirectory + "/config.json" })
-        {
-            try
+            var path = File.Exists(resource) ? Path.GetFullPath(resource) : AuraToolsConfigService.ResolveConfiguredPath(resource);
+            if (File.Exists(path))
+                return new AuraCgResolvedSceneAsset
+                {
+                    OwnerModId = AuraToolsIds.ModId, AssetId = assetId, DisplayName = name,
+                    ImagePath = path, MediaType = SkillCgMediaTypes.Image, Loop = false, FrameSeconds = 1f
+                };
+            var sprite = AuraToolsResourceCache.Load<Sprite>(resource, true);
+            var ownsSprite = false;
+            if (sprite == null)
             {
-                var asset = AuraToolsResourceCache.Load<TextAsset>(path, true);
-                if (asset != null && !string.IsNullOrWhiteSpace(asset.text)) return asset.text;
+                var texture = AuraToolsResourceCache.Load<Texture2D>(resource, true);
+                if (texture == null) return null;
+                sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 100f);
+                ownsSprite = true;
             }
-            catch
+            return new AuraCgResolvedSceneAsset
             {
-            }
+                OwnerModId = AuraToolsIds.ModId, AssetId = assetId, DisplayName = name,
+                DirectSprites = new List<Sprite> { sprite }, OwnsDirectSprites = ownsSprite,
+                MediaType = SkillCgMediaTypes.Image, Loop = false, FrameSeconds = 1f
+            };
         }
-
-        return "";
-    }
-
-    private static string ReadFile(string path)
-    {
-        try
+        catch (Exception error)
         {
-            return File.Exists(path) ? File.ReadAllText(path) : "";
-        }
-        catch
-        {
-            return "";
+            AuraToolsLog.Warn("[EventCG] portrait unavailable: " + name + ", " + error.Message);
+            return null;
         }
     }
 
-    private static string CacheSegment(string value)
-    {
-        var characters = (value ?? "")
-            .Select(character => char.IsLetterOrDigit(character) || character == '_' || character == '-'
-                ? char.ToLowerInvariant(character)
-                : '_')
-            .ToArray();
-        var normalized = new string(characters).Trim('_');
-        return normalized.Length == 0 ? "role" : normalized;
-    }
+    private static string ReadData(DataConfig config, string key) =>
+        config.data != null && config.data.TryGetValue(key, out var value) ? value ?? "" : "";
 
     private static string StableHash(string value)
     {
         unchecked
         {
             var hash = 2166136261u;
-            foreach (var character in (value ?? "").ToLowerInvariant())
-            {
-                hash ^= character;
-                hash *= 16777619u;
-            }
-
+            foreach (var character in (value ?? "").ToLowerInvariant()) { hash ^= character; hash *= 16777619u; }
             return hash.ToString("x8");
         }
     }

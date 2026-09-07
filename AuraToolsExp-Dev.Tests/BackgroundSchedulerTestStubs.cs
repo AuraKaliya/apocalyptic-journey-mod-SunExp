@@ -17,13 +17,26 @@ namespace AuraShared.Core
 
     public static class AuraSharedFrameScheduler
     {
-        public static bool EnsureMainThreadRunner() => true;
+        private static readonly List<(long Due, Action Apply)> Pending = new();
+        public static long Frame { get; private set; }
+        public static bool RunnerAvailable { get; set; } = true;
+        public static bool EnsureMainThreadRunner() => RunnerAvailable;
 
         public static bool RunOnceAfterFrames(
             AuraSharedFrameActionRequest request)
         {
-            request.Action?.Invoke();
+            if (!RunnerAvailable) return false;
+            if (request.Action != null) Pending.Add((Frame + Math.Max(1, request.DelayFrames), request.Action));
             return true;
+        }
+
+        public static void AdvanceFrame()
+        {
+            Frame++;
+            AuraSharedOrderedWorkQueue.PumpRegistered();
+            var due = Pending.Where(item => item.Due <= Frame).ToArray();
+            Pending.RemoveAll(item => item.Due <= Frame);
+            foreach (var item in due) item.Apply();
         }
     }
 }

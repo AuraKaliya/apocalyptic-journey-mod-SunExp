@@ -1,3 +1,4 @@
+using Terrias.Dll.GameApi;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,7 +27,7 @@ public static class ProjectionRoleDeckService
         reason = "projection owner role table is unavailable";
         RoleTable? role = null;
 
-        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        if (TerriasNetworkQueries.NetworkActive())
         {
             var localOwner = string.Equals(
                 FightPlayer.Instance?.Status?.InstanceId,
@@ -36,7 +37,7 @@ public static class ProjectionRoleDeckService
             var localMatchesOwner = local != null
                                     && (string.IsNullOrWhiteSpace(ownerPlayerId)
                                         || string.Equals(local.Id, ownerPlayerId, StringComparison.Ordinal)
-                                        || TerriasNetworkRuntime.IsLocalPlayer(ownerPlayerId));
+                                        || TerriasNetworkQueries.IsLocalPlayer(ownerPlayerId));
             RoleTable? serverRole = null;
             try
             {

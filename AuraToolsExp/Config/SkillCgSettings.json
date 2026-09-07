@@ -15,43 +15,50 @@
       "victory.standard": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "victory.midas": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "victory.ritual": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "victory.curse": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "battle-opening": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "battle-defeat": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       },
       "adventure-settlement": {
         "enabled": true,
         "backgroundResource": "",
-        "battleIds": []
+        "battleIds": [],
+        "motionEnabled": true
       }
     }
   },
   "syncRemote": true,
   "maxQueueLength": 8,
-  "maxRequestAgeSeconds": 6.0,
+  "maxRequestAgeSeconds": 6,
   "duplicateWindowSeconds": 1.25,
   "disableAfterFailures": true,
   "maxHookFailures": 3,
@@ -59,11 +66,11 @@
     "mode": "slide",
     "fit": "contain",
     "fadeIn": 0.35,
-    "hold": 1.0,
+    "hold": 1,
     "fadeOut": 0.45,
     "focusX": 0.5,
     "focusY": 0.5,
-    "safeScale": 1.0
+    "safeScale": 1
   },
   "roleEntries": {},
   "roleSelections": {},

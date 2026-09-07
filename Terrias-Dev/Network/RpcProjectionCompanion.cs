@@ -1,3 +1,5 @@
+using Terrias.Dll.Application;
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using Network.Command;
@@ -6,84 +8,6 @@ using Terrias.Dll.Mechanics;
 using Witch.Core;
 
 namespace Terrias.Dll.Network;
-
-[Serializable]
-public sealed class ProjectionCompanionSnapshot
-{
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
-
-    public int BattleEpoch { get; set; }
-
-    public string CardModelVersion { get; set; } = "";
-
-    public string Generation { get; set; } = "";
-
-    public long StateRevision { get; set; }
-
-    public long ActionSequence { get; set; }
-
-    public long CompletedTurnSequence { get; set; }
-
-    public int SummonRoundSequence { get; set; }
-
-    public string SummonTurnToken { get; set; } = "";
-
-    public long SummonTurnOrder { get; set; }
-
-    public long SummonTurnRevision { get; set; }
-
-    public ProjectionSummonTurnTransactionState SummonTurnState { get; set; }
-
-    public string SummonTurnDetail { get; set; } = "";
-
-    public bool Active { get; set; } = true;
-
-    public string RoleId { get; set; } = "";
-
-    public string OwnerStatusId { get; set; } = "";
-
-    public string OwnerPlayerId { get; set; } = "";
-
-    public string ExecutionRoutePlayerId { get; set; } = "";
-
-    public string StatusId { get; set; } = "";
-
-    public int SlotIndex { get; set; } = -1;
-
-    public int MaxHp { get; set; }
-
-    public int CurrentHp { get; set; }
-
-    public int Attack { get; set; }
-
-    public int Armor { get; set; }
-
-    public int MaxMagic { get; set; }
-
-    public int CurrentMagic { get; set; }
-
-}
-
-[Serializable]
-public sealed class ProjectionSummonResultSnapshot
-{
-    public int ServerProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
-    public int ServerBattleEpoch { get; set; }
-    public string ServerCardModelVersion { get; set; } = ProjectionRoleDeckService.CardModelVersion;
-    public string Token { get; set; } = "";
-    public string RoleId { get; set; } = "";
-    public string OwnerStatusId { get; set; } = "";
-    public string OwnerPlayerId { get; set; } = "";
-    public string StatusId { get; set; } = "";
-    public string Generation { get; set; } = "";
-    public bool Accepted { get; set; }
-    public bool Terminal { get; set; } = true;
-    public ProjectionSummonFailureCode FailureCode { get; set; }
-    public ProjectionSummonFailureCategory FailureCategory { get; set; }
-    public bool Retryable { get; set; }
-    public bool RefundCard { get; set; }
-    public string Detail { get; set; } = "";
-}
 
 [Serializable]
 public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
@@ -96,11 +20,11 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
 
     public string Token { get; set; } = "";
 
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int ProtocolVersion { get; set; } = TerriasProtocolContract.ProjectionVersion;
 
     public int BattleEpoch { get; set; }
 
-    public string CardModelVersion { get; set; } = ProjectionRoleDeckService.CardModelVersion;
+    public string CardModelVersion { get; set; } = TerriasProtocolContract.ProjectionCardModel;
 
     public string DeckRecipeHash { get; set; } = "";
 
@@ -118,7 +42,7 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
         OwnerStatusId = ownerStatusId ?? "";
         Token = token ?? "";
         DeckRecipeHash = deckRecipeHash ?? "";
-        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+        BattleEpoch = ProjectionNetworkApplication.BattleEpoch;
     }
 
     public void BindServerSender(TerriasRpcSender sender)
@@ -189,36 +113,6 @@ public sealed class RpcProjectionSummonResult : RpcCommandBase
 }
 
 [Serializable]
-public sealed class ProjectionSummonTurnSnapshot
-{
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
-    public int BattleEpoch { get; set; }
-    public string Token { get; set; } = "";
-    public int RoundSequence { get; set; }
-    public long Order { get; set; }
-    public long Revision { get; set; }
-    public ProjectionSummonTurnTransactionState State { get; set; }
-    public string StatusId { get; set; } = "";
-    public string Generation { get; set; } = "";
-    public string Detail { get; set; } = "";
-
-    public ProjectionSummonTurnTransaction ToTransaction()
-    {
-        return new ProjectionSummonTurnTransaction
-        {
-            Token = Token,
-            RoundSequence = RoundSequence,
-            Order = Order,
-            Revision = Revision,
-            State = State,
-            StatusId = StatusId,
-            Generation = Generation,
-            Detail = Detail
-        };
-    }
-}
-
-[Serializable]
 public sealed class RpcProjectionSummonTurnState : RpcCommandBase
 {
     public ProjectionSummonTurnSnapshot Snapshot { get; set; } = new();
@@ -234,28 +128,7 @@ public sealed class RpcProjectionSummonTurnState : RpcCommandBase
 
     public override void RpcExecute()
     {
-        if (CompanionAuthorityService.IsAuthoritative())
-        {
-            // The listen-server host applied this transition before sending
-            // the RPC. Reapplying its own queued frame can only create stale
-            // diagnostics and is never an authority repair path.
-            return;
-        }
-        if (Snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
-            || Snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch)
-        {
-            TerriasLog.Warn("[PartnerTurn] incompatible summon-turn snapshot ignored: protocol="
-                            + Snapshot.ProtocolVersion
-                            + ", epoch="
-                            + Snapshot.BattleEpoch
-                            + ", localEpoch="
-                            + CompanionAuthorityService.BattleEpoch);
-            return;
-        }
-
-        ProjectionTurnCoordinator.ApplyAuthoritativeTransaction(
-            Snapshot.ToTransaction(),
-            "RpcProjectionSummonTurnState");
+        ProjectionNetworkApplication.ApplyTurn(Snapshot);
     }
 }
 
@@ -264,7 +137,7 @@ public sealed class RpcProjectionStateRequest : RpcCommandBase, ITerriasServerBo
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int ProtocolVersion { get; set; } = TerriasProtocolContract.ProjectionVersion;
     public int BattleEpoch { get; set; }
     public string StatusId { get; set; } = "";
     public string Generation { get; set; } = "";
@@ -277,7 +150,7 @@ public sealed class RpcProjectionStateRequest : RpcCommandBase, ITerriasServerBo
     {
         StatusId = statusId ?? "";
         Generation = generation ?? "";
-        BattleEpoch = CompanionAuthorityService.BattleEpoch;
+        BattleEpoch = ProjectionNetworkApplication.BattleEpoch;
     }
 
     public void BindServerSender(TerriasRpcSender sender)
@@ -305,7 +178,7 @@ public sealed class RpcProjectionStateRequest : RpcCommandBase, ITerriasServerBo
 [Serializable]
 public sealed class ProjectionActionFrameSnapshot
 {
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int ProtocolVersion { get; set; } = TerriasProtocolContract.ProjectionVersion;
     public int BattleEpoch { get; set; }
     public string Generation { get; set; } = "";
     public long ActionSequence { get; set; }
@@ -376,7 +249,7 @@ public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServe
 [Serializable]
 public sealed class RpcHeartChangeControlState : RpcCommandBase
 {
-    public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
+    public int ProtocolVersion { get; set; } = TerriasProtocolContract.ProjectionVersion;
 
     public string TargetStatusId { get; set; } = "";
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Linq;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace AuraCg.Shared;
@@ -30,6 +31,8 @@ public sealed class AuraCgResolvedSceneAsset
 
     public bool OwnsDirectSprites { get; set; }
 
+    public AuraCgSceneArtwork Artwork { get; set; } = new();
+
     public void Normalize(AuraCgSceneAssetReference reference)
     {
         reference ??= new AuraCgSceneAssetReference();
@@ -49,6 +52,8 @@ public sealed class AuraCgResolvedSceneAsset
         DirectSprites = (DirectSprites ?? new List<Sprite>())
             .Where(sprite => sprite != null)
             .ToList();
+        Artwork ??= new AuraCgSceneArtwork();
+        Artwork.Normalize();
     }
 
     public SkillCgRequest ToMediaRequest()
@@ -95,7 +100,8 @@ public sealed class AuraCgResolvedSceneAsset
             FrameSeconds = ReadFloat(type, source, "FrameSeconds", 0.08f),
             Loop = ReadBool(type, source, "Loop", true),
             DirectSprites = ReadSprites(type, source, "DirectSprites"),
-            OwnsDirectSprites = ReadBool(type, source, "OwnsDirectSprites", false)
+            OwnsDirectSprites = ReadBool(type, source, "OwnsDirectSprites", false),
+            Artwork = ReadArtwork(type, source)
         };
         result.Normalize(reference);
         return string.IsNullOrWhiteSpace(result.ImagePath)
@@ -118,6 +124,14 @@ public sealed class AuraCgResolvedSceneAsset
         {
             return new List<Sprite>();
         }
+    }
+
+    private static AuraCgSceneArtwork ReadArtwork(Type type, object source)
+    {
+        var value = type.GetProperty("Artwork", BindingFlags.Instance | BindingFlags.Public)?.GetValue(source);
+        if (value is AuraCgSceneArtwork artwork) return artwork;
+        return value == null ? new AuraCgSceneArtwork()
+            : JsonConvert.DeserializeObject<AuraCgSceneArtwork>(JsonConvert.SerializeObject(value)) ?? new AuraCgSceneArtwork();
     }
 
     private static string ReadString(Type type, object source, string name)

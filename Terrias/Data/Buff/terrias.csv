@@ -55,3 +55,5 @@
 "golden_potential_k","","","","0","0","0","1","Icon/Buff/白银委托","能力","2","","","","FALSE"
 "golden_potential_m","","","","0","0","0","1","Icon/Buff/翠玉委托","能力","3","","","","FALSE"
 "golden_potential_b","","","","0","0","0","1","Icon/Buff/金矿","能力","4","","","","FALSE"
+"frostmoon_marrow","","","","0","0","0","1","Mods/Terrias/ModResource/Images/Buff/GenshinImpact/霜月月髓","正面","3","","","","FALSE"
+"*olimya_goldenized","","","","0","0","0","1","Mods/Terrias/ModResource/Images/Buff/Terrias/黄金化","负面","3","","","","FALSE"

@@ -15,6 +15,7 @@ public static class TerriasResourceCache
     {
         var start = TerriasPerformanceCounters.Timestamp();
         T? loaded = null;
+        var cacheHit = false;
         try
         {
             loaded = AuraSharedResourceCache.Load<T>(
@@ -22,6 +23,7 @@ public static class TerriasResourceCache
                 path,
                 loadFromMod,
                 category,
+                out cacheHit,
                 message => TerriasLog.Warn(message));
             TerriasPerformanceCounters.Record(loaded == null ? "ResourceCache.Load.Miss" : "ResourceCache.Load.Loaded");
             return loaded;
@@ -40,7 +42,7 @@ public static class TerriasResourceCache
         finally
         {
             TerriasPerformanceCounters.RecordDuration("ResourceCache.Load", start);
-            LogSlowLoad("Load", typeof(T).Name, path, category, loaded != null, start);
+            LogSlowLoad("Load", typeof(T).Name, path, category, cacheHit, loaded != null, start);
         }
     }
 
@@ -49,12 +51,14 @@ public static class TerriasResourceCache
     {
         var start = TerriasPerformanceCounters.Timestamp();
         T[]? loaded = null;
+        var cacheHit = false;
         try
         {
             loaded = AuraSharedResourceCache.LoadAll<T>(
                 TerriasIds.ModId,
                 path,
                 category,
+                out cacheHit,
                 message => TerriasLog.Warn(message));
             TerriasPerformanceCounters.Record((loaded?.Length ?? 0) == 0
                 ? "ResourceCache.LoadAll.Miss"
@@ -75,7 +79,7 @@ public static class TerriasResourceCache
         finally
         {
             TerriasPerformanceCounters.RecordDuration("ResourceCache.LoadAll", start);
-            LogSlowLoad("LoadAll", typeof(T).Name, path, category, (loaded?.Length ?? 0) > 0, start);
+            LogSlowLoad("LoadAll", typeof(T).Name, path, category, cacheHit, (loaded?.Length ?? 0) > 0, start);
         }
     }
 
@@ -107,7 +111,8 @@ public static class TerriasResourceCache
         string typeName,
         string path,
         string category,
-        bool hit,
+        bool cacheHit,
+        bool loaded,
         long startTimestamp)
     {
         if (!TerriasPerformanceSettings.CountersEnabled)
@@ -126,8 +131,11 @@ public static class TerriasResourceCache
             + typeName
             + ", elapsedMs="
             + elapsed.ToString("0.###")
-            + ", hit="
-            + hit
+            + ", threadId=" + System.Threading.Thread.CurrentThread.ManagedThreadId
+            + ", cacheHit="
+            + cacheHit
+            + ", loaded="
+            + loaded
             + ", category="
             + (string.IsNullOrWhiteSpace(category) ? "<empty>" : category)
             + ", path="

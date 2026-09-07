@@ -23,9 +23,11 @@ public static class AuraToolsMatchRecordsRuntime
     public static bool ReplayEnabled => Enabled
                                         && AuraToolsConfigService.MatchExperience.MatchRecords.Replay.Enabled;
 
-    public static int AutoRecordCount => SafeCount(Model.MatchRecordCollections.Auto);
+    public static int AutoRecordCount => MatchRecordStorage.AutoCount;
 
-    public static int FavoriteRecordCount => SafeCount(Model.MatchRecordCollections.Favorite);
+    public static int FavoriteRecordCount => MatchRecordStorage.FavoriteCount;
+    public static bool StorageReady => MatchRecordStorage.Ready;
+    public static string StorageStatus => MatchRecordStorage.Status;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -35,11 +37,8 @@ public static class AuraToolsMatchRecordsRuntime
         }
 
         initialized = true;
-        try { _ = MatchRecordStorage.Database; }
-        catch (System.Exception ex)
-        {
-            AuraToolsLog.Warn("[MatchRecords] database preflight failed: " + ex.Message);
-        }
+        EnsureDriver();
+        MatchRecordStorage.InitializeAsync();
         AuraToolsDamageMeterRuntime.Initialize(modConfig);
         MatchReplayHookAdapter.Initialize(modConfig);
         AuraToolsConfigService.SubscribeModule(
@@ -84,23 +83,12 @@ public static class AuraToolsMatchRecordsRuntime
     internal static void ApplyModuleActivation()
     {
         if (!initialized) return;
+        if (Enabled && !MatchRecordStorage.Ready) MatchRecordStorage.InitializeAsync();
         MatchReplayHookAdapter.EnsureHooksMatchConfig();
         if (ReplayEnabled && !mediaInitialized)
         {
             mediaInitialized = true;
             Media.MatchReplayVideoExporter.Initialize();
-        }
-    }
-
-    private static int SafeCount(string collection)
-    {
-        try
-        {
-            return MatchRecordStorage.Database.Count(collection);
-        }
-        catch
-        {
-            return 0;
         }
     }
 
@@ -119,5 +107,13 @@ public static class AuraToolsMatchRecordsRuntime
 
 internal sealed class AuraToolsMatchRecordsDriver : MonoBehaviour
 {
-    private void Update() => MatchReplayPlayer.Tick();
+    private void Update()
+    {
+        ReplayBackgroundWork.Pump();
+        MatchReplayRecorder.PumpPersistence();
+        MatchRecordStorage.Pump();
+        MatchRecordLibraryPresenter.PumpQuery();
+        ReplayV17.Network.ReplayNetworkAuthorityV17.PumpIncoming();
+        MatchReplayPlayer.Tick();
+    }
 }

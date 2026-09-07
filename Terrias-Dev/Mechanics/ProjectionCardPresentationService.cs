@@ -81,7 +81,7 @@ public static class ProjectionCardPresentationService
                 .Distinct(StringComparer.Ordinal)
                 .ToList()
         };
-        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        if (TerriasNetworkQueries.NetworkActive())
         {
             TerriasNetworkRuntime.Send(
                 new RpcProjectionActionFrame(snapshot),

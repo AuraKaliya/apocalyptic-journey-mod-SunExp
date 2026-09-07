@@ -45,6 +45,7 @@ public static class FieldActivationIntentCatalog
     public const string RadiantOathCardIntent = "card.radiant_oath";
     public const string ScorchingCanopyCarrierIntent = "carrier.scorching_canopy";
     public const string ColumbinaHomesicknessIntent = "Columbina.Homesickness";
+    public const string FrostmoonNewGodIntent = "MoonHomecoming.FrostmoonNewGod";
 
     private static readonly Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>> Definitions =
         BuildDefinitions();
@@ -73,6 +74,7 @@ public static class FieldActivationIntentCatalog
             FieldActivationAmountPolicy.AuthoritativeScorchingCanopyCarrierStacks,
             0));
         AddFixed(definitions, TerriasFieldId.MoonDomain, ColumbinaHomesicknessIntent, 1);
+        AddFixed(definitions, TerriasFieldId.MoonDomain, FrostmoonNewGodIntent, 1);
         return definitions;
     }
 

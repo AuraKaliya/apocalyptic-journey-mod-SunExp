@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Visual Runtime Dev"
+  short_description: "Develop Unity visuals, CG, bundles and pooled lifecycles."
+  default_prompt: "Use $aura-visual-runtime-dev to work on Aura runtime visuals with the owning resource and lifecycle contracts."

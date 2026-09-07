@@ -148,7 +148,7 @@ public static class ProjectionStateStore
             return;
         }
 
-        ProjectionSummonService.BroadcastRetired(state, source);
+        ProjectionLifecycle.Current.Retire(state, source);
         lock (SyncRoot)
         {
             Projections.Remove(status.InstanceId);

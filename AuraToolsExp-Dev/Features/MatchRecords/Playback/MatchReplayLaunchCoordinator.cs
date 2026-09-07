@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using AuraToolsExp.Dll.Infrastructure;
+using AuraToolsExp.Dll.Features.MatchRecords.Recording;
+using AuraToolsExp.Dll.Features.MatchRecords.Storage;
 using UiTransitionGuardShared;
 using UnityEngine;
 
@@ -8,6 +10,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Playback;
 
 internal static class MatchReplayLaunchCoordinator
 {
+    private static bool loading;
     internal static void Start(
         string recordId,
         long eventSequence,
@@ -20,28 +23,25 @@ internal static class MatchReplayLaunchCoordinator
             return;
         }
 
-        if (!MatchReplayPlayer.TryPrepareInteractive(recordId, eventSequence, out var preparation))
+        loading = true;
+        ReplayBackgroundWork.Storage.Enqueue("LoadInteractiveReplay", () => ReplayLoadedRecord.Read(recordId), data =>
         {
-            failed?.Invoke(preparation);
-            return;
-        }
-
-        var transition = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
-            CommitAfterRenderBarrier(
-                returnState,
-                export: false,
-                started: null,
-                failed));
-        if (transition == null)
-        {
-            const string detail = "无法调度回放主渲染帧确认。";
-            MatchReplayPlayer.FailPreparedStart(detail);
-            failed?.Invoke(detail);
-        }
+            loading = false;
+            if (!CanLaunch(out var blocked)) { failed?.Invoke(blocked); return; }
+            if (!MatchReplayPlayer.TryPrepareInteractive(data, eventSequence, out var preparation))
+            { failed?.Invoke(preparation); return; }
+            var transition = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
+                CommitAfterRenderBarrier(returnState, export: false, started: null, failed));
+            if (transition == null)
+            {
+                const string detail = "无法调度回放主渲染帧确认。";
+                MatchReplayPlayer.FailPreparedStart(detail); failed?.Invoke(detail);
+            }
+        }, ex => { loading = false; failed?.Invoke("读取回放失败：" + ex.Message); });
     }
 
     internal static bool TryStartForExport(
-        string recordId,
+        ReplayLoadedRecord data,
         MatchRecordLibraryViewState returnState,
         Action started,
         Action<string> failed,
@@ -52,7 +52,7 @@ internal static class MatchReplayLaunchCoordinator
             return false;
         }
 
-        if (!MatchReplayPlayer.TryPrepareForExport(recordId, true, out message))
+        if (!MatchReplayPlayer.TryPrepareForExport(data, true, out message))
         {
             return false;
         }
@@ -123,6 +123,7 @@ internal static class MatchReplayLaunchCoordinator
 
     private static bool CanLaunch(out string message)
     {
+        if (loading) { message = "正在读取回放数据，请稍候。"; return false; }
         if (MatchReplayReturnCoordinator.IsReturning)
         {
             message = "上一场回放正在恢复对局记录页面，请稍候再试。";

@@ -1,0 +1,634 @@
+{
+  "schemaVersion": 1,
+  "revision": "event-poster-2026-09-06-r1",
+  "previewRoles": [
+    "career_5",
+    "career_7",
+    "Terrias_wuna_wuna",
+    "career_1",
+    "career_6",
+    "career_11",
+    "career_12",
+    "career_10",
+    "career_2",
+    "career_3",
+    "career_8",
+    "career_9",
+    "Terrias_loneer_loneer",
+    "Terrias_columbina_columbina",
+    "Terrias_olimya_olimya"
+  ],
+  "assets": {
+    "role.caroline.neutral": {
+      "path": "Characters/caroline/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.6077116512992456,
+        "faceY": 0.2904929577464789,
+        "faceWidth": 0.2514668901927913,
+        "faceHeight": 0.2244718309859155,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.hermia.neutral": {
+      "path": "Characters/hermia/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5781710914454278,
+        "faceY": 0.34702797202797203,
+        "faceWidth": 0.2359882005899705,
+        "faceHeight": 0.21853146853146854,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.coco.neutral": {
+      "path": "Characters/coco/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.6157142857142858,
+        "faceY": 0.4005235602094241,
+        "faceWidth": 0.21428571428571427,
+        "faceHeight": 0.2181500872600349,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.caroline-alt.neutral": {
+      "path": "Characters/caroline-alt/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5563325563325563,
+        "faceY": 0.3296903460837887,
+        "faceWidth": 0.2331002331002331,
+        "faceHeight": 0.23679417122040072,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.hermia-alt.neutral": {
+      "path": "Characters/hermia-alt/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.7300150829562594,
+        "faceY": 0.4190800681431005,
+        "faceWidth": 0.15082956259426847,
+        "faceHeight": 0.22146507666098808,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.coco-alt.neutral": {
+      "path": "Characters/coco-alt/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.646494907130018,
+        "faceY": 0.3879310344827586,
+        "faceWidth": 0.1737567405632115,
+        "faceHeight": 0.20689655172413793,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.amelia.neutral": {
+      "path": "Characters/amelia/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5439481268011528,
+        "faceY": 0.4389179755671902,
+        "faceWidth": 0.21613832853025935,
+        "faceHeight": 0.2181500872600349,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.nana.neutral": {
+      "path": "Characters/nana/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.4616858237547893,
+        "faceY": 0.3430335097001764,
+        "faceWidth": 0.27298850574712646,
+        "faceHeight": 0.1984126984126984,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.adela.neutral": {
+      "path": "Characters/adela/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.6086683417085427,
+        "faceY": 0.3788927335640138,
+        "faceWidth": 0.19472361809045227,
+        "faceHeight": 0.23356401384083045,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.vivian.neutral": {
+      "path": "Characters/vivian/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5178181818181818,
+        "faceY": 0.391500904159132,
+        "faceWidth": 0.2290909090909091,
+        "faceHeight": 0.22603978300180833,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.husk.neutral": {
+      "path": "Characters/husk/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5900311526479751,
+        "faceY": 0.43079584775086505,
+        "faceWidth": 0.205607476635514,
+        "faceHeight": 0.22491349480968859,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.wuna.neutral": {
+      "path": "Characters/wuna/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5555555555555556,
+        "faceY": 0.2624338624338624,
+        "faceWidth": 0.21442495126705652,
+        "faceHeight": 0.19047619047619047,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.loneer.neutral": {
+      "path": "Characters/loneer/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5768833849329206,
+        "faceY": 0.21201413427561838,
+        "faceWidth": 0.21155830753353974,
+        "faceHeight": 0.21790341578327443,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.columbina.neutral": {
+      "path": "Characters/columbina/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.4825,
+        "faceY": 0.2584493041749503,
+        "faceWidth": 0.25,
+        "faceHeight": 0.21371769383697814,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.olimya.neutral": {
+      "path": "Characters/olimya/neutral.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.49403578528827036,
+        "faceY": 0.2606541129831516,
+        "faceWidth": 0.1988071570576541,
+        "faceHeight": 0.1734390485629336,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.caroline.victory.standard": {
+      "path": "Characters/caroline/victory.standard.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.7046632124352331,
+        "faceY": 0.24683122081387593,
+        "faceWidth": 0.18134715025906736,
+        "faceHeight": 0.1000667111407605,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.coco.victory.standard": {
+      "path": "Characters/coco/victory.standard.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.47431386347642507,
+        "faceY": 0.4449950445986125,
+        "faceWidth": 0.15482054890921887,
+        "faceHeight": 0.16253716551040634,
+        "canMirror": false
+      },
+      "layers": [
+        {
+          "asset": "role.coco.front-hand",
+          "foreground": true,
+          "required": true,
+          "opacity": 1.0,
+          "pulse": 0.0
+        }
+      ]
+    },
+    "role.coco.front-hand": {
+      "path": "Characters/coco/front-hand.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "role.amelia.victory.standard": {
+      "path": "Characters/amelia/victory.standard.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.4912959381044487,
+        "faceY": 0.4294813466787989,
+        "faceWidth": 0.1644100580270793,
+        "faceHeight": 0.13284804367606914,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.wuna.victory.standard": {
+      "path": "Characters/wuna/victory.standard.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5198618307426598,
+        "faceY": 0.333993399339934,
+        "faceWidth": 0.17271157167530224,
+        "faceHeight": 0.11551155115511551,
+        "canMirror": false
+      },
+      "layers": [
+        {
+          "asset": "role.wuna.flame",
+          "foreground": true,
+          "required": true,
+          "opacity": 1.0,
+          "pulse": 0.06
+        }
+      ]
+    },
+    "role.wuna.flame": {
+      "path": "Characters/wuna/flame.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "role.caroline.battle-defeat": {
+      "path": "Characters/caroline/battle-defeat.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.5746201966041108,
+        "faceY": 0.2925353059852051,
+        "faceWidth": 0.1966041108132261,
+        "faceHeight": 0.121049092131809,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "role.coco.victory.ritual": {
+      "path": "Characters/coco/victory.ritual.png",
+      "portrait": {
+        "enabled": true,
+        "faceX": 0.4992867332382311,
+        "faceY": 0.421875,
+        "faceWidth": 0.15691868758915833,
+        "faceHeight": 0.15625,
+        "canMirror": false
+      },
+      "layers": []
+    },
+    "theme.leaves": {
+      "path": "Themes/leaves.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.light": {
+      "path": "Themes/light.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.opening.background": {
+      "path": "Themes/opening.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.victory.background": {
+      "path": "Themes/victory.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.midas.background": {
+      "path": "Themes/midas.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.ritual.background": {
+      "path": "Themes/ritual.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.curse.background": {
+      "path": "Themes/curse.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.defeat.background": {
+      "path": "Themes/defeat.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    },
+    "theme.settlement.background": {
+      "path": "Themes/settlement.png",
+      "portrait": {
+        "enabled": false
+      },
+      "layers": []
+    }
+  },
+  "themes": {
+    "battle-opening": {
+      "background": "theme.opening.background",
+      "darkTitle": false,
+      "cameraPush": 0.02,
+      "layers": [
+        {
+          "asset": "theme.light",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.18,
+          "motionX": 0.004,
+          "motionY": -0.002,
+          "pulse": 0.06
+        }
+      ]
+    },
+    "victory.standard": {
+      "background": "theme.victory.background",
+      "darkTitle": true,
+      "cameraPush": 0.02,
+      "layers": [
+        {
+          "asset": "theme.light",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.18,
+          "motionX": 0.004,
+          "motionY": -0.002,
+          "pulse": 0.06
+        },
+        {
+          "asset": "theme.leaves",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.72,
+          "motionX": -0.005,
+          "motionY": 0.003
+        }
+      ]
+    },
+    "victory.midas": {
+      "background": "theme.midas.background",
+      "darkTitle": false,
+      "cameraPush": 0.02,
+      "layers": [
+        {
+          "asset": "theme.light",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.18,
+          "motionX": 0.004,
+          "motionY": -0.002,
+          "pulse": 0.06
+        },
+        {
+          "asset": "theme.leaves",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.72,
+          "motionX": -0.005,
+          "motionY": 0.003
+        }
+      ]
+    },
+    "victory.ritual": {
+      "background": "theme.ritual.background",
+      "darkTitle": false,
+      "cameraPush": 0.02,
+      "layers": [
+        {
+          "asset": "theme.light",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.18,
+          "motionX": 0.004,
+          "motionY": -0.002,
+          "pulse": 0.06
+        }
+      ]
+    },
+    "victory.curse": {
+      "background": "theme.curse.background",
+      "darkTitle": false,
+      "cameraPush": 0.02,
+      "layers": []
+    },
+    "battle-defeat": {
+      "background": "theme.defeat.background",
+      "darkTitle": true,
+      "cameraPush": 0.015,
+      "layers": []
+    },
+    "adventure-settlement": {
+      "background": "theme.settlement.background",
+      "darkTitle": true,
+      "cameraPush": 0.02,
+      "layers": [
+        {
+          "asset": "theme.light",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.18,
+          "motionX": 0.004,
+          "motionY": -0.002,
+          "pulse": 0.06
+        },
+        {
+          "asset": "theme.leaves",
+          "foreground": true,
+          "required": true,
+          "opacity": 0.72,
+          "motionX": -0.005,
+          "motionY": 0.003
+        }
+      ]
+    }
+  },
+  "characters": [
+    {
+      "id": "caroline",
+      "roleIds": [
+        "career_5"
+      ],
+      "variantIds": [],
+      "neutral": "role.caroline.neutral",
+      "poses": {
+        "victory.standard": "role.caroline.victory.standard",
+        "battle-defeat": "role.caroline.battle-defeat"
+      }
+    },
+    {
+      "id": "hermia",
+      "roleIds": [
+        "career_6"
+      ],
+      "variantIds": [],
+      "neutral": "role.hermia.neutral",
+      "poses": {}
+    },
+    {
+      "id": "coco",
+      "roleIds": [
+        "career_7"
+      ],
+      "variantIds": [],
+      "neutral": "role.coco.neutral",
+      "poses": {
+        "victory.standard": "role.coco.victory.standard",
+        "victory.ritual": "role.coco.victory.ritual"
+      }
+    },
+    {
+      "id": "caroline-alt",
+      "roleIds": [
+        "career_11"
+      ],
+      "variantIds": [],
+      "neutral": "role.caroline-alt.neutral",
+      "poses": {}
+    },
+    {
+      "id": "hermia-alt",
+      "roleIds": [
+        "career_12",
+        "career_13"
+      ],
+      "variantIds": [],
+      "neutral": "role.hermia-alt.neutral",
+      "poses": {}
+    },
+    {
+      "id": "coco-alt",
+      "roleIds": [
+        "career_10"
+      ],
+      "variantIds": [],
+      "neutral": "role.coco-alt.neutral",
+      "poses": {}
+    },
+    {
+      "id": "amelia",
+      "roleIds": [
+        "career_1"
+      ],
+      "variantIds": [],
+      "neutral": "role.amelia.neutral",
+      "poses": {
+        "victory.standard": "role.amelia.victory.standard"
+      }
+    },
+    {
+      "id": "nana",
+      "roleIds": [
+        "career_2"
+      ],
+      "variantIds": [],
+      "neutral": "role.nana.neutral",
+      "poses": {}
+    },
+    {
+      "id": "adela",
+      "roleIds": [
+        "career_3"
+      ],
+      "variantIds": [],
+      "neutral": "role.adela.neutral",
+      "poses": {}
+    },
+    {
+      "id": "vivian",
+      "roleIds": [
+        "career_8"
+      ],
+      "variantIds": [],
+      "neutral": "role.vivian.neutral",
+      "poses": {}
+    },
+    {
+      "id": "husk",
+      "roleIds": [
+        "career_9"
+      ],
+      "variantIds": [],
+      "neutral": "role.husk.neutral",
+      "poses": {}
+    },
+    {
+      "id": "wuna",
+      "roleIds": [
+        "Terrias_wuna_wuna"
+      ],
+      "variantIds": [],
+      "neutral": "role.wuna.neutral",
+      "poses": {
+        "victory.standard": "role.wuna.victory.standard"
+      }
+    },
+    {
+      "id": "loneer",
+      "roleIds": [
+        "Terrias_loneer_loneer"
+      ],
+      "variantIds": [],
+      "neutral": "role.loneer.neutral",
+      "poses": {}
+    },
+    {
+      "id": "columbina",
+      "roleIds": [
+        "Terrias_columbina_columbina"
+      ],
+      "variantIds": [],
+      "neutral": "role.columbina.neutral",
+      "poses": {}
+    },
+    {
+      "id": "olimya",
+      "roleIds": [
+        "Terrias_olimya_olimya"
+      ],
+      "variantIds": [],
+      "neutral": "role.olimya.neutral",
+      "poses": {}
+    }
+  ]
+}

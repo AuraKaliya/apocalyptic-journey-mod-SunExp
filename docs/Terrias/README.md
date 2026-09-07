@@ -1,9 +1,9 @@
 # Terrias 技术文档
 
-> 文档基线：2026-08-29
+> 文档基线：2026-09-06
 > Terrias 版本：`0.5.4`
-> 反编译参考：`开发参考资料/反编译文件夹v1.0.24591395`
-> 当前阶段：晨星诅咒与众生愿力系列
+> 反编译参考：通过 `tools/Get-AuraProjectContext.ps1` 发现候选，并按所查游戏/Managed 指纹选择。
+> 当前阶段：归家的月亮卡包与奥莉米娅角色
 
 ## 文档目标
 
@@ -39,12 +39,9 @@
 
 - [技术文档蓝图](00-documentation-blueprint.md)
 - [模块覆盖矩阵](00-module-coverage-matrix.md)
-- [Aura/Terrias 复杂模块拆分评审](../architecture-complex-module-review-2026-07-16.md)
-- [复杂模块治理首轮开发记录](../architecture-complex-module-development-round-1-2026-07-17.md)
-- [AuraCg 模块治理第二轮开发记录](../architecture-complex-module-development-round-2-2026-07-17.md)
-- [AuraCg Preload 与媒体缓存第三轮开发记录](../architecture-complex-module-development-round-3-2026-07-17.md)
-- [AuraCg 媒体缓存预算与安全淘汰第四轮开发记录](../architecture-complex-module-development-round-4-2026-07-17.md)
-- [AuraCg 预加载背压与帧预算第五轮开发记录](../architecture-complex-module-development-round-5-2026-07-17.md)
+- [架构决策与迁移门禁](13-架构决策与迁移门禁.md)
+- [项目导航](../../.codex/skills/aura-project-dev/SKILL.md)
+- [验证选择与发布](../../.codex/skills/aura-project-dev/references/validation.md)
 
 ## 功能模块文档
 
@@ -59,10 +56,12 @@
 9. [DPS 伤害归属与精灵专属意图池](modules/09-DPS伤害归属与精灵专属意图池.md)
 10. [游戏主体敌人与精灵专属意图总表](modules/10-游戏主体敌人与精灵专属意图总表.md)
 11. [投影、精灵与心变机制完整说明](modules/11-投影精灵与心变的Partner战斗流程.md)
+12. [归家的月亮与哥伦比娅主题卡包](modules/12-归家的月亮与哥伦比娅主题卡包.md)
+13. [奥莉米娅角色与织梦黄金体系](modules/13-奥莉米娅角色与织梦黄金体系.md)
 
 ## 专题设计与复核
 
-1. [无尽之渊阶段结算与海域轮换方案](design/01-无尽之渊阶段结算与海域轮换方案.md)
+1. [无尽深渊当前结算与奖励](modules/07-无尽深渊压力与奖励体系.md)
 2. [精灵种族值、成长曲线与雷达图数据规范](design/02-精灵种族值成长曲线与雷达图数据规范.md)
 3. [游戏主体精灵种族值表](design/04-游戏主体精灵种族值表.md)
 4. [首领与最终首领精灵档案人工复核记录](design/05-首领与最终首领精灵档案人工复核记录.md)

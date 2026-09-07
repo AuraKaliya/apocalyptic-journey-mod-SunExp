@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,7 +42,7 @@ public static class HeartChangeControlService
             return false;
         }
 
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
+        if (TerriasNetworkQueries.NetworkActive() && !TerriasNetworkQueries.IsServer())
         {
             var token = Guid.NewGuid().ToString("N");
             TerriasNetworkRuntime.Send(
@@ -70,7 +71,7 @@ public static class HeartChangeControlService
         {
             return;
         }
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
+        if (TerriasNetworkQueries.NetworkActive() && !TerriasNetworkQueries.IsServer())
         {
             // The authoritative control snapshot carries the server-selected
             // action count. A client-side buff callback must not create a
@@ -838,7 +839,7 @@ public static class HeartChangeControlService
 
     private static void BroadcastState(HeartChangeState state, bool active, bool accepted, string token)
     {
-        if (state == null || !TerriasNetworkRuntime.IsMultiplayerSession())
+        if (state == null || !TerriasNetworkQueries.NetworkActive())
         {
             return;
         }
@@ -856,7 +857,7 @@ public static class HeartChangeControlService
 
     private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
     {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             return "";
         }

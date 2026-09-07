@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using Witch.Core;
 
@@ -37,7 +38,13 @@ public static class AuraSharedResourceCache
         string category = "",
         Action<string>? warn = null)
         where T : UnityEngine.Object
+        => Load<T>(ownerModId, path, loadFromMod, category, out _, warn);
+
+    public static T? Load<T>(string ownerModId, string path, bool loadFromMod,
+        string category, out bool cacheHit, Action<string>? warn = null)
+        where T : UnityEngine.Object
     {
+        cacheHit = false;
         var key = CacheKey<T>(ownerModId, path, loadFromMod, all: false);
         if (key.Length == 0)
         {
@@ -48,14 +55,22 @@ public static class AuraSharedResourceCache
         {
             if (ObjectCache.TryGetValue(key, out var cached))
             {
-                TouchNoLock(key);
-                return cached as T;
+                if (ReferenceEquals(cached, null) || cached != null)
+                {
+                    cacheHit = true;
+                    TouchNoLock(key);
+                    return cached as T;
+                }
+                RemoveEntryNoLock(key); // An externally destroyed Unity asset is not a usable hit.
             }
         }
 
         try
         {
-            var loaded = ResourceLoader.Load<T>(path.Trim(), loadFromMod);
+            // The native custom-image path accepts Texture, not Texture2D.
+            var loaded = typeof(T) == typeof(UnityEngine.Texture2D)
+                ? ResourceLoader.Load<UnityEngine.Texture>(path.Trim(), loadFromMod) as T
+                : ResourceLoader.Load<T>(path.Trim(), loadFromMod);
             lock (Gate)
             {
                 StoreNoLock(key, ownerModId, category, loaded, null, 1, EstimateObjectBytes(loaded));
@@ -81,7 +96,13 @@ public static class AuraSharedResourceCache
         string category = "",
         Action<string>? warn = null)
         where T : UnityEngine.Object
+        => LoadAll<T>(ownerModId, path, category, out _, warn);
+
+    public static T[] LoadAll<T>(string ownerModId, string path, string category,
+        out bool cacheHit, Action<string>? warn = null)
+        where T : UnityEngine.Object
     {
+        cacheHit = false;
         var key = CacheKey<T>(ownerModId, path, loadFromMod: true, all: true);
         if (key.Length == 0)
         {
@@ -92,14 +113,21 @@ public static class AuraSharedResourceCache
         {
             if (ObjectArrayCache.TryGetValue(key, out var cached))
             {
-                TouchNoLock(key);
-                return cached as T[] ?? Array.Empty<T>();
+                if (cached == null || !cached.Cast<UnityEngine.Object>().Any(value => !ReferenceEquals(value, null) && value == null))
+                {
+                    cacheHit = true;
+                    TouchNoLock(key);
+                    return cached as T[] ?? cached?.OfType<T>().ToArray() ?? Array.Empty<T>();
+                }
+                RemoveEntryNoLock(key);
             }
         }
 
         try
         {
-            var loaded = ResourceLoader.LoadAll<T>(path.Trim()) ?? Array.Empty<T>();
+            var loaded = typeof(T) == typeof(UnityEngine.Texture2D)
+                ? (ResourceLoader.LoadAll<UnityEngine.Texture>(path.Trim()) ?? Array.Empty<UnityEngine.Texture>()).OfType<T>().ToArray()
+                : ResourceLoader.LoadAll<T>(path.Trim()) ?? Array.Empty<T>();
             lock (Gate)
             {
                 StoreNoLock(
@@ -469,7 +497,8 @@ public static class AuraSharedResourceCache
             return "";
         }
 
-        return owner + "|" + typeof(T).FullName + "|" + (all ? "all" : loadFromMod.ToString()) + "|" + path.Trim();
+        var resourceType = typeof(T) == typeof(UnityEngine.Texture2D) ? typeof(UnityEngine.Texture) : typeof(T);
+        return owner + "|" + resourceType.FullName + "|" + (all ? "all" : loadFromMod.ToString()) + "|" + path.Trim();
     }
 
     private static string CategoryKey(string ownerModId, string category)

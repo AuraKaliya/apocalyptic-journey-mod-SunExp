@@ -331,6 +331,49 @@
         "minimumMetrics": {},
         "maximumMetrics": {}
       }
+    },
+    {
+      "cgId": "olimya.feast",
+      "displayName": "奥莉米娅 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/Terrias_olimya_olimya/Feast/Terrias/olimya.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_olimya_olimya/Feast/Terrias/olimya.feast/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "tags": [
+        "feast-cg",
+        "terrias"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "Terrias_olimya_olimya",
+        "olimya"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
     }
   ]
 }

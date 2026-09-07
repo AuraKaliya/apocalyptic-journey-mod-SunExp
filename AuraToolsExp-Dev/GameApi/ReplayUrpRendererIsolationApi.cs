@@ -460,6 +460,13 @@ internal static class ReplayUrpRendererIsolationApi
                 ownedFeatures.Add(intermediate);
             }
 
+            var ambient = ScriptableObject.CreateInstance<ReplayGlobalLightRendererFeatureV17>();
+            ambient.name = "AuraToolsReplayGlobalLightV17";
+            ambient.hideFlags = HideFlags.DontSave;
+            targetFeatures.Insert(0, ambient);
+            featureMap.Insert(0, 0L);
+            ownedFeatures.Add(ambient);
+
             if (targetFeatures.Count != featureMap.Count)
                 throw new InvalidOperationException(
                     "Replay renderer feature list and feature map are not aligned.");
@@ -485,6 +492,7 @@ internal static class ReplayUrpRendererIsolationApi
                 .ToList();
             if (decisions.Any(item => item.Decision.RequiresIntermediateColor))
                 expected.Insert(0, typeof(ReplayIntermediateColorRendererFeatureV17).FullName!);
+            expected.Insert(0, typeof(ReplayGlobalLightRendererFeatureV17).FullName!);
             var actual = existingFeatures.Cast<object?>().Select(item =>
             {
                 if (item is not ScriptableRendererFeature feature)

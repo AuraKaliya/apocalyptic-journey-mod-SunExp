@@ -1,3 +1,4 @@
+using Terrias.Dll.GameApi;
 using System;
 using System.Collections.Generic;
 using Terrias.Dll.Infrastructure;
@@ -13,7 +14,7 @@ public static class CompanionAuthorityService
 
     public static bool IsAuthoritative()
     {
-        return !TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsServer();
+        return !TerriasNetworkQueries.NetworkActive() || TerriasNetworkQueries.IsServer();
     }
 
     public static int BattleEpoch => battleEpoch;
@@ -62,7 +63,7 @@ public static class CompanionOwnershipService
             }
         }
 
-        var local = TerriasNetworkRuntime.LocalPlayerId();
+        var local = TerriasNetworkQueries.LocalPlayerId();
         return string.IsNullOrWhiteSpace(local) ? ownerStatusId ?? "" : local;
     }
 

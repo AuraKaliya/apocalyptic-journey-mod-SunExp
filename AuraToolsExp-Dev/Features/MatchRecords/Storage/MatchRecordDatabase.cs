@@ -348,6 +348,12 @@ internal sealed partial class MatchRecordDatabase
             connection.Execute("BEGIN IMMEDIATE;");
             try
             {
+                using (var state = connection.Prepare("SELECT replay_state FROM battle_records WHERE record_id=?;"))
+                {
+                    state.Bind(1, recordId.Trim());
+                    if (state.Read() && (state.Text(0) == MatchReplayStates.Recording || state.Text(0) == MatchReplayStates.Finalizing))
+                        throw new InvalidOperationException("录制或保存中的对局暂不能删除。");
+                }
                 DeleteRecord(connection, recordId.Trim());
                 var changed = connection.Changes > 0;
                 connection.Execute("COMMIT;");
@@ -375,7 +381,7 @@ internal sealed partial class MatchRecordDatabase
             connection.Execute("BEGIN IMMEDIATE;");
             try
             {
-                var ids = SelectIds(connection, "collection_kind = ?", NormalizeCollection(collection));
+                var ids = SelectIds(connection, "collection_kind = ? AND replay_state NOT IN ('Recording','Finalizing')", NormalizeCollection(collection));
                 foreach (var id in ids)
                 {
                     DeleteRecord(connection, id);
@@ -410,6 +416,7 @@ internal sealed partial class MatchRecordDatabase
                 var stale = new List<string>();
                 using (var query = connection.Prepare(
                            "SELECT record_id FROM battle_records WHERE collection_kind = ? AND replay_state <> ? "
+                           + "AND replay_state NOT IN ('Recording', 'Finalizing') "
                            + "ORDER BY sequence DESC LIMIT -1 OFFSET ?;"))
                 {
                     query.Bind(1, MatchRecordCollections.Auto);

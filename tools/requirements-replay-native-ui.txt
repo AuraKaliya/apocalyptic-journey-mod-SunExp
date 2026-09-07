@@ -1,0 +1,2 @@
+# Read-only extraction of native sprites for the Unity GPU regression.
+UnityPy==1.25.3

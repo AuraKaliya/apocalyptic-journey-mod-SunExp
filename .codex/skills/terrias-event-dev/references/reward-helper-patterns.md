@@ -55,6 +55,5 @@ CS.Terrias.Dll.Scripting.EventScripts.RewardRelic(1, "Terrias_terrias_morning_sh
 Then rebuild and test:
 
 ```powershell
-tools\Build-TerriasDll.ps1
-tools\Test-TerriasCSharp.ps1
+tools/Test-TerriasGate.ps1 -Profile csharp
 ```

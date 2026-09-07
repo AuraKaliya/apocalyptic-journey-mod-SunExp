@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using AuraShared.Core;
 using Network.Command;
@@ -206,7 +207,7 @@ public static class FieldNetworkSync
     public static void BroadcastSnapshot(string source)
     {
         if (!TerriasNetworkRuntime.HasRemotePlayers()
-            || !TerriasNetworkRuntime.IsMultiplayerSession()
+            || !TerriasNetworkRuntime.NetworkActive()
             || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
@@ -329,7 +330,7 @@ public static class FieldNetworkSync
             return 1;
         }
 
-        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        if (TerriasNetworkRuntime.NetworkActive())
         {
             if (!sender.IsAvailable)
             {

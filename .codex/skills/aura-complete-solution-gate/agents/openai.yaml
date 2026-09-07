@@ -1,0 +1,6 @@
+interface:
+  display_name: "Aura Complete Solution Gate"
+  short_description: "Complete root-cause fixes and affected migrations."
+  default_prompt: "Use $aura-complete-solution-gate to define and verify the complete fix for the affected Aura capability."
+policy:
+  allow_implicit_invocation: true

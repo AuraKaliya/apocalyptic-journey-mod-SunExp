@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Event Dev"
-  short_description: "Build isolated Terrias events and map flows."
-  default_prompt: "Use $terrias-event-dev to design or fix Terrias event chains, mode-exclusive map nodes, synchronization, and regression checks."
+  short_description: "Author story and map events with aligned behavior and text."
+  default_prompt: "Use $terrias-event-dev to develop Terrias event rows and their C# behavior with correct map isolation."

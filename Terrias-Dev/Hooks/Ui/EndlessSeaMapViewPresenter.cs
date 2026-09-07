@@ -33,7 +33,7 @@ public static class EndlessSeaMapViewPresenter
         if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan)
             && !EndlessSeaStateProjectionRuntime.TryGetCachedPlan(floor, out plan))
         {
-            if (TerriasNetworkRuntime.IsClientOnly())
+            if (TerriasNetworkQueries.IsClientOnly())
             {
                 EndlessSeaApplicationService.RequestSnapshot(source + ":missing-plan");
                 return;

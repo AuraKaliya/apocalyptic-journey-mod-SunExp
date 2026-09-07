@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Security.Cryptography;
 using AuraShared.Core;
-using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.MatchRecords.Analysis;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Storage;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
@@ -84,15 +85,18 @@ internal static class ReplayNetworkAuthorityV17
     private static readonly object Gate = new();
     private static readonly Dictionary<string, CapabilityReceipt> Capabilities = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ReplayCanonicalChunkBufferV17> Transfers = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, PendingReplica> PendingReplicas = new(StringComparer.Ordinal);
+    private const long MaximumIncomingBytes = 256L * 1024 * 1024;
+    internal static int PendingIncomingCount { get { lock (Gate) return PendingReplicas.Count; } }
 
     internal static event Action? CapabilityChanged;
 
-    internal static bool IsMultiplayer => DamageMeterNetworkRuntime.IsMultiplayer;
-    internal static bool IsHost => DamageMeterNetworkRuntime.IsHost;
+    internal static bool NetworkActive => GameApi.AuraToolsNetworkSession.NetworkActive;
+    internal static bool IsHost => GameApi.AuraToolsNetworkSession.IsAuthority;
 
     internal static void AnnounceCapability(string levelId)
     {
-        if (!IsMultiplayer) return;
+        if (!NetworkActive) return;
         var command = new ReplayCapabilityCommandV17
         {
             LevelId = levelId ?? "",
@@ -101,7 +105,7 @@ internal static class ReplayNetworkAuthorityV17
         if (IsHost)
         {
             lock (Gate)
-                Capabilities[DamageMeterNetworkRuntime.LocalPlayerId] = new CapabilityReceipt(
+                Capabilities[GameApi.AuraToolsNetworkSession.LocalPlayerId] = new CapabilityReceipt(
                     command.LevelId,
                     command.ProtocolVersion,
                     command.RequiredCapabilities,
@@ -114,7 +118,7 @@ internal static class ReplayNetworkAuthorityV17
     internal static bool CanHostRecord(string levelId, out string rejection)
     {
         rejection = "";
-        if (!IsMultiplayer) return true;
+        if (!NetworkActive) return true;
         if (!IsHost)
         {
             rejection = "local node is not replay authority";
@@ -174,26 +178,17 @@ internal static class ReplayNetworkAuthorityV17
         return true;
     }
 
-    internal static void PublishCanonical(MatchRecord record, ReplayDocumentEnvelopeV17 envelope)
+    internal static bool PublishCanonical(MatchRecord record, ReplayDocumentEnvelopeV17 envelope)
     {
-        if (!IsMultiplayer || !IsHost || record == null || envelope == null) return;
-        var transfer = new ReplayNetworkTransferV17
-        {
-            Record = ReplayCanonicalJsonV17.Clone(record),
-            Envelope = ReplayCanonicalJsonV17.Clone(envelope),
-            AssetPayloads = ReplayAssetPayloadTransferV17.Capture(envelope.Document)
-        };
-        AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<PreparedTransfer>
-        {
-            OwnerId = AuraToolsIds.ModId,
-            Key = "ReplayV17.NetworkPrepare." + record.RecordId,
-            Source = "MatchRecords.ReplayV17.NetworkPrepare",
-            Kind = AuraSharedBackgroundWorkKind.Cpu,
-            Work = _ => PrepareTransfer(transfer),
-            ApplyOnMainThread = prepared => SendPrepared(prepared),
-            OnFailedOnMainThread = ex => AuraToolsLog.Warn("[MatchRecords] canonical replay replication preparation failed: " + ex.Message)
-        });
+        if (record == null || envelope == null || !HasRemoteRecipients()) return true;
+        return ReplayBackgroundWork.Finalization.TryEnqueue("NetworkPrepare." + record.RecordId,
+            () => PrepareTransfer(ReplayReplicationV17.CreateTransfer(record, envelope)),
+            SendPrepared,
+            ex => AuraToolsLog.Warn("[MatchRecords] canonical replay replication preparation failed: " + ex.Message),
+            ReplayMemoryEstimateV17.Document(envelope.Document));
     }
+
+    private static bool HasRemoteRecipients() => GameApi.AuraToolsNetworkSession.HasRemotePeers && IsHost;
 
     internal static bool AcceptCanonicalChunkOnServer(
         ReplayCanonicalChunkCommandV17 command,
@@ -239,13 +234,15 @@ internal static class ReplayNetworkAuthorityV17
             AuraToolsLog.Warn("[MatchRecords] rejected canonical replay chunk with invalid base64.");
             return;
         }
-        byte[]? completed = null;
         lock (Gate)
         {
             PruneNoLock();
+            if (PendingReplicas.ContainsKey(command.TransferId)) return;
             if (!Transfers.TryGetValue(command.TransferId, out var buffer))
             {
-                if (Transfers.Count >= ReplayNetworkProtocolV17.MaximumActiveTransfers)
+                if (Transfers.Count + PendingReplicas.Count >= ReplayNetworkProtocolV17.MaximumActiveTransfers
+                    || Transfers.Values.Sum(item => (long)item.TotalBytes)
+                       + PendingReplicas.Values.Sum(item => (long)item.Bytes) + command.TotalBytes > MaximumIncomingBytes)
                 {
                     AuraToolsLog.Warn("[MatchRecords] rejected canonical replay transfer: too many active transfers.");
                     return;
@@ -271,16 +268,12 @@ internal static class ReplayNetworkAuthorityV17
                 return;
             }
             if (!buffer.IsComplete) return;
+            // Transfer ownership before releasing the assembly buffer. Joining,
+            // hashing, journal staging and validation happen on the worker.
+            PendingReplicas[command.TransferId] = new PendingReplica(command.TransferId, buffer);
             Transfers.Remove(command.TransferId);
-            completed = buffer.Join();
-            if (completed.Length != buffer.TotalBytes
-                || !string.Equals(Sha256(completed), buffer.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                AuraToolsLog.Warn("[MatchRecords] canonical replay transfer hash mismatch: " + command.TransferId);
-                return;
-            }
         }
-        QueueReplicaCommit(completed, command.DocumentRoot);
+        PumpIncoming();
     }
 
     private static PreparedTransfer PrepareTransfer(ReplayNetworkTransferV17 transfer)
@@ -299,6 +292,8 @@ internal static class ReplayNetworkAuthorityV17
 
     private static void SendPrepared(PreparedTransfer prepared)
     {
+        // Peers may have left while background encoding was running.
+        if (!HasRemoteRecipients()) return;
         var sent = AuraToolsRpcTransport.SendBytesChunksAsync(
             PlayerManager.Instance,
             "MatchRecords.ReplayV17.Canonical",
@@ -318,54 +313,73 @@ internal static class ReplayNetworkAuthorityV17
         if (!sent) AuraToolsLog.Warn("[MatchRecords] canonical replay replication could not be scheduled.");
     }
 
-    private static void QueueReplicaCommit(byte[] payload, string declaredRoot)
+    internal static void PumpIncoming()
     {
-        AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<ReplicaStoreResult>
+        if (!MatchRecordStorage.Ready) return;
+        PendingReplica[] pending;
+        lock (Gate) pending = PendingReplicas.Values.Where(item => !item.InFlight && item.RetryAt <= DateTime.UtcNow).ToArray();
+        foreach (var incoming in pending)
         {
-            OwnerId = AuraToolsIds.ModId,
-            Key = "ReplayV17.ReplicaCommit." + declaredRoot,
-            Source = "MatchRecords.ReplayV17.ReplicaCommit",
-            Kind = AuraSharedBackgroundWorkKind.Io,
-            Work = _ => StoreReplica(payload, declaredRoot),
-            ApplyOnMainThread = result => AuraToolsLog.Info("[MatchRecords] " + result.Message),
-            OnFailedOnMainThread = ex => AuraToolsLog.Warn("[MatchRecords] canonical replay replica rejected: " + ex.Message)
-        });
+            var database = MatchRecordStorage.Database;
+            var limit = Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit;
+            incoming.InFlight = true;
+            if (!ReplayBackgroundWork.Storage.TryEnqueue("ReplicaCommit." + incoming.Id, () =>
+            {
+                if (incoming.Payload == null)
+                {
+                    incoming.Payload = incoming.Buffer!.Join();
+                    incoming.Buffer = null;
+                    if (incoming.Payload.Length != incoming.Bytes
+                        || !string.Equals(Sha256(incoming.Payload), incoming.Hash, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Canonical replay transfer hash mismatch.");
+                }
+                database.StageIncomingReplay(incoming.Id, incoming.Root, incoming.Payload);
+                try
+                {
+                    var result = ReplayReplicaStoreV17.Commit(database, incoming.Payload, incoming.Root, limit);
+                    database.FinishIncomingReplay(incoming.Id);
+                    return result;
+                }
+                catch (InvalidDataException ex)
+                {
+                    database.FinishIncomingReplay(incoming.Id, ex.Message);
+                    throw;
+                }
+            }, result =>
+            {
+                lock (Gate) PendingReplicas.Remove(incoming.Id);
+                AuraToolsLog.Info("[MatchRecords] " + result);
+            }, ex =>
+            {
+                incoming.InFlight = false;
+                if (ex is InvalidDataException)
+                {
+                    lock (Gate) PendingReplicas.Remove(incoming.Id);
+                    AuraToolsLog.Warn("[MatchRecords] incoming replay rejected: " + ex.Message);
+                }
+                else
+                {
+                    incoming.RetryAt = DateTime.UtcNow.AddSeconds(15);
+                    AuraToolsLog.Warn("[MatchRecords] incoming replay retained for retry: " + incoming.Id + ": " + ex.Message);
+                }
+            }, incoming.Bytes)) incoming.InFlight = false;
+        }
     }
 
-    private static ReplicaStoreResult StoreReplica(byte[] payload, string declaredRoot)
+    private sealed class PendingReplica
     {
-        var transfer = ReplayPayloadV17.Decode<ReplayNetworkTransferV17>(
-            payload,
-            ReplayNetworkProtocolV17.MaximumDecodedTransferBytes);
-        if (transfer.Record == null
-            || transfer.Envelope?.Document == null
-            || transfer.AssetPayloads == null)
-            throw new InvalidOperationException("canonical replay transfer shape is invalid");
-        if (!string.Equals(transfer.Envelope.DeclaredDocumentRoot, declaredRoot, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("canonical replay transfer root mismatch");
-        ReplayAssetPayloadTransferV17.AttachAndValidate(transfer.Envelope.Document, transfer.AssetPayloads);
-        var validation = ReplayDocumentValidatorV17.Validate(transfer.Envelope);
-        if (!validation.IsValid) throw new InvalidOperationException("canonical replay validation failed: " + validation.Message);
-        var database = MatchRecordStorage.Database;
-        var existing = database.Get(transfer.Envelope.Document.Header.RecordId);
-        if (existing != null)
+        internal PendingReplica(string id, ReplayCanonicalChunkBufferV17 buffer)
         {
-            if (string.Equals(existing.ContentSha256, declaredRoot, StringComparison.OrdinalIgnoreCase))
-                return new ReplicaStoreResult("联机权威回放已存在，根哈希一致。");
-            throw new InvalidOperationException("canonical replay record id collision");
+            Id = id; Buffer = buffer; Root = buffer.DocumentRoot; Hash = buffer.Sha256; Bytes = buffer.TotalBytes;
         }
-        var record = ReplayCanonicalJsonV17.Clone(transfer.Record);
-        record.Collection = MatchRecordCollections.Auto;
-        record.IsFavorite = false;
-        record.Origin = MatchRecordOrigins.Replicated;
-        record.ReplayState = MatchReplayStates.Ready;
-        record.ReplayProtocol = ReplayProtocolV17.DocumentVersion;
-        record.ContentSha256 = declaredRoot;
-        var analysis = MatchAnalysisBuilder.BuildV17(record, transfer.Envelope.Document);
-        if (!database.SaveV17(record, transfer.Envelope, analysis))
-            throw new InvalidOperationException("canonical replay replica database commit failed");
-        database.EnforceAutoLimit(AuraToolsExp.Dll.Config.AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit);
-        return new ReplicaStoreResult("联机权威回放已验证并提交：" + record.RecordId + "，root=" + declaredRoot + "。");
+        internal readonly string Id;
+        internal readonly string Root;
+        internal readonly string Hash;
+        internal readonly int Bytes;
+        internal ReplayCanonicalChunkBufferV17? Buffer;
+        internal byte[]? Payload;
+        internal bool InFlight;
+        internal DateTime RetryAt;
     }
 
     private static bool RequireLobbyMember(AuraToolsRpcSender sender, out string rejection)
@@ -428,11 +442,4 @@ internal static class ReplayNetworkAuthorityV17
         internal ReplicaStoreResult(string message) => Message = message;
         internal string Message { get; }
     }
-}
-
-internal sealed class ReplayNetworkTransferV17
-{
-    public MatchRecord Record { get; set; } = new();
-    public ReplayDocumentEnvelopeV17 Envelope { get; set; } = new();
-    public ReplayAssetPayloadSetV17 AssetPayloads { get; set; } = new();
 }

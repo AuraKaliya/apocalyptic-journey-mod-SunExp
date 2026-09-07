@@ -24,7 +24,7 @@ Sub_pack_event_repeat
 
 Do not restore removed historical ids unless the design is deliberately
 reopened and tests are updated first. Keep concrete old-id lists in
-`terrias-skill-evolution` notes or deterministic validation scripts, not in this
+`aura-skill-evolution` notes or deterministic validation scripts, not in this
 authoring reference.
 
 Recommended CSV script calls:
@@ -74,6 +74,6 @@ Style:
 - Put dialogue flow in `DialogueFlowRuntime` / `DialogueFlowService`, battle
   reward adjustment in `BattleRewardAdjustmentRuntime` /
   `BattleRewardAdjustmentService`, and runtime visual behavior in
-  `terrias-visual-runtime-dev` surfaces.
+  `aura-visual-runtime-dev` surfaces.
 - Load `terrias-mod-dev/references/game-reference-index.md` and use its event
   script routes when the CSV field or API shape is unclear.

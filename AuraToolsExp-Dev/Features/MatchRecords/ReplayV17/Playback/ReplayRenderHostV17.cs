@@ -476,11 +476,8 @@ internal sealed class ReplayRenderHostV17 : IDisposable
         canvas.planeDistance = 1f;
         canvas.sortingOrder = 1000;
         var scaler = value.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(
-            Math.Max(320, scene.ReferenceWidth),
-            Math.Max(180, scene.ReferenceHeight));
-        scaler.matchWidthOrHeight = 0.5f;
+        ReplayNativeUiPresentationApi.ConfigureCanvas(scaler);
+        Canvas.ForceUpdateCanvases();
         return canvas;
     }
 

@@ -20,6 +20,7 @@ AuraSharedPaths.RootDirectory = tempRoot;
 try
 {
     TestPresentationMaterialCoordinatorContracts();
+    TestNativeCardPresentationBoundary();
 
     Assert(AuraModeRunIdentity.IsNativeWorldSimulation(
             AuraModeRunIdentity.NativeWorldSimulationModeType,

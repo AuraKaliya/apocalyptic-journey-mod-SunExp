@@ -21,6 +21,7 @@ public static class TerriasCombatCardUiWorkloadRuntime
     public static void Initialize(ModConfig modConfig)
     {
         activeConfig = modConfig;
+        TerriasCombatCardUiDiagnostics.ConfigureHostReads(GameApi.FightUiDiagnosticsApi.SkillCount, GameApi.FightUiDiagnosticsApi.CurrentRoleId);
         if (!initialized)
         {
             initialized = true;
@@ -116,10 +117,6 @@ public static class TerriasCombatCardUiWorkloadRuntime
         TerriasPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
         var elapsed = start <= 0L ? 0d : TerriasPerformanceCounters.ElapsedMilliseconds(start);
         var segmentSummary = TerriasCombatCardUiDiagnostics.End(key, elapsed);
-        if (string.Equals(target, TerriasHookTargets.FightUiCreateCardItemInternal, StringComparison.Ordinal))
-        {
-            segmentSummary += CombatCardViewConstructionDiagnostics.FormatRecent();
-        }
         if (string.Equals(target, TerriasHookTargets.CardItemDataUpdate, StringComparison.Ordinal)
             || string.Equals(target, TerriasHookTargets.AttackCardItemDataUpdate, StringComparison.Ordinal))
         {

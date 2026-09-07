@@ -8,24 +8,6 @@ using UiRaycastSafetyShared;
 
 namespace AuraCg.Shared;
 
-internal sealed class AuraCgSceneLayerPresentation
-{
-    public AuraCgSceneParticipantPlan Plan { get; set; } = new();
-
-    public string DisplayName { get; set; } = "";
-
-    public IReadOnlyList<Sprite> Frames { get; set; } = Array.Empty<Sprite>();
-
-    internal AuraCgNormalizedBounds VisibleBounds { get; set; } = AuraCgNormalizedBounds.Full;
-
-    internal float CanvasWidth { get; set; } = 1f;
-
-    internal float CanvasHeight { get; set; } = 1f;
-
-    public float FrameSeconds { get; set; } = 0.08f;
-
-    public bool Loop { get; set; } = true;
-}
 
 internal sealed class AuraCgOverlayPresenter
 {
@@ -99,10 +81,10 @@ internal sealed class AuraCgOverlayPresenter
     }
 
     public bool ShowScene(
-        Sprite? background,
-        IReadOnlyList<AuraCgSceneLayerPresentation> layers,
+        AuraCgScenePresentation presentation,
         SkillCgRequest request)
     {
+        var layers = presentation.Participants;
         if (layers == null
             || layers.Count == 0
             || request.ScenePlan == null
@@ -127,7 +109,7 @@ internal sealed class AuraCgOverlayPresenter
         }
 
         if (sceneRenderer == null
-            || !sceneRenderer.Bind(background, activeSceneLayers, request.ScenePlan))
+            || !sceneRenderer.Bind(presentation, request.ScenePlan, request.FadeIn + request.Hold + request.FadeOut))
         {
             return false;
         }

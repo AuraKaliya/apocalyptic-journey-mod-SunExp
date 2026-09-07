@@ -316,6 +316,10 @@ public static class ElementalReactionService
                 plan.Reaction.Reaction,
                 plan.Origin);
         }
+
+        // A lunar reaction retains its ordinary effects. Count this resolved
+        // reaction once, rather than counting its repeated or generated damage.
+        MoonHomecomingMechanics.ResolveReactionGrowth(plan.Source, plan.Reaction.Reaction);
     }
 
     private static void ExecuteSwirl(ResolutionPlan plan)

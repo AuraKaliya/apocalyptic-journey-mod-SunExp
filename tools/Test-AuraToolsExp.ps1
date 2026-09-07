@@ -1,5 +1,7 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [switch]$SkipBuild,
+    [switch]$SkipModelIntegration
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,7 +29,7 @@ $requiredProtocolFeatures = @{
     "multiplayer.mod-sync" = @(1, 2)
     "presentation.pixel-emoji" = @(2, 2)
     "records.damage-meter" = @(4, 4)
-    "presentation.event-cg" = @(1, 1)
+    "presentation.event-cg" = @(2, 2)
     "records.match-replay" = @(17, 17)
 }
 if ($protocolManifest.schemaVersion -ne 1 `
@@ -399,7 +401,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "AuraToolsExp replay URP renderer compatibility gate failed."
 }
 
-& dotnet run --project $project -c $Configuration
+if ($SkipBuild) {
+    & dotnet run --project $project -c $Configuration --no-build
+} else {
+    & dotnet run --project $project -c $Configuration
+}
 if ($LASTEXITCODE -ne 0) {
     throw "AuraToolsExp behavior tests failed with exit code $LASTEXITCODE."
 }
@@ -407,12 +413,12 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path -LiteralPath $bundledModelIntegration -PathType Leaf)) {
     throw "AuraToolsExp bundled-model integration test is missing: $bundledModelIntegration"
 }
-& powershell `
-    -NoProfile `
-    -ExecutionPolicy Bypass `
-    -File $bundledModelIntegration `
-    -Configuration $Configuration
-if ($LASTEXITCODE -ne 0) {
+$bundledIntegrationArgs = @(
+    "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $bundledModelIntegration,
+    "-Configuration", $Configuration)
+if ($SkipBuild) { $bundledIntegrationArgs += "-SkipBuild" }
+if (-not $SkipModelIntegration) { & powershell @bundledIntegrationArgs }
+if (-not $SkipModelIntegration -and $LASTEXITCODE -ne 0) {
     throw "AuraToolsExp bundled-model integration failed with exit code $LASTEXITCODE."
 }
 
@@ -581,7 +587,7 @@ $terriasCardUseCg = @($terriasCgRegistry.entries | Where-Object {
 $terriasFeastCg = @($terriasCgRegistry.entries | Where-Object {
     $_.subjectType -eq "role" `
         -and @($_.signals) -contains "aura.role.feast.completed" `
-        -and $_.cgId -in @("loneer.feast", "wuna.feast", "columbina.feast")
+        -and $_.cgId -in @("loneer.feast", "wuna.feast", "columbina.feast", "olimya.feast")
 })
 $allCgEntries = @($cgRegistry.entries) + @($terriasCgRegistry.entries)
 $legacyCgFieldsPresent = @($allCgEntries | Where-Object {
@@ -600,7 +606,7 @@ $invalidSkillCgFacts = @($officialSkillCg + $terriasSkillCg | Where-Object {
 }).Count -ne 0
 $invalidEventScene = @($eventCg | Where-Object {
     $_.media.type -ne "scene" `
-        -or $_.scene.layoutId -ne "team-tableau.v2" `
+        -or $_.scene.layoutId -ne "team-poster.v3" `
         -or $_.scene.maximumParticipants -ne 8 `
         -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.ownerModId) `
         -or [string]::IsNullOrWhiteSpace([string]$_.scene.backgroundAsset.assetId) `
@@ -691,14 +697,14 @@ if ($registration.schemaVersion -ne 4 `
         -or $victoryEventCg.Count -ne 4 `
         -or @($victoryEventCg.match.facts.outcomeReason | Sort-Object -Unique).Count -ne 4 `
         -or $terriasRegistration.ownerModId -ne "Terrias" `
-        -or @($terriasRegistration.resources).Count -ne 9 `
+        -or @($terriasRegistration.resources).Count -ne 10 `
         -or $terriasCgRegistry.ownerModId -ne "Terrias" `
         -or $terriasCgRegistry.schemaVersion -ne 4 `
         -or $terriasCgRegistry.protocol.preferredVersion -ne 4 `
-        -or @($terriasCgRegistry.entries).Count -ne 7 `
+        -or @($terriasCgRegistry.entries).Count -ne 8 `
         -or $terriasSkillCg.Count -ne 3 `
         -or $terriasCardUseCg.Count -ne 1 `
-        -or $terriasFeastCg.Count -ne 3 `
+        -or $terriasFeastCg.Count -ne 4 `
         -or $invalidSkillCgFacts `
         -or $invalidSemanticCg `
         -or $legacyCgFieldsPresent `

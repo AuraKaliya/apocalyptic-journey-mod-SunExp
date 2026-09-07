@@ -13,6 +13,16 @@
       <Private>true</Private>
     </Reference>
     <Compile Include="TestStubs.cs" />
+    <Compile Include="ProjectionWireTests.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionCompanionSnapshot.cs" Link="Source\ProjectionCompanionSnapshot.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonResultSnapshot.cs" Link="Source\ProjectionSummonResultSnapshot.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonTurnSnapshot.cs" Link="Source\ProjectionSummonTurnSnapshot.cs" />
+    <Compile Include="..\Terrias-Dev\Network\ProjectionSnapshotWire.cs" Link="Source\ProjectionSnapshotWire.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonFailureCode.cs" Link="Source\ProjectionSummonFailureCode.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonFailureCategory.cs" Link="Source\ProjectionSummonFailureCategory.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonTurnTransaction.cs" Link="Source\ProjectionSummonTurnTransaction.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonTurnTransactionState.cs" Link="Source\ProjectionSummonTurnTransactionState.cs" />
+    <Compile Include="..\Terrias-Dev\Contracts\TerriasProtocolContract.cs" Link="Source\TerriasProtocolContract.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedDictionary.cs" Link="Source\AuraSharedDictionary.cs" />
     <Compile Include="..\AuraSharedCore\AuraCombatCardZoneSnapshot.cs" Link="Source\AuraCombatCardZoneSnapshot.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Source\AuraFeatureSwitchRuntime.cs" />
@@ -28,12 +38,9 @@
     <Compile Include="..\Terrias-Dev\GameApi\ScriptDelegateApi.cs" Link="Source\ScriptDelegateApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\RuntimeMemberApi.cs" Link="Source\RuntimeMemberApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\TruthCurrencyApi.cs" Link="Source\TruthCurrencyApi.cs" />
-    <Compile Include="..\Terrias-Dev\GameApi\CombatCardViewPoolApi.cs" Link="Source\CombatCardViewPoolApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CombatCardApi.cs" Link="Source\CombatCardApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\BattleLifecycleApi.cs" Link="Source\BattleLifecycleApi.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\FightUiCardTerminalApi.cs" Link="Source\FightUiCardTerminalApi.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs" Link="Source\CombatCardViewPoolCatalog.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\PooledCardViewExit.cs" Link="Source\PooledCardViewExit.cs" />
     <Compile Include="..\Terrias-Dev\GameApi\CardConfigApi.cs" Link="Source\CardConfigApi.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\TerriasCardInvalidationService.cs" Link="Source\TerriasCardInvalidationService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\TerriasActiveCardPresentationIndex.cs" Link="Source\TerriasActiveCardPresentationIndex.cs" />
@@ -112,5 +119,7 @@
     <Compile Include="..\Terrias-Dev\Mechanics\WitchArchiveTextLoader.cs" Link="Source\WitchArchiveTextLoader.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\TerriasLocalizedText.cs" Link="Source\TerriasLocalizedText.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssLedgerCodec.cs" Link="Source\EndlessAbyssLedgerCodec.cs" />
+    <Compile Include="LedgerCommitTests.cs" />
   </ItemGroup>
 </Project>

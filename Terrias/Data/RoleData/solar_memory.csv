@@ -1,5 +1,5 @@
 Id,Avatar,CharacterImage,HouseAvatar,DefaultY,DefaultScale
 唯一标识,头像路径,立绘路径,场景对话头像,对话立绘默认Y偏移,对话立绘默认缩放
-solar_memory_wuna_dialogue,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa,Mods/Terrias/ModResource/Images/Icon/WuNa3,300,1
-solar_memory_saint_wuna,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa_e,Mods/Terrias/ModResource/Images/Icon/WuNa3,300,1
+solar_memory_wuna_dialogue,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa,Mods/Terrias/ModResource/Images/Icon/WuNa2,300,1
+solar_memory_saint_wuna,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa_e,Mods/Terrias/ModResource/Images/Icon/WuNa2,300,1
 solar_memory_unknown,Images/Dialogue/Avatar/空白,,Images/Dialogue/Circle/空白,,

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Terrias.Dll.GameApi;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
@@ -15,6 +14,12 @@ namespace Terrias.Dll.Infrastructure;
 /// </summary>
 public static class TerriasCombatCardUiDiagnostics
 {
+    private static Func<object?, int> skillCount = _ => -1;
+    private static Func<string> roleId = () => "<unbound>";
+    public static void ConfigureHostReads(Func<object?, int> readSkillCount, Func<string> readRoleId)
+    {
+        skillCount = readSkillCount; roleId = readRoleId;
+    }
     private const int MaxPendingCauses = 24;
     private const int MaxCauseAgeFrames = 8;
     [ThreadStatic] private static Stack<Scope>? scopes;
@@ -147,8 +152,8 @@ public static class TerriasCombatCardUiDiagnostics
         refreshBatch = new RefreshBatch(
             frame,
             FightUI.cardItemList?.Count ?? 0,
-            FightUiDiagnosticsApi.SkillCount(context.Target),
-            FightUiDiagnosticsApi.CurrentRoleId(),
+            skillCount(context.Target),
+            roleId(),
             causes);
     }
 

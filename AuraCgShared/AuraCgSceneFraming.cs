@@ -49,51 +49,6 @@ internal readonly struct AuraCgSceneFramingResult
     internal float OffsetY { get; }
 }
 
-internal static class AuraCgSceneFramingMath
-{
-    internal static AuraCgSceneFramingResult FitVisibleBounds(
-        AuraCgNormalizedBounds bounds,
-        float canvasWidth,
-        float canvasHeight,
-        float slotWidth,
-        float slotHeight)
-    {
-        var safeCanvasWidth = Math.Max(1f, canvasWidth);
-        var safeCanvasHeight = Math.Max(1f, canvasHeight);
-        var safeSlotWidth = Math.Max(1f, slotWidth);
-        var safeSlotHeight = Math.Max(1f, slotHeight);
-        var visibleWidth = Math.Max(1f, safeCanvasWidth * bounds.Width);
-        var visibleHeight = Math.Max(1f, safeCanvasHeight * bounds.Height);
-        var scale = Math.Min(safeSlotWidth / visibleWidth, safeSlotHeight / visibleHeight);
-        var imageWidth = safeCanvasWidth * scale;
-        var imageHeight = safeCanvasHeight * scale;
-        var visibleCenterX = bounds.X + bounds.Width * 0.5f;
-        return new AuraCgSceneFramingResult(
-            imageWidth,
-            imageHeight,
-            (0.5f - visibleCenterX) * imageWidth,
-            -bounds.Y * imageHeight);
-    }
-
-    internal static float VisibleAspect(
-        AuraCgNormalizedBounds bounds,
-        float canvasWidth,
-        float canvasHeight)
-    {
-        return Math.Max(0.001f, canvasWidth * bounds.Width)
-               / Math.Max(0.001f, canvasHeight * bounds.Height);
-    }
-}
-
-internal static class AuraCgSceneLayoutFallbackPolicy
-{
-    internal static bool UsePortraitPanels(int participantCount, IEnumerable<float>? visibleAspects)
-    {
-        if (participantCount < 7) return false;
-        var aspects = (visibleAspects ?? Array.Empty<float>()).Where(value => value > 0f).ToArray();
-        return aspects.Any(value => value >= 0.86f);
-    }
-}
 
 internal readonly struct AuraCgSceneProfileIdentity
 {

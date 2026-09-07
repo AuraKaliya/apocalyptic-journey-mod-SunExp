@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using System.Linq;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
@@ -56,6 +57,22 @@ internal static class ReplayCapabilitiesV17
     internal const string OwnerQualifiedExtensions = "owner-qualified-replay-extensions.v1";
     internal const string OptionalEmbeddedDynamicAssets = "embedded-dynamic-assets.v1";
     internal const string FixedRenderTextureMp4 = "fixed-rendertexture-mp4.v1";
+    internal const string MeasuredAttachmentBounds = "measured-attachment-bounds.v1";
+    internal const string CardViewIdentity = "observed-card-view-identity.v1";
+    internal const string HandLifecycle = "observed-hand-arrival-and-layout.v1";
+
+    internal static IEnumerable<string> RequiredFor(ReplayDocumentV17 document)
+    {
+        foreach (var capability in Required) yield return capability;
+        if (document.PresentationEvents.Any(item => item.Presentation?.EntityBinding?.AttachmentBounds != null
+            || item.Presentation?.WorldTransformSamples?.Any(sample => sample.AttachmentBounds != null) == true))
+            yield return MeasuredAttachmentBounds;
+        if (document.PresentationEvents.Any(item => item.Presentation?.VisualInstanceId != null))
+            yield return CardViewIdentity;
+        if (document.Presentation.Ui.HandPresentationContract != null
+            || document.PresentationEvents.Any(item => item.Presentation?.CardView != null))
+            yield return HandLifecycle;
+    }
 
     internal static readonly string[] Required =
     {
@@ -643,6 +660,10 @@ internal sealed class ReplayJournalEventV17
 
 internal sealed class ReplayPresentationMessageV17
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public ReplayVisibleCardStateV17? CardView { get; set; }
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? VisualInstanceId { get; set; }
     public string Kind { get; set; } = "";
 
     public string DescriptorId { get; set; } = "";
@@ -726,6 +747,8 @@ internal sealed class ReplayTransformSampleV17
 
 internal sealed class ReplayWorldTransformSampleV17
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public ReplayBoundsQ16V17? AttachmentBounds { get; set; }
     public long OffsetTicks { get; set; }
     public ReplayVector3Q16V17 WorldPosition { get; set; } = new();
     public ReplayVector3Q16V17 RootScale { get; set; } = ReplayVector3Q16V17.One();
@@ -874,6 +897,8 @@ internal sealed class ReplaySceneDescriptorV17
 
 internal sealed class ReplayUiTemplateDescriptorV17
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string? HandPresentationContract { get; set; }
     public string FightUiResourcePath { get; set; } = "UI/FightUI";
 
     public string StatusBarResourcePath { get; set; } = "UI/StatusBarUI";
@@ -918,6 +943,8 @@ internal sealed class ReplayEntityDescriptorV17
 
 internal sealed class ReplayEntityPresentationBindingV17
 {
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public ReplayBoundsQ16V17? AttachmentBounds { get; set; }
     public string EntityId { get; set; } = "";
 
     public int SpawnGeneration { get; set; } = 1;
@@ -980,6 +1007,12 @@ internal sealed class ReplayCustomEntityPresentationV17
     public int AttackFocusTravelPixels { get; set; }
     public int InterferenceFocusTravelPixels { get; set; }
     public int SupportFocusTravelPixels { get; set; }
+}
+
+internal sealed class ReplayBoundsQ16V17
+{
+    public ReplayVector3Q16V17 Center { get; set; } = new();
+    public ReplayVector3Q16V17 Size { get; set; } = new();
 }
 
 internal sealed class ReplayAnimationDescriptorV17

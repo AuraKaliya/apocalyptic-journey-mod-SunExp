@@ -26,10 +26,20 @@
 
 ## 录制可靠性
 
-materialized baseline 创建 `Recording` 记录；稳定动作边界只追加 durability watermark 之前、已经
-关闭且不会再改变的增量 batch；终局先同步提交完整
-`Finalizing` 草稿，再后台生成 canonical 文档。启动时自动恢复未完成的 finalization。战斗中断的
-记录标为 `Incomplete`，不会进入播放器。
+materialized baseline、不可变增量 batch 和终局草稿由同一个后台 FIFO 依次落库。
+战斗线程封闭终局轨迹后交出文档所有权，不执行全量 JSON 复制、压缩、写库或同步保存回退。
+共享调度器暂时无容量时，待写数据仍由录制队列持有，常驻驱动在后续帧继续提交；关闭录制或进入
+下一场不会清掉已交出的工作。数据库提交成功才表示该前缀耐久，内存排队不等于已保存。
+完整 `Finalizing` 草稿提交后才开始后台规范化、校验和正式保存。启动时自动恢复已提交的
+finalization；只有录制前缀的中断记录标为 `Incomplete`，不会冒充 `Ready`。
+自动保留数量只计算已结束记录，不清理仍在 `Recording` / `Finalizing` 的记录。
+
+手牌到达和移动继续逐视图记录，创建/排布引起的状态采集合并到已有的帧或动作边界；打出下一张牌
+之前仍会强制结算该边界。单人房间不准备 canonical 同步负载；存在其他玩家时，在后台编码，发送
+前再次检查接收者。既有 v17 文档、根哈希和读取格式保持兼容，不重写用户旧记录。
+
+`[MatchRecords:perf] terminal handoff` 显示战后主线程耗时及排队情况；`background FinalizingDraft`、
+`Finalize`、`NetworkPrepare` 分别报告慢任务的后台执行和排队时间，不能把这些后台时间当作冻结时长。
 
 ## 回放与定位
 

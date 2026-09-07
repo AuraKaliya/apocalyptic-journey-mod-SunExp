@@ -12,6 +12,13 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 /// </summary>
 internal static class ReplayDurableJournalPrefixV17
 {
+    internal static long LastDurableSequence(long lastSequence,
+        IEnumerable<long> openFirstSequences, IEnumerable<long> mutablePresentationSequences)
+    {
+        var firstUnsafe = openFirstSequences.Concat(mutablePresentationSequences)
+            .Where(value => value > 0).DefaultIfEmpty(long.MaxValue).Min();
+        return firstUnsafe == long.MaxValue ? lastSequence : Math.Min(lastSequence, firstUnsafe - 1);
+    }
     internal static long LastDurableSequence(
         ReplayDocumentV17 document,
         IEnumerable<string>? openTransactionIds,
@@ -20,21 +27,14 @@ internal static class ReplayDurableJournalPrefixV17
         if (document == null) throw new ArgumentNullException(nameof(document));
         var all = document.TruthEvents
             .Concat(document.PresentationEvents)
-            .OrderBy(item => item.Sequence)
             .ToList();
         if (all.Count == 0) return 0L;
 
         var open = (openTransactionIds ?? Array.Empty<string>())
             .Where(item => !string.IsNullOrWhiteSpace(item))
             .ToHashSet(StringComparer.Ordinal);
-        var firstUnsafe = all
+        return LastDurableSequence(all.Max(item => item.Sequence), all
             .Where(item => open.Contains(item.TransactionId ?? ""))
-            .Select(item => item.Sequence)
-            .Concat((mutablePresentationSequences ?? Array.Empty<long>()).Where(item => item > 0L))
-            .DefaultIfEmpty(long.MaxValue)
-            .Min();
-        return firstUnsafe == long.MaxValue
-            ? all[all.Count - 1].Sequence
-            : Math.Max(0L, firstUnsafe - 1L);
+            .Select(item => item.Sequence), mutablePresentationSequences ?? Array.Empty<long>());
     }
 }

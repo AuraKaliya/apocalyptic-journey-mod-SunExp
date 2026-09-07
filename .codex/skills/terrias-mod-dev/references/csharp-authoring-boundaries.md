@@ -38,10 +38,9 @@ The repository `Managed/` assemblies are authoritative for compilation. When
 they disagree with the decompiled snapshot, follow current `Managed/` and add a
 compatibility wrapper if older signatures must remain supported.
 
-Load `references/game-reference-index.md` before searching the decompiled
-reference. That file records the current decompile version, high-frequency
-search routes, and how to record versioned corrections when the decompiled
-snapshot disagrees with the current game or `Managed/` assemblies.
+Load [the game reference workflow](game-reference-index.md) before searching.
+Discover the snapshot for the investigated game/Managed fingerprints and use
+the focused search routes. Record mismatches as versioned incident evidence.
 
 ## Managed Signature Drift
 
@@ -87,7 +86,7 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 
 ## Multiplayer And Runtime Objects
 
-- Load `terrias-shared-runtime-dev/references/sync-scenario-model.md` before
+- Load `aura-shared-runtime-dev/references/sync-scenario-model.md` before
   choosing network event shape, RPC authority fields, duplicate suppression, or
   payload limits.
 - Load
@@ -119,10 +118,7 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 
 ## Validation
 
-After C# changes, run:
-
-```powershell
-tools\Build-TerriasDll.ps1
-tools\Test-TerriasCSharp.ps1
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
-```
+Select checks through the
+[impact guide](../../aura-project-dev/references/validation.md).
+The csharp profile builds once and passes SkipBuild to the behavior entry.
+Add content checks only when the affected Data/Text contract requires them.

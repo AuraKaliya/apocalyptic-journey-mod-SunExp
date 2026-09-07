@@ -1,12 +1,24 @@
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$InputSnapshotPath = "",
+    [string]$ValidationReceiptPath = ""
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
 Import-Module (Join-Path $repoRoot "tools\modules\RepositoryPath.psm1") -Force
+Import-Module (Join-Path $repoRoot "tools\modules\AuraReleaseInputs.psm1") -Force
+$releaseMutex = Enter-AuraReleaseLock -RepoRoot $repoRoot
+try {
+if ([string]::IsNullOrWhiteSpace($InputSnapshotPath)) { $InputSnapshotPath = Join-Path $repoRoot "artifacts/shared-release/$Configuration/build-input.json" }
+$inputSnapshot = Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $InputSnapshotPath
+$validation = $null
+if (-not [string]::IsNullOrWhiteSpace($ValidationReceiptPath)) {
+    $validation = Get-Content -LiteralPath $ValidationReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $validation.success -or $validation.inputFingerprint -ne $inputSnapshot.fingerprint) { throw 'Validation receipt does not cover these release inputs.' }
+}
 
 $consumers = @(Get-SharedConsumers -RepoRoot $repoRoot -Classification product -DefaultOnly)
 if ($consumers.Count -ne 2 `
@@ -20,6 +32,7 @@ if (-not (Test-Path -LiteralPath $sharedSource -PathType Leaf)) {
     throw "Canonical Aura.Shared.dll is missing: $sharedSource"
 }
 $sharedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sharedSource).Hash
+if ($null -ne $validation -and $validation.sharedSha256 -ne $sharedHash) { throw 'Shared assembly changed after validation.' }
 $transactionId = [Guid]::NewGuid().ToString("N")
 $operations = New-Object System.Collections.Generic.List[object]
 $transactionCommitted = $false
@@ -34,6 +47,12 @@ try {
             -Configuration $Configuration
         if (-not (Test-Path -LiteralPath $entrySource -PathType Leaf)) {
             throw "Consumer assembly is missing: $($consumer.id) -> $entrySource"
+        }
+        if ($null -ne $validation) {
+            $validatedAssembly = @($validation.assemblies | Where-Object id -eq $consumer.id)
+            if ($validatedAssembly.Count -ne 1 -or $validatedAssembly[0].sha256 -ne (Get-FileHash -LiteralPath $entrySource).Hash) {
+                throw "Product assembly changed after validation: $($consumer.id)"
+            }
         }
 
         $packageRoot = Resolve-ConsumerPath -RepoRoot $repoRoot -RelativePath ([string]$consumer.packagePath)
@@ -67,10 +86,12 @@ try {
 
     $packageOperations = $operations.ToArray()
     $publishManifest = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         transactionId = $transactionId
         configuration = $Configuration
         sharedSha256 = $sharedHash
+        inputFingerprint = $inputSnapshot.fingerprint
+        validation = $validation
         consumers = @($packageOperations | Group-Object Consumer | ForEach-Object {
             [ordered]@{
                 id = $_.Name
@@ -83,6 +104,14 @@ try {
                 })
             }
         })
+    }
+
+    foreach ($consumer in $publishManifest.consumers) {
+        $prefix = [string]$consumer.id + '/'
+        $payload = @($inputSnapshot.files | Where-Object { ([string]$_.path).StartsWith($prefix, [StringComparison]::Ordinal) } | ForEach-Object {
+            [pscustomobject]@{ kind='payload'; target=[string]$_.path; sha256=[string]$_.sha256; bytes=[long]$_.bytes }
+        })
+        $consumer.files = @($consumer.files) + $payload
     }
 
     [System.IO.Directory]::CreateDirectory($artifactRoot) | Out-Null
@@ -178,3 +207,5 @@ finally {
 Write-Host "Product consumer package transaction committed: $transactionId"
 Write-Host "Aura.Shared.dll SHA256: $sharedHash"
 Write-Host "Publish manifest: $manifestPath"
+
+} finally { $releaseMutex.ReleaseMutex(); $releaseMutex.Dispose() }

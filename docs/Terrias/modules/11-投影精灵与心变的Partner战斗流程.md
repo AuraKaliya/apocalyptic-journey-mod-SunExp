@@ -618,7 +618,7 @@ deployment token 保证本场只能使用冻结的出战个体；`SpiritStateSto
 | 投影独立牌局与卡牌适配 | `Terrias-Dev/Mechanics/ProjectionCardBattleRuntime.cs`、`ProjectionActorDeckProjection.cs`、`ProjectionDeckCapabilityInspector.cs` |
 | 投影执行能力与目标声明 | `ProjectionCardExecutionPolicy.cs`、`ProjectionCardTargetPolicy.cs`、`ProjectionScripts.RegisterCardCapability` |
 | 投影请求、序号与客机回合门 | `Terrias-Dev/Mechanics/ProjectionProtocolState.cs` |
-| 投影召唤与公开状态 | `Terrias-Dev/Mechanics/ProjectionSummonService.cs` |
+| 投影召唤与公开状态 | `Terrias-Dev/Application/ProjectionSummonService.cs` |
 | 权威 RoleTable 牌组配方 | `Terrias-Dev/Mechanics/ProjectionRoleDeckService.cs`、`ProjectionDeckRecipe.cs` |
 | Partner 队列与召唤轮权威事务 | `Terrias-Dev/Mechanics/ProjectionTurnCoordinator.cs`、`ProjectionSummonTurnTransactionLedger.cs` |
 | 精灵对象与 Partner 回合 | `Terrias-Dev/Mechanics/SpiritOtherObj.cs` |

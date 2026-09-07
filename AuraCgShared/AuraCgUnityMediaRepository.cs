@@ -19,6 +19,8 @@ internal sealed class AuraCgUnityMediaRepository
     private readonly Func<string, bool> shouldApplyCpuAlphaMode;
     private readonly AuraCgMediaReleaseQueue<Sprite, AssetBundle> releaseQueue = new();
     private readonly AuraCgMediaCache<Sprite, AssetBundle> cache;
+    private readonly AuraCgMediaRetentionLedger<Sprite, AssetBundle> sceneRetentions;
+    private readonly HashSet<SceneMediaLease> sceneLeases = new();
 
     public AuraCgUnityMediaRepository(
         Func<string, string, AssetBundle?> registeredBundleResolver,
@@ -28,6 +30,7 @@ internal sealed class AuraCgUnityMediaRepository
         this.registeredBundleResolver = registeredBundleResolver ?? throw new ArgumentNullException(nameof(registeredBundleResolver));
         this.bundlePathResolver = bundlePathResolver ?? throw new ArgumentNullException(nameof(bundlePathResolver));
         this.shouldApplyCpuAlphaMode = shouldApplyCpuAlphaMode ?? throw new ArgumentNullException(nameof(shouldApplyCpuAlphaMode));
+        sceneRetentions = new AuraCgMediaRetentionLedger<Sprite, AssetBundle>(releaseQueue.QueueSprite, releaseQueue.QueueBundle);
         cache = new AuraCgMediaCache<Sprite, AssetBundle>(
             MaximumCacheEntries,
             MaximumCacheEstimatedBytes,
@@ -220,10 +223,44 @@ internal sealed class AuraCgUnityMediaRepository
     {
         releaseQueue.Flush(
             isIdle,
-            cache.ContainsSpriteReference,
+            sprite => cache.ContainsSpriteReference(sprite) || sceneRetentions.ContainsSprite(sprite),
             cache.ContainsBundleReference,
             ReleaseSprite,
             ReleaseBundle);
+    }
+
+    internal IDisposable RetainSceneFrames(List<Sprite> frames, AuraCgMediaOwnership ownership)
+    {
+        var entry = AuraCgMediaCacheEntry<Sprite, AssetBundle>.ForSequence(
+            "scene-presentation", frames, AuraSharedResourceCache.EstimateObjectBytes, ownership);
+        sceneRetentions.Attach(entry);
+        SceneMediaLease? lease = null;
+        lease = new SceneMediaLease(() =>
+        {
+            sceneRetentions.Detach(entry);
+            sceneLeases.Remove(lease!);
+        });
+        sceneLeases.Add(lease);
+        return lease;
+    }
+
+    internal void Dispose()
+    {
+        foreach (var lease in sceneLeases.ToArray()) lease.Dispose();
+        cache.Clear();
+        FlushReleasedMedia(true);
+    }
+
+    private sealed class SceneMediaLease : IDisposable
+    {
+        private Action? release;
+        internal SceneMediaLease(Action release) { this.release = release; }
+        public void Dispose()
+        {
+            var current = release;
+            release = null;
+            current?.Invoke();
+        }
     }
 
     private IEnumerator LoadBundleSequenceSprites(

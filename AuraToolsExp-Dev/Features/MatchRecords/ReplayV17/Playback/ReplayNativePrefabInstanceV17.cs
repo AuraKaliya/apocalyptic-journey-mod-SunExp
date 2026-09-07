@@ -9,7 +9,8 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Playback;
 
 /// <summary>
 /// Instantiates the complete native prefab below an inactive quarantine root,
-/// disables gameplay/input behaviours, and only then activates it in the replay
+/// removes runtime-only UI subtrees and gameplay/input behaviours before activating
+/// the remaining presentation in the replay
 /// scene. Unlike the retired component copier, this preserves native sorting
 /// groups, renderer materials, masks, canvas channels, layout components, and
 /// prefab-authored hierarchy.
@@ -47,6 +48,8 @@ internal static class ReplayNativePrefabInstanceV17
 
     private static void Sanitize(GameObject root)
     {
+        RemoveRuntimeOnlyUiSubtrees(root);
+
         foreach (var transform in root.GetComponentsInChildren<Transform>(true))
             transform.gameObject.layer = 30;
 
@@ -72,6 +75,28 @@ internal static class ReplayNativePrefabInstanceV17
         {
             if (IsPassiveUiBehaviour(behaviour)) continue;
             Object.DestroyImmediate(behaviour);
+        }
+    }
+
+    private static void RemoveRuntimeOnlyUiSubtrees(GameObject root)
+    {
+        foreach (var behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour == null
+                || !string.Equals(
+                    behaviour.GetType().FullName,
+                    "Witch.UI.Window.TutorialSpotlightUI",
+                    StringComparison.Ordinal))
+                continue;
+
+            // The native owner hides/destroys its authored preview outside tutorials.
+            // Stripping only that script leaves its active mask, dialogue and avatar.
+            // Match ownership before stripping components; names and sibling indexes
+            // are not stable identities, and the source prefab must remain untouched.
+            if (behaviour.gameObject == root)
+                throw new InvalidOperationException("A tutorial UI cannot be a replay presentation root.");
+
+            Object.DestroyImmediate(behaviour.gameObject);
         }
     }
 

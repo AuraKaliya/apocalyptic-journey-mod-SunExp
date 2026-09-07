@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AuraToolsExp · 事件CG绘制方案</title>
+<style>
+:root { color-scheme:dark; --ink:#e9e6df; --muted:#b9bdc6; --paper:#121823; --line:#344050; --gold:#d9c391; }
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",sans-serif;line-height:1.75}
+main{max-width:1200px;margin:auto;padding:48px 32px 72px}
+a{color:#e4cfa4;text-decoration-thickness:1px;text-underline-offset:4px}
+.hero{padding:0 0 30px;border-bottom:1px solid var(--line)}
+.eyebrow{color:var(--gold);font-size:12px;letter-spacing:.10em;margin:0 0 8px}
+h1{font-weight:500;font-size:clamp(28px,4vw,42px);line-height:1.3;margin:6px 0 20px}
+h2{font-weight:500;font-size:25px;margin:0 0 18px}
+h3{font-weight:500;font-size:18px;line-height:1.5;margin:0 0 12px}
+p{margin:0 0 14px}
+.lead{max-width:850px;color:var(--muted);font-size:17px}
+nav{display:flex;gap:12px 25px;flex-wrap:wrap;margin-top:25px}
+.scope{display:flex;gap:12px 36px;flex-wrap:wrap;margin-top:25px;color:var(--muted);font-size:14px}
+.scope strong{font-weight:500;font-size:25px;color:var(--ink);margin-right:6px}
+section{margin-top:40px}
+.quiet{color:var(--muted);font-size:14px}
+.diagram{display:block;width:100%;height:auto}
+figure{margin:18px 0}
+figcaption{font-size:14px;color:var(--muted);margin-top:12px}
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px;margin:22px 0 0}
+.notes p{font-size:14px}
+.pilots{border-top:1px solid var(--line)}
+.pilot{display:grid;grid-template-columns:50px minmax(0,1fr);gap:20px;padding:23px 0;border-bottom:1px solid var(--line)}
+.pilot-number{color:var(--gold);font-size:18px}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.character{background:#1b2432;min-width:0;border-radius:10px;overflow:hidden}
+.reference-thumb{display:block;position:relative;height:260px;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#354153,#202837 75%)}
+.reference-thumb img{width:100%;height:100%;object-fit:contain}
+.wide-source img{position:absolute;width:178%;max-width:none;left:-67%;height:100%;object-fit:contain}
+.character-copy{padding:20px}
+.character-copy p{font-size:14px}
+details{margin:12px 0 0}
+summary{cursor:pointer;color:#decca4;min-height:32px}
+details[open] summary{margin-bottom:12px}
+dl{font-size:14px;margin:0}
+dt{color:#e6d5b0;margin-top:16px}
+dd{margin:5px 0 0;color:var(--muted)}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;line-height:1.8;font-size:14px;padding:18px;background:#0d141f;border-radius:6px;margin:0}
+.note-list{padding-left:22px;color:var(--muted)}
+footer{border-top:1px solid var(--line);margin-top:44px;padding-top:22px;color:var(--muted);font-size:13px}
+@media(max-width:850px){.gallery{grid-template-columns:repeat(2,minmax(0,1fr))}.notes{grid-template-columns:1fr;gap:8px}}
+@media(max-width:560px){main{padding:28px 18px 45px}.gallery{grid-template-columns:1fr}.pilot{grid-template-columns:38px minmax(0,1fr);gap:10px}.scope{gap:12px 24px}.reference-thumb{height:285px}.notes{gap:2px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style></head>
+<body><main>
+<header class="hero"><p class="eyebrow">AURATOOLSEXP / EVENT CG / 2026.09.06</p><h1>一张可以停下来欣赏的队伍CG</h1><p class="lead">以角色参考锁定形象，以事件姿势表达情绪，以背景、光与装饰连接队伍。统一为细腻的日式幻想插画，保留各角色的脸型、服装和配色。</p><div class="scope"><span><strong>15</strong>套形象</span><span><strong>105</strong>条动作草案</span><span><strong>6</strong>张首轮姿势样张</span></div><nav aria-label="方案导航"><a href="#results">首轮实际样张</a><a href="#composition">四人构图</a><a href="#pilots">首轮动作与提示词</a><a href="#characters">角色参考目录</a><a href="README.md">完整设计文档</a></nav></header>
+<section id="results"><p class="eyebrow">PILOT RESULT / 首轮实际样张</p><h2>四人胜利CG与镜头节奏</h2><p class="quiet">六张姿势已绘制并处理为真实透明素材；这张画由独立人物、背景、前景和附属效果在本地拼接。已接入仓库MOD包；真实游戏触发与联机仍待验收。</p><figure><a href="../../../output/imagegen/event-cg/previews/victory-four-characters.png"><img class="diagram" src="../../../output/imagegen/event-cg/previews/victory-four-characters.jpg" alt="首轮四人胜利CG：卡洛琳、可可、乌娜和阿米莉娅的晨光群像"></a></figure><video controls preload="metadata" poster="../../../output/imagegen/event-cg/previews/victory-four-characters.jpg" style="display:block;width:100%;height:auto" src="../../../output/imagegen/event-cg/previews/victory-camera-preview.mp4">5秒轻推镜预览</video><p style="margin-top:16px"><a href="../../../output/imagegen/event-cg/previews/six-pose-contact-sheet.jpg">六张姿势对照</a> · <a href="../../../output/imagegen/event-cg/previews/event-cg-pilot-r1.zip">完整素材包</a> · <a href="../../../output/imagegen/event-cg/README.md">生成与处理说明</a></p></section><section id="composition"><p class="eyebrow">COMPOSITION / 普通胜利</p><h2>晨光中的战后收势</h2><p class="quiet">下图是脸部、手势和轮廓的规划，使用几何占位。尚未生成新的姿势立绘；下方角色目录展示的是用户原始参考。</p><figure><a href="composition.svg"><img class="diagram" src="composition.svg" alt="四人普通胜利构图规划：卡洛琳左前、可可左后、乌娜右前、阿米莉娅右后。金色椭圆为面部保留区，青色虚框为手势保留区。"></a><figcaption>点击查看构图大图。前排是卡洛琳与乌娜，后排是可可与阿米莉娅；视觉位置不表达伤害排名。</figcaption></figure><div class="notes"><div><h3>脸与动作先清楚</h3><p>帽檐、羽翼、光轮和文字都避开四张脸。两手的姿势能够独立成立，人物间通过视线和遮挡呼应。</p></div><div><h3>背景参与叙事</h3><p>晨空、道路和石质遗迹低对比地承接人物；左上暖光贯穿全画，前景仅在低位轻轻连接裁切。</p></div><div><h3>静帧成立，再加动态</h3><p>最终画面保持稳定阅读，只加入轻推镜、少量视差和稀疏光尘。每个角色保留清晰的面部与关键手势。</p></div></div></section>
+<section id="pilots"><p class="eyebrow">PILOT / 首轮验证包</p><h2>先验证跨角色拼接，再验证跨事件保真</h2><p class="quiet">六张姿势分别解决身份保留、复杂轮廓、画风统一，以及同一角色在胜利、失败、仪式中的情绪变化。以下都是绘制提案。</p><div class="pilots"><article class="pilot"><div class="pilot-number">P01</div><div><h3>卡洛琳 · 普通胜利</h3><p>肩部放松，一手收住披风胸前边缘，另一手降低，嘴角轻扬并向队伍中心回望。</p><p class="quiet">首先比较脸型、蓝眼、金色编辫、胸饰、红披风是否仍对应原参考；检查收披风的手指与布料接触。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为卡洛琳绘制“普通胜利”姿势，用于之后的多人海报拼接。
+
+输入图1：卡洛琳.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：金色头发、蓝色眼睛、前垂长辫和红色发饰；大面积红色披风；灰黑与白色内层服装；白色尖瓣胸饰、腰带与原图服装结构。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：肩部放松，一手收住披风胸前边缘，另一手降低，嘴角轻扬并向队伍中心回望。
+构图：腰部以上，完整头顶、编辫、胸饰和双手；身体轻转向画面右方，目光向右前方回望。披风的较大展开面位于画面左侧；手势紧凑地留在胸前以下。保持服装与编辫的原有非对称关系，不通过镜像交换左右。
+轮廓：披风向身体外侧展开，脸和胸饰保持清楚；保留编辫的原有一侧。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不添加参考里没有的剑或盾；不替换为异色形象的银发与烛台。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：1536×2048，保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article>
+<article class="pilot"><div class="pilot-number">P02</div><div><h3>可可 · 普通胜利</h3><p>完成勾画后将一手缓缓收回胸前，另一手低位展开，双翼放松半收，表情安静明亮。</p><p class="quiet">与P01并排检查线条和上色是否协调；保留红眼、2B发夹、金色圆饰；脸与手、手与羽翼不要融合。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为可可绘制“普通胜利”姿势，用于之后的多人海报拼接。
+
+输入图1：可可.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：白发、红色眼睛、原有侧辫与带“2B”标记的发夹；白色羽翼与头顶光环的原图轮廓；黑白羽毛领与服装、金色圆形胸前饰件。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：完成勾画后将一手缓缓收回胸前，另一手低位展开，双翼放松半收，表情安静明亮。
+构图：腰部以上，头顶光环完整，人物轻转向画面左前方。白翼放在身后半收拢；两手低于下巴，一手靠近胸前，另一手放松展开。脸、头发、白翼通过柔和明暗区分；不要把翼面画成发丝。
+轮廓：翅膀后置并半收拢，面部和双手前方留空；翼端允许在构图中被遮挡。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不替换成异色可可的蓝紫十字饰件；保留2B发夹，文字缺损时单独修正。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：1536×2048（翼端空间不足时使用2048×1536），保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article>
+<article class="pilot"><div class="pilot-number">P03</div><div><h3>阿米莉娅 · 普通胜利</h3><p>将书本合到半开状态，一手扶住帽檐，转头露出轻松得意的笑。</p><p class="quiet">帽子、书本和持握手均能完整裁取；书只有一册，两只手没有变成第三只；原图帽顶形态与Olimya明显分开。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为阿米莉娅绘制“普通胜利”姿势，用于之后的多人海报拼接。
+
+输入图1：阿米莉娅.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：浅色长发、红粉眼睛、原有兽耳轮廓；黑紫大帽檐、粉红内衬和参考中的帽顶特殊结构；黑白服装、颈部饰件、深色金纹魔法书。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：将书本合到半开状态，一手扶住帽檐，转头露出轻松得意的笑。
+构图：腰部以上，完整保留大帽檐与帽顶特殊结构。身体轻转向画面左方，一手在画面右上方扶住帽檐外侧，另一手从下方托住半合拢的原有书本。书放在胸部以下，书页和持握手完整。目光向左前方，笑意轻快。
+轮廓：帽檐向外侧展开并留出上缘；书本放在胸部以下，脸和持书手分离。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不换成Olimya的金花黑帽；不增加新的魔杖或动物。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：2048×1536，保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article>
+<article class="pilot"><div class="pilot-number">P04</div><div><h3>乌娜 / WuNa · 普通胜利</h3><p>将掌心火焰缓缓收小，一手停在胸前，肩部放松，表情温和而疲惫初散。</p><p class="quiet">金发、琥珀眼、黑白衣比例和荆棘光轮保持；同P01—P03比较细节密度，不能只有她高度写实；火焰边缘具备真实Alpha。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为乌娜 / WuNa绘制“普通胜利”姿势，用于之后的多人海报拼接。
+
+输入图1：WuNa.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：暖金长发、琥珀色眼睛与原图脸型；黑白礼服、金色太阳纹样和宽大衣袖；荆棘般的光轮、参考中的翼状金属装饰、白金火焰。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：将掌心火焰缓缓收小，一手停在胸前，肩部放松，表情温和而疲惫初散。
+构图：腰部以上，身体轻转向画面左前方，完整保留荆棘光轮。画面右侧的手在肩部附近掌心向上，白金火焰只剩一个小而清楚的火尖；另一手靠近胸前。宽袖沿身体外侧下落，不横向盖住脸。脸部有温和的笑意，保留战后刚放松的神情。
+轮廓：光轮保持完整识别；抬手光焰可收束在手附近，袖口避开相邻脸。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不改成纯白圣女套装；不增加普通羽翼；黑白服装比例保留。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：1536×2048，保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article>
+<article class="pilot"><div class="pilot-number">P05</div><div><h3>卡洛琳 · 战斗失败</h3><p>微垂头，以一手扶住另一侧上臂，肩部略收拢；疲惫但保持清醒，披风完整。</p><p class="quiet">与原参考及P01做身份对照；表情和肩部姿态必须明显变化，不能只把胜利图调暗或换色。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为卡洛琳绘制“战斗失败”姿势，用于之后的多人海报拼接。
+
+输入图1：卡洛琳.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：金色头发、蓝色眼睛、前垂长辫和红色发饰；大面积红色披风；灰黑与白色内层服装；白色尖瓣胸饰、腰带与原图服装结构。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：微垂头，以一手扶住另一侧上臂，肩部略收拢；疲惫但保持清醒，披风完整。
+构图：保持P01相近的腰部以上取景与面部显示尺度。头略低，眼睛仍可见，一手扶住另一侧上臂，另一手自然放低，双肩向内收拢。红披风完整自然下垂。疲惫、失落、仍在支撑自己；没有新增伤口、破衣或倒地动作。
+轮廓：披风向身体外侧展开，脸和胸饰保持清楚；保留编辫的原有一侧。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不添加参考里没有的剑或盾；不替换为异色形象的银发与烛台。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：1536×2048，保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article>
+<article class="pilot"><div class="pilot-number">P06</div><div><h3>可可 · 仪式胜利</h3><p>一手在胸前向内画弧，另一手较低托住光的中心，指尖相互呼应，双翼形成柔和包围。</p><p class="quiet">普通可可的2B发夹、红眼和金色圆饰准确；两手的画弧和承托关系一眼可读；不加入异色可可的蓝紫十字套装。</p><details><summary>展开绘制提示词</summary><pre>用途：游戏事件CG的独立角色姿势素材。
+主要要求：根据输入的原始参考，为可可绘制“仪式胜利”姿势，用于之后的多人海报拼接。
+
+输入图1：可可.png，只作为本角色身份、脸型、服装、配色、饰品与身体比例的依据。原图的画布留白和裁切方式不需要复制。
+输入图2（仅在已选定风格样张时附加）：只参考线条、材质与光照；不移植第二张图的人物五官、发型、衣服或饰件。未附第二张图时忽略此行。
+
+身份必须保留：白发、红色眼睛、原有侧辫与带“2B”标记的发夹；白色羽翼与头顶光环的原图轮廓；黑白羽毛领与服装、金色圆形胸前饰件。保留参考的年龄观感、脸型和身体比例。
+本次允许改变：表情、肩臂与手势、身体轻微朝向、随动作自然变化的头发与衣褶。
+具体动作：一手在胸前向内画弧，另一手较低托住光的中心，指尖相互呼应，双翼形成柔和包围。
+构图：腰部以上，头顶光环完整。双手在胸前一高一低：较高一手以食指向内勾画小弧，较低一手掌心向上托住一个空出的中心；手指互不缠绕。白翼半展开，保持在身体后方。目光专注地看向两手之间，表情平静。只在指尖保留极弱局部亮度，大型法阵另做场景层。
+轮廓：翅膀后置并半收拢，面部和双手前方留空；翼端允许在构图中被遮挡。
+画风：细腻的日式幻想游戏插画。清楚而自然的脸部线条，柔和但有结构的体积上色，细致且受控的衣褶、织物、金属与羽毛；保留可读的大色块和原有固有色。各角色使用相同的精细程度，不变成写实照片、3D渲染、像素图或Q版。使用温和的中性正面光，左上方仅有很轻的暖色补光；不烘焙强烈场景投影。
+
+背景：真实透明背景，输出可独立合成的PNG。人物之外不画环境、地板、投影底板或装饰边框。不画棋盘格。保留细发丝、半透明薄纱和羽毛外缘。手持且与身体接触的道具和人物一同完整绘制；场景金币、法阵、符纹等独立效果不放进人物图。
+身份检查：不替换成异色可可的蓝紫十字饰件；保留2B发夹，文字缺损时单独修正。
+图中不出现其他人物，不添加额外手臂、手指或武器。人物的两只手与道具接触关系清楚。画面焦点放在脸、肩部、手势和已有道具。无标题、姓名或水印；已有身份饰物上的原有标记保留。
+输出构图目标：1536×2048（翼端空间不足时使用2048×1536），保持完整头饰与关键持物，并保留约6%的外缘调整余量。</pre></details></div></article></div><p style="margin-top:18px"><a href="pilot-prompts.md">查看角色与背景、前景、光尘的全部提示词</a></p></section>
+<section id="characters"><p class="eyebrow">REFERENCES / 原始形象</p><h2>15套形象分别保留</h2><p class="quiet">普通与异色分别使用自己的原图。点击图片可查看原始文件；展开卡片可审阅7类事件动作。候选RoleId仅为制作管理备注，尚未绑定到游戏。</p><div class="gallery"><article class="character" id="A01">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8D%A1%E6%B4%9B%E7%90%B3.png" aria-label="查看卡洛琳原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8D%A1%E6%B4%9B%E7%90%B3.png" alt="卡洛琳原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A01 · 1920 × 1080</p><h3>卡洛琳</h3>
+  <p>金色头发、蓝色眼睛、前垂长辫和红色发饰；大面积红色披风；灰黑与白色内层服装；白色尖瓣胸饰、腰带与原图服装结构。</p><p class="quiet">披风向身体外侧展开，脸和胸饰保持清楚；保留编辫的原有一侧。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>侧身迎向来处，近胸的一手轻收披风，另一手低位向外展开，目光警戒。</dd><dt>普通胜利</dt><dd>肩部放松，一手收住披风胸前边缘，另一手降低，嘴角轻扬并向队伍中心回望。</dd><dt>点金手胜利</dt><dd>掌心向上承接一枚场景金币，另一手护住披风，神情审视；金币作为独立效果层。</dd><dt>仪式胜利</dt><dd>双手前后错开，掌心相对引导保护性的仪式光，保持站姿稳定。</dd><dt>诅咒胜利</dt><dd>抬掌压住将散的暗色符痕，目光坚定；符痕独立于人物。</dd><dt>战斗失败</dt><dd>微垂头，以一手扶住另一侧上臂，肩部略收拢；疲惫但保持清醒，披风完整。</dd><dt>冒险结算</dt><dd>轻收披风并回头看向远方，表情松弛，衣角顺着旅途的风轻扬。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照：猎杀魔女；技能含保护与消除攻击意图。性格细节未提供，动作中的克制与警戒为美术提案。</p><p>目录候选，发布前核对实际加载身份。</p><p>不添加参考里没有的剑或盾；不替换为异色形象的银发与烛台。</p></details></div></article>
+<article class="character" id="A02">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8E%84%E7%B1%B3%E5%A8%85.png" aria-label="查看厄米娅原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8E%84%E7%B1%B3%E5%A8%85.png" alt="厄米娅原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A02 · 1920 × 1080</p><h3>厄米娅</h3>
+  <p>白色长发中的粉色发束、粉红眼睛和原图兽耳轮廓；黑粉骷髅发饰、颈部与胸前骷髅饰件；黑紫与粉色服装、长袖和原图配件位置。</p><p class="quiet">发束主要向外侧延伸；手部从脸旁移开，留下独立面部区域。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手在身前轻旋，另一手抬至肩侧，目光追随一个待成形的混沌标记。</dd><dt>普通胜利</dt><dd>轻偏头微笑，一手在肩侧做收势，另一手自然下降，发束有松开的动势。</dd><dt>点金手胜利</dt><dd>两指夹起一枚场景金币观察，另一手低位摊开，表情带一点好奇。</dd><dt>仪式胜利</dt><dd>双手指尖相向画出错开的弧，肩部保持轻微转向；阵式单独绘制。</dd><dt>诅咒胜利</dt><dd>一手向外弹开最后一道符痕，另一手收回胸前，笑意收敛而专注。</dd><dt>战斗失败</dt><dd>垂下原先抬起的手，一手握住另一腕，目光向下，发束安静下落。</dd><dt>冒险结算</dt><dd>回头朝同行者轻挥一只手，另一手整理发束，表情轻松。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照：混沌魔女、混沌操纵。轻快和游刃有余的肢体语气为美术提案。</p><p>目录候选，发布前核对实际加载身份。</p><p>不混入异色形象的镰刀与大白翼；不增加额外耳朵或尾巴。</p></details></div></article>
+<article class="character" id="A03">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8F%AF%E5%8F%AF.png" aria-label="查看可可原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%8F%AF%E5%8F%AF.png" alt="可可原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A03 · 1920 × 1080</p><h3>可可</h3>
+  <p>白发、红色眼睛、原有侧辫与带“2B”标记的发夹；白色羽翼与头顶光环的原图轮廓；黑白羽毛领与服装、金色圆形胸前饰件。</p><p class="quiet">翅膀后置并半收拢，面部和双手前方留空；翼端允许在构图中被遮挡。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手抬至身前，用食指准备勾画，另一手低位托住将出现的图形，双翼微张。</dd><dt>普通胜利</dt><dd>完成勾画后将一手缓缓收回胸前，另一手低位展开，双翼放松半收，表情安静明亮。</dd><dt>点金手胜利</dt><dd>一手托住独立的金色轮廓，另一手以指尖轻点，神情像在检查绘成的成果。</dd><dt>仪式胜利</dt><dd>一手在胸前向内画弧，另一手较低托住光的中心，指尖相互呼应，双翼形成柔和包围。</dd><dt>诅咒胜利</dt><dd>指尖擦去身前最后一笔暗色线痕，另一手收回，目光专注于消散处。</dd><dt>战斗失败</dt><dd>双翼下垂半收，一手轻压另一手背，垂眸但不闭眼，肩部略微下沉。</dd><dt>冒险结算</dt><dd>双手自然靠近腰前，回首望向远方，翅膀轻收，表情平静。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照：见习天使、无暇绘者；技能为摹写和勾画世界。动作采用指尖勾画以避免擅自增加画笔。</p><p>目录候选，发布前核对实际加载身份。</p><p>不替换成异色可可的蓝紫十字饰件；保留2B发夹，文字缺损时单独修正。</p></details></div></article>
+<article class="character" id="A04">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8D%A1%E6%B4%9B%E7%90%B3.png" aria-label="查看异色卡洛琳原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8D%A1%E6%B4%9B%E7%90%B3.png" alt="异色卡洛琳原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A04 · 1920 × 1080</p><h3>异色卡洛琳</h3>
+  <p>银白色直发、蓝色眼睛与白色花饰；白、深蓝服装和披肩；胸前深蓝玫瑰；银色三枝烛台、紫色火焰与烛台中部蓝紫宝石。</p><p class="quiet">烛台保持身体一侧；三团烛焰和脸部分离，披肩不盖住持握手。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>稍抬烛台照向前方，空出的手在胸前准备施术，目光平直。</dd><dt>普通胜利</dt><dd>将烛台缓缓降到胸侧，空手轻拢披肩，神情释然，火焰安稳。</dd><dt>点金手胜利</dt><dd>空手承托一枚独立金币，烛台留在另一侧，低头观察金色反光。</dd><dt>仪式胜利</dt><dd>稳持烛台，以空手指尖引导三缕独立烛光汇合，身体略微前倾。</dd><dt>诅咒胜利</dt><dd>将烛台转向散去的暗雾，空手向外轻推，目光清明。</dd><dt>战斗失败</dt><dd>低持烛台，空手扶住持台手腕，肩部下沉；火焰变弱由效果层表现。</dd><dt>冒险结算</dt><dd>把烛台持在身侧照亮前路，回头留出一个平静的侧面。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>以用户指定的独立形象为外观依据；当前产品目录有启明天使卡洛琳，身份绑定待运行核对。动作围绕参考中的烛台设计。</p><p>仅为“启明天使 卡洛琳”候选，文件名不足以证明绑定。</p><p>不恢复为普通卡洛琳的金发红披风；不把烛台替换成法杖。</p></details></div></article>
+<article class="character" id="A05">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8E%84%E7%B1%B3%E5%A8%85.png" aria-label="查看异色厄米娅原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8E%84%E7%B1%B3%E5%A8%85.png" alt="异色厄米娅原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A05 · 1920 × 1080</p><h3>异色厄米娅</h3>
+  <p>白粉长发、粉红眼睛、原有兽耳与发饰；参考中的黑色服装与长袖结构；黑红镰刀以及大型白色羽翼。</p><p class="quiet">镰刀沿身体外侧斜向布置；刀刃、翼端与脸形成三个错开的区域。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>双手调整镰刀的持握，一高一低形成斜线，目光迎向前方，翅膀收住。</dd><dt>普通胜利</dt><dd>将镰刀向外侧降低到斜持位置，肩膀放松并微笑，保留两手自然持握。</dd><dt>点金手胜利</dt><dd>稳持镰刀于身侧，空出的一手接住独立金币，翼面保持安静。</dd><dt>仪式胜利</dt><dd>镰刀竖向偏外侧立起，空手沿柄旁画出一条弧，白翼后置展开。</dd><dt>诅咒胜利</dt><dd>以镰刀外侧引导散去的符痕，空手回收，动作保持在单人轮廓内。</dd><dt>战斗失败</dt><dd>双手低位握住刀柄，一手支撑另一手，头稍低，镰刀不依赖场景地面承重。</dd><dt>冒险结算</dt><dd>镰刀斜靠肩外侧并稳定持握，侧身回望，羽翼收拢准备离开。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>参考中有大型镰刀、白翼和黑色服饰；当前目录有混沌天使的两个状态，具体绑定待核对。</p><p>混沌天使两个目录身份的候选；不能擅自把两个状态合并发布。</p><p>不把镰刀穿过脸或队友面部；不添加第二把武器；不使用普通形象的骷髅套装。</p></details></div></article>
+<article class="character" id="A06">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8F%AF%E5%8F%AF.png" aria-label="查看异色可可原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%BC%82%E8%89%B2%E5%8F%AF%E5%8F%AF.png" alt="异色可可原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A06 · 1920 × 1080</p><h3>异色可可</h3>
+  <p>白色长发、粉红眼睛、参考中的辫发与发饰；蓝紫十字耳饰和衣服上的星形细节；大型白翼、头顶光环与黑白服装结构。</p><p class="quiet">双手可向两侧展开但保持低于下巴；翼面位于身后，胸前饰件可见。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>抬起一只手向前指引，另一手向下托起，双翼形成向上的弧。</dd><dt>普通胜利</dt><dd>双手从展开姿态缓缓收回，眼神柔和，光环与翼面保持清楚。</dd><dt>点金手胜利</dt><dd>掌心托起一颗独立金色光点，以另一手指尖点亮，保持浅笑。</dd><dt>仪式胜利</dt><dd>双手一高一低组织环形光流，头稍偏向上方的手，翼面轻展。</dd><dt>诅咒胜利</dt><dd>交错双手分开一道暗色符痕，目光注视消散的中心。</dd><dt>战斗失败</dt><dd>双手相叠放低，眼帘微垂，白翼向身体靠拢。</dd><dt>冒险结算</dt><dd>侧身回望，空出的手向远方轻指，另一手自然放下。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>以参考中的蓝紫十字饰件、光环与羽翼为独立形象依据。动作提案保留绘画般的手势语汇。</p><p>仅为“权天使 可可”候选，发布前核对。</p><p>不复制普通可可的2B发夹与金色圆饰；不把十字饰件改变为武器。</p></details></div></article>
+<article class="character" id="A07">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E9%98%BF%E7%B1%B3%E8%8E%89%E5%A8%85.png" aria-label="查看阿米莉娅原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E9%98%BF%E7%B1%B3%E8%8E%89%E5%A8%85.png" alt="阿米莉娅原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A07 · 1920 × 1080</p><h3>阿米莉娅</h3>
+  <p>浅色长发、红粉眼睛、原有兽耳轮廓；黑紫大帽檐、粉红内衬和参考中的帽顶特殊结构；黑白服装、颈部饰件、深色金纹魔法书。</p><p class="quiet">帽檐向外侧展开并留出上缘；书本放在胸部以下，脸和持书手分离。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手翻开魔法书，另一手在书页上方准备落下，抬眼看向前方。</dd><dt>普通胜利</dt><dd>将书本合到半开状态，一手扶住帽檐，转头露出轻松得意的笑。</dd><dt>点金手胜利</dt><dd>一手托着合拢的书，另一手举起独立金币，目光带着发现新东西的兴趣。</dd><dt>仪式胜利</dt><dd>书本展开在较低位置，另一手以两指在书页上方引导独立光纹。</dd><dt>诅咒胜利</dt><dd>一手按住书页，另一手把末尾暗色符痕轻弹出去，神情专注。</dd><dt>战斗失败</dt><dd>抱住合拢的书，空手压低帽檐，肩膀略垂，露出疲惫但清醒的目光。</dd><dt>冒险结算</dt><dd>把书抱在身侧，扶着帽子回首，表情轻松，发丝顺风。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版2026-07-29文本快照描述其为思维敏捷、热情活泼、跳脱随性的原初魔女；不是当前宿主行为证明。</p><p>目录候选，发布前核对实际加载身份。</p><p>不换成Olimya的金花黑帽；不增加新的魔杖或动物。</p></details></div></article>
+<article class="character" id="A08">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%A5%88%E5%A5%88.png" aria-label="查看奈奈原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%A5%88%E5%A5%88.png" alt="奈奈原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A08 · 1920 × 1080</p><h3>奈奈</h3>
+  <p>浅色长发、红粉眼睛与两侧深色卷角；黑紫服装、红色束带和星形饰件；参考中的白色骨手/骨构造与红色眼状细节。</p><p class="quiet">角完整留在画面内；骨手后置并控制横向占幅，面部前方保持清楚。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手微抬，指尖向内收，另一手低位展开，后方骨构造略向外偏。</dd><dt>普通胜利</dt><dd>轻偏头露出满足的微笑，一手收回胸侧，骨手在身后安静合拢。</dd><dt>点金手胜利</dt><dd>一手把独立金币举到眼前端详，另一手自然下垂，保持好奇的眼神。</dd><dt>仪式胜利</dt><dd>双手在身前形成一个小小的包围，骨构造后置呼应，光纹独立。</dd><dt>诅咒胜利</dt><dd>一手收拢末尾的暗色光点，另一手轻抬，动作表现吸收异常的意象。</dd><dt>战斗失败</dt><dd>垂下手臂，一手抓住另一袖口，卷角姿态稳定，骨构造靠近身后。</dd><dt>冒险结算</dt><dd>一手向同行者轻挥，另一手整理红色束带，表情平静满足。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照包含吞噬异常、骨刺化身的能力。动作仅使用给定人形，不补画未提供的巨兽形态。</p><p>仅匹配参考中的人形候选；career_4灾厄化身不在本参考范围内。</p><p>不生成巨兽形态；骨手不得被误画成人物多长的一只手。</p></details></div></article>
+<article class="character" id="A09">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E6%96%B0%E9%98%BF%E9%BB%9B%E6%8B%89.png" aria-label="查看新阿黛拉原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E6%96%B0%E9%98%BF%E9%BB%9B%E6%8B%89.png" alt="新阿黛拉原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A09 · 1920 × 1080</p><h3>新阿黛拉</h3>
+  <p>深色长发中的青色发束、明亮青色眼睛；黑蓝晶体王冠、白色毛领和深色王室服饰；蓝紫宝石饰件以及参考手持的小型棋子。</p><p class="quiet">王冠上缘完整；棋子位于胸前偏侧，手不遮住领口宝石。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>抬起持棋子的手准备落子，另一手低位展开，目光稳固向前。</dd><dt>普通胜利</dt><dd>把棋子收回胸侧，肩部稍放松，抬眼露出克制的微笑。</dd><dt>点金手胜利</dt><dd>让一枚独立金币悬在空出的掌上，持棋子的一手留在胸前，神情审度。</dd><dt>仪式胜利</dt><dd>以棋子指向阵式中心，另一手摊开引导独立的棋盘光纹。</dd><dt>诅咒胜利</dt><dd>两指收回棋子，另一手压下将散的符痕，目光坚定。</dd><dt>战斗失败</dt><dd>手掌合住棋子靠近胸前，另一手扶住手背，微低头仍保持端正。</dd><dt>冒险结算</dt><dd>把棋子握在身侧，侧身向来路回望，披肩缓缓展开。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照：支配魔女、公主经历、王族律令与黑耀棋子。新外观以用户文件为准。</p><p>阿黛拉目录身份候选；按用户提供的新形象覆盖旧参考。</p><p>不添加不同的王冠或权杖；不把候选身份名称“新”当作角色称号。</p></details></div></article>
+<article class="character" id="A10">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E8%96%87%E8%96%87%E5%AE%89.png" aria-label="查看薇薇安原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E8%96%87%E8%96%87%E5%AE%89.png" alt="薇薇安原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A10 · 1920 × 1080</p><h3>薇薇安</h3>
+  <p>浅色双束长发、粉红眼睛、黑白头饰与蝴蝶结；黑白褶边服装、红色菱形胸饰；参考中的黑色长形道具及其金属端部。</p><p class="quiet">黑色道具偏低位斜放，不横穿脸部；头饰和双束发型可辨。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>两手调整参考道具的握持，身体轻转，目光从肩侧望向前方。</dd><dt>普通胜利</dt><dd>将道具稳定放低，一手整理袖口，露出轻微笑意。</dd><dt>点金手胜利</dt><dd>稳持道具于身侧，另一手接住独立金币，稍偏头观察。</dd><dt>仪式胜利</dt><dd>一手稳住道具，另一手张开引导红色细线，细线作为独立效果。</dd><dt>诅咒胜利</dt><dd>抬手将一缕暗色线痕收回掌边，目光专注，道具保持低位。</dd><dt>战斗失败</dt><dd>双手放低握住道具，一手压住另一手背，肩部略垂，表情疲惫。</dd><dt>冒险结算</dt><dd>整理一侧袖口并侧身回望，道具安稳留在身侧。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照：拟态魔女、猩红夜行；参考中含女仆服与黑色长形道具，未凭外观命名其具体武器类别。</p><p>目录候选，发布前核对实际加载身份。</p><p>不把道具擅自改成枪、剑或镰刀；不添加血液表现。</p></details></div></article>
+<article class="character" id="A11">
+  <a class="reference-thumb wide-source" href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%A4%B1%E5%BF%83%E8%BA%AF%E5%A3%B3.png" aria-label="查看失心躯壳原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/%E5%A4%B1%E5%BF%83%E8%BA%AF%E5%A3%B3.png" alt="失心躯壳原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A11 · 1920 × 1080</p><h3>失心躯壳</h3>
+  <p>浅色长发、粉红眼睛、原有兽耳和深色角状轮廓；黑紫服装、白色内层与红色星形饰件；身后大型白色构造与红色眼状图案。</p><p class="quiet">白色构造在身体后方形成弧，不覆盖手部或脸；角色人手数量明确。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手缓缓抬至身前，另一手偏低，目光穿过尚未出现的镜面中心。</dd><dt>普通胜利</dt><dd>将抬起的手收回，肩部松开，头轻偏向队伍中心，表情安静。</dd><dt>点金手胜利</dt><dd>一手托起独立金币，另一手在下方形成相似姿态，暗示镜像关系。</dd><dt>仪式胜利</dt><dd>双手在身前错开成框，白色构造在后方展开，镜面光纹独立绘制。</dd><dt>诅咒胜利</dt><dd>指尖划过并关闭一条暗色缝隙，另一手缓缓收回。</dd><dt>战斗失败</dt><dd>垂下头，一手轻扶另一腕，后方白色构造收敛，表情低落但清醒。</dd><dt>冒险结算</dt><dd>双手放低，侧身回望来路，长发顺着身体的转向流动。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>原版文本快照技能含镜中虚影与深渊鸣唤；具体情感语气为美术提案。</p><p>目录候选，发布前核对实际加载身份。</p><p>不与奈奈的卷角和服装混用；不把白色构造画成额外的人体肢体。</p></details></div></article>
+<article class="character" id="A12">
+  <a class="reference-thumb " href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/WuNa.png" aria-label="查看乌娜 / WuNa原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/WuNa.png" alt="乌娜 / WuNa原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A12 · 1024 × 924</p><h3>乌娜 / WuNa</h3>
+  <p>暖金长发、琥珀色眼睛与原图脸型；黑白礼服、金色太阳纹样和宽大衣袖；荆棘般的光轮、参考中的翼状金属装饰、白金火焰。</p><p class="quiet">光轮保持完整识别；抬手光焰可收束在手附近，袖口避开相邻脸。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>抬起掌心引出一束白金火焰，另一手靠近胸前，目光迎向前方。</dd><dt>普通胜利</dt><dd>将掌心火焰缓缓收小，一手停在胸前，肩部放松，表情温和而疲惫初散。</dd><dt>点金手胜利</dt><dd>掌心托起一个独立的金色碎片，另一手轻拢袖口，目光平静。</dd><dt>仪式胜利</dt><dd>双手在胸前上下错开引导白金光环，背后原有光轮保持独立可辨。</dd><dt>诅咒胜利</dt><dd>一手拂去最后的灰烬符痕，另一手收回，表情安静坚定。</dd><dt>战斗失败</dt><dd>低头合拢双手护住微弱的火，肩部收拢，光轮保持原形。</dd><dt>冒险结算</dt><dd>一手轻收衣袖，回首望向远方，掌边保留极小的白金余光。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>Terrias当前角色文本：曜日魔女、白曜圣庭旧日圣女、灾难与灰烬。</p><p>Terrias当前源码身份；皮肤映射发布前核对。</p><p>不改成纯白圣女套装；不增加普通羽翼；黑白服装比例保留。</p></details></div></article>
+<article class="character" id="A13">
+  <a class="reference-thumb " href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Loneer.png" aria-label="查看洛奈尔 / Loneer原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Loneer.png" alt="洛奈尔 / Loneer原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A13 · 1258 × 894</p><h3>洛奈尔 / Loneer</h3>
+  <p>极长的淡蓝紫发、蓝色眼睛与温和脸型；蓝紫层叠星纹礼服、透明感头纱与原有饰件；参考中小型金色时钟/表盘饰物。</p><p class="quiet">长发主要沿一条外展曲线流动；胸前和脸旁留出空隙，小钟不遮手。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手抬至胸前指向时钟，另一手低位展开，目光认真地望向前方。</dd><dt>普通胜利</dt><dd>轻触胸前的小钟，另一手放松下落，露出安静的笑，发丝舒展。</dd><dt>点金手胜利</dt><dd>以指尖托住一枚独立的金色小物，目光像检查星石一般专注。</dd><dt>仪式胜利</dt><dd>双手前后错开，引导独立星点沿一个小弧运行，时钟留在原位置。</dd><dt>诅咒胜利</dt><dd>一手收拢散去的暗色星痕，另一手护住胸前小钟，目光稳定。</dd><dt>战斗失败</dt><dd>双手靠近胸前时钟，头轻垂，长发收束下落，表情疲惫。</dd><dt>冒险结算</dt><dd>抬头看向远处晨光，一手轻拢头纱，另一手自然放低。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>Terrias当前角色文本：晨星魔女、星石袋与奇迹时钟。新增小道具需遵守现有设定，先用参考已可见的时钟。</p><p>Terrias当前源码身份；皮肤映射发布前核对。</p><p>不添加巨大背后钟盘；不换成乌娜的暖金发；不把头纱改为帽子。</p></details></div></article>
+<article class="character" id="A14">
+  <a class="reference-thumb " href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Columbina.png" aria-label="查看哥伦比娅 / Columbina原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Columbina.png" alt="哥伦比娅 / Columbina原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A14 · 940 × 998</p><h3>哥伦比娅 / Columbina</h3>
+  <p>深紫渐变至洋红的长发、淡紫眼睛与原图脸型；头侧白色羽饰与蓝白服装轮廓；金色小饰件、领口结构及衣服上层叠羽片。</p><p class="quiet">保持竖向安静轮廓，长发两侧展开幅度适中；头饰与双手分离。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>双手在身前一高一低轻抬，目光平静，掌边准备引导一层潮汐光。</dd><dt>普通胜利</dt><dd>缓缓放低双手，略向队伍中心偏头，露出很轻的笑。</dd><dt>点金手胜利</dt><dd>一手托起独立金色光点，另一手在较低处平展，表情安静。</dd><dt>仪式胜利</dt><dd>双手画出相向的小弧，引导独立月相光纹，身体保持稳定直立。</dd><dt>诅咒胜利</dt><dd>一手拂散暗色水纹，另一手回收至胸前，神情沉静。</dd><dt>战斗失败</dt><dd>双手在胸前轻叠，眼帘垂下但仍可见目光，肩部微收。</dd><dt>冒险结算</dt><dd>双手自然放低，回头望向身后道路，发尾带有轻微流动感。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>Terrias当前角色文本：潮汐牵引、元素反应与月相。</p><p>Terrias当前源码身份；皮肤映射发布前核对。</p><p>不凭头部羽饰增加完整羽翼；不改变头发的深浅渐变。</p></details></div></article>
+<article class="character" id="A15">
+  <a class="reference-thumb " href="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Olimya.png" aria-label="查看奥莉米娅 / Olimya原始参考"><img src="file:///D:/Project/Apocalypic-journey-mods-creator/Mod%E7%9A%84%E7%B4%A0%E6%9D%90%E5%8F%82%E8%80%83/%E8%A7%92%E8%89%B2%E7%AB%8B%E7%BB%98/Olimya.png" alt="奥莉米娅 / Olimya原始形象参考" loading="eager"></a>
+  <div class="character-copy"><p class="eyebrow">A15 · 1286 × 984</p><h3>奥莉米娅 / Olimya</h3>
+  <p>淡紫长发、原图眼睛和脸型；黑色大帽、金色花形装饰、悬垂星饰；黑白金服装、金链、深色书本与紫晶之心；原图金环和卷页。</p><p class="quiet">帽子和书本分处上、下区域；紫晶之心放在独立掌上空间，金环后置。</p>
+  <details><summary>查看7类事件动作</summary><dl><dt>战斗开场</dt><dd>一手翻开书本，另一手托起紫晶之心，目光从书页抬向前方。</dd><dt>普通胜利</dt><dd>把书本收拢到半开，一手将紫晶轻收向身侧，嘴角露出克制的笑。</dd><dt>点金手胜利</dt><dd>一手稳持书本，另一手让独立金币围绕紫晶之心形成小弧，神情从容。</dd><dt>仪式胜利</dt><dd>书本在低位展开，另一手沿紫晶旁引导独立金色契约线。</dd><dt>诅咒胜利</dt><dd>一手收紧紫晶周围将散的暗金裂纹，另一手护住书本，目光冷静。</dd><dt>战斗失败</dt><dd>双手靠近胸前护住紫晶，书本悬置效果关闭或稳抱在臂弯，微垂头。</dd><dt>冒险结算</dt><dd>把书本抱在身侧，另一手轻触帽檐，向来路回望，金环安静后置。</dd></dl></details>
+  <details><summary>设定依据与身份备注</summary><p>Terrias当前角色文本：黄金的魔女、紫晶之心与黄金梦乡。</p><p>Terrias当前源码身份；皮肤映射发布前核对。</p><p>不换成阿米莉娅的帽顶结构；不新增参考没有的天平；紫晶保留紫色。</p></details></div></article></div></section>
+<section><h2>选稿时共同检查</h2><ul class="note-list"><li>脸型、发色、服装、饰品与原参考一致，不能把普通和异色混在一起。</li><li>手指、书本、烛台和武器的持握清楚；白发、白翼与薄纱保留真实透明边缘。</li><li>四个人放在一起时，脸的清晰度和细节密度协调，主体、标题与前景互不争抢。</li><li>图中的角色轮廓和动作区需要从实际生成结果测量，提示词中的位置不是已验证结果。</li></ul></section>
+<footer>本包保留绘制规格，并补充首轮六张姿势与四人胜利样张；事件CG运行时与仓库MOD包已更新。原图来自用户指定目录，路径与SHA-256记录在 <a href="reference-inventory.json">reference-inventory.json</a>。外观与动作源见 <a href="character-briefs.json">character-briefs.json</a>。</footer>
+</main></body></html>

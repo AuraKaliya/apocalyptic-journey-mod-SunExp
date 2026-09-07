@@ -7,6 +7,7 @@ using AuraReplay.Presentation.Shared;
 using AuraReplay.VisibleState.Shared;
 using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
 using Terrias.Dll.Mechanics;
 
 namespace Terrias.Dll.Hooks;
@@ -175,13 +176,10 @@ internal sealed class TerriasSpiritReplayPresentationModule : IAuraReplayPresent
         var intent = CompanionIntentResolver.Find(battleState, plan.IntentId);
         var intentType = CompanionIntentResolver.IntentType(battleState, intent).ToString();
         var source = AuraGameDataHostApi.Resolve(DataType.EnemyCard, plan.EnemyCardId);
-        var iconPath = source?.Fields.TryGetValue("Icon", out var icon) == true && !string.IsNullOrWhiteSpace(icon)
-            ? icon
-            : "Icon/ActionIcon/蓄力";
-        var backIconPath = source?.Fields.TryGetValue("BackIcon", out var backIcon) == true
-                           && !string.IsNullOrWhiteSpace(backIcon)
-            ? backIcon
-            : "Icon/ActionIcon/攻击底";
+        var iconPath = plan.IsWait ? "" : TerriasReplayIntentVisualApi.Icon(
+            source?.Fields.TryGetValue("Icon", out var icon) == true ? icon : "");
+        var backIconPath = plan.IsWait ? "" : TerriasReplayIntentVisualApi.Background(
+            source?.Fields.TryGetValue("BackIcon", out var backIcon) == true ? backIcon : "");
         Publish(
             state,
             AuraReplayPresentationKinds.IntentChanged,
@@ -193,6 +191,7 @@ internal sealed class TerriasSpiritReplayPresentationModule : IAuraReplayPresent
                 intentId = plan.IntentId ?? "",
                 intentType,
                 isWait = plan.IsWait,
+                visualResourceContract = TerriasReplayIntentVisualApi.Contract,
                 iconResourcePath = iconPath,
                 backIconResourcePath = backIconPath,
                 displayValue = plan.ResolvedValue == 0 ? "" : plan.ResolvedValue.ToString(),
@@ -340,13 +339,10 @@ internal sealed class TerriasProjectionReplayPresentationModule : IAuraReplayPre
         var intent = CompanionIntentResolver.Find(battleState, plan.IntentId);
         var intentType = CompanionIntentResolver.IntentType(battleState, intent).ToString();
         var source = AuraGameDataHostApi.Resolve(DataType.EnemyCard, plan.EnemyCardId);
-        var iconPath = source?.Fields.TryGetValue("Icon", out var icon) == true && !string.IsNullOrWhiteSpace(icon)
-            ? icon
-            : "Icon/ActionIcon/蓄力";
-        var backIconPath = source?.Fields.TryGetValue("BackIcon", out var backIcon) == true
-                           && !string.IsNullOrWhiteSpace(backIcon)
-            ? backIcon
-            : "Icon/ActionIcon/攻击底";
+        var iconPath = plan.IsWait ? "" : TerriasReplayIntentVisualApi.Icon(
+            source?.Fields.TryGetValue("Icon", out var icon) == true ? icon : "");
+        var backIconPath = plan.IsWait ? "" : TerriasReplayIntentVisualApi.Background(
+            source?.Fields.TryGetValue("BackIcon", out var backIcon) == true ? backIcon : "");
         Publish(
             state,
             AuraReplayPresentationKinds.IntentChanged,
@@ -358,6 +354,7 @@ internal sealed class TerriasProjectionReplayPresentationModule : IAuraReplayPre
                 intentId = plan.IntentId ?? "",
                 intentType,
                 isWait = plan.IsWait,
+                visualResourceContract = TerriasReplayIntentVisualApi.Contract,
                 iconResourcePath = iconPath,
                 backIconResourcePath = backIconPath,
                 displayValue = plan.ResolvedValue == 0 ? "" : plan.ResolvedValue.ToString(),
@@ -433,8 +430,6 @@ internal sealed class TerriasSpiritReplayEntityPresentationProvider : IAuraRepla
                 HudMode = AuraReplayEntityHudModes.DetachedRightVertical,
                 HudScaleQ16 = 47_186,
                 HudRotationQ16 = -90 * 65_536,
-                BadgeIconResourcePath = SpiritElementService.IconPath(state.Snapshot.SpiritElementId),
-                BadgeText = SpiritElementService.DisplayName(state.Snapshot.SpiritElementId),
                 AttackFocusTravelPixels = 70,
                 InterferenceFocusTravelPixels = 45,
                 SupportFocusTravelPixels = 12

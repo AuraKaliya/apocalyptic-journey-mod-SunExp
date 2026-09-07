@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Solar Memory Dev"
-  short_description: "Build and debug Solar Memory mode flows."
-  default_prompt: "Use $terrias-solar-memory-dev for Terrias Solar Memory mode work: preparation, map nodes, finale routing, multiplayer role commit, UI cleanup, and sync repair."
+  short_description: "Develop mode preparation, routing and final role commit."
+  default_prompt: "Use $terrias-solar-memory-dev to develop Solar Memory with guarded map content and player-scoped preparation."

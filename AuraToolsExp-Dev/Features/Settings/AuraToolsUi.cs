@@ -17,6 +17,16 @@ namespace AuraToolsExp.Dll.Features.Settings;
 
 internal static class AuraToolsUi
 {
+    internal static bool RunConfigAction(Action action)
+    {
+        try { action(); return true; }
+        catch (AuraToolsExp.Dll.Config.AuraToolsConfigCommitException ex)
+        {
+            AuraToolsLog.Warn("[Config] " + ex.ModuleId + ": " + ex.Message);
+            Witch.UI.UIManager.Instance?.ShowModalWindow("AuraTools", ex.Message, null, 1f);
+            return false;
+        }
+    }
     public static AuraUiTheme Theme => AuraToolsUiTheme.Current;
 
     public static Color Background => Theme.Background;
@@ -365,7 +375,12 @@ internal static class AuraToolsUi
         input.placeholder = placeholder;
         input.lineType = TMP_InputField.LineType.SingleLine;
         input.text = value ?? "";
-        input.onValueChanged.AddListener(v => changed(v));
+        var committedText = input.text;
+        input.onValueChanged.AddListener(v =>
+        {
+            if (RunConfigAction(() => changed(v))) committedText = v;
+            else input.SetTextWithoutNotify(committedText);
+        });
         return input;
     }
 
@@ -509,9 +524,10 @@ internal static class AuraToolsUi
         {
             ShowSelectPopup(root, normalizedLabels, currentIndex, index =>
             {
-                currentIndex = Mathf.Clamp(index, 0, normalizedLabels.Count - 1);
+                var candidate = Mathf.Clamp(index, 0, normalizedLabels.Count - 1);
+                if (!RunConfigAction(() => changed(candidate))) return;
+                currentIndex = candidate;
                 caption.text = normalizedLabels[currentIndex];
-                changed(currentIndex);
             }, resolvedHeight);
         });
         return button;

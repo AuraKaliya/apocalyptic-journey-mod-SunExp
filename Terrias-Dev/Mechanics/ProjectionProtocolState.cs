@@ -1,42 +1,8 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 
 namespace Terrias.Dll.Mechanics;
-
-public enum ProjectionSummonFailureCode
-{
-    None,
-    TransportNotSent,
-    ProtocolMismatch,
-    BattleEpochMismatch,
-    CardModelMismatch,
-    RoleDeckUnavailable,
-    RoleDeckTimedOut,
-    UnknownRole,
-    MissingSender,
-    SenderOutsideLobby,
-    OwnerMismatch,
-    TokenConflict,
-    OwnerAlreadyHasProjection,
-    FriendlySeatsFull,
-    SeatReservationExpired,
-    TurnTransactionUnavailable,
-    SpawnFailed,
-    Cancelled
-}
-
-public enum ProjectionSummonFailureCategory
-{
-    None,
-    Transport,
-    Compatibility,
-    Synchronization,
-    Authorization,
-    Capacity,
-    Content,
-    Runtime,
-    Cancelled
-}
 
 public sealed class ProjectionSummonFailureDescriptor
 {

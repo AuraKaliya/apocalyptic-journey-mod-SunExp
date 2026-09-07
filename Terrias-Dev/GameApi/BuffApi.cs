@@ -6,35 +6,16 @@ using System.Reflection;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using Terrias.Dll.Infrastructure;
-using Terrias.Dll.Mechanics;
 
 namespace Terrias.Dll.GameApi;
 
 public static class BuffApi
 {
+    private static Action<IStatusManager, int, string>? persistEmber;
+    public static void ConfigureEmberPersistence(Action<IStatusManager, int, string> writer) => persistEmber = writer;
     public static event Action<ScriptExecutor, IStatusManager, int>? EmberConsumed;
-    private static readonly HashSet<string> PositiveExcludeIds = new(StringComparer.Ordinal)
-    {
-        "scorching_canopy",
-        "ember_cloak",
-        "solar_crown",
-        "solar_crown_tier",
-        "origin_core_radiance",
-        "cycle_gathered_flame",
-        "afterglow_omen",
-        TerriasIds.SolarCrown,
-        TerriasIds.SolarCrownTier,
-        TerriasIds.StarStonePouch,
-        TerriasIds.MiracleClock,
-        TerriasIds.Starlight,
-        TerriasIds.StarBlessing,
-        TerriasIds.StarScore,
-        TerriasIds.Resonance,
-        TerriasIds.StarClayBody,
-        TerriasIds.StarClayDollTrait,
-        TerriasIds.SandroneCatTrait,
-        TerriasIds.PolymorphTraitBuffId
-    };
+    private static Func<string?, bool>? excludedFromPositiveEffects;
+    public static void ConfigureClassification(Func<string?, bool> policy) => excludedFromPositiveEffects = policy;
 
     public static int Level(IStatusManager? status, string buffId)
     {
@@ -844,7 +825,8 @@ public static class BuffApi
         }
 
         var level = Math.Max(0, Math.Min(99, Level(status, TerriasIds.Ember)));
-        EmberAdventureStateService.CommitLocal(status, level, "BuffApi.SavePersistentEmber");
+        if (persistEmber == null) throw new InvalidOperationException("Persistent ember service is unavailable.");
+        persistEmber(status, level, "BuffApi.SavePersistentEmber");
         return level;
     }
 
@@ -948,22 +930,7 @@ public static class BuffApi
         }
     }
 
-    private static bool IsPositiveExcluded(string? buffId)
-    {
-        if (string.IsNullOrWhiteSpace(buffId))
-        {
-            return false;
-        }
-
-        if (FieldApi.IsFieldBuffId(buffId))
-        {
-            return true;
-        }
-
-        var id = buffId ?? "";
-        var normalized = TerriasContentIdCompatibility.LocalId(id);
-        return PositiveExcludeIds.Contains(id) || PositiveExcludeIds.Contains(normalized);
-    }
+    private static bool IsPositiveExcluded(string? buffId) => (excludedFromPositiveEffects ?? throw new InvalidOperationException("Buff classification is not initialized."))(buffId);
 
     private static void RemoveFieldCarrierIfPresent(IStatusManager status, string buffId, string source)
     {

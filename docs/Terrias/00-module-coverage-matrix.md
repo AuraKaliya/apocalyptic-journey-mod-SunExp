@@ -7,10 +7,10 @@
 
 ### 1.1 内容交付层
 
-- 卡牌：60（其中 `Card/terrias.csv` 52，乌娜 3，洛奈尔 1，哥伦比娅 2，深渊诅咒 2）。
-- Buff：47。
-- 遗物：17。
-- 卡包：3。
+- 卡牌：86（2026-09-06运行 `tools/Get-TerriasInventory.ps1`；包含归家的月亮10张及奥莉米娅技能）。
+- Buff：57。
+- 遗物：18。
+- 卡包：5。
 - Data 类型还包括 Blessing、Career、Dialogue、EnchTag、Enemy、EnemyCard、EventList、Hard、Level、Map、Partner、PartnerCard、RoleData。
 - 注册表/配置包括音频、视觉、起始卡组、使魔祝福、伙伴意图、无尽深渊配置与进化特征、百变角色裁切、共享资源和 CG 注册表。
 
@@ -51,6 +51,8 @@
 | 功能域 | 内容/配置入口 | Terrias 实现入口 | Aura 共享依赖 | 当前宿主锚点 | 计划文档 | 优先级 |
 | --- | --- | --- | --- | --- | --- | ---: |
 | 卡牌、Buff、遗物与卡包 | `Data/Text/Card`、`Buff`、`Relic`、`CardPack` | `CardScripts`、`BuffScripts`、`RelicScripts`、Card/Buff/Damage API、各 Handler Registry | shared hooks/log/scheduler | `ScriptExecutor`、`CommonCardItem`、`AttackCardItem`、`SkillItem`、`FightPlayer` | 模块 01 | P0 |
+| 归家的月亮主题卡包 | `Card/Buff/CardPack` 的月髓与10张主题牌 | `MoonHomecomingScripts`、`MoonHomecomingMechanics`、`MoonHomecomingRuntime` | card action transaction、battle lifecycle、card zone snapshot | `DrawScript`、`StatusManager.MaxHp`、`FightPlayer.MaxPowerCount`、元素反应与场地意图 | 模块 12：归家的月亮 | P0 |
+| 奥莉米娅角色 | `Career/RoleData/Card/olimya.csv`、黄金化、角色／CG／图鉴声明 | `OlimyaScripts`、`OlimyaRuntime`、`OlimyaRoleApplication`、金币与伤害服务 | battle lifecycle、role registry、native ownership、CG discovery | `RoleTable.set_Money/OnPropertyChanged`、`CustomDamageType.ApplyDamage/ShowDamage`、`PlayerTurnEntering` | 模块 13：奥莉米娅 | P0 |
 | 场地、Hard 标签与战斗路由 | `Buff`、`Hard`、`EnchTag` | `FieldRuntime`、`TerriasHardTagRuntime`、Action/Card/Status/Lifecycle Router | shared routed hooks、frame scheduler | `Fight_Start`、`FightPlayer.TurnInit`、`ScriptExecutor.SetStatus/RunScript` | 模块 02 | P0 |
 | 乌娜与白曜体系 | `Career/RoleData/Card/Buff` 的 wuna 行 | `WunaScripts`、`WunaRoundRadianceState`、Solar 系服务、动作动画、轨道火 | audio、skin、UI safety | 战斗开始/回合/行动事件、CardItem 使用、角色动画对象 | 模块 03 | P1 |
 | 洛奈尔、晨星与星谱 | loneer Career/RoleData/Card，晨星卡包 | `LoneerScripts`、`MorningStarCardScripts`、StarScore/Miracle/StarStone 服务和 HUD | shared hooks、UI safety、scheduler | `CommonCardItem.OnBeginDrag/OnEndDrag`、`AttackCardItem`、战斗边界 | 模块 04 | P1 |

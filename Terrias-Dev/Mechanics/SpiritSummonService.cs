@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -63,7 +64,7 @@ public static class SpiritSummonService
         var exchangeCount = SpiritCardFactory.ReadExchangeCount(self.dataConfig);
         var battleState = SpiritCardFactory.ReadBattleState(self.dataConfig);
         var token = Guid.NewGuid().ToString("N");
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.NetworkActive() && TerriasNetworkQueries.IsClientOnly())
         {
             TerriasNetworkRuntime.Send(
                 new RpcSpiritSummonRequest(snapshot!, ownerStatusId, token, exchangeCount, battleState),
@@ -76,7 +77,7 @@ public static class SpiritSummonService
             snapshot!,
             ownerStatusId,
             "SpiritSummonService.TrySummon",
-            TerriasNetworkRuntime.IsMultiplayerSession(),
+            TerriasNetworkQueries.NetworkActive(),
             token,
             "",
             exchangeCount,
@@ -136,7 +137,7 @@ public static class SpiritSummonService
         if (!snapshot.Accepted)
         {
             QueueReturnedCard(snapshot, null, source);
-            if (SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
+            if (SenderOwnsStatus(TerriasNetworkQueries.LocalPlayerId(), snapshot.OwnerStatusId))
             {
                 PlayerApi.ShowCaption(RejectionMessage(snapshot.RejectionReason));
             }
@@ -545,7 +546,7 @@ public static class SpiritSummonService
 
     public static void BroadcastRuntimeState(SpiritOtherObj spirit, string source)
     {
-        if (spirit == null || !TerriasNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
+        if (spirit == null || !TerriasNetworkQueries.NetworkActive() || !CompanionAuthorityService.IsAuthoritative())
         {
             return;
         }
@@ -579,7 +580,7 @@ public static class SpiritSummonService
             Reason = source ?? ""
         };
         ObserveRemoval(removal);
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && CompanionAuthorityService.IsAuthoritative())
+        if (TerriasNetworkQueries.NetworkActive() && CompanionAuthorityService.IsAuthoritative())
         {
             TerriasNetworkRuntime.Send(new RpcSpiritCompanionRemoved(removal), "SpiritSummonService.BroadcastRemoval");
         }
@@ -936,7 +937,7 @@ public static class SpiritSummonService
     private static bool IsLocalOwner(string ownerStatusId)
     {
         return string.Equals(FightPlayer.Instance?.Status?.InstanceId, ownerStatusId, StringComparison.Ordinal)
-            || SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId);
+            || SenderOwnsStatus(TerriasNetworkQueries.LocalPlayerId(), ownerStatusId);
     }
 
     private static void GrantWithdrawCardIfLocalOwner(

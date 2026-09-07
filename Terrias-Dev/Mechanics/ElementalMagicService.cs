@@ -128,7 +128,7 @@ public static class ElementalMagicService
 
         var rarity = NormalizeRarity(DictionaryUtil.GetInt(enemy.data, "Rarity", 1));
         var range = RangeForRarity(rarity);
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             TerriasLog.Debug("[ElementalMagic] client awaited authoritative roll; status="
                 + (status?.InstanceId ?? "")
@@ -155,7 +155,7 @@ public static class ElementalMagicService
             + source
             + ".");
 
-        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkQueries.IsServer() && TerriasNetworkQueries.HasRemotePlayers())
         {
             TerriasNetworkRuntime.Send(
                 new RpcElementalEnemyMagicSnapshot(new ElementalEnemyMagicSnapshot

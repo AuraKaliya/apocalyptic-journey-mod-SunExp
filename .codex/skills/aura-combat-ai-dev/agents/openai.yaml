@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Combat AI Dev"
+  short_description: "Develop gameplay AI, simulation and training recovery."
+  default_prompt: "Use $aura-combat-ai-dev to work on Aura gameplay AI or training using the current execution and data contracts."

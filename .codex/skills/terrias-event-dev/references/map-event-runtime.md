@@ -61,6 +61,6 @@ from that index instead of hard-coding a decompile folder version here.
 ## Validation
 
 ```powershell
-.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
+tools\Test-TerriasEvents.ps1
+tools\Test-TerriasContent.ps1
 ```

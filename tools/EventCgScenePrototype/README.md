@@ -1,5 +1,7 @@
 # Event CG Scene v2 Prototype
 
+Archived: this is the historical Idle-sprite stage prototype. Current event CG acceptance uses the production portrait renderer through `tools/Preview-EventCgPoster.ps1`; see `docs/AuraToolsExp/team-event-cg-poster-v3-design.md`.
+
 This standalone HTML prototype explores the approved adaptive team-scene design
 without changing the product runtime. It uses actual repository role PNGs and
 the programmatic AuraToolsExp scene themes as visual inputs; no bitmap background is required.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Terrias Poster Design"
-  short_description: "Terrias MOD poster workflow"
-  default_prompt: "Create or update a Terrias topic poster using the saved analysis-to-GPT-IMAGE2 workflow."
+  short_description: "Design topic posters with exact copy and visual references."
+  default_prompt: "Use $terrias-poster-design to create a Terrias topic poster from current content with reviewable prompts and images."

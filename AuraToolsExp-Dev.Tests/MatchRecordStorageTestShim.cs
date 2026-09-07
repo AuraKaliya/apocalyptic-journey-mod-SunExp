@@ -2,6 +2,7 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.Storage;
 
 internal static class MatchRecordStorage
 {
+    internal static void InvalidateCounts() { }
     internal static MatchRecordDatabase Database { get; private set; } = null!;
 
     internal static string RootDirectory { get; private set; } = "";

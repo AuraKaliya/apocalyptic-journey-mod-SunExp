@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -39,7 +40,7 @@ public static class SpiritCaptureService
             return false;
         }
 
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.NetworkActive() && TerriasNetworkQueries.IsClientOnly())
         {
             var token = Guid.NewGuid().ToString("N");
             TerriasNetworkRuntime.Send(
@@ -247,7 +248,7 @@ public static class SpiritCaptureService
     private static bool IsLocalOwner(string ownerStatusId)
     {
         return string.Equals(FightPlayer.Instance?.Status?.InstanceId, ownerStatusId, StringComparison.Ordinal)
-            || SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId);
+            || SenderOwnsStatus(TerriasNetworkQueries.LocalPlayerId(), ownerStatusId);
     }
 
     private static IStatusManager? StatusById(string statusId)

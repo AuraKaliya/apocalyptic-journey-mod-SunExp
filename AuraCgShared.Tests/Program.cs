@@ -279,22 +279,52 @@ for (var count = 1; count <= AuraCgSceneProtocol.MaximumParticipants; count++)
         "adaptive team tableau remains deterministic and bounded for participant count " + count);
 }
 
-var normalizedFraming = AuraCgSceneFramingMath.FitVisibleBounds(
-    new AuraCgNormalizedBounds(0.20f, 0.10f, 0.50f, 0.80f),
-    1000f,
-    1000f,
-    250f,
-    500f);
-Assert(Near(normalizedFraming.ImageWidth, 500f)
-       && Near(normalizedFraming.ImageHeight, 500f)
-       && Near(normalizedFraming.OffsetX, 25f)
-       && Near(normalizedFraming.OffsetY, -50f),
-    "visible-bounds framing centers opaque pixels and aligns their lower edge instead of scaling transparent canvas margins");
-Assert(!AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(8, Enumerable.Repeat(0.55f, 8))
-       && AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(8, new[] { 0.55f, 1.05f })
-       && !AuraCgSceneLayoutFallbackPolicy.UsePortraitPanels(6, new[] { 1.20f }),
-    "seven-to-eight member scenes keep the tableau unless a wide asset requires the bounded portrait-panel fallback");
+var portraitFace = new AuraCgPortraitFraming { Enabled = true, FaceX = 0.55f, FaceY = 0.30f, FaceWidth = 0.20f, FaceHeight = 0.20f };
+var normalizedFraming = AuraCgPortraitFramingMath.Fit(portraitFace, AuraCgNormalizedBounds.Full, 1000, 1000, 200, 200, 1000);
+Assert(Near(normalizedFraming.ImageWidth, 1000) && Near(normalizedFraming.OffsetX, -50) && Near(normalizedFraming.OffsetY, -200),
+    "portrait framing aligns the declared face rather than the transparent canvas or feet");
+var widePortrait = new AuraCgPortraitFraming { Enabled = true, FaceWidth = 0.10f, FaceHeight = 0.20f };
+var wideFrame = AuraCgPortraitFramingMath.Fit(widePortrait, AuraCgNormalizedBounds.Full, 2000, 1000, 200, 200, 1000);
+Assert(Near(wideFrame.ImageWidth, 2000), "wide wings do not reduce the size of an explicitly framed face");
+var cappedFrame = AuraCgPortraitFramingMath.Fit(portraitFace, AuraCgNormalizedBounds.Full, 1000, 1000, 200, 200, 100);
+Assert(cappedFrame.ImageHeight <= 334, "portrait framing keeps tall head ornaments inside the top safety area");
+var malformedArt = new AuraCgSceneArtwork { CameraPush = float.NaN, Portrait = new AuraCgPortraitFraming { FaceX = float.PositiveInfinity } };
+malformedArt.Normalize();
+Assert(malformedArt.CameraPush == 0.02f && malformedArt.Portrait.FaceX == 0.5f, "local artwork numeric inputs are finite and bounded");
+Assert(!AuraCgAdaptiveTeamLayout.Resolve(AuraCgSceneProtocol.DefaultLayoutId, "victory", 8).Any(slot => slot.MirrorX),
+    "poster slots never mirror asymmetric costumes by default");
+var releasedSceneSprites = 0;
+var sceneReleaseQueue = new AuraCgMediaReleaseQueue<object, object>();
+var scenePins = new AuraCgMediaRetentionLedger<object, object>(sceneReleaseQueue.QueueSprite, sceneReleaseQueue.QueueBundle);
+var sceneCache = new AuraCgMediaCache<object, object>(1, 100, sceneReleaseQueue.QueueSprite, sceneReleaseQueue.QueueBundle);
+var displayedSprite = new object();
+sceneCache.StoreSprite("portrait", displayedSprite, 8, AuraCgMediaOwnership.RuntimeObjectAndTexture);
+var displayEntry = AuraCgMediaCacheEntry<object, object>.ForSequence("preview", new List<object> { displayedSprite }, _ => 8, AuraCgMediaOwnership.RuntimeObjectAndTexture);
+scenePins.Attach(displayEntry);
+sceneCache.Clear();
+sceneReleaseQueue.Flush(true, sprite => sceneCache.ContainsSpriteReference(sprite) || scenePins.ContainsSprite(sprite), _ => false, (_, _) => releasedSceneSprites++, _ => { });
+Assert(releasedSceneSprites == 0, "evicted portrait media remains alive while its scene preview uses it");
+scenePins.Detach(displayEntry);
+sceneReleaseQueue.Flush(true, sprite => sceneCache.ContainsSpriteReference(sprite) || scenePins.ContainsSprite(sprite), _ => false, (_, _) => releasedSceneSprites++, _ => { });
+scenePins.Detach(displayEntry);
+sceneReleaseQueue.Flush(true, _ => false, _ => false, (_, _) => releasedSceneSprites++, _ => { });
+Assert(releasedSceneSprites == 1, "closing the final preview releases evicted media exactly once");
 var openingIdentity = AuraCgSceneProfileIdentity.Resolve("opening", "battle-opening");
+var sceneProtocolProbe = new AuraCgScenePlan
+{
+    SceneId = "victory.standard", SignalId = AuraCgSignals.BattleVictory, EventToken = "protocol-probe",
+    BackgroundAsset = new AuraCgSceneAssetReference { OwnerModId = "AuraToolsExp", AssetId = "background" },
+    Participants = new List<AuraCgSceneParticipantPlan>
+    {
+        new() { RoleId = "career_5", RoleLayerAsset = new AuraCgSceneAssetReference { OwnerModId = "AuraToolsExp", AssetId = "portrait" } }
+    }
+};
+Assert(sceneProtocolProbe.IsValid(), "current portrait scene protocol accepts a complete bounded plan");
+sceneProtocolProbe.ProtocolVersion = 1;
+Assert(!sceneProtocolProbe.IsValid(), "legacy scene positions cannot be interpreted as portrait face anchors");
+sceneProtocolProbe.ProtocolVersion = AuraCgSceneProtocol.CurrentVersion;
+sceneProtocolProbe.LayoutId = "unregistered-layout";
+Assert(!sceneProtocolProbe.IsValid(), "remote scene plans must select the supported portrait layout");
 var defeatIdentity = AuraCgSceneProfileIdentity.Resolve("defeat", "battle-defeat");
 var victoryIdentity = AuraCgSceneProfileIdentity.Resolve("default", "victory.standard");
 Assert(openingIdentity.Title == "战斗开场"

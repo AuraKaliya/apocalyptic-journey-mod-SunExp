@@ -36,7 +36,7 @@ public static class AuraToolsDamageMeterRuntime
     {
         get
         {
-            if (!DamageMeterNetworkRuntime.IsMultiplayer)
+            if (!DamageMeterNetworkRuntime.NetworkActive)
             {
                 return "单机统计";
             }

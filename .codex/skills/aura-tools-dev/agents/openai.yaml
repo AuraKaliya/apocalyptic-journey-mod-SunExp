@@ -1,0 +1,4 @@
+interface:
+  display_name: "AuraTools Dev"
+  short_description: "Develop tool modules, settings, presets and Unity UI."
+  default_prompt: "Use $aura-tools-dev to develop an AuraToolsExp module using its current settings and shared contracts."

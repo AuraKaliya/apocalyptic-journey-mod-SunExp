@@ -3,452 +3,347 @@
   "locked": true,
   "exceptions": [
     {
-      "sourceFile": "Terrias-Dev/Features/TerriasCardUseFxRuntime.cs",
-      "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
       "sourceFile": "Terrias-Dev/GameApi/BattleRewardApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/BuffApi.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/CardApi.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when BattleRewardApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/EnemyCaptureSettlementApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EnemyCaptureSettlementApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/EnemyCaptureSettlementApi.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EnemyCaptureSettlementApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/EnemyCatalogApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EnemyCatalogApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/FamiliarGrowthApi.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FamiliarGrowthApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/FamiliarGrowthApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FamiliarGrowthApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/FieldApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/FieldApi.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/MapItemApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/PolymorphUiApi.cs",
-      "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/ProjectionUiApi.cs",
-      "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when MapItemApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SolarMemoryFlowApi.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SolarMemoryFlowApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SolarMemoryFlowApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SolarMemoryFlowApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SolarMemoryMapPreviewApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SolarMemoryMapPreviewApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SolarMemoryRoleCommitApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SolarMemoryRoleCommitApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/SpiritCollectionApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/SpiritCollectionApi.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SpiritCollectionApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/GameApi/TargetApi.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/WunaVisualApi.cs",
-      "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when TargetApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Hooks/EndlessAbyssEvacuationRuntime.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EndlessAbyssEvacuationRuntime routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Hooks/EndlessAbyssSettlementBarrierRuntime.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EndlessAbyssSettlementBarrierRuntime routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Hooks/FieldBuffHudRuntime.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldBuffHudRuntime routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Hooks/FieldRuntime.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Hooks/RuntimeHooks.cs",
-      "targetLayer": "Scripting",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Hooks/Ui/EndlessAbyssSettlementBarrierView.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Hooks/Ui/EndlessSeaMapViewPresenter.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Infrastructure/TerriasCombatCardUiDiagnostics.cs",
-      "targetLayer": "GameApi",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Mechanics/CompanionAuthorityService.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldRuntime routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/ConstellationService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when ConstellationService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/ElementalCrystalChallengeService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when ElementalCrystalChallengeService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/ElementalMagicService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when ElementalMagicService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/EmberAdventureStateService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when EmberAdventureStateService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/HeartChangeControlService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when HeartChangeControlService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/PolymorphNetworkSync.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when PolymorphNetworkSync routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/ProjectionCardPresentationService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Mechanics/ProjectionRoleDeckService.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Mechanics/ProjectionSummonService.cs",
-      "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when ProjectionCardPresentationService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/SpiritCaptureService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SpiritCaptureService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/SpiritSummonService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SpiritSummonService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/SpiritWithdrawService.cs",
       "targetLayer": "Network",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when SpiritWithdrawService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/TerriasActiveCardPresentationIndex.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when TerriasActiveCardPresentationIndex routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "CombatPresentation",
+      "removeByMilestone": "CombatPresentation-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Mechanics/TerriasFightPresentationInvalidationService.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when TerriasFightPresentationInvalidationService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "CombatPresentation",
+      "removeByMilestone": "CombatPresentation-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/FieldNetworkSync.cs",
       "targetLayer": "GameApi",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldNetworkSync routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/FieldNetworkSync.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when FieldNetworkSync routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcConstellationStateCommit.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcConstellationStateCommit routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcElementalMechanics.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcElementalMechanics routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcEmberAdventureStateCommit.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcEmberAdventureStateCommit routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ElementalCombat",
+      "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcEndlessAbyssEvacuation.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcEndlessAbyssEvacuation routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcEndlessAbyssEvacuation.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcEndlessAbyssEvacuation routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcEndlessAbyssSettlementBarrier.cs",
       "targetLayer": "Hooks",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcEndlessAbyssSettlementBarrier routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcEndlessAbyssSettlementBarrier.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcEndlessAbyssSettlementBarrier routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "AdventureModes",
+      "removeByMilestone": "AdventureModes-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcPolymorphVisualState.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcPolymorphVisualState routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcProjectionCompanion.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcProjectionCompanion routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "ProjectionAndControl",
+      "removeByMilestone": "ProjectionAndControl-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcRuntimeHandAttachment.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcRuntimeHandAttachment routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "CombatPresentation",
+      "removeByMilestone": "CombatPresentation-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs",
       "targetLayer": "GameApi",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcSolarMemoryRoleCommit routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SolarMemory",
+      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSpiritCapture.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcSpiritCapture routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSpiritCompanion.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcSpiritCompanion routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSpiritEnemySuppressed.cs",
       "targetLayer": "GameApi",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcSpiritEnemySuppressed routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSpiritEnemySuppressed.cs",
       "targetLayer": "Mechanics",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Network/TerriasNetworkRuntime.cs",
-      "targetLayer": "GameApi",
-      "reason": "Pre-Application dependency retained only for the bounded architecture-layer cutover; new files may not use this edge.",
-      "owner": "TerriasArchitecture",
-      "removeByMilestone": "architecture-layer-cutover-v2"
+      "reason": "Close when RpcSpiritEnemySuppressed routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
+      "owner": "SpiritCollection",
+      "removeByMilestone": "SpiritCollection-application-cutover"
     }
   ]
 }

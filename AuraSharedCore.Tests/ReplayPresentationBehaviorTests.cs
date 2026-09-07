@@ -4,6 +4,7 @@ internal static partial class CoreTestSuite
 {
     internal static void TestReplayPresentationRuntime()
     {
+        TestReplayPresentationCompatibility();
         AuraReplayPresentationRuntime.ClearOwner("OwnerReplay");
         using var module = AuraReplayPresentationRuntime.Register(new ReplayModule());
         var descriptors = AuraReplayPresentationRuntime.SnapshotModules();
@@ -111,6 +112,29 @@ internal static partial class CoreTestSuite
                && rendererModule.Renderer.LastTick == 20
                && rendererModule.Renderer.ResetCount == 1,
             "provider-qualified replay renderers are resolved through the shared interface and receive the manual replay clock");
+    }
+
+    private static void TestReplayPresentationCompatibility()
+    {
+        var original = new ReplayRendererModule().Descriptor;
+        var rebuilt = new ReplayRendererModule().Descriptor;
+        original.BuildIdentity = "original-build";
+        rebuilt.BuildIdentity = "unrelated-code-rebuilt";
+        Assert(rebuilt.MatchesContract(original),
+            "module compatibility uses its schema and capability, not the enclosing assembly build");
+        Assert(!rebuilt.MatchesContract(null),
+            "a missing required contract is never compatible");
+        rebuilt.SchemaVersion++;
+        Assert(!rebuilt.MatchesContract(original),
+            "a changed event schema remains incompatible after build provenance is separated");
+        rebuilt.SchemaVersion = original.SchemaVersion;
+        rebuilt.RendererCapability = "tests.renderer.v2";
+        Assert(!rebuilt.MatchesContract(original),
+            "a changed renderer contract remains incompatible");
+        rebuilt.RendererCapability = "";
+        original.RendererCapability = "";
+        Assert(!rebuilt.MatchesContract(original),
+            "provider-required modules cannot use two empty capabilities to claim compatibility");
     }
 
     private sealed class ReplayModule : IAuraReplayPresentationModule

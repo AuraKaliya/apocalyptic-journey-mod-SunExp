@@ -15,6 +15,32 @@ using Newtonsoft.Json;
 using static AuraToolsTestSuite;
 
 assertions = 0;
+if (args.Length == 3 && args[0] == "--benchmark-replay")
+{
+    MeasureReplayRecording(args[1], args[2]);
+    return;
+}
+if (args.Length == 2 && args[0] == "--suite" && args[1] == "replay")
+{
+    TestMatchRecordDatabase();
+    TestMatchReplayV17Core();
+    TestReplayCaptureIteration();
+    TestReplayHandLifecycle();
+    TestReplayActionOwnerGeneration();
+    TestMatchReplayModuleCompatibility();
+    TestReplayExtensionIntentVisuals();
+    TestMatchReplayLifecycleAndLibraryReturn();
+    TestMatchReplayNativeAudioCallTracking();
+    TestMatchReplayPackage();
+    TestBackgroundWorkOwnerCancellation();
+    TestBackgroundReplacementAdmission();
+    TestReplayBackgroundPersistence();
+    TestReplayReplicationAudience();
+    TestIncomingReplayRecovery();
+    TestOrderedQueueBudgets();
+    Console.WriteLine($"AuraTools replay suite passed: {assertions} assertions.");
+    return;
+}
 
 TestRoundAndDpt();
 TestShieldViewRecalculation();
@@ -33,6 +59,11 @@ TestDeterministicAllocation();
 TestDamageHistoryDatabase();
 TestMatchRecordDatabase();
 TestMatchReplayV17Core();
+TestMatchReplayModuleCompatibility();
+TestReplayExtensionIntentVisuals();
+TestReplayCaptureIteration();
+TestReplayHandLifecycle();
+TestReplayActionOwnerGeneration();
 TestMatchReplayRenderHostContract();
 TestMatchReplayLifecycleAndLibraryReturn();
 TestMatchReplayNativeAudioCallTracking();
@@ -54,7 +85,7 @@ TestLowHealthNativePresentationLatch();
 TestCgOutcomeReasonPolicy();
 TestCgSettingsLayoutBudgets();
 TestTeamScenePlanning();
-TestUnifiedCgAnimationSpec();
+TestEventCgArtCatalog();
 TestSkillCgPresentationNormalization();
 TestFeastRoleResourceIdentity();
 TestSkinRemoteSelectionPolicy();
@@ -77,6 +108,13 @@ TestAuraToolModuleCatalogAndStateStore();
 TestAuraRoutedHookOwnershipAndLeases();
 TestAuraToolsHookOwnerActivation();
 TestBackgroundWorkOwnerCancellation();
+TestBackgroundReplacementAdmission();
+TestInitializationDependencies();
+TestModuleConfigCommitRollback();
+TestReplayBackgroundPersistence();
+TestReplayReplicationAudience();
+TestIncomingReplayRecovery();
+TestOrderedQueueBudgets();
 TestNativeContentVisibilityLease();
 TestToolboxTooltipPlacementPolicy();
 TestPreparationDockLayoutPolicy();

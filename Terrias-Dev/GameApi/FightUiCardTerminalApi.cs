@@ -14,9 +14,9 @@ public static class FightUiCardTerminalApi
         CardItem.canUse = false;
         if (queued > 0)
         {
-            TerriasPerformanceCounters.Record("CombatCardViewPool.TerminalQueuedDrawsDiscarded");
+            TerriasPerformanceCounters.Record("CombatCardProduction.TerminalQueuedDrawsDiscarded");
         }
-        TerriasLog.Debug("[CombatCardViewPool] terminal draw production closed: source="
+        TerriasLog.Debug("[CombatCardProduction] terminal draw production closed: source="
                          + (string.IsNullOrWhiteSpace(source) ? "unknown" : source.Trim())
                          + ", discarded="
                          + queued

@@ -9,11 +9,6 @@ using Witch.Core;
 
 namespace Terrias.Dll.Mechanics;
 
-public sealed class EndlessAbyssLedgerDocument
-{
-    public List<string> Entries { get; set; } = new();
-}
-
 public static class EndlessAbyssRunLedger
 {
     private const int MaxEntries = 512;
@@ -53,19 +48,9 @@ public static class EndlessAbyssRunLedger
             return false;
         }
 
-        var document = Load();
-        if (document.Entries.Contains(key, StringComparer.Ordinal))
-        {
-            return false;
-        }
-
-        document.Entries.Add(key);
-        if (document.Entries.Count > MaxEntries)
-        {
-            document.Entries = document.Entries.Skip(document.Entries.Count - MaxEntries).ToList();
-        }
-
-        Save(document);
+        if (!EndlessAbyssLedgerCodec.TryCommitClaim(key,
+            () => CurrentValue(TerriasIds.EndlessAbyssLedgerKey),
+            json => SetValue(TerriasIds.EndlessAbyssLedgerKey, json), MaxEntries)) return false;
         TerriasLog.Debug("[EndlessAbyssLedger] claimed " + key + " from " + source + ".");
         return true;
     }
@@ -103,42 +88,12 @@ public static class EndlessAbyssRunLedger
 
     private static EndlessAbyssLedgerDocument Load()
     {
-        try
-        {
-            var json = CurrentValue(TerriasIds.EndlessAbyssLedgerKey);
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                return new EndlessAbyssLedgerDocument();
-            }
-
-            return JsonConvert.DeserializeObject<EndlessAbyssLedgerDocument>(json)
-                   ?? new EndlessAbyssLedgerDocument();
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[EndlessAbyssLedger] load failed: " + ex.Message);
-            return new EndlessAbyssLedgerDocument();
-        }
+        return Parse(CurrentValue(TerriasIds.EndlessAbyssLedgerKey));
     }
 
     private static EndlessAbyssLedgerDocument Parse(string json)
     {
-        try
-        {
-            return string.IsNullOrWhiteSpace(json)
-                ? new EndlessAbyssLedgerDocument()
-                : JsonConvert.DeserializeObject<EndlessAbyssLedgerDocument>(json)
-                  ?? new EndlessAbyssLedgerDocument();
-        }
-        catch
-        {
-            return new EndlessAbyssLedgerDocument();
-        }
-    }
-
-    private static void Save(EndlessAbyssLedgerDocument document)
-    {
-        SetValue(TerriasIds.EndlessAbyssLedgerKey, JsonConvert.SerializeObject(document ?? new EndlessAbyssLedgerDocument()));
+        return EndlessAbyssLedgerCodec.Read(json);
     }
 
     private static string NormalizeKey(string key)
@@ -153,38 +108,18 @@ public static class EndlessAbyssRunLedger
 
     private static string CurrentValue(string key)
     {
-        try
-        {
-            var save = GameSaveManager.GetNowSave();
-            return save?.GameVars != null && save.GameVars.TryGetValue(key, out var value) ? value ?? "" : "";
-        }
-        catch
-        {
-            return "";
-        }
+        var save = GameSaveManager.GetNowSave();
+        if (save?.GameVars == null) throw new InvalidOperationException("Adventure save is unavailable; abyss claims cannot be read.");
+        return save.GameVars.TryGetValue(key, out var value) ? value ?? "" : "";
     }
 
     private static void SetValue(string key, string value)
     {
-        try
-        {
-            GameSaveManager.SetValue(key, value);
-        }
-        catch
-        {
-            try
-            {
-                GameSaveManager.GetNowSave()?.SetValue(key, value);
-            }
-            catch
-            {
-                var save = GameSaveManager.GetNowSave();
-                if (save?.GameVars != null)
-                {
-                    save.GameVars[key] = value;
-                }
-            }
-        }
+        if (GameSaveManager.GetNowSave()?.GameVars == null)
+            throw new InvalidOperationException("Adventure save is unavailable; abyss claim was not committed.");
+        GameSaveManager.SetValue(key, value);
+        if (!string.Equals(CurrentValue(key), value, StringComparison.Ordinal))
+            throw new InvalidOperationException("Abyss claim was not committed to the active adventure.");
     }
 }
 

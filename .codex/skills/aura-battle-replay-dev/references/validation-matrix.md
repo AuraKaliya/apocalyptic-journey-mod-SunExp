@@ -9,6 +9,8 @@ serially because product consumers share DLL outputs.
 | --- | --- |
 | Pure journal/model | reducer, canonical JSON, roots, tamper rejection, checkpoints/seek, late presentation, durability watermark |
 | Recorder routing | lifecycle hooks, transaction ownership, card/intent classification, deferred MOD obligations, terminal diagnostics |
+| Module compatibility | same declared contract across different builds; reject owner/type/schema/portability/capability drift; preserve sealed bytes and roots |
+| Native UI clone | exclude runtime-only owned subtrees before activation; retain normal graphics and source prefab; nested/inactive owners and reopening |
 | Database/package | Recording→Finalizing→Ready, recovery, immutable roots, import budgets, migration/cutover, asset reachability |
 | Playback core | event ordering, state commit, transient/persistent reconstruction, seek/speed/export clock parity |
 | Renderer ownership | camera/target/renderer leases, Feature policy, deep-cloned Feature identity, intermediate color declaration, generation replacement, duplicate/foreign release, teardown |
@@ -19,6 +21,42 @@ serially because product consumers share DLL outputs.
 
 Source-text scans may enforce retired-path or ownership boundaries. They cannot
 replace a behavior test for timing, pooling, rendering, or cleanup.
+
+For the native UI clone boundary, run
+`tools/Test-AuraToolsReplayNativeUi.ps1 -UnityPath <editor.exe>`.
+This executes the production cloner in Unity PlayMode with isolated fixtures;
+it complements the real-game rendering cases below.
+
+For lit HUD regressions, supply `-GameDataDirectory <installed game _Data>` to
+that runner. It requires Python dependencies from
+`tools/requirements-replay-native-ui.txt` for read-only fixture extraction
+and a real graphics device (not `-nographics`). The native health/defense
+textures and original lit shader must reproduce the old black pixels, then
+match the normal-camera reference pixel-for-pixel with the production ambient
+feature. Fixtures and comparison images stay in the ignored Unity test tree.
+The test receipt distinguishes an extracted-native run from synthetic fixtures.
+
+Extension intent checks cover configured historical paths, resolved new paths,
+separate icon/background fallbacks, missing/empty resources, wait visibility,
+unknown schema/contract rejection, preflight of late events, and unchanged
+sealed document bytes and roots.
+
+Card-motion cases additionally cover held poses followed by movement, delayed
+burn activation, concurrent physical views of one card, cancellation/return,
+and measured versus legacy companion anchors across attack sprite changes.
+Hand lifecycle tests execute the production acquisition/layout adapter in
+Unity with native API and journal-sink fixtures: consecutive draws before any
+use, nested DrawScript creation, immediate consumption, queue/full-hand cases,
+and foreign-surface rejection. Playback tests run both the production moving
+card and static hand projections through arrival/reflow and the final handoff.
+Keep these distinct from full-game acceptance with actual native callbacks.
+Hash-work deferral must produce identical sealed documents; stale prepared
+diffs and unadvertised new document capabilities must be rejected.
+
+Use the test executable's `--benchmark-replay <assembled document.json>
+<result.json>` mode for the deterministic C# recording workload. Compare the
+same input and final state hash. Report its allocation/time results separately
+from Unity frame time, native initialization, GC pauses and real-game FPS.
 
 ## Required Unity/Game Runtime Cases
 

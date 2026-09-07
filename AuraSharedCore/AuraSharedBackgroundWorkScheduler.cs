@@ -12,6 +12,15 @@ public enum AuraSharedBackgroundWorkKind
     Io
 }
 
+public enum AuraSharedWorkAdmission
+{
+    Accepted,
+    Replaced,
+    BackPressure,
+    InvalidRequest,
+    RunnerUnavailable
+}
+
 public sealed class AuraSharedBackgroundWorkRequest<T>
 {
     public string OwnerId { get; set; } = "";
@@ -88,39 +97,56 @@ public static class AuraSharedBackgroundWorkScheduler
 
     public static bool Queue<T>(AuraSharedBackgroundWorkRequest<T>? request)
     {
+        var result = TryQueue(request);
+        return result == AuraSharedWorkAdmission.Accepted || result == AuraSharedWorkAdmission.Replaced;
+    }
+
+    // Admission and replacement commit together. A rejected replacement must
+    // leave the previously accepted owner and its completion intact.
+    public static AuraSharedWorkAdmission TryQueue<T>(AuraSharedBackgroundWorkRequest<T>? request)
+    {
         if (request?.Work == null || request.ApplyOnMainThread == null)
         {
-            return false;
+            return AuraSharedWorkAdmission.InvalidRequest;
         }
 
         if (!AuraSharedFrameScheduler.EnsureMainThreadRunner())
         {
-            return false;
+            return AuraSharedWorkAdmission.RunnerUnavailable;
         }
 
         var item = new WorkItem<T>(request);
         List<WorkItem> launch;
+        var replaced = false;
         lock (Gate)
         {
             var queue = item.Kind == AuraSharedBackgroundWorkKind.Io ? IoQueue : CpuQueue;
             var queueLimit = item.Kind == AuraSharedBackgroundWorkKind.Io
                 ? Math.Max(1, MaxPendingIo)
                 : Math.Max(1, MaxPendingCpu);
-            if (item.ScopedKey.Length > 0 && QueuedByScopedKey.TryGetValue(item.ScopedKey, out var previous))
+            WorkItem? previous = null;
+            WorkItem? activePrevious = null;
+            if (item.ScopedKey.Length > 0)
+            {
+                QueuedByScopedKey.TryGetValue(item.ScopedKey, out previous);
+                ActiveByScopedKey.TryGetValue(item.ScopedKey, out activePrevious);
+            }
+            var releasedQueueSlot = previous?.Kind == item.Kind ? 1 : 0;
+            var releasedOwnerSlot = previous != null ? 1 : 0;
+            if (queue.Count - releasedQueueSlot >= queueLimit
+                || OwnerPendingCountNoLock(item.OwnerId) - releasedOwnerSlot >= Math.Max(1, MaxPendingPerOwner))
+            {
+                return AuraSharedWorkAdmission.BackPressure;
+            }
+            if (previous != null)
             {
                 RemoveQueuedItemNoLock(previous, cancel: true, cancellationReason: "superseded");
+                replaced = true;
             }
-            if (item.ScopedKey.Length > 0
-                && ActiveByScopedKey.TryGetValue(
-                    item.ScopedKey,
-                    out var activePrevious))
+            if (activePrevious != null)
             {
                 activePrevious.Cancel("superseded");
-            }
-
-            if (queue.Count >= queueLimit || OwnerPendingCountNoLock(item.OwnerId) >= Math.Max(1, MaxPendingPerOwner))
-            {
-                return false;
+                replaced = true;
             }
 
             if (item.ScopedKey.Length > 0)
@@ -139,7 +165,7 @@ public static class AuraSharedBackgroundWorkScheduler
         }
 
         Launch(launch);
-        return true;
+        return replaced ? AuraSharedWorkAdmission.Replaced : AuraSharedWorkAdmission.Accepted;
     }
 
     public static int CancelOwner(string ownerId)
@@ -191,7 +217,7 @@ public static class AuraSharedBackgroundWorkScheduler
         var limit = Math.Max(1, MaxCompletionsPerFrame);
         while (limit-- > 0 && Completions.TryDequeue(out var completion))
         {
-            AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
+            if (!AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
             {
                 OwnerId = completion.OwnerId,
                 Source = completion.Source + ":apply",
@@ -199,7 +225,11 @@ public static class AuraSharedBackgroundWorkScheduler
                 Phase = AuraSharedFramePhase.Reconcile,
                 Priority = completion.Priority,
                 Action = completion.Apply
-            });
+            }))
+            {
+                Completions.Enqueue(completion);
+                break;
+            }
         }
     }
 
@@ -439,12 +469,14 @@ public static class AuraSharedBackgroundWorkScheduler
                 {
                     if (!IsLatest(ScopedKey, Generation))
                     {
+                        CreateCancellationCompletion()?.Apply();
                         return;
                     }
 
                     if (request.IsStillCurrent?.Invoke() == false)
                     {
                         ReleaseLatest(ScopedKey, Generation);
+                        CreateCancellationCompletion()?.Apply();
                         return;
                     }
 
@@ -468,6 +500,7 @@ public static class AuraSharedBackgroundWorkScheduler
                 {
                     if (!IsLatest(ScopedKey, Generation))
                     {
+                        CreateCancellationCompletion()?.Apply();
                         return;
                     }
 

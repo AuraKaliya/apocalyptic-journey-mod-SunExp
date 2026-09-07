@@ -55,7 +55,7 @@ internal static class AuraToolsCgTeamSnapshotService
                     RoleLayerAsset = new AuraCgSceneAssetReference
                     {
                         OwnerModId = AuraToolsIds.ModId,
-                        AssetId = AuraToolsCgSceneAssetResolver.RoleIdleAssetId
+                        AssetId = AuraToolsCgSceneAssetResolver.RoleAssetId(sceneId)
                     }
                 })
                 .ToList()
@@ -65,10 +65,16 @@ internal static class AuraToolsCgTeamSnapshotService
     public static AuraCgSceneSourceSnapshot? BuildPreviewSource(
         string sceneId,
         string eventToken,
-        int participantCount)
+        int participantCount,
+        int roleOffset = 0)
     {
         var roles = RoleCatalog.GetRoles()
             .Where(role => role != null && !string.IsNullOrWhiteSpace(role.Id))
+            .OrderBy(role =>
+            {
+                var preferred = AuraToolsCgSceneAssetResolver.PreviewRoleIds.ToList().FindIndex(id => Same(id, role.Id));
+                return preferred < 0 ? int.MaxValue : preferred;
+            })
             .ToList();
         if (roles.Count == 0)
         {
@@ -83,7 +89,7 @@ internal static class AuraToolsCgTeamSnapshotService
         };
         for (var index = 0; index < count; index++)
         {
-            var role = roles[index % roles.Count];
+            var role = roles[(index + Math.Max(0, roleOffset)) % roles.Count];
             var playerId = "preview-seat-" + index;
             result.Participants.Add(new AuraCgSceneParticipantSource
             {
@@ -94,7 +100,7 @@ internal static class AuraToolsCgTeamSnapshotService
                 RoleLayerAsset = new AuraCgSceneAssetReference
                 {
                     OwnerModId = AuraToolsIds.ModId,
-                    AssetId = AuraToolsCgSceneAssetResolver.RoleIdleAssetId
+                    AssetId = AuraToolsCgSceneAssetResolver.RoleAssetId(sceneId)
                 }
             });
         }

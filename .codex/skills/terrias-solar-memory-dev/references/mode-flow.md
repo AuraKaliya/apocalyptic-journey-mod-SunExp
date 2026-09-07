@@ -65,7 +65,7 @@ overlay placement or sibling-order hacks.
 
 Use `SolarMemoryModeEntryRuntime` for entry display and activation. Resolve
 title art through `VisualRegistry` and route visual work through
-`terrias-visual-runtime-dev`.
+`aura-visual-runtime-dev`.
 
 ## Boss And Finale Routing
 

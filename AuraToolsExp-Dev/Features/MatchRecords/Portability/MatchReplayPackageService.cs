@@ -32,12 +32,7 @@ internal static class MatchReplayPackageService
                        ?? MatchAnalysisBuilder.BuildV17(record, document);
         ValidateAssetPayloads(document.Assets);
 
-        var skeleton = ReplayCanonicalJsonV17.Clone(envelope);
-        skeleton.Document.TruthEvents.Clear();
-        skeleton.Document.PresentationEvents.Clear();
-        skeleton.Document.TruthCheckpoints.Clear();
-        skeleton.Document.PresentationCheckpoints.Clear();
-        foreach (var asset in skeleton.Document.Assets) asset.Payload = Array.Empty<byte>();
+        var skeleton = ReplayDocumentSkeletonV17.Create(envelope);
         var payloads = new Dictionary<string, (string Kind, byte[] Payload)>(StringComparer.Ordinal)
         {
             ["document.json.gz"] = ("Document", ReplayPayloadV17.Encode(skeleton)),

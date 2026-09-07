@@ -1,7 +1,6 @@
 param(
     [string]$Configuration = "Release",
-    [string]$ManagedPath = "",
-    [switch]$StopRunningFoundationTrainer
+    [string]$ManagedPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,7 +16,3 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
 if ($LASTEXITCODE -ne 0) {
     throw "AuraToolsExp product build transaction failed."
 }
-
-& (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") `
-    -Configuration $Configuration `
-    -StopRunningTrainer:$StopRunningFoundationTrainer

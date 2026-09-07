@@ -407,7 +407,9 @@ public static class AuraToolsCardVisualRuntime
     {
         if (context.Root == null) return;
         var root = FindVisualRoot(context.Root, context.Surface) ?? context.Root;
-        root.GetComponent<AuraToolsCardVisualMarker>()?.ClearAll();
+        var marker = root.GetComponent<AuraToolsCardVisualMarker>();
+        if (context.ResetKind == AuraCardPresentationResetKind.NativeExit) marker?.PrepareNativeExit();
+        else marker?.ClearAll();
     }
 
     private static CardDynamicEffectSettings? ResolveDynamicEffect(string qualifiedCard)
@@ -713,6 +715,14 @@ internal sealed class AuraToolsCardVisualMarker : MonoBehaviour
         ClearEffect();
         ResetSkinCapture();
         skinSignature = "";
+        effectSignature = "";
+    }
+
+    public void PrepareNativeExit()
+    {
+        // Native burn copies the current card-face textures. Release only the
+        // temporary effect material and preserve the selected static skin.
+        ClearEffect();
         effectSignature = "";
     }
 

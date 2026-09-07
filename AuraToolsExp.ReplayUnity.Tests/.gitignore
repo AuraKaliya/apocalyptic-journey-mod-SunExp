@@ -1,0 +1,8 @@
+/Assets/Tests/UnderTest/
+/Assets/Tests/NativeHudFixtures/
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+/Packages/packages-lock.json
+/*.csproj
+/*.sln
+*.meta

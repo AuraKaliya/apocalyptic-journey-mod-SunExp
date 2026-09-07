@@ -46,6 +46,7 @@ public static class AuraToolsSkillCgRuntime
             DuplicateWindowSeconds = AuraToolsConfigService.SkillCg.DuplicateWindowSeconds
         });
         AuraToolsCgVisualBootstrap.Initialize();
+        AuraToolsCgSceneAssetResolver.ReloadCatalog();
         SkillCgArbiterRuntime.RegisterSceneAssetResolver(
             modConfig,
             AuraToolsIds.ModId,

@@ -34,6 +34,7 @@ public static class AuraToolsEventCgSettingsPage
     private static string victorySceneId = AuraToolsEventCgSceneIds.VictoryStandard;
     private static bool previewMode;
     private static int previewParticipants = 4;
+    private static int previewRoleOffset;
     private static IDisposable? embeddedPreview;
 
     public static void Show(Transform parent)
@@ -151,8 +152,8 @@ public static class AuraToolsEventCgSettingsPage
         AddSummaryRow(
             "背景",
             string.IsNullOrWhiteSpace(scene.BackgroundResource)
-                ? "程序主题（无需背景图）"
-                : "可选叠层：" + Path.GetFileName(scene.EffectiveBackgroundResource),
+                ? "主题默认插画"
+                : "自定义：" + Path.GetFileName(scene.EffectiveBackgroundResource),
             AuraToolsUi.Text,
             PickBackground,
             "替换");
@@ -160,6 +161,14 @@ public static class AuraToolsEventCgSettingsPage
             "冒险队伍",
             "跟随实际参与玩家 · 当前角色皮肤 · 1–8 人自动布局",
             AuraToolsUi.Text);
+        AddSummaryRow("主题素材", AuraToolsCgSceneAssetResolver.CoverageSummary, AuraToolsUi.Text);
+        AddSummaryRow("角色姿势", "按事件选择 · 缺少专用姿势时使用角色立绘", AuraToolsUi.Text);
+        AddSummaryRow("轻动态", scene.MotionEnabled ? "开启" : "关闭", AuraToolsUi.Text, () =>
+        {
+            scene.MotionEnabled = !scene.MotionEnabled;
+            Save();
+            Refresh();
+        }, "切换");
 
         var duration = Horizontal("Duration", bodyContent!, 50f, 8f);
         AuraToolsUi.AddText(duration.transform, "展示时长", AuraToolsUi.BodyFontSize,
@@ -229,7 +238,8 @@ public static class AuraToolsEventCgSettingsPage
         stageBackground.raycastTarget = false;
         var request = AuraToolsCgEventSignalService.BuildPreviewRequest(
             scene.SceneId,
-            previewParticipants);
+            previewParticipants,
+            previewRoleOffset);
         if (request != null)
         {
             embeddedPreview = SkillCgArbiterRuntime.ShowEmbeddedScenePreview(
@@ -238,8 +248,8 @@ public static class AuraToolsEventCgSettingsPage
                 request,
                 success => SetStatus(
                     success
-                        ? "嵌入预览与实际播放共用同一组件渲染器。"
-                        : "场景资源尚未就绪，无法生成嵌入预览。",
+                        ? "主题预览已就绪。"
+                        : "未能加载该主题的立绘或背景。",
                     !success));
         }
         else
@@ -247,13 +257,6 @@ public static class AuraToolsEventCgSettingsPage
             SetStatus("当前场景不可预览，请确认场景已启用且角色目录可用。", true);
         }
 
-        var captionRoot = AuraToolsUi.CreateRect("Caption", stage.transform,
-            new Vector2(0f, 0f), new Vector2(1f, 0.18f), Vector2.zero, Vector2.zero);
-        var captionImage = captionRoot.AddComponent<Image>();
-        captionImage.color = new Color(0f, 0f, 0f, 0.58f);
-        captionImage.raycastTarget = false;
-        AuraToolsUi.AddFillText(captionRoot.transform, SceneName(scene.SceneId) + " · 组件化队伍构图",
-            AuraToolsUi.BodyFontSize, TextAnchor.MiddleCenter, AuraToolsUi.Text);
         AuraToolsUi.AddText(stageRow.transform, "", AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
 
@@ -280,9 +283,14 @@ public static class AuraToolsEventCgSettingsPage
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
+        AuraToolsUi.AddButton(controls.transform, "换一组", () =>
+        {
+            previewRoleOffset += previewParticipants;
+            Refresh();
+        }, 88f, 40f);
         AuraToolsUi.AddButton(controls.transform, "播放预览", () =>
         {
-            var played = AuraToolsCgEventSignalService.Preview(scene.SceneId, previewParticipants);
+            var played = AuraToolsCgEventSignalService.Preview(scene.SceneId, previewParticipants, previewRoleOffset);
             SetStatus(played ? "正在播放场景预览。" : "当前场景不可预览，请确认场景已启用且角色目录可用。", !played);
         }, 112f, 40f);
     }

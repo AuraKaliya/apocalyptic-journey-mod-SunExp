@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -112,7 +113,7 @@ public static class ConstellationService
             AppliedRoundRewardIds.Clear();
             AppliedRoundRewardOrder.Clear();
             hostRoundSequence = 0;
-            hostBattleSessionId = TerriasNetworkRuntime.IsClientOnly() ? "" : Guid.NewGuid().ToString("N");
+            hostBattleSessionId = TerriasNetworkQueries.IsClientOnly() ? "" : Guid.NewGuid().ToString("N");
             acceptedBattleSessionId = hostBattleSessionId;
         }
 
@@ -134,7 +135,7 @@ public static class ConstellationService
             BindAdventureRole(status, roleId, overwrite: false);
         }
 
-        if (!TerriasNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkQueries.IsClientOnly())
         {
             SeedAuthoritativeParty("BeginBattle");
         }
@@ -142,7 +143,7 @@ public static class ConstellationService
         TerriasLog.InfoAlways("[ConstellationSync] battle state initialized; session="
             + CurrentBattleSessionId
             + "; authority="
-            + !TerriasNetworkRuntime.IsClientOnly()
+            + !TerriasNetworkQueries.IsClientOnly()
             + ".");
         return true;
     }
@@ -171,12 +172,12 @@ public static class ConstellationService
 
     public static void SynchronizeBattleState(string source)
     {
-        if (!TerriasNetworkRuntime.HasRemotePlayers())
+        if (!TerriasNetworkQueries.HasRemotePlayers())
         {
             return;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             RpcConstellationRosterSnapshot.Request(
                 FightPlayer.Instance?.Status,
@@ -197,7 +198,7 @@ public static class ConstellationService
         }
 
         var roleId = ResolveAdventureRole(status);
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             var before = GetStored(status, roleId);
             var next = ConstellationPoolCatalog.Clamp(before + 1);
@@ -221,7 +222,7 @@ public static class ConstellationService
             return next;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             var sent = TerriasNetworkRuntime.Send(new RpcConstellationStateCommit
             {
@@ -276,7 +277,7 @@ public static class ConstellationService
         }
 
         var roleId = ResolveAdventureRole(status);
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             BindAdventureRole(status, roleId, overwrite: false);
             RegisterProvisionalState(status, roleId, 0, source + ".AwaitingAuthority");
@@ -331,20 +332,20 @@ public static class ConstellationService
             PlayerPartyApi.TryGainPower(status, 1);
         }
 
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             if (isTraveler && level >= 6)
             {
                 var round = NextHostRoundSequence();
                 ApplyRoundReward(CreateRoundReward(
-                    TerriasNetworkRuntime.LocalPlayerId(),
+                    TerriasNetworkQueries.LocalPlayerId(),
                     round), "RoundStart.SinglePlayer");
             }
 
             return;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             return;
         }
@@ -939,7 +940,7 @@ public static class ConstellationService
             {
                 if (string.Equals(statusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal))
                 {
-                    ownerPlayerId = TerriasNetworkRuntime.LocalPlayerId();
+                    ownerPlayerId = TerriasNetworkQueries.LocalPlayerId();
                 }
                 else
                 {
@@ -1011,7 +1012,7 @@ public static class ConstellationService
 
     private static void RegisterProvisionalState(IStatusManager status, string roleId, int level, string source)
     {
-        var ownerPlayerId = TerriasNetworkRuntime.LocalPlayerId();
+        var ownerPlayerId = TerriasNetworkQueries.LocalPlayerId();
         if (string.IsNullOrWhiteSpace(ownerPlayerId))
         {
             ownerPlayerId = status.InstanceId ?? "local";
@@ -1043,7 +1044,7 @@ public static class ConstellationService
     {
         if (string.IsNullOrWhiteSpace(battleSessionId))
         {
-            return !TerriasNetworkRuntime.IsMultiplayerSession();
+            return !TerriasNetworkQueries.NetworkActive();
         }
 
         var incomingSessionId = battleSessionId!;
@@ -1084,18 +1085,18 @@ public static class ConstellationService
 
     private static bool IsLocalOwner(ConstellationStateSnapshot snapshot)
     {
-        return TerriasNetworkRuntime.IsLocalPlayer(snapshot.OwnerPlayerId)
+        return TerriasNetworkQueries.IsLocalPlayer(snapshot.OwnerPlayerId)
             || string.Equals(snapshot.OwnerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
     }
 
     private static bool IsCurrentPartyOwner(string ownerPlayerId)
     {
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             return true;
         }
 
-        var lobbyPlayerIds = TerriasNetworkRuntime.LobbyPlayerIds();
+        var lobbyPlayerIds = TerriasNetworkQueries.LobbyPlayerIds();
         return lobbyPlayerIds.Count == 0
             || lobbyPlayerIds.Any(playerId => string.Equals(playerId, ownerPlayerId, StringComparison.Ordinal));
     }
@@ -1176,7 +1177,7 @@ public static class ConstellationService
 
         var legacy = ConstellationPoolCatalog.Clamp(DictionaryUtil.ParseInt(
             PlayerApi.GetScopedGameVarForScope(LegacyStorageKeyForRole(roleId), ownerStatusId, "0")));
-        if (legacy > 0 && !TerriasNetworkRuntime.IsClientOnly())
+        if (legacy > 0 && !TerriasNetworkQueries.IsClientOnly())
         {
             PlayerApi.SetScopedGameVarForScope(StorageKeyForPool(poolId), ownerStatusId, legacy.ToString());
             TerriasLog.Info("[Constellation] migrated legacy role progress; role="

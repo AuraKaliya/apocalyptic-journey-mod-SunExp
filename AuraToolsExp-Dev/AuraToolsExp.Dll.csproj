@@ -124,6 +124,10 @@
       <HintPath>$(DllPath)\Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.2D.Runtime">
+      <HintPath>$(DllPath)\Unity.RenderPipelines.Universal.2D.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Witch">
       <HintPath>$(DllPath)\Witch.dll</HintPath>
       <Private>false</Private>

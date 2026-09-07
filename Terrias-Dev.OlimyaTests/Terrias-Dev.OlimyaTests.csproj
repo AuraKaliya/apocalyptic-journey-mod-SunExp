@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Terrias-Dev/Infrastructure/OlimyaIds.cs" Link="Production/OlimyaIds.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/OlimyaRules.cs" Link="Production/OlimyaRules.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/OlimyaEconomyService.cs" Link="Production/OlimyaEconomyService.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/OlimyaDamageService.cs" Link="Production/OlimyaDamageService.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/OlimyaGoldenizationLedger.cs" Link="Production/OlimyaGoldenizationLedger.cs" />
+    <Compile Include="../Terrias-Dev/GameApi/OlimyaGameApi.cs" Link="Production/OlimyaGameApi.cs" />
+    <Compile Include="../Terrias-Dev/Application/OlimyaRoleApplication.cs" Link="Production/OlimyaRoleApplication.cs" />
+    <Compile Include="../Terrias-Dev/Scripting/OlimyaScripts.cs" Link="Production/OlimyaScripts.cs" />
+    <Compile Include="../Terrias-Dev/Hooks/OlimyaRuntime.cs" Link="Production/OlimyaRuntime.cs" />
+    <Compile Include="../Terrias-Dev/Network/RpcOlimyaGoldenization.cs" Link="Production/RpcOlimyaGoldenization.cs" />
+  </ItemGroup>
+</Project>

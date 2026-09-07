@@ -3,7 +3,7 @@
   "ownerModId": "Terrias",
   "participantKind": "Content",
   "packageId": "Terrias.SharedResources.V4",
-  "packageVersion": 3,
+  "packageVersion": 4,
   "resources": [
     {
       "moduleId": "Audio",
@@ -227,6 +227,31 @@
         "columbina"
       ],
       "originKind": "ContentRegistered"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "Terrias_olimya_olimya",
+      "scopeOwnerModId": "Terrias",
+      "resourceId": "olimya.feast",
+      "kind": "File",
+      "source": "CG/Olimya/Olimya_美餐.png",
+      "fileName": "content.png",
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "feast-cg",
+        "terrias"
+      ],
+      "writerId": "Terrias",
+      "defaultEnabled": true,
+      "archived": false,
+      "scopeAliases": [
+        "olimya"
+      ],
+      "originKind": "ContentRegistered"
     }
   ],
   "defaults": [
@@ -328,6 +353,17 @@
       "priority": 20,
       "resourceOwnerModId": "Terrias",
       "resourceId": "columbina.feast"
+    },
+    {
+      "moduleId": "CG",
+      "featureId": "Feast",
+      "scopeType": "Role",
+      "scopeId": "Terrias_olimya_olimya",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "Terrias",
+      "resourceId": "olimya.feast"
     }
   ],
   "packageSourceKind": "ModPackage"

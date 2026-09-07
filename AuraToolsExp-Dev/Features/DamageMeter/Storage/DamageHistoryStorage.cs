@@ -17,6 +17,8 @@ internal static class DamageHistoryStorage
     private static readonly object Gate = new();
     private static DamageHistoryDatabase? database;
     private static bool legacyOutOfRunMigrationChecked;
+    internal static string DatabasePath => Path.Combine(
+        AuraSharedPaths.OwnerSystemDataDirectory(AuraToolsIds.ModId, SystemName), DatabaseFileName);
 
     internal static DamageHistoryDatabase Database
     {
@@ -28,7 +30,7 @@ internal static class DamageHistoryStorage
                 {
                     var directory = AuraSharedPaths.OwnerSystemDataDirectory(AuraToolsIds.ModId, SystemName);
                     Directory.CreateDirectory(directory);
-                    var path = Path.Combine(directory, DatabaseFileName);
+                    var path = DatabasePath;
                     ImportLegacyDatabaseFile(path);
                     database = new DamageHistoryDatabase(path);
                     database.Initialize();

@@ -579,6 +579,9 @@ public static class AuraToolsEventCgDefaults
 
 public sealed class AuraToolsEventCgSceneSettings
 {
+    [JsonProperty("motionEnabled")]
+    public bool MotionEnabled { get; set; } = true;
+
     [JsonProperty("enabled")]
     public bool Enabled { get; set; } = true;
 
@@ -626,6 +629,7 @@ public sealed class AuraToolsEventCgSceneSettings
 
     [JsonIgnore]
     public bool UsesDefaultPresentation => string.IsNullOrWhiteSpace(BackgroundResource)
+                                           && MotionEnabled
                                            && !BaseWidth.HasValue
                                            && !BaseHeight.HasValue
                                            && !FadeIn.HasValue
@@ -658,6 +662,7 @@ public sealed class AuraToolsEventCgSceneSettings
 
     public void ResetPresentation()
     {
+        MotionEnabled = true;
         BackgroundResource = "";
         BaseWidth = null;
         BaseHeight = null;

@@ -1,3 +1,4 @@
+using Terrias.Dll.GameApi;
 using System;
 using Terrias.Dll.Application;
 using AuraMode.Shared;
@@ -232,7 +233,7 @@ public static class EndlessAbyssEvacuationRuntime
 
     private static bool CanLocalInitiate()
     {
-        return !TerriasNetworkRuntime.IsMultiplayerSession() || !TerriasNetworkRuntime.IsClientOnly();
+        return !TerriasNetworkQueries.NetworkActive() || !TerriasNetworkQueries.IsClientOnly();
     }
 
     private static void ShowSettlement(EndlessAbyssEvacuationResolution resolution, string source)

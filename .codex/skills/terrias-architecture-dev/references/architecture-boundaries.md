@@ -4,6 +4,8 @@ Use this reference when deciding where a C# change belongs.
 
 ## Layers
 
+- `Terrias-Dev/Contracts/*`: transport-independent data and protocol values;
+  no GameApi, Mechanics, Application, Network or Hooks dependencies.
 - `Terrias-Dev/Scripting/*Scripts.cs`: stable public static methods called from
   CSV. Keep methods small and parameter lists stable.
 - `Terrias-Dev/GameApi/*`: wrappers around game objects, status, buffs, cards,
@@ -90,8 +92,9 @@ unordered cleanup phase itself.
 
 ## Dependency Direction
 
-`Infrastructure` has no Terrias-layer dependency. `GameApi` depends only on
-`Infrastructure`. `Mechanics` may depend on `GameApi` and `Infrastructure`.
+`Infrastructure` has no Terrias-layer dependency. `Contracts` may use only
+`Infrastructure`; other layers may consume Contracts. `GameApi` depends only on
+these foundations. `Mechanics` may depend on `GameApi` and the foundations.
 `Application` may depend on `Mechanics`, `GameApi`, and `Infrastructure`.
 `Scripting`, `Network`, `Hooks`, and `Features` are adapters: they may call
 Application and lower layers, but must not depend on one another. `Entry` is
@@ -134,7 +137,7 @@ be sibling foundations for both, not Terrias internals exposed outward.
 
 ## Runtime Visual And UI Boundaries
 
-Use `terrias-visual-runtime-dev` for visual registry, VisualBundle, shader,
+Use `aura-visual-runtime-dev` for visual registry, VisualBundle, shader,
 card visual skin/effect, Skill CG, animated icon, Star Score HUD, Wuna orbit
 fire, and map-node visual work.
 
@@ -155,4 +158,4 @@ use the same sender model through `CreateLocalServerSender`.
 
 For synchronized event shapes, payload fields, timing, and duplicate
 suppression, load
-`terrias-shared-runtime-dev/references/sync-scenario-model.md`.
+`aura-shared-runtime-dev/references/sync-scenario-model.md`.

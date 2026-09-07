@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using AuraShared.Core;
 using Network.Command;
@@ -93,7 +94,7 @@ public static class EndlessAbyssEvacuationNetworkSync
     {
         if (resolution?.IsValid != true
             || !TerriasNetworkRuntime.HasRemotePlayers()
-            || !TerriasNetworkRuntime.IsMultiplayerSession()
+            || !TerriasNetworkRuntime.NetworkActive()
             || TerriasNetworkRuntime.IsClientOnly())
         {
             return;

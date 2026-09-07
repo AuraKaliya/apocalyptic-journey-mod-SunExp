@@ -1,3 +1,4 @@
+using Terrias.Dll.GameApi;
 using System;
 using Terrias.Dll.Mechanics;
 using Terrias.Dll.Network;
@@ -42,7 +43,7 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
 
     public void ForceCommit()
     {
-        if (!TerriasNetworkRuntime.IsClientOnly() || localCommitStarted || settlementUi == null)
+        if (!TerriasNetworkQueries.IsClientOnly() || localCommitStarted || settlementUi == null)
         {
             return;
         }
@@ -64,7 +65,7 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
             return;
         }
 
-        var isClient = TerriasNetworkRuntime.IsClientOnly();
+        var isClient = TerriasNetworkQueries.IsClientOnly();
         var hostReady = EndlessAbyssSettlementBarrierRuntime.HostReady;
         var closing = EndlessAbyssSettlementBarrierRuntime.Closing;
         if (!detailsShown)
@@ -200,7 +201,7 @@ public sealed class EndlessAbyssSettlementBarrierView : MonoBehaviour
             return;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             ForceCommit();
             return;

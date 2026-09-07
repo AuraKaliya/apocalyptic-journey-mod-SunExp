@@ -130,9 +130,11 @@ internal static class AuraToolsCgEventSignalService
             terminal: true);
     }
 
-    public static bool Preview(string sceneId, int participantCount)
+    public static bool Preview(string sceneId, int participantCount) => Preview(sceneId, participantCount, 0);
+
+    internal static bool Preview(string sceneId, int participantCount, int roleOffset)
     {
-        var request = BuildPreviewRequest(sceneId, participantCount);
+        var request = BuildPreviewRequest(sceneId, participantCount, roleOffset);
         if (request == null)
         {
             return false;
@@ -143,7 +145,10 @@ internal static class AuraToolsCgEventSignalService
         return true;
     }
 
-    public static SkillCgRequest? BuildPreviewRequest(string sceneId, int participantCount)
+    public static SkillCgRequest? BuildPreviewRequest(string sceneId, int participantCount) =>
+        BuildPreviewRequest(sceneId, participantCount, 0);
+
+    internal static SkillCgRequest? BuildPreviewRequest(string sceneId, int participantCount, int roleOffset)
     {
         var normalizedSceneId = AuraToolsEventCgSceneIds.Normalize(sceneId);
         var settings = Settings();
@@ -156,7 +161,8 @@ internal static class AuraToolsCgEventSignalService
         var source = AuraToolsCgTeamSnapshotService.BuildPreviewSource(
             normalizedSceneId,
             "event-cg-preview:" + normalizedSceneId,
-            participantCount);
+            participantCount,
+            roleOffset);
         if (source == null)
         {
             return null;
@@ -277,6 +283,7 @@ internal static class AuraToolsCgEventSignalService
         {
             request.ScenePlan.LogicalWidth = scene.EffectiveBaseWidth;
             request.ScenePlan.LogicalHeight = scene.EffectiveBaseHeight;
+            request.ScenePlan.MotionEnabled = scene.MotionEnabled;
             request.ScenePlan.PresentationProfileId = scene.SceneId;
             request.ScenePlan.Normalize();
         }

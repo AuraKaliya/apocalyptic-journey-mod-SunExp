@@ -71,7 +71,7 @@ validation flow as remote RPC paths.
 
 For event-shape classification, payload fields, timing, duplicate suppression,
 and bulk-transfer requirements, load the shared sync scenario model through
-`terrias-shared-runtime-dev`.
+`aura-shared-runtime-dev`.
 
 ## Build Output
 

@@ -23,19 +23,16 @@ chains. Pair it with the `terrias-event-dev` skill for event-specific checks.
 
 ## Game Reference Searches
 
-Load `references/game-reference-index.md` before searching the decompiled game
-reference. Use its event and map search routes to confirm method names,
-argument shape, and likely hook location. Keep feature-specific findings in the
-current task context; record only versioned corrections in the index.
+Load [the game reference workflow](game-reference-index.md) before searching
+the applicable decompile. Confirm the call chain and argument shape; keep
+versioned findings with the incident evidence.
 
 ## Validation
 
-```powershell
-tools\Build-TerriasDll.ps1
-tools\Test-TerriasCSharp.ps1
-.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
-```
+Use tools/Test-TerriasEvents.ps1 and tools/Test-TerriasContent.ps1 for event
+content. Add the csharp profile only when behavior changes. Native event-data
+semantics use the events profile. See
+[impact selection](../../aura-project-dev/references/validation.md).
 
 Also verify with `Import-Csv` after editing localized event text, especially
 when English or Japanese text contains commas.

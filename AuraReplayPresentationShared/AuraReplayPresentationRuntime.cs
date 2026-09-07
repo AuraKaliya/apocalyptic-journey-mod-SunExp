@@ -18,12 +18,6 @@ public static class AuraReplayPresentationProtocol
     public const int MaximumEventsPerCapture = 1_000_000;
 }
 
-public static class AuraReplayPresentationPortability
-{
-    public const string Portable = "Portable";
-    public const string ProviderRequired = "ProviderRequired";
-}
-
 public static class AuraReplayPresentationKinds
 {
     public const string OwnerAttachedFocus = "OwnerAttachedFocus";
@@ -32,16 +26,6 @@ public static class AuraReplayPresentationKinds
     public const string IntentChanged = "IntentChanged";
     public const string Overlay = "Overlay";
     public const string Effect = "Effect";
-}
-
-public sealed class AuraReplayPresentationModuleDescriptor
-{
-    public string OwnerModId { get; set; } = "";
-    public string TypeId { get; set; } = "";
-    public int SchemaVersion { get; set; } = 1;
-    public string Portability { get; set; } = AuraReplayPresentationPortability.Portable;
-    public string BuildIdentity { get; set; } = "";
-    public string RendererCapability { get; set; } = "";
 }
 
 public interface IAuraReplayPresentationModule

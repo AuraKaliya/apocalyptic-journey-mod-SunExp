@@ -36,6 +36,8 @@ internal sealed class ReplayCapturedActionSourceV17
 
 internal sealed class ReplayCaptureCatalogV17
 {
+    private readonly Dictionary<string, ReplayContentProvenanceV17> provenanceCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> ownerVersions = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ReplayAssetV17> assets = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ReplayEntityDescriptorV17> entities = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ReplayCardDescriptorV17> cards = new(StringComparer.Ordinal);
@@ -83,9 +85,11 @@ internal sealed class ReplayCaptureCatalogV17
 
     internal ReplaySceneDescriptorV17 Scene { get; } = CreateSceneDescriptor();
 
-    internal ReplayUiTemplateDescriptorV17 Ui { get; } = new();
+    internal ReplayUiTemplateDescriptorV17 Ui { get; } = new() { HandPresentationContract = ReplayHandLifecycleContractV17.Contract };
 
     internal int AssetCount => assets.Count;
+    internal long AssetBytes => assets.Values.Sum(asset => asset.Payload?.LongLength ?? asset.ByteLength);
+    internal int DescriptorCount => entities.Count + cards.Count + intents.Count + buffs.Count + effects.Count;
 
     internal int Revision => revision;
 
@@ -403,6 +407,7 @@ internal sealed class ReplayCaptureCatalogV17
             statusSize = statusRect.rect.size;
         return new ReplayEntityPresentationBindingV17
         {
+            AttachmentBounds = CaptureAttachmentBounds(root),
             EntityId = state.EntityId,
             SpawnGeneration = state.SpawnGeneration,
             DescriptorId = descriptorId,
@@ -560,17 +565,23 @@ internal sealed class ReplayCaptureCatalogV17
                 if (item is Sprite next) yield return next;
     }
 
-    private static ReplayContentProvenanceV17 Provenance(string kind, string stableId)
+    private ReplayContentProvenanceV17 Provenance(string kind, string stableId)
     {
         var id = string.IsNullOrWhiteSpace(stableId) ? "unknown" : stableId.Trim();
+        var key = kind + "|" + id;
+        if (provenanceCache.TryGetValue(key, out var cached)) return cached;
         var owner = Owner(id);
-        return new ReplayContentProvenanceV17
+        if (!ownerVersions.TryGetValue(owner, out var version))
+            ownerVersions[owner] = version = ResolveOwnerVersion(owner);
+        var provenance = new ReplayContentProvenanceV17
         {
             OwnerModId = owner,
             ContentKind = kind ?? "",
             StableContentId = id,
-            SourceVersion = ResolveOwnerVersion(owner)
+            SourceVersion = version
         };
+        provenanceCache.Add(key, provenance);
+        return provenance;
     }
 
     private static string DescriptorId(string prefix, ReplayContentProvenanceV17 value)
@@ -634,6 +645,13 @@ internal sealed class ReplayCaptureCatalogV17
         return new ReplayColorQ8V17 { R = 210, G = 210, B = 220, A = 255 };
     }
 
+    internal static ReplayBoundsQ16V17? CaptureAttachmentBounds(Transform? root)
+    {
+        var collider = root?.GetComponent<BoxCollider>();
+        if (collider == null || !collider.enabled) return null;
+        return new ReplayBoundsQ16V17 { Center = Vector(collider.center), Size = Vector(collider.size) };
+    }
+
     private static ReplayVector3Q16V17 Vector(Vector3 value) => new()
     {
         X = Quantize(value.x),
@@ -692,6 +710,7 @@ internal sealed class ReplayCaptureCatalogV17
 
 internal static class ReplayFactCaptureV17
 {
+    private static Material? nativeBurnTemplate;
     internal static ReplayVisibleStateV17 CaptureVisibleState(
         int roundSequence,
         int actorTurnSequence,
@@ -974,7 +993,7 @@ internal static class ReplayFactCaptureV17
         AddVisibleCards(target.Cards, "Discard", FightCardManager.Instance?.usedCardList, catalog);
         AddVisibleCards(target.Cards, "Nascent", FightCardManager.Instance?.nascentList, catalog);
         var handOrder = 0;
-        foreach (var item in (FightUI.cardItemList ?? new List<CardItem>()).Where(item => item?.dataConfig != null))
+        foreach (var item in (FightUI.cardItemList ?? new List<CardItem>()).Where(item => item != null && item.dataConfig != null && !item.hasDone))
             target.Cards.Add(VisibleCard("Hand", handOrder++, item.dataConfig, catalog, item));
         target.ZoneCounts.Add(new ReplayVisibleZoneCountV17
         {
@@ -992,7 +1011,7 @@ internal static class ReplayFactCaptureV17
         {
             OwnerPlayerId = RoleTable.Instance?.Id ?? "",
             Zone = "Hand",
-            Count = FightUI.cardItemList?.Count ?? 0
+            Count = handOrder
         });
         target.ZoneCounts.Add(new ReplayVisibleZoneCountV17
         {
@@ -1030,6 +1049,9 @@ internal static class ReplayFactCaptureV17
             });
         }
     }
+
+    internal static ReplayVisibleCardStateV17 CaptureCardView(CardItem card, ReplayCaptureCatalogV17 catalog) =>
+        VisibleCard("Hand", Math.Max(0, FightUI.cardItemList?.IndexOf(card) ?? 0), card.dataConfig, catalog, card);
 
     private static ReplayVisibleCardStateV17 VisibleCard(
         string zone,
@@ -1165,13 +1187,16 @@ internal static class ReplayFactCaptureV17
 
     private static bool TryCardMaterialFade(Transform root, out float value)
     {
+        if (nativeBurnTemplate == null)
+            nativeBurnTemplate = AuraToolsResourceCache.Load<Material>("Material/CardBurn", false);
         foreach (var path in new[]
                  {
                      "Front/icon", "Back/background", "Front/background", "Front/FrontBack", "Front/Icons/Ench/Item"
                  })
         {
             var material = root.Find(path)?.GetComponent<MeshRenderer>()?.sharedMaterial;
-            if (material == null || !material.HasProperty("_Fade")) continue;
+            if (material == null || nativeBurnTemplate == null
+                || material.shader != nativeBurnTemplate.shader || !material.HasProperty("_Fade")) continue;
             value = material.GetFloat("_Fade");
             return true;
         }
@@ -1190,6 +1215,7 @@ internal static class ReplayFactCaptureV17
         var renderer = body.GetComponent<SpriteRenderer>();
         return new ReplayWorldTransformSampleV17
         {
+            AttachmentBounds = ReplayCaptureCatalogV17.CaptureAttachmentBounds(root),
             OffsetTicks = Math.Max(0L, offsetTicks),
             WorldPosition = new ReplayVector3Q16V17
             {

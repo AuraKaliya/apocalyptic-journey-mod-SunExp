@@ -8,10 +8,10 @@ namespace AuraCg.Shared;
 
 public static class AuraCgSceneProtocol
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
     public const int MaximumParticipants = 8;
     public const int MaximumIdentifierLength = 160;
-    public const string DefaultLayoutId = "team-tableau.v2";
+    public const string DefaultLayoutId = "team-poster.v3";
 }
 
 [Serializable]
@@ -138,12 +138,16 @@ public sealed class AuraCgScenePlan
 
     public int LogicalHeight { get; set; } = 900;
 
+    public bool MotionEnabled { get; set; } = true;
+
     public AuraCgSceneAssetReference BackgroundAsset { get; set; } = new();
 
     public List<AuraCgSceneParticipantPlan> Participants { get; set; } = new();
 
     [JsonIgnore]
     public string StableKey => SceneId
+                               + "|" + LayoutId + "|" + PresentationProfileId
+                               + "|" + LogicalWidth + "x" + LogicalHeight
                                + "|" + SignalId
                                + "|" + EventToken
                                + "|" + BackgroundAsset.QualifiedAssetId
@@ -196,7 +200,7 @@ public sealed class AuraCgScenePlan
                && IsBounded(SceneId, maximumIdentifierLength)
                && IsBounded(SignalId, maximumIdentifierLength)
                && IsBounded(EventToken, maximumIdentifierLength)
-               && IsBounded(LayoutId, maximumIdentifierLength)
+               && string.Equals(LayoutId, AuraCgSceneProtocol.DefaultLayoutId, StringComparison.Ordinal)
                && IsBounded(PresentationProfileId, maximumIdentifierLength)
                && BackgroundAsset.IsValid(maximumIdentifierLength)
                && Participants.Count > 0
@@ -249,15 +253,14 @@ public sealed class AuraCgSceneTemplateSpec
 
     public string RoleLayerOwnerModId { get; set; } = "";
 
-    public string RoleLayerAssetPrefix { get; set; } = "role.idle.";
+    public string RoleLayerAssetPrefix { get; set; } = "role.portrait.";
 
     public bool Exclusive { get; set; } = true;
 
     public void Normalize()
     {
-        LayoutId = string.IsNullOrWhiteSpace(LayoutId)
-            ? AuraCgSceneProtocol.DefaultLayoutId
-            : LayoutId.Trim();
+        // Old registered tableau templates are read once into the current portrait layout.
+        LayoutId = AuraCgSceneProtocol.DefaultLayoutId;
         PresentationProfileId = string.IsNullOrWhiteSpace(PresentationProfileId)
             ? "default"
             : PresentationProfileId.Trim();
@@ -268,7 +271,7 @@ public sealed class AuraCgSceneTemplateSpec
         BackgroundAsset.Normalize();
         RoleLayerOwnerModId = (RoleLayerOwnerModId ?? "").Trim();
         RoleLayerAssetPrefix = string.IsNullOrWhiteSpace(RoleLayerAssetPrefix)
-            ? "role.idle."
+            ? "role.portrait."
             : RoleLayerAssetPrefix.Trim();
     }
 }
@@ -316,7 +319,7 @@ internal static class AuraCgTeamScenePlanner
         };
         var slots = AuraCgAdaptiveTeamLayout.Resolve(
             template.LayoutId,
-            template.PresentationProfileId,
+            plan.SceneId,
             participants.Count);
         for (var index = 0; index < participants.Count; index++)
         {
@@ -390,118 +393,51 @@ internal readonly struct AuraCgTeamSceneSlot
 
 internal static class AuraCgAdaptiveTeamLayout
 {
-    public static IReadOnlyList<AuraCgTeamSceneSlot> Resolve(
-        string layoutId,
-        string presentationProfileId,
-        int participantCount)
+    public static IReadOnlyList<AuraCgTeamSceneSlot> Resolve(string layoutId, string presentationProfileId, int participantCount)
     {
         var count = Math.Max(1, Math.Min(AuraCgSceneProtocol.MaximumParticipants, participantCount));
-        var normalizedLayout = string.IsNullOrWhiteSpace(layoutId)
-            ? AuraCgSceneProtocol.DefaultLayoutId
-            : layoutId.Trim();
-        if (!string.Equals(normalizedLayout, AuraCgSceneProtocol.DefaultLayoutId, StringComparison.OrdinalIgnoreCase))
-        {
-            normalizedLayout = AuraCgSceneProtocol.DefaultLayoutId;
-        }
         var profile = (presentationProfileId ?? "").ToLowerInvariant();
-        var verticalOffset = profile.Contains("defeat")
-            ? -0.04f
-            : profile.Contains("opening") ? 0.025f
-            : profile.Contains("settlement") ? 0.01f : 0f;
-        var heightScale = profile.Contains("defeat") ? 0.94f : 1f;
-
+        var offset = profile.Contains("defeat") ? -0.015f : profile.Contains("opening") ? 0.015f : 0f;
         var result = new List<AuraCgTeamSceneSlot>(count);
-        if (count == 1)
+        if (count == 1) result.Add(Slot(0.60f, 0.52f + offset, 0.22f, 0.29f, 10));
+        else if (count == 2)
         {
-            result.Add(Slot(0.5f, 0.50f + verticalOffset, 0.42f, 0.78f * heightScale, 10));
-            return result;
+            result.Add(Slot(0.30f, 0.49f + offset, 0.18f, 0.23f, 20));
+            result.Add(Slot(0.71f, 0.58f + offset, 0.18f, 0.22f, 10));
         }
-
-        if (count == 2)
+        else if (count == 3)
         {
-            AddArc(result, count, 0.45f + verticalOffset, 0.32f, 0.70f * heightScale, 10);
-            return result;
+            result.Add(Slot(0.20f, 0.46f + offset, 0.15f, 0.20f, 20));
+            result.Add(Slot(0.50f, 0.66f + offset, 0.14f, 0.17f, 0));
+            result.Add(Slot(0.80f, 0.47f + offset, 0.15f, 0.20f, 21));
         }
-
-        if (count == 3)
+        else if (count == 4)
         {
-            AddArc(result, count, 0.43f + verticalOffset, 0.30f, 0.66f * heightScale, 10);
-            return result;
+            result.Add(Slot(0.193f, 0.50f + offset, 0.13f, 0.145f, 20));
+            result.Add(Slot(0.39f, 0.671f + offset, 0.12f, 0.135f, 0));
+            result.Add(Slot(0.589f, 0.435f + offset, 0.13f, 0.155f, 21));
+            result.Add(Slot(0.828f, 0.667f + offset, 0.12f, 0.125f, 1));
         }
-
-        if (count == 4)
+        else
         {
-            AddArc(result, count, 0.42f + verticalOffset, 0.24f, 0.62f * heightScale, 10);
-            return result;
+            var frontCount = (count + 1) / 2;
+            var backCount = count / 2;
+            for (var index = 0; index < count; index++)
+            {
+                var front = index % 2 == 0;
+                var rowIndex = index / 2;
+                var rowCount = front ? frontCount : backCount;
+                var left = rowCount == 2 ? 0.34f : rowCount == 3 ? (front ? 0.17f : 0.23f) : 0.13f;
+                var right = rowCount == 2 ? 0.67f : rowCount == 3 ? (front ? 0.83f : 0.79f) : 0.87f;
+                var x = left + (right - left) * rowIndex / Math.Max(1, rowCount - 1);
+                var y = front ? 0.36f + (rowIndex % 2) * 0.035f : 0.70f;
+                var height = count >= 7 ? (front ? 0.135f : 0.11f) : (front ? 0.16f : 0.13f);
+                result.Add(Slot(x, y + offset, count >= 7 ? 0.10f : 0.12f, height, front ? 20 + rowIndex : rowIndex));
+            }
         }
-
-        var frontCount = count <= 6 ? 3 : 4;
-        var backCount = count - frontCount;
-        var frontWidth = frontCount == 3 ? 0.25f : 0.205f;
-        var frontHeight = count <= 6 ? 0.50f : 0.46f;
-        var backWidth = backCount <= 2 ? 0.23f : backCount == 3 ? 0.21f : 0.19f;
-        var backHeight = count <= 6 ? 0.38f : 0.36f;
-        AddRow(result, frontCount, 0.31f + verticalOffset, frontWidth, frontHeight * heightScale, 20);
-        AddRow(result, backCount, 0.70f + verticalOffset, backWidth, backHeight * heightScale, 0);
         return result;
     }
 
-    private static void AddArc(
-        ICollection<AuraCgTeamSceneSlot> output,
-        int count,
-        float centerY,
-        float width,
-        float height,
-        int baseZ)
-    {
-        var start = count == 2 ? 0.31f : 0.14f;
-        var end = count == 2 ? 0.69f : 0.86f;
-        var step = count <= 1 ? 0f : (end - start) / (count - 1);
-        for (var index = 0; index < count; index++)
-        {
-            var distance = Math.Abs(index - (count - 1) / 2f);
-            var y = centerY + Math.Max(0f, 0.055f - distance * 0.035f);
-            output.Add(Slot(
-                start + step * index,
-                y,
-                width,
-                height,
-                baseZ + index,
-                index >= (count + 1) / 2));
-        }
-    }
-
-    private static void AddRow(
-        ICollection<AuraCgTeamSceneSlot> output,
-        int count,
-        float centerY,
-        float width,
-        float height,
-        int baseZ)
-    {
-        var start = count == 1 ? 0.5f : count == 2 ? 0.34f : count == 3 ? 0.20f : 0.13f;
-        var end = count == 1 ? 0.5f : count == 2 ? 0.66f : count == 3 ? 0.80f : 0.87f;
-        var step = count <= 1 ? 0f : (end - start) / (count - 1);
-        for (var index = 0; index < count; index++)
-        {
-            output.Add(Slot(
-                start + step * index,
-                centerY,
-                width,
-                height,
-                baseZ + index,
-                index >= (count + 1) / 2));
-        }
-    }
-
-    private static AuraCgTeamSceneSlot Slot(
-        float x,
-        float y,
-        float width,
-        float height,
-        int zIndex,
-        bool mirror = false)
-    {
-        return new AuraCgTeamSceneSlot(x, y, width, height, 1f, zIndex, mirror);
-    }
+    private static AuraCgTeamSceneSlot Slot(float x, float y, float width, float height, int zIndex) =>
+        new(x, y, width, height, 1f, zIndex, false);
 }

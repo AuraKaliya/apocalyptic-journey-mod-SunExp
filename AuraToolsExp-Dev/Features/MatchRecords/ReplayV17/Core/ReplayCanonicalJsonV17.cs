@@ -12,7 +12,8 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
 internal static class ReplayCanonicalJsonV17
 {
-    private static readonly JsonSerializer Serializer = JsonSerializer.Create(new JsonSerializerSettings
+    [ThreadStatic] private static JsonSerializer? serializer;
+    private static JsonSerializer Serializer => serializer ??= JsonSerializer.Create(new JsonSerializerSettings
     {
         Culture = CultureInfo.InvariantCulture,
         DateParseHandling = DateParseHandling.None,
@@ -115,7 +116,7 @@ internal static class ReplayCanonicalJsonV17
 
     internal static string EventHash(ReplayJournalEventV17 value)
     {
-        var clone = Clone(value);
+        var clone = ReplayFastCloneV17.Event(value);
         clone.EventHash = "";
         return Sha256(clone);
     }

@@ -1,89 +1,56 @@
 ---
 name: terrias-solar-memory-dev
-description: Project-local skill for designing, debugging, or reviewing Terrias Solar Memory mode, including journey registration, mode entry, map node pools, fixed story events, boss and finale routing, preparation state, custom starter decks, origin and blessing setup UI, multiplayer role commit, map synchronization, old-save migration, and Solar Memory validation in Witch's Apocalyptic Journey.
+description: Develop Solar Memory mode entry, preparation, map routing, fixed bosses, finale, old-save settlement and multiplayer role commit in Terrias. Use the event skill for ordinary story events and the content skill for other modes.
 ---
 
 # Terrias Solar Memory Dev
 
-Use this skill inside this repository for Solar Memory mode work. Pair it with
-`terrias-mod-dev`; pair it with `terrias-event-dev` only when editing
-`Data/EventList`, `Text/EventList`, `Data/Map`, or `Text/Map` rows.
+Solar Memory is a guarded mode with preparation, exclusive map content and
+player-scoped role commit. Inspect only the affected Hooks, GameApi, Mechanics,
+Network and Data/Text surfaces.
 
-Solar Memory is a mode-scale subsystem, not an ordinary map event. Treat it as
-a guarded route with its own preparation flow, map rewrite contract, exclusive
-content isolation, and multiplayer role commit path.
+## References
 
-## Workflow
+- [Mode flow](references/mode-flow.md): launcher, preparation, finale and saves.
+- [Map contract](references/map-node-contract.md): exclusive IDs, NodeDice and
+  map/sync repair.
+- [Role commit](references/multiplayer-role-commit.md): final prepared role and
+  intermediate sync suppression.
 
-1. Classify the touched surface:
-   - Mode entry or run launch.
-   - Mode-choice registration, custom entry layout, or title art.
-   - Journey registration or route graph.
-   - Preparation flow: starter deck, origin allocation, blessing picker.
-   - Map node pool, fixed story node, boss node, or sync repair.
-   - Solar finale, hidden boss, fight abort, loss, or old-save settlement.
-   - UI cleanup or title art.
-   - Multiplayer role submission or player-scoped setup state.
-2. Inspect only the relevant code and data before editing:
-   - `Terrias-Dev/Hooks/SolarMemory*.cs`
-   - `Terrias-Dev/Hooks/ModeChoice*.cs`
-   - `Terrias-Dev/Hooks/Ui/TerriasModalHost.cs`
-   - `Terrias-Dev/Hooks/Ui/TerriasUi*.cs`
-   - `Terrias-Dev/GameApi/SolarMemory*.cs`
-   - `Terrias-Dev/Mechanics/SolarMemory*.cs`
-   - `Terrias-Dev/Mechanics/MapNodeSafetyService.cs`
-   - `Terrias-Dev/Infrastructure/TerriasIds.cs`
-   - `Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs`
-   - `Terrias/Data/EventList/terrias.csv`, `Terrias/Text/EventList/terrias.csv`
-   - `Terrias/Data/Map/terrias.csv`, `Terrias/Text/Map/terrias.csv`
-3. Load references as needed:
-   - `references/mode-flow.md`: mode choice, run launcher, preparation, event-script facade, finale, and old-save flow.
-   - `references/map-node-contract.md`: map row isolation, node generation, `NodeDice`, and sync arrays.
-   - `references/multiplayer-role-commit.md`: player-scoped setup state and final authoritative role commit.
-   - Use `terrias-visual-runtime-dev` for title art, map-card visuals, or setup-window visual polish.
-4. Keep CSV event scripts narrow. `EventScripts` should call
-   `SolarMemoryFlowApi` for mode behavior; it must not import `Hooks`.
-5. Run Solar Memory validation through the normal Terrias checks before finishing.
+Use [events](../terrias-event-dev/SKILL.md) when EventList/Map rows change,
+[shared runtime](../aura-shared-runtime-dev/SKILL.md) when Journey or starter
+deck contracts change, and
+[visual runtime](../aura-visual-runtime-dev/SKILL.md) for runtime presentation.
 
-## Hard Rules
+## Invariants
 
-- Keep Solar Memory-exclusive EventList rows as `Sub_` rows.
-- Keep Solar Memory-exclusive Map rows, setup events, and bosses out of global
-  pools through mode-owned factories, runtime guards, and sanitizers; do not
-  assume `Rarity=7` is a safe or sufficient isolation mechanism.
-- Centralize exclusive id detection in `TerriasIds`.
-- Do not mutate global map rows for fallback behavior. Clone dictionaries or
-  restore temporary native row changes immediately after use.
-- Ensure every custom or restored `MapTree.Node` has deterministic `NodeDice`.
-- Repair both `MapTree` and multiplayer `maps`/`mapData` arrays when fixed
-  Solar Memory nodes are involved.
-- Do not rewrite Solar Memory map nodes immediately before native
-  `MapItemInit`; fixed completion currently settles after the third layer.
-- Do not create a separate finale map layer unless the routing model is
-  intentionally redesigned with new tests.
-- Keep custom mode entry registration in `ModeChoiceEntryRegistry` and layout
-  in `ModeChoiceLayoutRuntime`; do not let Solar Memory occupy a native mode
-  slot such as `StoryMode`.
-- Keep run save creation and preparation initialization in
-  `SolarMemoryRunLauncher`; do not move it back into `SolarMemoryModeRuntime`.
-- Keep preparation choices player-scoped. Suppress intermediate role sync and
-  submit only the final prepared role through `SolarMemoryRoleCommitApi`.
+- Exclusive EventList rows use Sub_. Exclusive map content enters only through
+  mode-owned factories, runtime guards and sanitizers; Rarity=7 is insufficient.
+- Centralize exclusive identity in TerriasIds. Clone mutable native map data
+  and restore temporary changes after use.
+- Custom/restored MapTree.Node instances need deterministic NodeDice.
+  Repair both MapTree and multiplayer maps/mapData arrays.
+- Fixed completion currently settles after the third layer. Do not rewrite
+  nodes immediately before native MapItemInit or add a separate finale layer
+  without deliberately changing and validating that routing contract.
+- ModeChoiceEntryRegistry owns custom entries and ModeChoiceLayoutRuntime owns
+  layout. Do not occupy a native mode slot.
+- SolarMemoryRunLauncher owns save creation and preparation initialization;
+  EventScripts calls SolarMemoryFlowApi rather than importing Hooks.
+- Keep preparation player-scoped. Suppress intermediate role sync and submit
+  only the final prepared role through SolarMemoryRoleCommitApi.
 - Do not migrate legacy global preparation values during multiplayer.
-- Use `TerriasModalHost`, `TerriasUiSafety`, `TerriasUiPool`, `TerriasUiSprites`,
-  and `TerriasUiBuilder` for transient setup UI, pooling, cached sprites, and
-  teardown.
+- Use the established Terrias modal, safety, pool, sprite and UI builder
+  runtimes for transient preparation UI and cleanup.
 
 ## Validation
 
-Run build and tests serially because build outputs share `Terrias.Aura.dll`:
+Select checks from the
+[impact guide](../aura-project-dev/references/validation.md).
+Map/event content needs content validation; behavior/hook changes need the
+owning C# tests and architecture checks. Build the products once when
+publishing C# changes.
 
-```powershell
-tools\Build-TerriasDll.ps1
-pwsh -NoProfile -File tools\Test-TerriasArchitecture.ps1
-tools\Test-TerriasCSharp.ps1
-.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
-```
-
-When a task touches shared Journey, StarterDeck, audio, skin, or shared package
-behavior, also use `terrias-shared-runtime-dev`.
+For preparation or role-commit changes verify host/client choices remain
+independent, only the final role commits, leaving/reopening clears transient
+state, and old-save handling does not import another player's setup.

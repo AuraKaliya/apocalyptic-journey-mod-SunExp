@@ -64,9 +64,11 @@
     <Compile Include="..\AuraDirectorShared\AuraDirectorFoundationTrust.cs" Link="Director\AuraDirectorFoundationTrust.cs" />
     <Compile Include="..\AuraReplayVisibleStateShared\AuraReplayVisibleStateRuntime.cs" Link="Replay\AuraReplayVisibleStateRuntime.cs" />
     <Compile Include="..\AuraReplayPresentationShared\AuraReplayPresentationRuntime.cs" Link="Replay\AuraReplayPresentationRuntime.cs" />
+    <Compile Include="..\AuraReplayPresentationShared\AuraReplayPresentationModuleDescriptor.cs" Link="Replay\AuraReplayPresentationModuleDescriptor.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraSharedCore\AuraNativeCardPresentationState.cs" Link="Presentation\AuraNativeCardPresentationState.cs" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>true</Private>

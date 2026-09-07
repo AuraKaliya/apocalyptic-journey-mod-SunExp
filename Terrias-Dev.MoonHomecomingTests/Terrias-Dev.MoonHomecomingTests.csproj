@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Terrias-Dev/Infrastructure/MoonHomecomingIds.cs" Link="Production/MoonHomecomingIds.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/MoonHomecomingRules.cs" Link="Production/MoonHomecomingRules.cs" />
+    <Compile Include="../Terrias-Dev/Mechanics/MoonHomecomingMechanics.cs" Link="Production/MoonHomecomingMechanics.cs" />
+    <Compile Include="../Terrias-Dev/GameApi/MoonHomecomingCardApi.cs" Link="Production/MoonHomecomingCardApi.cs" />
+    <Compile Include="../Terrias-Dev/Scripting/MoonHomecomingScripts.cs" Link="Production/MoonHomecomingScripts.cs" />
+  </ItemGroup>
+</Project>

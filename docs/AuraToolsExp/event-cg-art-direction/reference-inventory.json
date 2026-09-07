@@ -1,0 +1,142 @@
+{
+  "documentKind": "event-cg-reference-inventory",
+  "checkedOn": "2026-09-06",
+  "referenceCount": 15,
+  "references": [
+    {
+      "artId": "A01",
+      "id": "caroline",
+      "file": "卡洛琳.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/卡洛琳.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "f46aded7bf73e13d2d8f82552213335d3e6bbaf3874250242e7e3c97edda81f9"
+    },
+    {
+      "artId": "A02",
+      "id": "hermia",
+      "file": "厄米娅.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/厄米娅.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "57fc8f0edfe38854fe964f4c272293b8b2de1117fe33e7f6c4b08c1e3f20fabb"
+    },
+    {
+      "artId": "A03",
+      "id": "coco",
+      "file": "可可.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/可可.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "60f9ad084818440d731e6cc8794dfaf0a334985d7b8935452766dca60d681303"
+    },
+    {
+      "artId": "A04",
+      "id": "caroline-alt",
+      "file": "异色卡洛琳.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/异色卡洛琳.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "05841cfd630d5ed63c6a21c90e61b2ddcb12960d042b91d345e9cc24df3e700d"
+    },
+    {
+      "artId": "A05",
+      "id": "hermia-alt",
+      "file": "异色厄米娅.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/异色厄米娅.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "b38d3227d27eea22c750f7ad3de744e271699bea78bf718bd211e1b34366a574"
+    },
+    {
+      "artId": "A06",
+      "id": "coco-alt",
+      "file": "异色可可.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/异色可可.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "90375510496e2cb542e2de68d2bab9e7fab74d1594ca868a55954d75cda6d2e3"
+    },
+    {
+      "artId": "A07",
+      "id": "amelia",
+      "file": "阿米莉娅.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/阿米莉娅.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "24a7e7f1e52c70c37fe838cd0365748cd884d527710daedfc83eea7f3a2b4b7f"
+    },
+    {
+      "artId": "A08",
+      "id": "nana",
+      "file": "奈奈.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/奈奈.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "e1e7c3aec555eeece0027bdd9cac324f0956e7add004c488407f0bd00e80f2aa"
+    },
+    {
+      "artId": "A09",
+      "id": "adela",
+      "file": "新阿黛拉.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/新阿黛拉.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "0790d3925633b1aa88ed113f4fd7762594e2576aa635ced9c554ce42873c44b9"
+    },
+    {
+      "artId": "A10",
+      "id": "vivian",
+      "file": "薇薇安.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/薇薇安.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "4cd949aa8229a66c699ecec6dad29fc22b0ebc1e8f919a662a504ef5c7c660c3"
+    },
+    {
+      "artId": "A11",
+      "id": "husk",
+      "file": "失心躯壳.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/失心躯壳.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "7e075cd3c587b53d875c5e1a61c760927612371765048ecba3e0b836690f607e"
+    },
+    {
+      "artId": "A12",
+      "id": "wuna",
+      "file": "WuNa.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/WuNa.png",
+      "width": 1024,
+      "height": 924,
+      "sha256": "cd116b121ce7f9850c0058c6a27111494551654560436ec7fdd25f4e284a11d6"
+    },
+    {
+      "artId": "A13",
+      "id": "loneer",
+      "file": "Loneer.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/Loneer.png",
+      "width": 1258,
+      "height": 894,
+      "sha256": "8888ddb7b39c13219071999a8b14fe6104a99cb7612c2d7373d34d5cf7962fa0"
+    },
+    {
+      "artId": "A14",
+      "id": "columbina",
+      "file": "Columbina.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/Columbina.png",
+      "width": 940,
+      "height": 998,
+      "sha256": "4116e2855aebac42a7130405630dd823b51c91b8f9188da6565c7d090f8022ef"
+    },
+    {
+      "artId": "A15",
+      "id": "olimya",
+      "file": "Olimya.png",
+      "path": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘/Olimya.png",
+      "width": 1286,
+      "height": 984,
+      "sha256": "d1053d06a592b47e2bba8dbeed0f721e591fd79b4d6eb331767fdf6f657a7d2c"
+    }
+  ]
+}

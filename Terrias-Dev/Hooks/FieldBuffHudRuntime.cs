@@ -26,7 +26,7 @@ public static class FieldBuffHudRuntime
             var snapshot = FieldApi.ActiveFieldSnapshot();
             if (!snapshot.IsActive)
             {
-                if (TerriasNetworkRuntime.IsClientOnly())
+                if (TerriasNetworkQueries.IsClientOnly())
                 {
                     FieldNetworkSync.RequestSnapshot("FieldBuffHud.Empty");
                 }

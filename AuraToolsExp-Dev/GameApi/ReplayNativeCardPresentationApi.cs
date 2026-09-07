@@ -109,6 +109,10 @@ internal static class ReplayNativeCardPresentationApi
     internal static void PrepareBurn(Transform root)
     {
         if (root == null) return;
+        AuraCardPresentationRuntime.PrepareNativeExit(new AuraCardPresentationContext
+        {
+            Root = root, Source = "Replay.NativeBurn", Surface = AuraCardPresentationSurface.CardStyle
+        });
         var template = ResourceLoader.Load<Material>("Material/CardBurn")
                        ?? throw new InvalidOperationException("Native replay CardBurn material is missing.");
         var owner = root.GetComponent<ReplayNativeCardOwnedMaterials>()

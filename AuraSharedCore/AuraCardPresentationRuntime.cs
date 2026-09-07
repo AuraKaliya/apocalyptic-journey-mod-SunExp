@@ -30,6 +30,14 @@ public sealed class AuraCardPresentationContext
     public CardItem? Card { get; set; }
     public string Source { get; set; } = "";
     public AuraCardPresentationSurface Surface { get; set; }
+    public AuraCardPresentationResetKind ResetKind { get; set; }
+}
+
+public enum AuraCardPresentationResetKind
+{
+    Rebind,
+    NativeWrite,
+    NativeExit
 }
 
 public sealed class AuraCardPresentationSubscription
@@ -55,6 +63,7 @@ public static class AuraCardPresentationRuntime
     private static KeyValuePair<string, AuraCardPresentationSubscription>[]? snapshot;
     private static bool initialized;
     private static IDisposable? lifecycleRegistration;
+    private static AuraHookRegistry? nativeWriteHooks;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -64,17 +73,27 @@ public static class AuraCardPresentationRuntime
             initialized = true;
         }
 
+        nativeWriteHooks = new AuraHookRegistry(modConfig, RuntimeOwnerId);
+        foreach (var target in new[] { AuraCardLifecycleRouter.CardItemInit, AuraCardLifecycleRouter.AttackCardItemInit,
+                     AuraCardLifecycleRouter.CardItemDataUpdate, AuraCardLifecycleRouter.AttackCardItemDataUpdate })
+        {
+            var materialWrite = target == AuraCardLifecycleRouter.CardItemInit || target == AuraCardLifecycleRouter.AttackCardItemInit;
+            nativeWriteHooks.BeforeRouted(target, context => BeginNativeWrite(context, target, false, materialWrite), "BeforeNative:" + target);
+            nativeWriteHooks.AfterRouted(target, context => EndNativeWrite(context, target, false), "AfterNative:" + target);
+        }
+        nativeWriteHooks.BeforeRouted(AuraCardLifecycleRouter.ICardSetCardStyle,
+            context => BeginNativeWrite(context, AuraCardLifecycleRouter.ICardSetCardStyle, true, true), "BeforeNativeStyle");
+        nativeWriteHooks.AfterRouted(AuraCardLifecycleRouter.ICardSetCardStyle,
+            context => EndNativeWrite(context, AuraCardLifecycleRouter.ICardSetCardStyle, true), "AfterNativeStyle");
+        foreach (var target in new[] { "CardItem.EffectOfBurnCard", "CardItem.EffectOfThrowCard" })
+            nativeWriteHooks.BeforeRouted(target, context => BeginNativeExit(context, target), "BeforeNativeExit:" + target);
+
         lifecycleRegistration = AuraCardLifecycleRouter.Register(
             modConfig,
             RuntimeOwnerId,
             "Presentation",
             new AuraCardLifecycleSubscription
             {
-                AfterSetCardStyle = context => Publish(context, AuraCardLifecycleRouter.ICardSetCardStyle, AuraCardPresentationSurface.CardStyle, true),
-                AfterCardItemInit = context => Publish(context, AuraCardLifecycleRouter.CardItemInit, AuraCardPresentationSurface.CombatCard),
-                AfterAttackCardItemInit = context => Publish(context, AuraCardLifecycleRouter.AttackCardItemInit, AuraCardPresentationSurface.CombatCard),
-                AfterCardItemDataUpdate = context => Publish(context, AuraCardLifecycleRouter.CardItemDataUpdate, AuraCardPresentationSurface.CombatCard),
-                AfterAttackCardItemDataUpdate = context => Publish(context, AuraCardLifecycleRouter.AttackCardItemDataUpdate, AuraCardPresentationSurface.CombatCard),
                 AfterCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.CardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
                 AfterCommonCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.CommonCardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
                 AfterAttackCardItemDrawEffect = context => Publish(context, AuraCardLifecycleRouter.AttackCardItemDrawEffect, AuraCardPresentationSurface.CombatCard),
@@ -94,6 +113,51 @@ public static class AuraCardPresentationRuntime
             message => AuraSharedLog.DebugLog(RuntimeOwnerId, message, false),
             message => AuraSharedLog.Warn(RuntimeOwnerId, message));
         AuraSharedLog.InfoOnce(RuntimeOwnerId, "initialized", "Shared card presentation lifecycle initialized.");
+    }
+
+    private static AuraCardPresentationContext? NativeContext(ModHookContext context, string source, bool style)
+    {
+        var binding = style ? ExplicitSetCardStylePair(context.Arguments) : Candidate(context.Target);
+        var root = binding.Root as Transform;
+        if (root == null) return null;
+        return new AuraCardPresentationContext
+        {
+            Root = root, Config = binding.Config as IDataConfig, Card = binding.Card as CardItem,
+            Source = source, Surface = style ? AuraCardPresentationSurface.CardStyle : AuraCardPresentationSurface.CombatCard
+        };
+    }
+
+    private static void BeginNativeWrite(ModHookContext context, string source, bool style, bool changesMaterials)
+    {
+        var value = NativeContext(context, source, style);
+        if (value?.Root == null) return;
+        var boundary = value.Root.GetComponent<AuraNativeCardPresentationBoundary>()
+                       ?? value.Root.gameObject.AddComponent<AuraNativeCardPresentationBoundary>();
+        value.ResetKind = AuraCardPresentationResetKind.NativeWrite;
+        boundary.State.Begin(changesMaterials, () => RequestReset(value));
+    }
+
+    private static void EndNativeWrite(ModHookContext context, string source, bool style)
+    {
+        var value = NativeContext(context, source, style);
+        if (value?.Root == null) return;
+        var boundary = value.Root.GetComponent<AuraNativeCardPresentationBoundary>();
+        if (boundary?.State.End() == true) RequestApply(value);
+    }
+
+    private static void BeginNativeExit(ModHookContext context, string source)
+    {
+        var value = NativeContext(context, source, false);
+        if (value != null) PrepareNativeExit(value);
+    }
+
+    public static void PrepareNativeExit(AuraCardPresentationContext context)
+    {
+        if (context?.Root == null) return;
+        var boundary = context.Root.GetComponent<AuraNativeCardPresentationBoundary>()
+                       ?? context.Root.gameObject.AddComponent<AuraNativeCardPresentationBoundary>();
+        context.ResetKind = AuraCardPresentationResetKind.NativeExit;
+        boundary.State.Exit(() => RequestReset(context));
     }
 
     public static IDisposable Register(
@@ -121,6 +185,7 @@ public static class AuraCardPresentationRuntime
     public static void RequestApply(AuraCardPresentationContext context)
     {
         if (context?.Config == null || context.Root == null) return;
+        if (context.Root.GetComponent<AuraNativeCardPresentationBoundary>()?.State.AcceptsApply == false) return;
         if (context.Surface == AuraCardPresentationSurface.CombatCard
             && !IsExactCombatContext(context))
         {

@@ -41,7 +41,9 @@
         {
           "id": "core-domain-direction",
           "description": "AuraSharedCore must not reference a shared domain namespace.",
-          "roots": ["AuraSharedCore"],
+          "roots": [
+            "AuraSharedCore"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "\\bAuraCg\\.Shared\\b",
@@ -69,7 +71,10 @@
             "AuraCgShared"
           ],
           "filePattern": "*.cs",
-          "deny": ["\\bAuraCombatActionRouter\\b", "\\bAuraCombatActionContext\\b"]
+          "deny": [
+            "\\bAuraCombatActionRouter\\b",
+            "\\bAuraCombatActionContext\\b"
+          ]
         }
       ]
     },
@@ -114,7 +119,9 @@
         {
           "id": "tool-content-independence",
           "description": "AuraToolsExp must not depend on Terrias implementation or content semantics.",
-          "roots": ["AuraToolsExp-Dev"],
+          "roots": [
+            "AuraToolsExp-Dev"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "Terrias-Dev",
@@ -128,7 +135,9 @@
         {
           "id": "content-tool-independence",
           "description": "Terrias must not depend on AuraToolsExp implementation.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "AuraToolsExp-Dev",
@@ -140,9 +149,13 @@
         {
           "id": "tool-hook-entrypoint",
           "description": "AuraToolsExp feature hooks must use the owner-qualified routed registry and may not use attribute or direct shared hooks.",
-          "roots": ["AuraToolsExp-Dev"],
+          "roots": [
+            "AuraToolsExp-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["/AuraToolsHookRegistry\\.cs$"],
+          "excludePathRegex": [
+            "/AuraToolsHookRegistry\\.cs$"
+          ],
           "deny": [
             "AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)",
             "\\[Hook(?:Before|After)\\b"
@@ -151,7 +164,9 @@
         {
           "id": "toolbox-shell-module-boundary",
           "description": "The AuraTools toolbox shell may depend on module contracts but not concrete feature runtimes.",
-          "roots": ["AuraToolsExp-Dev/Features/Settings"],
+          "roots": [
+            "AuraToolsExp-Dev/Features/Settings"
+          ],
           "filePattern": "ToolboxSettingsShell.cs",
           "deny": [
             "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)"
@@ -174,7 +189,9 @@
             "UiTransitionGuardShared"
           ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["^AuraSharedCore/AuraSharedHooks\\.cs$"],
+          "excludePathRegex": [
+            "^AuraSharedCore/AuraSharedHooks\\.cs$"
+          ],
           "deny": [
             "AddMethodHook(?:Before|After)\\s*\\(",
             "\\[Hook(?:Before|After)\\b"
@@ -196,7 +213,9 @@
         {
           "id": "tool-entry-module-host-boundary",
           "description": "AuraTools Entry must compose feature behavior through AuraToolModuleHost.",
-          "roots": ["AuraToolsExp-Dev"],
+          "roots": [
+            "AuraToolsExp-Dev"
+          ],
           "filePattern": "Entry.cs",
           "deny": [
             "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)",
@@ -206,7 +225,9 @@
         {
           "id": "tool-settings-runtime-injection-only",
           "description": "AuraToolsSettingsRuntime owns native SettingUI injection only; modules own concrete settings pages.",
-          "roots": ["AuraToolsExp-Dev/Features/Settings"],
+          "roots": [
+            "AuraToolsExp-Dev/Features/Settings"
+          ],
           "filePattern": "AuraToolsSettingsRuntime.cs",
           "deny": [
             "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)",
@@ -220,7 +241,9 @@
         {
           "id": "tool-module-settings-page-ownership",
           "description": "Built-in modules must route settings directly to feature-owned pages, not back through the settings injector.",
-          "roots": ["AuraToolsExp-Dev/Modules"],
+          "roots": [
+            "AuraToolsExp-Dev/Modules"
+          ],
           "filePattern": "AuraToolsBuiltInModules.cs",
           "deny": [
             "AuraToolsSettingsRuntime",
@@ -230,7 +253,9 @@
         {
           "id": "tool-module-config-isolation",
           "description": "AuraTools features use module-scoped saves and subscriptions instead of aggregate config broadcasts or hidden root gates.",
-          "roots": ["AuraToolsExp-Dev"],
+          "roots": [
+            "AuraToolsExp-Dev"
+          ],
           "filePattern": "*.cs",
           "excludePathRegex": [
             "^AuraToolsExp-Dev/Config/"
@@ -244,7 +269,9 @@
         {
           "id": "tool-shared-extension-adapter-boundary",
           "description": "Shared tool extension adapters may depend on the public Tooling protocol and internal module contracts, not concrete AuraTools features.",
-          "roots": ["AuraToolsExp-Dev/Modules"],
+          "roots": [
+            "AuraToolsExp-Dev/Modules"
+          ],
           "filePattern": "AuraToolSharedExtensionAdapter.cs",
           "deny": [
             "using\\s+AuraToolsExp\\.Dll\\.Features\\.(?:Audio|AutoBattle|CardRefresh|DamageMeter|Diagnostics|Feast|Logging|MatchRecords|ModSync|PixelEmoji|SafeBox|SkillCg|Skin|StarterDeck)"
@@ -253,15 +280,23 @@
         {
           "id": "content-hook-entrypoint",
           "description": "Terrias feature hooks must route through TerriasHookRegistry.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["/TerriasHookRegistry\\.cs$"],
-          "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
+          "excludePathRegex": [
+            "/TerriasHookRegistry\\.cs$"
+          ],
+          "deny": [
+            "AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"
+          ]
         },
         {
           "id": "replay-v17-core-purity",
           "description": "Replay v17 visible-state and resolved-instruction contracts, canonical hashing, validation, and reduction must remain pure .NET.",
-          "roots": ["AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core"],
+          "roots": [
+            "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "using\\s+UnityEngine",
@@ -273,7 +308,9 @@
         {
           "id": "replay-v17-isolated-native-presentation",
           "description": "Replay may instantiate sanitized native presentation prefabs, but must not initialize FightUI/FightInit gameplay, scripts, RPC, AI, rewards, or network-host lifecycles.",
-          "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
+          "roots": [
+            "AuraToolsExp-Dev/Features/MatchRecords"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "StartLocalHost",
@@ -290,7 +327,9 @@
         {
           "id": "replay-v17-retired-paths",
           "description": "The v17 native-presentation replay product must not restore pre-v17 players, fixed anchors, DOM snapshots, POV sidecars, screen capture, AVI fallback, legacy timeline control, or PATH encoder discovery; ReplayBattleSceneRuntimeV17 is the only structured player.",
-          "roots": ["AuraToolsExp-Dev/Features/MatchRecords"],
+          "roots": [
+            "AuraToolsExp-Dev/Features/MatchRecords"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "ScreenCapture\\.CaptureScreenshotAsTexture",
@@ -311,86 +350,194 @@
     "terrias": {
       "semanticLayers": {
         "projectRoot": "Terrias-Dev",
-        "maxExceptions": 64,
+        "maxExceptions": 49,
         "layers": [
           {
             "id": "Infrastructure",
-            "roots": ["Terrias-Dev/Infrastructure"],
+            "roots": [
+              "Terrias-Dev/Infrastructure"
+            ],
             "namespacePrefix": "Terrias.Dll.Infrastructure",
             "allowedDependencies": []
           },
           {
             "id": "GameApi",
-            "roots": ["Terrias-Dev/GameApi"],
+            "roots": [
+              "Terrias-Dev/GameApi"
+            ],
             "namespacePrefix": "Terrias.Dll.GameApi",
-            "allowedDependencies": ["Infrastructure"]
+            "allowedDependencies": [
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Mechanics",
-            "roots": ["Terrias-Dev/Mechanics"],
+            "roots": [
+              "Terrias-Dev/Mechanics"
+            ],
             "namespacePrefix": "Terrias.Dll.Mechanics",
-            "allowedDependencies": ["GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Application",
-            "roots": ["Terrias-Dev/Application"],
+            "roots": [
+              "Terrias-Dev/Application"
+            ],
             "namespacePrefix": "Terrias.Dll.Application",
-            "allowedDependencies": ["Mechanics", "GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "Mechanics",
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Scripting",
-            "roots": ["Terrias-Dev/Scripting"],
+            "roots": [
+              "Terrias-Dev/Scripting"
+            ],
             "namespacePrefix": "Terrias.Dll.Scripting",
-            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "Application",
+              "Mechanics",
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Network",
-            "roots": ["Terrias-Dev/Network"],
+            "roots": [
+              "Terrias-Dev/Network"
+            ],
             "namespacePrefix": "Terrias.Dll.Network",
-            "allowedDependencies": ["Application", "Infrastructure"]
+            "allowedDependencies": [
+              "Application",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Hooks",
-            "roots": ["Terrias-Dev/Hooks"],
+            "roots": [
+              "Terrias-Dev/Hooks"
+            ],
             "namespacePrefix": "Terrias.Dll.Hooks",
-            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "Application",
+              "Mechanics",
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Features",
-            "roots": ["Terrias-Dev/Features"],
+            "roots": [
+              "Terrias-Dev/Features"
+            ],
             "namespacePrefix": "Terrias.Dll.Features",
-            "allowedDependencies": ["Application", "Mechanics", "GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "Application",
+              "Mechanics",
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
           },
           {
             "id": "Entry",
-            "files": ["Terrias-Dev/Entry.cs"],
+            "files": [
+              "Terrias-Dev/Entry.cs"
+            ],
             "namespacePrefix": "Terrias.Dll",
-            "allowedDependencies": ["Application", "Features", "Hooks", "Network", "Scripting", "Mechanics", "GameApi", "Infrastructure"]
+            "allowedDependencies": [
+              "Application",
+              "Features",
+              "Hooks",
+              "Network",
+              "Scripting",
+              "Mechanics",
+              "GameApi",
+              "Infrastructure",
+              "Contracts"
+            ]
+          },
+          {
+            "id": "Contracts",
+            "roots": [
+              "Terrias-Dev/Contracts"
+            ],
+            "namespacePrefix": "Terrias.Dll.Contracts",
+            "allowedDependencies": [
+              "Infrastructure"
+            ]
           }
         ]
       },
       "namespaceRules": [
-        { "root": "Terrias-Dev/Infrastructure", "prefix": "Terrias.Dll.Infrastructure" },
-        { "root": "Terrias-Dev/GameApi", "prefix": "Terrias.Dll.GameApi" },
-        { "root": "Terrias-Dev/Mechanics", "prefix": "Terrias.Dll.Mechanics" },
-        { "root": "Terrias-Dev/Application", "prefix": "Terrias.Dll.Application" },
-        { "root": "Terrias-Dev/Network", "prefix": "Terrias.Dll.Network" },
-        { "root": "Terrias-Dev/Hooks", "prefix": "Terrias.Dll.Hooks" },
-        { "root": "Terrias-Dev/Features", "prefix": "Terrias.Dll.Features" },
-        { "root": "Terrias-Dev/Scripting", "prefix": "Terrias.Dll.Scripting" }
+        {
+          "root": "Terrias-Dev/Infrastructure",
+          "prefix": "Terrias.Dll.Infrastructure"
+        },
+        {
+          "root": "Terrias-Dev/GameApi",
+          "prefix": "Terrias.Dll.GameApi"
+        },
+        {
+          "root": "Terrias-Dev/Mechanics",
+          "prefix": "Terrias.Dll.Mechanics"
+        },
+        {
+          "root": "Terrias-Dev/Application",
+          "prefix": "Terrias.Dll.Application"
+        },
+        {
+          "root": "Terrias-Dev/Network",
+          "prefix": "Terrias.Dll.Network"
+        },
+        {
+          "root": "Terrias-Dev/Hooks",
+          "prefix": "Terrias.Dll.Hooks"
+        },
+        {
+          "root": "Terrias-Dev/Features",
+          "prefix": "Terrias.Dll.Features"
+        },
+        {
+          "root": "Terrias-Dev/Scripting",
+          "prefix": "Terrias.Dll.Scripting"
+        },
+        {
+          "root": "Terrias-Dev/Contracts",
+          "prefix": "Terrias.Dll.Contracts"
+        }
       ],
       "scanRules": [
         {
           "id": "terrias-sibling-independence",
           "description": "Terrias must remain independent from sibling product and prototype implementations.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "deny": ["\\bAuraToolsExp\\b", "\\bSanGuoShaExp\\b", "\\bTestMods\\b"]
+          "deny": [
+            "\\bAuraToolsExp\\b",
+            "\\bSanGuoShaExp\\b",
+            "\\bTestMods\\b"
+          ]
         },
         {
           "id": "scripting-entry-boundary",
           "description": "CSV-callable scripting code must not own hooks, schedulers, or raw event registration.",
-          "roots": ["Terrias-Dev/Scripting"],
+          "roots": [
+            "Terrias-Dev/Scripting"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "using\\s+Terrias\\.Dll\\.Hooks",
@@ -401,9 +548,14 @@
         {
           "id": "hook-registration-isolation",
           "description": "Raw Terrias hook registration must stay under Hooks or the composition entry point.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["^Terrias-Dev/Hooks/", "^Terrias-Dev/Entry\\.cs$"],
+          "excludePathRegex": [
+            "^Terrias-Dev/Hooks/",
+            "^Terrias-Dev/Entry\\.cs$"
+          ],
           "deny": [
             "TerriasHookRegistry\\.(?:Before|After|Register)",
             "\\bModHook\\.Add",
@@ -413,31 +565,52 @@
         {
           "id": "resource-loader-boundary",
           "description": "Terrias resource loads must be centralized in TerriasResourceCache.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["/TerriasResourceCache\\.cs$"],
-          "deny": ["ResourceLoader\\.Load(?:All)?(?:<|\\s*\\()"]
+          "excludePathRegex": [
+            "/TerriasResourceCache\\.cs$"
+          ],
+          "deny": [
+            "ResourceLoader\\.Load(?:All)?(?:<|\\s*\\()"
+          ]
         },
         {
           "id": "config-index-boundary",
           "description": "Table scans outside GameApi must be centralized in TerriasConfigIndex.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["^Terrias-Dev/GameApi/", "/TerriasConfigIndex\\.cs$"],
-          "deny": ["\\bGetTable\\s*\\("]
+          "excludePathRegex": [
+            "^Terrias-Dev/GameApi/",
+            "/TerriasConfigIndex\\.cs$"
+          ],
+          "deny": [
+            "\\bGetTable\\s*\\("
+          ]
         },
         {
           "id": "combat-card-draw-entrypoint",
           "description": "Terrias combat draws must pass through the terminal-aware CombatCardApi.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["^Terrias-Dev/GameApi/CombatCardApi\\.cs$"],
-          "deny": ["\\.\\s*DrawCount\\s*\\("]
+          "excludePathRegex": [
+            "^Terrias-Dev/GameApi/CombatCardApi\\.cs$"
+          ],
+          "deny": [
+            "\\.\\s*DrawCount\\s*\\("
+          ]
         },
         {
           "id": "terrias-retired-battle-runtime-paths",
           "description": "Terrias must not restore persistent Vars hook tokens, the old action router, or the permanent Projection poller.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
           "deny": [
             "\\bTerriasActionEventRouter\\b",
@@ -458,10 +631,16 @@
         {
           "id": "terrias-event-listener-entrypoint",
           "description": "Terrias EventCenter listener ownership must route through ScriptEventApi and battle leases.",
-          "roots": ["Terrias-Dev"],
+          "roots": [
+            "Terrias-Dev"
+          ],
           "filePattern": "*.cs",
-          "excludePathRegex": ["^Terrias-Dev/GameApi/ScriptEventApi\\.cs$"],
-          "deny": ["EventCenter\\.Instance\\.AddEventListener"]
+          "excludePathRegex": [
+            "^Terrias-Dev/GameApi/ScriptEventApi\\.cs$"
+          ],
+          "deny": [
+            "EventCenter\\.Instance\\.AddEventListener"
+          ]
         }
       ]
     }

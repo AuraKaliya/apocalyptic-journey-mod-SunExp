@@ -19,6 +19,7 @@ public static class TerriasResourcePreloader
     private static readonly List<WarmupItem> Pending = new();
     private static int generation;
     private static int nextDelayFrames = 1;
+    private static int essentialFailed;
     private static int essentialTotal;
     private static int essentialRemaining;
     private static long adventureWarmupStarted;
@@ -55,12 +56,13 @@ public static class TerriasResourcePreloader
             battleActive = false;
             essentialTotal = 0;
             essentialRemaining = 0;
+            essentialFailed = 0;
             adventureWarmupStarted = TerriasPerformanceCounters.Timestamp();
             essentialCompletionLogged = false;
             Pending.Clear();
-            AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => TerriasResourceCache.Load<Texture2D>(path, true, "visual"));
+            AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => TerriasResourceCache.Load<Texture>(path, true, "visual") != null);
             AddPolymorphCardFaceItems();
-            AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => TerriasResourceCache.Load<Sprite>(path, true, "ui"));
+            AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => TerriasResourceCache.Load<Sprite>(path, true, "ui") != null);
         }
 
         TerriasPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
@@ -115,7 +117,7 @@ public static class TerriasResourcePreloader
             id => PreloadPolymorphSource(byId[id], "opportunity"));
     }
 
-    private static void PreloadPolymorphSource(PolymorphRoleSpec role, string tier)
+    private static bool PreloadPolymorphSource(PolymorphRoleSpec role, string tier)
     {
         if (TerriasResourceCache.Load<Sprite>(role.CardFacePath, true, TerriasIds.PolymorphSourceResourceCategory) == null)
         {
@@ -123,6 +125,7 @@ public static class TerriasResourcePreloader
         }
 
         TerriasPerformanceCounters.Record("ResourcePreloader.PolymorphCardSource." + tier);
+        return true;
     }
 
     private static void AddItems(
@@ -130,7 +133,7 @@ public static class TerriasResourcePreloader
         string category,
         int priority,
         WarmupTier tier,
-        Action<string> load)
+        Func<string, bool> load)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var path in paths)
@@ -230,10 +233,12 @@ public static class TerriasResourcePreloader
         }
 
         var start = TerriasPerformanceCounters.Timestamp();
+        var loaded = false;
         try
         {
-            item.Load(item.Path);
-            TerriasPerformanceCounters.Record("ResourcePreloader.ItemLoaded");
+            loaded = item.Load(item.Path);
+            TerriasPerformanceCounters.Record(loaded ? "ResourcePreloader.ItemLoaded" : "ResourcePreloader.ItemMissing");
+            if (!loaded) TerriasLog.Warn("[ResourcePreloader] resource not loaded: " + item.Path);
         }
         catch (Exception ex)
         {
@@ -249,6 +254,7 @@ public static class TerriasResourcePreloader
                 lock (SyncRoot)
                 {
                     essentialRemaining = Math.Max(0, essentialRemaining - 1);
+                    if (!loaded) essentialFailed++;
                 }
 
                 TryLogEssentialCompletion();
@@ -281,8 +287,9 @@ public static class TerriasResourcePreloader
         }
 
         TerriasPerformanceCounters.Record("ResourcePreloader.EssentialCompleted");
-        TerriasLog.Info("[ResourcePreloader] essential adventure warmup completed: items="
+        TerriasLog.Info("[ResourcePreloader] essential adventure warmup finished: items="
             + total
+            + ", failed=" + essentialFailed
             + ", elapsedMs="
             + TerriasPerformanceCounters.ElapsedMilliseconds(adventureWarmupStarted).ToString("0.###")
             + ".");
@@ -296,7 +303,7 @@ public static class TerriasResourcePreloader
 
     private sealed class WarmupItem
     {
-        public WarmupItem(string path, string category, int priority, WarmupTier tier, Action<string> load)
+        public WarmupItem(string path, string category, int priority, WarmupTier tier, Func<string, bool> load)
         {
             Path = path;
             Category = category;
@@ -310,7 +317,7 @@ public static class TerriasResourcePreloader
         public int Priority { get; }
 
         public WarmupTier Tier { get; }
-        public Action<string> Load { get; }
+        public Func<string, bool> Load { get; }
     }
 
     private static IEnumerable<string> CoreTexturePaths()

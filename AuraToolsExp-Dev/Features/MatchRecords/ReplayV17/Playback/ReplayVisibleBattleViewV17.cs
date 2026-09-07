@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
@@ -29,6 +29,7 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
     private readonly Transform canvasRoot;
     private readonly Camera camera;
     private readonly ReplayUiTemplateCacheV17 uiTemplates;
+    private readonly ReplayExtensionIntentVisualsV17 extensionIntents;
     private readonly ReplaySceneResourceProjectionV17 background = null!;
     private readonly ReplayBattleHudProjectionV17 hud = null!;
     private readonly ReplayHandProjectionV17 hand = null!;
@@ -43,9 +44,11 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
         Transform captureRoot,
         Transform canvasRoot,
         Camera camera,
-        bool includeHud)
+        bool includeHud,
+        ReplayExtensionIntentVisualsV17 extensionIntents)
     {
         this.capsule = capsule ?? throw new ArgumentNullException(nameof(capsule));
+        this.extensionIntents = extensionIntents ?? throw new ArgumentNullException(nameof(extensionIntents));
         entityDescriptors = Index(capsule.Entities, item => item.DescriptorId);
         cardDescriptors = Index(capsule.Cards, item => item.DescriptorId);
         buffDescriptors = Index(capsule.Buffs, item => item.DescriptorId);
@@ -64,9 +67,13 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
         {
             background = new ReplaySceneResourceProjectionV17(worldRoot, camera, capsule.Scene);
             hud = new ReplayBattleHudProjectionV17(canvasRoot, uiTemplates, includeHud);
-            hand = new ReplayHandProjectionV17(hud.HandContainer, cardDescriptors, uiTemplates, includeHud);
+            hand = new ReplayHandProjectionV17(
+                hud.HandContainer, (RectTransform)canvasRoot,
+                new Vector2(capsule.Scene.ReferenceWidth, capsule.Scene.ReferenceHeight),
+                cardDescriptors, uiTemplates, includeHud);
             cardInstruction = new ReplayCardInstructionProjectionV17(
-                hud.CenterCardContainer,
+                hud.CenterCardContainer, (RectTransform)canvasRoot,
+                new Vector2(capsule.Scene.ReferenceWidth, capsule.Scene.ReferenceHeight),
                 cardDescriptors,
                 uiTemplates);
             floating = new ReplayFloatingPresentationV17(
@@ -205,15 +212,8 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
         }
     }
 
-    internal void PresentSource(ReplayPresentationMessageV17 message, long logicalTicks)
-    {
-        if (string.Equals(message.SourceZone, "Hand", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(message.SourceZone, "RemoteHand", StringComparison.OrdinalIgnoreCase)) return;
-        cardInstruction.Show(message, logicalTicks, motion: false);
-    }
-
     internal void PresentCardMotion(ReplayPresentationMessageV17 message, long logicalTicks) =>
-        cardInstruction.Show(message, logicalTicks, motion: true);
+        cardInstruction.Show(message, logicalTicks);
 
     internal void PlayEntityAnimation(ReplayPresentationMessageV17 message, long startTicks)
     {
@@ -277,11 +277,24 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
         if (string.Equals(message.Kind, "OwnerAttachedFocus", StringComparison.Ordinal))
         {
             var payload = ParsePayload(message.ExtensionPayloadJson);
+            var directed = payload.Value<string>("intentType") is "Attack" or "Interference";
+            var direction = directed ? Vector2.right : Vector2.up;
+            var target = combatants.Values.FirstOrDefault(item =>
+                (message.TargetIds ?? new List<string>()).Contains(item.EntityId));
+            if (directed && target != null)
+            {
+                var sourcePoint = camera.WorldToViewportPoint(combatant.BodyWorldBounds.center);
+                var targetPoint = camera.WorldToViewportPoint(
+                    target.RootTransform.Find("Center")?.position ?? target.BodyWorldBounds.center);
+                var delta = new Vector2((targetPoint.x - sourcePoint.x) * camera.aspect, targetPoint.y - sourcePoint.y);
+                if (delta.sqrMagnitude > 0.000001f) direction = delta.normalized;
+            }
             combatant.PlayPortableFocus(
                 logicalTicks,
                 Math.Max(1L, message.DurationTicks),
                 payload.Value<int?>("travelPixels") ?? 0,
-                (payload.Value<int?>("peakScaleQ16") ?? 65_536) / 65_536f);
+                (payload.Value<int?>("peakScaleQ16") ?? 65_536) / 65_536f,
+                direction);
         }
         else if (string.Equals(message.Kind, "VisibilityChanged", StringComparison.Ordinal))
         {
@@ -291,7 +304,7 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
         }
         else if (string.Equals(message.Kind, "IntentChanged", StringComparison.Ordinal))
         {
-            entityHud?.PresentExtensionIntent(ParsePayload(message.ExtensionPayloadJson));
+            entityHud?.PresentExtensionIntent(extensionIntents.Get(message.ExtensionPayloadJson));
         }
         return true;
     }
@@ -334,9 +347,10 @@ internal sealed class ReplayVisibleBattleViewV17 : IDisposable
                 entityHud.UpdateWorldAnchors(
                     pair.Value.BottomWorldPosition,
                     pair.Value.HeadWorldPosition,
-                    pair.Value.BodyWorldBounds);
+                    pair.Value.AttachmentWorldBounds);
         }
         cardInstruction.Tick(logicalTicks);
+        hand.SetMovingSources(cardInstruction.ActiveSourceIds);
         floating.Tick(logicalTicks);
         hud.Tick(logicalTicks);
         extensionRenderers.Tick(logicalTicks);
@@ -517,336 +531,6 @@ internal sealed class ReplaySceneResourceProjectionV17 : IDisposable
     }
 }
 
-internal sealed class ReplayCombatantProjectionV17 : IDisposable
-{
-    private readonly GameObject root;
-    private readonly SpriteRenderer body;
-    private readonly Transform head;
-    private readonly Transform bottom;
-    private readonly Color aliveColor;
-    private readonly Dictionary<string, AnimationState> animations;
-    private readonly Vector3 basePosition;
-    private readonly Vector3 baseScale;
-    private readonly Vector3 baseBodyPosition;
-    private readonly Vector3 baseBodyScale;
-    private readonly Vector3 baseHeadPosition;
-    private readonly Vector3 baseBottomPosition;
-    private readonly int baseSortingOrder;
-    private readonly float idleFightXOffset;
-    private readonly float idleFightYOffset;
-    private readonly string idleDirection = "Left";
-    private AnimationState? active;
-    private long animationStartedTicks;
-    private long animationEndsTicks;
-    private string activeState = "Idle";
-    private float focusProgress;
-    private IReadOnlyList<ReplayWorldTransformSampleV17> worldTrack = Array.Empty<ReplayWorldTransformSampleV17>();
-    private long portableFocusStartedTicks;
-    private long portableFocusEndsTicks;
-    private int portableFocusTravelPixels;
-    private float portableFocusPeakScale = 1f;
-    private bool extensionVisible = true;
-
-    private ReplayCombatantProjectionV17(
-        GameObject root,
-        SpriteRenderer body,
-        Transform head,
-        Transform bottom,
-        Dictionary<string, AnimationState> animations,
-        string entityId,
-        int spawnGeneration)
-    {
-        this.root = root;
-        this.body = body;
-        this.head = head;
-        this.bottom = bottom;
-        this.animations = animations;
-        aliveColor = body.color;
-        basePosition = root.transform.localPosition;
-        baseScale = root.transform.localScale;
-        baseBodyPosition = body.transform.localPosition;
-        baseBodyScale = body.transform.localScale;
-        baseHeadPosition = head.localPosition;
-        baseBottomPosition = bottom.localPosition;
-        baseSortingOrder = body.sortingOrder;
-        if (animations.TryGetValue("Idle", out var idle))
-        {
-            idleFightXOffset = idle.FightXOffset;
-            idleFightYOffset = idle.FightYOffset;
-            idleDirection = idle.Direction;
-        }
-        EntityId = entityId;
-        SpawnGeneration = spawnGeneration;
-    }
-
-    internal string EntityId { get; }
-    internal int SpawnGeneration { get; }
-    internal Transform RootTransform => root.transform;
-    internal Vector3 Position => root.transform.localPosition;
-    internal Vector3 HeadWorldPosition => head.position;
-    internal Vector3 BottomWorldPosition => bottom.position;
-    internal Bounds BodyWorldBounds => body.bounds;
-
-    internal static ReplayCombatantProjectionV17 Create(
-        Transform parent,
-        ReplayEntityDescriptorV17 descriptor,
-        ReplayEntityPresentationBindingV17 binding)
-    {
-        if (!binding.HasMeasuredLayout)
-            throw new InvalidOperationException("Replay entity binding has no measured layout: " + binding.EntityId);
-        var root = new GameObject("ReplayCombatant:" + binding.EntityId);
-        root.transform.SetParent(parent, false);
-        root.layer = 30;
-        root.transform.localPosition = ReplayPresentationPrimitivesV17.Vector(binding.WorldPosition);
-        root.transform.localEulerAngles = ReplayPresentationPrimitivesV17.Vector(binding.WorldEulerAngles);
-        root.transform.localScale = ReplayPresentationPrimitivesV17.Vector(binding.RootScale);
-        var bodyObject = new GameObject("Body", typeof(SpriteRenderer));
-        bodyObject.transform.SetParent(root.transform, false);
-        bodyObject.layer = 30;
-        bodyObject.transform.localPosition = ReplayPresentationPrimitivesV17.Vector(binding.BodyLocalPosition);
-        bodyObject.transform.localEulerAngles = ReplayPresentationPrimitivesV17.Vector(binding.BodyLocalEulerAngles);
-        bodyObject.transform.localScale = ReplayPresentationPrimitivesV17.Vector(binding.BodyLocalScale);
-        var body = bodyObject.GetComponent<SpriteRenderer>();
-        body.sortingLayerName = binding.SortingLayerName;
-        body.sortingOrder = binding.SortingOrder;
-        body.flipX = binding.FlipX;
-        body.color = ReplayPresentationPrimitivesV17.Color(binding.Color);
-        var head = Marker(root.transform, "Head", binding.HeadLocalPosition);
-        var bottom = Marker(root.transform, "Bottom", binding.BottomLocalPosition);
-        _ = Marker(root.transform, "Center", binding.CenterLocalPosition);
-        var animations = new Dictionary<string, AnimationState>(StringComparer.OrdinalIgnoreCase);
-        foreach (var descriptorAnimation in descriptor.Animations)
-        {
-            var frames = ReplayResourceResolverV17.Sprites(
-                descriptorAnimation.ResourcePath,
-                descriptorAnimation.FrameNames);
-            if (frames.Length == 0)
-                throw new InvalidOperationException(
-                    "Replay animation resource is missing: " + descriptor.DescriptorId + "/" + descriptorAnimation.State);
-            animations[descriptorAnimation.State] = new AnimationState(
-                frames,
-                Math.Max(1L, descriptorAnimation.FrameDurationTicks),
-                descriptorAnimation.Loop,
-                descriptorAnimation.Direction,
-                descriptorAnimation.Size,
-                ReplayPresentationPrimitivesV17.FromQ16(descriptorAnimation.FightXOffsetQ16),
-                ReplayPresentationPrimitivesV17.FromQ16(descriptorAnimation.FightYOffsetQ16));
-        }
-        if (!animations.TryGetValue("Idle", out var idle))
-            throw new InvalidOperationException("Replay entity has no resolvable Idle animation: " + descriptor.DescriptorId);
-        body.sprite = idle.Frames[0];
-        var result = new ReplayCombatantProjectionV17(
-            root, body, head, bottom, animations,
-            binding.EntityId, binding.SpawnGeneration);
-        result.PlayAnimation("Idle", 0L, 0L, Array.Empty<ReplayWorldTransformSampleV17>());
-        return result;
-    }
-
-    internal void Apply(ReplayEntityStateV17 value)
-    {
-        body.enabled = value.IsPresent && extensionVisible;
-        body.color = value.IsAlive
-            ? aliveColor
-            : new Color(aliveColor.r * 0.42f, aliveColor.g * 0.42f, aliveColor.b * 0.42f, aliveColor.a);
-    }
-
-    internal void PlayAnimation(
-        string state,
-        long startTicks,
-        long durationTicks,
-        IReadOnlyList<ReplayWorldTransformSampleV17>? samples)
-    {
-        var requested = string.IsNullOrWhiteSpace(state) ? "Idle" : state;
-        if (!animations.TryGetValue(requested, out var animation))
-            animation = animations.TryGetValue("Idle", out var idle) ? idle : animations.Values.FirstOrDefault();
-        active = animation;
-        activeState = requested;
-        animationStartedTicks = startTicks;
-        animationEndsTicks = durationTicks > 0 ? startTicks + durationTicks : 0L;
-        worldTrack = (samples ?? Array.Empty<ReplayWorldTransformSampleV17>())
-            .OrderBy(item => item.OffsetTicks)
-            .ToList();
-        if (active != null && active.Frames.Length > 0) body.sprite = active.Frames[0];
-        root.transform.localPosition = basePosition;
-        root.transform.localScale = baseScale;
-        ApplyAnimationLayout(active);
-    }
-
-    internal void Tick(long logicalTicks)
-    {
-        if (animationEndsTicks > 0 && logicalTicks >= animationEndsTicks)
-            PlayAnimation("Idle", animationEndsTicks, 0L, Array.Empty<ReplayWorldTransformSampleV17>());
-        root.transform.localPosition = basePosition;
-        root.transform.localScale = baseScale;
-        if (active == null || active.Frames.Length == 0) return;
-        focusProgress = 0f;
-        if (portableFocusEndsTicks > portableFocusStartedTicks
-            && logicalTicks >= portableFocusStartedTicks
-            && logicalTicks < portableFocusEndsTicks)
-        {
-            var portableProgress = Mathf.Clamp01((logicalTicks - portableFocusStartedTicks)
-                                                 / (float)(portableFocusEndsTicks - portableFocusStartedTicks));
-            focusProgress = portableProgress < 0.3f
-                ? portableProgress / 0.3f
-                : portableProgress < 0.55f
-                    ? 1f
-                    : 1f - (portableProgress - 0.55f) / 0.45f;
-        }
-        if (worldTrack.Count > 0) ApplyWorldTrack(Math.Max(0L, logicalTicks - animationStartedTicks));
-        var frame = (int)(Math.Max(0L, logicalTicks - animationStartedTicks) / active.FrameDurationTicks);
-        if (active.Loop) frame %= active.Frames.Length;
-        else frame = Math.Min(active.Frames.Length - 1, frame);
-        body.sprite = active.Frames[Math.Max(0, frame)];
-    }
-
-    private void ApplyWorldTrack(long offsetTicks)
-    {
-        var rightIndex = 0;
-        while (rightIndex < worldTrack.Count && worldTrack[rightIndex].OffsetTicks < offsetTicks) rightIndex++;
-        var right = worldTrack[Math.Min(worldTrack.Count - 1, rightIndex)];
-        var left = worldTrack[Math.Max(0, rightIndex - 1)];
-        var amount = right.OffsetTicks <= left.OffsetTicks
-            ? 0f
-            : Mathf.Clamp01((offsetTicks - left.OffsetTicks) / (float)(right.OffsetTicks - left.OffsetTicks));
-        root.transform.localPosition = Vector3.LerpUnclamped(
-            ReplayPresentationPrimitivesV17.Vector(left.WorldPosition),
-            ReplayPresentationPrimitivesV17.Vector(right.WorldPosition),
-            amount);
-        root.transform.localScale = Vector3.LerpUnclamped(
-            ReplayPresentationPrimitivesV17.Vector(left.RootScale),
-            ReplayPresentationPrimitivesV17.Vector(right.RootScale),
-            amount);
-        body.transform.localPosition = Vector3.LerpUnclamped(
-            ReplayPresentationPrimitivesV17.Vector(left.BodyLocalPosition),
-            ReplayPresentationPrimitivesV17.Vector(right.BodyLocalPosition),
-            amount);
-        body.transform.localScale = Vector3.LerpUnclamped(
-            ReplayPresentationPrimitivesV17.Vector(left.BodyLocalScale),
-            ReplayPresentationPrimitivesV17.Vector(right.BodyLocalScale),
-            amount);
-        body.sortingLayerName = amount < 0.5f ? left.SortingLayerName : right.SortingLayerName;
-        body.sortingOrder = Mathf.RoundToInt(Mathf.Lerp(left.SortingOrder, right.SortingOrder, amount));
-        var trackProgress = worldTrack[worldTrack.Count - 1].OffsetTicks <= 0
-            ? 0f
-            : Mathf.Clamp01(offsetTicks / (float)worldTrack[worldTrack.Count - 1].OffsetTicks);
-        focusProgress = Mathf.Sin(trackProgress * Mathf.PI);
-    }
-
-    internal void PlayPortableFocus(long startTicks, long durationTicks, int travelPixels, float peakScale)
-    {
-        portableFocusStartedTicks = startTicks;
-        portableFocusEndsTicks = startTicks + Math.Max(1L, durationTicks);
-        portableFocusTravelPixels = Math.Max(0, travelPixels);
-        portableFocusPeakScale = Mathf.Clamp(peakScale, 1f, 2f);
-    }
-
-    internal void SetExtensionVisible(bool visible)
-    {
-        extensionVisible = visible;
-        body.enabled = visible;
-    }
-
-    internal void ApplyCustomPresentation(
-        ReplayCombatantProjectionV17 owner,
-        Camera camera,
-        int referenceHeight,
-        ReplayCustomEntityPresentationV17 custom)
-    {
-        if (!string.Equals(custom.PresentationMode, "OwnerAttachedProxy", StringComparison.Ordinal)
-            || body.sprite == null || camera == null) return;
-        var ownerBounds = owner.BodyWorldBounds;
-        var targetViewportHeight = Math.Max(1, custom.ReferenceHeightPixels) / (float)Math.Max(1, referenceHeight);
-        var targetWorldHeight = camera.orthographic
-            ? camera.orthographicSize * 2f * targetViewportHeight
-            : ownerBounds.size.y * targetViewportHeight;
-        var sourceHeight = Math.Max(0.001f, body.sprite.bounds.size.y * Math.Abs(baseBodyScale.y));
-        var displayScale = Mathf.Clamp(targetWorldHeight / sourceHeight, 0.02f, 4f);
-        var targetWorldWidth = body.sprite.bounds.size.x * Math.Abs(baseBodyScale.x) * displayScale;
-        var ownerTopRight = camera.WorldToViewportPoint(new Vector3(ownerBounds.max.x, ownerBounds.max.y, ownerBounds.center.z));
-        var ownerCenter = camera.WorldToViewportPoint(ownerBounds.center);
-        var viewportWidth = camera.orthographic
-            ? targetWorldWidth / Math.Max(0.001f, camera.orthographicSize * 2f * camera.aspect)
-            : targetViewportHeight;
-        var overlap = ReplayPresentationPrimitivesV17.FromQ16(custom.HorizontalOverlapQ16);
-        var desiredViewport = new Vector3(
-            ownerTopRight.x - viewportWidth * overlap,
-            ownerTopRight.y + targetViewportHeight * 0.5f,
-            ownerCenter.z);
-        var portableActive = portableFocusEndsTicks > portableFocusStartedTicks && focusProgress > 0f;
-        var travelPixels = portableActive
-            ? portableFocusTravelPixels
-            : activeState is "Attack" or "Skill"
-                ? custom.AttackFocusTravelPixels
-                : custom.SupportFocusTravelPixels;
-        desiredViewport.x += travelPixels / (float)Math.Max(1, referenceHeight) * focusProgress;
-        var desiredCenter = camera.ViewportToWorldPoint(desiredViewport);
-        var bodyCenterOffset = body.sprite.bounds.center * displayScale;
-        root.transform.position = desiredCenter - new Vector3(bodyCenterOffset.x, bodyCenterOffset.y, 0f);
-        root.transform.localScale = Vector3.one * displayScale
-                                    * Mathf.Lerp(1f, portableActive ? portableFocusPeakScale : 1.12f, focusProgress);
-        body.sortingOrder = owner.body.sortingOrder + custom.SortingOrderOffset;
-    }
-
-    public void Dispose()
-    {
-        if (root != null) Object.Destroy(root);
-    }
-
-    private void ApplyAnimationLayout(AnimationState? value)
-    {
-        if (value == null) return;
-        body.transform.localPosition = baseBodyPosition + Vector3.right * (value.FightXOffset - idleFightXOffset);
-        var facing = Math.Sign(baseBodyScale.x);
-        if (facing == 0) facing = 1;
-        if (!string.Equals(value.Direction, idleDirection, StringComparison.Ordinal)) facing = -facing;
-        body.transform.localScale = new Vector3(
-            Math.Abs(baseBodyScale.x) * facing,
-            baseBodyScale.y,
-            baseBodyScale.z);
-        head.localPosition = baseHeadPosition + Vector3.down * (value.FightYOffset - idleFightYOffset);
-        bottom.localPosition = baseBottomPosition + Vector3.up * (value.FightYOffset - idleFightYOffset);
-        body.sortingOrder = baseSortingOrder + (value.Size == "Small" ? 1 : value.Size == "Big" ? -1 : 0);
-    }
-
-    private static Transform Marker(Transform parent, string name, ReplayVector3Q16V17 position)
-    {
-        var marker = new GameObject(name).transform;
-        marker.SetParent(parent, false);
-        marker.localPosition = ReplayPresentationPrimitivesV17.Vector(position);
-        marker.gameObject.layer = 30;
-        return marker;
-    }
-
-    private sealed class AnimationState
-    {
-        internal AnimationState(
-            Sprite[] frames,
-            long frameDurationTicks,
-            bool loop,
-            string direction,
-            string size,
-            float fightXOffset,
-            float fightYOffset)
-        {
-            Frames = frames;
-            FrameDurationTicks = frameDurationTicks;
-            Loop = loop;
-            Direction = direction;
-            Size = size;
-            FightXOffset = fightXOffset;
-            FightYOffset = fightYOffset;
-        }
-
-        internal Sprite[] Frames { get; }
-        internal long FrameDurationTicks { get; }
-        internal bool Loop { get; }
-        internal string Direction { get; }
-        internal string Size { get; }
-        internal float FightXOffset { get; }
-        internal float FightYOffset { get; }
-    }
-}
-
 internal sealed class ReplayBattleHudProjectionV17 : IDisposable
 {
     private readonly GameObject root;
@@ -999,259 +683,6 @@ internal sealed class ReplayBattleHudProjectionV17 : IDisposable
         if (cooldown != null) cooldown.gameObject.SetActive(value.Value > 0);
         var text = root.Find("CD/val")?.GetComponent<TMP_Text>();
         if (text != null) text.text = Math.Max(0, value.Value).ToString();
-    }
-}
-
-internal sealed class ReplayHandProjectionV17 : IDisposable
-{
-    private readonly GameObject root;
-    private readonly IReadOnlyDictionary<string, ReplayCardDescriptorV17> descriptors;
-    private readonly ReplayUiTemplateCacheV17 templates;
-    private readonly Dictionary<string, GameObject> cardsById = new(StringComparer.Ordinal);
-    private string stateHash = "";
-
-    internal ReplayHandProjectionV17(
-        Transform parent,
-        IReadOnlyDictionary<string, ReplayCardDescriptorV17> descriptors,
-        ReplayUiTemplateCacheV17 templates,
-        bool visible)
-    {
-        this.descriptors = descriptors;
-        this.templates = templates;
-        root = parent.gameObject;
-        root.SetActive(visible);
-    }
-
-    internal void Apply(string perspectivePlayerId, IReadOnlyList<ReplayVisibleCardStateV17> cards)
-    {
-        var hand = (cards ?? Array.Empty<ReplayVisibleCardStateV17>())
-            .Where(item => string.Equals(item.Zone, "Hand", StringComparison.OrdinalIgnoreCase)
-                           && (string.IsNullOrWhiteSpace(perspectivePlayerId)
-                               || string.Equals(item.OwnerPlayerId, perspectivePlayerId, StringComparison.Ordinal)))
-            .OrderBy(item => item.Order)
-            .ThenBy(item => item.CardInstanceId, StringComparer.Ordinal)
-            .Take(20)
-            .ToList();
-        var nextHash = ReplayCanonicalJsonV17.Sha256(hand);
-        if (string.Equals(nextHash, stateHash, StringComparison.Ordinal)) return;
-        stateHash = nextHash;
-        var activeIds = hand.Select(item => item.CardInstanceId).ToHashSet(StringComparer.Ordinal);
-        foreach (var pair in cardsById) pair.Value.SetActive(activeIds.Contains(pair.Key));
-        for (var index = 0; index < hand.Count; index++)
-        {
-            var value = hand[index];
-            if (!value.HasMeasuredLayout)
-                throw new InvalidOperationException("Replay hand card has no measured layout: " + value.CardInstanceId);
-            descriptors.TryGetValue(value.DescriptorId ?? "", out var descriptor);
-            if (descriptor == null)
-                throw new InvalidOperationException("Replay hand card descriptor is missing: " + value.DescriptorId);
-            _ = ReplayResourceResolverV17.RequiredSprite(
-                string.IsNullOrWhiteSpace(descriptor.ResolvedSkinFrameResourcePath)
-                    ? descriptor.FrameResourcePath
-                    : descriptor.ResolvedSkinFrameResourcePath,
-                "card-frame:" + descriptor.DescriptorId);
-            if (value.IsRevealed)
-                _ = ReplayResourceResolverV17.RequiredTextureOrSprite(
-                    descriptor.IconResourcePath,
-                    "card-artwork:" + descriptor.DescriptorId);
-            if (!string.IsNullOrWhiteSpace(value.EnchantIconResourcePath))
-                _ = ReplayResourceResolverV17.RequiredTextureOrSprite(
-                    value.EnchantIconResourcePath,
-                    "card-enchant:" + value.CardInstanceId);
-            if (!cardsById.TryGetValue(value.CardInstanceId, out var card))
-            {
-                card = ReplayUiV17.CreateCard(
-                    root.transform,
-                    value,
-                    descriptor,
-                    new Vector2(
-                        ReplayPresentationPrimitivesV17.FromQ16(value.CanvasSize.X),
-                        ReplayPresentationPrimitivesV17.FromQ16(value.CanvasSize.Y)),
-                    templates.CardTemplate);
-                cardsById[value.CardInstanceId] = card;
-            }
-            ReplayUiV17.UpdateCard(card, value, descriptor);
-            var rect = card.GetComponent<RectTransform>();
-            rect.anchoredPosition = new Vector2(
-                ReplayPresentationPrimitivesV17.FromQ16(value.CanvasPosition.X),
-                ReplayPresentationPrimitivesV17.FromQ16(value.CanvasPosition.Y));
-            rect.sizeDelta = new Vector2(
-                ReplayPresentationPrimitivesV17.FromQ16(value.CanvasSize.X),
-                ReplayPresentationPrimitivesV17.FromQ16(value.CanvasSize.Y));
-            rect.localEulerAngles = new Vector3(0f, 0f, ReplayPresentationPrimitivesV17.FromQ16(value.RotationZQ16));
-            rect.localScale = ReplayPresentationPrimitivesV17.Vector(value.LocalScale);
-            card.transform.SetSiblingIndex(index);
-            card.SetActive(true);
-        }
-    }
-
-    internal void SetVisible(bool visible) => root.SetActive(visible);
-
-    public void Dispose()
-    {
-        foreach (var value in cardsById.Values)
-            if (value != null) Object.Destroy(value);
-        cardsById.Clear();
-        if (root != null) root.SetActive(false);
-    }
-}
-
-internal sealed class ReplayCardInstructionProjectionV17 : IDisposable
-{
-    private readonly GameObject root;
-    private readonly IReadOnlyDictionary<string, ReplayCardDescriptorV17> descriptors;
-    private readonly ReplayUiTemplateCacheV17 templates;
-    private long startedAt;
-    private long hideAt;
-    private bool motion;
-    private IReadOnlyList<ReplayTransformSampleV17> samples = Array.Empty<ReplayTransformSampleV17>();
-    private readonly CanvasGroup canvasGroup;
-    private GameObject? activeCard;
-
-    internal ReplayCardInstructionProjectionV17(
-        Transform parent,
-        IReadOnlyDictionary<string, ReplayCardDescriptorV17> descriptors,
-        ReplayUiTemplateCacheV17 templates)
-    {
-        this.descriptors = descriptors;
-        this.templates = templates;
-        root = ReplayUiV17.Rect(
-            "ReplayCardInstruction",
-            parent,
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(0.5f, 0.5f),
-            new Vector2(238f, 350f));
-        canvasGroup = root.AddComponent<CanvasGroup>();
-        canvasGroup.interactable = false;
-        canvasGroup.blocksRaycasts = false;
-        root.SetActive(false);
-    }
-
-    internal void Show(ReplayPresentationMessageV17 message, long logicalTicks, bool motion)
-    {
-        foreach (Transform child in root.transform)
-        {
-            child.gameObject.SetActive(false);
-            Object.Destroy(child.gameObject);
-        }
-        if (!descriptors.TryGetValue(message.DescriptorId ?? "", out var descriptor)) return;
-        samples = (message.TransformSamples ?? new List<ReplayTransformSampleV17>())
-            .OrderBy(item => item.OffsetTicks)
-            .ToList();
-        var initialSize = samples.Count == 0
-            ? new Vector2(220f, 330f)
-            : new Vector2(
-                ReplayPresentationPrimitivesV17.FromQ16(samples[0].CanvasSize.X),
-                ReplayPresentationPrimitivesV17.FromQ16(samples[0].CanvasSize.Y));
-        activeCard = ReplayUiV17.CreateCard(
-            root.transform,
-            new ReplayVisibleCardStateV17
-            {
-                CardInstanceId = message.SourceInstanceId,
-                DescriptorId = descriptor.DescriptorId,
-                DisplayedCost = 0,
-                IsRevealed = true
-            },
-            descriptor,
-            initialSize,
-            templates.CardTemplate);
-        if (samples.Any(item => item.HasMaterialFade))
-            ReplayNativeCardPresentationApi.PrepareBurn(activeCard.transform);
-        startedAt = logicalTicks;
-        hideAt = logicalTicks + Math.Max(240_000L, message.DurationTicks);
-        this.motion = motion;
-        root.transform.localScale = Vector3.one;
-        canvasGroup.alpha = 1f;
-        root.SetActive(true);
-    }
-
-    internal void Tick(long logicalTicks)
-    {
-        if (!root.activeSelf) return;
-        if (logicalTicks >= hideAt)
-        {
-            Clear();
-            return;
-        }
-        var progress = Mathf.Clamp01((logicalTicks - startedAt) / (float)Math.Max(1L, hideAt - startedAt));
-        var rect = root.GetComponent<RectTransform>();
-        if (motion && samples.Count > 0)
-        {
-            ApplyTrack(rect, Math.Max(0L, logicalTicks - startedAt));
-            return;
-        }
-        rect.anchoredPosition = motion
-            ? new Vector2(Mathf.Lerp(-420f, 0f, progress), Mathf.Sin(progress * Mathf.PI) * 90f)
-            : Vector2.zero;
-        root.transform.localScale = Vector3.one * (motion ? Mathf.Lerp(0.72f, 1f, progress) : 1f);
-    }
-
-    private void ApplyTrack(RectTransform rect, long offsetTicks)
-    {
-        var rightIndex = 0;
-        while (rightIndex < samples.Count && samples[rightIndex].OffsetTicks < offsetTicks) rightIndex++;
-        var right = samples[Math.Min(samples.Count - 1, rightIndex)];
-        var left = samples[Math.Max(0, rightIndex - 1)];
-        var amount = right.OffsetTicks <= left.OffsetTicks
-            ? 0f
-            : Mathf.Clamp01((offsetTicks - left.OffsetTicks) / (float)(right.OffsetTicks - left.OffsetTicks));
-        var leftPosition = new Vector2(
-            ReplayPresentationPrimitivesV17.FromQ16(left.CanvasPosition.X),
-            ReplayPresentationPrimitivesV17.FromQ16(left.CanvasPosition.Y));
-        var rightPosition = new Vector2(
-            ReplayPresentationPrimitivesV17.FromQ16(right.CanvasPosition.X),
-            ReplayPresentationPrimitivesV17.FromQ16(right.CanvasPosition.Y));
-        var leftSize = new Vector2(
-            ReplayPresentationPrimitivesV17.FromQ16(left.CanvasSize.X),
-            ReplayPresentationPrimitivesV17.FromQ16(left.CanvasSize.Y));
-        var rightSize = new Vector2(
-            ReplayPresentationPrimitivesV17.FromQ16(right.CanvasSize.X),
-            ReplayPresentationPrimitivesV17.FromQ16(right.CanvasSize.Y));
-        rect.anchoredPosition = Vector2.LerpUnclamped(leftPosition, rightPosition, amount);
-        rect.sizeDelta = Vector2.LerpUnclamped(leftSize, rightSize, amount);
-        rect.localScale = Vector3.LerpUnclamped(
-            ReplayPresentationPrimitivesV17.Vector(left.LocalScale),
-            ReplayPresentationPrimitivesV17.Vector(right.LocalScale),
-            amount);
-        var leftRotation = ReplayPresentationPrimitivesV17.FromQ16(left.RotationZQ16);
-        var rightRotation = ReplayPresentationPrimitivesV17.FromQ16(right.RotationZQ16);
-        rect.localEulerAngles = new Vector3(0f, 0f, Mathf.LerpAngle(leftRotation, rightRotation, amount));
-        canvasGroup.alpha = Mathf.Lerp(
-            ReplayPresentationPrimitivesV17.FromQ16(left.AlphaQ16),
-            ReplayPresentationPrimitivesV17.FromQ16(right.AlphaQ16),
-            amount);
-        if (activeCard != null && (left.HasMaterialFade || right.HasMaterialFade))
-        {
-            var leftFade = ReplayPresentationPrimitivesV17.FromQ16(
-                left.HasMaterialFade ? left.MaterialFadeQ16 : right.MaterialFadeQ16);
-            var rightFade = ReplayPresentationPrimitivesV17.FromQ16(
-                right.HasMaterialFade ? right.MaterialFadeQ16 : left.MaterialFadeQ16);
-            ReplayNativeCardPresentationApi.SetBurnFade(
-                activeCard.transform,
-                Mathf.Lerp(leftFade, rightFade, amount));
-        }
-    }
-
-    internal void Clear()
-    {
-        root.SetActive(false);
-        if (activeCard != null)
-        {
-            activeCard.SetActive(false);
-            Object.Destroy(activeCard);
-            activeCard = null;
-        }
-        root.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
-        startedAt = 0;
-        hideAt = 0;
-        samples = Array.Empty<ReplayTransformSampleV17>();
-        canvasGroup.alpha = 1f;
-    }
-
-    public void Dispose()
-    {
-        if (root != null) Object.Destroy(root);
     }
 }
 

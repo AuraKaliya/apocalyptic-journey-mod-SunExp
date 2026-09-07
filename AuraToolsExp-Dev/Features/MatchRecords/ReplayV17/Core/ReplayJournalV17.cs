@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -6,15 +6,16 @@ namespace AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 
 internal sealed class ReplayJournalBuilderV17
 {
-    private readonly ReplayStateReducerV17 reducer = new();
+    // Capture batches have their own durable hash. Event/state hash chains are
+    // sealed once by the background finalizer after mutable tracks are closed.
+    private readonly ReplayStateReducerV17 reducer = new(computeHashes: false);
     private readonly Dictionary<string, int> steps = new(StringComparer.Ordinal);
     private readonly HashSet<string> completed = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ReplayCausalTransactionV17> transactions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> firstSequences = new(StringComparer.Ordinal);
     private long sequence;
     private int transactionSequence;
     private long lastTruthTimeTicks;
-    private string previousTruthHash = "";
-    private string previousPresentationHash = "";
 
     internal ReplayJournalBuilderV17(ReplayDocumentHeaderCoreV17 header, ReplayVisibleStateV17 initialState)
     {
@@ -31,6 +32,12 @@ internal sealed class ReplayJournalBuilderV17
     internal ReplayVisibleStateV17 CurrentState => reducer.Current;
 
     internal long LastSequence => sequence;
+    internal ReplayStateDiffV17 CreateObservedDiff(ReplayVisibleStateV17 observed) => reducer.Diff(observed);
+
+    internal long LastDurableSequence(IEnumerable<string> openIds, IEnumerable<long> mutableSequences) =>
+        ReplayDurableJournalPrefixV17.LastDurableSequence(sequence,
+            openIds.Select(id => firstSequences.TryGetValue(id, out var first) ? first
+                : throw new InvalidOperationException("Unknown open journal transaction: " + id)), mutableSequences);
 
     internal IReadOnlyDictionary<string, ReplayCausalTransactionV17> Transactions => transactions;
 
@@ -65,6 +72,7 @@ internal sealed class ReplayJournalBuilderV17
             Label = label ?? ""
         };
         transactions.Add(id, transaction);
+        firstSequences.Add(id, sequence + 1);
         steps.Add(id, 0);
         AppendTruth(new ReplayJournalEventV17
         {
@@ -94,8 +102,8 @@ internal sealed class ReplayJournalBuilderV17
         return AppendTruth(new ReplayJournalEventV17
         {
             TransactionId = transactionId,
-            RoundSequence = reducer.Current.RoundSequence,
-            ActorTurnSequence = reducer.Current.ActorTurnSequence,
+            RoundSequence = reducer.RoundSequence,
+            ActorTurnSequence = reducer.ActorTurnSequence,
             TimeTicks = Math.Max(0, timeTicks),
             ActorId = actorId ?? "",
             EventType = eventType ?? ""
@@ -105,10 +113,13 @@ internal sealed class ReplayJournalBuilderV17
     internal IReadOnlyList<ReplayJournalEventV17> ApplyObservedState(
         string transactionId,
         ReplayVisibleStateV17 observed,
-        long timeTicks)
+        long timeTicks,
+        ReplayStateDiffV17? preparedDiff = null)
     {
         RequireOpen(transactionId);
-        var diff = ReplayStateReducerV17.CreateDiff(reducer.Current, observed);
+        var diff = preparedDiff ?? reducer.Diff(observed);
+        if (diff.SourceStateVersion != reducer.StateVersion)
+            throw new InvalidOperationException("A prepared replay diff belongs to an earlier visible state.");
         var result = new List<ReplayJournalEventV17>();
         foreach (var entity in diff.Despawned.OrderBy(item => item.EntityId, StringComparer.Ordinal)
                      .ThenBy(item => item.SpawnGeneration))
@@ -162,8 +173,8 @@ internal sealed class ReplayJournalBuilderV17
         return AppendPresentation(new ReplayJournalEventV17
         {
             TransactionId = transactionId,
-            RoundSequence = reducer.Current.RoundSequence,
-            ActorTurnSequence = reducer.Current.ActorTurnSequence,
+            RoundSequence = reducer.RoundSequence,
+            ActorTurnSequence = reducer.ActorTurnSequence,
             TimeTicks = Math.Max(0, timeTicks),
             ActorId = actorId ?? message?.ActorId ?? "",
             EventType = eventType ?? "",
@@ -177,8 +188,8 @@ internal sealed class ReplayJournalBuilderV17
         var value = AppendTruth(new ReplayJournalEventV17
         {
             TransactionId = transactionId,
-            RoundSequence = reducer.Current.RoundSequence,
-            ActorTurnSequence = reducer.Current.ActorTurnSequence,
+            RoundSequence = reducer.RoundSequence,
+            ActorTurnSequence = reducer.ActorTurnSequence,
             TimeTicks = Math.Max(0, timeTicks),
             ActorId = transactions[transactionId].ActorId,
             EventType = ReplayEventTypesV17.TransactionCompleted
@@ -193,8 +204,8 @@ internal sealed class ReplayJournalBuilderV17
         var value = AppendTruth(new ReplayJournalEventV17
         {
             TransactionId = transactionId,
-            RoundSequence = reducer.Current.RoundSequence,
-            ActorTurnSequence = reducer.Current.ActorTurnSequence,
+            RoundSequence = reducer.RoundSequence,
+            ActorTurnSequence = reducer.ActorTurnSequence,
             TimeTicks = Math.Max(0, timeTicks),
             ActorId = transactions[transactionId].ActorId,
             EventType = ReplayEventTypesV17.TransactionAborted,
@@ -221,13 +232,7 @@ internal sealed class ReplayJournalBuilderV17
                 "Replay truth logical time moved backwards at event " + (sequence + 1) + ".");
         PrepareEvent(value);
         lastTruthTimeTicks = value.TimeTicks;
-        var before = reducer.CurrentStateHash;
-        value.StateHashBefore = before;
         reducer.Apply(value, verifyHashes: false);
-        value.StateHashAfter = reducer.CurrentStateHash;
-        value.PreviousLaneEventHash = previousTruthHash;
-        value.EventHash = ReplayCanonicalJsonV17.EventHash(value);
-        previousTruthHash = value.EventHash;
         Document.TruthEvents.Add(value);
         return value;
     }
@@ -238,9 +243,6 @@ internal sealed class ReplayJournalBuilderV17
         PrepareEvent(value);
         value.StateHashBefore = "";
         value.StateHashAfter = "";
-        value.PreviousLaneEventHash = previousPresentationHash;
-        value.EventHash = ReplayCanonicalJsonV17.EventHash(value);
-        previousPresentationHash = value.EventHash;
         Document.PresentationEvents.Add(value);
         return value;
     }
@@ -258,8 +260,8 @@ internal sealed class ReplayJournalBuilderV17
         }
         value.TimeTicks = Math.Max(0, value.TimeTicks);
         value.StepOrdinal = NextStep(transactionId);
-        if (value.RoundSequence <= 0) value.RoundSequence = reducer.Current.RoundSequence;
-        if (value.ActorTurnSequence <= 0) value.ActorTurnSequence = reducer.Current.ActorTurnSequence;
+        if (value.RoundSequence <= 0) value.RoundSequence = reducer.RoundSequence;
+        if (value.ActorTurnSequence <= 0) value.ActorTurnSequence = reducer.ActorTurnSequence;
     }
 
     private int NextStep(string transactionId)
@@ -296,7 +298,7 @@ internal static class ReplayDocumentFinalizerV17
         document.Header.PackageVersion = ReplayProtocolV17.PackageVersion;
         document.Header.PresentationAbi = ReplayProtocolV17.PresentationAbi;
         document.Header.TimebaseTicksPerSecond = ReplayProtocolV17.TimebaseTicksPerSecond;
-        document.Header.RequiredCapabilities = ReplayCapabilitiesV17.Required.OrderBy(item => item, StringComparer.Ordinal).ToList();
+        document.Header.RequiredCapabilities = ReplayCapabilitiesV17.RequiredFor(document).OrderBy(item => item, StringComparer.Ordinal).ToList();
         document.Header.OptionalCapabilities = ReplayCapabilitiesV17.Optional.OrderBy(item => item, StringComparer.Ordinal).ToList();
         document.InitialState = ReplayStateReducerV17.Normalize(document.InitialState);
         document.Presentation = ReplayCanonicalJsonV17.NormalizePresentation(document.Presentation);
@@ -617,7 +619,7 @@ internal static class ReplayDocumentValidatorV17
             var requiredCapabilities = header.RequiredCapabilities ?? new List<string>();
             if (requiredCapabilities.Count != requiredCapabilities.Distinct(StringComparer.Ordinal).Count()
                 || !requiredCapabilities.ToHashSet(StringComparer.Ordinal)
-                    .SetEquals(ReplayCapabilitiesV17.Required))
+                    .SetEquals(ReplayCapabilitiesV17.RequiredFor(document)))
                 result.Errors.Add("required-capability-invalid");
             var optionalCapabilities = header.OptionalCapabilities ?? new List<string>();
             if (optionalCapabilities.Count != optionalCapabilities.Distinct(StringComparer.Ordinal).Count())
@@ -629,6 +631,7 @@ internal static class ReplayDocumentValidatorV17
 
             ValidateEvents(document, result);
             ValidatePresentation(document, result);
+            ReplayHandLifecycleContractV17.Validate(document, result.Errors);
             ValidateCheckpoints(document, result);
             if (!string.Equals(ReplayCanonicalJsonV17.TruthRoot(document), header.TruthRoot, StringComparison.OrdinalIgnoreCase))
                 result.Errors.Add("truth-root-invalid");
@@ -1103,6 +1106,9 @@ internal static class ReplayDocumentValidatorV17
         {
             var message = value.Presentation;
             if (message == null) result.Errors.Add("presentation-payload-missing:" + value.Sequence);
+            if (message?.VisualInstanceId != null
+                && (string.IsNullOrWhiteSpace(message.VisualInstanceId) || message.VisualInstanceId.Length > 256))
+                result.Errors.Add("presentation-visual-identity-invalid:" + value.Sequence);
             if (message != null
                 && (message.DelayTicks < 0
                     || message.DelayTicks > ReplayLimitsV17.MaximumTimelineTicks
@@ -1126,7 +1132,8 @@ internal static class ReplayDocumentValidatorV17
                 && (message.WorldTransformSamples == null
                     || message.WorldTransformSamples.Count > ReplayLimitsV17.MaximumPresentationSamplesPerEvent
                     || message.WorldTransformSamples.Any(sample => sample.OffsetTicks < 0
-                                                                 || string.IsNullOrWhiteSpace(sample.SortingLayerName))
+                                                                 || string.IsNullOrWhiteSpace(sample.SortingLayerName)
+                                                                 || !ValidAttachmentBounds(sample.AttachmentBounds))
                     || message.WorldTransformSamples.Zip(
                             message.WorldTransformSamples.Skip(1),
                             (left, right) => right.OffsetTicks < left.OffsetTicks)
@@ -1340,7 +1347,8 @@ internal static class ReplayDocumentValidatorV17
             || value.StatusBarSize.Y <= 0
             || value.HudScaleQ16 <= 0
             || string.IsNullOrWhiteSpace(value.SortingLayerName)
-            || !ValidCustomPresentation(value.CustomPresentation)) return false;
+            || !ValidCustomPresentation(value.CustomPresentation)
+            || !ValidAttachmentBounds(value.AttachmentBounds)) return false;
         return (value.HeadLocalPosition?.X ?? 0) != (value.BottomLocalPosition?.X ?? 0)
                || (value.HeadLocalPosition?.Y ?? 0) != (value.BottomLocalPosition?.Y ?? 0);
     }
@@ -1363,6 +1371,9 @@ internal static class ReplayDocumentValidatorV17
                    && value.SupportFocusTravelPixels >= 0;
         return true;
     }
+
+    private static bool ValidAttachmentBounds(ReplayBoundsQ16V17? value) => value == null
+        || value.Center != null && value.Size != null && value.Size.X > 0 && value.Size.Y > 0 && value.Size.Z >= 0;
 
     private static bool ValidActionPhase(ReplayJournalEventV17 value)
     {

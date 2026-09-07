@@ -79,19 +79,19 @@ internal static class MatchReplayPlayer
     internal static long LogicalTicks => logicalTicks;
     internal static bool RenderHudVisible => scene?.HudVisible ?? true;
 
-    internal static bool TryPrepareInteractive(string recordId, long startSequence, out string message)
+    internal static bool TryPrepareInteractive(ReplayLoadedRecord data, long startSequence, out string message)
     {
-        return TryPrepareCore(recordId, showControls: true, startSequence, returnToLibrary: true, out message);
+        return TryPrepareCore(data, showControls: true, startSequence, returnToLibrary: true, out message);
     }
 
-    internal static bool TryPrepareForExport(string recordId, bool returnToLibrary, out string message)
+    internal static bool TryPrepareForExport(ReplayLoadedRecord data, bool returnToLibrary, out string message)
     {
-        return TryPrepareCore(recordId, showControls: false, startSequence: 0, returnToLibrary, out message);
+        return TryPrepareCore(data, showControls: false, startSequence: 0, returnToLibrary, out message);
     }
 
-    internal static bool TryStartForExport(string recordId, out string message)
+    internal static bool TryStartForExport(ReplayLoadedRecord data, out string message)
     {
-        if (!TryPrepareForExport(recordId, returnToLibrary: false, out message)) return false;
+        if (!TryPrepareForExport(data, returnToLibrary: false, out message)) return false;
         var activation = AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(
             ActivatePreparedAfterRenderBarrier());
         if (activation != null)
@@ -293,7 +293,7 @@ internal static class MatchReplayPlayer
     }
 
     private static bool TryPrepareCore(
-        string recordId,
+        ReplayLoadedRecord data,
         bool showControls,
         long startSequence,
         bool returnToLibrary,
@@ -301,6 +301,7 @@ internal static class MatchReplayPlayer
     {
         message = "";
         lastStartFailure = "";
+        var recordId = data.Record.RecordId;
         if (MatchReplaySessionState.Phase != MatchReplayLifecyclePhase.Idle)
             return Reject("已有对局正在准备或回放。", out message);
         if (!AuraToolsMatchRecordsRuntime.Enabled)
@@ -314,17 +315,13 @@ internal static class MatchReplayPlayer
         try
         {
             preparationStatus = "正在校验 Replay Document v17...";
-            var loadedRecord = MatchRecordStorage.Database.Get(recordId)
+            var loadedRecord = data.Record
                                ?? throw new InvalidOperationException("找不到这条对局记录。");
             if (loadedRecord.ReplayProtocol != ReplayProtocolV17.DocumentVersion
                 || !string.Equals(loadedRecord.ReplayState, MatchReplayStates.Ready, StringComparison.Ordinal))
                 throw new InvalidOperationException("该记录不是可播放的 Replay Document v17；旧记录仅保留摘要与分析。");
-            var loadedEnvelope = MatchRecordStorage.Database.LoadV17(recordId, loadAssetPayloads: true)
+            var loadedEnvelope = data.Envelope
                                  ?? throw new InvalidOperationException("Replay Document v17 数据不存在。");
-            var validation = ReplayDocumentValidatorV17.Validate(loadedEnvelope);
-            if (!validation.IsValid)
-                throw new InvalidOperationException("回放完整性校验失败：" + validation.Message);
-            ValidateRequiredAssets(loadedEnvelope.Document);
             ValidatePerspectiveRuntime(loadedEnvelope.Document);
             ValidatePresentationModules(loadedEnvelope.Document);
 
@@ -679,16 +676,6 @@ internal static class MatchReplayPlayer
         };
     }
 
-    private static void ValidateRequiredAssets(ReplayDocumentV17 document)
-    {
-        foreach (var asset in document.Assets)
-        {
-            var error = ReplayAssetContractV17.Validate(asset, requirePayload: true);
-            if (error.Length > 0)
-                throw new InvalidOperationException("回放内嵌资源缺失或损坏：" + asset.Sha256 + "，" + error);
-        }
-    }
-
     private static void ValidatePerspectiveRuntime(ReplayDocumentV17 document)
     {
         var currentGameBuild = ReplayResourceCompatibilityApi.CurrentGameBuild;
@@ -703,24 +690,12 @@ internal static class MatchReplayPlayer
 
     private static void ValidatePresentationModules(ReplayDocumentV17 document)
     {
-        var available = AuraReplayPresentationRuntime.SnapshotModules();
-        foreach (var required in document.Presentation.Modules.Where(item =>
-                     string.Equals(item.Portability, AuraReplayPresentationPortability.ProviderRequired, StringComparison.Ordinal)))
-        {
-            var match = available.FirstOrDefault(item =>
-                string.Equals(item.OwnerModId, required.OwnerModId, StringComparison.Ordinal)
-                && string.Equals(item.TypeId, required.TypeId, StringComparison.Ordinal)
-                && item.SchemaVersion == required.SchemaVersion
-                && string.Equals(item.RendererCapability, required.RendererCapability, StringComparison.Ordinal));
-            if (match == null)
-                throw new InvalidOperationException(
-                    "回放缺少必要表现模块：" + required.OwnerModId + "/" + required.TypeId
-                    + " schema=" + required.SchemaVersion + " capability=" + required.RendererCapability + "。");
-            if (!string.IsNullOrWhiteSpace(required.BuildIdentity)
-                && !string.Equals(match.BuildIdentity, required.BuildIdentity, StringComparison.Ordinal))
-                throw new InvalidOperationException(
-                    "回放表现模块版本不一致：" + required.OwnerModId + "/" + required.TypeId + "。");
-        }
+        var missing = ReplayPresentationModuleCompatibilityV17.FindUnsatisfied(
+            document.Presentation.Modules, AuraReplayPresentationRuntime.SnapshotModules());
+        if (missing != null)
+            throw new InvalidOperationException(
+                "回放缺少兼容的必要表现模块：" + missing.OwnerModId + "/" + missing.TypeId
+                + " schema=" + missing.SchemaVersion + " capability=" + missing.RendererCapability + "。");
     }
 
     private static bool IsAction(string kind)

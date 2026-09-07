@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
+using AuraToolsExp.Dll.GameApi;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -28,6 +29,8 @@ internal sealed class ReplayBattleSceneRuntimeV17 : IDisposable
     internal ReplayBattleSceneRuntimeV17(ReplayDocumentV17 document, bool includeHud)
     {
         if (document == null) throw new ArgumentNullException(nameof(document));
+        var extensionIntents = new ReplayExtensionIntentVisualsV17(
+            document.PresentationEvents, ReplayIntentVisualCompatibilityApi.Exists);
         root = new GameObject("AuraToolsReplayBattleWorldV17");
         Object.DontDestroyOnLoad(root);
         ReplayRenderHostV17? createdHost = null;
@@ -44,7 +47,8 @@ internal sealed class ReplayBattleSceneRuntimeV17 : IDisposable
                 renderHost.CaptureRoot,
                 renderHost.CaptureCanvas.transform,
                 renderHost.Camera,
-                includeHud);
+                includeHud,
+                extensionIntents);
             view = createdView;
             effects = new ReplayEffectRuntimeV17(
                 renderHost.CaptureRoot,
@@ -138,9 +142,7 @@ internal sealed class ReplayBattleSceneRuntimeV17 : IDisposable
             if (message == null) continue;
             var start = ReplayPresentationTimingV17.EffectiveTimeTicks(value);
             var end = start + Math.Max(1L, message.DurationTicks);
-            if (value.EventType == ReplayEventTypesV17.SourcePresented && targetTicks < end)
-                view.PresentSource(message, start);
-            else if (value.EventType == ReplayEventTypesV17.CardMotionPresented && targetTicks < end)
+            if (value.EventType == ReplayEventTypesV17.CardMotionPresented && targetTicks < end)
                 view.PresentCardMotion(message, start);
             else if ((value.EventType == ReplayEventTypesV17.ActorAnimationPresented
                       || value.EventType == ReplayEventTypesV17.HitReactionPresented) && targetTicks < end)
@@ -182,10 +184,6 @@ internal sealed class ReplayBattleSceneRuntimeV17 : IDisposable
         {
             case ReplayEventTypesV17.EntityPresented:
                 if (message.EntityBinding != null) view.BindEntity(message.EntityBinding, state);
-                visualDirty = true;
-                break;
-            case ReplayEventTypesV17.SourcePresented:
-                view.PresentSource(message, start);
                 visualDirty = true;
                 break;
             case ReplayEventTypesV17.CardMotionPresented:

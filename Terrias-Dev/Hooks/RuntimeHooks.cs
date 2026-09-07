@@ -12,8 +12,26 @@ namespace Terrias.Dll.Hooks;
 
 public static class RuntimeHooks
 {
+    public static AuraSharedInitializationReport Initialization { get; } = new();
+    private static Action? resetCardState;
+    private static bool routerBootstrapComplete;
+    public static void ConfigureCardStateReset(Action reset) => resetCardState = reset;
+    private static readonly string[] RequiredRouters =
+    {
+        "battle lifecycle router", "card lifecycle router", "card interaction router", "card exit router",
+        "combat action router", "script execution router", "status lifecycle router", "buff mutation router"
+    };
+    private static readonly System.Collections.Generic.HashSet<string> IndependentUi = new(StringComparer.Ordinal)
+    {
+        "dialogue flow", "library submenu", "witch archive", "dimension shop", "terrias UI lifecycle",
+        "visual bundle validation", "animated blessing icons", "animated buff icons", "animated enemy dictionary icons",
+        "solar memory map item animation", "map node card art", "spirit training registry", "spirit intent registry",
+        "spirit capture registry", "spirit growth registry", "companion intent registry"
+    };
     public static void Initialize(ModConfig modConfig)
     {
+        Initialization.Reset();
+        routerBootstrapComplete = false;
         RunHookStep("battle lifecycle router", () => TerriasBattleLifecycleRouter.Initialize(modConfig));
         RunHookStep("card script fight state", () =>
         {
@@ -22,7 +40,8 @@ public static class RuntimeHooks
                 BattleInitializing = _ =>
                 {
                     LegacyBattleHookVarMigration.ReconcileCurrentRole();
-                    CardScripts.ResetFightState();
+                    if (resetCardState == null) throw new InvalidOperationException("Card state lifecycle is unavailable.");
+                    resetCardState();
                 }
             });
         });
@@ -58,6 +77,8 @@ public static class RuntimeHooks
         RunHookStep("remote target event compatibility", () => RemoteTargetEventRuntime.Initialize(modConfig));
         RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
         RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
+        RunHookStep("Olimya role", () => OlimyaRuntime.Initialize(modConfig));
+        RunHookStep("moon homecoming card pack", () => MoonHomecomingRuntime.Initialize(modConfig));
         RunHookStep("origin milestones", () => OriginMilestoneRuntime.Initialize(modConfig));
         RunHookStep("solar card pack migration", () => SunCardPackMigrationRuntime.Initialize(modConfig));
         RunHookStep("field effect registry", () => FieldEffectRegistry.WarmupConfigCache("RuntimeHooks.Initialize"));
@@ -67,7 +88,7 @@ public static class RuntimeHooks
         RunHookStep("fight presentation invalidation", TerriasFightPresentationInvalidationService.Initialize);
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
         RunHookStep("combat card UI workload", () => TerriasCombatCardUiWorkloadRuntime.Initialize(modConfig));
-        RunHookStep("combat card view pool", () => Ui.TerriasCombatCardViewPool.Initialize(modConfig));
+        RunHookStep("combat card production boundary", TerriasCombatCardProductionRuntime.Initialize);
         RunHookStep("status buff handlers", () =>
         {
             TerriasBuffMutationRouter.Register("RuntimeStatusBuff", new TerriasBuffMutationSubscription
@@ -124,13 +145,21 @@ public static class RuntimeHooks
         RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
         RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));
         RunHookStep("loneer runtime", () => LoneerRuntime.Initialize(modConfig));
-        TerriasLog.InfoAlways("Runtime hooks registered");
+        TerriasLog.InfoAlways("Runtime hooks: " + Initialization.Summary);
+        foreach (var step in Initialization.Steps)
+            if (step.State == AuraInitializationState.Blocked) TerriasLog.Warn("Runtime hook blocked: " + step.Name + "; requires=" + step.Detail);
+        foreach (var required in RequiredRouters)
+            if (!Initialization.Ready(required)) throw new InvalidOperationException("Required gameplay router unavailable: " + required);
     }
 
     private static void RunHookStep(string name, Action action)
     {
         TerriasLog.InfoAlways("Runtime hook step start: " + name);
-        var ok = AuraSharedHooks.RunStep(name, action, (step, ex) => TerriasLog.Error("Runtime hook step failed: " + step, ex));
+        var dependencies = name == "battle lifecycle router" || IndependentUi.Contains(name) ? Array.Empty<string>()
+            : !routerBootstrapComplete || Array.IndexOf(RequiredRouters, name) >= 0 || name == "companion scene lifecycle"
+                ? new[] { "battle lifecycle router" } : RequiredRouters;
+        var ok = Initialization.Run(name, action, (step, ex) => TerriasLog.Error("Runtime hook step failed: " + step, ex), dependencies);
+        if (name == "buff mutation router") routerBootstrapComplete = true;
         TerriasLog.InfoAlways("Runtime hook step " + (ok ? "ok: " : "failed: ") + name);
     }
 

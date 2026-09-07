@@ -70,12 +70,25 @@ foreach ($resource in @(
 $baseAnimationRoot = Join-Path $repoRoot "Terrias\ModResource\AnimationLib\columbina"
 $idleFrame = Join-Path $baseAnimationRoot "Idle\frame_01.png"
 $idleHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $idleFrame).Hash
+Add-Type -AssemblyName System.Drawing
+$idleImage = [System.Drawing.Image]::FromFile($idleFrame)
+try { $idleWidth = $idleImage.Width; $idleHeight = $idleImage.Height }
+finally { $idleImage.Dispose() }
 foreach ($state in @("Attack", "Buff", "Debuff", "Defend", "Hit", "Skill", "Special", "Special1", "Special2")) {
     $stateRoot = Join-Path $baseAnimationRoot $state
     $stateFrame = Join-Path $stateRoot ($state + "_00.png")
     Assert-True (Test-Path -LiteralPath (Join-Path $stateRoot "config.json") -PathType Leaf) "Missing Columbina base animation config: $state"
     Assert-True (Test-Path -LiteralPath $stateFrame -PathType Leaf) "Missing Columbina base animation frame: $state"
-    Assert-True ((Get-FileHash -Algorithm SHA256 -LiteralPath $stateFrame).Hash -eq $idleHash) "Columbina placeholder animation must reuse the first Idle frame: $state"
+    $frameImage = [System.Drawing.Image]::FromFile($stateFrame)
+    try {
+        Assert-True ($frameImage.Width -eq $idleWidth -and $frameImage.Height -eq $idleHeight) "Columbina action frame must retain the Idle canvas dimensions: $state"
+    }
+    finally { $frameImage.Dispose() }
+    # Core actions now have dedicated poses. Only the remaining fallback states
+    # are still required to reuse the Idle image.
+    if ($state -notin @("Attack", "Defend", "Hit", "Skill")) {
+        Assert-True ((Get-FileHash -Algorithm SHA256 -LiteralPath $stateFrame).Hash -eq $idleHash) "Columbina placeholder animation must reuse the first Idle frame: $state"
+    }
 }
 
 foreach ($modPath in @($career.ActionImage1, $career.ActionImage2)) {

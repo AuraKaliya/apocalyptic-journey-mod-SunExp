@@ -10,14 +10,14 @@
 
 | 内容 | 数量 | 数据入口 |
 | --- | ---: | --- |
-| 卡牌 | 66 | `Terrias/Data/Card/*.csv` |
-| Buff | 55 | `Terrias/Data/Buff/*.csv` |
+| 卡牌 | 86 | `Terrias/Data/Card/*.csv` |
+| Buff | 57 | `Terrias/Data/Buff/*.csv` |
 | 遗物 | 18 | `Terrias/Data/Relic/terrias.csv` |
-| 卡包 | 4 | `Terrias/Data/CardPack/terrias.csv` |
+| 卡包 | 5 | `Terrias/Data/CardPack/terrias.csv` |
 
-卡牌数量按当前仓库 inventory 脚本统计：56 张属于四个主题卡包，10 张为职业牌、衍生牌或无卡包内部牌。数量不包含 CSV 的 schema 与说明行。
+卡牌数量按2026-09-06仓库 inventory 脚本统计：66 张归属于五个主题卡包，20 张没有卡包归属。数量不包含 CSV 的 schema 与说明行。
 
-## 2. 四个卡包
+## 2. 五个卡包
 
 | 运行时完整 id | 显示名 | 机制定位 |
 | --- | --- | --- |
@@ -25,6 +25,7 @@
 | `Terrias_terrias_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
 | `Terrias_terrias_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
 | `Terrias_terrias_cardpack_false_gold_dream` | 虚假的黄金梦 | 伪金、债务、黄金梦与黄金之资 |
+| `Terrias_terrias_cardpack_moon_homecoming` | 归家的月亮 | 月之领域、生命成长、引力涟漪与手牌中的伴月纪闻 |
 
 卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 Terrias 的 `GameCompatibilityApi` 负责按包查询。
 
@@ -88,7 +89,13 @@ flowchart LR
 
 `Card/cursecard.csv` 声明“生机窃取”和“亏空”。`CardScripts` 在普通 handler 之前调用 `EndlessAbyssCurseService.IsCurseCard`，并把 Init/Draw/Drop 交给深渊服务。
 
+### 3.5 归家的月亮
+
+十张公开牌通过 `MoonHomecomingScripts` 接入，包含三张不可打出且保留的稀有纪闻；纪闻既进入奖励池，也可由努昂诺塔生成进弃牌堆。霜月月髓和纪闻其二的生命成长持续整个冒险，纪闻其一的魔能上限只持续本场战斗。组合判定、供奉、资源与验收详见[归家的月亮模块](12-归家的月亮与哥伦比娅主题卡包.md)。
+
 ## 4. 卡牌脚本分派
+
+奥莉米娅的内部职业技能【点金】由 `OlimyaScripts` 接入，黄金化为单层负面状态。两条职业被动与金币所有权规则详见[奥莉米娅模块](13-奥莉米娅角色与织梦黄金体系.md)。
 
 ### 4.1 CSV 入口
 
@@ -248,7 +255,7 @@ Terrias 会在战斗中创建或修改卡牌副本，例如：
 tools\Build-TerriasDll.ps1
 tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
+tools\Test-TerriasContent.ps1
 ```
 
 检查 Data/Text 对齐、完整 id、handler 覆盖、动态描述、临时标签清理和联机状态同步。视觉 registry 或 bundle 同时变化时再运行视觉构建与验证。

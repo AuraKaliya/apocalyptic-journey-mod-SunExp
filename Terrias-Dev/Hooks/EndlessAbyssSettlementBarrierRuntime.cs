@@ -1,3 +1,4 @@
+using Terrias.Dll.GameApi;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,7 +56,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
             Reset(resolution.Token);
         }
 
-        if (!TerriasNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkQueries.IsClientOnly())
         {
             RefreshExpectedRemotePlayers();
         }
@@ -77,12 +78,12 @@ public static class EndlessAbyssSettlementBarrierRuntime
 
     public static void MarkHostReady()
     {
-        if (TerriasNetworkRuntime.IsClientOnly() || string.IsNullOrWhiteSpace(settlementToken) || hostReady)
+        if (TerriasNetworkQueries.IsClientOnly() || string.IsNullOrWhiteSpace(settlementToken) || hostReady)
         {
             return;
         }
 
-        if (!TerriasNetworkRuntime.IsMultiplayerSession() || !TerriasNetworkRuntime.HasRemotePlayers())
+        if (!TerriasNetworkQueries.NetworkActive() || !TerriasNetworkQueries.HasRemotePlayers())
         {
             hostReady = true;
             BeginClosing("no-remote-players");
@@ -102,7 +103,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
     {
         if (ui == null
             || string.IsNullOrWhiteSpace(settlementToken)
-            || !TerriasNetworkRuntime.IsClientOnly()
+            || !TerriasNetworkQueries.IsClientOnly()
             || LocalCommit.IsArmed)
         {
             return;
@@ -125,7 +126,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
             return;
         }
 
-        LocalCommit.Arm(settlementToken, TerriasNetworkRuntime.IsClientOnly());
+        LocalCommit.Arm(settlementToken, TerriasNetworkQueries.IsClientOnly());
     }
 
     public static void CommitBeforeNetworkTeardown()
@@ -187,7 +188,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
                     ? command.DeadlineUtcTicks
                     : DateTime.UtcNow.AddSeconds(ForcedCommitGraceSeconds).Ticks;
                 MarkExpectedDisconnect();
-                if (TerriasNetworkRuntime.IsClientOnly())
+                if (TerriasNetworkQueries.IsClientOnly())
                 {
                     ForceLocalCommit("rpc-force-commit");
                 }
@@ -196,7 +197,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
                 hostReady = true;
                 closingSent = true;
                 MarkExpectedDisconnect();
-                if (TerriasNetworkRuntime.IsClientOnly())
+                if (TerriasNetworkQueries.IsClientOnly())
                 {
                     ForceLocalCommit("rpc-closing");
                 }
@@ -219,7 +220,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
                         + source
                         + ".");
         view?.Refresh();
-        if (!TerriasNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkQueries.IsClientOnly())
         {
             TerriasFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyssSettlement.Evaluate." + command.CommandToken,
@@ -230,7 +231,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
 
     public static void Tick()
     {
-        if (TerriasNetworkRuntime.IsClientOnly() || !hostReady || closingSent)
+        if (TerriasNetworkQueries.IsClientOnly() || !hostReady || closingSent)
         {
             return;
         }
@@ -288,7 +289,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
 
     private static void EnsureHostTickLoop()
     {
-        if (TerriasNetworkRuntime.IsClientOnly()
+        if (TerriasNetworkQueries.IsClientOnly()
             || !hostReady
             || closingSent
             || hostTickScheduled)
@@ -342,7 +343,7 @@ public static class EndlessAbyssSettlementBarrierRuntime
 
     private static void ScheduleHostClose()
     {
-        if (hostCloseScheduled || TerriasNetworkRuntime.IsClientOnly())
+        if (hostCloseScheduled || TerriasNetworkQueries.IsClientOnly())
         {
             return;
         }
@@ -396,9 +397,9 @@ public static class EndlessAbyssSettlementBarrierRuntime
 
     private static void RefreshExpectedRemotePlayers()
     {
-        var local = TerriasNetworkRuntime.LocalPlayerId();
+        var local = TerriasNetworkQueries.LocalPlayerId();
         var current = new HashSet<string>(
-            TerriasNetworkRuntime.LobbyPlayerIds()
+            TerriasNetworkQueries.LobbyPlayerIds()
                 .Where(id => !string.IsNullOrWhiteSpace(id)
                              && !string.Equals(id, local, StringComparison.Ordinal)),
             StringComparer.Ordinal);

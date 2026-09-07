@@ -2178,8 +2178,8 @@ internal sealed class AuraToolsAutoBattleWorkLockView : MonoBehaviour
 
     private void Refresh()
     {
-        var busy = AuraToolsAutoBattleModelRuntime.AnyTrainingBusy()
-                   || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy;
+        var busy = AutoBattleSettingsStatus.Training
+                   || AutoBattleSettingsStatus.Simulation.Busy;
         foreach (var control in controls)
         {
             if (control != null)
@@ -2369,9 +2369,9 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
     {
         var status =
             AuraToolsAutoBattleRuntime.SnapshotModelApplicationStatus();
-        var busy = AuraToolsAutoBattleModelRuntime.AnyTrainingBusy()
-                   || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
-                   || AuraToolsAutoBattleGameValidationRuntime.GetStatus().Busy;
+        var busy = AutoBattleSettingsStatus.Training
+                   || AutoBattleSettingsStatus.Simulation.Busy
+                   || AutoBattleSettingsStatus.Validation.Busy;
         if (statusText != null)
         {
             var mismatch = !string.Equals(
@@ -2537,9 +2537,9 @@ internal sealed class AuraToolsAutoBattleExternalValidationStatusView :
         var entry =
             AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
-        var busy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
-                   || AuraToolsAutoBattleGameValidationRuntime.GetStatus().Busy
-                   || AuraToolsAutoBattleModelRuntime.AnyTrainingBusy();
+        var busy = AutoBattleSettingsStatus.Simulation.Busy
+                   || AutoBattleSettingsStatus.Validation.Busy
+                   || AutoBattleSettingsStatus.Training;
         var selected = entry != null
                        && string.Equals(
                            settings.EvaluationModelId,
@@ -2657,8 +2657,8 @@ internal sealed class AuraToolsAutoBattleGameValidationStatusView : MonoBehaviou
 
     private void Refresh()
     {
-        var status = AuraToolsAutoBattleGameValidationRuntime.GetStatus();
-        var otherBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+        var status = AutoBattleSettingsStatus.Validation;
+        var otherBusy = AutoBattleSettingsStatus.Simulation.Busy
                         || AuraToolsAutoBattleModelRuntime.GetTrainingStatus(
                             AuraToolsConfigService.MatchExperience.AutoBattle.Profile).Busy;
         var startReady =
@@ -2765,7 +2765,7 @@ internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
         profile = AuraToolsConfigService.MatchExperience.AutoBattle.Profile;
         var status = AuraToolsAutoBattleModelRuntime.GetTrainingStatus(profile);
         var simulationBusy =
-            AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy;
+            AutoBattleSettingsStatus.Simulation.Busy;
         var candidateExists =
             AuraToolsAutoBattleModelRuntime.CandidateExists(profile);
         var candidateModelId = candidateExists
@@ -2957,8 +2957,8 @@ internal sealed class AuraToolsAutoBattleSimulationStatusView : MonoBehaviour
 
     private void Refresh()
     {
-        var status = AuraToolsAutoBattleSimulationRuntime.GetStatus();
-        var modelBusy = AuraToolsAutoBattleModelRuntime.AnyTrainingBusy();
+        var status = AutoBattleSettingsStatus.Simulation;
+        var modelBusy = AutoBattleSettingsStatus.Training;
         var workBusy = status.Busy || modelBusy;
         if (statusText != null)
         {

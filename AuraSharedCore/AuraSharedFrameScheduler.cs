@@ -1094,6 +1094,7 @@ public static class AuraSharedFrameScheduler
 
         private void Update()
         {
+            AuraSharedOrderedWorkQueue.PumpRegistered();
             AuraSharedBackgroundWorkScheduler.PumpMainThreadCompletions();
             Pump();
         }

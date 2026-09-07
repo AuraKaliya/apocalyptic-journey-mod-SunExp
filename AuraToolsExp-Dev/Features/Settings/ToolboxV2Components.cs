@@ -97,7 +97,7 @@ internal sealed class ToolboxIconButtonV2 : MonoBehaviour,
         var button = root.AddComponent<Button>();
         button.targetGraphic = image;
         button.transition = Selectable.Transition.None;
-        button.onClick.AddListener(() => action());
+        button.onClick.AddListener(() => AuraToolsUi.RunConfigAction(action));
         var relay = root.AddComponent<AuraUiButtonSoundRelay>();
         relay.Configure(button, AuraUiButtonSoundStyle.Pure);
 
@@ -264,7 +264,7 @@ internal sealed class ToolboxTextButtonV2 : MonoBehaviour,
         var button = root.AddComponent<Button>();
         button.targetGraphic = image;
         button.transition = Selectable.Transition.None;
-        button.onClick.AddListener(() => action());
+        button.onClick.AddListener(() => AuraToolsUi.RunConfigAction(action));
         var relay = root.AddComponent<AuraUiButtonSoundRelay>();
         relay.Configure(button, AuraUiButtonSoundStyle.Pure);
         AuraToolsUi.AddTmpFillText(
@@ -374,7 +374,12 @@ internal sealed class ToolboxCheckboxV2 : MonoBehaviour,
         toggle.targetGraphic = image;
         toggle.transition = Selectable.Transition.None;
         toggle.SetIsOnWithoutNotify(value);
-        toggle.onValueChanged.AddListener(enabled => changed(enabled));
+        var committedValue = value;
+        toggle.onValueChanged.AddListener(enabled =>
+        {
+            if (AuraToolsUi.RunConfigAction(() => changed(enabled))) committedValue = toggle.isOn;
+            else toggle.SetIsOnWithoutNotify(committedValue);
+        });
         var view = root.AddComponent<ToolboxCheckboxV2>();
         view.toggle = toggle;
         view.image = image;

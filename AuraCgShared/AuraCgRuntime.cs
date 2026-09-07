@@ -50,6 +50,8 @@ internal sealed class AuraCgEmbeddedScenePreviewLease : IDisposable
 {
     private Action<bool>? onReady;
     private AuraCgSceneCompositionRenderer? renderer;
+    private AuraCgScenePresentation? presentation;
+    private Action? onDisposed;
 
     public AuraCgEmbeddedScenePreviewLease(
         Transform host,
@@ -84,6 +86,18 @@ internal sealed class AuraCgEmbeddedScenePreviewLease : IDisposable
         callback?.Invoke(success);
     }
 
+    internal void AttachPresentation(AuraCgScenePresentation value)
+    {
+        if (IsDisposed) value.Dispose();
+        else presentation = value;
+    }
+
+    internal void WhenDisposed(Action callback)
+    {
+        if (IsDisposed) callback();
+        else onDisposed += callback;
+    }
+
     public void Dispose()
     {
         if (IsDisposed) return;
@@ -91,6 +105,11 @@ internal sealed class AuraCgEmbeddedScenePreviewLease : IDisposable
         onReady = null;
         renderer?.Dispose();
         renderer = null;
+        presentation?.Dispose();
+        presentation = null;
+        var released = onDisposed;
+        onDisposed = null;
+        released?.Invoke();
     }
 }
 
@@ -104,7 +123,7 @@ public static class SkillCgArbiterRuntime
     public const string EventCgKind = AuraCgSubjectTypes.Event;
     private const string GlobalObjectName = "AuraCg.Global";
     private const string ComponentFullName = "AuraCg.Shared.SkillCgArbiterRuntime+SkillCgArbiterComponent";
-    public const string CurrentBuildId = "aura-cg-shared-2026-08-28-v18";
+    public const string CurrentBuildId = "aura-cg-shared-2026-09-06-v19";
     public const int CurrentProtocolVersion = 12;
     public const int MinimumSupportedProtocolVersion = CurrentProtocolVersion;
     private const int MaxPreloadSubmissionItems = 256;
@@ -1131,6 +1150,7 @@ public static class SkillCgArbiterRuntime
         private const float ClearDeduplicateSeconds = 1.0f;
         private readonly AuraCgProviderCoordinator providerCoordinator = new(SkillCgRequest.FromObject);
         private readonly AuraCgSceneAssetResolverCoordinator sceneAssetResolvers = new();
+        private readonly HashSet<AuraCgEmbeddedScenePreviewLease> scenePreviews = new();
         private readonly AuraCgPlaybackCoordinator playbackCoordinator = new();
         private readonly AuraCgAdventurePreloadHistory adventurePreloadHistory = new(MaxAdventurePreloadKeys);
         private readonly AuraCgPreloadScheduler<SkillCgRequest> preloadScheduler = new(
@@ -1187,7 +1207,10 @@ public static class SkillCgArbiterRuntime
 
         private void OnDestroy()
         {
+            foreach (var preview in scenePreviews.ToArray()) preview.Dispose();
+            scenePreviews.Clear();
             overlayPresenter?.Destroy();
+            mediaRepository?.Dispose();
         }
 
         private void Update()
@@ -1369,56 +1392,61 @@ public static class SkillCgArbiterRuntime
         {
             if (value is AuraCgEmbeddedScenePreviewLease lease)
             {
+                scenePreviews.Add(lease);
+                lease.WhenDisposed(() => scenePreviews.Remove(lease));
                 StartCoroutine(ShowEmbeddedScenePreviewCoroutine(lease));
             }
         }
 
         private IEnumerator ShowEmbeddedScenePreviewCoroutine(AuraCgEmbeddedScenePreviewLease lease)
         {
-            var request = lease.Request;
-            var plan = request.ScenePlan;
-            if (lease.IsDisposed || lease.Host == null || plan == null || !plan.IsValid())
+            try
             {
-                lease.Ready(false);
-                yield break;
-            }
-
-            Sprite? background = null;
-            var layers = new List<AuraCgSceneLayerPresentation>();
-            yield return LoadScenePresentation(
-                plan,
-                () => !lease.IsDisposed && lease.Host != null,
-                (loadedBackground, loadedLayers) =>
+                var request = lease.Request;
+                var plan = request.ScenePlan;
+                if (lease.IsDisposed || lease.Host == null || plan == null || !plan.IsValid())
                 {
-                    background = loadedBackground;
-                    layers = loadedLayers;
-                });
-            if (lease.IsDisposed || lease.Host == null || layers.Count == 0)
-            {
-                lease.Ready(false);
-                yield break;
+                    lease.Ready(false);
+                    yield break;
+                }
+
+                var presentation = new AuraCgScenePresentation();
+                lease.AttachPresentation(presentation);
+                yield return LoadScenePresentation(
+                    plan,
+                    () => !lease.IsDisposed && lease.Host != null,
+                    presentation);
+                if (lease.IsDisposed || lease.Host == null || !presentation.Ready)
+                {
+                    lease.Ready(false);
+                    yield break;
+                }
+
+                var renderer = new AuraCgSceneCompositionRenderer(
+                    lease.Host,
+                    "AuraCg.EmbeddedScenePreview");
+                lease.Attach(renderer);
+                var bound = renderer.Bind(presentation, plan, request.FadeIn + request.Hold + request.FadeOut);
+                lease.Ready(bound);
+                if (!bound)
+                {
+                    yield break;
+                }
+
+                var elapsed = 0f;
+                while (!lease.IsDisposed && lease.Host != null)
+                {
+                    renderer.UpdateFrames(elapsed);
+                    elapsed += Time.unscaledDeltaTime;
+                    yield return null;
+                }
             }
 
-            var renderer = new AuraCgSceneCompositionRenderer(
-                lease.Host,
-                "AuraCg.EmbeddedScenePreview");
-            lease.Attach(renderer);
-            var bound = renderer.Bind(background, layers, plan);
-            lease.Ready(bound);
-            if (!bound)
+            finally
             {
                 lease.Dispose();
-                yield break;
+                FlushReleasedMedia();
             }
-
-            var elapsed = 0f;
-            while (!lease.IsDisposed && lease.Host != null)
-            {
-                renderer.UpdateFrames(elapsed);
-                elapsed += Time.unscaledDeltaTime;
-                yield return null;
-            }
-            lease.Dispose();
         }
 
         private IEnumerator LoadPreviewSpriteCoroutine(AuraCgPreviewSpriteWork work)
@@ -2016,20 +2044,16 @@ public static class SkillCgArbiterRuntime
                 yield break;
             }
 
-            Sprite? background = null;
-            var layers = new List<AuraCgSceneLayerPresentation>();
+            using var presentation = new AuraCgScenePresentation();
             yield return LoadScenePresentation(
                 plan,
                 () => playbackCoordinator.IsCurrent(generation),
-                (loadedBackground, loadedLayers) =>
-                {
-                    background = loadedBackground;
-                    layers = loadedLayers;
-                });
+                presentation);
 
-            if (layers.Count != plan.Participants.Count
-                || !overlayPresenter.ShowScene(background, layers, request))
+            if (!presentation.Ready || !playbackCoordinator.IsCurrent(generation)
+                || !overlayPresenter.ShowScene(presentation, request))
             {
+                if (playbackCoordinator.IsCurrent(generation)) overlayPresenter.Hide();
                 yield break;
             }
 
@@ -2048,114 +2072,119 @@ public static class SkillCgArbiterRuntime
         }
 
         private IEnumerator LoadScenePresentation(
-            AuraCgScenePlan plan,
-            Func<bool> keepLoading,
-            Action<Sprite?, List<AuraCgSceneLayerPresentation>> onLoaded)
+            AuraCgScenePlan plan, Func<bool> keepLoading, AuraCgScenePresentation presentation)
         {
-            Sprite? background = null;
             var backgroundAsset = sceneAssetResolvers.Resolve(plan.BackgroundAsset);
-            if (backgroundAsset != null)
+            if (backgroundAsset == null)
             {
-                var backgroundFrames = new List<Sprite>();
-                yield return LoadSceneAsset(
-                    backgroundAsset,
-                    frames => backgroundFrames = frames,
-                    keepLoading);
-                if (!keepLoading())
-                {
-                    yield break;
-                }
-                background = backgroundFrames.FirstOrDefault();
+                AuraCgLog.WarnOnce("scene-background-unresolved:" + plan.BackgroundAsset.QualifiedAssetId,
+                    "CG poster skipped: background artwork is unavailable. asset=" + plan.BackgroundAsset.QualifiedAssetId);
+                yield break;
             }
-            else
-            {
-                AuraCgLog.InfoOnce(
-                    "scene-programmatic-background:" + plan.PresentationProfileId,
-                    "CG team scene uses the programmatic theme because no optional background is configured. profile="
-                    + plan.PresentationProfileId);
-            }
+            var backgroundFrames = new List<Sprite>();
+            yield return LoadSceneAsset(backgroundAsset, frames => backgroundFrames = frames, keepLoading, presentation);
+            if (!keepLoading() || presentation.IsDisposed || backgroundFrames.Count == 0) yield break;
+            presentation.Background = backgroundFrames[0];
+            presentation.Artwork = backgroundAsset.Artwork;
+            var decorationsReady = false;
+            yield return LoadSceneArtLayers(backgroundAsset.Artwork.Layers, "", "", presentation.SceneLayers,
+                presentation, keepLoading, success => decorationsReady = success);
+            if (!decorationsReady) yield break;
 
-            var layers = new List<AuraCgSceneLayerPresentation>();
             foreach (var participant in plan.Participants.OrderBy(item => item.SeatIndex))
             {
-                if (!keepLoading())
-                {
-                    yield break;
-                }
-
-                var resolved = sceneAssetResolvers.Resolve(
-                    participant.RoleLayerAsset,
-                    participant.RoleId,
-                    participant.RoleVariantId);
+                if (!keepLoading() || presentation.IsDisposed) yield break;
+                var resolved = sceneAssetResolvers.Resolve(participant.RoleLayerAsset, participant.RoleId, participant.RoleVariantId);
                 if (resolved == null)
                 {
-                    AuraCgLog.WarnOnce(
-                        "scene-role-unresolved:" + participant.RoleLayerAsset.QualifiedAssetId,
-                        "CG team scene skipped: role layer asset is not registered locally. asset="
-                        + participant.RoleLayerAsset.QualifiedAssetId);
+                    AuraCgLog.WarnOnce("scene-role-unresolved:" + participant.RoleLayerAsset.QualifiedAssetId + ":" + participant.RoleId,
+                        "CG poster skipped: portrait is unavailable. role=" + participant.RoleId);
                     yield break;
                 }
-
                 var frames = new List<Sprite>();
-                yield return LoadSceneAsset(
-                    resolved,
-                    value => frames = value,
-                    keepLoading);
-                if (!keepLoading() || frames.Count == 0)
+                yield return LoadSceneAsset(resolved, value => frames = value, keepLoading, presentation);
+                if (!keepLoading() || presentation.IsDisposed || frames.Count == 0) yield break;
+                var layer = new AuraCgSceneLayerPresentation
                 {
-                    yield break;
-                }
-
-                layers.Add(new AuraCgSceneLayerPresentation
-                {
-                    Plan = participant,
-                    DisplayName = resolved.DisplayName,
-                    Frames = frames,
-                    VisibleBounds = AuraCgSceneVisibleBoundsAnalyzer.Resolve(
-                        frames,
-                        participant.RoleLayerAsset.QualifiedAssetId + "|" + participant.RoleVariantId),
+                    Plan = participant, DisplayName = resolved.DisplayName, Frames = frames,
+                    VisibleBounds = AuraCgSceneVisibleBoundsAnalyzer.Resolve(frames,
+                        resolved.OwnerModId + ":" + resolved.AssetId + "|" + participant.RoleVariantId),
                     CanvasWidth = Math.Max(1f, frames[0].rect.width),
                     CanvasHeight = Math.Max(1f, frames[0].rect.height),
-                    FrameSeconds = resolved.FrameSeconds,
-                    Loop = resolved.Loop
+                    FrameSeconds = resolved.FrameSeconds, Loop = resolved.Loop,
+                    Portrait = resolved.Artwork.Portrait
+                };
+                var attachmentsReady = false;
+                yield return LoadSceneArtLayers(resolved.Artwork.Layers, participant.RoleId, participant.RoleVariantId,
+                    layer.Attachments, presentation, keepLoading, success => attachmentsReady = success);
+                if (!attachmentsReady) yield break;
+                presentation.Participants.Add(layer);
+            }
+            presentation.Ready = keepLoading() && !presentation.IsDisposed
+                && presentation.Participants.Count == plan.Participants.Count;
+        }
+
+        private IEnumerator LoadSceneArtLayers(
+            IEnumerable<AuraCgSceneArtLayerSpec> specs, string roleId, string variantId,
+            List<AuraCgSceneArtLayerPresentation> destination, AuraCgScenePresentation presentation,
+            Func<bool> keepLoading, Action<bool> completed)
+        {
+            foreach (var spec in specs.Take(4))
+            {
+                if (!keepLoading() || presentation.IsDisposed) yield break;
+                var resolved = sceneAssetResolvers.Resolve(spec.Asset, roleId, variantId);
+                var frames = new List<Sprite>();
+                if (resolved != null)
+                    yield return LoadSceneAsset(resolved, value => frames = value, keepLoading, presentation);
+                if (!keepLoading() || presentation.IsDisposed) yield break;
+                if (frames.Count == 0)
+                {
+                    AuraCgLog.WarnOnce("scene-companion-missing:" + spec.Asset.QualifiedAssetId,
+                        "CG companion artwork unavailable. asset=" + spec.Asset.QualifiedAssetId);
+                    if (spec.Required) { completed(false); yield break; }
+                    continue;
+                }
+                destination.Add(new AuraCgSceneArtLayerPresentation
+                {
+                    Spec = spec, Frames = frames, FrameSeconds = resolved!.FrameSeconds, Loop = resolved.Loop
                 });
             }
-
-            onLoaded(background, layers);
+            completed(true);
         }
 
         private IEnumerator LoadSceneAsset(
-            AuraCgResolvedSceneAsset asset,
-            Action<List<Sprite>> onLoaded,
-            Func<bool> keepLoading)
+            AuraCgResolvedSceneAsset asset, Action<List<Sprite>> onLoaded,
+            Func<bool> keepLoading, AuraCgScenePresentation presentation)
         {
+            void Complete(List<Sprite> frames)
+            {
+                var ownership = asset.DirectSprites.Count > 0
+                    ? asset.OwnsDirectSprites ? AuraCgMediaOwnership.RuntimeObject : AuraCgMediaOwnership.External
+                    : string.IsNullOrWhiteSpace(asset.BundlePath)
+                        ? AuraCgMediaOwnership.RuntimeObjectAndTexture : AuraCgMediaOwnership.External;
+                presentation.Retain(mediaRepository.RetainSceneFrames(frames, ownership));
+                onLoaded(frames);
+            }
+
             var mediaRequest = asset.ToMediaRequest();
             if (asset.DirectSprites.Count > 0)
             {
                 if (string.IsNullOrWhiteSpace(mediaRequest.ImagePath))
-                {
                     mediaRequest.ImagePath = "scene-direct://" + asset.OwnerModId + "/" + asset.AssetId;
-                }
-
                 mediaRequest.MediaType = SkillCgMediaTypes.Sequence;
                 mediaRequest.Normalize();
-                onLoaded(mediaRepository.RegisterDirectSceneSprites(
-                    mediaRequest,
-                    asset.DirectSprites,
-                    asset.OwnsDirectSprites));
+                Complete(mediaRepository.RegisterDirectSceneSprites(mediaRequest, asset.DirectSprites, asset.OwnsDirectSprites));
                 yield break;
             }
-
             mediaRequest.Normalize();
             if (string.Equals(mediaRequest.MediaType, SkillCgMediaTypes.Sequence, StringComparison.OrdinalIgnoreCase))
             {
-                yield return mediaRepository.LoadSequenceSprites(mediaRequest, onLoaded, keepLoading);
+                yield return mediaRepository.LoadSequenceSprites(mediaRequest, Complete, keepLoading);
                 yield break;
             }
-
             Sprite? sprite = null;
             yield return mediaRepository.LoadSprite(mediaRequest.ImagePath, value => sprite = value);
-            onLoaded(sprite == null ? new List<Sprite>() : new List<Sprite> { sprite });
+            Complete(sprite == null ? new List<Sprite>() : new List<Sprite> { sprite });
         }
 
         private void FlushReleasedMedia()

@@ -764,14 +764,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "event",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -781,7 +781,7 @@
           "assetId": "event.background.battle-opening"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.battle-opening.",
         "exclusive": false
       },
       "defaultActivation": {
@@ -822,14 +822,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -839,7 +839,7 @@
           "assetId": "event.background.victory.standard"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.victory.standard.",
         "exclusive": true
       },
       "defaultActivation": {
@@ -880,14 +880,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -897,7 +897,7 @@
           "assetId": "event.background.victory.midas"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.victory.midas.",
         "exclusive": true
       },
       "defaultActivation": {
@@ -939,14 +939,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -956,7 +956,7 @@
           "assetId": "event.background.victory.ritual"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.victory.ritual.",
         "exclusive": true
       },
       "defaultActivation": {
@@ -998,14 +998,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -1015,7 +1015,7 @@
           "assetId": "event.background.victory.curse"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.victory.curse.",
         "exclusive": true
       },
       "defaultActivation": {
@@ -1053,14 +1053,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -1070,7 +1070,7 @@
           "assetId": "event.background.battle-defeat"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.battle-defeat.",
         "exclusive": true
       },
       "defaultActivation": {
@@ -1107,14 +1107,14 @@
         "mode": "fullscreenFade",
         "fit": "cover",
         "fadeIn": 0.35,
-        "hold": 3.0,
+        "hold": 3,
         "fadeOut": 0.45,
         "focusX": 0.5,
         "focusY": 0.5,
-        "safeScale": 1.0
+        "safeScale": 1
       },
       "scene": {
-        "layoutId": "team-tableau.v2",
+        "layoutId": "team-poster.v3",
         "presentationProfileId": "terminal",
         "logicalWidth": 1600,
         "logicalHeight": 900,
@@ -1124,7 +1124,7 @@
           "assetId": "event.background.adventure-settlement"
         },
         "roleLayerOwnerModId": "AuraToolsExp",
-        "roleLayerAssetPrefix": "role.idle.",
+        "roleLayerAssetPrefix": "event.role.adventure-settlement.",
         "exclusive": true
       },
       "defaultActivation": {

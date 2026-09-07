@@ -48,8 +48,8 @@ AuraToolsExp 自有 RPC 只在房间内所有玩家都启用了 AuraToolsExp 时
 数据可以参与迁移和统计，不再因为不是当前 v4 而被静默过滤。后续实时协议
 升级必须先提供房间级协商，不能把单向可读取误报为联机兼容。
 
-CG 展示统一使用信号注册表 v4 与处理后队伍场景协议 v1。冒险结算只向
-展示链路提交有序角色 ID、`team-tableau.v2` 布局位置、程序主题、可选背景叠层和
+CG 展示统一使用信号注册表 v4 与处理后队伍场景协议 v2。冒险结算只向
+展示链路提交有序角色 ID、`team-poster.v3` 面部构图位置、轻动态开关、插画主题和
 逻辑资源 ID 等最小计划，不传输
 原始伤害、排名、历史记录、本地路径或缓存键。事件 CG 独立采集当前冒险
 参与角色，既不读取伤害账本，也不依赖 DPT 模块是否启用；伤害协议和 CG
@@ -91,9 +91,14 @@ ProviderRequired 模块缺少匹配 renderer/build 时拒绝播放，而不是�
 超预算在进入 capture sink 前拒绝。内容 MOD 不承担属性排序责任，v17 文档验证仍独立要求 payload
 已经 canonical。
 
-池化战斗卡牌必须在回池/重绑前通过共享 CardPresentation Reset 释放表现世代。回放 recorder 按精确
-visual root 与 source instance 关闭轨迹；原生非池化中央卡仍以 Destroy 结束。失活与实例重绑是通用
-防线，固定 timeout 只拒绝真正没有到达任何生命周期边界的视图，不能替代 Reset 或被延长来掩盖泄漏。
+Terrias 战斗卡牌使用原生队列、动画和销毁；整卡对象池及其退出动画接管已退役。
+共享 CardPresentation 在原生重建前释放临时材质，嵌套刷新结束后只提交一次表现；NativeExit 保留
+静态卡面并终止动态效果重挂。材质重建不等于视图生命周期结束。回放按 physical visual identity
+区分同一张牌的手牌、中央展示和退出视图；归位、Destroy、失活、实例重绑分别关闭对应轨迹。
+正在拖动的视图不受退出动画 watchdog 限制，退出计时从实际退出阶段开始。
+
+新记录按使用情况声明 `measured-attachment-bounds.v1` 与 `observed-card-view-identity.v1`。
+旧记录缺省字段不进入 canonical JSON，原始校验值保持不变；旧播放器会拒绝需要新能力的记录。
 
 原生动作来源按 `IDataConfig.Type` 进入唯一表现目录：`Card` 对应卡牌 descriptor，`EnemyCard` 和
 `PartnerCard` 对应意图 descriptor/`Intent` 事务。MOD 名称、内容 ID 和图标路径不得参与分类；未知类型

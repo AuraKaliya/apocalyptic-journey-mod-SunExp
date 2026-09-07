@@ -91,7 +91,7 @@ public static class TerriasBuffPresentationDependencyCatalog
         "abyss_gaze_iii", "abyss_blessing", "moonlight", "gravity_ripple", "gravity_value",
         "moon_domain", "constellation", "relic_star_stone_pouch", "false_gold", "debt_due_1",
         "debt_due_2", "debt_due_3", "golden_potential_zero", "golden_potential_k",
-        "golden_potential_m", "golden_potential_b"
+        "golden_potential_m", "golden_potential_b", "frostmoon_marrow", "olimya_goldenized"
     };
 
     private static readonly Dictionary<string, TerriasBuffPresentationRule> Rules = BuildRules();

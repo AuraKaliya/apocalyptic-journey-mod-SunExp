@@ -438,7 +438,7 @@ public static class FieldApi
 
     public static bool IsAuthoritativeFieldWriter()
     {
-        return !TerriasNetworkRuntime.IsMultiplayerSession() || !TerriasNetworkRuntime.IsClientOnly();
+        return !TerriasNetworkQueries.NetworkActive() || !TerriasNetworkQueries.IsClientOnly();
     }
 
     public static bool CanResolveFieldEffects()

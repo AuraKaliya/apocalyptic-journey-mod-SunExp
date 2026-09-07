@@ -1,0 +1,7 @@
+{
+  "name": "AuraTools.Replay.NativeUi.Tests",
+  "references": ["Unity.ugui", "Unity.TextMeshPro", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Universal.2D.Runtime", "Unity.RenderPipelines.Universal.Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "overrideReferences": true,
+  "precompiledReferences": ["Newtonsoft.Json.dll", "nunit.framework.dll"]
+}

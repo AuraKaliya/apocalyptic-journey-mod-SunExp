@@ -414,7 +414,7 @@ internal sealed class ProjectionCardBattleState
             }
             ReindexZones();
             revision++;
-            ProjectionSummonService.CommitAction(projection);
+            ProjectionLifecycle.Current.CommitAction(projection);
             actionStateCommitted = true;
             ProjectionCardPresentationService.BroadcastCommitted(
                 projection,
@@ -432,7 +432,7 @@ internal sealed class ProjectionCardBattleState
                 revision++;
                 if (!actionStateCommitted)
                 {
-                    ProjectionSummonService.CommitAction(projection);
+                    ProjectionLifecycle.Current.CommitAction(projection);
                 }
                 ProjectionCardPresentationService.BroadcastCommitted(
                     projection,

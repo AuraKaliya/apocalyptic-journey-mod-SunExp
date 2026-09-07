@@ -1,7 +1,8 @@
 # AuraSharedCore v2
 
-AuraSharedCore is the common storage and coordination layer compiled into every participating Mod DLL. The first loaded
-consumer owns the persistent `AuraShared.Global` component; later consumers call it through the reflected protocol.
+AuraSharedCore is the common storage and coordination layer compiled into the canonical `Aura.Shared.dll`.
+Product MODs reference that assembly; they do not compile private copies of shared source. The first loaded
+consumer initializes the persistent `AuraShared.Global` component; later consumers use the shared/reflected protocol.
 
 ## Storage model
 

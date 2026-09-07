@@ -28,7 +28,7 @@ using Witch.UI.Window;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Recording;
 
-internal static class MatchReplayRecorder
+internal static partial class MatchReplayRecorder
 {
     private static readonly object Gate = new();
     private static readonly List<string> Diagnostics = new();
@@ -55,6 +55,8 @@ internal static class MatchReplayRecorder
     private static readonly FieldInfo? ActiveActionAnimationCountsField = typeof(FightUI).GetField(
         "activeActionAnimationCounts",
         BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo? ActionAnimationGenerationsField = typeof(FightUI).GetField(
+        "activeTweens", BindingFlags.Instance | BindingFlags.NonPublic);
 
     private static MatchRecord? activeRecord;
     private static ReplayDocumentHeaderCoreV17? pendingHeader;
@@ -94,7 +96,7 @@ internal static class MatchReplayRecorder
     {
         if (!AuraToolsMatchRecordsRuntime.ReplayEnabled || MatchReplaySessionState.IsPlayback) return;
         var levelId = Argument<string>(arguments, 0) ?? FightManager.Instance?.level ?? "";
-        if (ReplayNetworkAuthorityV17.IsMultiplayer && !ReplayNetworkAuthorityV17.IsHost)
+        if (ReplayNetworkAuthorityV17.NetworkActive && !ReplayNetworkAuthorityV17.IsHost)
         {
             ReplayNetworkAuthorityV17.AnnounceCapability(levelId);
             lock (Gate) ResetNoLock();
@@ -103,6 +105,11 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             ResetNoLock();
+            if (!CanBeginPersistence)
+            {
+                AuraToolsLog.Warn("[MatchRecords] 本局未开始录制：存储尚未就绪或仍有四场记录待提交。" + MatchRecordStorage.Status);
+                return;
+            }
             var recordId = Guid.NewGuid().ToString("N");
             var now = DateTime.UtcNow.ToString("O");
             activeRecord = new MatchRecord
@@ -192,6 +199,9 @@ internal static class MatchReplayRecorder
     {
         if (builder == null || captured?.Event == null) return;
         var value = captured.Event;
+        if (value.Kind == "IntentChanged")
+            _ = ReplayExtensionIntentVisualsV17.ResolvePayload(
+                value.SchemaVersion, value.PayloadJson, ReplayIntentVisualCompatibilityApi.Exists);
         catalog?.ObservePresentationModule(value.OwnerModId, value.TypeId);
         var transactionId = ContextStack.LastOrDefault(id =>
             Transactions.TryGetValue(id, out var transaction)
@@ -332,6 +342,7 @@ internal static class MatchReplayRecorder
         lock (Gate)
         {
             if (!RequireCaptureForActivityNoLock("card-action")) return;
+            if (target is CardItem card) EnsureHandMotionNoLock(card, released: true);
             FlushStableBarrierNoLock("before-card-action");
             var source = ReplayFactCaptureV17.CaptureActionSource(target, catalog!);
             var duplicate = FindOpenSourceTransactionNoLock(source);
@@ -636,6 +647,9 @@ internal static class MatchReplayRecorder
             if (PendingActionObservations.TryGetValue(key, out var observation))
             {
                 observation.FightUi ??= hookTarget as FightUI;
+                ObserveActionOwnerGeneration(observation);
+                CaptureResolvedAnimationStatesNoLock(observation);
+                CaptureActionPresentationSamplesNoLock(observation, ElapsedTicks());
                 ScheduleActionPresentationObservationNoLock(key, observation);
             }
             else CompletePresentationTimingNoLock(PendingActionPresentations, key);
@@ -679,129 +693,10 @@ internal static class MatchReplayRecorder
         }
     }
 
-    internal static void BeginNativeCardMotion(object? hookTarget, object[]? arguments)
-    {
-        if (MatchReplaySessionState.IsPlayback || arguments == null || arguments.Length == 0) return;
-        lock (Gate)
-        {
-            if (!CanCaptureNoLock()) return;
-            var config = NativeCardData(arguments[0]);
-            if (config == null) return;
-            var sourceId = config.InstanceID ?? "";
-            var currentBuilder = builder;
-            if (currentBuilder == null) return;
-            var transactionId = ContextStack.LastOrDefault();
-            if (string.IsNullOrWhiteSpace(transactionId)
-                || !currentBuilder.IsOpen(transactionId))
-                transactionId = Transactions.Values
-                    .Where(item => !item.SourceCompleted
-                                   && string.Equals(item.Source.SourceInstanceId, sourceId, StringComparison.Ordinal))
-                    .OrderByDescending(item => item.TransactionId, StringComparer.Ordinal)
-                    .Select(item => item.TransactionId)
-                    .FirstOrDefault() ?? "";
-            if (transactionId.Length == 0 || !currentBuilder.IsOpen(transactionId)) return;
-            var ticks = ElapsedTicks();
-            var motion = RequireCardMotionPresentationNoLock(transactionId, sourceId, ticks);
-            if (motion.Presentation == null) return;
-            motion.TimeTicks = ticks;
-            motion.Presentation.DelayTicks = 0L;
-            motion.Presentation.Kind = NativeCardMotionKind(arguments);
-            motion.Presentation.Value = NativeDisplayedCost(config);
-            PendingCardMotions[sourceId] = new PendingPresentationTiming(ticks, motion);
-            var fightUi = hookTarget as FightUI;
-            PendingCardMotionObservations[sourceId] = new CardMotionObservation(
-                ticks,
-                fightUi,
-                fightUi == null
-                    ? new HashSet<int>()
-                    : fightUi.GetComponentsInChildren<CardItem>(includeInactive: true)
-                        .Where(item => item != null)
-                        .Select(item => item.GetInstanceID())
-                        .ToHashSet());
-        }
-    }
-
-    internal static void EndNativeCardMotion(object? hookTarget, object[]? arguments)
-    {
-        if (arguments == null || arguments.Length == 0) return;
-        lock (Gate)
-        {
-            var config = NativeCardData(arguments[0]);
-            if (config == null) return;
-            var sourceId = config.InstanceID ?? "";
-            if (!PendingCardMotionObservations.TryGetValue(sourceId, out var observation))
-            {
-                CompletePresentationTimingNoLock(PendingCardMotions, sourceId);
-                return;
-            }
-            observation.FightUi ??= hookTarget as FightUI;
-            observation.Visual = observation.FightUi?
-                .GetComponentsInChildren<CardItem>(includeInactive: true)
-                .Where(item => item != null && !observation.ExistingInstanceIds.Contains(item.GetInstanceID()))
-                .OrderByDescending(item => string.Equals(item.dataConfig?.InstanceID, sourceId, StringComparison.Ordinal))
-                .ThenByDescending(item => item.GetInstanceID())
-                .FirstOrDefault();
-            if (observation.Visual == null)
-            {
-                PendingCardMotionObservations.Remove(sourceId);
-                AddDiagnosticNoLock("native-card-motion-visual-missing:" + sourceId);
-                CompletePresentationTimingNoLock(PendingCardMotions, sourceId);
-                return;
-            }
-            CaptureCardMotionSampleNoLock(sourceId, observation, ElapsedTicks());
-            ScheduleCardMotionObservationNoLock(sourceId, observation);
-        }
-    }
-
-    internal static void ObserveNativeCardExitMotion(object? hookTarget, string kind)
-    {
-        if (MatchReplaySessionState.IsPlayback || hookTarget is not CardItem card || card.dataConfig == null) return;
-        lock (Gate)
-        {
-            if (!CanCaptureNoLock() || builder == null) return;
-            var sourceId = card.dataConfig.InstanceID ?? "";
-            var transactionId = ContextStack.LastOrDefault(id =>
-                Transactions.TryGetValue(id, out var transaction)
-                && string.Equals(transaction.Source.SourceInstanceId, sourceId, StringComparison.Ordinal));
-            if (string.IsNullOrWhiteSpace(transactionId))
-                transactionId = Transactions.Values
-                    .Where(item => !item.SourceCompleted
-                                   && string.Equals(item.Source.SourceInstanceId, sourceId, StringComparison.Ordinal))
-                    .OrderByDescending(item => item.TransactionId, StringComparer.Ordinal)
-                    .Select(item => item.TransactionId)
-                    .FirstOrDefault() ?? "";
-            var ownsTransaction = transactionId.Length == 0 || !builder.IsOpen(transactionId);
-            if (ownsTransaction)
-            {
-                var source = ReplayFactCaptureV17.CaptureActionSource(card, catalog!);
-                source.Kind = ReplayTransactionKindsV17.Passive;
-                source.Label = "CardExit:" + (kind ?? "");
-                transactionId = BeginSourceTransactionNoLock(source, pushContext: false);
-            }
-            var ticks = ElapsedTicks();
-            var motion = RequireCardMotionPresentationNoLock(transactionId, sourceId, ticks);
-            if (motion.Presentation == null) return;
-            motion.TimeTicks = ticks;
-            motion.Presentation.DelayTicks = 0L;
-            var motionKind = (kind ?? "").Trim();
-            motion.Presentation.Kind = motionKind.Length == 0 ? "CardExit" : motionKind;
-            motion.Presentation.Value = NativeDisplayedCost(card.dataConfig);
-            PendingCardMotions[sourceId] = new PendingPresentationTiming(ticks, motion);
-            var observation = new CardMotionObservation(ticks, card.GetComponentInParent<FightUI>(), new HashSet<int>())
-            {
-                Visual = card,
-                OwnsTransaction = ownsTransaction,
-                TransactionId = transactionId
-            };
-            PendingCardMotionObservations[sourceId] = observation;
-            CaptureCardMotionSampleNoLock(sourceId, observation, ticks);
-            ScheduleCardMotionObservationNoLock(sourceId, observation);
-        }
-    }
-
     internal static void ObserveCardPresentationReset(AuraCardPresentationContext context)
     {
         if (MatchReplaySessionState.IsPlayback || context?.Root == null) return;
+        if (context.ResetKind != AuraCardPresentationResetKind.Rebind) return;
         lock (Gate)
         {
             if (!CanCaptureNoLock()) return;
@@ -819,7 +714,7 @@ internal static class MatchReplayRecorder
                     : 0;
                 if (!ReplayCardVisualLifecycleV17.ResetMatches(
                         observedRootInstanceId,
-                        pair.Key,
+                        pair.Value.SourceInstanceId,
                         resetRootInstanceId,
                         resetSourceInstanceId)) continue;
                 CompleteCardMotionObservationNoLock(
@@ -959,12 +854,14 @@ internal static class MatchReplayRecorder
 
     internal static void CompleteAfterCleanup(string result)
     {
+        var terminalStarted = Stopwatch.GetTimestamp();
         CompletionSnapshot? completion = null;
         MatchRecord? rejectedSummary = null;
         lock (Gate)
         {
             if (activeRecord == null || TerminalGate.TerminalFrameSealed) return;
-            if (builder == null)
+            CheckCaptureBudget(force: true);
+            if (builder == null || captureBudgetExceeded)
             {
                 activeRecord.Result = string.IsNullOrWhiteSpace(result) ? "Ended" : result;
                 activeRecord.EndedUtc = DateTime.UtcNow.ToString("O");
@@ -972,7 +869,7 @@ internal static class MatchReplayRecorder
                 activeRecord.StatisticsJson = AuraSharedJson.SerializeCompact(AuraToolsDamageMeterRuntime.Ledger.CreateSnapshot());
                 activeRecord.CaptureDiagnostics = Diagnostics.Concat(new[]
                     {
-                        ReplayNetworkAuthorityV17.CanHostRecord(activeRecord.LevelId, out var rejection)
+                        captureBudgetExceeded ? "capture-memory-budget-exceeded" : ReplayNetworkAuthorityV17.CanHostRecord(activeRecord.LevelId, out var rejection)
                             ? "materialized-baseline-unavailable"
                             : "network-authority-negotiation-failed:" + rejection
                     })
@@ -1013,17 +910,13 @@ internal static class MatchReplayRecorder
         }
         if (rejectedSummary != null)
         {
-            try
-            {
-                MatchRecordStorage.Database.SaveSummaryV17(rejectedSummary, null, rejected: true);
-            }
-            catch (Exception ex)
-            {
-                AuraToolsLog.Warn("[MatchRecords] rejected multiplayer replay summary could not be saved: " + ex.Message);
-            }
-            return;
+            QueueRejectedSummary(rejectedSummary);
         }
         if (completion != null) QueueFinalization(completion);
+        AuraToolsLog.Info("[MatchRecords:perf] terminal handoff: mainThreadMs="
+            + ElapsedMilliseconds(terminalStarted).ToString("0.###")
+            + ", pendingWrites=" + ReplayBackgroundWork.Storage.PendingCount
+            + ", admissionDeferrals=" + ReplayBackgroundWork.Storage.AdmissionDeferrals + ".");
     }
 
     internal static void Abort()
@@ -1053,20 +946,7 @@ internal static class MatchReplayRecorder
                 ResetNoLock();
             }
         }
-        if (terminalSummary != null)
-        {
-            try
-            {
-                MatchRecordStorage.Database.SaveSummaryV17(
-                    terminalSummary,
-                    MatchAnalysisBuilder.BuildSummary(terminalSummary),
-                    rejected: true);
-            }
-            catch (Exception ex)
-            {
-                AuraToolsLog.Warn("[MatchRecords] terminal capture failure summary could not be saved: " + ex.Message);
-            }
-        }
+        if (terminalSummary != null) QueueRejectedSummary(terminalSummary);
     }
 
     internal static string CurrentRuntimeFingerprint()
@@ -1099,6 +979,7 @@ internal static class MatchReplayRecorder
             EntityGenerations[entity.EntityId] = 1;
         }
         builder = new ReplayJournalBuilderV17(pendingHeader, initial);
+        SeedInitialHandViewsNoLock();
         pendingHeader = null;
         startedTimestamp = Stopwatch.GetTimestamp();
         var bootstrap = builder.StartTransaction(
@@ -1142,56 +1023,6 @@ internal static class MatchReplayRecorder
         }
     }
 
-    private static void BeginCapturePersistenceNoLock()
-    {
-        if (capturePersistenceStarted || activeRecord == null || builder == null || catalog == null) return;
-        var firstBatch = CreateCaptureBatchNoLock()
-                         ?? throw new InvalidOperationException("Replay baseline produced no durable journal batch.");
-        activeRecord.ReplayState = MatchReplayStates.Recording;
-        MatchRecordStorage.Database.BeginCaptureV17(
-            activeRecord,
-            builder.Document.Header,
-            builder.Document.InitialState,
-            firstBatch);
-        capturePersistenceStarted = true;
-    }
-
-    private static void QueueCaptureBatchNoLock()
-    {
-        if (!capturePersistenceStarted || activeRecord == null) return;
-        var batch = CreateCaptureBatchNoLock();
-        if (batch == null) return;
-        var recordId = activeRecord.RecordId;
-        var database = MatchRecordStorage.Database;
-        var accepted = AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<bool>
-        {
-            OwnerId = AuraToolsIds.ModId,
-            Key = "ReplayV17.CaptureBatch." + recordId + "." + batch.BatchIndex,
-            Source = "MatchRecords.ReplayV17.CaptureBatch",
-            Kind = AuraSharedBackgroundWorkKind.Io,
-            Work = _ => database.AppendCaptureBatchV17(recordId, batch),
-            ApplyOnMainThread = stored =>
-            {
-                if (stored) return;
-                lock (Gate)
-                    if (string.Equals(activeRecord?.RecordId, recordId, StringComparison.Ordinal))
-                        AuraToolsLog.Warn("[MatchRecords] incremental capture batch session was unavailable: record="
-                                          + recordId + ", batch=" + batch.BatchIndex + ".");
-            },
-            OnFailedOnMainThread = exception =>
-            {
-                lock (Gate)
-                    if (string.Equals(activeRecord?.RecordId, recordId, StringComparison.Ordinal))
-                        AuraToolsLog.Warn("[MatchRecords] incremental capture batch write failed: record="
-                                          + recordId + ", batch=" + batch.BatchIndex
-                                          + ", error=" + exception.GetType().Name + ".");
-            }
-        });
-        if (!accepted && !database.AppendCaptureBatchV17(recordId, batch))
-            AuraToolsLog.Warn("[MatchRecords] incremental capture batch scheduler rejected and session was unavailable: record="
-                              + recordId + ", batch=" + batch.BatchIndex + ".");
-    }
-
     private static ReplayCaptureBatchV17? CreateCaptureBatchNoLock()
     {
         if (builder == null || catalog == null) return null;
@@ -1200,8 +1031,7 @@ internal static class MatchReplayRecorder
             .Concat(PendingCardMotions.Values.Select(item => item.Event.Sequence))
             .Where(item => item > 0L)
             .ToList();
-        var lastDurableSequence = ReplayDurableJournalPrefixV17.LastDurableSequence(
-            builder.Document,
+        var lastDurableSequence = builder.LastDurableSequence(
             Ledger.OpenEntries.Select(item => item.TransactionId),
             mutablePresentationSequences);
         var lastPersistedSequence = Math.Max(
@@ -1440,9 +1270,9 @@ internal static class MatchReplayRecorder
         ApplyObservedStateNoLock(transactionId, observed);
     }
 
-    private static void ApplyObservedStateNoLock(string transactionId, ReplayVisibleStateV17 observed)
+    private static void ApplyObservedStateNoLock(string transactionId, ReplayVisibleStateV17 observed, ReplayStateDiffV17? diff = null)
     {
-        var added = builder!.ApplyObservedState(transactionId, observed, ElapsedTicks());
+        var added = builder!.ApplyObservedState(transactionId, observed, ElapsedTicks(), diff);
         stateWatermark++;
         foreach (var delta in added.Where(item => item.EventType == ReplayEventTypesV17.StateDeltaApplied))
         {
@@ -1585,6 +1415,7 @@ internal static class MatchReplayRecorder
         var drainMilliseconds = 0d;
         var batchSnapshotMilliseconds = 0d;
         ReplayVisibleStateV17? observed = null;
+        ReplayStateDiffV17? observedDiff = null;
         var hasResidualState = false;
         if (batch.CaptureState)
         {
@@ -1592,7 +1423,8 @@ internal static class MatchReplayRecorder
             observed = ReplayFactCaptureV17.CaptureVisibleState(
                 roundSequence, actorTurnSequence, catalog!, activeRecord?.RecordId ?? "");
             AssignEntityGenerationsNoLock(observed);
-            hasResidualState = ReplayStateReducerV17.CreateDiff(builder!.CurrentState, observed).HasChanges;
+            observedDiff = builder!.CreateObservedDiff(observed);
+            hasResidualState = observedDiff.HasChanges;
             stateCaptureMilliseconds = ElapsedMilliseconds(stateStarted);
         }
 
@@ -1610,13 +1442,14 @@ internal static class MatchReplayRecorder
             var passive = BeginSystemTransactionNoLock(
                 ReplayTransactionKindsV17.Passive,
                 batch.Label + ":" + (string.IsNullOrWhiteSpace(reason) ? "reconcile" : reason));
-            ApplyObservedStateNoLock(passive, observed);
+            ApplyObservedStateNoLock(passive, observed, observedDiff);
             MarkAndCompleteSystemTransactionNoLock(passive);
             stableBarrierStateChanges++;
         }
 
         var batchStarted = Stopwatch.GetTimestamp();
         QueueCaptureBatchNoLock();
+        CheckCaptureBudget();
         batchSnapshotMilliseconds = ElapsedMilliseconds(batchStarted);
         stableBarrierRuns++;
         var elapsedMilliseconds = (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
@@ -1862,11 +1695,13 @@ internal static class MatchReplayRecorder
                           + ", totalMs=" + stableBarrierTotalMilliseconds.ToString("0.###")
                           + ", maxMs=" + stableBarrierMaximumMilliseconds.ToString("0.###") + ".");
         var envelope = new ReplayDocumentEnvelopeV17 { Document = builder.Document };
+        AuraToolsLog.Info("[MatchRecords:hand] captured lifecycle: arrivals="
+            + builder.Document.PresentationEvents.Count(item => item.EventType == ReplayEventTypesV17.CardMotionPresented
+                && item.Presentation?.Kind == ReplayHandLifecycleContractV17.Arrival)
+            + ", layoutViews=" + builder.Document.PresentationEvents.Count(item => item.EventType == ReplayEventTypesV17.CardMotionPresented
+                && item.Presentation?.Kind == ReplayHandLifecycleContractV17.Layout)
+            + ", contract=" + catalog!.Ui.HandPresentationContract + ".");
         activeRecord.ReplayState = MatchReplayStates.Finalizing;
-        MatchRecordStorage.Database.SaveFinalizingCaptureV17(
-            activeRecord,
-            envelope,
-            Diagnostics);
         var result = new CompletionSnapshot(
             activeRecord,
             envelope,
@@ -1875,34 +1710,15 @@ internal static class MatchReplayRecorder
         return result;
     }
 
-    private static void QueueFinalization(CompletionSnapshot completion)
-    {
-        var database = MatchRecordStorage.Database;
-        var limit = AuraToolsConfigService.MatchExperience.MatchRecords.Replay.AutoRecordLimit;
-        var accepted = AuraSharedBackgroundWorkScheduler.Queue(new AuraSharedBackgroundWorkRequest<FinalizationResult>
-        {
-            OwnerId = AuraToolsIds.ModId,
-            Key = "ReplayV17.Finalize." + completion.Record.RecordId,
-            Source = "MatchRecords.ReplayV17.Finalize",
-            Kind = AuraSharedBackgroundWorkKind.Io,
-            Work = _ => FinalizeDetached(completion, database, limit),
-            ApplyOnMainThread = LogFinalization,
-            OnFailedOnMainThread = ex =>
-            {
-                AuraToolsLog.Warn("[MatchRecords] v17 background finalization failed: " + ex.Message);
-                LogFinalization(FinalizeDetached(completion, database, limit));
-            }
-        });
-        if (!accepted) LogFinalization(FinalizeDetached(completion, database, limit));
-    }
-
     private static FinalizationResult FinalizeDetached(
         CompletionSnapshot completion,
         MatchRecordDatabase database,
-        int limit)
+        int limit,
+        int chunkTargetBytes)
     {
         try
         {
+            var sealStarted = Stopwatch.GetTimestamp();
             var validation = ReplayDocumentFinalizerV17.FinalizeAndValidate(completion.Envelope);
             completion.Record.ContentSha256 = completion.Envelope.DeclaredDocumentRoot;
             completion.Record.EventCount = completion.Envelope.Document.TruthEvents.Count
@@ -1922,11 +1738,15 @@ internal static class MatchReplayRecorder
                         : "v17 回放和摘要均未保存。"
                 };
             }
+            var sealMs = ElapsedMilliseconds(sealStarted);
+            var storeStarted = Stopwatch.GetTimestamp();
             var stored = database.SaveV17(
                 completion.Record,
                 completion.Envelope,
                 analysis,
-                AuraToolsConfigService.MatchExperience.MatchRecords.Replay.ChunkTargetBytes);
+                chunkTargetBytes);
+            var storeMs = ElapsedMilliseconds(storeStarted);
+            var retentionStarted = Stopwatch.GetTimestamp();
             var removed = stored ? database.EnforceAutoLimit(limit) : 0;
             return new FinalizationResult
             {
@@ -1937,7 +1757,10 @@ internal static class MatchReplayRecorder
                 Message = stored ? "Replay Document v17 已验证并保存。" : "记录 ID 已存在，v17 回放未重复保存。",
                 Record = stored ? completion.Record : null,
                 Envelope = stored ? completion.Envelope : null,
-                Analysis = stored ? analysis : null
+                Analysis = stored ? analysis : null,
+                Performance = "sealMs=" + sealMs.ToString("0.###")
+                    + ", storeMs=" + storeMs.ToString("0.###")
+                    + ", retentionMs=" + ElapsedMilliseconds(retentionStarted).ToString("0.###")
             };
         }
         catch (Exception ex)
@@ -1968,8 +1791,8 @@ internal static class MatchReplayRecorder
 
     private static void LogFinalization(FinalizationResult result)
     {
-        if (result.Stored && result.ReplayReady && result.Record != null && result.Envelope != null && result.Analysis != null)
-            ReplayNetworkAuthorityV17.PublishCanonical(result.Record, result.Envelope);
+        if (result.Performance.Length > 0)
+            AuraToolsLog.Info("[MatchRecords:perf] finalization stages: record=" + result.RecordId + ", " + result.Performance + ".");
         if (result.Stored)
             AuraToolsLog.Info("[MatchRecords] " + result.Message + " record=" + result.RecordId
                               + ", ready=" + result.ReplayReady
@@ -1979,6 +1802,7 @@ internal static class MatchReplayRecorder
 
     private static bool CanCaptureNoLock() =>
         BaselineGate.CanCaptureTimeline
+        && !captureBudgetExceeded
         && builder != null
         && activeRecord != null
         && catalog != null
@@ -2051,6 +1875,8 @@ internal static class MatchReplayRecorder
         PendingCardMotions.Clear();
         PendingActionObservations.Clear();
         PendingCardMotionObservations.Clear();
+        NativeCardCreates.Clear();
+        ObservedHandViews.Clear();
         PendingSharedPresentations.Clear();
         Diagnostics.Clear();
         activeRecord = null;
@@ -2077,6 +1903,11 @@ internal static class MatchReplayRecorder
         captureBatchIndex = 0;
         persistedCatalogRevision = -1;
         capturePersistenceStarted = false;
+        captureSeed = null;
+        seedSubmitted = false;
+        pendingBatch = null;
+        captureBudgetExceeded = false;
+        lastBudgetCheck = 0;
     }
 
     private static T? Argument<T>(object[]? arguments, int index) =>
@@ -2148,6 +1979,16 @@ internal static class MatchReplayRecorder
             if (generation != captureGeneration
                 || !PendingActionObservations.TryGetValue(key, out var observation)) return;
             var now = ElapsedTicks();
+            if (!ObserveActionOwnerGeneration(observation))
+            {
+                // A newer native animation has taken this actor. Do not append its
+                // movement to the old track or hold the old pose until the whole
+                // FightUI queue happens to become quiet.
+                PendingActionObservations.Remove(key);
+                CompletePresentationTimingNoLock(PendingActionPresentations, key, now);
+                FlushStableBarrierNoLock("action-visual-owner-replaced");
+                return;
+            }
             CaptureActionPresentationSamplesNoLock(observation, now);
             if (IsActionPresentationActive(observation))
             {
@@ -2184,7 +2025,6 @@ internal static class MatchReplayRecorder
 
     private static bool IsActionPresentationActive(ActionPresentationObservation observation)
     {
-        if (observation.FightUi != null && observation.FightUi.NowAnimation) return true;
         var activeCounts = observation.FightUi == null
             ? null
             : ActiveActionAnimationCountsField?.GetValue(observation.FightUi) as IDictionary;
@@ -2198,6 +2038,36 @@ internal static class MatchReplayRecorder
             if (body != null && DOTween.IsTweening(body, alsoCheckIfIsPlaying: true)) return true;
         }
         return false;
+    }
+
+    private static void CaptureResolvedAnimationStatesNoLock(ActionPresentationObservation observation)
+    {
+        if (builder == null) return;
+        foreach (var status in observation.Statuses.Where(item => item != null))
+        {
+            var value = builder.Document.PresentationEvents.LastOrDefault(item =>
+                item.TransactionId == observation.TransactionId
+                && (item.EventType == ReplayEventTypesV17.ActorAnimationPresented
+                    || item.EventType == ReplayEventTypesV17.HitReactionPresented)
+                && item.Presentation?.ActorId == status.InstanceId);
+            if (value?.Presentation != null)
+                value.Presentation.AnimationState = status.animatedState.ToString();
+        }
+    }
+
+    private static bool ObserveActionOwnerGeneration(ActionPresentationObservation observation)
+    {
+        if (observation.FightUi == null
+            || !Transactions.TryGetValue(observation.TransactionId, out var transaction)) return true;
+        var actor = observation.Statuses.FirstOrDefault(status => status != null
+            && string.Equals(status.InstanceId, transaction.Source.ActorId, StringComparison.Ordinal));
+        if (actor == null) return true;
+        var generations = ActionAnimationGenerationsField?.GetValue(observation.FightUi) as IDictionary;
+        var counts = ActiveActionAnimationCountsField?.GetValue(observation.FightUi) as IDictionary;
+        int? generation = generations == null ? null
+            : generations.Contains(actor) ? Convert.ToInt32(generations[actor]) : 0;
+        var active = counts?.Contains(actor) == true && Convert.ToInt32(counts[actor]) > 0;
+        return observation.OwnerGeneration.Observe(generation, active);
     }
 
     private static void CaptureActionPresentationSamplesNoLock(
@@ -2218,29 +2088,8 @@ internal static class MatchReplayRecorder
                 Math.Max(0L, now - presentation.TimeTicks));
             if (sample == null) continue;
             var values = presentation.Presentation.WorldTransformSamples;
-            var previous = values.LastOrDefault();
-            if (previous != null
-                && previous.WorldPosition.X == sample.WorldPosition.X
-                && previous.WorldPosition.Y == sample.WorldPosition.Y
-                && previous.WorldPosition.Z == sample.WorldPosition.Z
-                && previous.RootScale.X == sample.RootScale.X
-                && previous.RootScale.Y == sample.RootScale.Y
-                && previous.RootScale.Z == sample.RootScale.Z
-                && previous.BodyLocalPosition.X == sample.BodyLocalPosition.X
-                && previous.BodyLocalPosition.Y == sample.BodyLocalPosition.Y
-                && previous.BodyLocalPosition.Z == sample.BodyLocalPosition.Z
-                && previous.BodyLocalScale.X == sample.BodyLocalScale.X
-                && previous.BodyLocalScale.Y == sample.BodyLocalScale.Y
-                && previous.BodyLocalScale.Z == sample.BodyLocalScale.Z
-                && string.Equals(previous.SortingLayerName, sample.SortingLayerName, StringComparison.Ordinal)
-                && previous.SortingOrder == sample.SortingOrder) continue;
-            if (values.Count >= ReplayLimitsV17.MaximumPresentationSamplesPerEvent)
-            {
-                AddDiagnosticNoLock("action-motion-track-budget-exceeded:"
-                                    + observation.TransactionId + ":" + status.InstanceId);
-                continue;
-            }
-            values.Add(sample);
+            if (!ReplayTransformTrackV17.Append(values, sample, ReplayLimitsV17.MaximumPresentationSamplesPerEvent))
+                AddDiagnosticNoLock("action-motion-track-budget-exceeded:" + observation.TransactionId + ":" + status.InstanceId);
         }
     }
 
@@ -2282,15 +2131,15 @@ internal static class MatchReplayRecorder
             var visualExists = visualObject != null;
             var activeInHierarchy = visualObject?.activeInHierarchy == true;
             var currentSourceInstanceId = visualExists ? visual?.dataConfig?.InstanceID ?? "" : "";
-            var identityChanged = key.Length > 0
+            var identityChanged = observation.SourceInstanceId.Length > 0
                                   && currentSourceInstanceId.Length > 0
-                                  && !string.Equals(key, currentSourceInstanceId, StringComparison.Ordinal);
+                                  && !string.Equals(observation.SourceInstanceId, currentSourceInstanceId, StringComparison.Ordinal);
             var immediateReason = ReplayCardVisualLifecycleV17.CompletionReason(
                 resetMatched: false,
                 visualExists,
                 activeInHierarchy,
                 identityChanged,
-                now - observation.StartTicks);
+                now - (observation.NativeExitStarted ? observation.NativeExitStartedTicks : observation.StartTicks));
             if (immediateReason == ReplayCardVisualLifecycleV17.Destroyed
                 || immediateReason == ReplayCardVisualLifecycleV17.Inactive
                 || immediateReason == ReplayCardVisualLifecycleV17.Rebound)
@@ -2301,12 +2150,25 @@ internal static class MatchReplayRecorder
             }
 
             CaptureCardMotionSampleNoLock(key, observation, now);
+            if (observation.IsHandMotion && !observation.NativeExitStarted && visual != null)
+            {
+                var atRest = IsAtHandRest(visual) && (!observation.AwaitNativeHandSettled || NativeHandAnimationsSettled(visual));
+                if (!atRest) observation.MovedFromRest = true;
+                if (observation.PointerReleased && !visual.draging && atRest && (observation.MovedFromRest || !visual.hasUse))
+                {
+                    CompleteCardMotionObservationNoLock(key, observation, now, "HandRestored");
+                    FlushStableBarrierNoLock("hand-motion-completed");
+                    return;
+                }
+                ScheduleCardMotionObservationNoLock(key, observation);
+                return;
+            }
             var reason = ReplayCardVisualLifecycleV17.CompletionReason(
                 resetMatched: false,
                 visualExists,
                 activeInHierarchy,
                 identityChanged,
-                now - observation.StartTicks);
+                now - (observation.NativeExitStarted ? observation.NativeExitStartedTicks : observation.StartTicks));
             if (reason.Length > 0)
             {
                 if (reason == ReplayCardVisualLifecycleV17.Timeout)
@@ -2327,6 +2189,13 @@ internal static class MatchReplayRecorder
         long completedTicks,
         string reason)
     {
+        CaptureCardMotionSampleNoLock(key, observation, completedTicks);
+        if (PendingCardMotions.TryGetValue(key, out var timing) && timing.Event.Presentation?.TransformSamples.Count == 1)
+        {
+            var endpoint = ReplayFastCloneV17.Presentation(timing.Event.Presentation).TransformSamples[0];
+            endpoint.OffsetTicks = Math.Max(1, completedTicks - observation.StartTicks);
+            ReplayTransformTrackV17.Append(timing.Event.Presentation.TransformSamples, endpoint, ReplayLimitsV17.MaximumPresentationSamplesPerEvent);
+        }
         PendingCardMotionObservations.Remove(key);
         CompletePresentationTimingNoLock(PendingCardMotions, key, completedTicks);
         CompleteOwnedCardMotionTransactionNoLock(observation);
@@ -2349,26 +2218,9 @@ internal static class MatchReplayRecorder
             catalog.Scene.ReferenceWidth,
             catalog.Scene.ReferenceHeight);
         if (sample == null) return;
-        var values = pending.Event.Presentation.TransformSamples;
-        var previous = values.LastOrDefault();
-        if (previous != null
-            && previous.CanvasPosition.X == sample.CanvasPosition.X
-            && previous.CanvasPosition.Y == sample.CanvasPosition.Y
-            && previous.CanvasSize.X == sample.CanvasSize.X
-            && previous.CanvasSize.Y == sample.CanvasSize.Y
-            && previous.LocalScale.X == sample.LocalScale.X
-            && previous.LocalScale.Y == sample.LocalScale.Y
-            && previous.LocalScale.Z == sample.LocalScale.Z
-            && previous.RotationZQ16 == sample.RotationZQ16
-            && previous.AlphaQ16 == sample.AlphaQ16
-            && previous.HasMaterialFade == sample.HasMaterialFade
-            && previous.MaterialFadeQ16 == sample.MaterialFadeQ16) return;
-        if (values.Count >= ReplayLimitsV17.MaximumPresentationSamplesPerEvent)
-        {
+        if (!ReplayTransformTrackV17.Append(pending.Event.Presentation.TransformSamples, sample,
+                ReplayLimitsV17.MaximumPresentationSamplesPerEvent))
             AddDiagnosticNoLock("card-motion-track-budget-exceeded:" + key);
-            return;
-        }
-        values.Add(sample);
     }
 
     private static void CompleteOwnedCardMotionTransactionNoLock(CardMotionObservation observation)
@@ -2376,7 +2228,7 @@ internal static class MatchReplayRecorder
         if (!observation.OwnsTransaction
             || string.IsNullOrWhiteSpace(observation.TransactionId)
             || !Transactions.ContainsKey(observation.TransactionId)) return;
-        ApplyCurrentStateNoLock(observation.TransactionId);
+        if (observation.CaptureStateOnComplete) ApplyCurrentStateNoLock(observation.TransactionId);
         MarkSourceCompletedNoLock(observation.TransactionId);
         observation.OwnsTransaction = false;
     }
@@ -2415,11 +2267,6 @@ internal static class MatchReplayRecorder
         string sourceInstanceId,
         long observedTicks)
     {
-        var existing = builder?.Document.PresentationEvents.LastOrDefault(item =>
-            string.Equals(item.TransactionId, transactionId, StringComparison.Ordinal)
-            && item.EventType == ReplayEventTypesV17.CardMotionPresented
-            && string.Equals(item.Presentation?.SourceInstanceId, sourceInstanceId, StringComparison.Ordinal));
-        if (existing != null) return existing;
         if (builder == null || !Transactions.TryGetValue(transactionId, out var transaction))
             throw new InvalidOperationException("Replay card motion has no owning transaction: " + transactionId + ".");
         var source = transaction.Source;
@@ -2459,6 +2306,8 @@ internal static class MatchReplayRecorder
             CompletePresentationTimingNoLock(PendingCardMotions, key, terminalTicks);
         PendingActionObservations.Clear();
         PendingCardMotionObservations.Clear();
+        NativeCardCreates.Clear();
+        ObservedHandViews.Clear();
     }
 
     private static bool IsActorActionKind(string kind) => kind == ReplayTransactionKindsV17.Card
@@ -2493,6 +2342,7 @@ internal static class MatchReplayRecorder
         internal long StartTicks { get; }
         internal FightUI? FightUi { get; set; }
         internal List<StatusManager> Statuses { get; }
+        internal ReplayActionOwnerGenerationV17 OwnerGeneration { get; } = new();
         internal int PollSequence { get; set; }
         internal int QuietFrames { get; set; }
         internal long FirstQuietTicks { get; set; }
@@ -2518,6 +2368,15 @@ internal static class MatchReplayRecorder
         internal int PollSequence { get; set; }
         internal string TransactionId { get; set; } = "";
         internal bool OwnsTransaction { get; set; }
+        internal string SourceInstanceId { get; set; } = "";
+        internal bool IsHandMotion { get; set; }
+        internal bool PointerReleased { get; set; }
+        internal bool NativeExitStarted { get; set; }
+        internal long NativeExitStartedTicks { get; set; }
+        internal bool MovedFromRest { get; set; }
+        internal bool AwaitNativeHandSettled { get; set; }
+        internal bool AwaitingInitialCardBinding { get; set; }
+        internal bool CaptureStateOnComplete { get; set; } = true;
     }
 
     private sealed class PendingPresentationTiming
@@ -2542,11 +2401,15 @@ internal static class MatchReplayRecorder
             Record = record;
             Envelope = envelope;
             Diagnostics = diagnostics;
+            Seed = captureSeed;
+            PendingBatch = pendingBatch;
         }
 
         internal MatchRecord Record { get; }
         internal ReplayDocumentEnvelopeV17 Envelope { get; }
         internal IReadOnlyCollection<string> Diagnostics { get; }
+        internal CaptureSeed? Seed { get; }
+        internal ReplayCaptureBatchV17? PendingBatch { get; }
     }
 
     private sealed class FinalizationResult
@@ -2556,6 +2419,7 @@ internal static class MatchReplayRecorder
         internal string RecordId { get; set; } = "";
         internal int Removed { get; set; }
         internal string Message { get; set; } = "";
+        internal string Performance { get; set; } = "";
         internal MatchRecord? Record { get; set; }
         internal ReplayDocumentEnvelopeV17? Envelope { get; set; }
         internal MatchAnalysisReport? Analysis { get; set; }

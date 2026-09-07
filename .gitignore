@@ -133,8 +133,12 @@ env/
 /TestMods/SanGuoShaExp/Scripts/
 /TestMods/*.dll
 /artifacts/shared-release/
+/artifacts/replay-performance-deploy/
+/artifacts/product-deploy/
+
 
 # Trainer executables are normally rebuilt. The Simulation Viewer is an
 # intentional shipped surface and remains addable.
 /AuraToolsExp/TrainingWorker/*.exe
 !/AuraToolsExp/TrainingWorker/AuraFoundationTrainer.SimulationViewer.exe
+

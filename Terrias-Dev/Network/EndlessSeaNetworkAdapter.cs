@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
@@ -120,7 +121,7 @@ public sealed class EndlessSeaNetworkAdapter : IEndlessSeaNetworkPort
     }
 
     public bool HasRemotePlayers => TerriasNetworkRuntime.HasRemotePlayers();
-    public bool IsMultiplayerSession => TerriasNetworkRuntime.IsMultiplayerSession();
+    public bool IsMultiplayerSession => TerriasNetworkRuntime.NetworkActive();
     public bool IsClientOnly => TerriasNetworkRuntime.IsClientOnly();
 
     public static void Initialize()

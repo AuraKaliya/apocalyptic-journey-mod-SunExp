@@ -16,6 +16,7 @@
     <Compile Include="..\AuraCgShared\AuraCgSignalContracts.cs" Link="Shared\AuraCgSignalContracts.cs" />
     <Compile Include="..\AuraCgShared\AuraCgSceneContracts.cs" Link="Shared\AuraCgSceneContracts.cs" />
     <Compile Include="..\AuraCgShared\AuraCgSceneFraming.cs" Link="Shared\AuraCgSceneFraming.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgSceneArtContracts.cs" Link="Shared\AuraCgSceneArtContracts.cs" />
     <Compile Include="..\AuraCgShared\AuraCgRegistryQueryService.cs" Link="Shared\AuraCgRegistryQueryService.cs" />
     <Compile Include="..\AuraCgShared\AuraCgTargetMatcher.cs" Link="Shared\AuraCgTargetMatcher.cs" />
     <Compile Include="..\AuraCgShared\AuraCgCandidateSelector.cs" Link="Shared\AuraCgCandidateSelector.cs" />

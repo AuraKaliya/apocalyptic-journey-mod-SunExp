@@ -59,6 +59,35 @@ internal static class MatchReplayHookAdapter
             "FightUI.DoCardUseAnimation",
             context => Observe("native-card-motion-before", () => MatchReplayRecorder.BeginNativeCardMotion(context.Target, context.Arguments)),
             "MatchRecords.Replay.NativeCardMotion"));
+        Register("after:CardItem.OnBeginDrag", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "CardItem.OnBeginDrag",
+            context => Observe("card-drag-start", () => MatchReplayRecorder.BeginCardDrag(context.Target)),
+            "MatchRecords.Replay.CardDrag"));
+        foreach (var target in new[] { "CardItem.DrawEffect", "CommonCardItem.DrawEffect", "AttackCardItem.DrawEffect" })
+            Register("before:" + target, AuraToolsHookRegistry.BeforeRouted(
+                modConfig!, target, context => Observe("card-arrival", () => MatchReplayRecorder.ObserveCardDraw(context.Target)),
+                "MatchRecords.Replay.CardArrival"));
+        Register("after:FightUI.CreateCardItemInternal", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "FightUI.CreateCardItemInternal",
+            context => Observe("hand-created", () => MatchReplayRecorder.ObserveHandCreated(context.Target, context.Arguments)),
+            "MatchRecords.Replay.HandCreated"));
+        Register("after:FightUI.CreateCardItem", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "FightUI.CreateCardItem",
+            context => Observe("hand-request", () => MatchReplayRecorder.ObserveHandRequest(context.Target)),
+            "MatchRecords.Replay.HandRequest"));
+        Register("before:FightUI.UpdateCardItemPos", AuraToolsHookRegistry.BeforeRouted(
+            modConfig!, "FightUI.UpdateCardItemPos",
+            context => Observe("hand-layout-before", () => MatchReplayRecorder.BeginHandLayout(context.Target)),
+            "MatchRecords.Replay.HandLayoutBefore"));
+        Register("after:FightUI.UpdateCardItemPos", AuraToolsHookRegistry.AfterRouted(
+            modConfig!, "FightUI.UpdateCardItemPos",
+            context => Observe("hand-layout-after", () => MatchReplayRecorder.EndHandLayout(context.Target)),
+            "MatchRecords.Replay.HandLayoutAfter"));
+        foreach (var target in new[] { "CommonCardItem.OnEndDrag", "CardItem.OnEndDrag", "CardItem.CancelUseDrag" })
+            Register("after:" + target, AuraToolsHookRegistry.AfterRouted(
+                modConfig!, target,
+                context => Observe("card-drag-end", () => MatchReplayRecorder.EndCardDrag(context.Target)),
+                "MatchRecords.Replay.CardDragEnd"));
         Register("after:FightUI.DoCardUseAnimation", AuraToolsHookRegistry.AfterRouted(
             modConfig!,
             "FightUI.DoCardUseAnimation",

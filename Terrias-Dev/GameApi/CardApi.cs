@@ -6,7 +6,6 @@ using System.Reflection;
 using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
 using Terrias.Dll.Infrastructure;
-using Terrias.Dll.Mechanics;
 
 namespace Terrias.Dll.GameApi;
 
@@ -181,6 +180,8 @@ public sealed class CardGrantResult
 
 public static class CardApi
 {
+    private static Action<IDataConfig, string>? acknowledgeNativeDraw;
+    public static void ConfigureNativeDrawAcknowledgement(Action<IDataConfig, string> acknowledge) => acknowledgeNativeDraw = acknowledge;
     public static int HandCardCount(ScriptExecutor? self)
     {
         return self?.HandCard?.Count(card => card?.dataConfig != null) ?? 0;
@@ -428,20 +429,12 @@ public static class CardApi
 
         try
         {
-            if (!CombatCardViewPoolApi.TryMaterialize(self, added, "CardApi.GrantCardToHand" + SourceSuffix(request)))
-            {
-                self.GetCardFromDeck(added);
-                if (CombatCardViewPoolCatalog.IsEligible(added))
-                {
-                    TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback");
-                    FightUiCardLayoutApi.RequestCurrentHandLayout(
-                        "CombatCardViewPool.NativeFallback" + SourceSuffix(request));
-                }
-            }
-            TerriasCardInvalidationService.Acknowledge(
-                added,
-                TerriasCardDirtyFields.TagIndex,
-                "CardApi.GrantCardToHand" + SourceSuffix(request));
+            // The native queue owns component selection, draw layout, use/exit
+            // animations and destruction. Dynamic data remains per-card; resource
+            // caches do not require reusing an interactive CardItem instance.
+            self.GetCardFromDeck(added);
+            try { acknowledgeNativeDraw?.Invoke(added, "CardApi.GrantCardToHand" + SourceSuffix(request)); }
+            catch (Exception ex) { TerriasLog.Warn("Native card was granted; presentation acknowledgement failed: " + ex.Message); }
             return CardGrantResult.Ok(resolved, added, warnings);
         }
         catch (Exception ex)

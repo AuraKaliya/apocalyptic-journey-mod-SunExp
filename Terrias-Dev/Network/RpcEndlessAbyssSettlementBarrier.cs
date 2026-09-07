@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using AuraShared.Core;
 using Network.Command;

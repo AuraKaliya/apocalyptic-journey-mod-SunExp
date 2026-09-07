@@ -8,6 +8,7 @@ using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.MatchRecords;
 using AuraToolsExp.Dll.Features.MatchRecords.Model;
+using AuraToolsExp.Dll.Features.MatchRecords.Recording;
 using AuraToolsExp.Dll.Features.MatchRecords.Playback;
 using AuraToolsExp.Dll.Features.MatchRecords.ReplayV17.Core;
 using AuraToolsExp.Dll.Features.MatchRecords.Storage;
@@ -17,7 +18,7 @@ using Object = UnityEngine.Object;
 
 namespace AuraToolsExp.Dll.Features.MatchRecords.Media;
 
-internal static class MatchReplayVideoExporter
+internal static partial class MatchReplayVideoExporter
 {
     private static readonly Queue<MatchReplayExportJob> RecoveryQueue = new();
     private static MatchReplayExportJob? current;
@@ -28,10 +29,18 @@ internal static class MatchReplayVideoExporter
     internal static void Initialize()
     {
         RecoveryQueue.Clear();
-        foreach (var job in MatchRecordStorage.Database.LoadRecoverableExportJobs()) RecoveryQueue.Enqueue(job);
-        current = MatchRecordStorage.Database.LoadLatestExportJob();
-        ReconcileOrphanPartials();
-        ResumePending();
+        recoveryLoading = true;
+        ReplayBackgroundWork.Storage.Enqueue("RecoverVideoJobs", () =>
+        {
+            var store = MatchRecordStorage.Database;
+            var jobs = store.LoadRecoverableExportJobs(); var latest = store.LoadLatestExportJob();
+            ReconcileOrphanPartials(); return (jobs, latest);
+        }, result =>
+        {
+            recoveryLoading = false;
+            foreach (var job in result.jobs) RecoveryQueue.Enqueue(job);
+            current = result.latest; ResumePending();
+        }, ex => { recoveryLoading = false; AuraToolsLog.Warn("[MatchRecords] video recovery failed: " + ex.Message); });
     }
 
     private static void ResumePending()
@@ -61,105 +70,6 @@ internal static class MatchReplayVideoExporter
         }
     }
 
-    internal static bool TryStart(
-        string recordId,
-        MatchRecordLibraryViewState returnState,
-        out string message)
-    {
-        if (workerRunning || current != null && !IsTerminal(current.State))
-        {
-            message = "已有视频导出任务正在运行。";
-            return false;
-        }
-
-        ReplayEncoderDependency dependency;
-        ReplayDocumentEnvelopeV17? envelope;
-        try
-        {
-            dependency = ReplayEncoderDependency.LoadVerified();
-            envelope = MatchRecordStorage.Database.LoadV17(recordId);
-        }
-        catch (Exception ex)
-        {
-            message = "无法开始视频导出：" + ex.Message;
-            return false;
-        }
-
-        if (envelope == null)
-        {
-            message = "这条记录没有经过验证的 Replay Document v17。";
-            return false;
-        }
-
-        var settings = SnapshotSettings();
-        var dimensions = Dimensions(settings.Quality);
-        var now = DateTime.UtcNow.ToString("O");
-        var jobId = Guid.NewGuid().ToString("N");
-        var mediaDirectory = Path.Combine(MatchRecordStorage.MediaDirectory, recordId);
-        Directory.CreateDirectory(mediaDirectory);
-        var target = Path.Combine(mediaDirectory, jobId + ".mp4");
-        var job = new MatchReplayExportJob
-        {
-            JobId = jobId,
-            RecordId = recordId,
-            State = MatchReplayExportStates.Planned,
-            CreatedUtc = now,
-            UpdatedUtc = now,
-            ProfileId = ProfileId(settings),
-            Width = dimensions.width,
-            Height = dimensions.height,
-            FramesPerSecond = settings.FramesPerSecond,
-            StagingPath = target + ".partial.mp4",
-            TargetPath = target,
-            Message = "任务已计划",
-            EstimatedBytes = EstimateOutputBytes(
-                envelope.Document,
-                dimensions.width,
-                dimensions.height,
-                settings.FramesPerSecond,
-                settings.IncludeAudio)
-        };
-        try
-        {
-            MatchRecordStorage.Database.CreateExportJob(job);
-            current = job;
-            workerRunning = true;
-            var accepted = MatchReplayLaunchCoordinator.TryStartForExport(
-                recordId,
-                returnState,
-                () =>
-                {
-                    MatchReplayExportControlsPresenter.Show();
-                    if (AuraToolsMatchRecordsRuntime.StartRuntimeCoroutine(Export(job, settings, dependency, envelope)) != null)
-                        return;
-                    workerRunning = false;
-                    Fail(job, "worker-unavailable", "无法启动独立回放视频导出协程。", deleteStaging: true);
-                },
-                failure =>
-                {
-                    workerRunning = false;
-                    Fail(job, "replay-launch-failed", failure, deleteStaging: true);
-                },
-                out var launchMessage);
-            if (!accepted)
-            {
-                workerRunning = false;
-                Fail(job, "replay-launch-failed", launchMessage, deleteStaging: true);
-                message = job.Message;
-                return false;
-            }
-
-            message = launchMessage;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            workerRunning = false;
-            message = "无法创建视频导出任务：" + ex.Message;
-            return false;
-        }
-    }
-
     internal static void CancelOrDismiss()
     {
         if (current == null || IsTerminal(current.State))
@@ -172,7 +82,7 @@ internal static class MatchReplayVideoExporter
         if (current.State == MatchReplayExportStates.Committing)
         {
             current.Message = "正在提交已验证文件，此阶段不能取消";
-            Persist(current);
+            MatchReplayExportControlsPresenter.Refresh(current);
             return;
         }
 
@@ -202,7 +112,7 @@ internal static class MatchReplayVideoExporter
         {
             job.CancelRequested = true;
             Transition(job, MatchReplayExportStates.Cancelled, job.Progress, "导出任务已取消");
-            DeleteIfExists(job.StagingPath);
+            QueueDelete(job.StagingPath);
         }
         else if (failure != null)
         {
@@ -239,11 +149,16 @@ internal static class MatchReplayVideoExporter
         var previousCaptureFramerate = Time.captureFramerate;
         try
         {
-            dependency ??= ReplayEncoderDependency.LoadVerified();
-            envelope ??= MatchRecordStorage.Database.LoadV17(job.RecordId)
-                         ?? throw new InvalidDataException("找不到经过验证的 Replay Document v17。");
+            ReplayLoadedRecord? sourceData = null;
+            if (dependency == null || envelope == null || !MatchReplayPlayer.IsActive)
+            {
+                var load = new ReplayIoOperation<(ReplayEncoderDependency Dependency, ReplayLoadedRecord Data)>("ReadVideoReplay",
+                    () => (ReplayEncoderDependency.LoadVerified(), ReplayLoadedRecord.Read(job.RecordId)));
+                yield return load;
+                dependency = load.Result.Dependency; sourceData = load.Result.Data; envelope = sourceData.Envelope;
+            }
             if (!MatchReplayPlayer.IsActive
-                && !MatchReplayPlayer.TryStartForExport(job.RecordId, out var startMessage))
+                && !MatchReplayPlayer.TryStartForExport(sourceData!, out var startMessage))
                 throw new InvalidOperationException(startMessage);
             var readyFrames = 0;
             while (MatchReplayPlayer.IsActive && !MatchReplayPlayer.IsReadyForExport && readyFrames++ < 900)
@@ -251,26 +166,21 @@ internal static class MatchReplayVideoExporter
             if (!MatchReplayPlayer.IsReadyForExport)
                 throw new TimeoutException("独立回放场景准备超时：" + MatchReplayPlayer.PreparationStatus);
             job.AttemptCount++;
-            DeleteIfExists(job.StagingPath);
-            DeleteIfExists(audioPath);
             var frameCount = Math.Max(1L, (long)Math.Ceiling(
                 Math.Max(1000L, MatchReplayPlayer.DurationMilliseconds)
                 / 1000d * settings.FramesPerSecond) + 1L);
             job.FrameCount = frameCount;
-            if (!HasFreeSpace(job.EstimatedBytes, out var available))
+            var sourceDocument = envelope.Document;
+            var prepareMedia = new ReplayIoOperation<long>("PrepareVideoMedia", () =>
             {
-                throw new IOException("预计需要 " + FormatBytes(job.EstimatedBytes)
-                                      + "，媒体目录仅剩 " + FormatBytes(available) + "。");
-            }
-
-            var audioSampleFrames = settings.IncludeAudio
-                ? ReplayOfflineAudioMixer.MixToWave(
-                    envelope.Document,
-                    frameCount,
-                    settings.FramesPerSecond,
-                    MatchRecordStorage.Database.ResolveReplayAsset,
-                    audioPath)
-                : 0L;
+                DeleteIfExists(job.StagingPath); DeleteIfExists(audioPath);
+                if (!HasFreeSpace(job.EstimatedBytes, out var available))
+                    throw new IOException("预计需要 " + FormatBytes(job.EstimatedBytes) + "，媒体目录仅剩 " + FormatBytes(available) + "。");
+                return settings.IncludeAudio ? ReplayOfflineAudioMixer.MixToWave(sourceDocument, frameCount,
+                    settings.FramesPerSecond, MatchRecordStorage.Database.ResolveReplayAsset, audioPath) : 0L;
+            });
+            yield return prepareMedia;
+            var audioSampleFrames = prepareMedia.Result;
             job.AudioSampleFrames = audioSampleFrames;
             Transition(job, MatchReplayExportStates.Rendering, 0.02f,
                 "固定时间步渲染 " + job.Width + "x" + job.Height + " / " + job.FramesPerSecond + " FPS");
@@ -288,6 +198,7 @@ internal static class MatchReplayVideoExporter
                 settings.IncludeAudio ? audioPath : null);
             for (var frameIndex = 0L; frameIndex < frameCount; frameIndex++)
             {
+                ThrowPersistenceFailure(job.JobId);
                 if (job.CancelRequested) throw new OperationCanceledException();
                 if (frameIndex > 0)
                 {
@@ -359,30 +270,29 @@ internal static class MatchReplayVideoExporter
             job.FileBytes = verification.FileBytes;
             job.FrameCount = verification.FrameCount;
             Transition(job, MatchReplayExportStates.Committing, 0.96f, "正在原子提交已验证 MP4");
-            if (File.Exists(job.TargetPath)) throw new IOException("MP4 目标文件已经存在。");
-            AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, job.StagingPath, job.TargetPath);
-            var asset = new MatchMediaAsset
+            var snapshot = ReplayCanonicalJsonV17.Clone(job);
+            var document = envelope.Document;
+            var commit = new ReplayIoOperation<MatchReplayExportJob>("CommitVideo", () =>
             {
-                MediaId = job.JobId,
-                RecordId = job.RecordId,
-                Kind = "Video",
-                Format = "MP4",
-                FilePath = MatchReplayMediaStore.ToStoredPath(job.TargetPath),
-                CreatedUtc = DateTime.UtcNow.ToString("O"),
-                State = MatchMediaStates.Ready,
-                DurationMilliseconds = verification.DurationMilliseconds,
-                Width = job.Width,
-                Height = job.Height,
-                FramesPerSecond = job.FramesPerSecond,
-                FileBytes = verification.FileBytes,
-                Sha256 = verification.Sha256,
-                TimelineJson = AuraSharedJson.SerializeCompact(BuildTimeline(envelope.Document, job.FramesPerSecond))
-            };
-            job.Message = "已保存并验证 " + Path.GetFileName(job.TargetPath);
-            if (!MatchRecordStorage.Database.CommitExportMedia(job, asset))
-            {
-                throw new IOException("已生成 MP4，但数据库提交发生并发冲突；启动恢复将继续登记。");
-            }
+                ThrowPersistenceFailure(snapshot.JobId);
+                if (File.Exists(snapshot.TargetPath)) throw new IOException("MP4 目标文件已经存在。");
+                AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, snapshot.StagingPath, snapshot.TargetPath);
+                var asset = new MatchMediaAsset
+                {
+                    MediaId = snapshot.JobId, RecordId = snapshot.RecordId, Kind = "Video", Format = "MP4",
+                    FilePath = MatchReplayMediaStore.ToStoredPath(snapshot.TargetPath), CreatedUtc = DateTime.UtcNow.ToString("O"),
+                    State = MatchMediaStates.Ready, DurationMilliseconds = verification.DurationMilliseconds,
+                    Width = snapshot.Width, Height = snapshot.Height, FramesPerSecond = snapshot.FramesPerSecond,
+                    FileBytes = verification.FileBytes, Sha256 = verification.Sha256,
+                    TimelineJson = AuraSharedJson.SerializeCompact(BuildTimeline(document, snapshot.FramesPerSecond))
+                };
+                snapshot.Message = "已保存并验证 " + Path.GetFileName(snapshot.TargetPath);
+                if (!MatchRecordStorage.Database.CommitExportMedia(snapshot, asset))
+                    throw new IOException("已生成 MP4，但数据库提交发生并发冲突；启动恢复将继续登记。");
+                return snapshot;
+            });
+            yield return commit;
+            ApplyCommittedJob(commit.Result, job);
             current = job;
         }
         finally
@@ -406,7 +316,7 @@ internal static class MatchReplayVideoExporter
                         Object.Destroy(target);
                     }
                     if (reader != null) Object.Destroy(reader);
-                    DeleteIfExists(audioPath);
+                    QueueDelete(audioPath);
                 }
             }
         }
@@ -435,19 +345,24 @@ internal static class MatchReplayVideoExporter
 
     private static IEnumerator RecoverCore(MatchReplayExportJob job)
     {
+        var existence = new ReplayIoOperation<(bool Staging, bool Target)>("InspectVideoRecovery",
+            () => (File.Exists(job.StagingPath), File.Exists(job.TargetPath)));
+        yield return existence;
         var recoveryAction = ReplayExportRecoveryPolicy.Resolve(
             job.State,
-            File.Exists(job.StagingPath),
-            File.Exists(job.TargetPath));
+            existence.Result.Staging,
+            existence.Result.Target);
         if (recoveryAction == ReplayExportRecoveryActions.FailAndDeletePartial)
         {
             Fail(job, "interrupted", "上次导出在渲染或编码时中断，可重新创建任务。", deleteStaging: true);
             yield break;
         }
 
-        var dependency = ReplayEncoderDependency.LoadVerified();
-        var candidate = File.Exists(job.TargetPath) ? job.TargetPath : job.StagingPath;
-        if (!File.Exists(candidate)) throw new FileNotFoundException("恢复任务找不到部分输出。", candidate);
+        var load = new ReplayIoOperation<ReplayEncoderDependency>("VerifyVideoDependency", ReplayEncoderDependency.LoadVerified);
+        yield return load;
+        var dependency = load.Result;
+        var candidate = existence.Result.Target ? job.TargetPath : job.StagingPath;
+        if (!existence.Result.Target && !existence.Result.Staging) throw new FileNotFoundException("恢复任务找不到部分输出。", candidate);
         var importedProfile = string.Equals(
             job.ProfileId,
             MatchReplayVideoEncodingPolicy.ImportedCodecProfileId,
@@ -482,8 +397,6 @@ internal static class MatchReplayVideoExporter
         {
             Transition(job, MatchReplayExportStates.Committing, 0.96f, "恢复已验证输出的提交");
         }
-        if (!File.Exists(job.TargetPath))
-            AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, job.StagingPath, job.TargetPath);
         var asset = new MatchMediaAsset
         {
             MediaId = job.JobId,
@@ -502,10 +415,16 @@ internal static class MatchReplayVideoExporter
             TimelineJson = "[]"
         };
         job.Message = "启动恢复已完成 MP4 登记";
-        if (!MatchRecordStorage.Database.CommitExportMedia(job, asset))
+        var snapshot = ReplayCanonicalJsonV17.Clone(job);
+        var commit = new ReplayIoOperation<MatchReplayExportJob>("CommitRecoveredVideo", () =>
         {
-            throw new IOException("恢复提交发生并发冲突。");
-        }
+            ThrowPersistenceFailure(snapshot.JobId);
+            if (!File.Exists(snapshot.TargetPath)) AuraSharedFileStore.MoveFile(AuraToolsIds.ModId, snapshot.StagingPath, snapshot.TargetPath);
+            if (!MatchRecordStorage.Database.CommitExportMedia(snapshot, asset)) throw new IOException("恢复提交发生并发冲突。");
+            return snapshot;
+        });
+        yield return commit;
+        ApplyCommittedJob(commit.Result, job);
         current = job;
     }
 
@@ -538,24 +457,14 @@ internal static class MatchReplayVideoExporter
     {
         if (deleteStaging)
         {
-            DeleteIfExists(job.StagingPath);
-            DeleteIfExists(job.TargetPath + ".audio.partial.wav");
+            QueueDelete(job.StagingPath);
+            QueueDelete(job.TargetPath + ".audio.partial.wav");
         }
         job.State = MatchReplayExportStates.Failed;
         job.ErrorCode = code ?? "export-failed";
         job.Message = message ?? "视频导出失败。";
         Persist(job);
         current = job;
-    }
-
-    private static void Persist(MatchReplayExportJob job)
-    {
-        if (!MatchRecordStorage.Database.UpdateExportJob(job))
-        {
-            var latest = MatchRecordStorage.Database.LoadExportJob(job.JobId);
-            if (latest != null) current = latest;
-            throw new InvalidOperationException("视频导出任务状态发生并发冲突。");
-        }
     }
 
     private static MatchReplayVideoSettings SnapshotSettings()
@@ -690,7 +599,7 @@ internal static class MatchReplayVideoExporter
 
     private static void DeleteIfExists(string path)
     {
-        try { if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) File.Delete(path); } catch { }
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path)) File.Delete(path);
     }
 
     private static string FormatBytes(long value)

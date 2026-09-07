@@ -2,7 +2,8 @@ param(
     [string]$Configuration = "Release",
     [string]$ManagedPath = "",
     [switch]$SkipSharedBuild,
-    [switch]$SkipPublish
+    [switch]$SkipPublish,
+    [string]$InputSnapshotPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +14,15 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
 }
 
 Import-Module (Join-Path $repoRoot "tools\modules\SharedConsumerManifest.psm1") -Force
+Import-Module (Join-Path $repoRoot "tools\modules\AuraReleaseInputs.psm1") -Force
+$releaseMutex = Enter-AuraReleaseLock -RepoRoot $repoRoot
+try {
+if (-not $SkipPublish -or -not [string]::IsNullOrWhiteSpace($InputSnapshotPath)) {
+    if ([string]::IsNullOrWhiteSpace($InputSnapshotPath)) {
+        $InputSnapshotPath = Join-Path $repoRoot "artifacts/shared-release/$Configuration/build-input.json"
+        $null = New-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $InputSnapshotPath
+    } else { $null = Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $InputSnapshotPath }
+}
 
 if (-not $SkipSharedBuild) {
     & (Join-Path $repoRoot "tools\Build-AuraSharedRuntime.ps1") `
@@ -36,7 +46,12 @@ foreach ($consumer in $consumers) {
 }
 
 if (-not $SkipPublish) {
-    & (Join-Path $repoRoot "tools\Publish-MainSharedConsumers.ps1") -Configuration $Configuration
+    $null = Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $InputSnapshotPath
+    & (Join-Path $repoRoot "tools\Publish-MainSharedConsumers.ps1") -Configuration $Configuration -InputSnapshotPath $InputSnapshotPath
+} elseif (-not [string]::IsNullOrWhiteSpace($InputSnapshotPath)) {
+    $null = Assert-AuraReleaseInputSnapshot -RepoRoot $repoRoot -Path $InputSnapshotPath
 }
 
 Write-Host "Main shared runtime consumers built successfully: $($consumers.Count) projects."
+
+} finally { $releaseMutex.ReleaseMutex(); $releaseMutex.Dispose() }

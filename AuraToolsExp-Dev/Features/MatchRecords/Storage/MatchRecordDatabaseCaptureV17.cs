@@ -68,7 +68,15 @@ internal sealed partial class MatchRecordDatabase
             try
             {
                 if (Exists(connection, record.RecordId))
-                    throw new InvalidDataException("Replay capture record already exists: " + record.RecordId);
+                {
+                    using var existing = connection.Prepare("SELECT seed_payload FROM replay_capture_sessions WHERE record_id=?;");
+                    existing.Bind(1, record.RecordId);
+                    if (!existing.Read() || !string.Equals(ReplayCanonicalJsonV17.Sha256(existing.Blob(0)),
+                        ReplayCanonicalJsonV17.Sha256(seedPayload), StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Replay capture identity collision: " + record.RecordId);
+                    connection.Execute("COMMIT;");
+                    return;
+                }
                 record.ReplayProtocol = ReplayProtocolV17.DocumentVersion;
                 record.ReplayState = MatchReplayStates.Recording;
                 InsertRecordV17(connection, record, compressedBytes: batchPayload.LongLength + seedPayload.LongLength);
@@ -168,15 +176,18 @@ internal sealed partial class MatchRecordDatabase
         }
         var draft = new ReplayFinalizationDraftV17
         {
-            Record = ReplayCanonicalJsonV17.Clone(record),
-            Envelope = ReplayCanonicalJsonV17.Clone(envelope),
+            // The detached document is exclusively owned by the writer until
+            // this durable draft commits. Encoding is read-only; a JSON round
+            // trip would just duplicate the complete journal and asset graph.
+            Record = record,
+            Envelope = envelope,
             Diagnostics = (diagnostics ?? Array.Empty<string>()).Distinct(StringComparer.Ordinal).ToList(),
             AssetPayloads = envelope.Document.Assets
                 .Where(item => item?.Payload?.Length > 0)
                 .Select(item => new ReplayFinalizationAssetPayloadV17
                 {
                     Sha256 = item.Sha256,
-                    Payload = (byte[])item.Payload.Clone()
+                    Payload = item.Payload
                 })
                 .ToList()
         };

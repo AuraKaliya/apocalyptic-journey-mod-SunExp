@@ -54,6 +54,8 @@ Assert(TerriasStatusOwnershipPolicy.SenderOwnsStatus("player-a", "player-a", out
        && directDetail == "direct player-status identity",
     "status ownership accepts the server-bound player status identity directly");
 
+MoonHomecomingBehaviorTests.Run(Assert);
+
 Console.WriteLine($"Terrias Columbina behavior tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string message)

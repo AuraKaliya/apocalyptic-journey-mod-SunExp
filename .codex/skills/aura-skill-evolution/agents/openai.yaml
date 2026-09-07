@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Skill Evolution"
+  short_description: "Maintain project skills from verified development evidence."
+  default_prompt: "Use $aura-skill-evolution to audit and iterate Aura project skills using current contracts and representative tasks."

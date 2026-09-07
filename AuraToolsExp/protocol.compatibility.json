@@ -37,12 +37,13 @@
     },
     {
       "id": "presentation.event-cg",
-      "currentVersion": 1,
-      "minimumSupportedVersion": 1,
+      "currentVersion": 2,
+      "minimumSupportedVersion": 2,
       "requiredCapabilities": [
         "signal-registry.v4",
-        "processed-team-scene.v1",
-        "owner-qualified-assets.v1"
+        "processed-team-scene.v2",
+        "owner-qualified-assets.v1",
+        "portrait-artwork.v1"
       ],
       "fallback": "disable-remote-event-cg-and-keep-local-registered-cg"
     },

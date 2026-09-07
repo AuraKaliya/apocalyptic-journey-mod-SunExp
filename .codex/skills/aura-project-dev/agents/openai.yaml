@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Project Dev"
+  short_description: "Route Aura products, shared code and developer tooling."
+  default_prompt: "Use $aura-project-dev to orient this Aura repository and select the owning contract and validation."

@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -29,7 +30,7 @@ public static class SpiritWithdrawService
             return false;
         }
         var token = Guid.NewGuid().ToString("N");
-        if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.NetworkActive() && TerriasNetworkQueries.IsClientOnly())
         {
             TerriasNetworkRuntime.Send(
                 new RpcSpiritWithdrawRequest(owner.InstanceId, token),
@@ -62,7 +63,7 @@ public static class SpiritWithdrawService
         }
         if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || battleEpoch != CompanionAuthorityService.BattleEpoch
-            || TerriasNetworkRuntime.IsMultiplayerSession()
+            || TerriasNetworkQueries.NetworkActive()
                && (!sender.IsAvailable
                    || !sender.IsLobbyMember
                    || !SenderOwnsStatus(sender.PlayerId, ownerStatusId)))
@@ -117,7 +118,7 @@ public static class SpiritWithdrawService
         };
         SpiritStateStore.Withdraw(state.StatusId, "SpiritWithdrawService.Withdraw");
         SpiritSummonService.ApplyNetworkState(snapshot, "SpiritWithdrawService.LocalReturnedCard");
-        if (TerriasNetworkRuntime.IsMultiplayerSession())
+        if (TerriasNetworkQueries.NetworkActive())
         {
             TerriasNetworkRuntime.Send(
                 new RpcSpiritCompanionState(snapshot),

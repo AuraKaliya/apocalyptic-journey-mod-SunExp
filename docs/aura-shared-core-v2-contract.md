@@ -354,4 +354,4 @@ AuraToolsExp；SanGuoShaExp 已迁入 `TestMods`，仅保留显式原型构建�
 
 Terrias 当前接入全景见 `docs/Terrias/04-Aura共享层与核心层接入.md`；同步、authority、
 payload 和去重的细化规则见
-`.codex/skills/terrias-shared-runtime-dev/references/sync-scenario-model.md`。
+`.codex/skills/aura-shared-runtime-dev/references/sync-scenario-model.md`。

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aura Shared Runtime Dev"
+  short_description: "Develop shared ownership, resources, protocols and DLLs."
+  default_prompt: "Use $aura-shared-runtime-dev to develop an Aura shared contract and validate its affected consumers."

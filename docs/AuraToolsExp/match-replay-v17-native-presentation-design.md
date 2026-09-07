@@ -64,6 +64,18 @@ owner-qualified 扩展状态。稳定边界比较规范化前后状态，写入 
 - MOD 事件保存模块身份、schema、event id、actor/owner/target、规范 JSON、持续时间和
   persistent/transient 语义。
 
+SourcePresented 只表示动作来源，不授权生成一张展示卡。技能和被动仍可引用卡牌描述数据，
+但只有带实际采样轨迹的 CardMotionPresented 才生成运动中的原生卡牌视图。不同卡牌的重叠
+轨道独立保留，显示实际费用，并按各自结束时间释放；不使用合成飞行弧线替代缺失采样。
+
+CanvasPosition 的 X 以屏幕中心为零，Y 从屏幕底部计量，均按录制分辨率保存。播放先转换到
+捕获 Canvas，再换算到原生手牌或中央容器的局部空间；不能直接把它作为容器 anchoredPosition。
+UI 尺寸使用同一游戏的原生 CanvasScaler 合同，保留预制体支点和相对比例。
+
+动作采样在原生调用前后建立观测，并在调用后读取原生最终采用的 animatedState；
+不能仅用卡牌 Action 字段代替实际动作状态。原生角色动作代次发生替换时，前一个观测结束，
+不把后续动作继续追加进旧轨道。整个 FightUI 的 NowAnimation 标志不再决定单个动作的结束。
+
 动作来源的 descriptor 目录由原生数据类型决定，而不是由 MOD 名称、内容 ID 或资源路径猜测：
 `Card` 使用卡牌 descriptor；`EnemyCard` 和 `PartnerCard` 使用意图 descriptor 与 `Intent` 事务。
 只有卡牌 descriptor 承担卡面/卡框资源契约，意图 descriptor 保存已解析的前景与底图。文档封存前会
@@ -99,8 +111,12 @@ FightManager、FightCardManager 或 RoleTable 的运行时索引。
   边界把 payload 解析为 canonical JSON：对象键递归按 Ordinal 排序、数组保持顺序，重复属性、尾随
   内容、超深度和超预算直接返回 `Invalid`；
 - `IAuraReplayPresentationRendererModule` 可创建仅表现 renderer，接收手动逻辑时钟；
-- provider-required 模块必须在播放时以相同 build/capability 存在；portable 模块只使用通用原语和
-  可用资源；
+- provider-required 模块在播放时按 owner/type/schema、portability 和 renderer capability 精确匹配。
+  SchemaVersion 版本化事件数据及解释规则，RendererCapability 版本化渲染合同；破坏性变化必须
+  更新对应声明。BuildIdentity 保留录制时的构建来源，用于诊断，不作为兼容键：重新编译或依赖
+  变化可能改变整个 DLL 的 MVID，但不代表表现模块合同改变。portable 模块只使用通用原语和可用资源；
+- 兼容检查不重写已封存记录的 BuildIdentity、payload 或 root；游戏资源版本、数据完整性、
+  必要模块和实际 renderer 可用性仍独立校验；
 - actor 尚未进入 truth state 的事件成为有界 pending obligation，在实体物化后按原始 capture
   sequence 排空；Presentation event time 保留发布时刻。排空只有在事务、Journal 和 Ledger 全部提交
   后才移除事件，失败会原子回滚；终局仍未排空会拒绝 Ready，不能只记 warning。
@@ -118,6 +134,11 @@ visual root 与 source instance 必须精确匹配。30 秒 watchdog 只用于�
 - Star Score：持久 HUD snapshot 使用 Terrias renderer，并由回放逻辑时间驱动 shader；
 - Wuna orbit fire：可见性和动作 boost 由 Terrias renderer 重建，`ConfigureReplay` 绕过玩家性能开关，
   几何/材质时间由回放逻辑时钟驱动。
+
+owner-attached v1 的尺寸和位移以 1080p 参考像素定义，透视和正交相机均在 owner 深度上进行
+屏幕/世界换算。独立聚焦脉冲与底层状态轨道各自推进，底层的单帧轨道不能清除聚焦脉冲；
+攻击/干扰朝已记录目标移动，支援沿上方移动。DetachedRightVertical 保留声明的血条缩放，
+使用独立的紧凑意图比例与原生数字字形，意图间距按原生条目宽度计算。
 
 ## Renderer 与首帧门禁
 
@@ -157,7 +178,15 @@ renderer profile 产生黑画面，即使 `Camera.Render()` 没抛异常也不�
 
 状态依次为 `Recording -> Finalizing -> Ready`。增量 batch 只包含 durability watermark 之前的不可变
 事件：任何开放事务、动作世界轨迹或卡牌 Canvas 轨迹都会阻止其自身及更高 sequence 进入耐久前缀。
-它是崩溃诊断/恢复边界；终局先同步写完整 Finalizing draft，再后台规范化、生成检查点/根哈希并原子提交。
+它是崩溃诊断/恢复边界。单一后台存储 FIFO 按 seed、增量 batch、完整 Finalizing draft 的顺序提交；
+终局在主线程只移交封闭后的文档，不复制全量 JSON 或执行数据库写入。队列满时保留输入并由常驻
+驱动重新申请调度，不回退到主线程执行。只有草稿提交成功才允许规范化、生成检查点/根哈希并原子
+保存 Ready；关闭录制不取消已移交的保存。自动清理排除仍在 Recording/Finalizing 的记录。
+草稿提交前发生进程崩溃时，保留已落库的录制前缀并标记 Incomplete；草稿已提交时沿用现有恢复器。
+
+手牌创建/排布仅提出合并的状态采集请求，帧边界和下一动作之前结算；逐视图移动、到达与即时消耗
+的表现归属不变。canonical 发布先检查主机是否有其他房间成员；没有接收者时不建立传输对象，
+有接收者时在后台编码已经封存的文档，发送前再检查成员。保存和网络入口不再深复制整个封存文档。
 
 SQLite schema 14 执行 `replay-pre17-to-v17-native-presentation-cutover`：
 

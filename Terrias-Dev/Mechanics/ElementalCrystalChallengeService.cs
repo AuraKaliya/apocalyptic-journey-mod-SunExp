@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,7 +88,7 @@ public static class ElementalCrystalChallengeService
 
     public static bool Create(IStatusManager? source, IStatusManager? triggerTarget, string origin)
     {
-        if (source == null || triggerTarget == null || TerriasNetworkRuntime.IsClientOnly())
+        if (source == null || triggerTarget == null || TerriasNetworkQueries.IsClientOnly())
         {
             return false;
         }
@@ -131,7 +132,7 @@ public static class ElementalCrystalChallengeService
             return false;
         }
 
-        if (!TerriasNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkQueries.IsClientOnly())
         {
             return Create(source, triggerTarget, origin);
         }
@@ -160,7 +161,7 @@ public static class ElementalCrystalChallengeService
         TerriasRpcSender sender,
         int requestBattleEpoch)
     {
-        if (TerriasNetworkRuntime.IsClientOnly()
+        if (TerriasNetworkQueries.IsClientOnly()
             || requestBattleEpoch != battleEpoch
             || string.IsNullOrWhiteSpace(token))
         {
@@ -199,7 +200,7 @@ public static class ElementalCrystalChallengeService
 
     public static void Tick()
     {
-        if (TerriasNetworkRuntime.IsClientOnly() || Pending.Count == 0)
+        if (TerriasNetworkQueries.IsClientOnly() || Pending.Count == 0)
         {
             return;
         }
@@ -222,7 +223,7 @@ public static class ElementalCrystalChallengeService
             return;
         }
 
-        if (TerriasNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkQueries.IsClientOnly())
         {
             TerriasNetworkRuntime.Send(
                 new RpcElementalCrystalClaim(eventId, ownerStatusId, battleEpoch),
@@ -243,7 +244,7 @@ public static class ElementalCrystalChallengeService
         TerriasRpcSender sender,
         int requestBattleEpoch)
     {
-        if (TerriasNetworkRuntime.IsClientOnly()
+        if (TerriasNetworkQueries.IsClientOnly()
             || requestBattleEpoch != battleEpoch
             || !Pending.TryGetValue(eventId ?? "", out var snapshot))
         {
@@ -317,7 +318,7 @@ public static class ElementalCrystalChallengeService
     {
         Observed.Add(snapshot.EventId);
         Spawned?.Invoke(snapshot);
-        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkQueries.IsServer() && TerriasNetworkQueries.HasRemotePlayers())
         {
             TerriasNetworkRuntime.Send(new RpcElementalCrystalSpawn(snapshot), source + ":spawn");
         }
@@ -357,7 +358,7 @@ public static class ElementalCrystalChallengeService
             Claimed = claimed
         };
         ApplyNetworkResolution(resolution, "local:" + source);
-        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkQueries.IsServer() && TerriasNetworkQueries.HasRemotePlayers())
         {
             TerriasNetworkRuntime.Send(new RpcElementalCrystalResolution(resolution), source + ":resolution");
         }
@@ -375,7 +376,7 @@ public static class ElementalCrystalChallengeService
             return false;
         }
 
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             return string.Equals(FightPlayer.Instance?.Status?.InstanceId, requestedOwnerStatusId, StringComparison.Ordinal);
         }

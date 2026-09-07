@@ -192,7 +192,7 @@ public static class PolymorphNetworkSync
     private static void Broadcast(PolymorphVisualSnapshot snapshot, string source)
     {
         ApplyVisualSnapshot(snapshot, "local:" + source);
-        if (!TerriasNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkQueries.NetworkActive())
         {
             return;
         }

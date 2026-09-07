@@ -1,4 +1,0 @@
-interface:
-  display_name: "Terrias Visual Runtime Dev"
-  short_description: "Maintain Terrias/AuraTools visual lifecycles and bundles."
-  default_prompt: "Use $terrias-visual-runtime-dev to update Terrias/AuraTools card presentation lifecycles, pooled visual ownership, visual registries, bundles, shaders, Skill CG, or runtime visual behavior."

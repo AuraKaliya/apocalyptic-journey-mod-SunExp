@@ -152,8 +152,8 @@ try {
     $registration = Get-Content -LiteralPath $registrationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($registration.ownerModId -eq "Terrias") "Shared package ownerModId must be Terrias."
     Assert-True ($registration.participantKind -eq "Content") "Terrias shared package must register as Content."
-    Assert-True (@($registration.resources).Count -eq 9) "Terrias must publish its nine content-owned voice/CG resources."
-    Assert-True (@($registration.defaults).Count -eq 9) "Terrias content media must provide one registered default per resource."
+    Assert-True (@($registration.resources).Count -eq 10) "Terrias must publish its ten content-owned voice/CG resources."
+    Assert-True (@($registration.defaults).Count -eq 10) "Terrias content media must provide one registered default per resource."
 
     $registrationIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $installedResources = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -205,7 +205,7 @@ try {
     }
 
     $cgRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "cg.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Assert-True ($cgRegistry.ownerModId -eq "Terrias" -and @($cgRegistry.entries).Count -eq 7) "Terrias CG registry must own seven media entries."
+    Assert-True ($cgRegistry.ownerModId -eq "Terrias" -and @($cgRegistry.entries).Count -eq 8) "Terrias CG registry must own eight media entries."
     foreach ($entry in $cgRegistry.entries) {
         Assert-True (-not [string]::IsNullOrWhiteSpace([string]$entry.displayName)) "Terrias CG displayName is missing: $($entry.cgId)"
         Assert-True ([string]$entry.media.resource -match '/Terrias/') "Terrias CG resource path is not content-owned: $($entry.cgId)"

@@ -13,11 +13,11 @@ or a second native battle.
 ## Route Before Acting
 
 - For a defect fix, migration, compatibility change, or retired path, apply
-  `terrias-complete-solution-gate` before designing the repair.
+  `aura-complete-solution-gate` before designing the repair.
 - For owner-qualified state/presentation providers or shared lifecycle changes,
-  use `terrias-shared-runtime-dev`.
+  use `aura-shared-runtime-dev`.
 - For URP, shaders, materials, card visuals, FightUI projection, or first-frame
-  rendering, use `terrias-visual-runtime-dev`.
+  rendering, use `aura-visual-runtime-dev`.
 - For synthetic Partner/Status identity or native manager/queue ownership, use
   `terrias-architecture-dev`.
 

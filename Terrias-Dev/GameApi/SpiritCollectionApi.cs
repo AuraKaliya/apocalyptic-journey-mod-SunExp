@@ -631,7 +631,7 @@ public static class SpiritCollectionApi
 
     private static string LocalPlayerId()
     {
-        var networkId = TerriasNetworkRuntime.LocalPlayerId();
+        var networkId = TerriasNetworkQueries.LocalPlayerId();
         if (!string.IsNullOrWhiteSpace(networkId))
         {
             return networkId;
@@ -879,7 +879,7 @@ public static class SpiritCollectionApi
     private static string StableProfileKey()
     {
         return SpiritProfileBindingPolicy.ResolveStableProfileKey(
-            TerriasNetworkRuntime.LocalPlayerId(),
+            TerriasNetworkQueries.LocalPlayerId(),
             RuntimeMember(Singleton<GameRuntimeData>.Instance, "PlayerId"));
     }
 
