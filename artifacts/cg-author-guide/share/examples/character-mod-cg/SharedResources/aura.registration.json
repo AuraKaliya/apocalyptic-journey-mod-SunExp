@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 4,
+  "ownerModId": "MoonlightMod",
+  "participantKind": "Content",
+  "packageSourceKind": "ModPackage",
+  "packageId": "MoonlightMod.RoleCg",
+  "packageVersion": 1,
+  "resources": [
+    {
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "MoonlightMod_luna_luna",
+      "scopeOwnerModId": "MoonlightMod",
+      "resourceId": "luna.moon-burst",
+      "kind": "File",
+      "source": "CG/Luna/skill.png",
+      "fileName": "content.png",
+      "originKind": "ContentRegistered",
+      "writerId": "MoonlightMod",
+      "defaultEnabled": true,
+      "priority": 20,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": [
+        "role-cg",
+        "skill-cg"
+      ]
+    }
+  ],
+  "defaults": [
+    {
+      "moduleId": "CG",
+      "featureId": "SkillCg",
+      "scopeType": "Role",
+      "scopeId": "MoonlightMod_luna_luna",
+      "profileId": "content-default",
+      "enabled": true,
+      "priority": 20,
+      "resourceOwnerModId": "MoonlightMod",
+      "resourceId": "luna.moon-burst"
+    }
+  ]
+}
