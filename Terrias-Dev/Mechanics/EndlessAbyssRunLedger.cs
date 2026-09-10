@@ -29,6 +29,8 @@ public static class EndlessAbyssRunLedger
         return Load().Entries.Contains(NormalizeKey(key), StringComparer.Ordinal);
     }
 
+    public static IReadOnlyList<string> Entries() => Load().Entries.ToArray();
+
     public static bool ContainsPrefix(string prefix)
     {
         prefix = NormalizeKey(prefix);

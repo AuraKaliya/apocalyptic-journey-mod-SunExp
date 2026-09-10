@@ -68,6 +68,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraSharedCore\AuraRpcAdmission.cs" Link="Network\AuraRpcAdmission.cs" />
+    <Compile Include="..\AuraSharedCore\AuraRpcSender.cs" Link="Network\AuraRpcSender.cs" />
+    <Compile Include="..\AuraSharedCore\AuraNetworkIdentityState.cs" Link="Network\AuraNetworkIdentityState.cs" />
+    <Compile Include="..\AuraSharedCore\AuraVersionedReceipt.cs" Link="Network\AuraVersionedReceipt.cs" />
+    <Compile Include="..\AuraSharedCore\AuraBoundedCompressedJson.cs" Link="Network\AuraBoundedCompressedJson.cs" />
     <Compile Include="..\AuraSharedCore\AuraNativeCardPresentationState.cs" Link="Presentation\AuraNativeCardPresentationState.cs" />
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>..\Managed\UnityEngine.CoreModule.dll</HintPath>

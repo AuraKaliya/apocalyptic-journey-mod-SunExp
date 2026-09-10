@@ -50,7 +50,7 @@ public sealed class FieldStateSnapshot
 }
 
 [Serializable]
-public sealed class RpcFieldStateSnapshot : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcFieldStateSnapshot : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -94,7 +94,7 @@ public sealed class RpcFieldStateSnapshot : RpcCommandBase, ITerriasServerBoundR
 }
 
 [Serializable]
-public sealed class RpcFieldStateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcFieldStateRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -175,10 +175,10 @@ public static class FieldNetworkSync
             SnapshotRequestThrottleSeconds = 1.0d,
             MaxResolvedTokens = 256
         });
-    private static string hostBattleSessionId = Guid.NewGuid().ToString("N");
-    private static string remoteBattleSessionId = "";
+    private static string hostBattleSessionId => AuraNetworkIdentityRuntime.BattleId;
+    private static string remoteBattleSessionId => AuraNetworkIdentityRuntime.BattleId;
 
-    public static int CurrentBattleSerial => SyncDomain.CurrentSession;
+    public static int CurrentBattleSerial => AuraNetworkIdentityRuntime.BattleEpoch;
 
     internal static string HostBattleSessionId => hostBattleSessionId;
 
@@ -287,14 +287,10 @@ public static class FieldNetworkSync
         if (snapshot == null
             || snapshot.ProtocolVersion != FieldStateSnapshot.CurrentProtocolVersion
             || string.IsNullOrWhiteSpace(snapshot.BattleSessionId)
-            || !SyncDomain.AcceptRemoteSnapshotSession(snapshot.BattleSerial))
+            || snapshot.BattleSerial != CurrentBattleSerial
+            || !AuraNetworkIdentityRuntime.MatchesBattle(snapshot.BattleSessionId))
         {
             return;
-        }
-
-        if (!string.Equals(remoteBattleSessionId, snapshot.BattleSessionId, StringComparison.Ordinal))
-        {
-            remoteBattleSessionId = snapshot.BattleSessionId;
         }
 
         FieldApi.ApplyNetworkSnapshot((TerriasFieldId)snapshot.FieldId, snapshot.Stacks, snapshot.Epoch, source);
@@ -303,14 +299,6 @@ public static class FieldNetworkSync
     public static void ResetFightState()
     {
         SyncDomain.ResetSession();
-        if (TerriasNetworkRuntime.IsClientOnly())
-        {
-            remoteBattleSessionId = "";
-            return;
-        }
-
-        hostBattleSessionId = Guid.NewGuid().ToString("N");
-        remoteBattleSessionId = hostBattleSessionId;
     }
 
     private static int ValidateRequest(

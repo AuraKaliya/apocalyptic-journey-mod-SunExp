@@ -1,25 +1,26 @@
 using System;
-using Network.Command;
-using Terrias.Dll.Mechanics;
-
+using AuraShared.Core;
+using Terrias.Dll.Application;
+using Terrias.Dll.Contracts;
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcRuntimeHandAttachment : RpcCommandBase
+public sealed class RpcRuntimeHandAttachment : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
+    private TerriasRpcSender sender = TerriasRpcSender.Unbound;
+    public bool Accepted { get; set; }
     public RuntimeHandAttachmentSpec Spec { get; set; } = new();
-
-    public RpcRuntimeHandAttachment()
+    public RpcRuntimeHandAttachment() { }
+    public RpcRuntimeHandAttachment(RuntimeHandAttachmentSpec spec) { Spec = spec; }
+    public void BindServerSender(TerriasRpcSender value) => sender = value;
+    public override void CmdExecute()
     {
+        var owns = Spec != null && sender.IsAvailable && sender.IsLobbyMember
+            && TerriasStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, Spec.OwnerStatusId, out _);
+        Accepted = RuntimeHandAttachmentApplication.Resolve(Spec, owns);
     }
-
-    public RpcRuntimeHandAttachment(RuntimeHandAttachmentSpec spec)
-    {
-        Spec = spec ?? new RuntimeHandAttachmentSpec();
-    }
-
     public override void RpcExecute()
     {
-        RuntimeCardAttachmentService.ApplyNetworkHandAttachment(Spec, "RpcRuntimeHandAttachment");
+        if (Accepted) RuntimeHandAttachmentApplication.Apply(Spec);
     }
 }

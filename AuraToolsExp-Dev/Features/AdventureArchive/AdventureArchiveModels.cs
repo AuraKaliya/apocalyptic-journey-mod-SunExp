@@ -7,6 +7,9 @@ internal sealed class AdventureArchiveRecord
     internal int SchemaVersion { get; set; } = AdventureArchiveSchema.CurrentVersion;
     internal string DataCompleteness { get; set; } = AdventureArchiveSchema.Rich;
     internal string AdventureId { get; set; } = "";
+    internal string NetworkAdventureId { get; set; } = "";
+    internal string PerspectivePlayerId { get; set; } = "";
+    internal string AssociationState { get; set; } = "Legacy";
     internal string StartedUtc { get; set; } = "";
     internal string EndedUtc { get; set; } = "";
     internal string Status { get; set; } = "in-progress";
@@ -50,7 +53,7 @@ internal sealed class AdventureArchiveSnapshot
 
 internal static class AdventureArchiveSchema
 {
-    internal const int CurrentVersion = 2;
+    internal const int CurrentVersion = 3;
     internal const string Rich = "rich";
     internal const string Partial = "partial";
     internal const string SummaryOnly = "summary-only";

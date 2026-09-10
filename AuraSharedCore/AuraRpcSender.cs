@@ -11,7 +11,13 @@ public sealed class AuraRpcSender
         bool isLobbyHost,
         string sourceHook,
         bool isAvailable)
+        : this(playerId, playerName, isLobbyMember, isLobbyHost, sourceHook, isAvailable, -1)
     {
+    }
+
+    public AuraRpcSender(string playerId, string playerName, bool isLobbyMember, bool isLobbyHost, string sourceHook, bool isAvailable, int connectionId)
+    {
+        ConnectionId = connectionId;
         PlayerId = (playerId ?? "").Trim();
         PlayerName = (playerName ?? "").Trim();
         IsLobbyMember = isLobbyMember;
@@ -21,6 +27,7 @@ public sealed class AuraRpcSender
     }
 
     public string PlayerId { get; }
+    public int ConnectionId { get; }
 
     public string PlayerName { get; }
 

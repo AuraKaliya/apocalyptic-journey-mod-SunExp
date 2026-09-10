@@ -255,12 +255,12 @@ public static class CardMutationService
             .Distinct(StringComparer.Ordinal);
     }
 
-    private static string CurrentNativeTagText(IDataConfig? config)
+    public static string CurrentNativeTagText(IDataConfig? config)
     {
-        var existing = DictionaryUtil.Get(config?.Vars, "Tag");
-        return string.IsNullOrWhiteSpace(existing)
-            ? DictionaryUtil.Get(config?.data, "Tag")
-            : existing;
+        // An explicitly empty override means all native tags were removed.
+        return config?.Vars != null && config.Vars.TryGetValue("Tag", out var existing)
+            ? existing ?? ""
+            : DictionaryUtil.Get(config?.data, "Tag");
     }
 
     private static IEnumerable<string> SplitTags(string value)

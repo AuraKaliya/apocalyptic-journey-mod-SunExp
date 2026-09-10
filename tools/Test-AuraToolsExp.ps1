@@ -28,7 +28,7 @@ $protocolManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath (
 $requiredProtocolFeatures = @{
     "multiplayer.mod-sync" = @(1, 2)
     "presentation.pixel-emoji" = @(2, 2)
-    "records.damage-meter" = @(4, 4)
+    "records.damage-meter" = @(5, 5)
     "presentation.event-cg" = @(2, 2)
     "records.match-replay" = @(17, 17)
 }
@@ -49,7 +49,7 @@ foreach ($entry in $requiredProtocolFeatures.GetEnumerator()) {
 }
 $damageProtocol = @($protocolManifest.features | Where-Object id -eq "records.damage-meter")[0]
 if ([int]$damageProtocol.minimumReadableVersion -ne 3) {
-    throw "AuraToolsExp damage-meter protocol inventory must distinguish v4 live networking from v3 persisted-data migration."
+    throw "AuraToolsExp damage-meter protocol inventory must distinguish v5 live networking from v3 persisted-data migration."
 }
 $replayProtocol = @($protocolManifest.features | Where-Object id -eq "records.match-replay")[0]
 $requiredReplayCapabilities = @(
@@ -1189,8 +1189,6 @@ $archiveStorageSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveStorage.cs")
 $archiveRuntimeSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveRuntime.cs")
-$archiveModelSource = Get-Content -Raw -Encoding UTF8 -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AdventureArchive\AdventureArchiveModels.cs")
 if ($healthSource -notmatch 'loadedModDirectories' `
         -or $healthSource -notmatch 'ModConfig\.json' `
         -or $healthSource -notmatch 'Assembly\.LoadFrom' `
@@ -1203,7 +1201,6 @@ if ($healthSource -notmatch 'loadedModDirectories' `
         -or $archiveDatabaseSource -notmatch 'adventure_archives' `
         -or $archiveDatabaseSource -notmatch 'battle_records' `
         -or $archiveDatabaseSource -notmatch 'MigrateLegacyRows' `
-        -or $archiveModelSource -notmatch 'CurrentVersion = 2' `
         -or $archiveRuntimeSource -notmatch 'AttachEventChoiceObservers' `
         -or $archiveRuntimeSource -notmatch 'manager\.onClick\.AddListener' `
         -or $archiveRuntimeSource -notmatch 'CollectionChanged' `

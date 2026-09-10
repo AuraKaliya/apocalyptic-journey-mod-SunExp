@@ -18,6 +18,16 @@ public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsSe
 {
     private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
 
+    public int ProtocolVersion { get; set; }
+    public string SessionId { get; set; } = "";
+    public bool IsFinalMarker { get; set; }
+    public long FinalReporterSequence { get; set; }
+    public string ReplyPlayerId { get; set; } = "";
+    public int AcknowledgementProtocol { get; set; }
+    public long AcknowledgedThrough { get; set; }
+    public long AcknowledgedServerSequence { get; set; }
+    public bool FinalMarkerAccepted { get; set; }
+    public string BatchRejection { get; set; } = "";
     public List<DamageEvent> Candidates { get; set; } = new();
 
     public List<DamageEvent> Confirmed { get; set; } = new();
@@ -31,29 +41,8 @@ public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsSe
 
     public override void CmdExecute()
     {
-        var accepted = DamageMeterNetworkRuntime.AcceptBatchOnServer(
-                Candidates,
-                serverSender,
-                out var confirmed,
-                out var rejections);
+        DamageMeterNetworkRuntime.ResolveSubmission(this, serverSender);
         Candidates = new List<DamageEvent>();
-        if (!accepted)
-        {
-            Confirmed = new List<DamageEvent>();
-            RejectionReasons = rejections;
-            AuraToolsLog.Warn("[DamageMeter] event batch rejected: " + string.Join("; ", rejections));
-            return;
-        }
-
-        Confirmed = confirmed;
-        RejectionReasons = rejections;
-        if (rejections.Count > 0)
-        {
-            AuraToolsLog.Debug("[DamageMeter] event batch accepted with rejections="
-                               + rejections.Count
-                               + "; first="
-                               + rejections[0]);
-        }
     }
 
     public override void RpcExecute()
@@ -62,6 +51,7 @@ public sealed class DamageMeterSubmitBatchCommand : RpcCommandBase, IAuraToolsSe
         {
             DamageMeterNetworkRuntime.ApplyConfirmedBatch(Confirmed);
         }
+        DamageMeterNetworkRuntime.ReceiveAcknowledgement(this);
     }
 }
 
@@ -70,6 +60,8 @@ public sealed class DamageMeterControlCommand : RpcCommandBase, IAuraToolsServer
 {
     private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
 
+    public int ProtocolVersion { get; set; }
+    public bool FinalizeOnly { get; set; }
     public string Kind { get; set; } = "";
 
     public string IssuerPlayerId { get; set; } = "";

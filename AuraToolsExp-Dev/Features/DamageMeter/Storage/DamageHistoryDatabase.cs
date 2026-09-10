@@ -77,6 +77,21 @@ internal sealed class DamageHistoryDatabase
                 var existing = FindFightSequence(connection, adventureId, record.SessionId);
                 if (existing > 0)
                 {
+                    using var read = connection.Prepare("SELECT payload FROM fight_history WHERE adventure_id=? AND session_id=?;");
+                    read.Bind(1, adventureId); read.Bind(2, record.SessionId);
+                    var prior = read.Read() ? DamageHistoryPayload.Decode<DamageFightRecord>(read.Blob(0)) : null;
+                    if (prior?.Snapshot != null && !prior.Snapshot.IsComplete
+                        && record.Snapshot.ServerSequence >= prior.Snapshot.ServerSequence
+                        && (record.Snapshot.IsComplete || record.Snapshot.ServerSequence > prior.Snapshot.ServerSequence))
+                    {
+                        var repaired = CloneFight(record); repaired.Sequence = existing;
+                        using var update = connection.Prepare("UPDATE fight_history SET result=?,ended_utc=?,completed_rounds=?,total_damage=?,payload=? WHERE adventure_id=? AND session_id=?;");
+                        update.Bind(1, repaired.Result); update.Bind(2, repaired.EndedUtc);
+                        update.Bind(3, repaired.Snapshot.CompletedRoundCount); update.Bind(4, FightTotal(repaired));
+                        update.Bind(5, DamageHistoryPayload.Encode(repaired)); update.Bind(6, adventureId); update.Bind(7, record.SessionId); update.Execute();
+                        connection.Execute("COMMIT;");
+                        return repaired;
+                    }
                     connection.Execute("COMMIT;");
                     return null;
                 }

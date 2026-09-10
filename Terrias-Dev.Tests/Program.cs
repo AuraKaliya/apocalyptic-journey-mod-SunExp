@@ -20,6 +20,8 @@ internal static partial class Program
     private static void Main()
     {
         TestDictionaryUtil();
+        TestAbyssChoicesAndBurnout();
+        TestSilhouetteGlow();
         TestLedgerCommitFailures();
         TestProjectionWireIdentity();
         TestRuntimeMemberApi();
@@ -84,7 +86,7 @@ internal static partial class Program
         TestBattleLifecycleApi();
         TestProjectionProtocolState();
         TestEndlessSeaReplicationClock();
-        TestSolarMemoryRoleCommitPendingState();
+
         TestLoneerStateOwnership();
         TestStarScoreWindow();
         TestStarScoreArrivalCueService();
@@ -1812,29 +1814,6 @@ internal static partial class Program
             "same-token retries reject changed summon content");
         False(requestIdentity.Matches("role", "other-player", "owner", "abc"),
             "same-token retries remain bound to the authoritative sender identity");
-    }
-
-    private static void TestSolarMemoryRoleCommitPendingState()
-    {
-        var state = new SolarMemoryRoleCommitPendingState();
-        False(state.TryBegin("", "token"), "Solar Memory role commit rejects an empty player identity");
-        True(state.TryBegin("player-a", "token-a"), "Solar Memory role commit tracks the first pending request");
-        True(state.TryBegin("player-a", "token-a"), "Solar Memory role commit treats a repeated local submission as idempotent");
-        False(state.TryBegin("player-b", "token-b"), "Solar Memory role commit keeps one unambiguous local request pending");
-
-        var mismatchedPlayer = state.Resolve("player-b", "token-a", accepted: true);
-        False(mismatchedPlayer.Matched, "Solar Memory role commit ignores an acknowledgement for another player");
-        var mismatchedToken = state.Resolve("player-a", "token-b", accepted: true);
-        False(mismatchedToken.Matched, "Solar Memory role commit ignores an acknowledgement for another token");
-        True(state.IsPending("player-a", "token-a"), "unmatched acknowledgements leave the request pending");
-
-        var accepted = state.Resolve("player-a", "token-a", accepted: true);
-        True(accepted.Matched && accepted.Accepted, "matching host acceptance resolves the pending role commit");
-        False(state.IsPending("player-a", "token-a"), "accepted role commit cannot be completed twice");
-
-        True(state.TryBegin("player-a", "token-rejected"), "a resolved role commit permits a later retry");
-        var rejected = state.Resolve("player-a", "token-rejected", accepted: false);
-        True(rejected.Matched && !rejected.Accepted, "matching host rejection resolves the pending role commit as rejected");
     }
 
     private static void TestSolarMemoryMapPreviewPolicy()

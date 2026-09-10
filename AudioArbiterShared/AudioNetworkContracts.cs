@@ -20,6 +20,7 @@ public sealed class RpcAudioEvent : RpcCommandBase
 
     public override void RpcExecute()
     {
+        if (!AudioNetworkPolicy.IsCardUsePresentation(Event) && Event.IssuerPlayerId == PlayerManager.Instance?.PlayerId) return;
         Event.IsRemote = true;
         Event.DisableSync = true;
         AudioArbiterRuntime.ReceiveRemote(Event);
@@ -55,7 +56,8 @@ public sealed class RpcAudioPresentationRequest : RpcCommandBase, IAudioArbiterS
 
     public override void CmdExecute()
     {
-        AudioArbiterRuntime.ApplyServerCardUsePresentation(Event, serverSender);
+        if (AudioNetworkPolicy.IsCardUsePresentation(Event)) AudioArbiterRuntime.ApplyServerCardUsePresentation(Event, serverSender);
+        else AudioNetworkRuntime.RelayOwnedEvent(Event, serverSender);
         Event = new SoundPlaybackRequest();
     }
 

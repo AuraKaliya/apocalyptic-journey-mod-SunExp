@@ -34,8 +34,8 @@ internal sealed class AdventureArchiveDatabase
             try
             {
                 using (var insert = connection.Prepare(
-                           "INSERT OR IGNORE INTO adventure_archives(adventure_id, started_utc, ended_utc, status, result, mode_id, role_id, game_build, tool_build, mod_fingerprint, latest_stage, event_count, snapshot_count, schema_version, data_completeness, role_name, mode_name) "
-                           + "VALUES(?, ?, '', 'in-progress', '', ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?);"))
+                           "INSERT OR IGNORE INTO adventure_archives(adventure_id, started_utc, ended_utc, status, result, mode_id, role_id, game_build, tool_build, mod_fingerprint, latest_stage, event_count, snapshot_count, schema_version, data_completeness, role_name, mode_name, network_adventure_id, perspective_player_id, association_state) "
+                           + "VALUES(?, ?, '', 'in-progress', '', ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?, ?);"))
                 {
                     insert.Bind(1, record.AdventureId);
                     insert.Bind(2, record.StartedUtc);
@@ -49,11 +49,14 @@ internal sealed class AdventureArchiveDatabase
                     insert.Bind(10, AdventureArchiveSchema.Rich);
                     insert.Bind(11, record.RoleName);
                     insert.Bind(12, record.ModeName);
+                    insert.Bind(13, record.NetworkAdventureId);
+                    insert.Bind(14, record.PerspectivePlayerId);
+                    insert.Bind(15, record.AssociationState);
                     insert.Execute();
                 }
 
                 using (var update = connection.Prepare(
-                           "UPDATE adventure_archives SET mode_id=?, role_id=?, game_build=?, tool_build=?, mod_fingerprint=?, latest_stage=?, schema_version=?, data_completeness=CASE WHEN data_completeness='summary-only' THEN 'partial' ELSE ? END, role_name=?, mode_name=? WHERE adventure_id=?;"))
+                           "UPDATE adventure_archives SET mode_id=?, role_id=?, game_build=?, tool_build=?, mod_fingerprint=?, latest_stage=?, schema_version=?, data_completeness=CASE WHEN data_completeness='summary-only' THEN 'partial' ELSE ? END, role_name=?, mode_name=?, network_adventure_id=?, perspective_player_id=?, association_state=? WHERE adventure_id=?;"))
                 {
                     update.Bind(1, record.ModeId);
                     update.Bind(2, record.RoleId);
@@ -65,7 +68,10 @@ internal sealed class AdventureArchiveDatabase
                     update.Bind(8, AdventureArchiveSchema.Rich);
                     update.Bind(9, record.RoleName);
                     update.Bind(10, record.ModeName);
-                    update.Bind(11, record.AdventureId);
+                    update.Bind(11, record.NetworkAdventureId);
+                    update.Bind(12, record.PerspectivePlayerId);
+                    update.Bind(13, record.AssociationState);
+                    update.Bind(14, record.AdventureId);
                     update.Execute();
                 }
                 connection.Execute("COMMIT;");
@@ -185,8 +191,8 @@ internal sealed class AdventureArchiveDatabase
             using var connection = Open();
             var battleTable = TableExists(connection, "battle_records");
             var sql = "SELECT a.adventure_id, a.started_utc, a.ended_utc, a.status, a.result, a.mode_id, a.role_id, a.game_build, a.tool_build, a.mod_fingerprint, a.latest_stage, a.event_count, a.snapshot_count, "
-                      + (battleTable ? "(SELECT COUNT(*) FROM battle_records b WHERE b.adventure_id=a.adventure_id)" : "0")
-                      + ", a.schema_version, a.data_completeness, a.role_name, a.mode_name"
+                      + (battleTable ? "(SELECT COUNT(*) FROM battle_records b WHERE b.adventure_id=CASE WHEN a.association_state=\'Legacy\' THEN a.adventure_id ELSE a.network_adventure_id END)" : "0")
+                      + ", a.schema_version, a.data_completeness, a.role_name, a.mode_name, a.network_adventure_id, a.perspective_player_id, a.association_state"
                       + " FROM adventure_archives a ORDER BY a.started_utc DESC LIMIT ?;";
             using var query = connection.Prepare(sql);
             query.Bind(1, Math.Max(1, Math.Min(2000, maximum)));
@@ -206,8 +212,8 @@ internal sealed class AdventureArchiveDatabase
             AdventureArchiveRecord? record = null;
             var battleTable = TableExists(connection, "battle_records");
             var sql = "SELECT a.adventure_id, a.started_utc, a.ended_utc, a.status, a.result, a.mode_id, a.role_id, a.game_build, a.tool_build, a.mod_fingerprint, a.latest_stage, a.event_count, a.snapshot_count, "
-                      + (battleTable ? "(SELECT COUNT(*) FROM battle_records b WHERE b.adventure_id=a.adventure_id)" : "0")
-                      + ", a.schema_version, a.data_completeness, a.role_name, a.mode_name"
+                      + (battleTable ? "(SELECT COUNT(*) FROM battle_records b WHERE b.adventure_id=CASE WHEN a.association_state=\'Legacy\' THEN a.adventure_id ELSE a.network_adventure_id END)" : "0")
+                      + ", a.schema_version, a.data_completeness, a.role_name, a.mode_name, a.network_adventure_id, a.perspective_player_id, a.association_state"
                       + " FROM adventure_archives a WHERE a.adventure_id=? LIMIT 1;";
             using (var query = connection.Prepare(sql))
             {
@@ -246,10 +252,10 @@ internal sealed class AdventureArchiveDatabase
                     });
                 }
             }
-            if (battleTable)
+            if (battleTable && record.AssociationState != "Pending")
             {
                 using var battles = connection.Prepare("SELECT record_id FROM battle_records WHERE adventure_id=? ORDER BY started_utc;");
-                battles.Bind(1, adventureId);
+                battles.Bind(1, record.AssociationState == "Legacy" ? adventureId : record.NetworkAdventureId);
                 while (battles.Read()) result.BattleRecordIds.Add(battles.Text(0));
             }
             return result;
@@ -300,6 +306,63 @@ internal sealed class AdventureArchiveDatabase
         }
     }
 
+    internal string FindForNetworkAdventure(string networkId, string playerId)
+    {
+        lock (gate)
+        {
+            EnsureInitialized(); using var connection = Open();
+            using var query = connection.Prepare("SELECT adventure_id FROM adventure_archives WHERE network_adventure_id=? AND perspective_player_id=? AND association_state='Ready' ORDER BY started_utc LIMIT 1;");
+            query.Bind(1, networkId); query.Bind(2, playerId);
+            return query.Read() ? query.Text(0) : "";
+        }
+    }
+
+    internal string BindPendingAdventure(string localId, string networkId, string playerId)
+    {
+        if (!AuraShared.Core.AuraNetworkIdentityState.ValidId(networkId)) throw new ArgumentException("Invalid authoritative adventure identity.");
+        lock (gate)
+        {
+            EnsureInitialized(); using var connection = Open();
+            connection.Execute("BEGIN IMMEDIATE;");
+            try
+            {
+                using (var check = connection.Prepare("SELECT association_state, perspective_player_id FROM adventure_archives WHERE adventure_id=?;"))
+                {
+                    check.Bind(1, localId);
+                    if (!check.Read() || check.Text(0) != "Pending" || check.Text(1) != playerId)
+                        throw new InvalidOperationException("Pending archive ownership changed.");
+                }
+                var target = localId;
+                using (var existing = connection.Prepare("SELECT adventure_id FROM adventure_archives WHERE network_adventure_id=? AND perspective_player_id=? AND association_state='Ready' ORDER BY started_utc LIMIT 1;"))
+                {
+                    existing.Bind(1, networkId); existing.Bind(2, playerId);
+                    if (existing.Read()) target = existing.Text(0);
+                }
+                if (target != localId)
+                {
+                    var eventOffset = NextSequence(connection, "adventure_archive_events", target) - 1;
+                    using (var copy = connection.Prepare("INSERT OR IGNORE INTO adventure_archive_events(adventure_id,sequence,occurred_utc,kind,title,detail,payload_json,dedupe_key) SELECT ?,sequence+?,occurred_utc,kind,title,detail,payload_json,dedupe_key FROM adventure_archive_events WHERE adventure_id=?;"))
+                    { copy.Bind(1,target); copy.Bind(2,eventOffset); copy.Bind(3,localId); copy.Execute(); }
+                    var snapshotOffset = NextSequence(connection, "adventure_archive_snapshots", target) - 1;
+                    using (var copy = connection.Prepare("INSERT INTO adventure_archive_snapshots(adventure_id,sequence,occurred_utc,reason,stage,role_id,cards_json,relics_json,state_json,blessings_json) SELECT ?,sequence+?,occurred_utc,reason,stage,role_id,cards_json,relics_json,state_json,blessings_json FROM adventure_archive_snapshots WHERE adventure_id=?;"))
+                    { copy.Bind(1,target); copy.Bind(2,snapshotOffset); copy.Bind(3,localId); copy.Execute(); }
+                    DeleteChildren(connection, localId);
+                    using (var remove = connection.Prepare("DELETE FROM adventure_archives WHERE adventure_id=?;"))
+                    { remove.Bind(1,localId); remove.Execute(); }
+                    UpdateCounts(connection, target);
+                }
+                else
+                {
+                    using var bind = connection.Prepare("UPDATE adventure_archives SET network_adventure_id=?,association_state='Ready' WHERE adventure_id=? AND perspective_player_id=?;");
+                    bind.Bind(1,networkId); bind.Bind(2,localId); bind.Bind(3,playerId); bind.Execute();
+                }
+                connection.Execute("COMMIT;");
+                return target;
+            }
+            catch { TryRollback(connection); throw; }
+        }
+    }
+
     private void EnsureInitialized()
     {
         if (initialized) return;
@@ -315,7 +378,12 @@ internal sealed class AdventureArchiveDatabase
         EnsureColumn(connection, "adventure_archives", "mode_name", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn(connection, "adventure_archive_events", "dedupe_key", "TEXT NOT NULL DEFAULT ''");
         EnsureColumn(connection, "adventure_archive_snapshots", "blessings_json", "TEXT NOT NULL DEFAULT '[]'");
+        EnsureColumn(connection, "adventure_archives", "network_adventure_id", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(connection, "adventure_archives", "perspective_player_id", "TEXT NOT NULL DEFAULT ''");
+        EnsureColumn(connection, "adventure_archives", "association_state", "TEXT NOT NULL DEFAULT 'Legacy'");
         MigrateLegacyRows(connection);
+        connection.Execute("UPDATE adventure_archives SET schema_version=3 WHERE schema_version<3;");
+        connection.Execute("CREATE INDEX IF NOT EXISTS idx_adventure_network_perspective ON adventure_archives(network_adventure_id, perspective_player_id);");
         connection.Execute("CREATE INDEX IF NOT EXISTS idx_adventure_archives_started ON adventure_archives(started_utc DESC);");
         connection.Execute("CREATE INDEX IF NOT EXISTS idx_adventure_events_kind ON adventure_archive_events(adventure_id, kind);");
         connection.Execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_adventure_events_dedupe ON adventure_archive_events(adventure_id, dedupe_key) WHERE dedupe_key<>'';");
@@ -428,7 +496,8 @@ internal sealed class AdventureArchiveDatabase
             ToolBuild = query.Text(8), ModFingerprint = query.Text(9), LatestStage = query.Text(10),
             EventCount = (int)query.Int64(11), SnapshotCount = (int)query.Int64(12), BattleCount = (int)query.Int64(13),
             SchemaVersion = (int)query.Int64(14), DataCompleteness = query.Text(15),
-            RoleName = query.Text(16), ModeName = query.Text(17)
+            RoleName = query.Text(16), ModeName = query.Text(17),
+            NetworkAdventureId = query.Text(18), PerspectivePlayerId = query.Text(19), AssociationState = query.Text(20)
         };
     }
 

@@ -1,19 +1,18 @@
 using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI.Window;
 
 namespace Terrias.Dll.Hooks;
 
 public static class ColumbinaRuntime
 {
-    private static readonly object CardGainSync = new();
-    private static readonly HashSet<string> SeenCardGains = new(StringComparer.Ordinal);
+    private static readonly ColumbinaCardGainLedger CardGains = new();
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -40,18 +39,13 @@ public static class ColumbinaRuntime
         });
         TerriasCardLifecycleRouter.Register("Columbina.CardGain", new TerriasCardLifecycleSubscription
         {
-            AfterScriptExecutorGetCardFromDeck = OnCardsGained,
-            AfterScriptExecutorRandomAddCard = OnCardGained,
             AfterFightUiCreateCardItemInternal = OnCardMaterialized
         });
     }
 
     private static void OnFightStarted()
     {
-        lock (CardGainSync)
-        {
-            SeenCardGains.Clear();
-        }
+        CardGains.Clear();
 
         if (!ConstellationService.BeginBattle())
         {
@@ -65,6 +59,7 @@ public static class ColumbinaRuntime
 
     private static void OnFightEnded()
     {
+        CardGains.Clear();
         ConstellationService.EndBattle();
         ColumbinaBattleStateService.EndBattle();
     }
@@ -93,32 +88,13 @@ public static class ColumbinaRuntime
         ColumbinaMechanics.ResolveActionAfter(FightPlayer.Instance?.Status);
     }
 
-    private static void OnCardsGained(ModHookContext context)
-    {
-        if (!IsLocalCardOwner(context))
-        {
-            return;
-        }
-
-        var config = FirstConfig(context);
-        if (config == null || MarkCardGain(config))
-        {
-            ReduceHomesicknessForCards(1);
-        }
-    }
-
-    private static void OnCardGained(ModHookContext context)
-    {
-        if (IsLocalCardOwner(context))
-        {
-            ReduceHomesicknessForCards(1);
-        }
-    }
-
     private static void OnCardMaterialized(ModHookContext context)
     {
+        if (context.Target is not FightUI || FightPlayer.Instance?.Status == null) return;
         var config = FirstConfig(context);
-        if (config != null && MarkCardGain(config))
+        var card = config == null ? null : FightUI.cardItemList?.FirstOrDefault(
+            item => item != null && ReferenceEquals(item.dataConfig, config));
+        if (card != null && CardGains.TryRecord(card))
         {
             ReduceHomesicknessForCards(1);
         }
@@ -135,29 +111,6 @@ public static class ColumbinaRuntime
         }
 
         return null;
-    }
-
-    private static bool MarkCardGain(IDataConfig config)
-    {
-        var key = config.InstanceID;
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            key = CardConfigApi.Id(config) + ":" + RuntimeHelpers.GetHashCode(config);
-        }
-
-        lock (CardGainSync)
-        {
-            return SeenCardGains.Add(key);
-        }
-    }
-
-    private static bool IsLocalCardOwner(ModHookContext context)
-    {
-        var owner = (context.Target as ScriptExecutor)?.Self;
-        var local = FightPlayer.Instance?.Status;
-        return owner != null && local != null
-            && (ReferenceEquals(owner, local)
-                || string.Equals(owner.InstanceId, local.InstanceId, StringComparison.Ordinal));
     }
 
     private static void ReduceHomesicknessForCards(int count)
@@ -177,6 +130,7 @@ public static class ColumbinaRuntime
         if (current > 0 && amount > 0)
         {
             PlayerApi.SetSkillTime(skillId, Math.Max(0, current - amount));
+            PlayerApi.RefreshSkillDisplay();
         }
     }
 }

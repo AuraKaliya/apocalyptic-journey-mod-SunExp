@@ -38,7 +38,8 @@ deck contracts change, and
 - SolarMemoryRunLauncher owns save creation and preparation initialization;
   EventScripts calls SolarMemoryFlowApi rather than importing Hooks.
 - Keep preparation player-scoped. Suppress intermediate role sync and submit
-  only the final prepared role through SolarMemoryRoleCommitApi.
+  only the final prepared role through SolarMemoryRoleCommitApplication.SubmitFinal;
+  complete preparation only after its authoritative confirmation.
 - Do not migrate legacy global preparation values during multiplayer.
 - Use the established Terrias modal, safety, pool, sprite and UI builder
   runtimes for transient preparation UI and cleanup.

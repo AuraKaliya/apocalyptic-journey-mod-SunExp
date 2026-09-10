@@ -1,0 +1,12 @@
+/Assets/Tests/UnderTest/
+/Assets/Tests/UnderTest.meta
+/Assets/Fixtures/
+/Assets/Fixtures.meta
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+/Library/
+/Logs/
+/Temp/
+/UserSettings/
+/*.csproj
+/*.sln

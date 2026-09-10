@@ -125,7 +125,7 @@ GameApi 把易变的游戏对象、反射签名和空值处理隔离在集中位
 | 配置访问 | `CardConfigApi`、`GameCompatibilityApi`、`TerriasResourceCache` | DataConfig、签名漂移、资源缓存 |
 | 流程适配 | `SolarMemoryFlowApi`、`SolarMemoryJourneyApi`、`BattleRewardApi` | 把脚本/机制接到宿主流程 |
 | 表现适配 | `FightUiCardLayoutApi`、`DialogueUiApi` | Terrias 必需 UI/视觉宿主对象操作；通用卡牌视觉由共享生命周期和 AuraToolsExp 承担 |
-| 网络/提交 | `SolarMemoryRoleCommitApi` | 最终权威提交 facade |
+| 应用事务 | `SolarMemoryRoleCommitApplication` | 冻结提交、持久化回执与恢复 |
 
 `ExecutorApi` 保留为兼容 facade，将实现委托给更聚焦的 GameApi 类型。新能力优先进入聚焦包装类，只有既有脚本需要时才通过 ExecutorApi 暴露便利方法。
 

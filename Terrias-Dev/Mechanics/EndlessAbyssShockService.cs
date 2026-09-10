@@ -160,8 +160,16 @@ public static class EndlessAbyssShockService
             };
         }
 
-        return Apply(request, optionIds, source, broadcast: true, validateRequired: true);
+        var selected = optionIds.Distinct(StringComparer.Ordinal).ToList();
+        var choices = Choices(request);
+        if (!choices.IsReady(EndlessAbyssGazeService.RequiredShockChoices(), _ => true)
+            || selected.Count != choices.Selected.Count || selected.Any(id => !choices.Selected.Contains(id)))
+            return new EndlessAbyssShockResult { Success = false, Message = "请选择当前展示的深渊震荡选项。" };
+        return Apply(request, selected, source, broadcast: true, validateRequired: true);
     }
+
+    public static EndlessAbyssChoiceState Choices(EndlessAbyssShockRequest request) => EndlessAbyssChoiceStore.Load(
+        EndlessAbyssChoiceStore.Shock, request.Key, EndlessAbyssChoiceCatalog.ShockIds);
 
     public static EndlessAbyssShockResult ApplyNetworkResolution(EndlessAbyssShockResolution? resolution, string source)
     {

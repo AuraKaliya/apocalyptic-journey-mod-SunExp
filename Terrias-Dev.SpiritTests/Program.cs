@@ -255,14 +255,10 @@ Assert(identity.StatusId == "spirit-2"
        && identity.EntityKind == "Companion"
        && identity.SlotIndex == 3,
     "companion identity creation preserves owner and slot scope");
-var epoch = CompanionAuthorityService.BattleEpoch;
-CompanionAuthorityService.BeginBattleEpoch();
-CompanionAuthorityService.InvalidateBattleEpoch();
-Assert(CompanionAuthorityService.BattleEpoch >= epoch + 2,
-    "companion lifecycle advances the authoritative battle epoch");
+// Authoritative identity establishment is exercised by the shared network suite.
 Assert(CompanionAuthorityService.ProjectionProtocolVersion > 0,
     "companion protocol exposes a positive compatibility version");
-Assert(CompanionAuthorityService.ProjectionProtocolVersion == 23
+Assert(CompanionAuthorityService.ProjectionProtocolVersion == 24
        && ProjectionRoleDeckService.CardModelVersion == "projection-role-deck-v3"
        && SpiritCollectionService.CurrentVersion == SpiritSystemContract.CollectionVersion
        && SpiritSystemContract.CollectionVersion == 12

@@ -407,8 +407,18 @@ public static class AuraToolsSkinRuntime
 }
 
 [Serializable]
-public sealed class AuraSkinSelectionCommand : RpcCommandBase
+public sealed class AuraSkinSelectionCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
+    private AuraToolsRpcSender sender = AuraToolsRpcSender.Unbound;
+    public bool Accepted { get; set; }
+    public void BindServerSender(AuraToolsRpcSender value) => sender = value;
+    public override void CmdExecute()
+    {
+        Accepted = sender.IsAvailable && sender.IsLobbyMember && Snapshot != null;
+        if (!Accepted) { Snapshot = new SkinSelectionSnapshot(); return; }
+        Snapshot!.PlayerId = sender.PlayerId;
+        Snapshot.PlayerName = sender.PlayerName;
+    }
     public AuraSkinSelectionCommand()
     {
         Snapshot = new SkinSelectionSnapshot();
@@ -423,6 +433,6 @@ public sealed class AuraSkinSelectionCommand : RpcCommandBase
 
     public override void RpcExecute()
     {
-        AuraToolsSkinRuntime.ReceiveRemoteSelection(Snapshot);
+        if (Accepted) AuraToolsSkinRuntime.ReceiveRemoteSelection(Snapshot);
     }
 }

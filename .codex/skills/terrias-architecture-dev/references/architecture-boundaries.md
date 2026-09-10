@@ -61,7 +61,10 @@ current architectural split includes:
   may subscribe only for necessary content presentation.
 - `TerriasResourceCache`: the central resource-loading choke point.
 - `SolarMemoryFlowApi`: CSV-callable facade into Solar Memory hook runtimes.
-- `SolarMemoryRoleCommitApi`: final prepared role submission.
+
+Recoverable role submission and versioned adventure progression belong to
+Application (`SolarMemoryRoleCommitApplication`, `EmberAdventureStateService`);
+network adapters supply transport delegates and consume Contracts DTOs.
 
 When adding a new cross-cutting game wrapper, add it as a focused `GameApi`
 class first, then expose legacy convenience methods through `ExecutorApi` only

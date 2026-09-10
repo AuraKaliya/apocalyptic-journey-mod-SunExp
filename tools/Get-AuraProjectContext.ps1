@@ -46,7 +46,7 @@ $validation = @(foreach ($path in @("tools/terrias-test-matrix.json", "tools/sha
 $contracts = @(
     Read-PublicIntConstant "AuraCgShared/AuraCgRegistry.cs" "CurrentRegistrySchemaVersion"
     Read-PublicIntConstant "AuraCgShared/AuraCgRuntime.cs" "CurrentProtocolVersion"
-    Read-PublicIntConstant "Terrias-Dev/Mechanics/CompanionAuthorityService.cs" "ProjectionProtocolVersion"
+    Read-PublicIntConstant "Terrias-Dev/Contracts/TerriasProtocolContract.cs" "ProjectionVersion"
 )
 $referenceRoot = Join-Path $RepoRoot "开发参考资料"
 $decompileCandidates = @()

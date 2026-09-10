@@ -9,6 +9,8 @@ public sealed class DamageLedger
     private readonly Dictionary<string, CombatantDamageStat> combatants =
         new(StringComparer.OrdinalIgnoreCase);
     private DamageBestHitRecord? bestHit;
+    public string IncompleteReason { get; private set; } = "";
+    public void MarkIncomplete(string reason) { if (IncompleteReason.Length == 0) IncompleteReason = reason ?? "incomplete"; }
 
     public string SessionId { get; private set; } = "";
 
@@ -36,6 +38,7 @@ public sealed class DamageLedger
         CompletedRoundCount = 0;
         ServerSequence = 0;
         bestHit = null;
+        IncompleteReason = "";
         combatants.Clear();
     }
 
@@ -118,8 +121,17 @@ public sealed class DamageLedger
 
         stat.TotalHpDamage += hp;
         stat.TotalShieldDamage += shield;
-        stat.CurrentRoundHpDamage += hp;
-        stat.CurrentRoundShieldDamage += shield;
+        if (damage.RoundIndex < CurrentRoundIndex)
+        {
+            var prior = stat.Rounds.FirstOrDefault(round => round.RoundIndex == damage.RoundIndex);
+            if (prior == null) { prior = new DamageRoundStat { RoundIndex = damage.RoundIndex }; stat.Rounds.Add(prior); }
+            prior.HpDamage += hp; prior.ShieldDamage += shield;
+        }
+        else
+        {
+            stat.CurrentRoundHpDamage += hp;
+            stat.CurrentRoundShieldDamage += shield;
+        }
         AddDetail(stat, damage, hp, shield);
         TrackBestHit(damage, hp + shield);
         return true;
@@ -134,6 +146,8 @@ public sealed class DamageLedger
     {
         return new DamageMeterSnapshot
         {
+            IsComplete = IncompleteReason.Length == 0,
+            IncompleteReason = IncompleteReason,
             SessionId = SessionId,
             InFight = InFight,
             SharedEnabled = SharedEnabled,
@@ -167,6 +181,7 @@ public sealed class DamageLedger
         }
 
         SessionId = incomingSessionId;
+        IncompleteReason = snapshot.IsComplete ? "" : snapshot.IncompleteReason;
         InFight = snapshot.InFight;
         SharedEnabled = snapshot.SharedEnabled;
         CurrentRoundIndex = Math.Max(0, snapshot.CurrentRoundIndex);

@@ -6,6 +6,7 @@ Import-Module (Join-Path $repoRoot "tools\modules\RepositoryPath.psm1") -Force
 $roots = @(
     "AuraSharedCore",
     "AuraCgShared",
+    "AuraJourneyShared",
     "AudioArbiterShared",
     "AuraToolsExp-Dev",
     "Terrias-Dev"
@@ -47,6 +48,8 @@ foreach ($record in $records) {
 
 $transportAllowPatterns = @(
     "^AuraCgShared/AuraCgNetworkRuntime\.cs$",
+    "^AuraSharedCore/AuraNetworkIdentityRuntime\.cs$",
+    "^AuraJourneyShared/AuraJourneyCurrentNodeProjectionRuntime\.cs$",
     "^AudioArbiterShared/AudioNetworkRuntime\.cs$",
     "^AuraToolsExp-Dev/Infrastructure/AuraToolsRpcTransport\.cs$",
     "^Terrias-Dev/Network/"
@@ -71,7 +74,7 @@ $registeredMarkers = New-Object System.Collections.Generic.HashSet[string](
     [System.StringComparer]::Ordinal)
 $commandPattern = [regex](
     "(?m)^\s*(?:public|internal)\s+(?:sealed\s+)?class\s+" +
-    "(?<class>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*RpcCommandBase" +
+    "(?<class>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?:RpcCommandBase|AuraBattleRpcCommand)" +
     "(?<bases>[^\r\n]*)\r?\n\s*\{")
 foreach ($record in $records) {
     $matches = @($commandPattern.Matches($record.Text))
@@ -135,39 +138,19 @@ foreach ($marker in $registeredMarkers) {
     }
 }
 
-$solarCommit = $records | Where-Object {
-    $_.RelativePath -eq "Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs"
-} | Select-Object -First 1
-if ($null -eq $solarCommit) {
-    $violations.Add("Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs: Solar Memory role commit RPC is missing")
-} else {
-    $solarAckContracts = @(
-        "public bool Accepted { get; set; }",
-        "public string RejectionReason { get; set; }",
-        "PlayerId = serverSender.PlayerId;",
-        "Accepted = ApplyOnServer(",
-        "SolarMemoryRoleCommitApi.ReceiveAuthoritativeResult("
-    )
-    foreach ($contract in $solarAckContracts) {
-        if ($solarCommit.Text.IndexOf(
-                $contract,
-                [StringComparison]::Ordinal) -lt 0) {
-            $violations.Add(
-                "$($solarCommit.RelativePath): authoritative role commit acknowledgement contract is missing: $contract")
+# Result-only RPCs also require an explicit admission registration.
+$allSource = ($records | ForEach-Object Text) -join [Environment]::NewLine
+foreach ($record in $records) {
+    foreach ($command in $commandPattern.Matches($record.Text)) {
+        $className = [regex]::Escape($command.Groups["class"].Value)
+        $registration = 'AuraRpcAdmission\.Register\s*<\s*(?:[A-Za-z_][A-Za-z0-9_]*\.)*' + $className + '\s*>'
+        if ($allSource -notmatch $registration) {
+            $violations.Add("$($record.RelativePath): RPC type has no explicit shared admission policy: $($command.Groups['class'].Value)")
         }
     }
 }
-
-$solarPreparation = $records | Where-Object {
-    $_.RelativePath -eq "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs"
-} | Select-Object -First 1
-if ($null -eq $solarPreparation `
-        -or $solarPreparation.Text.IndexOf(
-            "submission == SolarMemoryRoleCommitSubmission.Pending",
-            [StringComparison]::Ordinal) -lt 0) {
-    $violations.Add(
-        "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs: preparation UI must remain pending until the host acknowledges the final role")
-}
+# Real receive context, forwarding suppression and recoverable commits are
+# behavior-tested by Test-MultiplayerRuntime.ps1.
 
 if ($violations.Count -gt 0) {
     throw "Network RPC authority scan failed:`n - $($violations -join "`n - ")"

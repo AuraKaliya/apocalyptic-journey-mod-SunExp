@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="NativeStubs.cs" />
+    <Compile Include="Baseline/AuraRpcAuthorityRuntime.cs" Link="Source/AuraRpcAuthorityRuntime.cs" />
+    <Compile Include="Baseline/AuraRpcSender.cs" Link="Source/AuraRpcSender.cs" />
+    <Compile Include="Baseline/CompanionAuthorityService.cs" Link="Source/CompanionAuthorityService.cs" />
+    <Compile Include="Baseline/OlimyaGoldenizationLedger.cs" Link="Source/OlimyaGoldenizationLedger.cs" />
+    <Compile Include="Baseline/OlimyaIds.cs" Link="Source/OlimyaIds.cs" />
+    <Compile Include="Baseline/SolarMemoryRoleCommitPendingState.cs" Link="Source/SolarMemoryRoleCommitPendingState.cs" />
+    <Compile Include="Baseline/EmberAdventureStateService.cs" Link="Source/EmberAdventureStateService.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,58 @@
+[
+  {
+    "Name": "rpc-authority",
+    "Passed": true,
+    "Seconds": 27.96,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\rpc-authority.log"
+  },
+  {
+    "Name": "shared-core",
+    "Passed": true,
+    "Seconds": 4.6,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\shared-core.log"
+  },
+  {
+    "Name": "cg",
+    "Passed": true,
+    "Seconds": 1.43,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\cg.log"
+  },
+  {
+    "Name": "audio",
+    "Passed": true,
+    "Seconds": 1.43,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\audio.log"
+  },
+  {
+    "Name": "terrias-csharp",
+    "Passed": true,
+    "Seconds": 1.91,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\terrias-csharp.log"
+  },
+  {
+    "Name": "spirit",
+    "Passed": true,
+    "Seconds": 2.57,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\spirit.log"
+  },
+  {
+    "Name": "elemental",
+    "Passed": true,
+    "Seconds": 1.46,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\elemental.log"
+  },
+  {
+    "Name": "auratools",
+    "Passed": true,
+    "Seconds": 11.52,
+    "Error": "",
+    "Log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\auratools.log"
+  }
+]

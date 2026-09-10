@@ -470,6 +470,9 @@ public static class TerriasIds
     public const string EndlessAbyssEvacuationAtKey = "Terrias_EndlessAbyssEvacuationAt";
     public const string EndlessSeaStarterDeckBaselineMarker = "TerriasEndlessSeaStarterDeckBaseline";
     public const string EndlessSeaAutoBurnoutMarker = "TerriasEndlessSeaAutoBurnout";
+    public const string EndlessSeaStarterCardInstanceKey = "TerriasEndlessSeaStarterCardInstance";
+    public const string EndlessSeaPurifiedCardInstanceKey = "TerriasEndlessSeaPurifiedCardInstance";
+    public const string EndlessSeaAffixMigrationKey = "Terrias_EndlessSeaAffixMigrationV1";
     public const string EndlessAbyssConfigFile = "endless_abyss.config.json";
     public const string EndlessAbyssGazeLevelKey = "Terrias_EndlessAbyssGazeLevel";
     public const string EndlessAbyssLedgerKey = "Terrias_EndlessAbyssLedger";

@@ -14,6 +14,7 @@ public sealed class DamageRunLedger
     private long version;
     private long hasDamageCacheVersion = -1;
     private bool hasDamageCache;
+    public string IncompleteReason { get; private set; } = "";
 
     public string AdventureId { get; private set; } = "";
 
@@ -68,6 +69,7 @@ public sealed class DamageRunLedger
         LastSessionId = "";
         LastServerSequence = 0;
         bestHit = null;
+        IncompleteReason = "";
         combatants.Clear();
         completedSessionIds.Clear();
         MarkDirty();
@@ -137,6 +139,7 @@ public sealed class DamageRunLedger
 
         EnsureAdventure();
         completedSessionIds.Add(snapshot.SessionId);
+        if (!snapshot.IsComplete && IncompleteReason.Length == 0) IncompleteReason = snapshot.IncompleteReason;
         EncounterCount++;
         TotalRounds += Math.Max(0, snapshot.CompletedRoundCount);
         UpdatedUtc = DateTime.UtcNow.ToString("O");
@@ -148,6 +151,7 @@ public sealed class DamageRunLedger
     {
         return new DamageRunAggregateSnapshot
         {
+            IncompleteReason = IncompleteReason,
             AdventureId = AdventureId,
             StartedUtc = StartedUtc,
             UpdatedUtc = UpdatedUtc,
@@ -183,6 +187,7 @@ public sealed class DamageRunLedger
         }
 
         AdventureId = incomingAdventureId;
+        IncompleteReason = snapshot.IncompleteReason ?? "";
         StartedUtc = snapshot.StartedUtc ?? "";
         UpdatedUtc = snapshot.UpdatedUtc ?? "";
         EncounterCount = Math.Max(0, snapshot.EncounterCount);
@@ -338,6 +343,7 @@ public sealed class DamageRunLedger
 [Serializable]
 public sealed class DamageRunAggregateSnapshot
 {
+    public string IncompleteReason { get; set; } = "";
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
 
     public int MinimumProtocolVersion { get; set; }

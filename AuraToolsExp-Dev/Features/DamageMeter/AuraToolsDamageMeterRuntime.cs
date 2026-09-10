@@ -60,6 +60,7 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         initialized = true;
+        AuraShared.Core.AuraNetworkIdentityRuntime.Updating += DamageMeterNetworkRuntime.Tick;
         AuraToolsConfigService.SubscribeModule(
             AuraToolModuleIds.DamageStatistics,
             OnConfigChanged);
@@ -80,7 +81,6 @@ public static class AuraToolsDamageMeterRuntime
         }
 
         disabledUiHidden = false;
-        DamageMeterNetworkRuntime.Tick();
         DamageMeterAvailabilityRuntime.ReconcileAvailabilitySafe();
         RefreshUiSafe();
         DamageMeterPerformanceCounters.MaybeLog();

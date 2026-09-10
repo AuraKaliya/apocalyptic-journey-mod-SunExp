@@ -20,7 +20,7 @@ profile/tag filters or execute the selected checks.
 | Terrias layering, hooks or CSV entry | add tools/Test-TerriasArchitecture.ps1 |
 | Shared internal behavior | focused shared-domain suite and tools/Build-AuraSharedRuntime.ps1 |
 | Shared public API or compatibility | shared compatibility and consumer checks after reviewing the API delta |
-| Shared RPC authority, dedupe or transport | shared network profile |
+| Shared RPC authority, dedupe or transport | shared network profile, including tools/Test-MultiplayerRuntime.ps1 |
 | AuraTools module/config/UI | tools/Test-AuraToolsExp.ps1; runtime preview for Unity UI changes |
 | AI decision or simulation | focused AI behavior/knowledge/simulation checks from the combat-ai skill |
 | Worker storage or recovery | tools/Test-AuraFoundationTrainerStorage.ps1 |

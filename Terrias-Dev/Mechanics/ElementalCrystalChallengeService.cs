@@ -53,7 +53,7 @@ public static class ElementalCrystalChallengeService
     private static readonly Dictionary<string, ElementalCrystalEventSnapshot> Pending = new(StringComparer.Ordinal);
     private static readonly HashSet<string> Observed = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, long> CreateRequestTokens = new(StringComparer.Ordinal);
-    private static int battleEpoch;
+    private static int battleEpoch => AuraShared.Core.AuraNetworkIdentityRuntime.BattleEpoch;
     private static long nextEventSequence;
 
     public static event Action<ElementalCrystalEventSnapshot>? Spawned;
@@ -66,7 +66,6 @@ public static class ElementalCrystalChallengeService
 
     public static void BeginBattle()
     {
-        battleEpoch = battleEpoch == int.MaxValue ? 1 : battleEpoch + 1;
         nextEventSequence = 0;
         Pending.Clear();
         Observed.Clear();

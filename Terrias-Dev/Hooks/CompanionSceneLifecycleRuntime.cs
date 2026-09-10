@@ -116,7 +116,6 @@ public static class CompanionSceneLifecycleRuntime
                 "SuppressPresentation",
                 source,
                 () => suppression = CompanionPresentationCleanup.SuppressAll(source));
-            cleanupSucceeded &= RunCleanupStep("InvalidateBattleEpoch", source, CompanionAuthorityService.InvalidateBattleEpoch);
             cleanupSucceeded &= RunCleanupStep("Projection", source, () => ProjectionRuntime.ClearBattle(source, sweepVisualOrphans: false));
             cleanupSucceeded &= RunCleanupStep("Spirit", source, () => SpiritRuntime.ClearBattle(source, sweepVisualOrphans: false));
             cleanupSucceeded &= RunCleanupStep("CompanionState", source, CompanionBattleStateStore.Clear);

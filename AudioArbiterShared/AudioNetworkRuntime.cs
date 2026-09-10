@@ -19,6 +19,9 @@ internal sealed class AudioNetworkRuntime
         Action<string>? warn = null)
     {
         if (modConfig == null) throw new ArgumentNullException(nameof(modConfig));
+        AuraRpcAdmission.Register<RpcAudioPresentationRequest>(AuraRpcPublication.MemberRequest);
+        AuraRpcAdmission.Register<RpcAudioFightSession>(AuraRpcPublication.HostOnly);
+        AuraRpcAdmission.Register<RpcAudioEvent>(AuraRpcPublication.HostOnly);
         AuraRpcAuthorityRuntime.Register(
             modConfig,
             "AudioArbiter",
@@ -144,7 +147,10 @@ internal sealed class AudioNetworkRuntime
         request.OwnerModId = ownerModId;
         try
         {
-            playerManager.SendRpcCommandExcludeOwner(new RpcAudioEvent(request));
+            request.IssuerPlayerId = playerManager.PlayerId;
+            playerManager.SendRpcCommandExcludeOwner(playerManager.isServer
+                ? new RpcAudioEvent(request)
+                : (Network.Command.RpcCommandBase)new RpcAudioPresentationRequest(request));
         }
         catch (Exception ex)
         {
@@ -279,7 +285,7 @@ internal sealed class AudioNetworkRuntime
         return true;
     }
 
-    private static bool SenderOwnsStatus(string playerId, string statusInstanceId)
+    internal static bool SenderOwnsStatus(string playerId, string statusInstanceId)
     {
         if (string.Equals(playerId, statusInstanceId, StringComparison.Ordinal)) return true;
         try
@@ -294,6 +300,18 @@ internal sealed class AudioNetworkRuntime
         {
             return false;
         }
+    }
+
+    internal static void RelayOwnedEvent(SoundPlaybackRequest request, AuraRpcSender sender)
+    {
+        if (!sender.IsAvailable || !sender.IsLobbyMember || request == null || AudioNetworkPolicy.IsCardUsePresentation(request)) return;
+        if (!string.IsNullOrWhiteSpace(request.StatusInstanceId) && !SenderOwnsStatus(sender.PlayerId, request.StatusInstanceId)) return;
+        if (!string.IsNullOrWhiteSpace(request.IssuerPlayerId) && request.IssuerPlayerId != sender.PlayerId) return;
+        request.IssuerPlayerId = sender.PlayerId;
+        request.DisableSync = true;
+        // The original new client suppresses its already played non-card sound;
+        // all other peers receive the existing, backwards-readable event type.
+        PlayerManager.Instance?.SendRpcCommand(new RpcAudioEvent(request));
     }
 
     private static bool IsMultiplayerSession()

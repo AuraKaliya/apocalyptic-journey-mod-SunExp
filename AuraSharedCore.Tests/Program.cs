@@ -19,6 +19,7 @@ AuraSharedPaths.RootDirectory = tempRoot;
 
 try
 {
+    TestMultiplayerContracts();
     TestPresentationMaterialCoordinatorContracts();
     TestNativeCardPresentationBoundary();
 

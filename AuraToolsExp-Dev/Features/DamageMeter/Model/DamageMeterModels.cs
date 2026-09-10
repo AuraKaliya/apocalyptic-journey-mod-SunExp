@@ -6,12 +6,13 @@ namespace AuraToolsExp.Dll.Features.DamageMeter.Model;
 
 public static class DamageMeterProtocol
 {
-    public const int Version = 4;
-    public const int MinimumSupportedVersion = 4;
+    public const int Version = 5;
+    public const int MinimumSupportedVersion = 5;
     public const int MinimumReadableVersion = 3;
     public const string SequencedEventsCapability = "sequenced-events.v1";
     public const string SplitDamageCapability = "hp-shield-damage.v1";
     public const string SnapshotCapability = "snapshot-state.v1";
+    public const string AcknowledgementsCapability = "acknowledged-submissions.v1";
 
     public static readonly AuraToolsProtocolContract Contract = new(
         "damage-meter",
@@ -21,7 +22,8 @@ public static class DamageMeterProtocol
         {
             SequencedEventsCapability,
             SplitDamageCapability,
-            SnapshotCapability
+            SnapshotCapability,
+            AcknowledgementsCapability
         });
     public static readonly AuraToolsProtocolContract DataContract = new(
         "damage-meter-data",
@@ -31,7 +33,8 @@ public static class DamageMeterProtocol
         {
             SequencedEventsCapability,
             SplitDamageCapability,
-            SnapshotCapability
+            SnapshotCapability,
+            AcknowledgementsCapability
         });
     public const int MaxDamagePerEvent = 100000000;
     public const int MaxStringLength = 160;
@@ -315,6 +318,8 @@ public sealed class CombatantDamageStat
 [Serializable]
 public sealed class DamageMeterSnapshot
 {
+    public bool IsComplete { get; set; } = true;
+    public string IncompleteReason { get; set; } = "";
     public int ProtocolVersion { get; set; } = DamageMeterProtocol.Version;
 
     public int MinimumProtocolVersion { get; set; }

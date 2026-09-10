@@ -26,7 +26,7 @@ internal static partial class AuraToolsTestSuite
                    && migratedCards.Count == 1
                    && migratedCards[0].Id == "legacy-card"
                    && migratedCards[0].Zone == "牌组",
-                "adventure history migrates legacy summaries into the single v2 schema");
+                "adventure history migrates legacy summaries into the current schema without inventing network associations");
 
             database.Begin(new AdventureArchiveRecord
             {

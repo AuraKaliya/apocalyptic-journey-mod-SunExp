@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Application;
 using Terrias.Dll.Contracts;
 using System;
@@ -10,7 +11,7 @@ using Witch.Core;
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcProjectionSummonRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -73,7 +74,7 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerB
 }
 
 [Serializable]
-public sealed class RpcProjectionCompanionState : RpcCommandBase
+public sealed class RpcProjectionCompanionState : AuraBattleRpcCommand
 {
     public ProjectionCompanionSnapshot Snapshot { get; set; } = new();
 
@@ -93,7 +94,7 @@ public sealed class RpcProjectionCompanionState : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcProjectionSummonResult : RpcCommandBase
+public sealed class RpcProjectionSummonResult : AuraBattleRpcCommand
 {
     public ProjectionSummonResultSnapshot Result { get; set; } = new();
 
@@ -113,7 +114,7 @@ public sealed class RpcProjectionSummonResult : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcProjectionSummonTurnState : RpcCommandBase
+public sealed class RpcProjectionSummonTurnState : AuraBattleRpcCommand
 {
     public ProjectionSummonTurnSnapshot Snapshot { get; set; } = new();
 
@@ -133,7 +134,7 @@ public sealed class RpcProjectionSummonTurnState : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcProjectionStateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcProjectionStateRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -188,7 +189,7 @@ public sealed class ProjectionActionFrameSnapshot
 }
 
 [Serializable]
-public sealed class RpcProjectionActionFrame : RpcCommandBase
+public sealed class RpcProjectionActionFrame : AuraBattleRpcCommand
 {
     public ProjectionActionFrameSnapshot Snapshot { get; set; } = new();
 
@@ -208,7 +209,7 @@ public sealed class RpcProjectionActionFrame : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcHeartChangeControlRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -247,7 +248,7 @@ public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServe
 }
 
 [Serializable]
-public sealed class RpcHeartChangeControlState : RpcCommandBase
+public sealed class RpcHeartChangeControlState : AuraBattleRpcCommand
 {
     public int ProtocolVersion { get; set; } = TerriasProtocolContract.ProjectionVersion;
 

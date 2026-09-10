@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
@@ -13,7 +14,7 @@ namespace Terrias.Dll.Network;
 /// max-constellation cap-increase branch and broadcasts its snapshot.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationStateCommit : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcConstellationStateCommit : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -76,7 +77,7 @@ public sealed class RpcConstellationStateCommit : RpcCommandBase, ITerriasServer
 /// the server always captures the response from its own state table.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcConstellationRosterSnapshot : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -161,7 +162,7 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ITerriasSer
 /// real FightPlayer status, avoiding mutations of remote status projections.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationRoundReward : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcConstellationRoundReward : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 

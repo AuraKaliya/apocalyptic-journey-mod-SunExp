@@ -1,0 +1,62 @@
+[
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraSharedCore\\AuraRpcAuthorityRuntime.cs",
+    "Hash": "A60F8AF29BADC7739CB6A04E358EA5D74D48F701CE000FD5BB8CA7F45A756C05"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraSharedCore\\AuraRpcSender.cs",
+    "Hash": "94BF4D68EEA6856ABAC1DC5824004596A965A47FB1D29EC33835C597D006526E"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias-Dev\\Mechanics\\CompanionAuthorityService.cs",
+    "Hash": "B4780447D3F58FAA34F64CDAF5C18BF298B9DE83401149E9F5FCB40211BFD1C8"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias-Dev\\Mechanics\\OlimyaGoldenizationLedger.cs",
+    "Hash": "F35E00A127447FF1097FB6EBD4D2D71FBF5DB783B0E4DD14818CCC57CFF7EB28"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias-Dev\\Mechanics\\SolarMemoryRoleCommitPendingState.cs",
+    "Hash": "2B95DF1802F37F5790C0F8693D5B4160C354646DEEA1B6D67B60C3DEF6A0F3D9"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias-Dev\\Mechanics\\EmberAdventureStateService.cs",
+    "Hash": "63D98446F170670344111BCD4C7C38A8CFF1C4E1CCC07FEDFC7E03166447925C"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp-Dev\\Features\\DamageMeter\\Network\\DamageMeterNetworkRuntime.cs",
+    "Hash": "F48459B6F5C4ECA231D1CB760FF495EDB33636EC1ACCF1C88DEC433680CAA8B9"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp-Dev\\Features\\AutoBattle\\AuraToolsAutoBattleGameValidationRuntime.cs",
+    "Hash": "F52B076E73C66BFA0ED423E56BC963A5F2A2147442A437191CE86FCBB7E2DE87"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp-Dev\\Features\\AdventureArchive\\AdventureArchiveRuntime.cs",
+    "Hash": "9AAF09169B00AE81E243D169A1685CA3D3FD4F37D80AEAA9A53D29F10D1A2204"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp-Dev\\Features\\MatchRecords\\Storage\\ReplayReplicaStoreV17.cs",
+    "Hash": "AD5EF67030623E2DD34DB0E5076D7682010F4139E342BE740E4CA40E7E7F5FD8"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias-Dev\\bin\\Release\\net472\\Terrias.Aura.dll",
+    "Hash": "34B93929667C903A34F52B774506A83183EBEA3F2526BDAEA89D80CF363C72BA"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias\\Scripts\\Entry.dll",
+    "Hash": "34B93929667C903A34F52B774506A83183EBEA3F2526BDAEA89D80CF363C72BA"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\Terrias\\Scripts\\Aura.Shared.dll",
+    "Hash": "96FD31CAEED95E90C1959ED2CC7F2BACECF6AC1E031705CA47F00D40D7C4C940"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp\\Scripts\\Entry.dll",
+    "Hash": "7BBCDDCE6B2560044EF1DA508130F00EAF6F1F091C0378C81DA89BA68D253556"
+  },
+  {
+    "Path": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\AuraToolsExp\\Scripts\\Aura.Shared.dll",
+    "Hash": "96FD31CAEED95E90C1959ED2CC7F2BACECF6AC1E031705CA47F00D40D7C4C940"
+  }
+]

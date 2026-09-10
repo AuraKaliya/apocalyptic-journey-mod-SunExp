@@ -116,7 +116,7 @@ internal static partial class MatchReplayRecorder
             {
                 RecordId = recordId,
                 SessionId = recordId,
-                AdventureId = DamageMeter.Network.DamageMeterNetworkRuntime.CurrentAdventureId,
+                AdventureId = AuraNetworkIdentityRuntime.AdventureId,
                 LevelId = levelId,
                 BattleTitle = AuraToolsPlayerDisplay.LevelName(levelId),
                 StartedUtc = now,

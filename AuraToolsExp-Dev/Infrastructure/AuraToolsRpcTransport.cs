@@ -52,9 +52,10 @@ public static class AuraToolsRpcTransport
         }
 
         var bytes = 0;
-        if (measurePayload && !AuraToolsRpcPayloadGuard.TryMeasureUtf8Json(command, out bytes, out var error))
+        if (measurePayload && !AuraSharedPayloadBudget.TryMeasureNativeRpc(command, out bytes))
         {
-            Log("measure-failed", source, command, 0, error);
+            Log("measure-failed", source, command, 0, "native RPC serialization failed");
+            return false;
         }
         else if (measurePayload)
         {

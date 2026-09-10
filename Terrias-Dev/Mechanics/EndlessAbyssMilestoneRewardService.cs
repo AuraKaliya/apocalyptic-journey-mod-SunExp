@@ -49,8 +49,6 @@ public sealed class EndlessAbyssCardOption
 
 public static class EndlessAbyssMilestoneRewardService
 {
-    private const string BurnoutTag = "Burnout";
-
     public static bool CanClaimCurrentFloor()
     {
         return CanClaim(EndlessSeaModeRuntimeCurrentFloor());
@@ -106,7 +104,8 @@ public static class EndlessAbyssMilestoneRewardService
     public static IReadOnlyList<EndlessAbyssCardOption> BurnoutCards()
     {
         return CurrentDeckCards()
-            .Where(option => HasNativeTag(option.Card, BurnoutTag))
+            .Where(option => EndlessSeaBurnoutPolicy.HasBurnout(option.Card)
+                && !EndlessSeaBurnoutPolicy.IsPurified(option.Card))
             .ToList();
     }
 
@@ -139,16 +138,7 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        var config = EndlessAbyssConfigStore.Current.Rewards;
-        var ids = EndlessAbyssRewardPoolService.CardIds(config.OtherDimensionCardPoolId).ToList();
-        if (ids.Count == 0)
-        {
-            ids = config.OtherDimensionCardIds
-                .Select(CardApi.ResolveCardId)
-                .Where(id => !string.IsNullOrWhiteSpace(id) && TerriasConfigIndex.Row(DataType.Card, id) != null)
-                .Distinct(StringComparer.Ordinal)
-                .ToList();
-        }
+        var ids = OtherDimensionCardCandidates();
 
         if (ids.Count == 0)
         {
@@ -167,6 +157,19 @@ public static class EndlessAbyssMilestoneRewardService
         };
         return ApplyResolution(resolution, "EndlessAbyssMilestone.OtherDimensionCard", out message);
     }
+
+    public static IReadOnlyList<string> OtherDimensionCardCandidates()
+    {
+        var config = EndlessAbyssConfigStore.Current.Rewards;
+        var ids = EndlessAbyssRewardPoolService.CardIds(config.OtherDimensionCardPoolId).ToList();
+        return ids.Count > 0 ? ids : config.OtherDimensionCardIds
+            .Select(CardApi.ResolveCardId)
+            .Where(id => !string.IsNullOrWhiteSpace(id) && TerriasConfigIndex.Row(DataType.Card, id) != null)
+            .Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    public static EndlessAbyssChoiceState Choices(int floor) => EndlessAbyssChoiceStore.Load(
+        EndlessAbyssChoiceStore.Milestone, Key(floor), EndlessAbyssChoiceCatalog.MilestoneIds);
 
     public static bool RemoveBurnout(int floor, IDataConfig card, out string message)
     {
@@ -197,13 +200,14 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        return ApplyResolution(resolution, source, out _);
+        return ApplyResolution(resolution, source, out _, validateChoice: false);
     }
 
     private static bool ApplyResolution(
         EndlessAbyssMilestoneResolution resolution,
         string source,
-        out string message)
+        out string message,
+        bool validateChoice = true)
     {
         message = "";
         var floor = Math.Max(1, resolution?.Floor ?? 1);
@@ -215,6 +219,15 @@ public static class EndlessAbyssMilestoneRewardService
 
         try
         {
+            if (validateChoice)
+            {
+                var choice = Choices(floor);
+                if (!choice.IsReady(1, _ => true) || choice.Selected[0] != resolution.Kind)
+                {
+                    message = "请先选中一个当前展示的里程碑奖励。";
+                    return false;
+                }
+            }
             var success = resolution.Kind switch
             {
                 EndlessAbyssMilestoneRewardKind.Relic => ApplyRelicResolution(floor, resolution, out message),
@@ -239,7 +252,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static bool ApplyRelicResolution(int floor, EndlessAbyssMilestoneResolution resolution, out string message)
     {
-        if (string.IsNullOrWhiteSpace(resolution.RelicId))
+        if (string.IsNullOrWhiteSpace(resolution.RelicId) || !RelicCandidates().Any(option => option.Id == resolution.RelicId))
         {
             message = "\u9057\u7269\u7ed3\u7b97\u7f3a\u5c11 ID\u3002";
             return false;
@@ -283,22 +296,21 @@ public static class EndlessAbyssMilestoneRewardService
         var card = ResolveDeckCard(resolution, BurnoutCards);
         if (card == null)
         {
-            Claim(floor, "remove-burnout:none");
-            message = "\u5f53\u524d\u5361\u7ec4\u6ca1\u6709\u53ef\u6e05\u9664\u711a\u6bc1\u7684\u5361\u3002";
-            PlayerApi.ShowCaption(message);
-            return true;
+            message = "所选卡牌已不可净化，请重新选择。奖励尚未消耗。";
+            return false;
         }
 
-        if (!CardMutationService.RemoveNativeTags(card, BurnoutTag))
+        if (!EndlessAbyssCardRewardTransaction.Apply(card, () => EndlessSeaBurnoutPolicy.Purify(card), () =>
+            {
+                if (!EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.RemoveBurnout"))
+                    throw new InvalidOperationException("Could not persist purified card.");
+                Claim(floor, "remove-burnout:" + card.InstanceID);
+            }))
         {
-            Claim(floor, "remove-burnout:unchanged");
-            message = "\u8be5\u5361\u6ca1\u6709\u53ef\u6e05\u9664\u7684\u711a\u6bc1\u3002";
-            PlayerApi.ShowCaption(message);
-            return true;
+            message = "该卡牌已不可净化，请重新选择。奖励尚未消耗。";
+            return false;
         }
 
-        EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.RemoveBurnout");
-        Claim(floor, "remove-burnout:" + card.InstanceID);
         message = "\u5df2\u6e05\u9664\u711a\u6bc1\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
         return true;
@@ -309,18 +321,14 @@ public static class EndlessAbyssMilestoneRewardService
         var card = ResolveDeckCard(resolution, ExtinctionTargets);
         if (card == null)
         {
-            Claim(floor, "add-extinction:none");
-            message = "\u5f53\u524d\u5361\u7ec4\u6ca1\u6709\u53ef\u6dfb\u52a0\u7edd\u706d\u7684\u5361\u3002";
-            PlayerApi.ShowCaption(message);
-            return true;
+            message = "所选卡牌已不可附加绝灭，请重新选择。奖励尚未消耗。";
+            return false;
         }
 
         if (HasExtinction(card))
         {
-            Claim(floor, "add-extinction:unchanged");
             message = "\u8be5\u5361\u5df2\u7ecf\u62e5\u6709\u7edd\u706d\u3002";
-            PlayerApi.ShowCaption(message);
-            return true;
+            return false;
         }
 
         if (card is not DataConfig dataConfig)
@@ -329,9 +337,21 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        OriginMilestoneService.AttachExtinctionEnchTag(dataConfig);
-        EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.AddExtinction");
-        Claim(floor, "add-extinction:" + card.InstanceID);
+        var role = RoleTable.Instance;
+        if (!EndlessAbyssCardRewardTransaction.Apply(card, () =>
+            {
+                OriginMilestoneService.AttachExtinctionEnchTag(dataConfig);
+                return HasExtinction(card);
+            }, () =>
+            {
+                if (!EndlessSeaCardAffixService.TryPersistRole(role, "EndlessAbyssMilestone.AddExtinction"))
+                    throw new InvalidOperationException("Could not persist enchanted card.");
+                Claim(floor, "add-extinction:" + card.InstanceID);
+            }, () => role?.enchasedDict?.Remove(card.InstanceID)))
+        {
+            message = "未能附加绝灭，请重新选择。奖励尚未消耗。";
+            return false;
+        }
         message = "\u5df2\u6dfb\u52a0\u7edd\u706d\uff1a" + CardDisplayName(card);
         PlayerApi.ShowCaption(message);
         return true;
@@ -351,15 +371,7 @@ public static class EndlessAbyssMilestoneRewardService
         var byInstance = candidates.FirstOrDefault(option =>
             !string.IsNullOrWhiteSpace(resolution.CardInstanceId)
             && string.Equals(option.InstanceId, resolution.CardInstanceId, StringComparison.Ordinal));
-        if (byInstance?.Card != null)
-        {
-            return byInstance.Card;
-        }
-
-        var byBase = candidates.FirstOrDefault(option =>
-            !string.IsNullOrWhiteSpace(resolution.CardBaseId)
-            && string.Equals(CardConfigApi.Id(option.Card), resolution.CardBaseId, StringComparison.Ordinal));
-        return byBase?.Card ?? candidates.FirstOrDefault()?.Card;
+        return byInstance?.Card;
     }
 
     private static EndlessAbyssMilestoneResolution CardResolution(
@@ -384,8 +396,9 @@ public static class EndlessAbyssMilestoneRewardService
     {
         try
         {
-            return (RoleTable.Instance?.cardList ?? Enumerable.Empty<IDataConfig>())
-                .Where(card => card != null)
+            EndlessSeaCardAffixService.NormalizeOwnedCards("EndlessAbyssMilestone.Candidates");
+            return EndlessSeaBurnoutPolicy.DistinctInstances(RoleTable.Instance?.cardList ?? Enumerable.Empty<IDataConfig>())
+                .Where(card => !string.IsNullOrWhiteSpace(card.InstanceID))
                 .Select(card => new EndlessAbyssCardOption
                 {
                     Card = card,
@@ -401,12 +414,6 @@ public static class EndlessAbyssMilestoneRewardService
             TerriasLog.Warn("[EndlessAbyssMilestone] card scan failed: " + ex.Message);
             return Array.Empty<EndlessAbyssCardOption>();
         }
-    }
-
-    private static bool HasNativeTag(IDataConfig card, string tag)
-    {
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(card?.Vars, "Tag"), tag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(card?.data, "Tag"), tag);
     }
 
     private static bool HasExtinction(IDataConfig card)
@@ -425,8 +432,10 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static void Claim(int floor, string source)
     {
-        EndlessAbyssRunLedger.TryClaim(ResultKey(floor, source), "milestone-result:" + source);
-        EndlessAbyssRunLedger.TryClaim(Key(floor), "milestone:" + source);
+        // One receipt commits the selected result and consumes the floor together.
+        // CanClaim still recognizes bare floor keys written by older versions.
+        if (!EndlessAbyssRunLedger.TryClaim(ResultKey(floor, source), "milestone-result:" + source))
+            throw new InvalidOperationException("Milestone result was already committed.");
     }
 
     private static string Key(int floor)

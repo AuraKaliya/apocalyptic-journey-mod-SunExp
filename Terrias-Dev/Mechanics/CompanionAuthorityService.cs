@@ -8,35 +8,15 @@ namespace Terrias.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
-    public const int ProjectionProtocolVersion = 23;
-
-    private static int battleEpoch;
+    public const int ProjectionProtocolVersion = Terrias.Dll.Contracts.TerriasProtocolContract.ProjectionVersion;
 
     public static bool IsAuthoritative()
     {
         return !TerriasNetworkQueries.NetworkActive() || TerriasNetworkQueries.IsServer();
     }
 
-    public static int BattleEpoch => battleEpoch;
+    public static int BattleEpoch => AuraShared.Core.AuraNetworkIdentityRuntime.BattleEpoch;
 
-    public static void BeginBattleEpoch()
-    {
-        AdvanceBattleEpoch();
-    }
-
-    public static void InvalidateBattleEpoch()
-    {
-        AdvanceBattleEpoch();
-    }
-
-    private static void AdvanceBattleEpoch()
-    {
-        battleEpoch++;
-        if (battleEpoch <= 0)
-        {
-            battleEpoch = 1;
-        }
-    }
 }
 
 public static class CompanionOwnershipService

@@ -23,10 +23,15 @@ function Invoke-Check([string]$Name, [scriptblock]$Run){
 }
 Invoke-Check 'AuraTools behavior and content' { & (Join-Path $PSScriptRoot 'Test-AuraToolsExp.ps1') -Configuration $Configuration -SkipBuild -SkipModelIntegration }
 Invoke-Check 'Terrias behavior' { & (Join-Path $PSScriptRoot 'Test-TerriasCSharp.ps1') -Configuration $Configuration -SkipBuild }
+Invoke-Check 'Spirit behavior' { & (Join-Path $PSScriptRoot 'Test-SpiritRuntime.ps1') -Configuration $Configuration }
+Invoke-Check 'Elemental behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasElemental.ps1') -Configuration $Configuration }
 Invoke-Check 'Olimya behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasOlimya.ps1') -Configuration $Configuration }
 Invoke-Check 'Columbina behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasColumbina.ps1') -Configuration $Configuration }
 Invoke-Check 'Moon Homecoming behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasMoonHomecoming.ps1') }
 Invoke-Check 'Shared behavior' { & (Join-Path $PSScriptRoot 'Test-AuraSharedCore.ps1') -Configuration $Configuration }
+Invoke-Check 'Shared CG behavior' { & (Join-Path $PSScriptRoot 'Test-AuraCgShared.ps1') -Configuration $Configuration }
+Invoke-Check 'Shared audio behavior' { & (Join-Path $PSScriptRoot 'Test-AudioArbiterShared.ps1') -Configuration $Configuration }
+Invoke-Check 'Multiplayer receive and recovery' { & (Join-Path $PSScriptRoot 'Test-MultiplayerRuntime.ps1') -Configuration $Configuration }
 Invoke-Check 'Shared compatibility' { & (Join-Path $PSScriptRoot 'Test-SharedRuntimeCompatibility.ps1') -Configuration $Configuration -SkipBuild }
 Invoke-Check 'Release failure boundaries' { & (Join-Path $PSScriptRoot 'Test-AuraReleaseInputs.ps1') }
 Invoke-Check 'Terrias content' { & (Join-Path $PSScriptRoot 'Test-TerriasContent.ps1') }

@@ -1,0 +1,27 @@
+{
+  "sourceHashes": {
+    "AuraSharedCore/AuraSharedResourceCache.cs": "D4FBB409566157E2EE681FA26FC7F0CB1208C13E481D31D35A9E0E0F041DDB6B",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayNativePrefabInstanceV17.cs": "E1C9081630BF90B3E9502523EA31C281CDCCE79D2FB5FBBA5B77F6AD542A617A",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayCanvasSpaceV17.cs": "A94C680E21E60B6AD18DDEBD3C57788D82DD7F0F23AA781CD223D586B46D7C9A",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayBoundsProjectionV17.cs": "C17BD26DD4F29400905F48DEEC963418D68BE1D7DF70E72DD6F41ADBBE69AFE0",
+    "AuraToolsExp-Dev/Features/MatchRecords/Recording/MatchReplayHandCapture.cs": "46EDC6863B737B034668B678B08CF0C434A1400E778B6EAE1585F53468EFA6FE",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayHandLifecycleContractV17.cs": "343529A0D48C3732D5968DC8E5CFBF5568AAD98C66EF63777807E42830EAF864",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayDecisionCaptureV17.cs": "B465C7B6C34B43715AA156A7F0BD3C568CC7D6A862A4E57B2B86C5A4FC7D4F7D",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayDecisionTimelineV17.cs": "AC12792155F5036F233B677E4B2CE25372C66DDD41970A21CE3412AA8636FC68",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayCardInstructionProjectionV17.cs": "24DDA5D9F1B70095B44B55C94B0526E6A961DA94EB43F637467DECEAC5380A35",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayHandProjectionV17.cs": "4CC4737F1583172620E3181E840DEB99474F50902E8369B786B4BCDBB0462F00",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayCanonicalJsonV17.cs": "C296C35E9CA7D3996FFEEE387904A263AB4A83328921CC90CEB0DC79AD3AE8CE",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayStateReducerV17.cs": "DB40C2636FF664513D6B7DC0CBFD16EE18FC82FBB3BDEE46213875EEA8822C22",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayFastCloneV17.cs": "D47F17F7B37C693DC4C4A276D28FEEA591970C33B35A19FF7B0763842373339F",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayCombatantProjectionV17.cs": "8064A4F527134B291BC9D246E249B67698A169A3B28D9C6BF52100FDF8BC3B37",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Playback/ReplayPresentationValuesV17.cs": "98F88AE1011338D8090FC9C0361E80572EAA67D668B181A4C69394A8C081FC49",
+    "AuraToolsExp-Dev/GameApi/ReplayGlobalLightRendererFeatureV17.cs": "138EED2B598E9654FE7DFDC1E1E7DB91BAC6B1ADF66C6514CC0E8EDF7A59028F",
+    "AuraToolsExp-Dev/Features/MatchRecords/ReplayV17/Core/ReplayContractsV17.cs": "A6DAD73B227D92E934E18CD306F9CAF3B63FEE8EF43370DC3770DC278DB5F52D"
+  },
+  "unityVersion": "6000.0.46f1",
+  "passed": 32,
+  "failed": 0,
+  "nativeGameDataDirectory": "",
+  "results": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\unity-validation\\results-26041e8ea62f4224adf5c34e09614c94.xml",
+  "log": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\artifacts\\multiplayer-audit\\2026-09-07\\unity-validation\\unity-26041e8ea62f4224adf5c34e09614c94.log"
+}

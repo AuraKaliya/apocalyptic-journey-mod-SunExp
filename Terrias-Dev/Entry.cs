@@ -23,6 +23,8 @@ public static class Entry
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
+        AuraNetworkIdentityRuntime.RegisterProtocolProvider("Terrias", "0.6.0");
+        AuraRpcAdmission.RegisterAssembly(typeof(Entry).Assembly.GetName().Name!);
         Initialization.Reset();
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "Terrias"));

@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
@@ -60,7 +61,7 @@ public sealed class SpiritCompanionRemovalSnapshot
 }
 
 [Serializable]
-public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcSpiritSummonRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -118,7 +119,7 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBound
 }
 
 [Serializable]
-public sealed class RpcSpiritCompanionState : RpcCommandBase
+public sealed class RpcSpiritCompanionState : AuraBattleRpcCommand
 {
     public SpiritCompanionSnapshot Snapshot { get; set; } = new();
 
@@ -138,7 +139,7 @@ public sealed class RpcSpiritCompanionState : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcSpiritCompanionRemoved : RpcCommandBase
+public sealed class RpcSpiritCompanionRemoved : AuraBattleRpcCommand
 {
     public SpiritCompanionRemovalSnapshot Removal { get; set; } = new();
 
@@ -158,7 +159,7 @@ public sealed class RpcSpiritCompanionRemoved : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcSpiritWithdrawRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcSpiritWithdrawRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 

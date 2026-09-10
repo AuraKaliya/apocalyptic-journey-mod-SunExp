@@ -4,6 +4,7 @@ namespace AuraShared.Core;
 
 public static class AuraSharedPaths
 {
+    public static string OwnerDataRootDirectory => System.IO.Path.Combine(RootDirectory, "Data", "Owners");
     public static string RootDirectory { get; set; } = Path.GetTempPath();
 
     public static bool IsInsideDirectory(string path, string directory)

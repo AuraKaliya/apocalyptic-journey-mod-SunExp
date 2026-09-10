@@ -87,20 +87,6 @@
       "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
-      "sourceFile": "Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Close when SolarMemoryRoleCommitApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "SolarMemory",
-      "removeByMilestone": "SolarMemory-application-cutover"
-    },
-    {
-      "sourceFile": "Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs",
-      "targetLayer": "Network",
-      "reason": "Close when SolarMemoryRoleCommitApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "SolarMemory",
-      "removeByMilestone": "SolarMemory-application-cutover"
-    },
-    {
       "sourceFile": "Terrias-Dev/GameApi/SpiritCollectionApi.cs",
       "targetLayer": "Mechanics",
       "reason": "Close when SpiritCollectionApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
@@ -160,13 +146,6 @@
       "sourceFile": "Terrias-Dev/Mechanics/ElementalMagicService.cs",
       "targetLayer": "Network",
       "reason": "Close when ElementalMagicService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "ElementalCombat",
-      "removeByMilestone": "ElementalCombat-application-cutover"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Mechanics/EmberAdventureStateService.cs",
-      "targetLayer": "Network",
-      "reason": "Close when EmberAdventureStateService routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
       "owner": "ElementalCombat",
       "removeByMilestone": "ElementalCombat-application-cutover"
     },
@@ -255,13 +234,6 @@
       "removeByMilestone": "ElementalCombat-application-cutover"
     },
     {
-      "sourceFile": "Terrias-Dev/Network/RpcEmberAdventureStateCommit.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Close when RpcEmberAdventureStateCommit routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "ElementalCombat",
-      "removeByMilestone": "ElementalCombat-application-cutover"
-    },
-    {
       "sourceFile": "Terrias-Dev/Network/RpcEndlessAbyssEvacuation.cs",
       "targetLayer": "Hooks",
       "reason": "Close when RpcEndlessAbyssEvacuation routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
@@ -302,20 +274,6 @@
       "reason": "Close when RpcProjectionCompanion routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
       "owner": "ProjectionAndControl",
       "removeByMilestone": "ProjectionAndControl-application-cutover"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Network/RpcRuntimeHandAttachment.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Close when RpcRuntimeHandAttachment routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "CombatPresentation",
-      "removeByMilestone": "CombatPresentation-application-cutover"
-    },
-    {
-      "sourceFile": "Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs",
-      "targetLayer": "GameApi",
-      "reason": "Close when RpcSolarMemoryRoleCommit routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "SolarMemory",
-      "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
       "sourceFile": "Terrias-Dev/Network/RpcSpiritCapture.cs",

@@ -25,13 +25,12 @@ public static class ElementalMagicService
     public const int ProtocolVersion = 1;
 
     private static readonly Dictionary<string, ElementalEnemyMagicSnapshot> PendingSnapshots = new(StringComparer.Ordinal);
-    private static int battleEpoch;
+    private static int battleEpoch => AuraShared.Core.AuraNetworkIdentityRuntime.BattleEpoch;
 
     public static int BattleEpoch => battleEpoch;
 
     public static void BeginBattle()
     {
-        battleEpoch = battleEpoch == int.MaxValue ? 1 : battleEpoch + 1;
         PendingSnapshots.Clear();
     }
 

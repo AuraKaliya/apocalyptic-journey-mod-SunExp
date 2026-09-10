@@ -135,7 +135,6 @@ public static class ProjectionRuntime
     private static void BeginBattle(string source)
     {
         ClearBattle(source);
-        CompanionAuthorityService.BeginBattleEpoch();
         FriendlyRoleSeatLedger.BeginBattle();
         ProjectionCardPresentationService.ResetBattle();
         ProjectionTurnCoordinator.BeginBattle(source);

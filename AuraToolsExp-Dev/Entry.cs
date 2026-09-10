@@ -20,6 +20,9 @@ public static class Entry
     [ModInitialize]
     public static void Initialize(ModConfig modConfig)
     {
+        AuraNetworkIdentityRuntime.RegisterProtocolProvider("AuraToolsExp", "0.12.0");
+        AuraRpcAdmission.RegisterAssembly(typeof(Entry).Assembly.GetName().Name!);
+        AuraNetworkIdentityRuntime.RegisterLegacyAdventureIdKey("AuraTools.DamageMeter.AdventureId.v2");
         Initialization.Reset();
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("shared game data", () =>

@@ -1,3 +1,4 @@
+using Terrias.Dll.Application;
 using Terrias.Dll.Contracts;
 using System;
 using AuraShared.Core;
@@ -15,6 +16,14 @@ public static class TerriasRpcAuthorityRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
+        TerriasRpcCatalog.Register();
+        SolarMemoryRoleCommitNetworkAdapter.Initialize();
+        EmberNetworkAdapter.Initialize();
+        RuntimeHandAttachmentApplication.ConfigureBroadcast(spec =>
+        {
+            if (TerriasNetworkRuntime.HasRemotePlayers())
+                TerriasNetworkRuntime.Send(new RpcRuntimeHandAttachment(spec), "Wuna.WhiteSunPrayer", excludeOwner: true);
+        });
         AuraRpcAuthorityRuntime.Register(
             modConfig,
             TerriasIds.ModId,

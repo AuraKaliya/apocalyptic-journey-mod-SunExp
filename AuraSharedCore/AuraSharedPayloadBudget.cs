@@ -5,6 +5,16 @@ namespace AuraShared.Core;
 
 public static class AuraSharedPayloadBudget
 {
+    public static bool TryMeasureNativeRpc(object payload, out int bytes)
+    {
+        try
+        {
+            bytes = Encoding.UTF8.GetByteCount(Newtonsoft.Json.JsonConvert.SerializeObject(payload,
+                new Newtonsoft.Json.JsonSerializerSettings { TypeNameHandling = Newtonsoft.Json.TypeNameHandling.All }));
+            return true;
+        }
+        catch { bytes = int.MaxValue; return false; }
+    }
     public const int MirrorStringLimitBytes = 65534;
     public const int DefaultSoftLimitBytes = 56000;
 
@@ -33,7 +43,7 @@ public static class AuraSharedPayloadBudget
     {
         if (!TryMeasureUtf8Json(payload, out bytes, out error))
         {
-            return true;
+            return false;
         }
 
         return bytes <= Math.Min(MirrorStringLimitBytes - 1, Math.Max(1, limit));

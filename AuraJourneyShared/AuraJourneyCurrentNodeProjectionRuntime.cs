@@ -33,6 +33,7 @@ public static class AuraJourneyCurrentNodeProjectionRuntime
 
     public static void Initialize(ModConfig modConfig, string callerId)
     {
+        AuraRpcAdmission.Register<RpcAuraJourneyNodeProjection>(AuraRpcPublication.HostOnly);
         lock (SyncRoot)
         {
             if (initialized)

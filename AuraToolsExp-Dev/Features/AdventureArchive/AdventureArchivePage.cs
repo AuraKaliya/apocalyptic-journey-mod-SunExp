@@ -104,6 +104,10 @@ internal static class AdventureArchivePage
             "冒险历程 · " + FormatDate(record.StartedUtc),
             maxWidth: 1120f);
         var list = AuraToolsUi.CreateScroll(window.transform, "AdventureTimeline");
+        if (record.AssociationState == "Pending")
+            AddEmptyRow(list, "这份记录尚未取得权威冒险身份，暂未关联战斗回放。", 54f);
+        else if (record.AssociationState == "Legacy" && record.BattleCount == 0)
+            AddEmptyRow(list, "旧记录没有可证明的回放关联；原始时间线仍完整保留。", 54f);
 
         var summary = Row(list, "Summary", 96f, section: true);
         AuraToolsUi.AddText(summary.transform,

@@ -1,0 +1,50 @@
+[
+  {
+    "Name": "Test-AuraCgShared",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-AuraCgShared.log"
+  },
+  {
+    "Name": "Test-AudioArbiterShared",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-AudioArbiterShared.log"
+  },
+  {
+    "Name": "Test-TerriasCSharp",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-TerriasCSharp.log"
+  },
+  {
+    "Name": "Test-SpiritRuntime",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-SpiritRuntime.log"
+  },
+  {
+    "Name": "Test-TerriasElemental",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-TerriasElemental.log"
+  },
+  {
+    "Name": "Test-TerriasColumbina",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-TerriasColumbina.log"
+  },
+  {
+    "Name": "Test-TerriasMoonHomecoming",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-TerriasMoonHomecoming.log"
+  },
+  {
+    "Name": "Test-TerriasOlimya",
+    "Passed": true,
+    "Error": "",
+    "Log": "artifacts\\multiplayer-audit\\2026-09-07\\dev-Test-TerriasOlimya.log"
+  }
+]

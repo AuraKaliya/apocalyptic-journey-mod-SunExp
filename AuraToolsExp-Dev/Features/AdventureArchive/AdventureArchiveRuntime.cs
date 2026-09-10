@@ -33,6 +33,10 @@ internal static class AdventureArchiveRuntime
     private static bool initialized;
     private static ModConfig? currentConfig;
     private static string activeAdventureId = "";
+    private static string activeNetworkAdventureId = "";
+    private static string activePerspectivePlayerId = "";
+    private static long captureRoomGeneration = -1;
+    private static DateTime associationRetryAt;
     private static string lastCompletedAdventureId = "";
     private static IDisposable? lifecycle;
     private static RoleTable? observedRole;
@@ -59,6 +63,8 @@ internal static class AdventureArchiveRuntime
         if (initialized) return;
         initialized = true;
         currentConfig = modConfig;
+        AuraNetworkIdentityRuntime.Changed += OnNetworkIdentityChanged;
+        AuraNetworkIdentityRuntime.Updating += RetryPendingAssociation;
         AuraToolsConfigService.SubscribeModule(AuraToolModuleIds.AdventureArchive, OnConfigChanged);
         AuraToolsHookRegistry.After(modConfig, "GameEntryUI.StartGame", _ => BeginNewAdventure(), Owner);
         AuraToolsHookRegistry.After(modConfig, "NormalMapManager.InitRoleTable", _ => ScheduleAdventureReady(), Owner);
@@ -127,16 +133,13 @@ internal static class AdventureArchiveRuntime
         {
             UnbindRoleTable();
             ResetCaptureState();
-            if (!AuraToolsDamageMeterRuntime.Enabled) DamageMeterNetworkRuntime.BeginAdventure();
-
-            var candidate = DamageMeterNetworkRuntime.CurrentAdventureId;
-            var existing = AdventureArchiveStorage.Database.Load(candidate);
-            if (existing?.Record.Status == "complete")
-            {
-                DamageMeterNetworkRuntime.BeginAdventure();
-                candidate = DamageMeterNetworkRuntime.CurrentAdventureId;
-            }
-            activeAdventureId = candidate;
+            AuraNetworkIdentityRuntime.EnsureCurrentAdventure();
+            activeNetworkAdventureId = AuraNetworkIdentityRuntime.AdventureId;
+            activePerspectivePlayerId = AuraNetworkIdentityRuntime.LocalPlayerId;
+            captureRoomGeneration = AuraNetworkIdentityRuntime.RoomGeneration;
+            activeAdventureId = activeNetworkAdventureId.Length == 0 ? ""
+                : AdventureArchiveStorage.Database.FindForNetworkAdventure(activeNetworkAdventureId, activePerspectivePlayerId);
+            if (activeAdventureId.Length == 0) activeAdventureId = Guid.NewGuid().ToString("N");
             lastCompletedAdventureId = "";
             BeginRecord("start-game");
             var modeId = ResolveModeId();
@@ -155,18 +158,48 @@ internal static class AdventureArchiveRuntime
     private static bool EnsureActive(string stage)
     {
         if (!string.IsNullOrWhiteSpace(activeAdventureId)) return true;
-        var candidate = DamageMeterNetworkRuntime.CurrentAdventureId;
-        if (string.IsNullOrWhiteSpace(candidate)
-            || string.Equals(candidate, lastCompletedAdventureId, StringComparison.Ordinal)) return false;
-        var existing = AdventureArchiveStorage.Database.Load(candidate);
-        if (existing?.Record.Status == "complete")
-        {
-            DamageMeterNetworkRuntime.BeginAdventure();
-            candidate = DamageMeterNetworkRuntime.CurrentAdventureId;
-        }
-        activeAdventureId = candidate;
+        if (AuraNetworkIdentityRuntime.AdventureId.Length == 0) return false;
+        activeNetworkAdventureId = AuraNetworkIdentityRuntime.AdventureId;
+        activePerspectivePlayerId = AuraNetworkIdentityRuntime.LocalPlayerId;
+        captureRoomGeneration = AuraNetworkIdentityRuntime.RoomGeneration;
+        activeAdventureId = AdventureArchiveStorage.Database.FindForNetworkAdventure(activeNetworkAdventureId, activePerspectivePlayerId);
+        if (activeAdventureId.Length == 0) activeAdventureId = Guid.NewGuid().ToString("N");
+        if (activeAdventureId == lastCompletedAdventureId) { activeAdventureId = ""; return false; }
         BeginRecord(stage);
         return true;
+    }
+
+    private static void OnNetworkIdentityChanged()
+    {
+        if (!Enabled || activeAdventureId.Length == 0) return;
+        if (captureRoomGeneration != AuraNetworkIdentityRuntime.RoomGeneration
+            || activePerspectivePlayerId != AuraNetworkIdentityRuntime.LocalPlayerId)
+        {
+            UnbindRoleTable();
+            ResetActiveState();
+            return;
+        }
+        var id = AuraNetworkIdentityRuntime.AdventureId;
+        if (id.Length == 0) return;
+        if (activeNetworkAdventureId.Length == 0)
+        {
+            activeAdventureId = AdventureArchiveStorage.Database.BindPendingAdventure(activeAdventureId, id, activePerspectivePlayerId);
+            activeNetworkAdventureId = id;
+            RefreshCount();
+        }
+        else if (id != activeNetworkAdventureId)
+        {
+            UnbindRoleTable();
+            ResetActiveState();
+        }
+    }
+
+    private static void RetryPendingAssociation()
+    {
+        if (!Enabled || activeAdventureId.Length == 0 || activeNetworkAdventureId.Length > 0
+            || AuraNetworkIdentityRuntime.AdventureId.Length == 0 || DateTime.UtcNow < associationRetryAt) return;
+        associationRetryAt = DateTime.UtcNow.AddSeconds(5);
+        OnNetworkIdentityChanged();
     }
 
     private static void BeginRecord(string stage)
@@ -176,6 +209,9 @@ internal static class AdventureArchiveRuntime
         AdventureArchiveStorage.Database.Begin(new AdventureArchiveRecord
         {
             AdventureId = activeAdventureId,
+            NetworkAdventureId = activeNetworkAdventureId,
+            PerspectivePlayerId = activePerspectivePlayerId,
+            AssociationState = activeNetworkAdventureId.Length == 0 ? "Pending" : "Ready",
             StartedUtc = DateTime.UtcNow.ToString("O"),
             ModeId = modeId,
             ModeName = AuraToolsPlayerDisplay.ModeName(modeId),
@@ -685,6 +721,9 @@ internal static class AdventureArchiveRuntime
 
     private static void ResetActiveState()
     {
+        activeNetworkAdventureId = "";
+        activePerspectivePlayerId = "";
+        captureRoomGeneration = -1;
         activeAdventureId = "";
         ResetCaptureState();
     }

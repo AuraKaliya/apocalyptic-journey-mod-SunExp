@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
@@ -6,7 +7,7 @@ using Terrias.Dll.Mechanics;
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcElementalEnemyMagicSnapshot : RpcCommandBase
+public sealed class RpcElementalEnemyMagicSnapshot : AuraBattleRpcCommand
 {
     public ElementalEnemyMagicSnapshot Snapshot { get; set; } = new();
 
@@ -26,7 +27,7 @@ public sealed class RpcElementalEnemyMagicSnapshot : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalSpawn : RpcCommandBase
+public sealed class RpcElementalCrystalSpawn : AuraBattleRpcCommand
 {
     public ElementalCrystalEventSnapshot Snapshot { get; set; } = new();
 
@@ -46,7 +47,7 @@ public sealed class RpcElementalCrystalSpawn : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcElementalCrystalCreateRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -97,7 +98,7 @@ public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasS
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcElementalCrystalClaim : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -136,7 +137,7 @@ public sealed class RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBou
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalResolution : RpcCommandBase
+public sealed class RpcElementalCrystalResolution : AuraBattleRpcCommand
 {
     public ElementalCrystalResolutionSnapshot Resolution { get; set; } = new();
 

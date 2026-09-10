@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseBaseline": "0.11.0",
+  "releaseBaseline": "0.12.0",
   "globalExactModVersionRequired": false,
   "features": [
     {
@@ -25,13 +25,14 @@
     },
     {
       "id": "records.damage-meter",
-      "currentVersion": 4,
-      "minimumSupportedVersion": 4,
+      "currentVersion": 5,
+      "minimumSupportedVersion": 5,
       "minimumReadableVersion": 3,
       "requiredCapabilities": [
         "sequenced-events.v1",
         "hp-shield-damage.v1",
-        "snapshot-state.v1"
+        "snapshot-state.v1",
+        "acknowledged-submissions.v1"
       ],
       "fallback": "request-compatible-snapshot-or-disable-damage-meter-only"
     },

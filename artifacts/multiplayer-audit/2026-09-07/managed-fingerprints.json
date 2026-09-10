@@ -1,0 +1,22 @@
+[
+  {
+    "File": "Witch.dll",
+    "Matches": true,
+    "Sha256": "CD829F84F5A52A6B53973C676BF3DF4618A15F479A23BBA35B82E6802C6CDC83"
+  },
+  {
+    "File": "Witch.Core.dll",
+    "Matches": true,
+    "Sha256": "EDE56686110573070F9E062C8EFC51AC9D60E2AFD9B436590A028B72FDC06295"
+  },
+  {
+    "File": "AllScripts.dll",
+    "Matches": true,
+    "Sha256": "93806F183518BD829907A840DC7C881588DC1EDCC9EBD9ECE83B63F145007A55"
+  },
+  {
+    "File": "Mirror.dll",
+    "Matches": true,
+    "Sha256": "37688A27BFEB2F6465B92E0F0658E0A2B3BC210AD1F9D83AE9CC2130E3ABB819"
+  }
+]

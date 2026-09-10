@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using AuraUi.Shared;
 using System.Linq;
 using Data.Save;
 using Terrias.Dll.Infrastructure;
@@ -12,44 +11,29 @@ namespace Terrias.Dll.Hooks.Ui;
 
 public static class EndlessAbyssMilestoneRewardPanel
 {
-    private const string PanelName = "Terrias_EndlessAbyssMilestoneRewardPanel";
-    private const float HeaderHeight = 96f;
-    private const float RewardCardHeight = 96f;
-    private const float RowHeight = 56f;
-    private const float ButtonWidth = 120f;
-    private const float ButtonHeight = 46f;
-    private const float FooterHeight = 54f;
-    private const int ButtonFontSize = 16;
-
-    private static readonly Color WindowTint = new(0.024f, 0.03f, 0.052f, 0.98f);
-    private static readonly Color HeaderTint = new(0.035f, 0.038f, 0.075f, 0.98f);
-    private static readonly Color CardTint = new(0.062f, 0.07f, 0.105f, 0.98f);
-    private static readonly Color DisabledTint = new(0.045f, 0.045f, 0.052f, 0.94f);
-    private static readonly Color Gold = new(0.9f, 0.76f, 0.4f);
-    private static readonly Color SoftText = new(0.9f, 0.93f, 0.88f);
-    private static GameObject? activePanel;
-    private static Transform? contentRoot;
-    private static Text? hintText;
+    private static EndlessAbyssChoiceView? view;
+    private static EndlessAbyssChoiceState? choices;
+    private static IReadOnlyList<EndlessAbyssChoiceOption> options = Array.Empty<EndlessAbyssChoiceOption>();
+    private static EndlessAbyssCardGrid? cardGrid;
+    private static EndlessAbyssCardOption? selectedCard;
     private static int activeFloor;
-
-    public static bool IsOpen => activePanel != null;
+    private static bool resolving;
+    public static bool IsOpen => view != null && view.Root != null;
 
     public static bool TryOpenForCurrentFloor(string source)
     {
         try
         {
-            if (activePanel != null)
-            {
-                return true;
-            }
-
-            var floor = Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
-            if (!EndlessAbyssMilestoneRewardService.CanClaim(floor))
-            {
-                return false;
-            }
-
-            Open(floor, source);
+            if (IsOpen) return true;
+            activeFloor = Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
+            if (!EndlessAbyssMilestoneRewardService.CanClaim(activeFloor)) return false;
+            var parent = TerriasModalHost.ModalParent();
+            if (parent == null) return false;
+            view = new EndlessAbyssChoiceView("Terrias_EndlessAbyssMilestoneRewardPanel", parent, "深渊里程碑奖励");
+            TerriasTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
+            view.Back.onClick.AddListener(() => Run(ShowChoices));
+            ShowChoices();
+            TerriasLog.Info("[EndlessAbyssMilestone] opened from " + source + "; floor=" + activeFloor);
             return true;
         }
         catch (Exception ex)
@@ -60,332 +44,179 @@ public static class EndlessAbyssMilestoneRewardPanel
         }
     }
 
-    private static void Open(int floor, string source)
+    private static void ReleaseCards()
     {
-        activeFloor = Math.Max(1, floor);
-        var parent = TerriasModalHost.ModalParent();
-        if (parent == null)
+        if (cardGrid != null) cardGrid.Release();
+        cardGrid = null;
+        selectedCard = null;
+    }
+
+    private static void ShowChoices()
+    {
+        if (view == null) return;
+        ReleaseCards();
+        choices = EndlessAbyssMilestoneRewardService.Choices(activeFloor);
+        options = EndlessAbyssChoiceCatalog.MilestoneOptions();
+        view.SetSubtitle("第 " + activeFloor + " 层 · 选择 1 项奖励");
+        view.ShowChoices(false, choices, options, id => Run(() => Select(id)), slot => Run(() => Refresh(slot)));
+        view.Confirm.onClick.AddListener(() => Run(ConfirmChoice));
+        view.RefreshSelection(choices, options, 1);
+    }
+
+    private static void Select(string id)
+    {
+        if (view == null || !options.Any(option => option.Id == id && option.Available)) return;
+        var next = EndlessAbyssMilestoneRewardService.Choices(activeFloor);
+        if (!next.Toggle(id, 1)) return;
+        EndlessAbyssChoiceStore.Save(EndlessAbyssChoiceStore.Milestone, next);
+        choices = next;
+        view.RefreshSelection(next, options, 1);
+    }
+
+    private static void Refresh(int slot)
+    {
+        var next = EndlessAbyssMilestoneRewardService.Choices(activeFloor);
+        var available = EndlessAbyssChoiceCatalog.MilestoneOptions();
+        if (!next.Refresh(slot, EndlessAbyssChoiceCatalog.MilestoneIds,
+                id => available.Any(option => option.Id == id && option.Available), EndlessAbyssChoiceStore.PickIndex))
         {
+            view?.SetHint("没有可用刷新，次数未消耗。");
             return;
         }
-
-        activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.68f));
-        TerriasTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
-        var window = TerriasUiComponents.CreateVerticalWindow(
-            "Window",
-            activePanel.transform,
-            ResolveWindowSize(parent),
-            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
-            WindowTint,
-            new RectOffset(24, 24, 18, 14),
-            12f);
-
-        CreateHeader(window.transform);
-        contentRoot = CreateContentRoot(window.transform);
-        CreateFooter(window.transform);
-        ShowMainOptions();
-        TerriasLog.Info("[EndlessAbyssMilestone] opened from " + source + "; floor=" + activeFloor + ".");
+        EndlessAbyssChoiceStore.Save(EndlessAbyssChoiceStore.Milestone, next);
+        ShowChoices();
     }
 
-    private static void CreateHeader(Transform parent)
+    private static void ConfirmChoice()
     {
-        var header = TerriasUiComponents.CreatePanelSection(
-            "Header",
-            parent,
-            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
-            HeaderTint,
-            HeaderHeight,
-            HeaderHeight);
-        TerriasUiComponents.ConfigureVerticalLayout(header, new RectOffset(14, 14, 8, 8), 3f);
-
-        TerriasUiComponents.AddTextBlock(header.transform, "\u6df1\u6e0a\u91cc\u7a0b\u7891", 28, TextAnchor.MiddleCenter, Gold, 36f);
-        TerriasUiComponents.AddTextBlock(header.transform, "\u7b2c " + activeFloor + " \u5c42\u5956\u52b1\u9009\u62e9", 15, TextAnchor.MiddleCenter, SoftText, 24f);
-    }
-
-    private static Transform CreateContentRoot(Transform parent)
-    {
-        var root = TerriasUiComponents.CreatePanelSection(
-            "ContentRoot",
-            parent,
-            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
-            new Color(0.01f, 0.014f, 0.03f, 0.9f),
-            330f,
-            330f,
-            1f);
-        TerriasUiComponents.ConfigureVerticalLayout(
-            root,
-            new RectOffset(18, 18, 18, 18),
-            10f,
-            childForceExpandHeight: true);
-        return root.transform;
-    }
-
-    private static void CreateFooter(Transform parent)
-    {
-        var footer = TerriasUiComponents.CreateFooterRow(parent, FooterHeight, new RectOffset(6, 6, 4, 4), 12f);
-        hintText = TerriasUiComponents.AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleLeft, SoftText, 34f, 1f);
-    }
-
-    private static void ShowMainOptions()
-    {
-        ClearContent();
-        ConfigureContentRootLayout(18, 18, 18, 18, 10f, true);
-        var scrollContent = TerriasUiComponents.CreateVerticalScrollArea(
-            contentRoot!,
-            "RewardOptions",
-            220f,
-            1f,
-            10f,
-            24f,
-            new Color(0f, 0f, 0f, 0.05f)).Content;
-
-        CreateRewardCard(
-            scrollContent,
-            "\u4efb\u9009 1 \u4ef6 1/2/3 \u9636\u9057\u7269",
-            "\u6253\u5f00\u9057\u7269\u5217\u8868\u5e76\u4ece\u4e2d\u6311\u9009\u3002",
-            EndlessAbyssMilestoneRewardService.RelicCandidates().Count > 0,
-            ShowRelicPicker);
-        CreateRewardCard(
-            scrollContent,
-            "\u968f\u673a\u83b7\u5f97 1 \u5f20\u5f02\u6b21\u5143\u5361",
-            "\u4ece\u914d\u7f6e\u7684\u5f02\u6b21\u5143\u5361\u6c60\u4e2d\u62bd\u53d6\u3002",
-            true,
-            GrantOtherDimensionCard);
-        CreateRewardCard(
-            scrollContent,
-            "\u9009\u62e9 1 \u5f20\u5361\u724c\u6e05\u9664\u711a\u6bc1",
-            "\u4ec5\u663e\u793a\u5f53\u524d\u5361\u7ec4\u4e2d\u62e5\u6709\u711a\u6bc1\u7684\u5361\u3002",
-            EndlessAbyssMilestoneRewardService.BurnoutCards().Count > 0,
-            ShowBurnoutPicker);
-        CreateRewardCard(
-            scrollContent,
-            "\u9009\u62e9 1 \u5f20\u5361\u724c\u6dfb\u52a0\u7edd\u706d",
-            "\u4ec5\u663e\u793a\u5f53\u524d\u5361\u7ec4\u4e2d\u5c1a\u672a\u62e5\u6709\u7edd\u706d\u7684\u5361\u3002",
-            EndlessAbyssMilestoneRewardService.ExtinctionTargets().Count > 0,
-            ShowExtinctionPicker);
-        SetHint("\u9009\u62e9 1 \u4e2a\u91cc\u7a0b\u7891\u5956\u52b1\u3002");
-    }
-
-    private static void CreateRewardCard(Transform parent, string title, string body, bool enabled, Action action)
-    {
-        var go = TerriasUiComponents.CreateLayoutObject("RewardCard", parent);
-        var element = go.AddComponent<LayoutElement>();
-        element.minHeight = RewardCardHeight;
-        element.preferredHeight = RewardCardHeight;
-        var images = EndlessAbyssFramedTextCard.Create(
-            go,
-            "[EndlessAbyssMilestone]",
-            enabled ? CardTint : DisabledTint,
-            title,
-            body,
-            enabled ? Gold : new Color(0.55f, 0.55f, 0.55f),
-            enabled ? SoftText : new Color(0.58f, 0.58f, 0.58f));
-
-        var button = go.AddComponent<Button>();
-        AuraUiButtonFeedback.Apply(button, images.ButtonTarget, Gold);
-        button.interactable = enabled;
-        button.onClick.AddListener(() => RunAction(action, "RewardCard:" + title));
+        if (view == null || resolving) return;
+        var state = EndlessAbyssMilestoneRewardService.Choices(activeFloor);
+        var available = EndlessAbyssChoiceCatalog.MilestoneOptions();
+        if (!state.IsReady(1, id => available.Any(option => option.Id == id && option.Available)))
+        {
+            ShowChoices();
+            view?.SetHint("所选奖励当前不可用，请重新选择。");
+            return;
+        }
+        switch (state.Selected[0])
+        {
+            case EndlessAbyssMilestoneRewardKind.Relic: ShowRelicPicker(); break;
+            case EndlessAbyssMilestoneRewardKind.RemoveBurnout: ShowCardPicker(true); break;
+            case EndlessAbyssMilestoneRewardKind.AddExtinction: ShowCardPicker(false); break;
+            case EndlessAbyssMilestoneRewardKind.OtherDimensionCard:
+                Resolve(() => {
+                    var success = EndlessAbyssMilestoneRewardService.GrantRandomOtherDimensionCard(activeFloor, out var message);
+                    return (success, message);
+                });
+                break;
+        }
     }
 
     private static void ShowRelicPicker()
     {
-        var options = EndlessAbyssMilestoneRewardService.RelicCandidates();
-        ShowList("\u9009\u62e9\u9057\u7269", options, option => "T" + option.Tier, option => option.Name, option =>
+        if (view == null) return;
+        BeginPicker("选择 1 件遗物");
+        var list = TerriasUiComponents.CreateVerticalScrollArea(view.Content, "AbyssRelics", 660f, 1f, 10f, 34f,
+            new Color(0.04f, 0.05f, 0.08f, 0.95f));
+        foreach (var relic in EndlessAbyssMilestoneRewardService.RelicCandidates())
         {
-            if (EndlessAbyssMilestoneRewardService.GrantRelic(activeFloor, option.Id, out var message))
-            {
-                Close("EndlessAbyssMilestone.Relic");
-            }
-            else
-            {
-                SetHint(message);
-            }
+            var row = TerriasUiComponents.CreateTextButton(list.Content, "T" + relic.Tier + "  " + relic.Name,
+                new Vector2(1300f, 66f), TerriasUiSprites.Button("[EndlessAbyssMilestone]"), new Color(0.1f, 0.1f, 0.14f),
+                EndlessAbyssChoiceView.TextColor, 26, () => Run(() => {
+                    view!.SetHint("已选：" + relic.Name);
+                    view.Confirm.interactable = true;
+                    view.Confirm.onClick.RemoveAllListeners();
+                    view.Confirm.onClick.AddListener(() => Resolve(() => {
+                        var success = EndlessAbyssMilestoneRewardService.GrantRelic(activeFloor, relic.Id, out var message);
+                        return (success, message);
+                    }));
+                }));
+        }
+    }
+
+    private static void BeginPicker(string subtitle)
+    {
+        ReleaseCards();
+        view!.ClearContent();
+        view.SetSubtitle("第 " + activeFloor + " 层 · " + subtitle);
+        view.Back.gameObject.SetActive(true);
+        view.Confirm.interactable = false;
+        view.SetHint("选中目标后点击确定。");
+    }
+
+    private static void ShowCardPicker(bool removeBurnout)
+    {
+        if (view == null) return;
+        BeginPicker(removeBurnout ? "选择 1 张卡牌清除焚毁" : "选择 1 张卡牌附加绝灭");
+        var cards = removeBurnout ? EndlessAbyssMilestoneRewardService.BurnoutCards()
+            : EndlessAbyssMilestoneRewardService.ExtinctionTargets();
+        var gridHost = TerriasUiComponents.CreateFillRect("CardPicker", view.Content);
+        cardGrid = gridHost.AddComponent<EndlessAbyssCardGrid>();
+        cardGrid.Show((RectTransform)gridHost.transform, cards, option => {
+            selectedCard = option;
+            cardGrid?.Select(option.InstanceId);
+            view!.SetHint("已选：" + option.Name);
+            view.Confirm.interactable = true;
+        });
+        if (cards.Count == 0) view.SetHint("当前没有可选卡牌，请返回选择其他奖励。");
+        view.Confirm.onClick.AddListener(() => {
+            var card = selectedCard;
+            if (card == null) return;
+            Resolve(() => {
+                string message;
+                var success = removeBurnout
+                    ? EndlessAbyssMilestoneRewardService.RemoveBurnout(activeFloor, card.Card, out message)
+                    : EndlessAbyssMilestoneRewardService.AddExtinction(activeFloor, card.Card, out message);
+                if (!success) ShowCardPicker(removeBurnout);
+                return (success, message);
+            });
         });
     }
 
-    private static void ShowBurnoutPicker()
+    private static void Resolve(Func<(bool Success, string Message)> action)
     {
-        var options = EndlessAbyssMilestoneRewardService.BurnoutCards();
-        ShowList("\u6e05\u9664\u711a\u6bc1", options, _ => "\u711a\u6bc1", option => option.Name, option =>
+        if (resolving || view == null) return;
+        resolving = true;
+        view.Confirm.interactable = false;
+        try
         {
-            if (EndlessAbyssMilestoneRewardService.RemoveBurnout(activeFloor, option.Card, out var message))
-            {
-                Close("EndlessAbyssMilestone.RemoveBurnout");
-            }
+            var result = action();
+            if (result.Success) Close("EndlessAbyssMilestone.Confirm");
             else
             {
-                SetHint(message);
+                view?.SetHint(result.Message);
+                if (view != null && cardGrid == null) view.Confirm.interactable = true;
             }
-        });
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Error("Endless abyss milestone resolution failed", ex);
+            view?.SetHint("奖励结算未完成，请重试。");
+            if (view != null) view.Confirm.interactable = true;
+        }
+        finally { resolving = false; }
     }
 
-    private static void ShowExtinctionPicker()
+    private static void Run(Action action)
     {
-        var options = EndlessAbyssMilestoneRewardService.ExtinctionTargets();
-        ShowList("\u6dfb\u52a0\u7edd\u706d", options, _ => "\u5361\u724c", option => option.Name, option =>
+        try { action(); }
+        catch (Exception ex)
         {
-            if (EndlessAbyssMilestoneRewardService.AddExtinction(activeFloor, option.Card, out var message))
-            {
-                Close("EndlessAbyssMilestone.AddExtinction");
-            }
-            else
-            {
-                SetHint(message);
-            }
-        });
-    }
-
-    private static void GrantOtherDimensionCard()
-    {
-        if (EndlessAbyssMilestoneRewardService.GrantRandomOtherDimensionCard(activeFloor, out var message))
-        {
-            Close("EndlessAbyssMilestone.OtherDimension");
+            TerriasLog.Error("Endless abyss milestone selection failed", ex);
+            view?.SetHint("操作未完成，可返回后重试。");
         }
-        else
-        {
-            SetHint(message);
-        }
-    }
-
-    private static void ShowList<T>(
-        string title,
-        IReadOnlyList<T> options,
-        Func<T, string> badge,
-        Func<T, string> name,
-        Action<T> select)
-    {
-        ClearContent();
-        var root = contentRoot;
-        if (root == null)
-        {
-            return;
-        }
-
-        ConfigureContentRootLayout(18, 18, 16, 18, 10f, true);
-
-        var titleRow = TerriasUiComponents.CreateLayoutObject("ListTitle", root);
-        var titleElement = titleRow.AddComponent<LayoutElement>();
-        titleElement.minHeight = ButtonHeight;
-        titleElement.preferredHeight = ButtonHeight;
-        var titleLayout = titleRow.AddComponent<HorizontalLayoutGroup>();
-        titleLayout.spacing = 12f;
-        titleLayout.childControlWidth = true;
-        titleLayout.childControlHeight = true;
-        titleLayout.childForceExpandWidth = false;
-        titleLayout.childForceExpandHeight = false;
-        titleLayout.childAlignment = TextAnchor.MiddleCenter;
-        CreateButton(titleRow.transform, "\u8fd4\u56de", new Vector2(ButtonWidth, ButtonHeight), ShowMainOptions);
-        TerriasUiComponents.AddTextBlock(titleRow.transform, title + " (" + options.Count + ")", 18, TextAnchor.MiddleLeft, Gold, 34f, 1f);
-
-        var scrollContent = TerriasUiComponents.CreateVerticalScrollArea(
-            root,
-            "List",
-            220f,
-            1f,
-            10f,
-            24f,
-            new Color(0f, 0f, 0f, 0.05f)).Content;
-        foreach (var option in options)
-        {
-            CreateRow(scrollContent, badge(option), name(option), () => select(option));
-        }
-
-        SetHint(options.Count == 0 ? "\u5f53\u524d\u6ca1\u6709\u53ef\u9009\u9879\u3002" : "\u4ece\u5217\u8868\u4e2d\u9009\u62e9 1 \u9879\u3002");
-    }
-
-    private static void CreateRow(Transform parent, string badge, string name, Action action)
-    {
-        var row = TerriasUiComponents.CreateLayoutObject("Row", parent);
-        var element = row.AddComponent<LayoutElement>();
-        element.minHeight = RowHeight;
-        element.preferredHeight = RowHeight;
-        TerriasUiBuilder.ApplyLabelImage(row, TerriasUiSprites.Label("[EndlessAbyssMilestone]"), CardTint, true);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(12, 12, 5, 5);
-        layout.spacing = 10f;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = true;
-
-        TerriasUiComponents.AddTextBlock(row.transform, badge, 13, TextAnchor.MiddleCenter, Gold, 40f, 0f, 74f);
-        TerriasUiComponents.AddTextBlock(row.transform, name, 15, TextAnchor.MiddleLeft, SoftText, 40f, 1f);
-        CreateButton(row.transform, "\u9009\u62e9", new Vector2(ButtonWidth, ButtonHeight), action);
-    }
-
-    private static void ClearContent()
-    {
-        if (contentRoot == null)
-        {
-            return;
-        }
-
-        TerriasUiPool.ReleaseOrDestroyChildren(contentRoot, "EndlessAbyssMilestone.ClearContent", "[EndlessAbyssMilestone]");
-    }
-
-    private static void ConfigureContentRootLayout(int left, int right, int top, int bottom, float spacing, bool expandHeight)
-    {
-        if (contentRoot == null)
-        {
-            return;
-        }
-
-        TerriasUiComponents.ConfigureVerticalLayout(
-            contentRoot.gameObject,
-            new RectOffset(left, right, top, bottom),
-            spacing,
-            childForceExpandHeight: expandHeight);
     }
 
     public static void Close(string source)
     {
-        ClearContent();
-        contentRoot = null;
-        hintText = null;
+        ReleaseCards();
+        var root = view?.Root;
+        view?.ClearContent();
+        view = null;
+        choices = null;
+        options = Array.Empty<EndlessAbyssChoiceOption>();
         activeFloor = 0;
-        TerriasModalHost.Close(ref activePanel, source, "[EndlessAbyssMilestone]");
+        TerriasModalHost.Close(ref root, source, "[EndlessAbyssMilestone]");
         TerriasTransientUiRegistry.Unregister("EndlessAbyssMilestone");
-    }
-
-    private static void SetHint(string value)
-    {
-        if (hintText != null)
-        {
-            hintText.text = value;
-        }
-    }
-
-    private static Button CreateButton(Transform parent, string label, Vector2 size, Action action)
-    {
-        return TerriasUiComponents.CreateTextButton(
-            parent,
-            label,
-            size,
-            TerriasUiSprites.Button("[EndlessAbyssMilestone]"),
-            new Color(0.08f, 0.07f, 0.11f, 0.98f),
-            SoftText,
-            ButtonFontSize,
-            () => RunAction(action, "Button:" + label));
-    }
-
-    private static void RunAction(Action action, string source)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Error("[EndlessAbyssMilestone] UI action failed: " + source, ex);
-            SetHint("\u91cc\u7a0b\u7891\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
-        }
-    }
-
-    private static Vector2 ResolveWindowSize(Transform parent)
-    {
-        var rect = parent as RectTransform;
-        var width = rect != null && rect.rect.width > 0f ? rect.rect.width : 1280f;
-        var height = rect != null && rect.rect.height > 0f ? rect.rect.height : 720f;
-        return new Vector2(Mathf.Clamp(width * 0.6f, 600f, 820f), Mathf.Clamp(height * 0.74f, 540f, 660f));
     }
 }

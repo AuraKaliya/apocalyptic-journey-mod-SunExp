@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using System;
 using Network.Command;
 using Terrias.Dll.GameApi;
@@ -6,7 +7,7 @@ using Terrias.Dll.Mechanics;
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcSpiritEnemySuppressed : RpcCommandBase
+public sealed class RpcSpiritEnemySuppressed : AuraBattleRpcCommand
 {
     public int ProtocolVersion { get; set; } = CompanionAuthorityService.ProjectionProtocolVersion;
 

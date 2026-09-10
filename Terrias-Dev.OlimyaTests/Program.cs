@@ -206,7 +206,9 @@ var ownerB = Host.Player("player-b");
 var markA = Command("player-a", enemy.InstanceId, 1);
 var markB = Command("player-b", enemy.InstanceId, 1);
 Check(OlimyaRoleApplication.HandleAuthoritative(markA, true), "the owner can apply the first mark");
-Check(!OlimyaRoleApplication.HandleAuthoritative(markA, true), "duplicate commands are rejected");
+enemy.Buffs.Remove(OlimyaIds.Goldenized);
+Check(OlimyaRoleApplication.HandleAuthoritative(markA, true) && !enemy.Buffs.ContainsKey(OlimyaIds.Goldenized),
+    "duplicate requests return the existing receipt without reapplying an expired mark");
 Check(OlimyaRoleApplication.HandleAuthoritative(markB, true) && enemy.Buffs[OlimyaIds.Goldenized] == 1,
     "a second caster refreshes the single mark without stacking");
 Host.StartTurn();

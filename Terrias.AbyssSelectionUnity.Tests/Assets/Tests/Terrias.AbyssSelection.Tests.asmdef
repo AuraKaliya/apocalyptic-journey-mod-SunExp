@@ -1,0 +1,7 @@
+{
+  "name": "Terrias.AbyssSelection.Tests",
+  "references": ["Unity.ugui", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Universal.2D.Runtime", "Unity.RenderPipelines.Universal.Editor"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"]
+}

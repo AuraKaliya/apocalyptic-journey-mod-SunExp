@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../AuraSharedCore.Tests/AuraSharedCore.Tests.csproj" />
+    <Reference Include="Newtonsoft.Json"><HintPath>../Managed/Newtonsoft.Json.dll</HintPath></Reference>
+    <Compile Include="../AuraSharedCore/AuraRpcAuthorityRuntime.cs" Link="Production/AuraRpcAuthorityRuntime.cs" />
+    <Compile Include="../AuraSharedCore/AuraNativeRpcReceiveAdapter.cs" Link="Production/AuraNativeRpcReceiveAdapter.cs" />
+    <Compile Include="../Terrias-Dev/Application/SolarMemoryRoleCommitApplication.cs" Link="Production/SolarMemoryRoleCommitApplication.cs" />
+    <Compile Include="../Terrias-Dev/Application/EmberAdventureStateService.cs" Link="Production/EmberAdventureStateService.cs" />
+    <Compile Include="../Terrias-Dev/Contracts/SolarMemoryCommitRecord.cs" Link="Production/SolarMemoryCommitRecord.cs" />
+    <Compile Include="../Terrias-Dev/Contracts/EmberSynchronizationContracts.cs" Link="Production/EmberSynchronizationContracts.cs" />
+    <Compile Include="../Terrias-Dev/Contracts/TerriasRpcSender.cs" Link="Production/TerriasRpcSender.cs" />
+    <Compile Include="../Terrias-Dev/Infrastructure/TerriasIds.cs" Link="Production/TerriasIds.cs" />
+    <Compile Include="../Terrias-Dev/Infrastructure/TerriasContentIdCompatibility.cs" Link="Production/TerriasContentIdCompatibility.cs" />
+  </ItemGroup>
+</Project>

@@ -113,7 +113,7 @@ public static class ConstellationService
             AppliedRoundRewardIds.Clear();
             AppliedRoundRewardOrder.Clear();
             hostRoundSequence = 0;
-            hostBattleSessionId = TerriasNetworkQueries.IsClientOnly() ? "" : Guid.NewGuid().ToString("N");
+            hostBattleSessionId = AuraShared.Core.AuraNetworkIdentityRuntime.BattleId;
             acceptedBattleSessionId = hostBattleSessionId;
         }
 

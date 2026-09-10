@@ -90,6 +90,11 @@ public static class PlayerApi
         InvokeStaticPlayerInfo("SetGameVar", key, value);
     }
 
+    public static void RefreshSkillDisplay()
+    {
+        Witch.UI.UIManager.Instance?.GetUI<Witch.UI.Window.FightUI>("FightUI")?.UpdateSkill();
+    }
+
     public static string GetGameVar(string key, string fallback = "")
     {
         var value = InvokeStaticPlayerInfo("GetGameVar", key);

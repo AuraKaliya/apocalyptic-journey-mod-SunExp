@@ -1,3 +1,4 @@
+using Terrias.Dll.Contracts;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -71,23 +72,9 @@ public sealed class RuntimeCardAttachmentResult
     }
 }
 
-public sealed class RuntimeHandAttachmentSpec
-{
-    public string[] NativeTags { get; set; } = Array.Empty<string>();
-
-    public string[] SpecialTags { get; set; } = Array.Empty<string>();
-
-    public string[] Markers { get; set; } = Array.Empty<string>();
-
-    public bool TemporaryWhiteRadiance { get; set; }
-
-    public string Token { get; set; } = "";
-
-    public string Source { get; set; } = "";
-}
-
 public static class RuntimeCardAttachmentService
 {
+    public static Action<RuntimeHandAttachmentSpec>? PublishHandAttachment { private get; set; }
     private const string BurnoutTag = "Burnout";
     private const string FrozeTag = "Froze";
     private const string SnapshotPresentKey = "TerriasRuntimeAttachmentSnapshot";
@@ -138,7 +125,12 @@ public static class RuntimeCardAttachmentService
 
         var token = Guid.NewGuid().ToString("N");
         EnqueueLocalHandAttachment(executor, attachment, source, token);
-        BroadcastHandAttachment(attachment, source, token);
+        PublishHandAttachment?.Invoke(new RuntimeHandAttachmentSpec
+        {
+            OwnerStatusId = executor?.Self?.InstanceId ?? "",
+            Token = token,
+            Source = source ?? ""
+        });
 
         return true;
     }
@@ -879,81 +871,6 @@ public static class RuntimeCardAttachmentService
         {
             TerriasPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
         }
-    }
-
-    private static void BroadcastHandAttachment(RuntimeCardAttachment attachment, string source, string token)
-    {
-        var runtimeType = FindRuntimeType("Terrias.Dll.Network.TerriasNetworkRuntime");
-        if (runtimeType == null || InvokeBool(runtimeType, "IsMultiplayerSession") != true)
-        {
-            return;
-        }
-
-        var commandType = FindRuntimeType("Terrias.Dll.Network.RpcRuntimeHandAttachment");
-        if (commandType == null)
-        {
-            return;
-        }
-
-        try
-        {
-            var command = Activator.CreateInstance(
-                commandType,
-                new RuntimeHandAttachmentSpec
-                {
-                    NativeTags = attachment.NativeTags.ToArray(),
-                    SpecialTags = attachment.SpecialTags.ToArray(),
-                    Markers = attachment.Markers.ToArray(),
-                    TemporaryWhiteRadiance = attachment.TemporaryWhiteRadiance,
-                    Token = token,
-                    Source = source ?? ""
-                });
-            runtimeType.GetMethod("Send", BindingFlags.Public | BindingFlags.Static)
-                ?.Invoke(null, new[] { command, source ?? "RuntimeCardAttachment.BroadcastHandAttachment", true });
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("Runtime hand attachment network broadcast failed: " + ex.Message);
-        }
-    }
-
-    private static bool? InvokeBool(Type type, string name)
-    {
-        try
-        {
-            return type.GetMethod(name, BindingFlags.Public | BindingFlags.Static)?.Invoke(null, Array.Empty<object>()) as bool?;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static Type? FindRuntimeType(string name)
-    {
-        var direct = Type.GetType(name);
-        if (direct != null)
-        {
-            return direct;
-        }
-
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            try
-            {
-                var exact = assembly.GetType(name);
-                if (exact != null)
-                {
-                    return exact;
-                }
-            }
-            catch
-            {
-                // Best-effort runtime bridge.
-            }
-        }
-
-        return null;
     }
 
     private static bool MarkNetworkToken(string token)

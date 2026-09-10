@@ -159,6 +159,17 @@ namespace Witch.Mod { public sealed class ModConfig { } }
 namespace Witch.UI { public sealed class Placeholder { } }
 namespace Witch.UI.Window { public static class FightUI { public static bool IsReset; } }
 namespace AuraShared.Core { public static class AuraBattleLifecycleStateRuntime { public static bool AcceptsCombatPresentation = true; } }
+namespace AuraShared.Core
+{
+    public abstract class AuraBattleRpcCommand : global::Network.Command.RpcCommandBase { public string NetworkBattleId { get; set; } = "battle"; }
+    public static class AuraNetworkIdentityRuntime
+    {
+        public static string BattleId => "battle";
+        public static bool MatchesBattle(string id) => id == "battle";
+        public static event Action? Updating;
+        public static void Tick() => Updating?.Invoke();
+    }
+}
 namespace Network.Command { public abstract class RpcCommandBase { public abstract void CmdExecute(); public abstract void RpcExecute(); } }
 
 namespace Terrias.Dll.Infrastructure
@@ -269,6 +280,7 @@ namespace Terrias.Dll.Network
             Host.Server = true;
             ((ITerriasServerBoundRpcCommand)command).BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender(source));
             try { command.CmdExecute(); } finally { Host.Server = server; }
+            command.RpcExecute();
             return true;
         }
     }

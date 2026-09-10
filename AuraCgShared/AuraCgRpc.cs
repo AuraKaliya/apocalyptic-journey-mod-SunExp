@@ -70,6 +70,9 @@ public static class AuraCgRpcAuthorityRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
+        AuraRpcAdmission.Register<RpcSkillCgPlaybackRequest>(AuraRpcPublication.MemberRequest);
+        AuraRpcAdmission.Register<RpcSkillCgPlayback>(AuraRpcPublication.HostOnly);
+        AuraRpcAdmission.Register<RpcSkillCgFightSession>(AuraRpcPublication.HostOnly);
         if (modConfig == null || !RegisteredConfigs.Add(modConfig.GetHashCode()))
         {
             return;

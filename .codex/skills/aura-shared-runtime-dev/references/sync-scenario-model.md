@@ -108,6 +108,12 @@ Never trust payload-provided sender, reporter, issuer, or owner fields for
 authorization. Bind sender from the server receive context and pass the bound
 sender into validation.
 
+The receive context must retain the actual transport connection; the invoked
+PlayerManager is not proof of who sent a command. Admission must run before
+native dispatch/relay: returning from CmdExecute alone does not cancel relay.
+New control messages that older peers cannot deserialize need a targeted
+response path or explicit peer capability admission, not an unconditional echo.
+
 ## Timing Model
 
 Use this order unless a feature has a stronger local reason:

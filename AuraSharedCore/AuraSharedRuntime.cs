@@ -24,7 +24,9 @@ public static class AuraSharedRuntime
     public static string Initialize(ModConfig? modConfig, string ownerModId, AuraSharedOptions? options = null)
     {
         AuraSharedPaths.Initialize(modConfig, options);
+        AuraRpcAdmission.RegisterAssembly(typeof(AuraSharedRuntime).Assembly.GetName().Name!);
         EnsureCore(modConfig, ownerModId, options);
+        if (modConfig != null) AuraNetworkIdentityRuntime.Initialize(modConfig);
         return AuraSharedPaths.RootDirectory;
     }
 

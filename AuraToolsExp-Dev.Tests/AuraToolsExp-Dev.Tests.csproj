@@ -8,6 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\AuraSharedCore\AuraNetworkIdentityState.cs" Link="Shared\AuraNetworkIdentityState.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedPayloadBudget.cs" Link="Shared\AuraSharedPayloadBudget.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageReliableSubmission.cs" Link="DamageMeter\DamageReliableSubmission.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterNetworkRuntime.cs" Link="DamageMeter\DamageMeterNetworkRuntime.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterCommands.cs" Link="DamageMeter\DamageMeterCommands.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\DamageMeter\Network\DamageMeterSnapshotCompactor.cs" Link="DamageMeter\DamageMeterSnapshotCompactor.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsIds.cs"
              Link="Infrastructure\AuraToolsIds.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Infrastructure\AuraToolsHookRegistry.cs"

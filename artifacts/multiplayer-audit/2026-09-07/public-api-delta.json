@@ -1,0 +1,832 @@
+[
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "E|AuraShared.Core.AuraNetworkIdentityRuntime|Changed|System.Action"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "E|AuraShared.Core.AuraNetworkIdentityRuntime|SynchronizationFailed|System.Action`1<String>"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "E|AuraShared.Core.AuraNetworkIdentityRuntime|Updating|System.Action"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|Apply|AuraShared.Core.AuraMutationDecision|const=0"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|Conflict|AuraShared.Core.AuraMutationDecision|const=2"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|Duplicate|AuraShared.Core.AuraMutationDecision|const=1"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|Invalid|AuraShared.Core.AuraMutationDecision|const=4"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|TokenConflict|AuraShared.Core.AuraMutationDecision|const=3"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraMutationDecision|value__|Int32|instance"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraNetworkIdentityRuntime|AdventureKey|String|const=\"Aura.Shared.Network.AdventureId\""
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraNetworkIdentityRuntime|ProtocolKey|String|const=\"Aura.Shared.Network.Protocol\""
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraNetworkIdentityRuntime|ProtocolVersion|Int32|const=1"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraRpcPublication|HostOnly|AuraShared.Core.AuraRpcPublication|const=1"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraRpcPublication|MemberRequest|AuraShared.Core.AuraRpcPublication|const=0"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "F|AuraShared.Core.AuraRpcPublication|value__|Int32|instance"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBattleIdentityQuery|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBattleIdentityQuery|CmdExecute`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBattleRpcCommand|get_NetworkBattleId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBattleRpcCommand|set_NetworkBattleId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBoundedCompressedJson|Decode`0|static|(String,Int32)->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraBoundedCompressedJson|Encode`0|static|(String,Int32)->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|get_PayloadHash`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|get_RequestId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|get_Version`0|instance|()->Int64"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|set_PayloadHash`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|set_RequestId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraMutationReceipt|set_Version`0|instance|(Int64)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeRpcReceiveAdapter|RegisterCommandGuard`0|static|(String,String,System.Func`4<Mirror.NetworkBehaviour,Mirror.NetworkReader,Mirror.NetworkConnectionToClient,Boolean>)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeSaveStore|Commit`0|static|(Data.Save.SaveInfo)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeSaveStore|Encode`0|static|(String,Boolean,String,String)->Byte[]"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeTargetedQueryTransport|RemovePending`0|static|(PlayerManager,UInt32)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeTargetedQueryTransport|TryRegister`1|static|(PlayerManager,Network.Query.QueryBase`1<!!0>,System.Action`1<!!0>,UInt32&,String&)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeTargetedQueryTransport|TrySend`0|static|(Mirror.NetworkConnectionToClient,UInt32,Network.Query.QueryBase,String&)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNativeTargetedQueryTransport|TrySend`0|static|(String,UInt32,Network.Query.QueryBase,String&)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityDriver|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|EnsureCurrentAdventure`0|static|()->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|Initialize`0|static|(Witch.Mod.ModConfig)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|MatchesAdventure`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|MatchesBattleResult`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|MatchesBattle`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|RegisterLegacyAdventureIdKey`0|static|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|RegisterProtocolProvider`0|static|(String,String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|add_Changed`0|static|(System.Action)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|add_SynchronizationFailed`0|static|(System.Action`1<String>)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|add_Updating`0|static|(System.Action)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_AdventureId`0|static|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_BattleEpoch`0|static|()->Int32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_BattleId`0|static|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_BattleReady`0|static|()->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_IsAuthority`0|static|()->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_LocalPlayerId`0|static|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|get_RoomGeneration`0|static|()->Int64"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|remove_Changed`0|static|(System.Action)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|remove_SynchronizationFailed`0|static|(System.Action`1<String>)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityRuntime|remove_Updating`0|static|(System.Action)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|BindAdventure`0|instance|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|BindBattle`0|instance|(String,String,Int32,String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|ChangeRoom`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|ClearAdventure`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|EndBattle`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|MatchesBattleResult`0|instance|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|MatchesBattle`0|instance|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|ValidId`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_AdventureId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_BattleEpoch`0|instance|()->Int32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_BattleId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_BattleReady`0|instance|()->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_NativeFingerprint`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraNetworkIdentityState|get_RoomGeneration`0|instance|()->Int64"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|AllowsSettledResult`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|IsBattleScoped`0|static|(String)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|IsRegistered`0|static|(System.Type)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|RegisterAssembly`0|static|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|RegisterHandler`1|static|(System.Action`2<!!0,AuraShared.Core.AuraRpcSender>)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|Register`0|static|(System.Type,AuraShared.Core.AuraRpcPublication,Boolean,Boolean)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|Register`1|static|(AuraShared.Core.AuraRpcPublication,Boolean,Boolean)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|TryAuthorize`0|static|(String,AuraShared.Core.AuraRpcSender,Boolean&,String&)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcAdmission|TryHandle`0|static|(String,String,AuraShared.Core.AuraRpcSender)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcReceiveContext|Enter`0|static|(AuraShared.Core.AuraRpcSender)->System.IDisposable"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcReceiveContext|get_Sender`0|static|()->AuraShared.Core.AuraRpcSender"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcSender|.ctor`0|instance|(String,String,Boolean,Boolean,String,Boolean,Int32)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraRpcSender|get_ConnectionId`0|instance|()->Int32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraSharedPayloadBudget|TryMeasureNativeRpc`0|static|(Object,Int32&)->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|Commit`0|instance|(String,String)->AuraShared.Core.AuraVersionedReceipt"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|Decide`0|instance|(String,String,Int64)->AuraShared.Core.AuraMutationDecision"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|Hash`0|static|(String)->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|get_Recent`0|instance|()->System.Collections.Generic.List`1<AuraShared.Core.AuraMutationReceipt>"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|get_Version`0|instance|()->Int64"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|set_Recent`0|instance|(System.Collections.Generic.List`1<AuraShared.Core.AuraMutationReceipt>)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.AuraVersionedReceipt|set_Version`0|instance|(Int64)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.IAuraSharedServerBoundRpcCommand|BindServerSender`0|instance|(AuraShared.Core.AuraRpcSender)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|.ctor`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|BindServerSender`0|instance|(AuraShared.Core.AuraRpcSender)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|CmdExecute`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|RpcExecute`0|instance|()->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_Accepted`0|instance|()->Boolean"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_AdventureId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_BattleId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_Epoch`0|instance|()->Int32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_KnownAdventureId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_NativeFingerprint`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_Nonce`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_PlayerId`0|instance|()->String"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_Protocol`0|instance|()->Int32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|get_TargetQueryId`0|instance|()->UInt32"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_Accepted`0|instance|(Boolean)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_AdventureId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_BattleId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_Epoch`0|instance|(Int32)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_KnownAdventureId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_NativeFingerprint`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_Nonce`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_PlayerId`0|instance|(String)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_Protocol`0|instance|(Int32)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "M|AuraShared.Core.RpcAuraBattleIdentityRequest|set_TargetQueryId`0|instance|(UInt32)->Void"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraBattleRpcCommand|NetworkBattleId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraMutationReceipt|PayloadHash|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraMutationReceipt|RequestId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraMutationReceipt|Version|()->Int64|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|AdventureId|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|BattleEpoch|()->Int32|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|BattleId|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|BattleReady|()->Boolean|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|IsAuthority|()->Boolean|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|LocalPlayerId|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityRuntime|RoomGeneration|()->Int64|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|AdventureId|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|BattleEpoch|()->Int32|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|BattleId|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|BattleReady|()->Boolean|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|NativeFingerprint|()->String|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraNetworkIdentityState|RoomGeneration|()->Int64|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraRpcReceiveContext|Sender|()->AuraShared.Core.AuraRpcSender|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraRpcSender|ConnectionId|()->Int32|get"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraVersionedReceipt|Recent|()->System.Collections.Generic.List`1<AuraShared.Core.AuraMutationReceipt>|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.AuraVersionedReceipt|Version|()->Int64|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|Accepted|()->Boolean|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|AdventureId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|BattleId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|Epoch|()->Int32|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|KnownAdventureId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|NativeFingerprint|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|Nonce|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|PlayerId|()->String|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|Protocol|()->Int32|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "P|AuraShared.Core.RpcAuraBattleIdentityRequest|TargetQueryId|()->UInt32|get,set"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraBattleIdentityQuery"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraBattleRpcCommand"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraBoundedCompressedJson"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraMutationReceipt"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNativeRpcReceiveAdapter"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNativeSaveStore"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNativeTargetedQueryTransport"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNetworkIdentityDriver"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNetworkIdentityRuntime"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraNetworkIdentityState"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraRpcAdmission"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraRpcReceiveContext"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.AuraVersionedReceipt"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|class|nonserializable|AuraShared.Core.RpcAuraBattleIdentityRequest"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|enum|nonserializable|AuraShared.Core.AuraMutationDecision"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|enum|nonserializable|AuraShared.Core.AuraRpcPublication"
+  },
+  {
+    "Module": "AuraCore",
+    "Change": "=>",
+    "Member": "T|interface|nonserializable|AuraShared.Core.IAuraSharedServerBoundRpcCommand"
+  }
+]

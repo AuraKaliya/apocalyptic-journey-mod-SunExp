@@ -22,6 +22,7 @@ public static class AuraRpcAuthorityRuntime
         Action<string>? info = null,
         Action<string>? warn = null)
     {
+        AuraNativeRpcReceiveAdapter.Install();
         for (var i = 0; i < DefaultReceiveHookTargets.Length; i++)
         {
             Register(modConfig, ownerModId, DefaultReceiveHookTargets[i], isServerBoundCommand, bindServerSender, info, warn);
@@ -30,7 +31,9 @@ public static class AuraRpcAuthorityRuntime
 
     public static AuraRpcSender CreateLocalServerSender(string sourceHook)
     {
-        return CreateSender(PlayerManager.Instance, sourceHook, null);
+        if (PlayerManager.Instance == null && !Mirror.NetworkClient.active && !Mirror.NetworkServer.active)
+            return new AuraRpcSender("single-player", "", true, true, sourceHook, true);
+        return AuraNativeRpcReceiveAdapter.FromConnection(Mirror.NetworkServer.localConnection, sourceHook);
     }
 
     private static void Register(
@@ -76,7 +79,7 @@ public static class AuraRpcAuthorityRuntime
             return;
         }
 
-        bindServerSender(command, CreateSender(context.Target, sourceHook, warn));
+        bindServerSender(command, AuraRpcReceiveContext.Sender);
     }
 
     private static object? FindCommand(object[]? args, Func<object, bool> isServerBoundCommand)
@@ -98,63 +101,5 @@ public static class AuraRpcAuthorityRuntime
         return null;
     }
 
-    private static AuraRpcSender CreateSender(object? target, string sourceHook, Action<string>? warn)
-    {
-        try
-        {
-            var playerManager = target as PlayerManager;
-            var playerId = (playerManager?.PlayerId ?? "").Trim();
-            var playerName = (playerManager?.playerInfo?.Name ?? "").Trim();
-            var isMember = LobbyContains(playerId);
-            return new AuraRpcSender(
-                playerId,
-                playerName,
-                isMember,
-                isMember && IsLobbyHost(playerId),
-                sourceHook,
-                playerId.Length > 0);
-        }
-        catch (Exception ex)
-        {
-            warn?.Invoke("[RpcAuthority] failed to resolve server sender: " + ex.Message);
-            return AuraRpcSender.Unbound;
-        }
-    }
 
-    private static bool LobbyContains(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        if (players == null || players.Count == 0)
-        {
-            return true;
-        }
-
-        for (var i = 0; i < players.Count; i++)
-        {
-            if (players[i] != null && players[i].Id == playerId)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsLobbyHost(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        return players == null
-               || players.Count == 0
-               || string.Equals(players[0].Id, playerId, StringComparison.Ordinal);
-    }
 }

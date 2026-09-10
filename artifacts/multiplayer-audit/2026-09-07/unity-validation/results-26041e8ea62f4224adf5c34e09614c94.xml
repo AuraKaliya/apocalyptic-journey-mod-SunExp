@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="32" result="Passed" total="32" passed="32" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-09-07 13:28:37Z" end-time="2026-09-07 13:28:41Z" duration="3.9403522">
+  <test-suite type="TestSuite" id="1043" name="AuraToolsExp.ReplayUnity.Tests" fullname="AuraToolsExp.ReplayUnity.Tests" runstate="Runnable" testcasecount="32" result="Passed" start-time="2026-09-07 13:28:37Z" end-time="2026-09-07 13:28:41Z" duration="3.940352" total="32" passed="32" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="PlayMode" />
+    </properties>
+    <test-suite type="Assembly" id="1040" name="AuraTools.Replay.NativeUi.Tests.dll" fullname="D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraToolsExp.ReplayUnity.Tests/Library/ScriptAssemblies/AuraTools.Replay.NativeUi.Tests.dll" runstate="Runnable" testcasecount="32" result="Passed" start-time="2026-09-07 13:28:37Z" end-time="2026-09-07 13:28:41Z" duration="3.935271" total="32" passed="32" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="31604" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="PlayMode" />
+        <property name="EditorOnly" value="False" />
+      </properties>
+      <test-suite type="TestFixture" id="1001" name="ReplayFidelityTests" fullname="ReplayFidelityTests" classname="ReplayFidelityTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-07 13:28:37Z" end-time="2026-09-07 13:28:38Z" duration="0.158853" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1014" name="ArrivalAndReflowAnimateTogetherThenReturnToExactStaticHandSlots" fullname="ReplayFidelityTests.ArrivalAndReflowAnimateTogetherThenReturnToExactStaticHandSlots" methodname="ArrivalAndReflowAnimateTogetherThenReturnToExactStaticHandSlots" classname="ReplayFidelityTests" runstate="Runnable" seed="1625557457" result="Passed" start-time="2026-09-07 13:28:37Z" end-time="2026-09-07 13:28:38Z" duration="0.128548" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-suite type="ParameterizedMethod" id="1012" name="AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement" fullname="ReplayFidelityTests.AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement" classname="ReplayFidelityTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.013350" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-case id="1010" name="AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement(False)" fullname="ReplayFidelityTests.AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement(False)" methodname="AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement" classname="ReplayFidelityTests" runstate="Runnable" seed="1649100288" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.010966" asserts="0">
+            <properties>
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+          </test-case>
+          <test-case id="1011" name="AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement(True)" fullname="ReplayFidelityTests.AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement(True)" methodname="AttachmentIgnoresChangingAttackArtworkButFollowsOwnerMovement" classname="ReplayFidelityTests" runstate="Runnable" seed="954258860" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000855" asserts="0">
+            <properties>
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+          </test-case>
+        </test-suite>
+        <test-case id="1002" name="AZeroSizedCanvasCannotSilentlyCollapseRecordedCards" fullname="ReplayFidelityTests.AZeroSizedCanvasCannotSilentlyCollapseRecordedCards" methodname="AZeroSizedCanvasCannotSilentlyCollapseRecordedCards" classname="ReplayFidelityTests" runstate="Runnable" seed="158645527" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000919" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1003" name="CanvasCoordinatesIgnoreNativeContainerOffsetsAndScale" fullname="ReplayFidelityTests.CanvasCoordinatesIgnoreNativeContainerOffsetsAndScale" methodname="CanvasCoordinatesIgnoreNativeContainerOffsetsAndScale" classname="ReplayFidelityTests" runstate="Runnable" seed="1182022147" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.001631" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1008" name="ConcurrentCardsKeepIndependentLifetimesCostsAndTracks" fullname="ReplayFidelityTests.ConcurrentCardsKeepIndependentLifetimesCostsAndTracks" methodname="ConcurrentCardsKeepIndependentLifetimesCostsAndTracks" classname="ReplayFidelityTests" runstate="Runnable" seed="1945024427" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.004599" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1013" name="OneLogicalCardCanHaveTwoViewsAndBurnStartsAtItsRecordedPhase" fullname="ReplayFidelityTests.OneLogicalCardCanHaveTwoViewsAndBurnStartsAtItsRecordedPhase" methodname="OneLogicalCardCanHaveTwoViewsAndBurnStartsAtItsRecordedPhase" classname="ReplayFidelityTests" runstate="Runnable" seed="246794968" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.001177" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-suite type="ParameterizedMethod" id="1007" name="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth" fullname="ReplayFidelityTests.OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth" classname="ReplayFidelityTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.001102" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-case id="1004" name="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(False,40.0f,4.0f)" fullname="ReplayFidelityTests.OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(False,40.0f,4.0f)" methodname="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth" classname="ReplayFidelityTests" runstate="Runnable" seed="202918795" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000566" asserts="0">
+            <properties>
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+          </test-case>
+          <test-case id="1005" name="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(False,95.0f,11.0f)" fullname="ReplayFidelityTests.OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(False,95.0f,11.0f)" methodname="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth" classname="ReplayFidelityTests" runstate="Runnable" seed="1092330701" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000062" asserts="0">
+            <properties>
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+          </test-case>
+          <test-case id="1006" name="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(True,40.0f,4.0f)" fullname="ReplayFidelityTests.OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth(True,40.0f,4.0f)" methodname="OwnerAttachedPixelHeightIsIndependentOfProjectionAndDepth" classname="ReplayFidelityTests" runstate="Runnable" seed="1797933457" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000077" asserts="0">
+            <properties>
+              <property name="retryIteration" value="0" />
+              <property name="repeatIteration" value="0" />
+            </properties>
+          </test-case>
+        </test-suite>
+        <test-case id="1009" name="RecordedUnderlyingPoseDoesNotCancelOwnerAttachedFocus" fullname="ReplayFidelityTests.RecordedUnderlyingPoseDoesNotCancelOwnerAttachedFocus" methodname="RecordedUnderlyingPoseDoesNotCancelOwnerAttachedFocus" classname="ReplayFidelityTests" runstate="Runnable" seed="414036411" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.001364" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+      </test-suite>
+      <test-suite type="TestFixture" id="1015" name="ReplayHandCaptureTests" fullname="ReplayHandCaptureTests" classname="ReplayHandCaptureTests" runstate="Runnable" testcasecount="11" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.013887" total="11" passed="11" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1017" name="AcceptedSelectionKeepsReflowBeforeNativeSelectionReset" fullname="ReplayHandCaptureTests.AcceptedSelectionKeepsReflowBeforeNativeSelectionReset" methodname="AcceptedSelectionKeepsReflowBeforeNativeSelectionReset" classname="ReplayHandCaptureTests" runstate="Runnable" seed="2092491360" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.005998" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1022" name="ActionBarrierSeparatesArrivalFromImmediateConsumption" fullname="ReplayHandCaptureTests.ActionBarrierSeparatesArrivalFromImmediateConsumption" methodname="ActionBarrierSeparatesArrivalFromImmediateConsumption" classname="ReplayHandCaptureTests" runstate="Runnable" seed="1787358833" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.001612" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1026" name="AQueuedOrRejectedRequestDoesNotInventAHandCard" fullname="ReplayHandCaptureTests.AQueuedOrRejectedRequestDoesNotInventAHandCard" methodname="AQueuedOrRejectedRequestDoesNotInventAHandCard" classname="ReplayHandCaptureTests" runstate="Runnable" seed="943962709" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000551" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1020" name="ArrivalAndExistingHandReflowHaveSeparateContinuousOwners" fullname="ReplayHandCaptureTests.ArrivalAndExistingHandReflowHaveSeparateContinuousOwners" methodname="ArrivalAndExistingHandReflowHaveSeparateContinuousOwners" classname="ReplayHandCaptureTests" runstate="Runnable" seed="360836360" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000409" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1025" name="AutoConsumedCardHasAnArrivalButDoesNotReappearInTheStableHand" fullname="ReplayHandCaptureTests.AutoConsumedCardHasAnArrivalButDoesNotReappearInTheStableHand" methodname="AutoConsumedCardHasAnArrivalButDoesNotReappearInTheStableHand" classname="ReplayHandCaptureTests" runstate="Runnable" seed="166317765" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000579" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1019" name="ConsecutiveDrawsCommitAtFrameBarriersWithoutAnyCardUse" fullname="ReplayHandCaptureTests.ConsecutiveDrawsCommitAtFrameBarriersWithoutAnyCardUse" methodname="ConsecutiveDrawsCommitAtFrameBarriersWithoutAnyCardUse" classname="ReplayHandCaptureTests" runstate="Runnable" seed="1137448694" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000592" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1018" name="HoverTakeoverEndsTheOldAutomaticLayoutBeforePointerMotion" fullname="ReplayHandCaptureTests.HoverTakeoverEndsTheOldAutomaticLayoutBeforePointerMotion" methodname="HoverTakeoverEndsTheOldAutomaticLayoutBeforePointerMotion" classname="ReplayHandCaptureTests" runstate="Runnable" seed="235024681" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000688" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1016" name="InputTakeoverEndsArrivalAndCancelledDragDoesNotCreateALayoutAction" fullname="ReplayHandCaptureTests.InputTakeoverEndsArrivalAndCancelledDragDoesNotCreateALayoutAction" methodname="InputTakeoverEndsArrivalAndCancelledDragDoesNotCreateALayoutAction" classname="ReplayHandCaptureTests" runstate="Runnable" seed="1118681103" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000374" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1023" name="NestedCreationAndImmediateConsumptionStillObserveBirthBeforeRegistration" fullname="ReplayHandCaptureTests.NestedCreationAndImmediateConsumptionStillObserveBirthBeforeRegistration" methodname="NestedCreationAndImmediateConsumptionStillObserveBirthBeforeRegistration" classname="ReplayHandCaptureTests" runstate="Runnable" seed="206432629" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000914" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1021" name="NestedLayoutAndCreationCoalesceStateButKeepEveryArrival" fullname="ReplayHandCaptureTests.NestedLayoutAndCreationCoalesceStateButKeepEveryArrival" methodname="NestedLayoutAndCreationCoalesceStateButKeepEveryArrival" classname="ReplayHandCaptureTests" runstate="Runnable" seed="2093005597" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000439" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1024" name="OtherSurfacesAndPlaybackCannotCreateHandObservations" fullname="ReplayHandCaptureTests.OtherSurfacesAndPlaybackCannotCreateHandObservations" methodname="OtherSurfacesAndPlaybackCannotCreateHandObservations" classname="ReplayHandCaptureTests" runstate="Runnable" seed="815635648" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:38Z" duration="0.000213" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+      </test-suite>
+      <test-suite type="TestFixture" id="1027" name="ReplayLightingTests" fullname="ReplayLightingTests" classname="ReplayLightingTests" runstate="Runnable" testcasecount="2" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:41Z" duration="3.732700" total="2" passed="2" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1029" name="InstalledHpAndDefenseTexturesMatchNativeCameraPixels" fullname="ReplayLightingTests.InstalledHpAndDefenseTexturesMatchNativeCameraPixels" methodname="InstalledHpAndDefenseTexturesMatchNativeCameraPixels" classname="ReplayLightingTests" runstate="Runnable" seed="100052620" result="Passed" start-time="2026-09-07 13:28:38Z" end-time="2026-09-07 13:28:41Z" duration="3.690591" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1028" name="IsolatedLitHudKeepsItsTextureAndNativeLightOwnership" fullname="ReplayLightingTests.IsolatedLitHudKeepsItsTextureAndNativeLightOwnership" methodname="IsolatedLitHudKeepsItsTextureAndNativeLightOwnership" classname="ReplayLightingTests" runstate="Runnable" seed="1508717706" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.041191" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+      </test-suite>
+      <test-suite type="TestFixture" id="1030" name="ReplayNativeUiTests" fullname="ReplayNativeUiTests" classname="ReplayNativeUiTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.023780" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1032" name="RemovesNestedAndInactiveOwnersWithoutRemovingOrdinaryParents" fullname="ReplayNativeUiTests.RemovesNestedAndInactiveOwnersWithoutRemovingOrdinaryParents" methodname="RemovesNestedAndInactiveOwnersWithoutRemovingOrdinaryParents" classname="ReplayNativeUiTests" runstate="Runnable" seed="176202949" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.004254" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1031" name="RemovesTutorialGraphicsBeforeFirstFrameWithoutChangingSource" fullname="ReplayNativeUiTests.RemovesTutorialGraphicsBeforeFirstFrameWithoutChangingSource" methodname="RemovesTutorialGraphicsBeforeFirstFrameWithoutChangingSource" classname="ReplayNativeUiTests" runstate="Runnable" seed="1123904588" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.015613" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1033" name="ReopenDoesNotResurrectTutorialsOrModifyTemplate" fullname="ReplayNativeUiTests.ReopenDoesNotResurrectTutorialsOrModifyTemplate" methodname="ReopenDoesNotResurrectTutorialsOrModifyTemplate" classname="ReplayNativeUiTests" runstate="Runnable" seed="688130987" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.001761" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1034" name="TutorialCannotBeUsedAsThePresentationRoot" fullname="ReplayNativeUiTests.TutorialCannotBeUsedAsThePresentationRoot" methodname="TutorialCannotBeUsedAsThePresentationRoot" classname="ReplayNativeUiTests" runstate="Runnable" seed="495903954" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.001029" asserts="0">
+          <properties>
+            <property name="_JOINTYPE" value="UnityCombinatorial" />
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+      </test-suite>
+      <test-suite type="TestFixture" id="1035" name="ResourceCacheContractTests" fullname="ResourceCacheContractTests" classname="ResourceCacheContractTests" runstate="Runnable" testcasecount="4" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.005101" total="4" passed="4" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1038" name="CachedMissingResultIsDistinctFromSuccessfulLoading" fullname="ResourceCacheContractTests.CachedMissingResultIsDistinctFromSuccessfulLoading" methodname="CachedMissingResultIsDistinctFromSuccessfulLoading" classname="ResourceCacheContractTests" runstate="Runnable" seed="1319216654" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.002539" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1037" name="DestroyedAssetIsReloadedInsteadOfBeingReturnedAsAHit" fullname="ResourceCacheContractTests.DestroyedAssetIsReloadedInsteadOfBeingReturnedAsAHit" methodname="DestroyedAssetIsReloadedInsteadOfBeingReturnedAsAHit" classname="ResourceCacheContractTests" runstate="Runnable" seed="910662163" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.000490" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1036" name="Texture2DUsesNativeTextureContractAndSharesItsCache" fullname="ResourceCacheContractTests.Texture2DUsesNativeTextureContractAndSharesItsCache" methodname="Texture2DUsesNativeTextureContractAndSharesItsCache" classname="ResourceCacheContractTests" runstate="Runnable" seed="1130990394" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.000241" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1039" name="TextureArrayAliasRetainsEveryNativeFrame" fullname="ResourceCacheContractTests.TextureArrayAliasRetainsEveryNativeFrame" methodname="TextureArrayAliasRetainsEveryNativeFrame" classname="ResourceCacheContractTests" runstate="Runnable" seed="745548425" result="Passed" start-time="2026-09-07 13:28:41Z" end-time="2026-09-07 13:28:41Z" duration="0.001345" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+          <output><![CDATA[Saving results to: C:/Users/Administrator/AppData/LocalLow/DefaultCompany/AuraToolsExp_ReplayUnity_Tests\TestResults.xml
+]]></output>
+        </test-case>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

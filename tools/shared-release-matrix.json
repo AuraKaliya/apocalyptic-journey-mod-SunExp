@@ -227,6 +227,18 @@
       "enabled": true
     },
     {
+      "id": "multiplayer-receive-and-recovery",
+      "kind": "script",
+      "path": "tools/Test-MultiplayerRuntime.ps1",
+      "owner": "AuraSharedRuntime",
+      "category": "behavior",
+      "cost": "medium",
+      "impactTags": ["network", "authority", "recovery", "transactions"],
+      "profiles": ["network", "consumer", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "director-local-runtime",
       "kind": "script",
       "path": "tools/Test-AuraDirectorDetour.ps1",

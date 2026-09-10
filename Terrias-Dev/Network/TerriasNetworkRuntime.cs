@@ -44,16 +44,13 @@ public static class TerriasNetworkRuntime
             return TerriasNetworkSendStatus.NotAttempted;
         }
 
-        if (!AuraSharedPayloadBudget.FitsSoftLimit(
-                command,
-                AuraSharedPayloadBudget.DefaultSoftLimitBytes,
-                out var payloadBytes,
-                out var payloadError))
+        if (!AuraSharedPayloadBudget.TryMeasureNativeRpc(command, out var payloadBytes)
+            || payloadBytes > AuraSharedPayloadBudget.DefaultSoftLimitBytes)
         {
             TerriasLog.Warn("[TerriasRpc] send blocked from " + source
                 + "; command=" + command.GetType().Name
                 + "; bytes=" + payloadBytes
-                + "; error=" + payloadError + ".");
+                + "; error=serialized RPC exceeds its budget.");
             return TerriasNetworkSendStatus.NotAttempted;
         }
 

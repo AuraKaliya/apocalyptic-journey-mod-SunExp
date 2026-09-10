@@ -8,11 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Terrias-Dev\Contracts\RuntimeHandAttachmentSpec.cs" Link="Source\RuntimeHandAttachmentSpec.cs" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Compile Include="TestStubs.cs" />
+    <Compile Include="EndlessAbyssChoiceTests.cs" />
+    <Compile Include="SilhouetteGlowTests.cs" />
+    <Compile Include="..\Terrias-Dev\Hooks\Ui\SilhouetteGlowRasterizer.cs" Link="Source\SilhouetteGlowRasterizer.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssCardRewardTransaction.cs" Link="Source\EndlessAbyssCardRewardTransaction.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssChoiceState.cs" Link="Source\EndlessAbyssChoiceState.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\EndlessSeaBurnoutPolicy.cs" Link="Source\EndlessSeaBurnoutPolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ColumbinaCardGainLedger.cs" Link="Source\ColumbinaCardGainLedger.cs" />
     <Compile Include="ProjectionWireTests.cs" />
     <Compile Include="..\Terrias-Dev\Contracts\ProjectionCompanionSnapshot.cs" Link="Source\ProjectionCompanionSnapshot.cs" />
     <Compile Include="..\Terrias-Dev\Contracts\ProjectionSummonResultSnapshot.cs" Link="Source\ProjectionSummonResultSnapshot.cs" />
@@ -104,7 +112,6 @@
     <Compile Include="..\Terrias-Dev\Mechanics\CompanionNativeStatusRouting.cs" Link="Source\CompanionNativeStatusRouting.cs" />
     <Compile Include="..\Terrias-Dev\Application\EndlessSeaReplicationClock.cs" Link="Source\EndlessSeaReplicationClock.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ProjectionScriptExecutionScope.cs" Link="Source\ProjectionScriptExecutionScope.cs" />
-    <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryMapPreviewPolicy.cs" Link="Source\SolarMemoryMapPreviewPolicy.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\DimensionShopRandom.cs" Link="Source\DimensionShopRandom.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs" Link="Source\EndlessSeaNodeKind.cs" />

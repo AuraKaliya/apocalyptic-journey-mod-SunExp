@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
@@ -8,7 +9,7 @@ using Witch.Core;
 namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcPolymorphVisualState : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcPolymorphVisualState : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 

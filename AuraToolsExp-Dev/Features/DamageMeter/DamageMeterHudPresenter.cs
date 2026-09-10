@@ -37,6 +37,8 @@ internal static class DamageMeterHudPresenter
         var footer = scopeLabel + "合计 " + total
                      + "  /  " + averagingRounds + " 回合"
                      + "  /  " + networkStatus;
+        var incomplete = adventureScope ? runAggregate.IncompleteReason : ledger.IncompleteReason;
+        if (incomplete.Length > 0) footer += "  /  统计不完整：" + incomplete;
 
         return new DamageMeterHudPresentation(
             showStats,

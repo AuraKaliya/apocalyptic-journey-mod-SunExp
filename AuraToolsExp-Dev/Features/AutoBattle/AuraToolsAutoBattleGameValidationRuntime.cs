@@ -104,6 +104,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
     private static bool cleanupPending;
     private static bool cancelRequested;
     private static string roleSnapshot = "";
+    private static GameApi.AuraToolsControlledSoloSession? validationSession;
     private static IDecisionResidualModel validationResidual =
         NullDecisionResidualModel.Instance;
     private static ICombatSearchGuidanceModel validationGuidance =
@@ -142,6 +143,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
         if (!initialized || currentConfig == null) return;
         if (!enabled)
         {
+            AbortCurrentBattle();
             RestoreRole();
             ResetSession();
             lifecycleSubscription?.Dispose();
@@ -188,6 +190,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
     public static bool IsStartEnvironmentReady(out string message)
     {
+        if (!GameApi.AuraToolsControlledSoloSession.IsAvailable(out message)) return false;
         if (!AuraToolsAutoBattleRuntime.ModuleEnabled)
         {
             message = "请先启用自动战斗";
@@ -284,6 +287,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
         try
         {
+            validationSession = GameApi.AuraToolsControlledSoloSession.Acquire();
             roleSnapshot = AuraSharedJson.Serialize(RoleTable.Instance);
             request = nextRequest;
             report = NewReport(nextRequest);
@@ -483,6 +487,20 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             {
                 return;
             }
+            if (validationSession?.CanRun != true)
+            {
+                report.Completed = true;
+                report.Passed = false;
+                report.FailureReason = "验证会话已变化，未将旧快照写入新会话。";
+                report.CompletedUtc = DateTime.UtcNow.ToString("O");
+                report.ReceiptHash = CombatGameValidationProtocol.BuildReceiptHash(report);
+                WriteJson(ReportPath(request.ModelId), report);
+                if (validationSession?.IsCurrent == true) { AbortCurrentBattle(); RestoreRole(); }
+                SetStatus(AutoBattleGameValidationStage.Failed, report.FailureReason, request.ModelId, runIndex, runs.Count);
+                ResetSession(keepStatus: true);
+                QueueConfiguredModelRestore();
+                return;
+            }
             if (cancelRequested)
             {
                 AbortCurrentBattle();
@@ -542,6 +560,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
     private static void StartCurrentBattle()
     {
+        if (validationSession?.CanRun != true) throw new InvalidOperationException("验证启动前会话检查失败。");
         RestoreRole();
         var run = runs[runIndex];
         currentDecisions = 0;
@@ -554,8 +573,8 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             request!.ModelId,
             runIndex,
             runs.Count);
+        validationSession.BeginBattle(run.Case.LevelId);
         FightManager.Instance.ReadyToInit(run.Case.LevelId);
-        FightManager.Instance.IsFake = true;
     }
 
     private static void OnFightStarted(ModHookContext context)
@@ -755,10 +774,12 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
     private static void CleanupAfterBattle()
     {
+        if (validationSession?.IsCurrent != true) return;
         AuraToolsAutoBattleRuntime.EndGameValidationBattle();
         WitchUiManager.Instance?.CloseUI("FightUI");
         WitchUiManager.Instance?.CloseUI("BattleRewardsUI");
         RestoreRole();
+        validationSession.EndBattle();
         if (FightManager.Instance != null)
         {
             FightManager.Instance.fightType = FightType.None;
@@ -767,18 +788,21 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
     private static void AbortCurrentBattle()
     {
+        validationSession?.CancelStart();
+        if (validationSession?.IsCurrent != true) return;
         AuraToolsAutoBattleRuntime.EndGameValidationBattle();
         WitchUiManager.Instance?.CloseUI("FightUI");
         WitchUiManager.Instance?.CloseUI("BattleRewardsUI");
         if (FightManager.Instance != null)
         {
+            FightManager.Instance.StopAllCoroutines();
             FightManager.Instance.fightType = FightType.None;
         }
     }
 
     private static void RestoreRole()
     {
-        if (RoleTable.Instance == null || string.IsNullOrWhiteSpace(roleSnapshot))
+        if (validationSession?.IsCurrent != true || RoleTable.Instance == null || string.IsNullOrWhiteSpace(roleSnapshot))
         {
             return;
         }
@@ -811,6 +835,8 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
     private static void ResetSession(bool keepStatus = false)
     {
+        validationSession?.Dispose();
+        validationSession = null;
         request = null;
         report = null;
         runs = new List<ValidationRun>();

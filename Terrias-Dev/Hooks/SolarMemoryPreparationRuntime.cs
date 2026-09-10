@@ -1,3 +1,5 @@
+using Terrias.Dll.Contracts;
+using Terrias.Dll.Application;
 using System;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
@@ -107,6 +109,7 @@ public static class SolarMemoryPreparationRuntime
     public static bool IsComplete()
     {
         return SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySetupFinishedKey)
+            && SolarMemoryRoleCommitApplication.IsConfirmedForCurrentRole
             && ReadOrInferStep() == SolarMemoryPrepStep.Complete;
     }
 
@@ -142,7 +145,7 @@ public static class SolarMemoryPreparationRuntime
         SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryBlessConfiguredKey, true);
         SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
-        var submission = SolarMemoryRoleCommitApi.SubmitFinal(
+        var submission = SolarMemoryRoleCommitApplication.SubmitFinal(
             RoleTable.Instance,
             "Terrias.SolarMemory.SetupFinished",
             OnRoleCommitResolved);

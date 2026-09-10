@@ -7,6 +7,7 @@ public static class AuraToolsRpcAuthorityRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
+        AuraToolsRpcCatalog.Register();
         AuraRpcAuthorityRuntime.Register(
             modConfig,
             "AuraTools",

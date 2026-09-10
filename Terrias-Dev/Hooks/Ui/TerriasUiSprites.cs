@@ -62,6 +62,86 @@ public static class TerriasUiSprites
         return LibrarySubMenuButton(logPrefix);
     }
 
+    internal static Sprite SilhouetteGlow(UiSilhouetteSource source, float padding)
+    {
+        var bounds = source.Bounds;
+        if (bounds.width <= 0f || bounds.height <= 0f) throw new ArgumentException("Selection silhouette has no visible bounds.");
+        var scale = Mathf.Min(1f, 720f / Mathf.Max(bounds.width, bounds.height));
+        var width = Mathf.Max(1, Mathf.RoundToInt(bounds.width * scale));
+        var height = Mathf.Max(1, Mathf.RoundToInt(bounds.height * scale));
+        var border = Mathf.Max(1, Mathf.CeilToInt(padding * scale));
+        var key = "silhouette-glow|" + source.Texture.GetInstanceID() + "|" + width + "x" + height + "|" + border
+            + "|" + CropKey(new Rect(source.UvOrigin, source.UvAxisX))
+            + "|" + CropKey(new Rect(source.UvAxisY, Vector2.zero));
+        if (Cache.TryGetValue(key, out var cached) && cached != null) return cached;
+        var alpha = ReadSilhouetteAlpha(source, width, height);
+        var halo = SilhouetteGlowRasterizer.Create(alpha, width, height, border, 3f * scale, 9f * scale);
+        var pixels = new Color32[halo.Length];
+        for (var i = 0; i < halo.Length; i++) pixels[i] = new Color32(255, 255, 255, halo[i]);
+        var texture = new Texture2D(width + border * 2, height + border * 2, TextureFormat.RGBA32, false)
+        {
+            name = "Terrias.SelectionSilhouette", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp
+        };
+        texture.SetPixels32(pixels);
+        texture.Apply(false, true);
+        var sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), Vector2.one * 0.5f,
+            100f, 0, SpriteMeshType.FullRect);
+        GeneratedTextures[key] = texture;
+        Cache[key] = sprite;
+        return sprite;
+    }
+
+    private static byte[] ReadSilhouetteAlpha(UiSilhouetteSource source, int width, int height)
+    {
+        var min = source.UvOrigin;
+        var max = source.UvOrigin;
+        foreach (var point in new[] { source.UvOrigin + source.UvAxisX, source.UvOrigin + source.UvAxisY,
+                     source.UvOrigin + source.UvAxisX + source.UvAxisY })
+        {
+            min = Vector2.Min(min, point);
+            max = Vector2.Max(max, point);
+        }
+        var span = max - min;
+        if (span.x <= 0.00001f || span.y <= 0.00001f) throw new ArgumentException("Selection silhouette UVs are degenerate.");
+        var sampleWidth = Mathf.Clamp(Mathf.CeilToInt(span.x / Mathf.Max(0.000001f,
+            Mathf.Abs(source.UvAxisX.x) / width + Mathf.Abs(source.UvAxisY.x) / height)), 1, 1024);
+        var sampleHeight = Mathf.Clamp(Mathf.CeilToInt(span.y / Mathf.Max(0.000001f,
+            Mathf.Abs(source.UvAxisX.y) / width + Mathf.Abs(source.UvAxisY.y) / height)), 1, 1024);
+        var target = RenderTexture.GetTemporary(sampleWidth, sampleHeight, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+        var previous = RenderTexture.active;
+        Texture2D? readable = null;
+        try
+        {
+            Graphics.Blit(source.Texture, target, span, min);
+            RenderTexture.active = target;
+            readable = new Texture2D(sampleWidth, sampleHeight, TextureFormat.RGBA32, false, true);
+            readable.ReadPixels(new Rect(0f, 0f, sampleWidth, sampleHeight), 0, 0, false);
+            var pixels = readable.GetPixels32();
+            var alpha = new byte[width * height];
+            for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var uv = source.UvOrigin + source.UvAxisX * ((x + 0.5f) / width) + source.UvAxisY * ((y + 0.5f) / height);
+                var sx = Mathf.Clamp((uv.x - min.x) / span.x * sampleWidth - 0.5f, 0f, sampleWidth - 1f);
+                var sy = Mathf.Clamp((uv.y - min.y) / span.y * sampleHeight - 0.5f, 0f, sampleHeight - 1f);
+                var ix = (int)sx;
+                var iy = (int)sy;
+                var nextX = Mathf.Min(ix + 1, sampleWidth - 1);
+                var nextY = Mathf.Min(iy + 1, sampleHeight - 1);
+                var a = Mathf.Lerp(pixels[iy * sampleWidth + ix].a, pixels[iy * sampleWidth + nextX].a, sx - ix);
+                var b = Mathf.Lerp(pixels[nextY * sampleWidth + ix].a, pixels[nextY * sampleWidth + nextX].a, sx - ix);
+                alpha[y * width + x] = (byte)Mathf.RoundToInt(Mathf.Lerp(a, b, sy - iy));
+            }
+            return alpha;
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+            RenderTexture.ReleaseTemporary(target);
+            if (readable != null) UnityEngine.Object.Destroy(readable);
+        }
+    }
+
     public static Sprite RoundedSolid(
         string key,
         int width,

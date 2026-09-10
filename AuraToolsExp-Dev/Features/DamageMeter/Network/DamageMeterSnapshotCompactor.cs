@@ -59,6 +59,8 @@ internal static class DamageMeterSnapshotCompactor
     {
         return new DamageMeterSnapshot
         {
+            IsComplete = false,
+            IncompleteReason = "快照因传输预算只保留状态摘要。",
             ProtocolVersion = DamageMeterProtocol.Version,
             SessionId = source?.SessionId ?? DamageMeterNetworkRuntime.Ledger.SessionId,
             InFight = source?.InFight ?? DamageMeterNetworkRuntime.Ledger.InFight,
@@ -75,6 +77,7 @@ internal static class DamageMeterSnapshotCompactor
     {
         return new DamageRunAggregateSnapshot
         {
+            IncompleteReason = source?.IncompleteReason ?? "仅收到统计摘要。",
             AdventureId = source?.AdventureId ?? DamageMeterNetworkRuntime.RunAggregate.AdventureId,
             StartedUtc = source?.StartedUtc ?? DamageMeterNetworkRuntime.RunAggregate.StartedUtc,
             UpdatedUtc = source?.UpdatedUtc ?? DamageMeterNetworkRuntime.RunAggregate.UpdatedUtc,

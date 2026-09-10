@@ -1,0 +1,6 @@
+{"Probe":"rpc-target-binding","NativeConnectionPlayer":"guest","InvokedTargetPlayer":"host","BoundPlayer":"host","GrantedHostAuthority":true}
+{"Probe":"companion-epoch-command","HostEpoch":3,"GuestEpoch":1,"Accepted":false}
+{"Probe":"solar-pending-new-run","NewRunAccepted":false,"NewRunCancelClearedOld":false,"OldStillPending":true}
+{"Probe":"ember-peer-restart","PreviousSequence":20,"NewSequence":1,"Accepted":false,"PersistedValues":0}
+{"Probe":"process-battle-history","PriorBattles":0,"CurrentEpoch":1}
+{"Probe":"process-battle-history","PriorBattles":1,"CurrentEpoch":3}

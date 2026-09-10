@@ -1,149 +1,83 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using AuraShared.Core;
 using Data.Save;
 using Terrias.Dll.Infrastructure;
-using Witch.Core;
-using Witch.UI.Window;
 
 namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaCardAffixService
 {
-    private const string BurnoutTag = "Burnout";
     private static int starterDeckWriteDepth;
-    private static readonly CardAttachmentSpec BurnoutSpec = new(
-        nativeTags: new[] { BurnoutTag },
-        markers: new[] { TerriasIds.EndlessSeaAutoBurnoutMarker },
-        scope: CardAttachmentScope.RunPermanent);
 
     public static bool RunWithStarterDeckSuppressed(Func<bool> action)
     {
-        if (action == null)
-        {
-            return false;
-        }
-
+        if (action == null) return false;
         starterDeckWriteDepth++;
-        try
-        {
-            return action();
-        }
-        finally
-        {
-            starterDeckWriteDepth = Math.Max(0, starterDeckWriteDepth - 1);
-        }
+        try { return action(); }
+        finally { starterDeckWriteDepth--; }
     }
 
-    public static bool ApplyBurnout(IDataConfig? config, string source)
-    {
-        if (ShouldSkipAutoBurnout(config))
-        {
-            return false;
-        }
-
-        var changed = CardAttachmentService.AttachToConfig(config, BurnoutSpec, source) > 0;
-        if (changed)
-        {
-            TerriasLog.Debug("[EndlessSeaCardAffix] applied Burnout from " + source);
-        }
-
-        return changed;
-    }
-
-    public static bool ApplyBurnout(CardItem? card, string source)
-    {
-        if (ShouldSkipAutoBurnout(card?.dataConfig))
-        {
-            return false;
-        }
-
-        var changed = CardAttachmentService.AttachToCardItem(card, BurnoutSpec, source) > 0;
-        if (changed)
-        {
-            TerriasLog.Debug("[EndlessSeaCardAffix] applied Burnout to card item from " + source);
-        }
-
-        return changed;
-    }
+    public static bool AttachOwnedReward(IDataConfig card) =>
+        starterDeckWriteDepth == 0 && EndlessSeaBurnoutPolicy.AttachReward(card);
 
     public static int MarkStarterDeckBaseline(RoleTable? role, string source)
     {
-        if (role == null)
-        {
-            return 0;
-        }
-
-        var changed = 0;
-        changed += MarkList(role.cardList);
-        changed += MarkList(role.UnCardList);
-        if (changed > 0)
-        {
-            TryPersistRole(role, source + ":starter-baseline");
-            TerriasLog.Info("[EndlessSeaCardAffix] marked starter deck baseline from "
-                + source
-                + ": "
-                + changed
-                + ".");
-        }
-
+        if (role == null) return 0;
+        var changed = OwnedCards(role).Count(EndlessSeaBurnoutPolicy.MarkStarter);
+        if (changed > 0) TryPersistRole(role, source);
         return changed;
     }
 
-    public static int NormalizeOwnedCards(string source)
+    public static int NormalizeOwnedCards(string source) => NormalizeOwnedCards(RoleTable.Instance, source);
+
+    public static int NormalizeOwnedCards(RoleTable? role, string source)
     {
-        var role = RoleTable.Instance;
-        if (role == null)
-        {
-            return 0;
-        }
+        if (role == null || starterDeckWriteDepth > 0
+            || GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaModeKey) != "1"
+            || GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaStarterDeckAppliedKey) != "1") return 0;
 
+        var save = GameSaveManager.GetNowSave();
+        if (save?.GameVars == null) return 0;
+        var key = TerriasIds.EndlessSeaAffixMigrationKey + ":" + role.Id;
+        var migrating = !save.GameVars.ContainsKey(key);
+        var cards = OwnedCards(role);
+        var hasStarterEvidence = cards.Any(EndlessSeaBurnoutPolicy.IsStarter);
+        // Old receipts recover exact instances already purified. Without a
+        // starter baseline, unidentified old cards are preserved.
+        var receipts = migrating ? EndlessAbyssRunLedger.Entries() : Array.Empty<string>();
         var changed = 0;
-        changed += ApplyToList(role.cardList, source + ":deck");
-        changed += ApplyToList(role.UnCardList, source + ":reserve");
-        if (changed > 0)
+        foreach (var card in cards)
         {
-            TryPersistRole(role, source + ":normalize-owned");
-            TerriasLog.Info("[EndlessSeaCardAffix] normalized owned cards from " + source + ": " + changed + ".");
+            var purified = migrating && !string.IsNullOrWhiteSpace(card.InstanceID)
+                && receipts.Any(entry => entry.StartsWith("milestone:player:", StringComparison.Ordinal)
+                    && entry.EndsWith(":result:remove-burnout_" + card.InstanceID, StringComparison.Ordinal));
+            if (purified || EndlessSeaBurnoutPolicy.IsPurified(card))
+            {
+                if (EndlessSeaBurnoutPolicy.RestorePurification(card)) changed++;
+            }
+            else if (EndlessSeaBurnoutPolicy.IsStarter(card))
+            {
+                if (EndlessSeaBurnoutPolicy.MarkStarter(card)) changed++;
+            }
+            else if ((migrating && hasStarterEvidence)
+                || CardMutationService.HasRuntimeMarker(card, TerriasIds.EndlessSeaAutoBurnoutMarker))
+            {
+                if (EndlessSeaBurnoutPolicy.AttachReward(card)) changed++;
+            }
         }
 
+        if ((changed > 0 || migrating) && !TryPersistRole(role, source))
+            throw new InvalidOperationException("Could not persist the abyss card attachment state.");
+        if (migrating) save.SetValue(key, "1");
         return changed;
     }
 
-    public static int NormalizeRecentOwnedCards(int count, string source)
-    {
-        var role = RoleTable.Instance;
-        if (role == null)
-        {
-            return 0;
-        }
-
-        var safeCount = Math.Max(1, Math.Min(16, count));
-        var changed = 0;
-        changed += ApplyToRecent(role.cardList, safeCount, source + ":deck-recent");
-        changed += ApplyToRecent(role.UnCardList, safeCount, source + ":reserve-recent");
-        if (changed > 0)
-        {
-            TryPersistRole(role, source + ":normalize-recent-owned");
-            TerriasLog.Info("[EndlessSeaCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
-        }
-
-        return changed;
-    }
-
-    public static bool TryPersistCurrentRole(string source)
-    {
-        return TryPersistRole(RoleTable.Instance, source);
-    }
+    public static bool TryPersistCurrentRole(string source) => TryPersistRole(RoleTable.Instance, source);
 
     public static bool TryPersistRole(RoleTable? role, string source)
     {
-        if (role == null)
-        {
-            return false;
-        }
-
+        if (role == null || GameSaveManager.GetNowSave() == null) return false;
         try
         {
             GameSaveManager.UpdateRoles(role);
@@ -151,141 +85,11 @@ public static class EndlessSeaCardAffixService
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[EndlessSeaCardAffix] role persist skipped from "
-                + source
-                + ": "
-                + ex.Message);
+            TerriasLog.Warn("[EndlessSeaCardAffix] persist failed from " + source + ": " + ex.Message);
             return false;
         }
     }
 
-    public static bool ShouldSkipAutoBurnout(IDataConfig? config)
-    {
-        return config == null
-            || starterDeckWriteDepth > 0
-            || CardMutationService.HasRuntimeMarker(config, TerriasIds.EndlessSeaStarterDeckBaselineMarker);
-    }
-
-    public static int NormalizeCombatCards(ScriptExecutor? executor, string source)
-    {
-        var changed = 0;
-        var snapshot = AuraCombatCardZoneSnapshot.Capture(executor, new AuraCombatCardZoneSnapshotOptions
-        {
-            IncludeFightUiActive = true,
-            IncludeFightUiWait = true,
-            IncludeExecutorHand = executor != null,
-            IncludeExecutorWait = executor != null
-        });
-
-        foreach (var reference in snapshot.Cards)
-        {
-            if (reference.Card != null && ApplyBurnout(reference.Card, source + ":" + SourceSuffix(reference.Zone)))
-            {
-                changed++;
-            }
-        }
-
-        return changed;
-    }
-
-    private static int ApplyToList(IEnumerable<IDataConfig>? cards, string source)
-    {
-        if (cards == null)
-        {
-            return 0;
-        }
-
-        var changed = 0;
-        foreach (var card in cards)
-        {
-            if (ApplyBurnout(card, source))
-            {
-                changed++;
-            }
-        }
-
-        return changed;
-    }
-
-    private static int ApplyToRecent(IEnumerable<IDataConfig>? cards, int count, string source)
-    {
-        if (cards == null)
-        {
-            return 0;
-        }
-
-        var changed = 0;
-        if (cards is IList<IDataConfig> list)
-        {
-            for (var i = Math.Max(0, list.Count - count); i < list.Count; i++)
-            {
-                if (ApplyBurnout(list[i], source))
-                {
-                    changed++;
-                }
-            }
-
-            return changed;
-        }
-
-        foreach (var card in cards.Reverse().Take(count))
-        {
-            if (ApplyBurnout(card, source))
-            {
-                changed++;
-            }
-        }
-
-        return changed;
-    }
-
-    private static int MarkList(IEnumerable<IDataConfig>? cards)
-    {
-        if (cards == null)
-        {
-            return 0;
-        }
-
-        var changed = 0;
-        foreach (var card in cards)
-        {
-            if (CardMutationService.SetRuntimeMarkers(card, TerriasIds.EndlessSeaStarterDeckBaselineMarker))
-            {
-                changed++;
-            }
-        }
-
-        return changed;
-    }
-
-    private static int ApplyToCardItems(IEnumerable<CardItem>? cards, string source)
-    {
-        if (cards == null)
-        {
-            return 0;
-        }
-
-        var changed = 0;
-        foreach (var card in cards)
-        {
-            if (ApplyBurnout(card, source))
-            {
-                changed++;
-            }
-        }
-
-        return changed;
-    }
-
-    private static string SourceSuffix(AuraCombatCardZoneKind zone)
-    {
-        return zone switch
-        {
-            AuraCombatCardZoneKind.FightUiActive => "fight-ui",
-            AuraCombatCardZoneKind.FightUiWait => "wait-ui",
-            AuraCombatCardZoneKind.ExecutorHand => "hand",
-            AuraCombatCardZoneKind.ExecutorWait => "wait",
-            _ => "combat"
-        };
-    }
+    private static IReadOnlyList<IDataConfig> OwnedCards(RoleTable role) =>
+        EndlessSeaBurnoutPolicy.DistinctInstances(role.cardList.Cast<IDataConfig>().Concat(role.UnCardList));
 }

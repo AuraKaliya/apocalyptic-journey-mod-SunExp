@@ -52,6 +52,8 @@ TestFilteringAndGrandTotal();
 TestDetailLimit();
 TestAdventureHistory();
 TestAdventureArchiveDatabase();
+TestMultiplayerDeliveryAndArchiveIdentity();
+TestDamageNetworkRuntimeRecovery();
 TestPlayerContentIdentity();
 TestBestHitAndScientificFormat();
 TestOutOfRunHistoryBuilder();

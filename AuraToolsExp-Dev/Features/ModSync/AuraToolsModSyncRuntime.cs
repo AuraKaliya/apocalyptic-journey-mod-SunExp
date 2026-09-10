@@ -51,6 +51,7 @@ public static class AuraToolsModSyncRuntime
     private static AuraChatModSyncState? currentState;
     private static string lastDiagnosticsKey = "";
     private static uint pendingTargetQueryId;
+    private static PlayerManager? pendingTargetQueryOwner;
     private static AuraChatModPlayerSnapshot? cachedHostManifest;
     private static string cachedHostPlayerId = "";
     private static DateTime cachedHostManifestAtUtc;
@@ -590,6 +591,7 @@ public static class AuraToolsModSyncRuntime
             }
 
             pendingTargetQueryId = targetQueryId;
+            pendingTargetQueryOwner = manager;
             var command = new AuraToolsModSyncManifestCommand
             {
                 RequesterPlayerId = state.LocalPlayerId,
@@ -718,8 +720,9 @@ public static class AuraToolsModSyncRuntime
     {
         if (pendingTargetQueryId != 0)
         {
-            AuraToolsTargetedQueryTransport.RemovePending(PlayerManager.Instance, pendingTargetQueryId);
+            AuraToolsTargetedQueryTransport.RemovePending(pendingTargetQueryOwner, pendingTargetQueryId);
             pendingTargetQueryId = 0;
+            pendingTargetQueryOwner = null;
         }
     }
 

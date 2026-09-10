@@ -1,3 +1,4 @@
+using AuraShared.Core;
 using Terrias.Dll.Contracts;
 using System;
 using Network.Command;
@@ -22,7 +23,7 @@ public sealed class SpiritCaptureNetworkState
 }
 
 [Serializable]
-public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
+public sealed class RpcSpiritCaptureRequest : AuraBattleRpcCommand, ITerriasServerBoundRpcCommand
 {
     private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
@@ -68,7 +69,7 @@ public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ITerriasServerBoun
 }
 
 [Serializable]
-public sealed class RpcSpiritCaptureState : RpcCommandBase
+public sealed class RpcSpiritCaptureState : AuraBattleRpcCommand
 {
     public SpiritCaptureNetworkState State { get; set; } = new();
 

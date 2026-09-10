@@ -25,10 +25,12 @@ Sanitize Solar Memory event cards from:
 
 ## Final Commit
 
-After preparation completion, call `SolarMemoryRoleCommitApi.CommitFinal`.
-Clients submit a dedicated `RpcSolarMemoryRoleCommit`; the server applies the
-role into the authoritative role dictionary and persists it with
-`GameSaveManager.UpdateRoles`.
+After preparation completion, call `SolarMemoryRoleCommitApplication.SubmitFinal`.
+The Application owner retains a durable, immutable client submission. A dedicated
+`RpcSolarMemoryRoleCommit` queries or submits it; the server commits the final role
+and idempotency receipt together in the native save through `AuraNativeSaveStore`.
+`Pending` is not completion. Resume the same adventure with the same transaction
+identity, and detach old UI callbacks when its room changes.
 
 Reject unfinished preparation state. Use a per-run commit token to suppress
 local re-entry and duplicate network delivery.
