@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "ownerModId": "MoonlightMod",
+  "participantKind": "Content",
+  "contributions": [
+    {
+      "kind": "resources",
+      "id": "role-cg-files",
+      "path": "aura.registration.json",
+      "required": true
+    },
+    {
+      "kind": "cg",
+      "id": "role-cg-rules",
+      "path": "cg.registry.json",
+      "required": true
+    }
+  ]
+}

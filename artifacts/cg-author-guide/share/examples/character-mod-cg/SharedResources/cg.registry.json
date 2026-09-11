@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 4,
+  "ownerModId": "MoonlightMod",
+  "contributionId": "role-cg",
+  "protocol": {
+    "minVersion": 4,
+    "preferredVersion": 4
+  },
+  "entries": [
+    {
+      "cgId": "luna.moon-burst",
+      "displayName": "露娜 · 月华绽放",
+      "subjectType": "role",
+      "subjectIds": [
+        "MoonlightMod_luna_luna"
+      ],
+      "signals": [
+        "aura.role.skill.committed"
+      ],
+      "match": {
+        "facts": {
+          "skillId": [
+            "MoonlightMod_luna_moon_burst"
+          ]
+        },
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      },
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/MoonlightMod_luna_luna/SkillCg/MoonlightMod/luna.moon-burst/content.png",
+        "fallbackImage": "CG/Role/MoonlightMod_luna_luna/SkillCg/MoonlightMod/luna.moon-burst/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "contain",
+        "fadeIn": 0.25,
+        "hold": 1.2,
+        "fadeOut": 0.35,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 20,
+      "enabled": true,
+      "tags": [
+        "role-cg",
+        "skill-cg"
+      ]
+    }
+  ]
+}

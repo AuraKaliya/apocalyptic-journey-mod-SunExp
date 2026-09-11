@@ -26,6 +26,7 @@ Aura 共享运行时，以及独立战斗模拟与训练工具。
 - [验证选择与发布规则](.codex/skills/aura-project-dev/references/validation.md)
 - [Terrias 技术文档](docs/Terrias/README.md)
 - [AuraTools 模块与配置](docs/AuraToolsExp/toolbox-settings-and-module-architecture-design.md)
+- [角色 MOD 的 CG 配置手册与示例](docs/AuraToolsExp/character-mod-cg-configuration-guide.zh-CN.md)
 - [自动战斗、仿真与训练](docs/AuraCombatAI/README.md)
 - [架构决策与遗留边界](docs/Terrias/13-架构决策与迁移门禁.md)
 - [skill 维护](.codex/skills/aura-skill-evolution/SKILL.md)
