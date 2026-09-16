@@ -43,8 +43,19 @@ internal readonly struct UiSilhouetteSource
                 rect.height = height;
             }
         }
-        var bottomLeft = Project(parent, image.transform.TransformPoint(new Vector3(rect.xMin, rect.yMin)));
-        var topRight = Project(parent, image.transform.TransformPoint(new Vector3(rect.xMax, rect.yMax)));
+        // GetOuterUV addresses the trimmed texture region. Match Unity Image's
+        // GetDrawingDimensions by applying Sprite padding to the destination as
+        // well; mapping those UVs to the carrier rect enlarges native card glows.
+        var padding = DataUtility.GetPadding(sprite);
+        var spriteWidth = Mathf.Max(1, Mathf.RoundToInt(sprite.rect.width));
+        var spriteHeight = Mathf.Max(1, Mathf.RoundToInt(sprite.rect.height));
+        var visible = Rect.MinMaxRect(
+            rect.x + rect.width * padding.x / spriteWidth,
+            rect.y + rect.height * padding.y / spriteHeight,
+            rect.x + rect.width * (spriteWidth - padding.z) / spriteWidth,
+            rect.y + rect.height * (spriteHeight - padding.w) / spriteHeight);
+        var bottomLeft = Project(parent, image.transform.TransformPoint(new Vector3(visible.xMin, visible.yMin)));
+        var topRight = Project(parent, image.transform.TransformPoint(new Vector3(visible.xMax, visible.yMax)));
         return new UiSilhouetteSource(sprite.texture, Rect.MinMaxRect(bottomLeft.x, bottomLeft.y, topRight.x, topRight.y),
             new Vector2(uv.x, uv.y), new Vector2(uv.z - uv.x, 0f), new Vector2(0f, uv.w - uv.y));
     }

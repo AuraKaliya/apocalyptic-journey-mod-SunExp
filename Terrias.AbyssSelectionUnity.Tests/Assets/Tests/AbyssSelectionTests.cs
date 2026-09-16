@@ -11,6 +11,10 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using UnityEngine.Sprites;
+using UnityEngine.U2D;
+using UnityEditor;
+using UnityEditor.U2D;
 using Object = UnityEngine.Object;
 
 public sealed class AbyssSelectionTests
@@ -139,6 +143,34 @@ public sealed class AbyssSelectionTests
         return rect;
     }
 
+    private static Sprite NativePackedFrame()
+    {
+        const string path = "Assets/Fixtures/native-card-frame.png";
+        var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.spritePixelsPerUnit = 100f;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spriteMeshType = SpriteMeshType.Tight;
+        importer.SetTextureSettings(settings);
+        importer.SaveAndReimport();
+        var asset = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        const string atlasPath = "Assets/Fixtures/NativeCardFrame.spriteatlas";
+        var atlas = AssetDatabase.LoadAssetAtPath<SpriteAtlas>(atlasPath);
+        if (atlas == null)
+        {
+            atlas = new SpriteAtlas();
+            AssetDatabase.CreateAsset(atlas, atlasPath);
+        }
+        atlas.SetPackingSettings(new SpriteAtlasPackingSettings { enableRotation = false, enableTightPacking = true, padding = 4 });
+        atlas.Remove(atlas.GetPackables());
+        atlas.Add(new Object[] { asset });
+        SpriteAtlasUtility.PackAtlases(new[] { atlas }, BuildTarget.StandaloneWindows64, false);
+        return atlas.GetSprite(asset.name);
+    }
+
     [UnityTest]
     public IEnumerator ActualArtworkHasBrightOuterContoursWithoutChangingItsFace()
     {
@@ -227,6 +259,56 @@ public sealed class AbyssSelectionTests
         Assert.That(cell.Find("SelectionSilhouette").GetComponent<Image>().enabled, Is.False,
             "A reused cell does not retain an old selection.");
         Assert.That(fixture.Capture("06-native-mesh-reused"), Is.EqualTo(baseline));
+    }
+
+    [UnityTest]
+    public IEnumerator NativeTrimmedCardFrameGlowMatchesTheRenderedCardInsteadOfItsCarrier()
+    {
+        using var fixture = new Fixture();
+        var sprite = NativePackedFrame();
+        fixture.Owned.Add(sprite);
+        Assert.That(DataUtility.GetPadding(sprite).x, Is.GreaterThan(32f), "Fixture preserves significant transparent side margins after repacking.");
+        var card = Rect("DictionaryCard", fixture.CanvasRoot, Vector2.zero, new Vector2(384f, 384f));
+        var front = Rect("Front", card, Vector2.zero, new Vector2(384f, 384f));
+        var background = Rect("background", front, Vector2.zero, new Vector2(384f, 384f)).gameObject.AddComponent<Image>();
+        background.color = Color.clear;
+        background.raycastTarget = false;
+        var frame = Rect("FrontBack", front, Vector2.zero, new Vector2(384f, 384f));
+        var image = frame.gameObject.AddComponent<Image>();
+        image.sprite = sprite;
+        image.preserveAspect = false;
+        image.type = Image.Type.Simple;
+        image.raycastTarget = false;
+        var hit = card.gameObject.AddComponent<Image>();
+        hit.color = Color.clear;
+        card.gameObject.AddComponent<Button>().targetGraphic = hit;
+        yield return null;
+        Canvas.ForceUpdateCanvases();
+        var drawnMesh = image.canvasRenderer.GetMesh();
+        var renderedWidth = drawnMesh.vertices.Max(point => point.x) - drawnMesh.vertices.Min(point => point.x);
+        Assert.That(renderedWidth, Is.LessThan(350f), "Native card occupies only part of its 384-wide carrier.");
+        var glow = card.gameObject.AddComponent<EndlessAbyssSelectionGlow>();
+        glow.BindNativeCard(card);
+        glow.SetSelected(true);
+        fixture.Capture("10-native-trimmed-frame-selected");
+        var source = UiSilhouetteSource.FromNativeCard(card, card);
+        Assert.That(source.Bounds.width, Is.EqualTo(renderedWidth).Within(0.1f),
+            "Selection follows the UI renderer's trimmed card width, not the entire square carrier.");
+        Assert.That(source.Bounds.height, Is.EqualTo(drawnMesh.bounds.size.y).Within(0.1f));
+        Assert.That(source.Bounds.center.x, Is.EqualTo(drawnMesh.bounds.center.x).Within(0.1f), "Asymmetric transparent margins preserve the card's offset.");
+        fixture.AssertHit(card.gameObject);
+        glow.Clear();
+        frame.sizeDelta = new Vector2(270f, 410f);
+        image.preserveAspect = true;
+        Canvas.ForceUpdateCanvases();
+        drawnMesh = image.canvasRenderer.GetMesh();
+        source = UiSilhouetteSource.FromNativeCard(card, card);
+        Assert.That(source.Bounds.width, Is.EqualTo(drawnMesh.bounds.size.x).Within(0.1f), "Aspect fitting is applied before Sprite padding.");
+        Assert.That(source.Bounds.height, Is.EqualTo(drawnMesh.bounds.size.y).Within(0.1f));
+        Assert.That(source.Bounds.center.y, Is.EqualTo(drawnMesh.bounds.center.y).Within(0.1f));
+        glow.BindNativeCard(card);
+        glow.SetSelected(true);
+        fixture.Capture("11-native-trimmed-frame-resized");
     }
 
     [UnityTest]
