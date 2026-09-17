@@ -36,6 +36,7 @@
       <HintPath>$(DllPath)\netstandard.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(DllPath)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(DllPath)\Newtonsoft.Json.dll</HintPath>
       <Private>false</Private>

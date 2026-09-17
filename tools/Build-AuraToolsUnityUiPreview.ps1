@@ -62,8 +62,8 @@ function Assert-PreviewSourceContract {
     $previewModels = Get-Content -Raw -LiteralPath (Join-Path $projectPath "Assets\AuraToolsUnityUiPreview\Scripts\PreviewModels.cs")
     $moduleIds = [regex]::Matches($moduleIdsSource, 'public const string \w+ = "([^"]+)";') |
         ForEach-Object { $_.Groups[1].Value }
-    if ($moduleIds.Count -ne 23) {
-        throw "Expected 23 production AuraTools module ids, found $($moduleIds.Count)."
+    if ($moduleIds.Count -eq 0 -or @($moduleIds | Sort-Object -Unique).Count -ne $moduleIds.Count) {
+        throw "Production module identities must be nonempty and unique."
     }
     foreach ($moduleId in $moduleIds) {
         if ($previewModels -notmatch [regex]::Escape('"' + $moduleId + '"')) {

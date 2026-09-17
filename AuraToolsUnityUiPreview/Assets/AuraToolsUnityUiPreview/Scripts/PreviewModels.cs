@@ -51,6 +51,7 @@ namespace AuraTools.UnityUiPreview
         private static readonly PreviewModule[] DefaultModules =
         {
             Module("gameplay.starter-deck", "gameplay", "自定义开局", "为世界推演配置全局或按角色的开局卡牌与遗物。", "全局 · 卡牌 0/15 · 遗物 0/6", "starter-deck", false, true),
+            Module("gameplay.custom-cards", "gameplay", "自建卡牌", "组合条件与战斗效果、绘制像素卡面，免费制作原生卡牌。", "设计稿与成品独立保存", "starter-deck", true, true, false, false),
             Module("gameplay.card-refresh", "gameplay", "卡牌刷新", "在战斗奖励选牌时提供一次重新抽取。", "战斗奖励选牌可刷新", "card-refresh", false, false),
             Module("gameplay.feast", "gameplay", "一键美餐", "进食一次后自动处理剩余食物。", "单次最多处理 64 份食物", "feast", true, false),
             Module("gameplay.safe-box", "gameplay", "随身保险箱", "在冒险顶部栏直接打开保险箱。", "冒险顶部栏显示入口", "safe-box", false, false),

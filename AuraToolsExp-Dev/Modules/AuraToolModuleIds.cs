@@ -3,6 +3,7 @@ namespace AuraToolsExp.Dll.Modules;
 public static class AuraToolModuleIds
 {
     public const string StarterDeck = "gameplay.starter-deck";
+    public const string CustomCards = "gameplay.custom-cards";
     public const string CardRefresh = "gameplay.card-refresh";
     public const string Feast = "gameplay.feast";
     internal const string FeastCg = "presentation.feast-cg";

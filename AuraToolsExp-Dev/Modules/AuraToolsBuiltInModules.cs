@@ -23,6 +23,7 @@ using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.SkillCg;
 using AuraToolsExp.Dll.Features.Skin;
 using AuraToolsExp.Dll.Features.StarterDeck;
+using AuraToolsExp.Dll.Features.CustomCards;
 using AuraToolsExp.Dll.Infrastructure;
 using AuraToolsExp.Dll.Modules.Contracts;
 
@@ -41,6 +42,7 @@ internal static class AuraToolsBuiltInModules
             CardUseAudioModule(),
             VoiceModule(),
             StarterDeckModule(),
+            CustomCardsModule(),
             FeastModule(),
             FeastCgModule(),
             SafeBoxModule(),
@@ -84,6 +86,17 @@ internal static class AuraToolsBuiltInModules
                 AuraToolsConfigService.Logging.MinimumLevel + " 及以上"),
             AuraToolsLoggingSettingsPage.Show,
             new[] { "日志", "log", "诊断" });
+    }
+
+    private static IAuraToolModule CustomCardsModule()
+    {
+        return Module(AuraToolModuleIds.CustomCards, "gameplay", 115, 35,
+            "自建卡牌", "组合条件与战斗效果、绘制像素卡面，免费制作原生卡牌。",
+            context => CustomCardArtworkRuntime.Initialize(context.ModConfig),
+            () => true, _ => { },
+            () => State(AuraToolModuleIds.CustomCards, true, "设计稿与成品独立保存"),
+            CustomCardWorkshop.Show, new[] { "自建", "卡牌", "创造魔法", "编辑", "像素", "条件" },
+            showEnableControl: false, iconKey: AuraToolModuleIds.StarterDeck);
     }
 
     private static IAuraToolModule SkinModule()

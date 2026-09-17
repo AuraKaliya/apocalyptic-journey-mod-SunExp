@@ -584,7 +584,7 @@ internal static class AuraToolsUi
         return content;
     }
 
-    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f)
+    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f, Func<bool>? canClose = null)
     {
         var returnFocus = EventSystem.current?.currentSelectedGameObject;
         var overlayRoot = ResolveOverlayRoot(parent);
@@ -651,6 +651,7 @@ internal static class AuraToolsUi
         titleText.textWrappingMode = TextWrappingModes.NoWrap;
         ToolboxIconButtonV2.Create(header.transform, "action.clear", "关闭", () =>
         {
+            if (canClose != null && !canClose()) return;
             CloseSelectPopup();
             onClose?.Invoke();
             UiRaycastSafeDestroyRuntime.DisableAndHide(overlay, "AuraTools overlay close");

@@ -110,99 +110,16 @@ public static class PixelEmojiCodec
     public static void DrawLine(byte[] pixels, int x0, int y0, int x1, int y1, byte color)
     {
         RequireValid(pixels);
-        if (color >= PaletteRgba.Length)
-        {
-            throw new ArgumentOutOfRangeException(nameof(color));
-        }
-
-        var dx = Math.Abs(x1 - x0);
-        var sx = x0 < x1 ? 1 : -1;
-        var dy = -Math.Abs(y1 - y0);
-        var sy = y0 < y1 ? 1 : -1;
-        var error = dx + dy;
-        while (true)
-        {
-            SetIfInside(pixels, x0, y0, color);
-            if (x0 == x1 && y0 == y1)
-            {
-                break;
-            }
-
-            var doubled = error * 2;
-            if (doubled >= dy)
-            {
-                error += dy;
-                x0 += sx;
-            }
-            if (doubled <= dx)
-            {
-                error += dx;
-                y0 += sy;
-            }
-        }
+        if (color >= PaletteRgba.Length) throw new ArgumentOutOfRangeException(nameof(color));
+        IndexedPixelCanvas.DrawLine(pixels, SourceSize, x0, y0, x1, y1, color);
     }
 
     public static bool FloodFill(byte[] pixels, int x, int y, byte replacement)
     {
         RequireValid(pixels);
-        if (!Inside(x, y) || replacement >= PaletteRgba.Length)
-        {
-            return false;
-        }
-
-        var target = pixels[y * SourceSize + x];
-        if (target == replacement)
-        {
-            return false;
-        }
-
-        var pending = new Queue<int>();
-        pending.Enqueue(y * SourceSize + x);
-        pixels[y * SourceSize + x] = replacement;
-        while (pending.Count > 0)
-        {
-            var index = pending.Dequeue();
-            var currentX = index % SourceSize;
-            var currentY = index / SourceSize;
-            TryFill(pixels, currentX - 1, currentY, target, replacement, pending);
-            TryFill(pixels, currentX + 1, currentY, target, replacement, pending);
-            TryFill(pixels, currentX, currentY - 1, target, replacement, pending);
-            TryFill(pixels, currentX, currentY + 1, target, replacement, pending);
-        }
-
-        return true;
+        return replacement < PaletteRgba.Length
+            && IndexedPixelCanvas.Fill(pixels, SourceSize, x, y, replacement);
     }
-
-    private static void TryFill(byte[] pixels, int x, int y, byte target, byte replacement, Queue<int> pending)
-    {
-        if (!Inside(x, y))
-        {
-            return;
-        }
-
-        var index = y * SourceSize + x;
-        if (pixels[index] != target)
-        {
-            return;
-        }
-
-        pixels[index] = replacement;
-        pending.Enqueue(index);
-    }
-
-    private static void SetIfInside(byte[] pixels, int x, int y, byte color)
-    {
-        if (Inside(x, y))
-        {
-            pixels[y * SourceSize + x] = color;
-        }
-    }
-
-    private static bool Inside(int x, int y)
-    {
-        return x >= 0 && x < SourceSize && y >= 0 && y < SourceSize;
-    }
-
     private static byte[] RequireValid(byte[]? pixels)
     {
         if (!IsValid(pixels))

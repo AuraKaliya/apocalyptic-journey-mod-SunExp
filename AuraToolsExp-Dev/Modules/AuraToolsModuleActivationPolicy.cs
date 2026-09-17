@@ -64,6 +64,10 @@ internal static class AuraToolsModuleActivationPolicy
 
         switch (moduleId)
         {
+            case AuraToolModuleIds.CustomCards:
+                if (enabled) Features.CustomCards.CustomCardArtworkRuntime.Activate();
+                else Features.CustomCards.CustomCardArtworkRuntime.Deactivate();
+                break;
             case AuraToolModuleIds.Skin:
                 AuraToolsSkinRuntime.ApplyModuleActivation(enabled);
                 break;

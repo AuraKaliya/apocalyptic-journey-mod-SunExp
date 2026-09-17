@@ -15,6 +15,13 @@ using Newtonsoft.Json;
 using static AuraToolsTestSuite;
 
 assertions = 0;
+if (args.Length == 2 && args[0] == "--suite" && args[1] == "custom-cards")
+{
+    TestCustomCards(executeLua: true);
+    TestPixelEmojiCore();
+    Console.WriteLine($"AuraTools custom-card suite passed: {assertions} assertions.");
+    return;
+}
 if (args.Length == 3 && args[0] == "--benchmark-replay")
 {
     MeasureReplayRecording(args[1], args[2]);
@@ -78,6 +85,7 @@ TestConfigModelSerializationCompatibility();
 TestPresentationOwnershipMigrations();
 TestCardVisualRenderTargetPolicy();
 TestPixelEmojiCore();
+TestCustomCards();
 TestCardRefreshSettingsAndPoolPolicy();
 TestLoggingSettingsNormalization();
 TestUnifiedEventCgSettingsAndLegacyMigration();

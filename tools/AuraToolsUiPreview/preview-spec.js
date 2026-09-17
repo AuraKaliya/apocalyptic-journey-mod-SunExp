@@ -33,6 +33,7 @@ window.AURA_TOOLBOX_PREVIEW_SPEC = Object.freeze({
   ],
   modules: [
     { id: "gameplay.starter-deck", category: "gameplay", name: "自定义开局", description: "为世界推演配置全局或按角色的开局卡牌与遗物。", summary: "全局 · 卡牌 0/15 · 遗物 0/6", icon: "starter-deck", enabled: false, settings: true },
+    { id: "gameplay.custom-cards", category: "gameplay", name: "自建卡牌", description: "组合条件与战斗效果、绘制像素卡面，免费制作原生卡牌。", summary: "设计稿与成品独立保存", icon: "starter-deck", enabled: true, settings: true, enableControl: false },
     { id: "gameplay.card-refresh", category: "gameplay", name: "卡牌刷新", description: "在战斗奖励选牌时提供一次重新抽取。", summary: "战斗奖励选牌可刷新", icon: "card-refresh", enabled: false, settings: false },
     { id: "gameplay.feast", category: "gameplay", name: "一键美餐", description: "进食一次后自动处理剩余食物。", summary: "单次最多处理 64 份食物", icon: "feast", enabled: true, settings: false },
     { id: "gameplay.safe-box", category: "gameplay", name: "随身保险箱", description: "在冒险顶部栏直接打开保险箱。", summary: "冒险顶部栏显示入口", icon: "safe-box", enabled: false, settings: false },
