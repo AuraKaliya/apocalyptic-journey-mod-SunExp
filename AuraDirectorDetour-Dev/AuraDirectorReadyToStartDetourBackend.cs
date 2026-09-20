@@ -15,12 +15,16 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
     public const string HarmonyId = "AuraDirector.Shared.ReadyToStart.Harmony.v1";
     public const string ReadyToStartCapabilityV1 = "ReadyToStartGate.V1";
     public const string VerifiedReadyToStartBodySha256V1 = "5BC8DA8FF9659712B6CA63AC833CF23F00414265BC880444849881B097CE9CB6";
+    // Build 25405741: identical Rougamo wrapper and Mirror command semantics;
+    // method metadata tokens changed. See artifacts/game-reference/1.1.25405741.
+    public const string VerifiedReadyToStartBodySha25625405741 = "CEE9ED2F1011A646BB3F251764F1C4CEBD69A8AE10306BAC8887A9C8BDC3EFE9";
 
     public static IReadOnlyDictionary<string, string> VerifiedMethodCapabilities { get; } =
         new ReadOnlyDictionary<string, string>(
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [VerifiedReadyToStartBodySha256V1] = ReadyToStartCapabilityV1
+                [VerifiedReadyToStartBodySha256V1] = ReadyToStartCapabilityV1,
+                [VerifiedReadyToStartBodySha25625405741] = ReadyToStartCapabilityV1
             });
 
     private static readonly object ActiveGate = new();

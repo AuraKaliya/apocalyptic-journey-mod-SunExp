@@ -98,7 +98,7 @@
     },
     {
       "cgId": "official.career_1.feast",
-      "displayName": "官方角色 career_1 - 美餐",
+      "displayName": "阿米莉娅 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_1/Feast/AuraToolsExp/template.career_1/content.png",
@@ -140,7 +140,7 @@
     },
     {
       "cgId": "official.career_2.feast",
-      "displayName": "官方角色 career_2 - 美餐",
+      "displayName": "奈奈 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_2/Feast/AuraToolsExp/template.career_2/content.png",
@@ -169,7 +169,8 @@
       "enabled": true,
       "subjectType": "role",
       "subjectIds": [
-        "career_2"
+        "career_2",
+        "career_4"
       ],
       "signals": [
         "aura.role.feast.completed"
@@ -182,7 +183,7 @@
     },
     {
       "cgId": "official.career_3.feast",
-      "displayName": "官方角色 career_3 - 美餐",
+      "displayName": "阿黛拉 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_3/Feast/AuraToolsExp/template.career_3/content.png",
@@ -224,7 +225,7 @@
     },
     {
       "cgId": "official.career_5.feast",
-      "displayName": "官方角色 career_5 - 美餐",
+      "displayName": "卡洛琳 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_5/Feast/AuraToolsExp/template.career_5/content.png",
@@ -266,7 +267,7 @@
     },
     {
       "cgId": "official.career_6.feast",
-      "displayName": "官方角色 career_6 - 美餐",
+      "displayName": "厄米娅 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_6/Feast/AuraToolsExp/template.career_6/content.png",
@@ -308,7 +309,7 @@
     },
     {
       "cgId": "official.career_7.feast",
-      "displayName": "官方角色 career_7 - 美餐",
+      "displayName": "可可 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_7/Feast/AuraToolsExp/template.career_7/content.png",
@@ -350,7 +351,7 @@
     },
     {
       "cgId": "official.career_8.feast",
-      "displayName": "官方角色 career_8 - 美餐",
+      "displayName": "薇薇安 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_8/Feast/AuraToolsExp/template.career_8/content.png",
@@ -392,7 +393,7 @@
     },
     {
       "cgId": "official.career_9.feast",
-      "displayName": "官方角色 career_9 - 美餐",
+      "displayName": "失心躯壳 - 美餐",
       "media": {
         "type": "image",
         "resource": "CG/Role/career_9/Feast/AuraToolsExp/template.career_9/content.png",
@@ -422,6 +423,343 @@
       "subjectType": "role",
       "subjectIds": [
         "career_9"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_10.feast",
+      "displayName": "权天使 可可 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_10/Feast/AuraToolsExp/template.career_10/content.png",
+        "fallbackImage": "CG/Role/career_10/Feast/AuraToolsExp/template.career_10/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_10"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_11.feast",
+      "displayName": "启明天使 卡洛琳 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_11/Feast/AuraToolsExp/template.career_11/content.png",
+        "fallbackImage": "CG/Role/career_11/Feast/AuraToolsExp/template.career_11/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_11"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_12.feast",
+      "displayName": "混沌天使 厄米娅 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_12/Feast/AuraToolsExp/template.career_12/content.png",
+        "fallbackImage": "CG/Role/career_12/Feast/AuraToolsExp/template.career_12/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_12",
+        "career_13"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_14.feast",
+      "displayName": "赛琳妮 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_14/Feast/AuraToolsExp/template.career_14/content.png",
+        "fallbackImage": "CG/Role/career_14/Feast/AuraToolsExp/template.career_14/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_14"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_15.feast",
+      "displayName": "境界旅人 露 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_15/Feast/AuraToolsExp/template.career_15/content.png",
+        "fallbackImage": "CG/Role/career_15/Feast/AuraToolsExp/template.career_15/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_15"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_16.feast",
+      "displayName": "墨丝汀 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_16/Feast/AuraToolsExp/template.career_16/content.png",
+        "fallbackImage": "CG/Role/career_16/Feast/AuraToolsExp/template.career_16/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_16"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_17.feast",
+      "displayName": "闪耀偶像 阿米莉娅 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_17/Feast/AuraToolsExp/template.career_17/content.png",
+        "fallbackImage": "CG/Role/career_17/Feast/AuraToolsExp/template.career_17/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_17"
+      ],
+      "signals": [
+        "aura.role.feast.completed"
+      ],
+      "match": {
+        "facts": {},
+        "minimumMetrics": {},
+        "maximumMetrics": {}
+      }
+    },
+    {
+      "cgId": "official.career_18.feast",
+      "displayName": "极限突破 厄米娅 - 美餐",
+      "media": {
+        "type": "image",
+        "resource": "CG/Role/career_18/Feast/AuraToolsExp/template.career_18/content.png",
+        "fallbackImage": "CG/Role/career_18/Feast/AuraToolsExp/template.career_18/content.png"
+      },
+      "defaultPresentation": {
+        "mode": "fullscreenFade",
+        "fit": "cover",
+        "fadeIn": 0.35,
+        "hold": 1.5,
+        "fadeOut": 0.5,
+        "focusX": 0.5,
+        "focusY": 0.5,
+        "safeScale": 1
+      },
+      "defaultActivation": {
+        "enabled": true,
+        "consumerMode": "toolManaged",
+        "consumerModId": "AuraToolsExp"
+      },
+      "priority": 10,
+      "tags": [
+        "feast-cg",
+        "official-role"
+      ],
+      "enabled": true,
+      "subjectType": "role",
+      "subjectIds": [
+        "career_18"
       ],
       "signals": [
         "aura.role.feast.completed"

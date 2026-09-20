@@ -54,6 +54,7 @@ internal static partial class Program
         TestSolarMemoryMapSyncRepair();
         TestSolarMemoryContentIsolation();
         TestSolarMemoryMapPreviewPolicy();
+        TestSolarMemoryMapPreviewRestoration();
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestSpiritManagementSelectionState();

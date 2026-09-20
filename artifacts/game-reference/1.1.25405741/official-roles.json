@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "v1.1.25405741",
+  "witchSha256": "FBD7EB63DFAC9F44F522131E83F374A139F28E246539CE80E34140C3C0E9A1D7",
+  "sourceTables": {
+    "Data": "E10A559EAE7E968FB4EE61278605C9AD70810AFD782828B548885967C0B7B454",
+    "Text": "52622FAEB9B8A96FF93F69F40D8D21F618154D1B8242BD7D9139E274B589DA07"
+  },
+  "roles": [
+    {
+      "id": "career_1",
+      "sourceId": "1",
+      "name": "阿米莉娅",
+      "title": "原初魔女",
+      "character": "Images/Character/阿米莉娅",
+      "characterSha256": "24A7E7F1E52C70C37FE838CD0365748CD884D527710DAEDFC83EEA7F3A2B4B7F",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_2",
+      "sourceId": "2",
+      "name": "奈奈",
+      "title": "见习魔女",
+      "character": "Images/Character/奈奈",
+      "characterSha256": "E1E7C3AEC555EEECE0027BDD9CAC324F0956E7ADD004C488407F0BD00E80F2AA",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_3",
+      "sourceId": "*3",
+      "name": "阿黛拉",
+      "title": "支配魔女",
+      "character": "Images/Character/新阿黛拉",
+      "characterSha256": "0790D3925633B1AA88ED113F4FD7762594E2576AA635CED9C554CE42873C44B9",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_4",
+      "sourceId": "*4",
+      "name": "灾厄化身",
+      "title": "灾厄化身",
+      "character": "Images/Character/奈奈",
+      "characterSha256": "E1E7C3AEC555EEECE0027BDD9CAC324F0956E7ADD004C488407F0BD00E80F2AA",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_5",
+      "sourceId": "*5",
+      "name": "卡洛琳",
+      "title": "猎杀魔女",
+      "character": "Images/Character/卡洛琳",
+      "characterSha256": "F46ADED7BF73E13D2D8F82552213335D3E6BBAF3874250242E7E3C97EDDA81F9",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_6",
+      "sourceId": "*6",
+      "name": "厄米娅",
+      "title": "混沌魔女",
+      "character": "Images/Character/厄米娅",
+      "characterSha256": "57FC8F0EDFE38854FE964F4C272293B8B2DE1117FE33E7F6C4B08C1E3F20FABB",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_7",
+      "sourceId": "*7",
+      "name": "可可",
+      "title": "见习天使",
+      "character": "Images/Character/可可",
+      "characterSha256": "60F9AD084818440D731E6CC8794DFAF0A334985D7B8935452766DCA60D681303",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_8",
+      "sourceId": "*8",
+      "name": "薇薇安",
+      "title": "拟态魔女",
+      "character": "Images/Character/薇薇安",
+      "characterSha256": "4CD949AA8229A66C699ECEC6DAD29FC22B0EBC1E8F919A662A504EF5C7C660C3",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_9",
+      "sourceId": "*9",
+      "name": "失心躯壳",
+      "title": "失心躯壳",
+      "character": "Images/Character/失心躯壳",
+      "characterSha256": "7E075CD3C587B53D875C5E1A61C760927612371765048ECBA3E0B836690F607E",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_10",
+      "sourceId": "*10",
+      "name": "权天使 可可",
+      "title": "权天使",
+      "character": "Images/Character/异色可可",
+      "characterSha256": "90375510496E2CB542E2DE68D2BAB9E7FAB74D1594CA868A55954D75CDA6D2E3",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_11",
+      "sourceId": "*11",
+      "name": "启明天使 卡洛琳",
+      "title": "启明天使",
+      "character": "Images/Character/异色卡洛琳",
+      "characterSha256": "05841CFD630D5ED63C6A21C90E61B2DDCB12960D042B91D345E9CC24DF3E700D",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_12",
+      "sourceId": "*12",
+      "name": "混沌天使  厄米娅",
+      "title": "混沌天使",
+      "character": "Images/Character/异色厄米娅",
+      "characterSha256": "B38D3227D27EEA22C750F7AD3DE744E271699BEA78BF718BD211E1B34366A574",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_13",
+      "sourceId": "*13",
+      "name": "混沌天使  厄米娅",
+      "title": "混沌天使",
+      "character": "Images/Character/异色厄米娅",
+      "characterSha256": "B38D3227D27EEA22C750F7AD3DE744E271699BEA78BF718BD211E1B34366A574",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_14",
+      "sourceId": "*14",
+      "name": "赛琳妮",
+      "title": "阻绝天使",
+      "character": "Images/Character/赛琳妮",
+      "characterSha256": "FD6C530A9F188D0911522B35B40A6DF21C83ECC172598331102660FA49C61D55",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_15",
+      "sourceId": "*15",
+      "name": "境界旅人 露",
+      "title": "境界旅人",
+      "character": "Images/Character/露",
+      "characterSha256": "B5BE6A31973B678E74B71176E9C0B10A0FC0E41564C15CCBF63CDF8055C494E5",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_16",
+      "sourceId": "*16",
+      "name": "墨丝汀",
+      "title": "降临天使",
+      "character": "Images/Character/墨丝汀",
+      "characterSha256": "B450C573AAD34646CB7158DE7CD3089834D923F70A9D6F6DF96B28B0AD38EC58",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_17",
+      "sourceId": "*17",
+      "name": "闪耀偶像 阿米莉娅",
+      "title": "闪耀偶像",
+      "character": "Images/Character/偶像阿米莉娅",
+      "characterSha256": "8E734DF71EAEE15B7A3723A002CD743908DC81789CFE66F945DBE3B90CC96228",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "career_18",
+      "sourceId": "*18",
+      "name": "极限突破 厄米娅",
+      "title": "",
+      "character": "Images/Character/极限突破",
+      "characterSha256": "13BABD8F21C40C0C75746AA2721C5E1B25330CE4C4855E52FF2C5854C07D0028",
+      "dimensions": [
+        1920,
+        1080
+      ]
+    }
+  ]
+}

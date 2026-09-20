@@ -14,6 +14,8 @@
       <Private>true</Private>
     </Reference>
     <Compile Include="TestStubs.cs" />
+    <Compile Include="SolarMemoryMapPreviewTests.cs" />
+    <Compile Include="..\Terrias-Dev\GameApi\SolarMemoryMapPreviewOverride.cs" Link="Source\SolarMemoryMapPreviewOverride.cs" />
     <Compile Include="EndlessAbyssChoiceTests.cs" />
     <Compile Include="SilhouetteGlowTests.cs" />
     <Compile Include="..\Terrias-Dev\Hooks\Ui\SilhouetteGlowRasterizer.cs" Link="Source\SilhouetteGlowRasterizer.cs" />

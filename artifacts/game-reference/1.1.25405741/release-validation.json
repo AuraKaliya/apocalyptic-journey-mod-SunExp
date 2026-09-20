@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 2,
+  "success": true,
+  "inputFingerprint": "809EB5F95F48F1E95B33940DABD651E5D1A745B716CBA0407A1B9A6A22DAE098",
+  "sharedSha256": "B36BCA414103198FF57257794039B0E4852C7745226B1AED9B7E6D1142C9F358",
+  "completedUtc": "2026-09-20T04:53:51.5351275Z",
+  "checks": [
+    {
+      "name": "AuraTools behavior and content",
+      "success": true,
+      "elapsedSeconds": 22.5636084
+    },
+    {
+      "name": "Custom card generated Lua and migration",
+      "success": true,
+      "elapsedSeconds": 2.1853126
+    },
+    {
+      "name": "Custom card production UI",
+      "success": true,
+      "elapsedSeconds": 57.1085163
+    },
+    {
+      "name": "Custom card installed XLua binding",
+      "success": true,
+      "elapsedSeconds": 19.6018204
+    },
+    {
+      "name": "Terrias behavior",
+      "success": true,
+      "elapsedSeconds": 1.5296225
+    },
+    {
+      "name": "Native map preview resource boundary",
+      "success": true,
+      "elapsedSeconds": 4.133586
+    },
+    {
+      "name": "Director current host capability",
+      "success": true,
+      "elapsedSeconds": 2.3324834
+    },
+    {
+      "name": "Spirit behavior",
+      "success": true,
+      "elapsedSeconds": 3.9333541
+    },
+    {
+      "name": "Elemental behavior and content",
+      "success": true,
+      "elapsedSeconds": 1.7203755
+    },
+    {
+      "name": "Olimya behavior and content",
+      "success": true,
+      "elapsedSeconds": 1.2761391
+    },
+    {
+      "name": "Columbina behavior and content",
+      "success": true,
+      "elapsedSeconds": 1.4947186
+    },
+    {
+      "name": "Moon Homecoming behavior and content",
+      "success": true,
+      "elapsedSeconds": 1.1124366
+    },
+    {
+      "name": "Shared behavior",
+      "success": true,
+      "elapsedSeconds": 2.7358708
+    },
+    {
+      "name": "Shared CG behavior",
+      "success": true,
+      "elapsedSeconds": 1.2646099
+    },
+    {
+      "name": "Shared audio behavior",
+      "success": true,
+      "elapsedSeconds": 1.2800689
+    },
+    {
+      "name": "Multiplayer receive and recovery",
+      "success": true,
+      "elapsedSeconds": 2.8212649
+    },
+    {
+      "name": "Shared compatibility",
+      "success": true,
+      "elapsedSeconds": 1.0514449
+    },
+    {
+      "name": "Release failure boundaries",
+      "success": true,
+      "elapsedSeconds": 0.3845488
+    },
+    {
+      "name": "Terrias content",
+      "success": true,
+      "elapsedSeconds": 0.5758315
+    },
+    {
+      "name": "Terrias resources",
+      "success": true,
+      "elapsedSeconds": 4.1905004
+    },
+    {
+      "name": "Event CG resource closure",
+      "success": true,
+      "elapsedSeconds": 0.0450784
+    },
+    {
+      "name": "Terrias architecture",
+      "success": true,
+      "elapsedSeconds": 19.9443985
+    },
+    {
+      "name": "Shared architecture",
+      "success": true,
+      "elapsedSeconds": 1.5588421
+    },
+    {
+      "name": "Content ownership",
+      "success": true,
+      "elapsedSeconds": 4.3593591
+    },
+    {
+      "name": "Write ownership",
+      "success": true,
+      "elapsedSeconds": 0.8000232
+    },
+    {
+      "name": "RPC authority",
+      "success": true,
+      "elapsedSeconds": 15.8591652
+    },
+    {
+      "name": "Unity replay and resource adapters",
+      "success": true,
+      "elapsedSeconds": 19.7863792
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "Terrias",
+      "files": [
+        {
+          "target": "Terrias/Scripts/Entry.dll",
+          "sha256": "BADA6784058B34FC1E86ECB5B2C68D114EE1F66FBE86F8DBE0572EC7A16D7776"
+        },
+        {
+          "target": "Terrias/Scripts/Aura.Shared.dll",
+          "sha256": "B36BCA414103198FF57257794039B0E4852C7745226B1AED9B7E6D1142C9F358"
+        },
+        {
+          "target": "Terrias/Scripts/Aura.Director.DetourBackend.dll",
+          "sha256": "3809272B0EA7E19B15A51383CDF7C701C36EB5E836A22B3B9E76B764B9E2D7C0"
+        },
+        {
+          "target": "Terrias/Scripts/0Harmony.dll",
+          "sha256": "7B9E756306FA3D7620E02A857C8927A6AB04973F9BD8A77D3866700A6DEAC55C"
+        }
+      ]
+    },
+    {
+      "id": "AuraToolsExp",
+      "files": [
+        {
+          "target": "AuraToolsExp/Scripts/Entry.dll",
+          "sha256": "EB853BCE43642D473C8A8888B9B8CBA941750DDC91ED153ED208415B9D8790FC"
+        },
+        {
+          "target": "AuraToolsExp/Scripts/Aura.Shared.dll",
+          "sha256": "B36BCA414103198FF57257794039B0E4852C7745226B1AED9B7E6D1142C9F358"
+        }
+      ]
+    }
+  ],
+  "runtimeAcceptance": "Real game and multiplayer acceptance remain separate from automated validation."
+}

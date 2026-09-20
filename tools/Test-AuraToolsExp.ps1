@@ -542,6 +542,7 @@ $registration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\SharedResources\aura.registration.json") | ConvertFrom-Json
 $cgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\SharedResources\cg.registry.json") | ConvertFrom-Json
+& (Join-Path $PSScriptRoot 'Test-OfficialFeastCg.ps1')
 $terriasRegistration = Get-Content -Raw -Encoding UTF8 -LiteralPath (
     Join-Path $repoRoot "Terrias\SharedResources\aura.registration.json") | ConvertFrom-Json
 $terriasCgRegistry = Get-Content -Raw -Encoding UTF8 -LiteralPath (
@@ -673,9 +674,7 @@ if ($registration.schemaVersion -ne 4 `
         -or $cgRegistry.ownerModId -ne "AuraToolsExp" `
         -or $cgRegistry.schemaVersion -ne 4 `
         -or $cgRegistry.protocol.preferredVersion -ne 4 `
-        -or @($cgRegistry.entries).Count -ne 24 `
         -or $officialSkillCg.Count -ne 2 `
-        -or $officialFeastCg.Count -ne 13 `
         -or $ronoveFeastCg.Count -ne 1 `
         -or @($ronoveFeastCg[0].subjectIds | Where-Object { $_ -in @(
             "RonoveEmberOfTheEnd_ronoveCareer_navva", "navva") }).Count -ne 2 `

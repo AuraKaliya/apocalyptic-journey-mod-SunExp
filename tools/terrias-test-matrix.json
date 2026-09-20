@@ -40,6 +40,18 @@
       "arguments": { "SkipBuild": true }
     },
     {
+      "id": "terrias-native-map-preview",
+      "kind": "script",
+      "path": "tools/Test-TerriasNativeMapPreview.ps1",
+      "owner": "Terrias",
+      "category": "compatibility",
+      "cost": "fast",
+      "impactTags": ["map", "visuals", "native-loader", "csharp"],
+      "profiles": ["csharp", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "terrias-architecture",
       "kind": "script",
       "path": "tools/Test-TerriasArchitecture.ps1",

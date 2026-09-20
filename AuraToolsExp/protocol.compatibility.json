@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "releaseBaseline": "0.12.0",
+  "releaseBaseline": "0.12.1",
   "globalExactModVersionRequired": false,
   "features": [
     {

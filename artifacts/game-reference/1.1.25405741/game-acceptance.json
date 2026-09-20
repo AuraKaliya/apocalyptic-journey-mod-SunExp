@@ -1,0 +1,11 @@
+{
+  "runtimeLogName": "AuraTools-20260920-130211.log",
+  "runtimeLogSha256": "549141904FADEFCC2B0F10145AC6FC296DE913A32C91F2EB9A5B58926CED84EB",
+  "errorCount": 0,
+  "thirdLayer": "圣轮",
+  "fixedBosses": [
+    "无慈第二日轮",
+    "白曜圣女·乌娜"
+  ],
+  "postGameVerifiedPackageFiles": 1206
+}

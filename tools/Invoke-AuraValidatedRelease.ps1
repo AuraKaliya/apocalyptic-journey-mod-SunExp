@@ -31,6 +31,8 @@ if(-not [string]::IsNullOrWhiteSpace($GameDataDirectory)){
     Invoke-Check 'Custom card installed XLua binding' { & (Join-Path $PSScriptRoot 'Test-CustomCardXLua.ps1') -UnityPath $UnityPath -GameDataDirectory $GameDataDirectory }
 }
 Invoke-Check 'Terrias behavior' { & (Join-Path $PSScriptRoot 'Test-TerriasCSharp.ps1') -Configuration $Configuration -SkipBuild }
+Invoke-Check 'Native map preview resource boundary' { & (Join-Path $PSScriptRoot 'Test-TerriasNativeMapPreview.ps1') -Configuration $Configuration }
+Invoke-Check 'Director current host capability' { & (Join-Path $PSScriptRoot 'Test-AuraDirectorDetour.ps1') -Configuration $Configuration }
 Invoke-Check 'Spirit behavior' { & (Join-Path $PSScriptRoot 'Test-SpiritRuntime.ps1') -Configuration $Configuration }
 Invoke-Check 'Elemental behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasElemental.ps1') -Configuration $Configuration }
 Invoke-Check 'Olimya behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasOlimya.ps1') -Configuration $Configuration }

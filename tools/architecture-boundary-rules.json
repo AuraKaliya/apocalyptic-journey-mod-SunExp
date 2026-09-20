@@ -350,7 +350,7 @@
     "terrias": {
       "semanticLayers": {
         "projectRoot": "Terrias-Dev",
-        "maxExceptions": 43,
+        "maxExceptions": 42,
         "layers": [
           {
             "id": "Infrastructure",

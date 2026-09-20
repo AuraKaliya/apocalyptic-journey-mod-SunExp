@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test the built product without starting another product publication. -->
+    <Reference Include="Terrias.Aura">
+      <HintPath>../Terrias-Dev/bin/$(Configuration)/net472/Terrias.Aura.dll</HintPath>
+    </Reference>
+    <Reference Include="Witch.Core"><HintPath>../Managed/Witch.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>../Managed/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="netstandard"><HintPath>../Managed/netstandard.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

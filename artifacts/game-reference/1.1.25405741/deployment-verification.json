@@ -1,0 +1,116 @@
+{
+  "transactionId": "29a51256e40d465ca2a41995358b4a60",
+  "state": "Verified",
+  "inputFingerprint": "809EB5F95F48F1E95B33940DABD651E5D1A745B716CBA0407A1B9A6A22DAE098",
+  "gameData": "D:\\Steam\\steamapps\\common\\Witch's Apocalyptic Journey\\Witch's Apocalyptic Journey_Data",
+  "files": [
+    {
+      "relative": "AuraToolsExp/Scripts/Entry.dll",
+      "previousSha256": "2087B6E5D6AE37B2D52981FCAAB925AA14ED0197FB632C20032861611056ECDD",
+      "sha256": "EB853BCE43642D473C8A8888B9B8CBA941750DDC91ED153ED208415B9D8790FC",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/Scripts/Aura.Shared.dll",
+      "previousSha256": "32E1F4D042D47448CD013B1058300EC0A7785CF878E7F2F472F741C56421B347",
+      "sha256": "B36BCA414103198FF57257794039B0E4852C7745226B1AED9B7E6D1142C9F358",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/ModConfig.json",
+      "previousSha256": "8E1D2EDB0E7930000043754FE12E16245434FD32D64C57234A0E3DC57D82AEDC",
+      "sha256": "211536BE8E40A38ECB8F1593FE94F75E667DA587FE18E55D190817D9D75A5F8E",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_10/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "F7C377BAE56902945D9543F2D422F58D8A032FABAF197838CD333463334BC326",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_11/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "0B8A4A9DE4C1D51D5B981F099CA68627293D454E72A7619CF4F0A65C1B350C29",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_12/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "5AECB9718D403B0998A86E432A1CADDF043EB48F97466FD22FD6642E8A6E5E5D",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_14/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "7F12054A686EA60226CE168AF611846391B6C1E081FC89E51624193FA05EDBBC",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_15/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "2D1975C9A6D3C935E9FF94A700544E6C76C35EF535C079F58FFBF0D878989274",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_16/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "485262063D4E60ACD71B52EB517E7FE60419E1C0796FAE0DE31A4F2BCD56BFB5",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_17/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "F6971F9160D39626D9FF43008F1F0CC38FCD43DE149CEB80A5E817D530D27F7E",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/CG/Feast/Roles/career_18/feast_cg.png",
+      "previousSha256": "",
+      "sha256": "2E0C9B1750D59C3AFA062F4448EBAB93D229023254D80F135319A99BD15B1B77",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/aura.registration.json",
+      "previousSha256": "591C631D57B524444C3B07CCCE2EBF3CBB01D3499E176825604EEB9097AF0468",
+      "sha256": "3E9C782E6682074FC4192ECE7AA942B67590764FB22821D4ED35A0B03533F00B",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/SharedResources/cg.registry.json",
+      "previousSha256": "6F3ECE269FA0E846107AFE1BA4CBD255D7CE1A6713487C8BD8864AF04252A7DA",
+      "sha256": "EE4DDA8CD2180CFF083E450B817A52CC71C3E7941A2BA2BB10DA6DEE705B6207",
+      "applied": true
+    },
+    {
+      "relative": "AuraToolsExp/protocol.compatibility.json",
+      "previousSha256": "B5D35BE45386E4D625B9E6FD33ABA74CAE25D679B8BE66EEC63C822688796F3E",
+      "sha256": "7EA68BBCCC081B4C6E57D22B1EC6E019EE1F9DC0454DE2B8763767E88B046A13",
+      "applied": true
+    },
+    {
+      "relative": "Terrias/Scripts/Entry.dll",
+      "previousSha256": "2C1F846E2DB60D9694DD456CF8B5CD9632F086BB9479BBB9676716755CA4F0FD",
+      "sha256": "BADA6784058B34FC1E86ECB5B2C68D114EE1F66FBE86F8DBE0572EC7A16D7776",
+      "applied": true
+    },
+    {
+      "relative": "Terrias/Scripts/Aura.Shared.dll",
+      "previousSha256": "32E1F4D042D47448CD013B1058300EC0A7785CF878E7F2F472F741C56421B347",
+      "sha256": "B36BCA414103198FF57257794039B0E4852C7745226B1AED9B7E6D1142C9F358",
+      "applied": true
+    },
+    {
+      "relative": "Terrias/Scripts/Aura.Director.DetourBackend.dll",
+      "previousSha256": "E4F815902B5E4D94AD25AE2655DE1FC478B9650EAAACD0844996FE89EFC9296D",
+      "sha256": "3809272B0EA7E19B15A51383CDF7C701C36EB5E836A22B3B9E76B764B9E2D7C0",
+      "applied": true
+    },
+    {
+      "relative": "Terrias/ModConfig.json",
+      "previousSha256": "6A74CE624CB99C96DFE6B1D1510FE712525D33593B002E3BFE50761F301D4B7A",
+      "sha256": "133AF5063C7CAB5C8EF0235B0C7F10C9E64599782ED1BFE8E11C5ECDC1A313E1",
+      "applied": true
+    }
+  ]
+}

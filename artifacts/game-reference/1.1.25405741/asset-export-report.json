@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "steamBuildId": "25405741",
+  "tool": "AssetRipper 2.0.0 PrimaryContent",
+  "sourceGameData": "D:\\MNRS_work\\25405741\\input\\Witch_Data",
+  "exportPath": "D:\\MNRS",
+  "files": 48279,
+  "bytes": 1839189953,
+  "verifiedPngCount": 8525,
+  "officialCareerCount": 18,
+  "characterPngCount": 17,
+  "sourceFileCount": 364,
+  "previousResourcesBackup": "D:\\MNRS_work\\25405741\\previous-MNRS",
+  "portraitReferencePath": "D:/Project/Apocalypic-journey-mods-creator/Mod的素材参考/角色立绘",
+  "fontPlaceholderWarnings": 15,
+  "portraitBackup": "D:/MNRS_work/25405741/previous-character-reference"
+}

@@ -80,13 +80,6 @@
       "removeByMilestone": "SolarMemory-application-cutover"
     },
     {
-      "sourceFile": "Terrias-Dev/GameApi/SolarMemoryMapPreviewApi.cs",
-      "targetLayer": "Mechanics",
-      "reason": "Close when SolarMemoryMapPreviewApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",
-      "owner": "SolarMemory",
-      "removeByMilestone": "SolarMemory-application-cutover"
-    },
-    {
       "sourceFile": "Terrias-Dev/GameApi/SpiritCollectionApi.cs",
       "targetLayer": "Mechanics",
       "reason": "Close when SpiritCollectionApi routes this capability through Application or a typed owner port; remove the allowance only after its behavior suite and the semantic gate pass. Scope and checks: docs/Terrias/architecture-exception-closures.md.",

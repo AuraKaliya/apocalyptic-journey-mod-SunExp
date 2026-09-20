@@ -46,6 +46,11 @@ internal static class Program
             !AuraDirectorReadyToStartDetourBackend.VerifiedMethodCapabilities.ContainsKey(
                 new string('0', 64)),
             "unknown method-body hashes remain outside the capability allowlist");
+        Assert(AuraDirectorReadyToStartDetourBackend.VerifiedMethodCapabilities.TryGetValue(
+                   AuraDirectorReadyToStartDetourBackend.VerifiedReadyToStartBodySha25625405741,
+                   out var updatedCapability)
+               && updatedCapability == AuraDirectorReadyToStartDetourBackend.ReadyToStartCapabilityV1,
+            "build 25405741 retains the verified one-shot start contract");
     }
 
     private static Assembly? ResolveManagedAssembly(string managedPath, ResolveEventArgs eventArgs)
@@ -158,6 +163,7 @@ internal static class Program
     private static void TestCurrentGameTargetCapabilityGate()
     {
         var probe = AuraDirectorReadyToStartDetourBackend.Probe();
+        Assert(probe.Supported, "the current shipped Managed target must be supported: " + probe.Detail);
         using var backend = new AuraDirectorReadyToStartDetourBackend();
         if (!probe.Supported)
         {

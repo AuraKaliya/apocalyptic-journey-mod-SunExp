@@ -2,6 +2,8 @@
 
 2026-09-06 整改将例外预算从 64 收紧至 49，移除经语义检查确认已不再使用的 15 条许可。2026-09-07 联机整改又将日耀提交、余烬同步与手部附着用例移入 Application，数据放入 Contracts，传输通过注入回调连接，关闭 6 条对应许可，预算收紧至 43。其余 43 条是已有能力的独立迁移，仍是技术债，不能表述为全库分层已完成。
 
+2026-09-20：日耀地图预览策略已移至 Application，GameApi 只保留宿主访问与原生资源能力检查，关闭 SolarMemoryMapPreviewApi → Mechanics 例外，当前剩余预算为 42。其余准备、地图流程等既有例外仍按原负责边界处理。
+
 投影召唤由 `Application/ProjectionSummonService` 负责应用事务，`Mechanics/ProjectionLifecycle` 定义规则层的生命周期出口，组合根绑定唯一实现。传输只通过 `IProjectionNetworkPort`，数据通过 Contracts。原生 `RpcCommandBaseSerializer` 使用 `TypeNameHandling.All`，所以 `Network/ProjectionSnapshotWire` 保留既有完整类型名；应用 DTO 不直接上网。当前 Partner 协议为 24，接入共享联网战斗身份；卡组模型仍为 v3，转换必须保持全部字段。
 
 Buff 的正面效果排除规则归 `TerriasBuffClassificationPolicy`；GameApi 通过注入策略与余烬持久化回调调用所属能力。共享基础失败或绑定未完成时不激活依赖它们的玩法。不允许新增反向引用替代绑定。

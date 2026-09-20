@@ -1,0 +1,1822 @@
+[
+  {
+    "path": "app.info",
+    "bytes": 37,
+    "sha256": "52B90206DA16B4529E53C572ED805107261729711FA6246A90DEF47F381CECAE"
+  },
+  {
+    "path": "boot.config",
+    "bytes": 151,
+    "sha256": "099DAAD1BD870D53C61E06C0B00E99BB8751603EC7B68C8D92611BAC8DE05490"
+  },
+  {
+    "path": "data.unity3d",
+    "bytes": 473017413,
+    "sha256": "FC5F174103090609B6B1A0BFDF5F85F96BA1DDF137DCD0C5F32277542181C8E1"
+  },
+  {
+    "path": "Managed/AllIn1SpriteShaderAssembly.dll",
+    "bytes": 31232,
+    "sha256": "B1975C28EC11C1E5FE9FC55119F1EA51D058EDFDCD9883F8CE924C336E80308B"
+  },
+  {
+    "path": "Managed/AllScripts.dll",
+    "bytes": 1020928,
+    "sha256": "48B5F5F7D8DC2487FA68885202BB46BFF3D265E362CD89E817C036B8E93D5420"
+  },
+  {
+    "path": "Managed/Assembly-CSharp.dll",
+    "bytes": 10240,
+    "sha256": "3723D9E6C4C55CA9624A30769C7327BFD9706C771BDE439B1341746CE2437C13"
+  },
+  {
+    "path": "Managed/Autodesk.Fbx.BuildTestAssets.dll",
+    "bytes": 5120,
+    "sha256": "115F83C149B7465CC449F33A0597EC8F59AD4972F12B0983A7B47DB5C771832E"
+  },
+  {
+    "path": "Managed/Autodesk.Fbx.dll",
+    "bytes": 4096,
+    "sha256": "0D802318A667976FC39150D3B1B1F7E8C186B774273D6D5609D8CE21D470B7C5"
+  },
+  {
+    "path": "Managed/BindingProxy.dll",
+    "bytes": 4096,
+    "sha256": "F7E16E20D6F47EF5A3B28C073F76A1ADCBCC38D9F9659F93CF7C608030B33596"
+  },
+  {
+    "path": "Managed/Cinemachine.dll",
+    "bytes": 315904,
+    "sha256": "5C1347B404C795D422B956F09897DC9E4EC74B9E545053FCC7E1765CE785BB9A"
+  },
+  {
+    "path": "Managed/Coffee.UIParticle.dll",
+    "bytes": 54784,
+    "sha256": "C5336147A73518B1E53DF4F97BE326E44B9702D589C0CAF425ACC1820F062716"
+  },
+  {
+    "path": "Managed/Coffee.UIParticle.R.dll",
+    "bytes": 3584,
+    "sha256": "A1C8AB664489C1EC8388FDED9F26DA48AB362CA50CC3D50A611D112ABE747BD3"
+  },
+  {
+    "path": "Managed/com.rlabrecque.steamworks.net.dll",
+    "bytes": 413696,
+    "sha256": "83A203F3D5890E33F90C0F58FCC71187D8456A02FF44F587FD7A41BD2CD33430"
+  },
+  {
+    "path": "Managed/CsvHelper.dll",
+    "bytes": 223744,
+    "sha256": "3C8034529E78317954EE9032F48C53F032C7F26A1371617404F6E27D45A252F0"
+  },
+  {
+    "path": "Managed/DOTween.dll",
+    "bytes": 175616,
+    "sha256": "8E90FC43AB564A5A51424AF56531AB074A5A2E9CAB271B2D653D287954237B83"
+  },
+  {
+    "path": "Managed/ExcelDataReader.DataSet.dll",
+    "bytes": 9728,
+    "sha256": "ED43E87D86EE8EA5385F55BCE311CE12427BD25C7DA5DA125404F12F5E51CF97"
+  },
+  {
+    "path": "Managed/ExcelDataReader.dll",
+    "bytes": 161280,
+    "sha256": "FE5129647F6E46CDF51C59DD5198527EBA24512439DCBAB8C32D8BD1A8809F19"
+  },
+  {
+    "path": "Managed/FizzySteamworks.dll",
+    "bytes": 36864,
+    "sha256": "227C784665271FB36437C7B81915EC3879B67E24101BF675B91155FDCB145625"
+  },
+  {
+    "path": "Managed/GECore.dll",
+    "bytes": 7680,
+    "sha256": "C246A4558059B90D6C30628FDD3716B6767DE69AC228F7FA8F476BDD77986D99"
+  },
+  {
+    "path": "Managed/Google.Apis.Auth.dll",
+    "bytes": 244224,
+    "sha256": "C38ECBDD91F2C308D239F2E368B9D2CDA6E288C8062114EAEE287918F02917B6"
+  },
+  {
+    "path": "Managed/Google.Apis.Core.dll",
+    "bytes": 86016,
+    "sha256": "56797E95728AC95026E7ACF38A3AF29AB60DA159FF45131E321BB1C14CD87A55"
+  },
+  {
+    "path": "Managed/Google.Apis.dll",
+    "bytes": 83968,
+    "sha256": "7043A13CAE68324773A101BA289E8E637134EEA694F120ECF2F033F64BF65581"
+  },
+  {
+    "path": "Managed/Google.Apis.Drive.v3.dll",
+    "bytes": 189440,
+    "sha256": "2C03C6B0DACFB853FB0DE40D2DBB57A0C218D16F847B02739942B7EF1D1F9059"
+  },
+  {
+    "path": "Managed/Google.Apis.Sheets.v4.dll",
+    "bytes": 235008,
+    "sha256": "D270B85A12CEDC41C4E85264B19C87F93EB87EE23DDB9004B90C74957F95561A"
+  },
+  {
+    "path": "Managed/Ivy.Ripgrep.dll",
+    "bytes": 57344,
+    "sha256": "05508CE8196C886B1FAD1948331788B4FF70A57A455E9F353807FA63E3FBB24C"
+  },
+  {
+    "path": "Managed/kcp2k.dll",
+    "bytes": 38400,
+    "sha256": "4B80B7728B934C51D8C26732EDBDC733FB0D2E9454733BEB96D53F3ED283A396"
+  },
+  {
+    "path": "Managed/Live2D.Cubism.dll",
+    "bytes": 221184,
+    "sha256": "BF4BC1F217183F74C34973CDFA7979985ACD451601D5DC99F7E0323E83704D35"
+  },
+  {
+    "path": "Managed/Loxodon.Framework.Binding.Weaving.dll",
+    "bytes": 11776,
+    "sha256": "EDDAD0B1DAC8C8889D1AD459D81A3643C5DA1058A68123DFDEDD2C4E2D5F53CF"
+  },
+  {
+    "path": "Managed/Loxodon.Framework.dll",
+    "bytes": 598528,
+    "sha256": "EB14991B3F24888976825465B754D2CF44A95C490CA0DD3A90B2563C36900C6E"
+  },
+  {
+    "path": "Managed/Loxodon.Framework.Obfuscation.dll",
+    "bytes": 23552,
+    "sha256": "54936DD3551E309F668074A61652E1D1CE27AB1953F643AB4847F714CC4EE992"
+  },
+  {
+    "path": "Managed/Loxodon.Framework.TextFormatting.dll",
+    "bytes": 90624,
+    "sha256": "02E00B94E99DA97B6AEC85D7C0988170500180C370A78A4D75ECB504F54A3A8E"
+  },
+  {
+    "path": "Managed/Loxodon.Framework.TextMeshPro.dll",
+    "bytes": 32768,
+    "sha256": "CCAE1A6709C049EC4C17F07675266C9E2512B31C1909D5AF08DBB01B125721B0"
+  },
+  {
+    "path": "Managed/Loxodon.Log.dll",
+    "bytes": 9216,
+    "sha256": "1B3AFAA567D5C012E77BE684D3A808156A53EF0665CA9712F3CA3C3AF9B3679A"
+  },
+  {
+    "path": "Managed/MCPForUnity.Runtime.dll",
+    "bytes": 33280,
+    "sha256": "386C498FC7C27C789BFAD1906015766B5249466A540AF97386BCE6343D510657"
+  },
+  {
+    "path": "Managed/MemoryPack.Core.dll",
+    "bytes": 197632,
+    "sha256": "CA033BC0ECF997A7DB8D976850458E218D9816A962E46AF89B62EBC3236CC0E4"
+  },
+  {
+    "path": "Managed/Microsoft.Bcl.AsyncInterfaces.dll",
+    "bytes": 19104,
+    "sha256": "136D5965CF4768E8420B547A8BDDEA882921F426C371833D558A858A2F0C235A"
+  },
+  {
+    "path": "Managed/Microsoft.Build.Framework.dll",
+    "bytes": 442680,
+    "sha256": "AC7BAFF62CDB5988BCDD8A3AC3A19464FB23E4EC90AD6D82C315EC4C573536CD"
+  },
+  {
+    "path": "Managed/Microsoft.Build.Utilities.Core.dll",
+    "bytes": 379664,
+    "sha256": "50A3FCCFCB3E8DD352A8FBCB8272B530F2429F173AB411F9D91A3992DF7F3C9F"
+  },
+  {
+    "path": "Managed/Microsoft.CodeAnalysis.CSharp.dll",
+    "bytes": 7021856,
+    "sha256": "81B578B15E4A3F2BA928FAB9D014E9FAD6B885FA25A2A7E6176BEDA937588764"
+  },
+  {
+    "path": "Managed/Microsoft.CodeAnalysis.CSharp.Scripting.dll",
+    "bytes": 34576,
+    "sha256": "13983D31AC7B589059CC6913066211C5551C4C7234ECE0B437986AC2B4576EA4"
+  },
+  {
+    "path": "Managed/Microsoft.CodeAnalysis.dll",
+    "bytes": 4986664,
+    "sha256": "A8AEF0AAEC005C7C9C246669D35575C6075BD876F3095EF06FB07FEE7DF43B61"
+  },
+  {
+    "path": "Managed/Microsoft.CodeAnalysis.Scripting.dll",
+    "bytes": 136464,
+    "sha256": "C52FD818C53DC63A58243EA92A6AD81A2B05B6EA007813980A5BFB8F72CA39B9"
+  },
+  {
+    "path": "Managed/Microsoft.CSharp.dll",
+    "bytes": 301568,
+    "sha256": "5D8DA57D63FD1C2E4196B8E6A0EA8A155C2F3252C8EEF73310C49CBB752AE87E"
+  },
+  {
+    "path": "Managed/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+    "bytes": 64264,
+    "sha256": "3A588921E88C7B989F805ADC5721ED25E24D389E8A9BC968EBCFF79F412A5288"
+  },
+  {
+    "path": "Managed/Microsoft.Extensions.Logging.Abstractions.dll",
+    "bytes": 67864,
+    "sha256": "E899E37DFC2DD433807C205E764C32EA34BB95DA083E189D7615947DD16C51E8"
+  },
+  {
+    "path": "Managed/Microsoft.IdentityModel.Abstractions.dll",
+    "bytes": 19888,
+    "sha256": "E072AD60F6A2CDE3A611EDFB3004FF774B73DD25C4730F21FA0822744429ABD6"
+  },
+  {
+    "path": "Managed/Microsoft.IdentityModel.JsonWebTokens.dll",
+    "bytes": 127920,
+    "sha256": "7DEDCA76A8DD2DD82EB625A6A0320D2F9F062EABB2F77B951FA6103B1160ADAF"
+  },
+  {
+    "path": "Managed/Microsoft.IdentityModel.Logging.dll",
+    "bytes": 38840,
+    "sha256": "C46F7D5DE9B8725F29500B608A353A08390DC88689C8FE74E7E34B05DFECB4B7"
+  },
+  {
+    "path": "Managed/Microsoft.IdentityModel.Tokens.dll",
+    "bytes": 286744,
+    "sha256": "47CC9363AC6C1ACA1A482010E0972C99787F622026DCAC5770D37D58CE5078DE"
+  },
+  {
+    "path": "Managed/Microsoft.IO.RecyclableMemoryStream.dll",
+    "bytes": 63520,
+    "sha256": "8D36AF4D0D5A5890E8C9CD5ED5858E67C48280D945C7CC476076E42ABC3AF05A"
+  },
+  {
+    "path": "Managed/Microsoft.IO.Redist.dll",
+    "bytes": 131880,
+    "sha256": "2ABBA74A23E680BA613BAAD9D510428EDD913E09F90509D248B85665A03F5014"
+  },
+  {
+    "path": "Managed/Microsoft.NET.StringTools.dll",
+    "bytes": 31528,
+    "sha256": "777DB5C759A26D489D01DED80D102321B5153273F07A4ECC0445082146E1472E"
+  },
+  {
+    "path": "Managed/Microsoft.Win32.Registry.dll",
+    "bytes": 41352,
+    "sha256": "340933AD6701077AE9B8035E4671803D86074AB32F2DE8165ACFDB954BD260F6"
+  },
+  {
+    "path": "Managed/MimeMapping.dll",
+    "bytes": 285184,
+    "sha256": "6834F5A610456ED42EBB674A1B47CCB4F78D24BB8F449F821F6FF787C046033B"
+  },
+  {
+    "path": "Managed/Mirror.Authenticators.dll",
+    "bytes": 32256,
+    "sha256": "67E09A66FD418D7890327E37C22732319D0BFEEA19995E54DC1FD94526444B83"
+  },
+  {
+    "path": "Managed/Mirror.BouncyCastle.Cryptography.dll",
+    "bytes": 6856192,
+    "sha256": "860787FA58288910F9EF0B3147AC1DF96623D4D7BD7BC309C9161871B0819FCF"
+  },
+  {
+    "path": "Managed/Mirror.Components.dll",
+    "bytes": 176128,
+    "sha256": "F669D0EF3AE9326A42615E5C352933C1702F8E0987893AB69A24E8B64B4E3611"
+  },
+  {
+    "path": "Managed/Mirror.dll",
+    "bytes": 226816,
+    "sha256": "ED17B15E36C7ACF762CB2AC137070CB5425E9CF6C2557FEAA0B81859AD5E913C"
+  },
+  {
+    "path": "Managed/Mirror.Examples.dll",
+    "bytes": 263680,
+    "sha256": "E4FDDC64E276740C14EDF46CCD7672BA7970BEB3C70EAE4B6FA0E5A42B40CD45"
+  },
+  {
+    "path": "Managed/Mirror.Transports.dll",
+    "bytes": 95232,
+    "sha256": "42CAFB5886EB101A0B98CB6638BD3BB9EA7BFE04BE5F63940C30CA1AF2992D98"
+  },
+  {
+    "path": "Managed/Mono.Security.dll",
+    "bytes": 241152,
+    "sha256": "21B9B6380E5220B8B6E873BE96A1D8EA7D8B61D56E05585EBD41960E3916E0BD"
+  },
+  {
+    "path": "Managed/mscorlib.dll",
+    "bytes": 4632064,
+    "sha256": "7DD5C412A26DFF11D207AD1C72F8DD909C3D6F63840F7A9A225D2DD01BC31141"
+  },
+  {
+    "path": "Managed/netstandard.dll",
+    "bytes": 90112,
+    "sha256": "6AE62E082DC494A2433984177F60CA4DB5FAE69B1F360A8B33754172B310B8C5"
+  },
+  {
+    "path": "Managed/Newtonsoft.Json.dll",
+    "bytes": 691712,
+    "sha256": "A56146202232958F46BD6A28B5A7DA166AEA123EE0D646735A46E5C341DFBF1F"
+  },
+  {
+    "path": "Managed/Plugins.dll",
+    "bytes": 185344,
+    "sha256": "405E933B3D5C13D0FCC65E5BA3CDD191556B6FE2A36D163CC19FA31364125C0F"
+  },
+  {
+    "path": "Managed/Postprocess.dll",
+    "bytes": 8704,
+    "sha256": "6B3572E673B64AA403AEA0C6F6315176C401E454825175AC84564CBC5F40923F"
+  },
+  {
+    "path": "Managed/PropertyChanged.dll",
+    "bytes": 6656,
+    "sha256": "680ED019900838DCC7604505F3F665722D99CCAFD79B11A972BFA7C9A001D375"
+  },
+  {
+    "path": "Managed/Rougamo.dll",
+    "bytes": 23552,
+    "sha256": "D2325C6AC10E8A103760613768E8D6763624B5B488B828E57D144AF369048242"
+  },
+  {
+    "path": "Managed/SimpleWebTransport.dll",
+    "bytes": 48640,
+    "sha256": "69FEE7D0307D051461E7AF6F88C0F2379F530353358B07FAA649E69C105A5F8D"
+  },
+  {
+    "path": "Managed/spine-csharp.dll",
+    "bytes": 207872,
+    "sha256": "C1CEE387AEFAF64990F2E76FC468EA27453785EBFBEAD9B89E073463478C3FFC"
+  },
+  {
+    "path": "Managed/spine-unity.dll",
+    "bytes": 192512,
+    "sha256": "EBB830516B308615A157CEE2EFA76403BA5093FCFE37CC9BFEA78838F981D553"
+  },
+  {
+    "path": "Managed/Supabase.Core.dll",
+    "bytes": 8192,
+    "sha256": "D09EC9AEFB0258F20618E1EF83A7907656E8C10257F3C335C3C3CBB86A7FCAFB"
+  },
+  {
+    "path": "Managed/Supabase.dll",
+    "bytes": 20480,
+    "sha256": "2A89FAD91090E29A864DAC18B29F4B8005704FFEBAA6D6A193C24882C74142F9"
+  },
+  {
+    "path": "Managed/Supabase.Functions.dll",
+    "bytes": 15360,
+    "sha256": "06D34CC7C76500EB2EF9E22CBC8427CECBC918DE820BC3B227238476361136AA"
+  },
+  {
+    "path": "Managed/Supabase.Gotrue.dll",
+    "bytes": 129536,
+    "sha256": "7D9FD186FB5ED7FA5C9B8CEC2A6F49EDFD10528E2715248D5FB13D6948FD77CC"
+  },
+  {
+    "path": "Managed/Supabase.Postgrest.dll",
+    "bytes": 77312,
+    "sha256": "880161667A5DFCDA758942B510C5A07002E3665EDDA4E07F25394B5F532CC25D"
+  },
+  {
+    "path": "Managed/Supabase.Realtime.dll",
+    "bytes": 72704,
+    "sha256": "14EF7D65D68C568DA51B5DFA9D5BD90403C4CEBE08CB241A5491FDCF266CFC99"
+  },
+  {
+    "path": "Managed/Supabase.Storage.dll",
+    "bytes": 52736,
+    "sha256": "C5CA4515508A83DAD6BD0ACDE7B23F8363DB657B651D5478FEF8256E62287674"
+  },
+  {
+    "path": "Managed/System.Buffers.dll",
+    "bytes": 4608,
+    "sha256": "762F8FDBE975E05B76BE5FE996C53CE7C75E4A2830F2F50B02A5948EF6BA0AEB"
+  },
+  {
+    "path": "Managed/System.CodeDom.dll",
+    "bytes": 189568,
+    "sha256": "D4E393A4F7247CC58BF32F6AFF60AC124755F42D70E6DC186ED88B1183D16018"
+  },
+  {
+    "path": "Managed/System.Collections.Immutable.dll",
+    "bytes": 252680,
+    "sha256": "5B1B1C83BA3D135C2FDFE425842FBE9C7432878B7E468623ACB554C69B4C130F"
+  },
+  {
+    "path": "Managed/System.ComponentModel.Composition.dll",
+    "bytes": 257024,
+    "sha256": "6970482B74BBF4D4B40491F138A6731B14CDF21B0C4F7BDAB6BABE38E7D8449D"
+  },
+  {
+    "path": "Managed/System.Configuration.ConfigurationManager.dll",
+    "bytes": 427184,
+    "sha256": "9028ED7BE2C39F72B67328AC97D03FFA626ABEAF08A485C7443C3E3F55E9AD88"
+  },
+  {
+    "path": "Managed/System.Configuration.dll",
+    "bytes": 124928,
+    "sha256": "E9D4448AB7218EBE23C4A1E4BA84746F233716E58FFBF3F24DBA7628E58114F5"
+  },
+  {
+    "path": "Managed/System.Core.dll",
+    "bytes": 1113088,
+    "sha256": "32881A6C8EEFF5649B0270F93BAD74B33ABCCFD9D31449DDEA9D78A8527F2482"
+  },
+  {
+    "path": "Managed/System.Data.DataSetExtensions.dll",
+    "bytes": 29696,
+    "sha256": "95B679503586CA01BFACF7B8DA6D306F82FBD7DAFC5243909E2E9E1F28C3C86D"
+  },
+  {
+    "path": "Managed/System.Data.dll",
+    "bytes": 2125312,
+    "sha256": "190177C7CFBF5C876A65EEC6ABBE01CAF2629F487E264DDCB17AC21AA9211DBB"
+  },
+  {
+    "path": "Managed/System.Diagnostics.Tracing.dll",
+    "bytes": 37096,
+    "sha256": "3A7F44E3B20A03CEF6FE8B164A5C193D50BD30EE0AAB26A7857D6B1944DA64FD"
+  },
+  {
+    "path": "Managed/System.dll",
+    "bytes": 2641920,
+    "sha256": "A78032381174964B1406C35026AA5EEE553141768FB02429830900FD85DF59EF"
+  },
+  {
+    "path": "Managed/System.Drawing.dll",
+    "bytes": 489984,
+    "sha256": "57720C613092C8608219411DB74B5D870ACBE265866DE5CD8B8F77BFB9A786C5"
+  },
+  {
+    "path": "Managed/System.EnterpriseServices.dll",
+    "bytes": 44544,
+    "sha256": "9D2E9EE168816AB202ED70919FE4CB08849B6A79B110908702581C3897567383"
+  },
+  {
+    "path": "Managed/System.IdentityModel.Tokens.Jwt.dll",
+    "bytes": 83904,
+    "sha256": "635F6621AF06F1376988CC3E0182FFA2176B920893A3A17E871A00D43405F5D7"
+  },
+  {
+    "path": "Managed/System.IO.Compression.dll",
+    "bytes": 114688,
+    "sha256": "B3CFB6CA60009CCBE477E2634299E3DBB7F188518DA295FB479AC0B6437136B6"
+  },
+  {
+    "path": "Managed/System.IO.Compression.FileSystem.dll",
+    "bytes": 18432,
+    "sha256": "4039EFAD3D954EB62C45088FFF1F36D962F30D009EF0879C257F5A39C096B6BD"
+  },
+  {
+    "path": "Managed/System.Management.dll",
+    "bytes": 77944,
+    "sha256": "8AA089FF7E97485230B88B5977345D888E9D0BC9C4AE5E73E69794C9C4B399B9"
+  },
+  {
+    "path": "Managed/System.Memory.dll",
+    "bytes": 4608,
+    "sha256": "C4F030A2CBA7DA7CDCF493257C24560E203D355904AEE490D645A935842F834A"
+  },
+  {
+    "path": "Managed/System.Net.Http.dll",
+    "bytes": 122880,
+    "sha256": "16172DCDDD4EE8186C62851BFB3FF070BD296B0C7B61F8E986D1EC2B9790B33D"
+  },
+  {
+    "path": "Managed/System.Numerics.dll",
+    "bytes": 119296,
+    "sha256": "E4D818EDA468902862A5B8E3FED2D852E77E81D0CE8D48FAA06981AF421785F4"
+  },
+  {
+    "path": "Managed/System.Numerics.Vectors.dll",
+    "bytes": 12288,
+    "sha256": "4B65CA126541F010333387C1DAABB032F05BF9E0248DAD2EAC38F01B1D07AE6E"
+  },
+  {
+    "path": "Managed/System.Reactive.dll",
+    "bytes": 1344592,
+    "sha256": "004DA6B4CFD95EE23727CB6631EDCAB3FF70C05ED8D8AD2A6FB0ADBE213F8753"
+  },
+  {
+    "path": "Managed/System.Reflection.Metadata.dll",
+    "bytes": 487696,
+    "sha256": "55EF768FFA305DE58E38E15420669258B16F420618EB1F702BDDB30E5C797961"
+  },
+  {
+    "path": "Managed/System.Runtime.CompilerServices.Unsafe.dll",
+    "bytes": 19256,
+    "sha256": "FD67ABC4C4AF10AFFBCD42FD68A2A7BC361B26714AFE6965D4D0D139459D8297"
+  },
+  {
+    "path": "Managed/System.Runtime.dll",
+    "bytes": 12288,
+    "sha256": "E0A7334B7BA419AAAB6BD3BB6992D693E689341A9178172C9BF99C2AA6A085BD"
+  },
+  {
+    "path": "Managed/System.Runtime.Serialization.dll",
+    "bytes": 934400,
+    "sha256": "E50A748EB81DE235B40143AAC0B51BBEF4DC3A780A39E43D839049F28E86CBF1"
+  },
+  {
+    "path": "Managed/System.Security.AccessControl.dll",
+    "bytes": 58992,
+    "sha256": "B122549811CA87F86F4CF651357BC312AF01AA93A2F27750DAF434CBE5901471"
+  },
+  {
+    "path": "Managed/System.Security.Cryptography.Cng.dll",
+    "bytes": 49288,
+    "sha256": "F55F4A45C1A71CA9D585FAD6416F8D69E768B9FAABE04A7FD6A4C624F155FCC1"
+  },
+  {
+    "path": "Managed/System.Security.Cryptography.ProtectedData.dll",
+    "bytes": 39696,
+    "sha256": "26051CC05CEA6DA683AF4E1650F8ACC663810515230647FFC17BBCFE5CFE60C9"
+  },
+  {
+    "path": "Managed/System.Security.dll",
+    "bytes": 320000,
+    "sha256": "557B7297A9026579034240D1A5478F25E4B30ABD977F9664D17C68A4299C97E1"
+  },
+  {
+    "path": "Managed/System.Security.Permissions.dll",
+    "bytes": 118584,
+    "sha256": "C8250D7A512C1524A79F1C9BED8B07FAAC630699A0F3F310F507EA51C6D3321A"
+  },
+  {
+    "path": "Managed/System.Security.Principal.Windows.dll",
+    "bytes": 37768,
+    "sha256": "7828DFD952A9FD49404477BAFF714849177D9F18C0654ADAFADBDCAFB4B21F47"
+  },
+  {
+    "path": "Managed/System.ServiceModel.Internals.dll",
+    "bytes": 215040,
+    "sha256": "AD36DD4E2EE09F130A27CEDD6A461336502775E3BDD239CE38FA47CEFEEECD35"
+  },
+  {
+    "path": "Managed/System.Text.Encoding.CodePages.dll",
+    "bytes": 760976,
+    "sha256": "EAF68151619943AB2DC46247F2D22A29DE0EA3805A56DE0C32B75AF12F89E74C"
+  },
+  {
+    "path": "Managed/System.Text.Encodings.Web.dll",
+    "bytes": 79120,
+    "sha256": "5AD1F348223F281C34B9B857445A1C3412A430026EF049AEAC641C53A92408BE"
+  },
+  {
+    "path": "Managed/System.Text.Json.dll",
+    "bytes": 608520,
+    "sha256": "42A3D66464AA3F52202A625FB8D719663CEAE07678081253B54D6ED56A95EA0A"
+  },
+  {
+    "path": "Managed/System.Threading.Channels.dll",
+    "bytes": 75952,
+    "sha256": "31C7E3704C0477C53D9306362DC6ABE741088EFB7A7B4E46CDED0169CF7BB0B2"
+  },
+  {
+    "path": "Managed/System.Threading.Tasks.Extensions.dll",
+    "bytes": 5120,
+    "sha256": "96150ABDCA5DF4446B376560E069D59B3550212DEDA8CBDD316272F6B834F597"
+  },
+  {
+    "path": "Managed/System.Transactions.dll",
+    "bytes": 35328,
+    "sha256": "EF7B63B133BF3F0150E13AA2E1B21628DDBDCDB5A949C11E185743D696FAE9EE"
+  },
+  {
+    "path": "Managed/System.Xaml.dll",
+    "bytes": 187904,
+    "sha256": "F277C367D8F2D99E8C3B9DE56FFA73F40D5F2DBEE89195C28DE925AE90F74035"
+  },
+  {
+    "path": "Managed/System.Xml.dll",
+    "bytes": 3160064,
+    "sha256": "50F029487999D62B805A4042831F6CA6FAA62D110D82F2381BA5775E5557C438"
+  },
+  {
+    "path": "Managed/System.Xml.Linq.dll",
+    "bytes": 136704,
+    "sha256": "14C33AD41219BC7DE05D089F75AB5F25A570D899E3DB2186E2B860DFB76826AD"
+  },
+  {
+    "path": "Managed/Telepathy.dll",
+    "bytes": 21504,
+    "sha256": "46F76CA1612AF508A99C85D35483B5B9D406F78D653E2F1B2F69A3BE6802BA3A"
+  },
+  {
+    "path": "Managed/ToString.dll",
+    "bytes": 4608,
+    "sha256": "B5ECB0A55B9488C7B02CE1EC5E8796961C60301A8E833C32D6B8400A8372D57D"
+  },
+  {
+    "path": "Managed/UniTask.Addressables.dll",
+    "bytes": 12800,
+    "sha256": "C1EEC78FA6B31DB375FD2D3EA3BC6E9FD6D0071E28AA3517E0D30A3C59C3435D"
+  },
+  {
+    "path": "Managed/UniTask.dll",
+    "bytes": 566272,
+    "sha256": "D26A01C88DFE79A08767D5AF6924123CDB0F7CE33F082BDBBF2822E4CEDFF9F2"
+  },
+  {
+    "path": "Managed/UniTask.DOTween.dll",
+    "bytes": 4096,
+    "sha256": "A4DED3CA088A8C57411F6F140C017475324CF2EA861E61BB64BFA16A768E3030"
+  },
+  {
+    "path": "Managed/UniTask.Linq.dll",
+    "bytes": 701952,
+    "sha256": "6BB04CB8084CB73B875B639100C133B9C866181EEE86FDBB46A8A65D4A9A8F8F"
+  },
+  {
+    "path": "Managed/UniTask.TextMeshPro.dll",
+    "bytes": 13312,
+    "sha256": "384CD1211F7C0EAB2472C8753509205D587F815CA93BFB2576C088B7B97B9D57"
+  },
+  {
+    "path": "Managed/Unity.2D.Animation.Runtime.dll",
+    "bytes": 88064,
+    "sha256": "25985987C332480392B64C7D465F6360762D3CD06E51E2B26234D73852E0B3D4"
+  },
+  {
+    "path": "Managed/Unity.2D.Common.Runtime.dll",
+    "bytes": 47616,
+    "sha256": "A3E7193C9F0F4574BE743FFA04D30DCF427FF9E8032050504C953CB72F7D909B"
+  },
+  {
+    "path": "Managed/Unity.2D.IK.Runtime.dll",
+    "bytes": 27648,
+    "sha256": "764F2501AD2845F1A0EBF99F19C34CE81A16A63FBBE90367022DA45A5D0E13F7"
+  },
+  {
+    "path": "Managed/Unity.2D.PixelPerfect.dll",
+    "bytes": 12800,
+    "sha256": "F36906D223040FFFDC81794589E9F0A0FC0D80580DE039854D5D6E8E95E854E9"
+  },
+  {
+    "path": "Managed/Unity.2D.SpriteShape.Runtime.dll",
+    "bytes": 112640,
+    "sha256": "C631B7CF3D4C2492F526871980BFEB9D7582D0833A2A30D11CCED295961653A5"
+  },
+  {
+    "path": "Managed/Unity.2D.Tilemap.Extras.dll",
+    "bytes": 34304,
+    "sha256": "82897F94A75596C874E14A095BCFA1A115CE605868863A3A272F890E89F77522"
+  },
+  {
+    "path": "Managed/Unity.Addressables.dll",
+    "bytes": 116224,
+    "sha256": "8484C81D15D05742DCF6ADE57C364151D248A7608D21E66E871156F1CAC9626C"
+  },
+  {
+    "path": "Managed/Unity.Animation.Rigging.dll",
+    "bytes": 114176,
+    "sha256": "B06810A8A2594BC75F242F1EB69AD0BE83BEF3AD02E3B0AD1395F9C81024FD39"
+  },
+  {
+    "path": "Managed/Unity.Animation.Rigging.DocCodeExamples.dll",
+    "bytes": 6144,
+    "sha256": "D26FEF69715AAA9E668543D6880C1D93B54B2FA05A3251376EF164CEE7219BC6"
+  },
+  {
+    "path": "Managed/Unity.Burst.dll",
+    "bytes": 317440,
+    "sha256": "D85BC489FE45380444EBCC6E9E1F3538F35EDCFD1CCC6D2060718DC5C4250572"
+  },
+  {
+    "path": "Managed/Unity.Burst.Unsafe.dll",
+    "bytes": 5632,
+    "sha256": "9D9C1FF52411DECBEE5D9F0D1CD61EBEAA222077AA77A52101EA3DEBAFAE98E2"
+  },
+  {
+    "path": "Managed/Unity.Collections.dll",
+    "bytes": 452096,
+    "sha256": "9221FACFCBFD5658C1F0DF8176708E41527BC441EE29C3A410BF48125DA51F36"
+  },
+  {
+    "path": "Managed/Unity.Collections.LowLevel.ILSupport.dll",
+    "bytes": 5120,
+    "sha256": "FF50383F807F9692E4913B97E47D86FEFCB8FAA33D6D48CD3E3FD6FC7FFB448D"
+  },
+  {
+    "path": "Managed/Unity.Formats.Fbx.Runtime.dll",
+    "bytes": 7168,
+    "sha256": "F06D19D6285761619D33AB6BDAA5518FB9B293FB3AAA06E30F8818B6D8848168"
+  },
+  {
+    "path": "Managed/Unity.InputSystem.dll",
+    "bytes": 1131008,
+    "sha256": "7C2A0C9EB1679D65867AA1AF7CF8D7403010EA8E95247281FB9DB123AA2CCFA7"
+  },
+  {
+    "path": "Managed/Unity.InputSystem.ForUI.dll",
+    "bytes": 17408,
+    "sha256": "0C48D6884E731E4E6EE1569DDFB5510BB54669D35C69C9625507924B68A76753"
+  },
+  {
+    "path": "Managed/Unity.InternalAPIEngineBridge.001.dll",
+    "bytes": 7168,
+    "sha256": "6520802C5038A88CF842ABB7E85202BC8F31666DA199505330887BB03DCE2F37"
+  },
+  {
+    "path": "Managed/Unity.InternalAPIEngineBridge.013.dll",
+    "bytes": 6144,
+    "sha256": "235B9E2AD2B78648E81732F9B464C090D3E105832A8D5ABD3A41096B8B77F9B6"
+  },
+  {
+    "path": "Managed/Unity.Localization.dll",
+    "bytes": 314368,
+    "sha256": "A68E623A647C00741F7E7F903D6C8A4AF26F48062983BEF3F88A49AFCDF87871"
+  },
+  {
+    "path": "Managed/Unity.Mathematics.dll",
+    "bytes": 752640,
+    "sha256": "CE571D8800923903ED695699AB8FD81A4FB19B3EACC160C4BE9626188D53F0AE"
+  },
+  {
+    "path": "Managed/Unity.MemoryProfiler.dll",
+    "bytes": 7168,
+    "sha256": "2DA229F43AC41C6B51AFBE41504A1F0E9D86D6F2BF41EBB8C9E1404003FF98F7"
+  },
+  {
+    "path": "Managed/Unity.Multiplayer.Center.Common.dll",
+    "bytes": 10752,
+    "sha256": "B31F4A21F441BB1872BA5E6DA71E275750C95E775B3F135FAB9A01D592C87312"
+  },
+  {
+    "path": "Managed/Unity.Polybrush.dll",
+    "bytes": 47616,
+    "sha256": "D18322D64F74B50E6BECC42F57F3EF3493AEC756B3E430F8A846BAD89933D421"
+  },
+  {
+    "path": "Managed/Unity.Postprocessing.Runtime.dll",
+    "bytes": 163840,
+    "sha256": "CAB5A8980E44396FC64F023F73F4D3CB28AADC38B7B01831A3DF64E68172C9AE"
+  },
+  {
+    "path": "Managed/Unity.ProBuilder.Csg.dll",
+    "bytes": 19456,
+    "sha256": "7DBF43D3F499F59EAD2E44FC9CA737D78CE3F68C01045D0177CD29D08BB9576C"
+  },
+  {
+    "path": "Managed/Unity.ProBuilder.dll",
+    "bytes": 403968,
+    "sha256": "1CDE0E0BBDD673EA5E96DEC3263EF91C23917AD136CB78BAADDEBE4FC6C8337E"
+  },
+  {
+    "path": "Managed/Unity.ProBuilder.KdTree.dll",
+    "bytes": 21504,
+    "sha256": "E1B50F9ACA939A9BE6A579B749FBEEFD3524E4F57DFF4AE273BCD28798E57C8A"
+  },
+  {
+    "path": "Managed/Unity.ProBuilder.Poly2Tri.dll",
+    "bytes": 40448,
+    "sha256": "01D71A9130DFE330AE48A792BD72E73705E3293B232895B9CA250B50F563D22E"
+  },
+  {
+    "path": "Managed/Unity.ProBuilder.Stl.dll",
+    "bytes": 14336,
+    "sha256": "F80C99E4C667199997F57A931E7732A165A3D968CE5F1045A9C60FB7711C9D79"
+  },
+  {
+    "path": "Managed/Unity.Profiling.Core.dll",
+    "bytes": 10240,
+    "sha256": "FA4D5CEA27F6AD5298DA3089E7115C28325CA4027C613AFE6C9722445EDA863E"
+  },
+  {
+    "path": "Managed/Unity.Rendering.LightTransport.Runtime.dll",
+    "bytes": 305664,
+    "sha256": "BC9839D63D2529F853846A32D9C13648FD4DE1F62F83E3298F4503B53C6CF90F"
+  },
+  {
+    "path": "Managed/Unity.RenderPipeline.Universal.ShaderLibrary.dll",
+    "bytes": 9216,
+    "sha256": "199BA75F9472B1FD4CE41FC9853FD6F394FA1A189E43E01D5E0229E27BF3FF17"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Core.Runtime.dll",
+    "bytes": 851456,
+    "sha256": "9E3893467B72C6B5A9E1E5800491B3D4684FED04FBB843E4DFD638DC1B0B517B"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Core.Runtime.Shared.dll",
+    "bytes": 5632,
+    "sha256": "AA67C645419E7727A415D4526ECBDAB2AA8C5034A84C7E5891E61E931B5EFA62"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Core.Samples.Runtime.dll",
+    "bytes": 18432,
+    "sha256": "C7E750C5EEADEBEF201E593568249E3DE3D1A8058293EBFB43D875043D93C2E1"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Core.ShaderLibrary.dll",
+    "bytes": 5120,
+    "sha256": "D10B2B0B2D30DA34BFCA11232AE663EA83F543F8AF486E61771373D277699541"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.GPUDriven.Runtime.dll",
+    "bytes": 209920,
+    "sha256": "A66BCBF909836FC19BAB0945196A39616CB52B6A9723874216E2BAEDCFFD0DFD"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll",
+    "bytes": 5120,
+    "sha256": "603CC73B27A8ABC0C508964DBBFEB1CD43E5FB263F9CF95ECE9D626989F36EA0"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Universal.2D.Runtime.dll",
+    "bytes": 251392,
+    "sha256": "48AC40A86A6327A77076450BBC3027F344F30A976190B999A82C73D1F7A9EDD2"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Universal.Config.Runtime.dll",
+    "bytes": 5632,
+    "sha256": "3B732B0EC5274D6880A271A0F383B4ADD361098CB407CA6861A59E37167B663E"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Universal.Runtime.dll",
+    "bytes": 795136,
+    "sha256": "6972D1EED2AA196102F9518794867B20C51B4F310BDBB218BA554300DDA3C392"
+  },
+  {
+    "path": "Managed/Unity.RenderPipelines.Universal.Shaders.dll",
+    "bytes": 5120,
+    "sha256": "FAA23F23D146B1589B44C21FC1E5F5649683F2699AA3D38918E14DA6FCD55B0A"
+  },
+  {
+    "path": "Managed/Unity.ResourceManager.dll",
+    "bytes": 139776,
+    "sha256": "E0C19234686D6798C40180CFFD5B418E33EEAD9BA1F826C787FDFCC065B86217"
+  },
+  {
+    "path": "Managed/Unity.ScriptableBuildPipeline.dll",
+    "bytes": 9216,
+    "sha256": "E429A68AE55C89CDCE5C46F140B3475DECD0A99561912FAAEBCE03DFFE563171"
+  },
+  {
+    "path": "Managed/Unity.TerrainTools.dll",
+    "bytes": 5632,
+    "sha256": "E9D6F2E9CCD25C3E9AAFF20B848DD5B76E33B6F8C45F374CA6F5F54C9AF5E70D"
+  },
+  {
+    "path": "Managed/Unity.TextMeshPro.dll",
+    "bytes": 445952,
+    "sha256": "34CAF31FF7C4B601AC7BA023B3CB6062FDF2BF131CE0AB5DEB8D29F68CCDC50A"
+  },
+  {
+    "path": "Managed/Unity.Timeline.dll",
+    "bytes": 128512,
+    "sha256": "9839221E059C10E1666148AF3DB075D7E6349E251509DE3518DB6057246E98FD"
+  },
+  {
+    "path": "Managed/Unity.VisualEffectGraph.Runtime.dll",
+    "bytes": 103936,
+    "sha256": "274F23502C37E8C3C670BEC5F98C0BFFFE94F967BCD81B5DB9B7CBE28B56B80E"
+  },
+  {
+    "path": "Managed/UnityEngine.AccessibilityModule.dll",
+    "bytes": 51384,
+    "sha256": "C2FC6BEB85625AE498BC642AE2E9FCFB5B1D34496AE28A7B6CCFA9AF2C9E9EB9"
+  },
+  {
+    "path": "Managed/UnityEngine.AIModule.dll",
+    "bytes": 71352,
+    "sha256": "324E838C799E2F9D3682BFD895BECFAF4978F588DFA50778C58D876053D68C09"
+  },
+  {
+    "path": "Managed/UnityEngine.AMDModule.dll",
+    "bytes": 20152,
+    "sha256": "92E17B8451279DE09F9F98C29C0710062946B4266DADB76B2E28D9ED0F83B670"
+  },
+  {
+    "path": "Managed/UnityEngine.AndroidJNIModule.dll",
+    "bytes": 114360,
+    "sha256": "CFB5A5136C0C2ECD953DCB645660E73F71C728F69E867E67A67D84D42DA2E010"
+  },
+  {
+    "path": "Managed/UnityEngine.AnimationModule.dll",
+    "bytes": 212152,
+    "sha256": "13D5EC74F111BEAE0DED0EF2B37843F48641E5C97EA2D18D741B4F8C3A7F3814"
+  },
+  {
+    "path": "Managed/UnityEngine.ARModule.dll",
+    "bytes": 20152,
+    "sha256": "E18397C363C247FED636F8F25DB36CDDF961E0643E4793A6FB2D587F92EDCA5E"
+  },
+  {
+    "path": "Managed/UnityEngine.AssetBundleModule.dll",
+    "bytes": 37048,
+    "sha256": "3C0A94694634DBB52F2B573BD8DA5C44A759384E6942545D73CB900CDF05A55F"
+  },
+  {
+    "path": "Managed/UnityEngine.AudioModule.dll",
+    "bytes": 101048,
+    "sha256": "394CC2BD9F3187A7760D2BAB0FD53CC674869DC3AC3E55D4CCBFB62929708357"
+  },
+  {
+    "path": "Managed/UnityEngine.ClothModule.dll",
+    "bytes": 30904,
+    "sha256": "76686965B073F979E4B7D4718D1949646F9B794B98BB70713358FF87E679EBD3"
+  },
+  {
+    "path": "Managed/UnityEngine.ClusterInputModule.dll",
+    "bytes": 22712,
+    "sha256": "9405E39103A33A7E1E5C60C5C1E5896B927602C98D87AEF858172D53F1E9327A"
+  },
+  {
+    "path": "Managed/UnityEngine.ClusterRendererModule.dll",
+    "bytes": 21176,
+    "sha256": "7D1575CEB797BBE80FA56B24E4A2B9BCB45062C9D796978E447B93841C3DAD63"
+  },
+  {
+    "path": "Managed/UnityEngine.ContentLoadModule.dll",
+    "bytes": 27320,
+    "sha256": "ECA2BA191189ACB427471DD0D7E64F3E1135DD854627E55BCBE36E06E30435EF"
+  },
+  {
+    "path": "Managed/UnityEngine.CoreModule.dll",
+    "bytes": 1793720,
+    "sha256": "16A5DBDE6C9CFE9A666D6869C39CB315992E0A4C503C24EB52AA8F6979B9313B"
+  },
+  {
+    "path": "Managed/UnityEngine.CrashReportingModule.dll",
+    "bytes": 21176,
+    "sha256": "0A905DFA105700B50AC6F695587CE93773E47714BCA8BED9DAFFD69FA2CBA955"
+  },
+  {
+    "path": "Managed/UnityEngine.DirectorModule.dll",
+    "bytes": 36536,
+    "sha256": "DB668C7F4F237AAEABAFBB2BCA4C0C71044F65BA0C349A786A53C54B13D6C617"
+  },
+  {
+    "path": "Managed/UnityEngine.dll",
+    "bytes": 168632,
+    "sha256": "9E2B54E82A8545E54EBD12CE8D7F4B18369F479F74C9F091ED0A78D79A35D508"
+  },
+  {
+    "path": "Managed/UnityEngine.DSPGraphModule.dll",
+    "bytes": 28344,
+    "sha256": "7A90B4D1CBF159038206E318E5F17B3F8A41F10C9247DCB8C772B02613FD81E9"
+  },
+  {
+    "path": "Managed/UnityEngine.GameCenterModule.dll",
+    "bytes": 40632,
+    "sha256": "79C7E4F85984DEC5FE1936D48FDD5CD137F58D8A8D19F27B013115B2C3E6B711"
+  },
+  {
+    "path": "Managed/UnityEngine.GIModule.dll",
+    "bytes": 19128,
+    "sha256": "01591369A51D6150F87AC724A631E640CF4938F2E9C7F5848DEDAC55CD668E0F"
+  },
+  {
+    "path": "Managed/UnityEngine.GraphicsStateCollectionSerializerModule.dll",
+    "bytes": 12472,
+    "sha256": "BA9169277B34CB6D26C2AA16C06697169AA34B7CF982505E5124B9FC3774B9A4"
+  },
+  {
+    "path": "Managed/UnityEngine.GridModule.dll",
+    "bytes": 24760,
+    "sha256": "E605A3F242983E5A31DCFBA139B30CDA92291FFE3D985462FCE63E73908E30E4"
+  },
+  {
+    "path": "Managed/UnityEngine.HierarchyCoreModule.dll",
+    "bytes": 89784,
+    "sha256": "C30B9530589199C417950355E6C957A30E95E9FF15B810E46623115E1B877D70"
+  },
+  {
+    "path": "Managed/UnityEngine.HotReloadModule.dll",
+    "bytes": 19128,
+    "sha256": "062DE33CDB4831545D0C3E8E15EF49B4639E88E18F640DCC66E244356FD8ADAA"
+  },
+  {
+    "path": "Managed/UnityEngine.ImageConversionModule.dll",
+    "bytes": 25784,
+    "sha256": "DCF89B62D5CA54AD8C83B133210912C655CC8C24B7ACB61D052B9EA2A1DDFF22"
+  },
+  {
+    "path": "Managed/UnityEngine.IMGUIModule.dll",
+    "bytes": 204472,
+    "sha256": "7F71D3240E396B5E74505F234BB4B888F833BBE0789F56AA2F2524C61C9BBA14"
+  },
+  {
+    "path": "Managed/UnityEngine.InputForUIModule.dll",
+    "bytes": 55480,
+    "sha256": "7455F20DA6886E9C315F7790493A0B2B4708AB62CDE33377E414D00986AFA322"
+  },
+  {
+    "path": "Managed/UnityEngine.InputLegacyModule.dll",
+    "bytes": 40120,
+    "sha256": "ADCE4C864C88A145FA175A9A09FE773D17AA87C23CBDF705E2C142B591CBDA7F"
+  },
+  {
+    "path": "Managed/UnityEngine.InputModule.dll",
+    "bytes": 22712,
+    "sha256": "15D6B9EAE61793FE738F253FB846EAE832CEC1ACB4E26DF9B5B642FBE6CDA331"
+  },
+  {
+    "path": "Managed/UnityEngine.JSONSerializeModule.dll",
+    "bytes": 21688,
+    "sha256": "9237811754146086B3D148E76F20D468A2B932EC2C4D1782D2CB7ED8440AB602"
+  },
+  {
+    "path": "Managed/UnityEngine.LocalizationModule.dll",
+    "bytes": 21688,
+    "sha256": "6E07F153411A2AFAE6C47FADC4BBAA983A8A9F5FFA66282A3764B3353851A5DC"
+  },
+  {
+    "path": "Managed/UnityEngine.MarshallingModule.dll",
+    "bytes": 62136,
+    "sha256": "E556637D5857C121634D3CE4A80C57ADAEB13678693312A5C8AA59EB695DEA16"
+  },
+  {
+    "path": "Managed/UnityEngine.MultiplayerModule.dll",
+    "bytes": 14008,
+    "sha256": "3A8AB33F84F3BD48D61A6DC2E336D75E7FA4BE50B8B0882DFF3B3E3EC320812C"
+  },
+  {
+    "path": "Managed/UnityEngine.NVIDIAModule.dll",
+    "bytes": 32952,
+    "sha256": "71853550E788FCD6B4B6E686A595632E301E155D5200337B14287D0721D520E7"
+  },
+  {
+    "path": "Managed/UnityEngine.ParticleSystemModule.dll",
+    "bytes": 165048,
+    "sha256": "0DB8C0E28F8DA3871E39FEBF7127AE31E636728BB79894F270008F2D2C479D2E"
+  },
+  {
+    "path": "Managed/UnityEngine.PerformanceReportingModule.dll",
+    "bytes": 19640,
+    "sha256": "709B256A2DE1A37BF4C0C0A324743AED96B00EEAD5315625911732DF15EF7732"
+  },
+  {
+    "path": "Managed/UnityEngine.Physics2DModule.dll",
+    "bytes": 198328,
+    "sha256": "85D379F1AE537215AAA508F9D8865F97634CE632F0519BA881E938BC61CEC164"
+  },
+  {
+    "path": "Managed/UnityEngine.PhysicsModule.dll",
+    "bytes": 179896,
+    "sha256": "2CCF2CD614A218349D3A4113ABC1FB2B2397114362FF08B5BAB1F568D4C43CF3"
+  },
+  {
+    "path": "Managed/UnityEngine.PropertiesModule.dll",
+    "bytes": 147640,
+    "sha256": "8DC141E6371278B4E62357A3B9E64F2045A4DB1D296A4B84B31EA37E7899486C"
+  },
+  {
+    "path": "Managed/UnityEngine.RuntimeInitializeOnLoadManagerInitializerModule.dll",
+    "bytes": 19128,
+    "sha256": "D9ACBA3DAF0FCEFF175E15352F8B579E2CCA138EA1F0D53352FED70A62C29A75"
+  },
+  {
+    "path": "Managed/UnityEngine.ScreenCaptureModule.dll",
+    "bytes": 20664,
+    "sha256": "E5DB91CD11F11F3C6DBB7671A0E9276F0967D4B76C9AC97C66050FF5DF8082D0"
+  },
+  {
+    "path": "Managed/UnityEngine.ShaderVariantAnalyticsModule.dll",
+    "bytes": 19128,
+    "sha256": "2678F4CF9DDB19CD4817BF5DBB8F0EAA967B8F9CF89F79279A626B325644255E"
+  },
+  {
+    "path": "Managed/UnityEngine.SharedInternalsModule.dll",
+    "bytes": 30392,
+    "sha256": "9708DCE1C514B039F9FD51636595ECF05E9AD8AB68C4489E5E44EBD8D5E0782E"
+  },
+  {
+    "path": "Managed/UnityEngine.SpriteMaskModule.dll",
+    "bytes": 23224,
+    "sha256": "F160CA5C181DA847889FD19916854BFE5DAEE1F1383F52F01BD486FD002C1B2C"
+  },
+  {
+    "path": "Managed/UnityEngine.SpriteShapeModule.dll",
+    "bytes": 26296,
+    "sha256": "D3E306F1E7D4CCDF60C95FDFF63621A69DA762974E4F060C334FB60A63B7A9DC"
+  },
+  {
+    "path": "Managed/UnityEngine.StreamingModule.dll",
+    "bytes": 20664,
+    "sha256": "5AFFDC3924288012EB4D59B44DF4FDC4C2462FDE19ED0DCD683C3D627D313535"
+  },
+  {
+    "path": "Managed/UnityEngine.SubstanceModule.dll",
+    "bytes": 23736,
+    "sha256": "F4557EB0801327651A22B7DB3DF6B9E4AC781FFF6C983293F296658E7A7A8381"
+  },
+  {
+    "path": "Managed/UnityEngine.SubsystemsModule.dll",
+    "bytes": 36536,
+    "sha256": "AF382DA96FC92F8605C626B9CEFD4CBF25FAD137382A940B93C0B527A2D45D49"
+  },
+  {
+    "path": "Managed/UnityEngine.TerrainModule.dll",
+    "bytes": 127672,
+    "sha256": "CB22C1C8572B1093C56E7FB073239FE3CAF7290A9E0452FDF41967B33CB141CA"
+  },
+  {
+    "path": "Managed/UnityEngine.TerrainPhysicsModule.dll",
+    "bytes": 20152,
+    "sha256": "4A037326A3929C5C1835A3FC6316C892EC122934EBC4651A43E067E954BD7415"
+  },
+  {
+    "path": "Managed/UnityEngine.TextCoreFontEngineModule.dll",
+    "bytes": 82616,
+    "sha256": "A7D1D802CFD50906D7FA642C154AE07A44FB75D29933706E3BCC4289229F50C1"
+  },
+  {
+    "path": "Managed/UnityEngine.TextCoreTextEngineModule.dll",
+    "bytes": 320184,
+    "sha256": "77A1B7DBD918174B7763A73BD12706A7AC029403E571B366E10202D72C68E968"
+  },
+  {
+    "path": "Managed/UnityEngine.TextRenderingModule.dll",
+    "bytes": 43704,
+    "sha256": "4B171C31795D0ED62FEE6989C6A3072D794FF5C9DE1A6B98CA65894566D83DD8"
+  },
+  {
+    "path": "Managed/UnityEngine.TilemapModule.dll",
+    "bytes": 52408,
+    "sha256": "5925F5D400136326B3777C2BD4BCEC24EA119300898D690E1A7B67815BFE5761"
+  },
+  {
+    "path": "Managed/UnityEngine.TLSModule.dll",
+    "bytes": 25784,
+    "sha256": "D8F26BF480E584B1F92D61010CC501BD997AAF4CB665E4CD271756A4FD6DA7B4"
+  },
+  {
+    "path": "Managed/UnityEngine.UI.dll",
+    "bytes": 265728,
+    "sha256": "6F884D6DB9F62573CFC5684BA7935C9A9E4F954965753B02BB51C7FF0FF35946"
+  },
+  {
+    "path": "Managed/UnityEngine.UIElementsModule.dll",
+    "bytes": 2055864,
+    "sha256": "CC5523BCB538115B73BFB5CC4B76DE74F29D296545A1B5076B99FAD5DF10A3DA"
+  },
+  {
+    "path": "Managed/UnityEngine.UIModule.dll",
+    "bytes": 43192,
+    "sha256": "0A84AF94EA168EB1AB741C01529156B2C01DC5A33F6E2AA431902E266974720C"
+  },
+  {
+    "path": "Managed/UnityEngine.UmbraModule.dll",
+    "bytes": 19128,
+    "sha256": "C599AC7C04D58C67C56B98A5BE0F6906185C9338044BAE1332DFE461684697CB"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityAnalyticsCommonModule.dll",
+    "bytes": 29880,
+    "sha256": "AD8D141EE0CCF3E05F3F77A5678239BAB4D36A9015169E2322DE6EB9CF74E707"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityAnalyticsModule.dll",
+    "bytes": 55480,
+    "sha256": "B8F995A5AABC72EF1D4C4E882D23E0651325E70503EAB4840F1FA2FEB556B5CF"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityConnectModule.dll",
+    "bytes": 22200,
+    "sha256": "0CAEA9C436B6E4B2358F452B202EC0E38336A0AC17B7F7BDB8417ED7A972E662"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityCurlModule.dll",
+    "bytes": 20664,
+    "sha256": "E98E5F12CC9ED52E1677FD15A92676A899AA812DBE257C488E89E3F5DFF16B2D"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityTestProtocolModule.dll",
+    "bytes": 19128,
+    "sha256": "366E8776580CDCC18BCFA2162901414F5CA51B4D4199D4831B2A30E5705D37CF"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityWebRequestAssetBundleModule.dll",
+    "bytes": 23224,
+    "sha256": "F494EF3DEF909F1E717ADF5317B8F74222D08393D3FBD252D1C843F12C38A45A"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityWebRequestAudioModule.dll",
+    "bytes": 22712,
+    "sha256": "623502F32DCE89635BF66F6FEAD566E26935B602E7E1228BD4C59B14DA5CC71B"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityWebRequestModule.dll",
+    "bytes": 63672,
+    "sha256": "9CFF402F17DC95111ABBE57D84153DB1996021310EC0EC8E3FD33E88A9B12EC9"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityWebRequestTextureModule.dll",
+    "bytes": 22200,
+    "sha256": "989D7B166837111BE79A85A0ED1A29A788AEDA307579832EFAB8B3DAB0CA56AF"
+  },
+  {
+    "path": "Managed/UnityEngine.UnityWebRequestWWWModule.dll",
+    "bytes": 30904,
+    "sha256": "5B738A635C353C0B62ACDB2554F936F0930F86788A199AA9BD8AC30AA1F70E8E"
+  },
+  {
+    "path": "Managed/UnityEngine.VehiclesModule.dll",
+    "bytes": 25784,
+    "sha256": "47DBC44D315F4F3EE7357F466E4E0137C83AFB23BE01FDC47BE6B100E3A76135"
+  },
+  {
+    "path": "Managed/UnityEngine.VFXModule.dll",
+    "bytes": 72376,
+    "sha256": "C4FDEE18FAC8738A9FDDBAE78FCE8271666CFAE727A8353342F0A9699F9AF839"
+  },
+  {
+    "path": "Managed/UnityEngine.VideoModule.dll",
+    "bytes": 53432,
+    "sha256": "E8520A3D2D43BBC4BCBBCD985A2AB668F11261624FA0C8F1A55899D4292D52B1"
+  },
+  {
+    "path": "Managed/UnityEngine.VirtualTexturingModule.dll",
+    "bytes": 37560,
+    "sha256": "45392710BF69B844EB1FBDEE6DDBC369BC636FF927A900A3E3F79693683B41C0"
+  },
+  {
+    "path": "Managed/UnityEngine.VRModule.dll",
+    "bytes": 26296,
+    "sha256": "08005C263A86F5CC169875659D8C9C481F00897F2D2DDFE19B504F91384D0C9C"
+  },
+  {
+    "path": "Managed/UnityEngine.WindModule.dll",
+    "bytes": 21176,
+    "sha256": "F2297DF38F0378B2C378D85A7D7097B9B077FC81E16616F56BBEC1377421F445"
+  },
+  {
+    "path": "Managed/UnityEngine.XRModule.dll",
+    "bytes": 82104,
+    "sha256": "A3DE1AB77ADE80AF54C788AFC9EC3F371DC6BC1FD03CCC175182A407347AAE75"
+  },
+  {
+    "path": "Managed/UnityGifDecoder.dll",
+    "bytes": 22016,
+    "sha256": "F4C351EF648EC85E3DAD82BD41CDDB6300CF961F21DDCBDF82BF89624CB1691E"
+  },
+  {
+    "path": "Managed/Websocket.Client.dll",
+    "bytes": 43008,
+    "sha256": "FF891473273FC06642FE149FC18A576FA7B8F5ED36EE082F7ABABA89F5CEACFF"
+  },
+  {
+    "path": "Managed/Witch.Core.dll",
+    "bytes": 184832,
+    "sha256": "13A8DC970CBEEE1EBBBBDDB5D39B5FD54CF3294699C80CA5282564CF32AA07EF"
+  },
+  {
+    "path": "Managed/Witch.dll",
+    "bytes": 3091456,
+    "sha256": "FBD7EB63DFAC9F44F522131E83F374A139F28E246539CE80E34140C3C0E9A1D7"
+  },
+  {
+    "path": "Managed/ZLinq.dll",
+    "bytes": 246272,
+    "sha256": "D82D892059E9B2B15EBB26DD095CCA25BE30B6106221F66D59BEC044230B9649"
+  },
+  {
+    "path": "Managed/ZString.dll",
+    "bytes": 256512,
+    "sha256": "0A816223FD454F6C2790E96A854C703EDB0A4E33234E7E6312AE75964FEE480D"
+  },
+  {
+    "path": "Plugins/Steamworks.NET.txt",
+    "bytes": 232,
+    "sha256": "3A222A67049EC7152EDCCE474C2A7AA050F2DCAB39B15B2C01BE2B1611D28117"
+  },
+  {
+    "path": "Plugins/x86_64/lib_burst_generated.dll",
+    "bytes": 913920,
+    "sha256": "4144E8FECCFD4CA0AE8AD86E341AEB7104A530BB3C0268EF018D983CED799DCC"
+  },
+  {
+    "path": "Plugins/x86_64/Live2DCubismCore.dll",
+    "bytes": 249800,
+    "sha256": "D883C00D114FDF6CEF61F439FEB23E02D000FDF683E092803010470B80DFAF09"
+  },
+  {
+    "path": "Plugins/x86_64/steam_api64.dll",
+    "bytes": 300392,
+    "sha256": "1ADD7F151FA644870A735AE86E68D1F019F296130D8E7C0A7ED3ECC7482DCCBC"
+  },
+  {
+    "path": "Plugins/x86_64/xlua.dll",
+    "bytes": 513536,
+    "sha256": "275C45E7BB07C880ADD1B5F8FE08AEE6A8730721F71D4526479870EAE8E70B61"
+  },
+  {
+    "path": "Resources/unity default resources",
+    "bytes": 5858500,
+    "sha256": "F5E29909672EA6BF47805D6FBAF716751090886F7CB39515F5D4B4EAA02CA6A9"
+  },
+  {
+    "path": "resources.resource",
+    "bytes": 129308480,
+    "sha256": "8B6F3B8E490CCD3FB4C05E76303E176F99626E9FE2FE8B88999E4D62080F87E2"
+  },
+  {
+    "path": "RuntimeInitializeOnLoads.json",
+    "bytes": 8884,
+    "sha256": "F8030A4ED81E8B9DA27832EEA82B24FB9DF464806E38FB1329B15F1062EEBB41"
+  },
+  {
+    "path": "ScriptingAssemblies.json",
+    "bytes": 7712,
+    "sha256": "522C149191ECEEA73BF0A9E1BAFAA4110E313FB3B24D8AACC740556971C93E78"
+  },
+  {
+    "path": "StreamingAssets/aa/AddressablesLink/link.xml",
+    "bytes": 7829,
+    "sha256": "642F206C4FC6A6F0D6E8710C02CC2D49EBFF5E51CC0A06E26A6A9B97D604BFE8"
+  },
+  {
+    "path": "StreamingAssets/aa/catalog.bin",
+    "bytes": 988878,
+    "sha256": "52D2BA39D4CEFF8BCEC5700F1AF025D42C67E955D97FFC41432A90772BE16208"
+  },
+  {
+    "path": "StreamingAssets/aa/catalog.hash",
+    "bytes": 32,
+    "sha256": "C7BA0078186EF6EEB1D11D9F64AE7DB3D5AE867645ACF011FF4A0426B48C9FEC"
+  },
+  {
+    "path": "StreamingAssets/aa/settings.json",
+    "bytes": 864,
+    "sha256": "EF5C9A401188C9FCA464562FF93C5C36EC1F22F546237974069FFBDC33CE310A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/509116da745f09c361e02527f4808625_monoscripts_de6b7d2c6d47bc272078f37b486d467d.bundle",
+    "bytes": 2010,
+    "sha256": "326AFB41F305A008C127F3149875CE24F929F4AF0164CF5C47E72E96FFB9FC67"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/actionicon_assets_all_1f0232c8ad15d341b95e7f4541d1ecd9.bundle",
+    "bytes": 78282,
+    "sha256": "F439E72F66751246C78C8E4B37463DDFB916B3373861004AC02EC11296FF593C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/animationlib_assets_all_098636e3e96984ccf0cda1f3768f8cb9.bundle",
+    "bytes": 54611767,
+    "sha256": "C7C1063FB9FC8D9DABB03402F27C64F12A3E7A8A6B8B1D9587B6257D826B3BFA"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/blessingicon_assets_all_ba4ea700654983808bbd9b5d16444a44.bundle",
+    "bytes": 129433,
+    "sha256": "1072327C53AFC695185BA0A74D9D62CF69EF0E023DFF835FC32DEF8329E2DB5C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/bufficon_assets_all_9dbf564d98a597c50c0dbe6d66eb7557.bundle",
+    "bytes": 99330,
+    "sha256": "35FCA401311A7638E102B643A1C498A321D160990262FC2AA6BF740FEB916A25"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/cardicon_assets_all_6110dea91614ee1d5a9b5e8e0738bf73.bundle",
+    "bytes": 1755137,
+    "sha256": "8EEAFC4B70EDB7F94527A4DE43D47564B2C0C2E69E400323F4C7063AFBEAF293"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/achievement_28212bcadb4f9c206482187662987962.bundle",
+    "bytes": 2038,
+    "sha256": "AE592DCE9A9DDC5C22ADF200D411918DDA68D792D2A17498348B8AC98BEEB7F8"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/affection_becdafd31f74980566d1b42c0d4074d6.bundle",
+    "bytes": 1521,
+    "sha256": "ED6AEFE9457204CE2F2F0D0AC976A8E60669B81634977E711CF9B44CCE695A68"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/blessing_1815c31eaf441b0219ff3bb2c8382de7.bundle",
+    "bytes": 8376,
+    "sha256": "702E885AA2B7BBBFF94F665A939862D0CC92591D3110A3061615E16F3FD15ED0"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/buff_abea8ed8a5c3f5bf5922343088977fde.bundle",
+    "bytes": 21334,
+    "sha256": "CB1103A31171618D19AACAA73C7DEF05C0318ACC4F8B7971659AC99A1C2E1F6C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/card_20ba733fc4bf905e85b84874d504fa4b.bundle",
+    "bytes": 28521,
+    "sha256": "14558E678F30E5E3378AB1DCBDD06A9272BEF058350C8F6C92E321D5A6C76E07"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/career_2b09ad38ac9e5285d24b7c175250afd3.bundle",
+    "bytes": 6094,
+    "sha256": "C54A998CB3EC7B543C6661FEA5C44631800EBAF5317685EEA365D8BD78FCEB60"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/coin_7ff3a59399c1bdf05627a82f66097e3b.bundle",
+    "bytes": 1382,
+    "sha256": "16039E2795CD283E54B984E758B9225FF285C26E645364D49EEB627026F12823"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/destiny_e32679ae92af70aaa1e1d49e2c578438.bundle",
+    "bytes": 2451,
+    "sha256": "923048F5A5CFD9B112EAC5CCB0B8758571394D735EF6E851D4BD141F96206D6B"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/dialogue_0359d1dec1d535f9a8e5ac90ef4cc44d.bundle",
+    "bytes": 2945,
+    "sha256": "FF77C44A7FFAB582C9F7F41BE55343A7D5B4740BF80243DCF114E85DC61041FB"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/effect_7f9710f65975984533f114e9e9475d64.bundle",
+    "bytes": 1394,
+    "sha256": "C93A5C308861D244758723910840D83C40591B01E8BB6D74FBA955D04CAFCD55"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/enchtag_ff2e7a365221c86a96a7796c1207b57b.bundle",
+    "bytes": 4687,
+    "sha256": "966D02BF375F129F6E012479D3D366715C229E39D5AF77AF5465EFCC56E597D5"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/enemy_0a3f5100f6fa75cd548de9251d2ae88a.bundle",
+    "bytes": 5496,
+    "sha256": "E7C3768AD6EBA8FA7A35260D3B31815764BEB9471ADDCC0CAE3D953D9F6F4185"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/enemycard_ffc1e383c064748348fb5275ff2d6b75.bundle",
+    "bytes": 5260,
+    "sha256": "39D5732460E5FA9E61E4E08492229380A8D94BEAD5A9651A652E96D5585D28D1"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/eventlist_749c9db79dcbeed427546902cf434b94.bundle",
+    "bytes": 5042,
+    "sha256": "06DB3A32A41B21459E93D4B2753EE084CCD47CA400EB45B247B892BD158C9EA4"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/fightpartner_e69e6146c5bec74f5edc3fa20ad5f3d6.bundle",
+    "bytes": 1495,
+    "sha256": "78907D7E71FE577B0D3C44855964AED15D7FAD41613454912911CE6C2C4D791A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/food_6c8f7f608dc1a9578d8d63b0ad85c693.bundle",
+    "bytes": 1549,
+    "sha256": "9E59689AA4576A0C4F1E5CD6399ED6E1CE317D811ABC6C674F53CBCCD75E5473"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/hard_2bcc10b6acee93ebac9cb24331015f4e.bundle",
+    "bytes": 2618,
+    "sha256": "E8F85122966D718C3A982EAA6CF7CBDCC190A911378288FED41CDF1D24114DBE"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/housedialogue_29e3978344b88030879e9fed5bec0d91.bundle",
+    "bytes": 2860,
+    "sha256": "FE7B6DE4ECA5FDB1E771A15A7C1D53BBF78FE39C4467A336504DBC5574CAABC4"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/housedialogueconfig_dd23018a4e0f3fe9a1106a291fc1c05f.bundle",
+    "bytes": 1565,
+    "sha256": "EDA90AA26906028B6761D19E06B2A8F3E6C6668D8D6186147F2A16E808F876C9"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/item_f4cd881f55366b10d1dfc5b0f42be315.bundle",
+    "bytes": 1777,
+    "sha256": "B96DCE6C258EE6486FB0B910D0FC13C48913229B14D678C7638571ED210DE665"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/level_93da19d38b56f35c952ee84838451e5f.bundle",
+    "bytes": 2116,
+    "sha256": "E6C1830FD88A8BEC6F9BADEADBE352746BD06928E566A3364FAFB8ECBBEBA262"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/map_207a1f749244709cdcfde69152da463c.bundle",
+    "bytes": 1785,
+    "sha256": "9504F70DA7110FAC174D5EBCDC652CDD8DE77419F9C177043D6ADB88FF3D102D"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/outsideshop_27443a420f80c7fb77375eacd7c88263.bundle",
+    "bytes": 2317,
+    "sha256": "AC3953545363E77DB693B23224A5C8F2FBD27647AA6B941AFCC814197EF83EA9"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/partner_f8004aec29ac552a35fe7617a2cc5d45.bundle",
+    "bytes": 1616,
+    "sha256": "0208CA5C8E45EE8E56F660F6348C49B9C0B18FBA3427D10E23A66D7C02A05473"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/partnercard_d8185adf8962556a342bb341f68dbec8.bundle",
+    "bytes": 2048,
+    "sha256": "D4C862B9F4F509129094CF763C852369FD2E23187E4B21A127475F7933689DF4"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/relic_fb3ec2824993e384db04ae4d1d229408.bundle",
+    "bytes": 14101,
+    "sha256": "E36CAB900B2CBCB42D1B8901C7E28ABFE46B16498E0BC7767EAEDB1B5C26362A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/roledata_1bdb4558c5378544f1a9e62c44c0aa36.bundle",
+    "bytes": 1609,
+    "sha256": "C21B10189719ABE865F2A825F3D1AAC5712493A1FD68EC82DEE7923723BFCF57"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/slotcal_aab579106068fa337811bb9edcc7a073.bundle",
+    "bytes": 1338,
+    "sha256": "3295EC800382B0B3D042B863FF3A6FB4C8A58CC18B6D8A992161CF1165AF41AC"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/slotreward_809c21857773f2c08fe59065a0e814e9.bundle",
+    "bytes": 1330,
+    "sha256": "0522D08EAF03B474D3CCB673D6F69A0EAC47E45290DC9F2FDC4ECF15040CFC2C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/task_b879f54ffc274182d64f4a1c988ef209.bundle",
+    "bytes": 1518,
+    "sha256": "2F4AB1251AD927C4C9CBE33BF8731AFF3C3815CA37FB21290024258A8AD1F64B"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/data/tutorial_c508ff42c90507b2d0c0c5df2f87c588.bundle",
+    "bytes": 1652,
+    "sha256": "7220129A36BCB141F8E1182DA04CE97AF97EBCA1BC7A4049489EDC1447E0B93E"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/achievement_441020c5a6d99750bb14968ac6a805d0.bundle",
+    "bytes": 10721,
+    "sha256": "57EE9C415E54B4638F9266F08DE32A93373C3D53E5AB4FC9B2FEA966E7404F23"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/affection_ba6c5b1c8a311c47b37e79fc8cb4d57f.bundle",
+    "bytes": 1582,
+    "sha256": "46A422BF6FC89B0A253543C2DA73B79519B830962A0C2F038258F9D7FB7961A9"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/announcement_8471e97ca561d7e96be7544fb486a947.bundle",
+    "bytes": 20670,
+    "sha256": "FD02FC35D3C9F5ECF481AE5DACB30AC92C12EE96379BD4E1459A0F6D9415686A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/blessing_6977339806bc40bb17da2ed139f895f6.bundle",
+    "bytes": 23908,
+    "sha256": "7038CA318902B9544E669285D00E5B952B8FE111F3DBFD3538F072E79BF76829"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/buff_6ab9e93bfa549af46bfc8f7d14febfd2.bundle",
+    "bytes": 36744,
+    "sha256": "B05F5FEB012D67DCF5D66537FD361AB126D164A768850D7391B0A5E770EFB281"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/card_ed4229cb3983fa881dc041bc7639291a.bundle",
+    "bytes": 71690,
+    "sha256": "E2274F9C4FAD3FBEAE4CBE321FFD9FF110714BD4643A629A7E1184D44A605BAD"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/cardpack_87a5de1e1b0663900a6f221cd364cf2d.bundle",
+    "bytes": 10073,
+    "sha256": "AC2841382ED5560B4C3D92F47D9FD242C88E8670FFB7EAE3E53E6B58733E6E3F"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/career_49f8101dfd919c40ab207ec73f8c2a8f.bundle",
+    "bytes": 23592,
+    "sha256": "35F0B01209ABA399AD556DC192E74120408A959423539E0AC0FF27ED79140E09"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/coin_5834ba15992aa0e3c7f8368dc4167db0.bundle",
+    "bytes": 1907,
+    "sha256": "FB806662AFD644BF00FDB00EF60ECC7F6985D011960D3A2D28A95D9E18E68D5F"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/destiny_50219a5ffa9c95eb4097d4a4f5fd519a.bundle",
+    "bytes": 3611,
+    "sha256": "DC709CEE29227DABBE322AEF3FB94845FB459A07773F1CFC46266BA34E7CBFEA"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/dialogue_df277883f438d9dfc5ed39f5b385c076.bundle",
+    "bytes": 46797,
+    "sha256": "B8B947784F7AC74637EFFD0C7034E1BB9FC30EC717AA6324663FCEDFA1E7443C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/enchtag_9a19340d5b9e44235082aec13318f030.bundle",
+    "bytes": 11525,
+    "sha256": "CBF20894427FC5C47E3E7246460D4550626008CA30A9CEFFADDC446E69314E80"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/enemy_5eb4d78b009c414003c1bc85876cfbd5.bundle",
+    "bytes": 14182,
+    "sha256": "4659EB3E6B3ACB7A75F6EE3605742EF0F5782543099E83278A0DD2208A2BAA7A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/enemycard_c735a8de16ae484edf076910d854e7ea.bundle",
+    "bytes": 10556,
+    "sha256": "66045886BD2CBE18DAABA39B285D8B4A250D1B241BB73D0259A5118F0A2441DB"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/eventlist_e7b2f50f16914fcfde544e0d4dcf13a7.bundle",
+    "bytes": 118854,
+    "sha256": "110E6FBCF323F25CA1DFFE75C5BE27C59934A553A4CD4806B1C89BE31C17DF77"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/fightpartner_fbf25efe85e31d8d3c07ba7f8f26ddff.bundle",
+    "bytes": 1939,
+    "sha256": "7F555B18E983A6F0D0CEFD10DB4AE1FB05577F3A7EDBC4B87930CC914343F635"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/hard_ae964979742a92def1ef09eb84979f8a.bundle",
+    "bytes": 5736,
+    "sha256": "6E35AE63C479499AB218057C3ECA92B2A5E394DB3C0044DDD76A77F8C6346A31"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/housedialogue_b1ae5caf69ec271e3ebed7d9e5f7d95f.bundle",
+    "bytes": 41054,
+    "sha256": "45FFD1BD3C92B94D65207F5F8AE93802C2F78E81BE46FD5BB38F2EBE1E2DBCBA"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/item_d0a70ceafab26afe8d6b8dbccdb4fff4.bundle",
+    "bytes": 8034,
+    "sha256": "8B177C0CC847AE7754D311A3AD03D20743785AC9364AF2BB784B5328493F1B7D"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/keywordsdic_3a125c8c9008a7b02e9d69c6d22392dd.bundle",
+    "bytes": 7780,
+    "sha256": "90147EF01E9AAEBD8D68B1DE673B33130558F96E2F036717A88B2902BED5C09C"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/map_e922a86b725d730b1b4ca7606ee8a75d.bundle",
+    "bytes": 29756,
+    "sha256": "989BE1722C02B333ABDE6F3F0A7610B19C9D99F4564418454A804316BF8BCE65"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/narration_121a6a8b749847e46418a77eb654af25.bundle",
+    "bytes": 17342,
+    "sha256": "38C7EC8A4002E581D857CFBD7765E5DAD4C8A9DD5F7DA1E77B704523F737CFFD"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/outsideshop_b3789ebce079b6971c73c1583eeba749.bundle",
+    "bytes": 10323,
+    "sha256": "747A24B57D93AAADB417A7BC3C9FF401A4FFC61BBFADE52409764455B9CB0F5B"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/partner_6edf488009d407c65513b5bf5855ff85.bundle",
+    "bytes": 3693,
+    "sha256": "086DDBACB5A251213B78CFDBD577F204C339FFDEF6F529A43826F7DF80D49D73"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/partnercard_51885537749df6870315a763c61fbb51.bundle",
+    "bytes": 2722,
+    "sha256": "F190DF123A2DC2ECA62E9C81F4F6E7DE01386C2F331910BB081643ADA6611DEE"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/relic_ca409bb56267c004ebce9104c09d25a6.bundle",
+    "bytes": 85198,
+    "sha256": "58F47537D1CAF94289D839E373D94096014FEEDA1630C2E92EB02F6D6CB38ADB"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/roledata_b35820e3d28ee0b5dabe9aadb87500c1.bundle",
+    "bytes": 2549,
+    "sha256": "7F26F06140EF6BBFC5F263B9F326FFEB90A9EDB2C3D28B2C27E6ED2F23A3B434"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/slotcal_b46ed6470f4ccc13127239c9e1261ede.bundle",
+    "bytes": 1742,
+    "sha256": "4CD8B1EB896EB4827DE25EFD5D28DEE52E4CF8A6D4FEB51654F86E8E0E6403B8"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/slotreward_c7b1ec0f537109a6b0fc4b2fa27443bb.bundle",
+    "bytes": 1669,
+    "sha256": "79C63EA2A9D4A52B720775553F5074788C9155AC93E10B052C4122D2236B29DB"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/task_faf17d31fa8d93a3ffca3a6283eef05b.bundle",
+    "bytes": 1680,
+    "sha256": "AB5E5E010E9AD571ADA417F4D536B2EE5895BD357D805D9F57A49181AFA93196"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_dataconfigs/text/tutorial_f52820455db8b93074a773d73b118bbe.bundle",
+    "bytes": 20648,
+    "sha256": "62872F4FB19DD135EF514AFC469AF773FA449B057A3B260288899285811ABB17"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/dataconfig_assets_script_89eb256e3e44e3cbd90ff392ba13cd9a.bundle",
+    "bytes": 244498,
+    "sha256": "3876A86E7F6932070B3CEDDE306B63133E614D6B57A4CB19F96E3B0F26E127CE"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/defaultlocalgroup_assets_all_06295c2867320a5d7a04c50bd52733f4.bundle",
+    "bytes": 5431,
+    "sha256": "0C50A1D1AE6B981E3272C20A9F4C00D51E35BAC26D7C9DCE56357DB05DCF4E6A"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/enchicon_assets_all_9e3ac7a418a51d1d4834f2f80c91581f.bundle",
+    "bytes": 183168,
+    "sha256": "7283BAC1817CD97B61C9F0BA978703B80298D44A9751759E5ED5E63676531360"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/fonts_assets_all_99245ce544af693c325df76d49c21924.bundle",
+    "bytes": 85955470,
+    "sha256": "F308D09153B9FC0C28F8271E31490AC01C3B45B75AA2AB44EAEA622A9152B2B6"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/food_assets_all_50550fb9e78b37d1be0e773c98a5a190.bundle",
+    "bytes": 76276,
+    "sha256": "CE40D0BCD3C471D5646F0B5382DB02BCCA10DC01B7F087110F34FD300D8B19D5"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/images_assets_all_1b7471da5de89a1a22cd567db37747ac.bundle",
+    "bytes": 69644729,
+    "sha256": "C415A655F1C40D6A10D289F5F500EDCBE1591C0937E09FAF7650FD407E415B67"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/item_assets_all_5f67cd10fe4a4b39f7da73cd1d99f068.bundle",
+    "bytes": 1456527,
+    "sha256": "1C133637AAAEF880EC986861B09D25D9238517332020C43E666BA77FB2F195D0"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-asset-tables-chinese(simplified)(zh-cn)_assets_all.bundle",
+    "bytes": 2260,
+    "sha256": "D73C6B7EC6A9CC2BED41826FC0643115F0F856415F50B89D2BCFA597A0B6FDE6"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-asset-tables-chinese(traditional)(zh-hant)_assets_all.bundle",
+    "bytes": 2236,
+    "sha256": "E376A12383341D1EA0250BC853E5F7EDE307DF9FCF48388DDA8AB52B5847978D"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-asset-tables-english(en)_assets_all.bundle",
+    "bytes": 2259,
+    "sha256": "6DC49C9D2986CDCC8DBC4096F88B17718E64ACD80A2D2AC3959088DB95CB2A5F"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-asset-tables-japanese(ja)_assets_all.bundle",
+    "bytes": 2236,
+    "sha256": "8F83BDCE3AC456EB2E8B65DF65D89E746F8EC1BFAF7A4347F860FB38F205B985"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-assets-chinese(simplified)(zh-cn)_assets_all.bundle",
+    "bytes": 324420,
+    "sha256": "DFF128B00C4E6CBFC9B17BBA905388700197C0CD8CFF5B6C3D104D04C2CDD213"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-assets-chinese(traditional)(zh-hant)_assets_all.bundle",
+    "bytes": 325107,
+    "sha256": "DAD355AE1F54319F42C8BDCB818F14D39A34FBBC902ADF7E310E522335F7EEE7"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-assets-english(en)_assets_all.bundle",
+    "bytes": 295455,
+    "sha256": "765BA97DD01D677A19237CE2B494094A268B733B6A5AADB9634B3078C5B26E00"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-assets-japanese(ja)_assets_all.bundle",
+    "bytes": 314720,
+    "sha256": "846870125167E2298565F6E95E30A9CE49C0F89EA8A9D80F2ADE1A406E160C44"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-assets-shared_assets_all.bundle",
+    "bytes": 17395,
+    "sha256": "FFB78AB46DD406D244CAA94FDB4A81DAAAD2A63A5B994B0ECAC0320AA191B69D"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-locales_assets_all.bundle",
+    "bytes": 2463,
+    "sha256": "EC5449587C62F3F8A1A3167E3CA27072AC534C012749801CDD2B1D3AFFA3CE15"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-string-tables-chinese(simplified)(zh-cn)_assets_all.bundle",
+    "bytes": 15097,
+    "sha256": "2D09708EFD0194E21DD7E459499726CEF8EFF1A92FC4DDC16A3834A7C07276A0"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-string-tables-chinese(traditional)(zh-hant)_assets_all.bundle",
+    "bytes": 14971,
+    "sha256": "DD640274539FE6FA730E2EED6EFCAE193EA844C98057FFCCAA275FD66104E863"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-string-tables-english(en)_assets_all.bundle",
+    "bytes": 15046,
+    "sha256": "9E4AF4D2046CAE96813C81C578D95652885F8DB7E2B6665EA140A030C4936A51"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-string-tables-japanese(ja)_assets_all.bundle",
+    "bytes": 16244,
+    "sha256": "D26FB9A74148550F525EA4C5FFD40F7933975721A6F69D2EEA8A249709AB286E"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/localization-string-tables-korean(ko)_assets_all.bundle",
+    "bytes": 14787,
+    "sha256": "D72A752D0C10BF78483174125D3435CF10667081E273AAB34AF3BFC5A90ECD3E"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/pe_assets_all_cb60d6754b91a820c97124ec271df2d7.bundle",
+    "bytes": 3083967,
+    "sha256": "EF534FD868B9F9915FA44FB9066E60257158EE9733F869F5345FF0DFA4C30BEC"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/relicicon_assets_all_48866fc05480b97edaee0fba2d41d15e.bundle",
+    "bytes": 158364,
+    "sha256": "9495209B4E2837CFB9061B108CD93697D9E569518A22CEA25EDBDAD48490B848"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/sounds_assets_all_735e7cea610485a0c66b2671787c2217.bundle",
+    "bytes": 312141709,
+    "sha256": "438EEBFEDC8C27A1EF9F3A0782B45FED87E6585D85AE7D21C04B896071C62F8D"
+  },
+  {
+    "path": "StreamingAssets/aa/StandaloneWindows64/vocal_assets_all_19333ed1c8cecda3e2ff775ebef8010f.bundle",
+    "bytes": 4426218,
+    "sha256": "CE2BF11DFAA2E73BAEAD7836B8373EB14662BB32E644A10B74E1C8B4338E2DB9"
+  },
+  {
+    "path": "StreamingAssets/Mod Upload Tool/WorkshopUploader.exe",
+    "bytes": 46275208,
+    "sha256": "5C955276CDA30597D801540394186EB93CFF6ACE11AD0884A692DC4C229E184E"
+  }
+]

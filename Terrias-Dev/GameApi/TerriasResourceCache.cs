@@ -10,6 +10,15 @@ public static class TerriasResourceCache
 {
     private const double SlowLoadWarningMilliseconds = 16.0;
 
+    /// <summary>
+    /// Probe the host's exact resource type contract without the shared cache's
+    /// compatibility conversion. Native consumers do not use that conversion.
+    /// </summary>
+    public static T[] LoadAllNative<T>(string path) where T : UnityEngine.Object
+    {
+        return ResourceLoader.LoadAll<T>(path) ?? Array.Empty<T>();
+    }
+
     public static T? Load<T>(string path, bool loadFromMod = true, string category = "")
         where T : UnityEngine.Object
     {

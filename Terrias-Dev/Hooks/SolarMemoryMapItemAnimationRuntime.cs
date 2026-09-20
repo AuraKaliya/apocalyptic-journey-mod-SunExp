@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Terrias.Dll.Application;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Witch.Core;
@@ -40,7 +41,7 @@ public static class SolarMemoryMapItemAnimationRuntime
                 || context.Arguments == null
                 || context.Arguments.Length == 0
                 || context.Arguments[0] is not MapTree.Node node
-                || !SolarMemoryMapPreviewApi.TryApplyAnimationOverride(node, out var applied, out var reason)
+                || !SolarMemoryMapPreviewApplication.TryApplyAnimationOverride(node, out var applied, out var reason)
                 || applied == null)
             {
                 return;
