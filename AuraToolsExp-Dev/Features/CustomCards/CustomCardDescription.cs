@@ -10,29 +10,40 @@ public static class CustomCardDescription
 {
     public static string Describe(CustomCardDocument doc)
     {
+        var result=CustomCardCompiler.Compile(doc);
+        return result.Success?result.Description:string.Join("\n",result.Issues.Select(i=>i.Message));
+    }
+    internal static string DescribeRules(IReadOnlyList<CustomCardRule> rules)
+    {
         var output=new StringBuilder();
-        var variables=new Dictionary<string,string>();
-        foreach(var rule in doc.Rules ?? new())
+        foreach(var rule in rules)
         {
             if(rule==null) continue;
-            output.Append(CustomCardNames.Name(rule.Trigger,CustomCardNames.Triggers));
-            if(rule.Trigger>=CardRuleTrigger.AfterUseRoundStart) output.Append(rule.MaximumTriggers==0 ? "（每次使用独立生效，本场持续）" : "（每次使用独立生效，本场最多 "+rule.MaximumTriggers+" 次）");
-            output.AppendLine("：");
-            if(rule.MaximumTriggersPerRound>0 && rule.Trigger>=CardRuleTrigger.AfterUseRoundStart)output.AppendLine("  每回合最多 "+rule.MaximumTriggersPerRound+" 次。");
-            if(rule.Condition.Kind!=CardValueKind.Exists || rule.Condition.Object.Kind!=CardObjectKind.Self)output.AppendLine("  满足 "+Value(rule.Condition)+" 时：");
-            Blocks(rule.Blocks,output,variables,1);
+            var body=new StringBuilder();var variables=new Dictionary<string,string>();
+            if(rule.Condition.Kind!=CardValueKind.Exists || rule.Condition.Object.Kind!=CardObjectKind.Self)body.AppendLine("  满足 "+Value(rule.Condition)+" 时：");
+            Blocks(rule.Blocks,body,variables,1);
+            output.Append(CustomCardNames.Name(rule.Trigger,CustomCardNames.Triggers)).Append('：');
+            var lines=body.ToString().TrimEnd().Split('\n');
+            if(lines.All(line=>line.StartsWith("  ",StringComparison.Ordinal)&&!line.StartsWith("    ",StringComparison.Ordinal)&&line.TrimEnd().EndsWith("。",StringComparison.Ordinal)))
+                output.AppendLine(string.Join("",lines.Select(line=>line.Trim())));
+            else {output.AppendLine();output.Append(body);}
         }
-        return output.ToString().TrimEnd();
+        return output.ToString().TrimEnd().Replace("\r\n","\n");
     }
     private static void Blocks(List<CardRuleBlock>? blocks,StringBuilder output,Dictionary<string,string> vars,int depth)
     {
         if(depth>CustomCardCompiler.MaximumDepth || blocks==null) return;
-        foreach(var b in blocks)
+        for(int index=0;index<blocks.Count;index++)
         {
+            var b=blocks[index];
             if(b==null) continue;
+            // Only a top-level final stop is equivalent to naturally completing this trigger.
+            if(depth==1&&index==blocks.Count-1&&b.Kind==CardBlockKind.Stop)continue;
             output.Append(' ',depth*2).AppendLine(Block(b,vars));
             if(b.Kind==CardBlockKind.RememberNumber || b.Kind==CardBlockKind.RememberObject) vars[b.Id]=b.VariableName;
-            if(b.Kind==CardBlockKind.If || b.Kind==CardBlockKind.Repeat || b.Kind==CardBlockKind.ForEach) Blocks(b.Then,output,new(vars),depth+1);
+            bool pick=b.Kind==CardBlockKind.PickEnemy||b.Kind==CardBlockKind.PickFriend||b.Kind==CardBlockKind.PickFromSet;
+            if(pick){var captured=new Dictionary<string,string>(vars){[b.Id]=b.VariableName};Blocks(b.Then,output,captured,depth+1);if(b.Else?.Count>0){output.Append(' ',depth*2).AppendLine("无可选目标：");Blocks(b.Else,output,new(vars),depth+1);}}
+            else if(b.Kind==CardBlockKind.If || b.Kind==CardBlockKind.Repeat || b.Kind==CardBlockKind.ForEach) Blocks(b.Then,output,new(vars),depth+1);
             if(b.Kind==CardBlockKind.If && b.Else?.Count>0) { output.Append(' ',depth*2).AppendLine("否则："); Blocks(b.Else,output,new(vars),depth+1); }
         }
     }
@@ -45,9 +56,32 @@ public static class CustomCardDescription
             CardBlockKind.ForEach => "逐个处理"+Subject(b.Object,vars)+"，满足 "+Value(b.Condition,vars)+"：",
             CardBlockKind.RememberNumber => "记住「"+b.VariableName+"」＝"+Value(b.Value,vars),
             CardBlockKind.RememberObject => "记住「"+b.VariableName+"」＝"+Subject(b.Object,vars),
-            _ => Subject(b.Object,vars)+" · "+CustomCardNames.Name(b.Effect,CustomCardNames.Effects)
-                +(CustomCardNames.HasAmount(b.Effect) ? " "+EffectAmount(b.Value,vars) : "")
-                +(CustomCardNames.NeedsBuff(b.Effect) ? "「"+b.ResourceId+"」" : "")
+            CardBlockKind.Stop => "不再执行此次触发的后续效果。",
+            CardBlockKind.PickEnemy=>"随机选择一个敌人，选中后：",CardBlockKind.PickFriend=>"随机选择一个友方（含使用者），选中后：",CardBlockKind.PickFromSet=>"从"+Subject(b.Object,vars)+"中随机选择一个角色，选中后：",
+            _ => Effect(b.Effect,Subject(b.Object,vars),CustomCardNames.HasAmount(b.Effect)?EffectAmount(b.Value,vars):"",b.ResourceId)
+        };
+    }
+    internal static string Effect(CardEffectKind kind,string subject,string amount,string resource)
+    {
+        subject=subject=="使用者"?"自身":subject=="使用时选中目标"?"选中目标":subject;
+        return kind switch
+        {
+            CardEffectKind.Damage=>"对"+subject+"造成 "+amount+" 点普通伤害。",
+            CardEffectKind.TrueDamage=>"对"+subject+"造成 "+amount+" 点真实伤害。",
+            CardEffectKind.Shield=>"给予"+subject+" "+amount+" 点护盾。",
+            CardEffectKind.Heal=>"为"+subject+"恢复 "+amount+" 点生命。",
+            CardEffectKind.MaxHealth=>subject+"生命上限增加 "+amount+"。",
+            CardEffectKind.Energy=>"获得 "+amount+" 点能量。",
+            CardEffectKind.Draw=>"抽 "+amount+" 张牌。",
+            CardEffectKind.AddBuff=>"对"+subject+"施加 "+amount+" 层「"+resource+"」。",
+            CardEffectKind.RemoveBuff=>"移除"+subject+"的「"+resource+"」。",
+            CardEffectKind.Discard=>"弃掉 "+amount+" 张手牌。",
+            CardEffectKind.Burn=>"焚毁 "+amount+" 张手牌。",
+            CardEffectKind.Shuffle=>"重洗牌堆。",
+            CardEffectKind.SelectFromDeck=>"从抽牌堆选择 "+amount+" 张牌加入手牌。",
+            CardEffectKind.SelectFromDiscard=>"从弃牌堆选择 "+amount+" 张牌加入手牌。",
+            CardEffectKind.EndTurn=>"结束回合。",
+            _=>throw new ArgumentOutOfRangeException(nameof(kind))
         };
     }
     private static string EffectAmount(CardValue value,IReadOnlyDictionary<string,string>? vars)
@@ -62,8 +96,12 @@ public static class CustomCardDescription
     internal static string Value(CardValue? v,IReadOnlyDictionary<string,string>? vars=null,int depth=0)
     {
         if(v==null || depth>CustomCardCompiler.MaximumDepth) return "[填写表达式]";
-        string Arg(int i) => v.Inputs!=null && i<v.Inputs.Count ? Value(v.Inputs[i],vars,depth+1) : "[填写]";
-        if(v.Kind==CardValueKind.Number) return v.Number.ToString("0.###",CultureInfo.InvariantCulture);
+        string Arg(int i) => v.Inputs!=null && i<v.Inputs.Count ? Value(v.Inputs[i],vars,depth+(CardBlueprintNumbers.Conversion(v.Kind)?0:1)) : "[填写]";
+        if(v.Kind==CardValueKind.Number) return CardBlueprintNumbers.Format(v.Number,v.NumberFormat)+(v.NumberFormat==CardNumberFormat.Percent?"%":v.NumberKind==CardNumberKind.Ratio?"（比例）":"");
+        if(v.Kind==CardValueKind.AsRatio)return "比例("+Arg(0)+")";
+        if(v.Kind==CardValueKind.AsNumber)return "比例的小数值("+Arg(0)+")";
+        if(v.Kind==CardValueKind.PercentPoints)return "百分数值("+Arg(0)+")";
+        if(v.Kind==CardValueKind.Approximately)return Arg(0)+" 约等于 "+Arg(1)+"（容差 "+Arg(2)+"）";
         if(v.Kind==CardValueKind.Read) return Subject(v.Object,vars)+"的"+CustomCardNames.Name(v.Field,CustomCardNames.Fields)+(v.Field==CardDataField.BuffStacks ? "「"+v.ResourceId+"」" : "");
         if(v.Kind==CardValueKind.Variable) return Variable(v.VariableId,vars);
         if(v.Kind==CardValueKind.Exists) return Subject(v.Object,vars)+"存在";

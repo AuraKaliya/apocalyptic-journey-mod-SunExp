@@ -91,11 +91,11 @@ internal static class AuraToolsBuiltInModules
     private static IAuraToolModule CustomCardsModule()
     {
         return Module(AuraToolModuleIds.CustomCards, "gameplay", 115, 35,
-            "自建卡牌", "组合条件与战斗效果、绘制像素卡面，免费制作原生卡牌。",
+            "卡牌工坊", "设计卡牌效果、绘制卡面并制作到仓库。",
             context => CustomCardArtworkRuntime.Initialize(context.ModConfig),
             () => true, _ => { },
             () => State(AuraToolModuleIds.CustomCards, true, "设计稿与成品独立保存"),
-            CustomCardWorkshop.Show, new[] { "自建", "卡牌", "创造魔法", "编辑", "像素", "条件" },
+            CustomCardWorkshop.Show, new[] { "自建", "卡牌", "创造魔法", "编辑", "像素", "条件", "蓝图", "模板", "节点" },
             showEnableControl: false, iconKey: AuraToolModuleIds.StarterDeck);
     }
 

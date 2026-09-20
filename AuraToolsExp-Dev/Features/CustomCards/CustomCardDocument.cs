@@ -9,9 +9,9 @@ namespace AuraToolsExp.Dll.Features.CustomCards;
 [JsonConverter(typeof(StringEnumConverter))]
 public enum CardRuleTrigger { Draw, Use, Discard, AfterUseRoundStart, AfterUseRoundEnd, AfterUseHurt }
 [JsonConverter(typeof(StringEnumConverter))]
-public enum CardBlockKind { Effect, If, Repeat, ForEach, RememberNumber, RememberObject }
+public enum CardBlockKind { Effect, If, Repeat, ForEach, RememberNumber, RememberObject, Stop, PickEnemy, PickFriend, PickFromSet }
 [JsonConverter(typeof(StringEnumConverter))]
-public enum CardValueKind { Number, Read, Variable, Add, Subtract, Multiply, Divide, Minimum, Maximum, Floor, Ceiling, Clamp, Equal, NotEqual, Greater, AtLeast, Less, AtMost, And, Or, Not, Exists }
+public enum CardValueKind { Number, Read, Variable, Add, Subtract, Multiply, Divide, Minimum, Maximum, Floor, Ceiling, Clamp, Equal, NotEqual, Greater, AtLeast, Less, AtMost, And, Or, Not, Exists, AsRatio, AsNumber, PercentPoints, Approximately }
 [JsonConverter(typeof(StringEnumConverter))]
 public enum CardObjectKind { Self, Target, Current, Saved, Enemies, Friends, All, RandomEnemy, RandomFriend }
 [JsonConverter(typeof(StringEnumConverter))]
@@ -27,8 +27,11 @@ public sealed class CardObjectReference
 
 public sealed class CardValue
 {
+    public string NodeId { get; set; } = "";
     public CardValueKind Kind { get; set; }
     public double Number { get; set; } = 1;
+    public CardNumberKind NumberKind { get; set; }
+    public CardNumberFormat NumberFormat { get; set; }
     public CardDataField Field { get; set; }
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
     public CardObjectReference Object { get; set; } = new();
@@ -37,7 +40,8 @@ public sealed class CardValue
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
     public List<CardValue> Inputs { get; set; } = new();
     public static CardValue Constant(double n) => new() { Number = n };
-    public static CardValue Reading(CardDataField field, CardObjectKind subject = CardObjectKind.Self) => new() { Kind = CardValueKind.Read, Field = field, Object = new() { Kind = subject } };
+    public static CardValue Ratio(double n,bool percent=true) => new() { Number=n,NumberKind=CardNumberKind.Ratio,NumberFormat=percent?CardNumberFormat.Percent:CardNumberFormat.Number };
+    public static CardValue Reading(CardDataField field, CardObjectKind subject = CardObjectKind.Self) => new() { Kind = CardValueKind.Read, Field = field, NumberKind=field==CardDataField.HealthPercent?CardNumberKind.Ratio:CardNumberKind.Value,NumberFormat=field==CardDataField.HealthPercent?CardNumberFormat.Percent:CardNumberFormat.Number,Object = new() { Kind = subject } };
     public static CardValue Compare(CardValueKind op, CardValue a, CardValue b) => new() { Kind = op, Inputs = new() { a, b } };
 }
 
@@ -75,6 +79,7 @@ public sealed class CustomCardRule
 
 public sealed class CustomCardArtwork
 {
+    public static bool SupportsNativeCardVersion(string version)=>version=="1"||version=="2";
     public int Size { get; set; } = 64;
     public string Pixels { get; set; } = Convert.ToBase64String(new byte[64 * 64]);
     public bool UsePixels { get; set; }
@@ -84,7 +89,7 @@ public sealed class CustomCardArtwork
 public sealed class CustomCardDocument
 {
     public const string FormatId = "AuraTools.CustomCard";
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 4;
     public string Format { get; set; } = FormatId;
     public int SchemaVersion { get; set; } = CurrentVersion;
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -98,8 +103,15 @@ public sealed class CustomCardDocument
     public bool Retain { get; set; }
     [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
     public CustomCardArtwork Artwork { get; set; } = new();
-    [Newtonsoft.Json.JsonProperty(ObjectCreationHandling = Newtonsoft.Json.ObjectCreationHandling.Replace)]
-    public List<CustomCardRule> Rules { get; set; } = new() { new() { Blocks = new() { new() } } };
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public CardBlueprint Graph { get; set; } = CardBlueprint.Basic();
+    // Only the explicitly versioned v1 reader consumes Rules. Never an alternate v2 source.
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore, ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<CustomCardRule>? Rules { get; set; }
+    public string LegacyBackup { get; set; } = "";
+    public string BlueprintV2Backup { get; set; } = "";
+    [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+    public List<string> MigrationReview { get; set; } = new();
 
     public CustomCardDocument Copy() => JsonConvert.DeserializeObject<CustomCardDocument>(JsonConvert.SerializeObject(this))!;
 
@@ -115,7 +127,11 @@ public sealed class CustomCardDocument
 
 public sealed class CardCompileIssue
 {
+    public string FieldId { get; set; } = "";
     public string NodeId { get; set; } = "";
+    public string PortId { get; set; } = "";
+    public string EdgeId { get; set; } = "";
+    public bool BlocksConnection { get; set; }
     public string Message { get; set; } = "";
     public override string ToString() => Message;
 }
@@ -123,6 +139,8 @@ public sealed class CardCompileIssue
 public sealed class CustomCardCompilation
 {
     public List<CardCompileIssue> Issues { get; } = new();
+    public List<CardCompileIssue> Warnings { get; } = new();
+    public List<CustomCardRule> Program { get; internal set; } = new();
     public Dictionary<string, string> Scripts { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> BuffReferences { get; } = new(StringComparer.Ordinal);
     public string Description { get; internal set; } = "";
@@ -131,24 +149,24 @@ public sealed class CustomCardCompilation
 
 internal static class CustomCardNames
 {
-    internal static readonly string[] Triggers = { "抽到时", "使用时", "丢弃时", "使用后 · 回合开始", "使用后 · 回合结束", "使用后 · 受到伤害" };
-    internal static readonly string[] Blocks = { "产生效果", "如果 / 否则", "重复执行", "逐个对象执行", "记住数值", "记住对象" };
-    internal static readonly string[] Values = { "固定数字", "读取战斗数据", "已记住的数值", "加", "减", "乘", "除", "较小值", "较大值", "向下取整", "向上取整", "限定范围", "等于", "不等于", "大于", "大于等于", "小于", "小于等于", "全部满足", "任一满足", "取反", "对象存在" };
-    internal static readonly string[] Objects = { "自己", "选中目标", "当前遍历对象", "已记住的对象", "所有敌人", "所有友方", "所有角色", "随机一个敌人", "随机一个友方" };
+    internal static readonly string[] Triggers = { "抽到时", "使用时", "丢弃时" };
+    internal static readonly string[] Blocks = { "产生效果", "如果 / 否则", "重复执行", "逐个对象执行", "记住数值", "记住对象", "结束本次流程" };
+    internal static readonly string[] Values = { "固定数值", "读取战斗数据", "已记住的数值", "加", "减", "乘", "除", "较小值", "较大值", "向下取整", "向上取整", "限定范围", "等于", "不等于", "大于", "大于等于", "小于", "小于等于", "全部满足", "任一满足", "条件取反", "对象存在", "数值转比例", "比例转小数", "百分比转数值", "约等于" };
+    internal static readonly string[] Objects = { "使用者", "使用时选中目标", "当前遍历对象", "已记住的对象", "所有敌人", "所有友方（含使用者）", "所有角色", "随机一个敌人", "随机一个友方" };
     internal static readonly string[] Fields = { "当前生命", "生命上限", "已损失生命", "生命百分比", "护盾", "指定状态层数", "当前能量", "能量上限", "手牌数量", "抽牌堆数量", "弃牌堆数量", "本牌基础费用" };
-    internal static readonly string[] Effects = { "造成普通伤害", "造成真实伤害", "获得护盾", "恢复生命", "增加生命上限", "获得能量", "抽牌", "添加状态", "移除状态", "弃牌", "焚毁手牌", "重新洗牌", "从抽牌堆选牌入手", "从弃牌堆选牌入手", "结束回合" };
+    internal static readonly string[] Effects = { "造成普通伤害", "造成真实伤害", "给予护盾", "恢复生命", "增加生命上限", "使用者获得能量", "使用者抽牌", "施加已有状态", "移除已有状态", "使用者弃牌", "焚毁使用者手牌", "重洗使用者牌堆", "从抽牌堆选牌入手", "从弃牌堆选牌入手", "结束使用者回合" };
     internal static string Name<T>(T value, string[] names) where T : Enum
     {
         var index = Convert.ToInt32(value);
         return index >= 0 && index < names.Length ? names[index] : "未知选项";
     }
-    internal static bool Boolean(CardValueKind kind) => kind >= CardValueKind.Equal;
+    internal static bool Boolean(CardValueKind kind) => CardBlueprintNumbers.Comparison(kind)||kind==CardValueKind.And||kind==CardValueKind.Or||kind==CardValueKind.Not||kind==CardValueKind.Exists;
     internal static bool Single(CardObjectKind kind) => kind <= CardObjectKind.Saved || kind == CardObjectKind.RandomEnemy || kind == CardObjectKind.RandomFriend;
     internal static int Arity(CardValueKind kind) => kind switch
     {
         CardValueKind.Number or CardValueKind.Read or CardValueKind.Variable or CardValueKind.Exists => 0,
-        CardValueKind.Floor or CardValueKind.Ceiling or CardValueKind.Not => 1,
-        CardValueKind.Clamp => 3,
+        CardValueKind.Floor or CardValueKind.Ceiling or CardValueKind.Not or CardValueKind.AsRatio or CardValueKind.AsNumber or CardValueKind.PercentPoints => 1,
+        CardValueKind.Clamp or CardValueKind.Approximately => 3,
         _ => 2
     };
     internal static bool HasAmount(CardEffectKind effect) => effect != CardEffectKind.RemoveBuff && effect != CardEffectKind.Shuffle && effect != CardEffectKind.EndTurn;

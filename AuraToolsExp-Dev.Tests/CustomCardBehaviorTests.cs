@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Newtonsoft.Json;
 using AuraToolsExp.Dll.Features.CustomCards;
 using AuraToolsExp.Dll.Features.PixelEmoji;
 
@@ -6,34 +7,94 @@ internal static partial class AuraToolsTestSuite
 {
     public static void TestCustomCards(bool executeLua=false)
     {
+        TestCardNodeContracts(executeLua);
+        TestCardScriptRepair(executeLua);
+        TestCardDescriptions();
+        TestCardNumbers(executeLua);
+        CustomCardDocument Program(params CardRuleBlock[] blocks)=>new(){Graph=CardBlueprintMigration.FromProgram(new[]{new CustomCardRule{Blocks=blocks.ToList()}})};
         var doc=new CustomCardDocument();
-        Assert(CustomCardCompiler.Compile(doc).Success,"new card compiles");
-        var invalid=doc.Copy();invalid.Rules[0].Trigger=CardRuleTrigger.Draw;
-        Assert(!CustomCardCompiler.Compile(invalid).Success,"draw rule cannot read selected target");
-        invalid=doc.Copy();invalid.Rules[0].Blocks[0].Value=new(){Kind=CardValueKind.Variable,VariableId="missing"};
-        Assert(!CustomCardCompiler.Compile(invalid).Success,"undefined variable is rejected");
-        invalid=doc.Copy();invalid.Rules[0].Blocks[0].Value=CardValue.Compare(CardValueKind.Divide,CardValue.Constant(1),CardValue.Constant(0));
-        Assert(!CustomCardCompiler.Compile(invalid).Success,"literal zero division is rejected");
-        invalid=doc.Copy();invalid.Rules[0].Blocks[0].Effect=CardEffectKind.Energy;
+        var visualDocument=doc.Copy();visualDocument.Name="图鉴草稿";visualDocument.Cost=3;visualDocument.Rarity=2;visualDocument.Burnout=true;visualDocument.Retain=true;visualDocument.Note="风味";
+        var visualCompilation=CustomCardCompiler.Compile(visualDocument);
+        var originalVisual=JsonConvert.SerializeObject(visualDocument);
+        var visualFields=CustomCardPresentationData.Create(visualDocument,visualCompilation,"preview");
+        Assert(visualFields["Name"]=="图鉴草稿"&&visualFields["Expend"]=="3"&&visualFields["Rarity"]=="2"&&visualFields["Type"]=="攻击牌","native draft and crafting use the same display attributes");
+        Assert(visualFields["Tag"]=="Burnout,Retain,"&&visualFields["Note"]=="风味"&&visualFields["Description"]==visualCompilation.Description,"native display retains traits, flavor and compiled description");
+        Assert(!visualFields.Keys.Any(k=>k.EndsWith("Script")||k=="RawData"||k=="AuraToolsCustomCardArt"),"preview projection cannot execute or persist a crafted card");
+        visualFields["Name"]="changed";
+        Assert(JsonConvert.SerializeObject(visualDocument)==originalVisual,"native preview fields are independent of editable draft data");
+        visualDocument.Graph.Nodes.Clear();
+        Assert(CustomCardPresentationData.Create(visualDocument,CustomCardCompiler.Compile(visualDocument),"preview")["Description"]=="效果尚未完成","incomplete draft keeps a clear non-executable native preview");
+        Assert(CustomCardArtwork.SupportsNativeCardVersion("1")&&CustomCardArtwork.SupportsNativeCardVersion("2")&&!CustomCardArtwork.SupportsNativeCardVersion("3"),"native artwork recognizes legacy and blueprint cards only");
+        Assert(CustomCardCompiler.Compile(doc).Success,"new blueprint compiles");
+        var invalid=doc.Copy();invalid.Graph.Nodes.First(n=>n.Kind==CardNodeKind.Entry).Trigger=CardRuleTrigger.Draw;
+        Assert(!CustomCardCompiler.Compile(invalid).Success,"draw cannot read selected target");
+        invalid=Program(new CardRuleBlock{Value=new(){Kind=CardValueKind.Variable,VariableId="missing"}});
+        Assert(!CustomCardCompiler.Compile(invalid).Success,"missing capture rejected");
+        invalid=Program(new CardRuleBlock{Value=CardValue.Compare(CardValueKind.Divide,CardValue.Constant(1),CardValue.Constant(0))});
+        Assert(!CustomCardCompiler.Compile(invalid).Success,"zero divisor rejected");
+        invalid=Program(new CardRuleBlock{Effect=CardEffectKind.Energy});
         Assert(!CustomCardCompiler.Compile(invalid).Success,"energy cannot target enemies");
-        invalid=doc.Copy();invalid.Rules[0].Blocks[0].Effect=CardEffectKind.AddBuff;invalid.Rules[0].Blocks[0].ResourceId="missing";
-        Assert(!CustomCardCompiler.Compile(invalid,_=>null).Success,"unloaded resource blocks crafting");
-        invalid=doc.Copy();invalid.SchemaVersion=99;
-        Assert(!CustomCardCompiler.Compile(invalid).Success,"future document cannot be compiled");
-        var remember=new CardRuleBlock { Kind=CardBlockKind.RememberNumber,VariableName="基础伤害",Value=CardValue.Compare(CardValueKind.Multiply,CardValue.Reading(CardDataField.Shield),CardValue.Constant(2)) };
-        var damage=new CardRuleBlock { Object=new(){Kind=CardObjectKind.Current},Value=new(){Kind=CardValueKind.Variable,VariableId=remember.Id} };
-        var branch=new CardRuleBlock { Kind=CardBlockKind.If,Condition=CardValue.Compare(CardValueKind.Greater,CardValue.Reading(CardDataField.Health,CardObjectKind.Current),CardValue.Constant(10)),Then=new(){damage},Else=new(){new(){Object=new(){Kind=CardObjectKind.Current},Value=CardValue.Constant(1)}} };
-        var each=new CardRuleBlock { Kind=CardBlockKind.ForEach,Object=new(){Kind=CardObjectKind.Enemies},Condition=new(){Kind=CardValueKind.Exists,Object=new(){Kind=CardObjectKind.Current}},Then=new(){branch} };
-        doc.Rules[0].Blocks=new(){remember,each,new(){Effect=CardEffectKind.Shield,Object=new(),Value=CardValue.Constant(6)}};
-        var compilation=CustomCardCompiler.Compile(doc);
-        Assert(compilation.Success,"nested branches and variable references compile");
-        var another=CustomCardCompiler.Compile(doc.Copy());
-        Assert(compilation.Scripts.SequenceEqual(another.Scripts),"compilation is deterministic across serialization");
-        var trial=new CardTrialInput();var result=CustomCardTrial.Run(doc,trial,CardRuleTrigger.Use);
-        Assert(result.Last().Contains("护盾 14")&&result.Last().Contains("敌人生命 14"),"trial evaluates captured value before later shield change");
-        Assert(trial.Self.Shield==8&&trial.Enemies[0].Health==30,"trial does not mutate supplied scenario");
-        invalid=doc.Copy();invalid.Rules[0].Blocks.RemoveAt(0);
-        Assert(!CustomCardCompiler.Compile(invalid).Success,"removed definition invalidates dependent nested block");
+        invalid=Program(new CardRuleBlock{Effect=CardEffectKind.AddBuff,ResourceId="missing"});
+        Assert(!CustomCardCompiler.Compile(invalid,_=>null).Success,"missing resource prevents crafting");
+        for(int i=0;i<CardBlueprintTemplates.Names.Length;i++)
+        {
+            var template=CardBlueprintTemplates.Create(i);
+            if(i==6)template.Graph.Nodes.First(n=>n.Field==CardDataField.BuffStacks).ResourceId="sample";
+            var compiled=CustomCardCompiler.Compile(template);
+            Assert(compiled.Success,"template compiles: "+i+" "+string.Join(";",compiled.Issues));
+            Assert(!compiled.Scripts.Values.Any(s=>s.Contains("__listen")||s.Contains("AddEvent('Hurt'")),"new cards contain no persistent listener generation");
+        }
+        var half=CardBlueprintTemplates.Create(1);
+        var remember=new CardRuleBlock{Kind=CardBlockKind.RememberNumber,VariableName="原护盾",Value=CardValue.Reading(CardDataField.Shield)};
+        doc=Program(remember,new(){Effect=CardEffectKind.Shield,Object=new(),Value=CardValue.Constant(6)},new(){Value=new(){Kind=CardValueKind.Variable,VariableId=remember.Id}});
+        var compiledRemember=CustomCardCompiler.Compile(doc);
+        Assert(compiledRemember.Success,"capture graph compiles");
+        var copied=CardBlueprintMigration.Read(JsonConvert.SerializeObject(doc));
+        copied.Graph.Nodes.ForEach(n=>n.X+=123);
+        Assert(compiledRemember.Scripts.SequenceEqual(CustomCardCompiler.Compile(copied).Scripts),"layout and serialization do not alter emitted program");
+        invalid=doc.Copy();invalid.Graph.Delete(new[]{remember.Id});
+        Assert(!CustomCardCompiler.Compile(invalid).Success,"removing a capture invalidates its consumers");
+        // Connection checks are the same semantic validator used by production compilation.
+        var branch=half.Graph.Nodes.First(n=>n.Kind==CardNodeKind.If&&n.Label!="触发条件");
+        var action=half.Graph.Nodes.First(n=>n.Kind==CardNodeKind.Effect);
+        var badEdge=new CardGraphEdge{From=action.Id,Output="next",To=branch.Id,Input="condition"};
+        var before=JsonConvert.SerializeObject(half.Graph);
+        Assert(!CardBlueprintCompiler.Connect(half.Graph,badEdge,true,out _)&&JsonConvert.SerializeObject(half.Graph)==before,"rejected reconnection preserves original graph");
+        var selfCycle=new CardGraphEdge{From=action.Id,Output="next",To=action.Id,Input="in"};
+        Assert(CardBlueprintCompiler.ConnectionError(half.Graph,selfCycle)!=null,"execution self-cycle rejected");
+        var incomplete=new CustomCardDocument();var control=incomplete.Graph.Add(CardNodeKind.If,300,0);
+        var entry=incomplete.Graph.Nodes.First(n=>n.Kind==CardNodeKind.Entry);
+        Assert(CardBlueprintCompiler.Connect(incomplete.Graph,new(){From=entry.Id,Output="next",To=control.Id,Input="in"},true,out _),"well-typed execution connection accepts an unfinished condition");
+        Assert(!CustomCardCompiler.Compile(incomplete).Success,"unfinished conditions still prevent crafting");
+        var insertDoc=new CustomCardDocument();var originalEdge=insertDoc.Graph.Edges[0];var shieldNode=new CardGraphNode{Kind=CardNodeKind.Effect,Effect=CardEffectKind.Shield,Number=3};
+        Assert(CardBlueprintCompiler.Insert(insertDoc.Graph,originalEdge.Id,shieldNode,true,out _),"compatible node inserts atomically into execution edge");
+        var saved=new CardRuleBlock{Kind=CardBlockKind.RememberNumber,VariableName="内部分支",Value=CardValue.Constant(3)};
+        invalid=Program(new CardRuleBlock{Kind=CardBlockKind.If,Then=new(){saved}},new(){Value=new(){Kind=CardValueKind.Variable,VariableId=saved.Id}});
+        Assert(!CustomCardCompiler.Compile(invalid).Success,"branch capture cannot leak to continuation");
+        var randomCapture=new CardRuleBlock{Kind=CardBlockKind.RememberObject,Object=new(){Kind=CardObjectKind.RandomEnemy},VariableName="随机目标"};
+        var randomDoc=Program(randomCapture,new(){Object=new(){Kind=CardObjectKind.Saved,VariableId=randomCapture.Id}},new(){Object=new(){Kind=CardObjectKind.Saved,VariableId=randomCapture.Id}});
+        var select=CardBlueprintTemplates.Create(8);
+        var energyRead=Program(new CardRuleBlock{Effect=CardEffectKind.Shield,Object=new(),Value=CardValue.Reading(CardDataField.MaxEnergy)});
+        var dynamicDivide=Program(new CardRuleBlock{Value=CardValue.Compare(CardValueKind.Divide,CardValue.Constant(5),CardValue.Reading(CardDataField.Energy))});
+        var legacy=new CustomCardDocument{SchemaVersion=1,Rules=new(){new(){Blocks=new(){new()}}}};
+        var migrated=CardBlueprintMigration.Read(JsonConvert.SerializeObject(legacy));
+        Assert(migrated.SchemaVersion==CustomCardDocument.CurrentVersion&&migrated.Rules==null&&migrated.LegacyBackup.Length>0&&CustomCardCompiler.Compile(migrated).Success,"v1 direct draft migrates one-way with original retained");
+        legacy.Rules![0].Trigger=CardRuleTrigger.AfterUseHurt;
+        migrated=CardBlueprintMigration.Read(JsonConvert.SerializeObject(legacy));
+        Assert(migrated.Graph.Nodes.Any(n=>n.Kind==CardNodeKind.Unsupported)&&!CustomCardCompiler.Compile(migrated).Success,"legacy listeners are retained for repair, never silently converted");
+        legacy.Rules=new(){new(){Blocks=new(){new(){Effect=CardEffectKind.SelectFromDeck,Object=new()}}},new(){Blocks=new(){new()}}};
+        migrated=CardBlueprintMigration.Read(JsonConvert.SerializeObject(legacy));
+        Assert(migrated.MigrationReview.Count>0&&!CustomCardCompiler.Compile(migrated).Success,"asynchronous multi-rule migration requires explicit review");
+        var fragment=doc.Graph.Fragment(doc.Graph.Nodes.Select(n=>n.Id));var paste=new CardBlueprint();paste.Paste(fragment);paste.Paste(fragment);
+        Assert(paste.Nodes.Select(n=>n.Id).Distinct().Count()==paste.Nodes.Count&&paste.Edges.All(e=>paste.Nodes.Any(n=>n.Id==e.From)&&paste.Nodes.Any(n=>n.Id==e.To)),"paste remaps identities and edges");
+        invalid=new();invalid.Graph.Nodes.First(n=>n.Kind==CardNodeKind.Effect).Number=-1;
+        var draft=CardBlueprintMigration.Read(JsonConvert.SerializeObject(invalid));
+        Assert(!CustomCardCompiler.Compile(draft).Success,"semantically invalid drafts remain importable");
+        var filtered=Program(new CardRuleBlock{Kind=CardBlockKind.ForEach,Object=new(){Kind=CardObjectKind.Enemies},Condition=CardValue.Compare(CardValueKind.Less,CardValue.Reading(CardDataField.Health,CardObjectKind.Current),CardValue.Constant(20)),Then=new(){new(){Object=new(){Kind=CardObjectKind.Current}}}});
+        invalid=new();invalid.Graph.PanX=float.NaN;bool rejected=false;
+        try{CardBlueprintMigration.Read(JsonConvert.SerializeObject(invalid));}catch(InvalidOperationException){rejected=true;}
+        Assert(rejected,"unsafe imported canvas coordinates rejected before Unity rendering");
+        var emptyLoops=Program(new CardRuleBlock{Kind=CardBlockKind.Repeat,Value=CardValue.Constant(64),Then=new(){new(){Kind=CardBlockKind.Repeat,Value=CardValue.Constant(64)}}},new(){Value=CardValue.Constant(2)});
         foreach(int size in CardPixelCanvas.Sizes)
         {
             foreach(int template in Enumerable.Range(0,CardPixelCanvas.Templates.Length))
@@ -59,26 +120,31 @@ internal static partial class AuraToolsTestSuite
         Assert(IndexedPixelCanvas.Fill(pixels,24,23,0,4),"shared raster fills connected region");
         Assert(IndexedPixelCanvas.Resize(pixels,24,64).Length==4096,"canvas resize preserves requested dimensions");
         if(!executeLua)return;
-        RunCardLua(compilation.Scripts["UseScript"],"assert(enemy.CurHp==14 and own.Defend==14); assert(self.Object:get_Item(0)==enemy and self.status==nil); assert(self.Target==enemy)");
-        var arithmetic=new CustomCardDocument();
-        arithmetic.Rules[0].Blocks[0].Value=CardValue.Compare(CardValueKind.Subtract,CardValue.Constant(1),CardValue.Constant(-2));
-        RunCardLua(CustomCardCompiler.Compile(arithmetic).Scripts["UseScript"],"assert(enemy.CurHp==27)");
-        var repeat=new CustomCardDocument();repeat.Rules[0].Blocks=new(){new(){Kind=CardBlockKind.Repeat,Value=CardValue.Constant(3),Then=new(){new(){Value=CardValue.Constant(2)}}}};
-        RunCardLua(CustomCardCompiler.Compile(repeat).Scripts["UseScript"],"assert(enemy.CurHp==24)");
-        var shortCircuit=new CustomCardDocument();shortCircuit.Rules[0].Blocks=new(){new(){Kind=CardBlockKind.If,Condition=new(){Kind=CardValueKind.And,Inputs=new(){CardValue.Compare(CardValueKind.Equal,CardValue.Constant(0),CardValue.Constant(1)),CardValue.Compare(CardValueKind.Greater,CardValue.Compare(CardValueKind.Divide,CardValue.Constant(1),CardValue.Reading(CardDataField.Energy)),CardValue.Constant(0))}},Then=new(){new()}}};
+        RunCardLua(CustomCardCompiler.Compile(insertDoc).Scripts["UseScript"],"assert(own.Defend==11 and enemy.CurHp==24)");
+        RunCardLua(CustomCardCompiler.Compile(randomDoc).Scripts["UseScript"],"assert(enemy.CurHp==18 and rolls==1)");
+        RunCardLua(CustomCardCompiler.Compile(energyRead).Scripts["UseScript"],"assert(own.Defend==15)","CS.FightPlayer.Instance.MaxPowerCount=7\n");
+        RunCardLua("local ok,err=pcall(assert(load("+JsonConvert.SerializeObject(CustomCardCompiler.Compile(dynamicDivide).Scripts["UseScript"])+")));assert(not ok and string.find(err,'除数为零'))","assert(enemy.CurHp==30)","CS.FightPlayer.Instance.CurPowerCount=0\n");
+        RunCardLua(CustomCardCompiler.Compile(filtered).Scripts["UseScript"],"assert(enemy.CurHp==4)","enemy.CurHp=10\n");
+        RunCardLua(CustomCardCompiler.Compile(filtered).Scripts["UseScript"],"assert(enemy.CurHp==30)");
+        RunCardLua(compiledRemember.Scripts["UseScript"],"assert(enemy.CurHp==22 and own.Defend==14)");
+        foreach(var hp in new[]{49,50,51})RunCardLua(CustomCardCompiler.Compile(half).Scripts["UseScript"],"assert(enemy.CurHp=="+(hp<50?18:24)+")","own.CurHp="+hp+";own.MaxHp=100\n");
+        RunCardLua(CustomCardCompiler.Compile(CardBlueprintTemplates.Create(4)).Scripts["UseScript"],"assert(enemy.CurHp==24)");
+        RunCardLua(CustomCardCompiler.Compile(select).Scripts["UseScript"],"assert(own.Defend==8);pending(List({card}));pending(List({card}));assert(own.Defend==11 and self.HandCard.Count==1)");
+        RunCardLua(CustomCardCompiler.Compile(select).Scripts["UseScript"],"pending(List());assert(own.Defend==8)");
+        var drawing=Program(new CardRuleBlock{Effect=CardEffectKind.Draw,Object=new(),Value=CardValue.Constant(1)},new(){Value=CardValue.Reading(CardDataField.HandCount)});
+        RunCardLua(CustomCardCompiler.Compile(drawing).Scripts["UseScript"],"assert(enemy.CurHp==30);self.HandCard:Add(card);fightui.createCardQueue:Clear();local resume=events.EndCreateCardItem[1];resume();resume();assert(enemy.CurHp==29);assert(next(CS.EventCenter.Instance.listeners)==nil)","function self:DrawCount(n) fightui.createCardQueue:Add(card) end\n");
+        var shortCircuit=Program(new CardRuleBlock{Kind=CardBlockKind.If,Condition=new(){Kind=CardValueKind.And,Inputs=new(){CardValue.Compare(CardValueKind.Equal,CardValue.Constant(0),CardValue.Constant(1)),CardValue.Compare(CardValueKind.Greater,CardValue.Compare(CardValueKind.Divide,CardValue.Constant(1),CardValue.Reading(CardDataField.Energy)),CardValue.Constant(0))}},Then=new(){new()}});
         RunCardLua(CustomCardCompiler.Compile(shortCircuit).Scripts["UseScript"],"assert(enemy.CurHp==30)","CS.FightPlayer.Instance.CurPowerCount=0\n");
-        var selection=new CustomCardDocument();selection.Rules[0].Blocks=new(){new(){Effect=CardEffectKind.SelectFromDeck,Object=new(),Value=CardValue.Constant(1)},new(){Effect=CardEffectKind.Shield,Object=new(),Value=CardValue.Constant(3)}};
-        RunCardLua(CustomCardCompiler.Compile(selection).Scripts["UseScript"],"assert(own.Defend==8); assert(pending~=nil); pending(List({card})); assert(own.Defend==11 and self.HandCard.Count==1); pending(List({card})); assert(own.Defend==11)");
-        var listener=new CustomCardDocument();listener.Rules[0].Trigger=CardRuleTrigger.AfterUseHurt;listener.Rules[0].MaximumTriggers=1;listener.Rules[0].Blocks=new(){new(){Effect=CardEffectKind.Shield,Object=new(),Value=CardValue.Constant(4)}};
-        RunCardLua(CustomCardCompiler.Compile(listener).Scripts["UseScript"],"assert(own.Defend==8); events.Hurt[1](); events.Hurt[1](); assert(own.Defend==12)");
-        listener.Rules[0].MaximumTriggers=0;listener.Rules[0].MaximumTriggersPerRound=1;
-        listener.Rules[0].Condition=CardValue.Compare(CardValueKind.Less,CardValue.Reading(CardDataField.Health),CardValue.Constant(20));
-        RunCardLua(CustomCardCompiler.Compile(listener).Scripts["UseScript"],"events.Hurt[1](); assert(own.Defend==8); own.CurHp=10;events.Hurt[1]();events.Hurt[1]();assert(own.Defend==12);events.StartRound[1]();events.Hurt[1]();assert(own.Defend==16)");
-        var drawing=new CustomCardDocument();drawing.Rules[0].Blocks=new(){new(){Effect=CardEffectKind.Draw,Object=new(),Value=CardValue.Constant(1)},new(){Value=CardValue.Reading(CardDataField.HandCount)}};
-        RunCardLua(CustomCardCompiler.Compile(drawing).Scripts["UseScript"],"assert(enemy.CurHp==30);self.HandCard:Add(card);fightui.createCardQueue:Clear();events.EndCreateCardItem[1]();assert(enemy.CurHp==29)","function self:DrawCount(n) fightui.createCardQueue:Add(card) end\n");
-        // Hundreds of sibling functions must not exceed Lua's per-function local-variable limit.
-        var wide=new CustomCardDocument();wide.Rules[0].Blocks=Enumerable.Range(0,100).Select(_=>new CardRuleBlock{Value=CardValue.Constant(0)}).ToList();
+        var wide=Program(Enumerable.Range(0,100).Select(_=>new CardRuleBlock{Value=CardValue.Constant(0)}).ToArray());
         RunCardLua(CustomCardCompiler.Compile(wide).Scripts["UseScript"],"assert(enemy.CurHp==30)");
+        var recursive=CustomCardCompiler.Compile(new CustomCardDocument()).Scripts["UseScript"];
+        RunCardLua("local program=assert(load("+JsonConvert.SerializeObject(CustomCardCompiler.Compile(emptyLoops).Scripts["UseScript"])+"))\nlocal ok,err=pcall(program)\nassert(not ok and string.find(err,'4096'))","assert(enemy.CurHp==30)");
+        RunCardLua("local blueprint=assert(load("+JsonConvert.SerializeObject(recursive)+"))\nhits=0\nfunction self:Damage(a,b) hits=hits+1;blueprint() end\nlocal ok,err=pcall(blueprint)\nassert(not ok and hits<=64 and string.find(err,'连锁'))","assert(_G.__AuraCustomCardV2.current==nil)");
+        var drawChain=new CustomCardDocument{Targeted=false,Graph=CardBlueprintMigration.FromProgram(new[]{new CustomCardRule{Trigger=CardRuleTrigger.Draw,Blocks=new(){new(){Effect=CardEffectKind.Draw,Object=new(),Value=CardValue.Constant(1)}}}})};
+        var drawSource=CustomCardCompiler.Compile(drawChain).Scripts["DrawScript"];
+        RunCardLua("local blueprint=assert(load("+JsonConvert.SerializeObject(drawSource)+"))\nfunction self:DrawCount(n) fightui.createCardQueue:Add(card) end\nlocal ok,err=pcall(function() for i=1,129 do blueprint() end end)\nassert(not ok and string.find(err,'连锁'))\nfightui.createCardQueue:Clear()\nlocal callbacks={}\nfor _,cb in ipairs(events.EndCreateCardItem) do callbacks[#callbacks+1]=cb end\nfor _,cb in ipairs(callbacks) do cb() end","assert(next(CS.EventCenter.Instance.listeners)==nil and _G.__AuraCustomCardV2.pending==nil)");
+        var discard=Program(new CardRuleBlock{Effect=CardEffectKind.Discard,Object=new(),Value=CardValue.Constant(1)},new(){Value=CardValue.Constant(2)});
+        RunCardLua(CustomCardCompiler.Compile(discard).Scripts["UseScript"],"assert(self.Object[0]==enemy and self.status==nil);pending(List());assert(enemy.CurHp==30)","self.HandCard:Add(card)\nfunction self:ChooseCardToAction(n,callback,t) self:SetStatus('Self');self.status=own;pending=callback end\n");
     }
     private static int ReadBigEndian(byte[] bytes,int start)=>(bytes[start]<<24)|(bytes[start+1]<<16)|(bytes[start+2]<<8)|bytes[start+3];
     private static void RunCardLua(string source,string assertion,string prefix="")

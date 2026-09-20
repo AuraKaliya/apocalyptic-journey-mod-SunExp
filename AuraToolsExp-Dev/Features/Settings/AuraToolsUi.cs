@@ -584,7 +584,7 @@ internal static class AuraToolsUi
         return content;
     }
 
-    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f, Func<bool>? canClose = null)
+    public static GameObject CreateOverlay(string name, Transform parent, string title, Action? onClose = null, bool singleInstance = true, float maxWidth = 1180f, Func<bool>? canClose = null, bool fullWindow = true, float preferredHeight = 0)
     {
         var returnFocus = EventSystem.current?.currentSelectedGameObject;
         var overlayRoot = ResolveOverlayRoot(parent);
@@ -597,30 +597,17 @@ internal static class AuraToolsUi
         overlay.AddComponent<AuraToolsOwnedOverlay>();
         var overlayRect = overlay.GetComponent<RectTransform>();
         overlayRect.pivot = new Vector2(0.5f, 0.5f);
-        overlayRect.offsetMin = new Vector2(8f, 8f);
-        overlayRect.offsetMax = new Vector2(-8f, -8f);
+        overlayRect.offsetMin = Vector2.zero;
+        overlayRect.offsetMax = Vector2.zero;
         overlay.transform.SetAsLastSibling();
         EnsureLayoutElement(overlay).ignoreLayout = true;
-        AddImage(overlay, new Color(0f, 0f, 0f, 0.68f));
+        AddImage(overlay, new Color(0.04f, 0.03f, 0.08f, fullWindow ? 1f : 0.68f));
 
         Canvas.ForceUpdateCanvases();
-        var availableWidth = overlayRect.rect.width;
-        var useFixedWidth = availableWidth > maxWidth + 36f;
-        var window = useFixedWidth
-            ? CreateRect("Window", overlay.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero)
-            : CreateRect("Window", overlay.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
-        var windowRect = window.GetComponent<RectTransform>();
-        if (useFixedWidth)
-        {
-            windowRect.sizeDelta = new Vector2(maxWidth, -16f);
-            windowRect.anchoredPosition = Vector2.zero;
-        }
-        else
-        {
-            windowRect.offsetMin = new Vector2(10f, 8f);
-            windowRect.offsetMax = new Vector2(-10f, -8f);
-        }
+        var window = CreateRect("Window", overlay.transform, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
         AddSettingsWindowImage(window);
+        try { AuraToolsWindowHost.Attach(window, parent, fullWindow, maxWidth, preferredHeight); }
+        catch { overlay.SetActive(false); Object.Destroy(overlay); throw; }
         var layout = window.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(16, 16, 12, 12);
         layout.spacing = 8f;
@@ -649,7 +636,7 @@ internal static class AuraToolsUi
             1f,
             autoSize: true);
         titleText.textWrappingMode = TextWrappingModes.NoWrap;
-        ToolboxIconButtonV2.Create(header.transform, "action.clear", "关闭", () =>
+        void Close()
         {
             if (canClose != null && !canClose()) return;
             CloseSelectPopup();
@@ -659,7 +646,13 @@ internal static class AuraToolsUi
             AuraSharedFrameScheduler.StartCoroutine(
                 "AuraTools.Overlay.RestoreFocus",
                 RestoreFocusNextFrame(returnFocus));
-        }, 42f, "×");
+        }
+        ToolboxIconButtonV2.Create(header.transform, "action.clear", "关闭", Close, 42f, "×");
+        if (fullWindow)
+        {
+            var back = AddButton(header.transform, "返回", Close, 64f, 36f);
+            back.transform.SetAsFirstSibling();
+        }
 
         return window;
     }
@@ -677,7 +670,7 @@ internal static class AuraToolsUi
             parent,
             title,
             singleInstance: true,
-            maxWidth: 620f);
+            maxWidth: 620f, fullWindow: false, preferredHeight: 340f);
         var overlay = window.transform.parent?.gameObject;
         var messageText = AddText(
             window.transform,
@@ -937,6 +930,8 @@ internal static class AuraToolsUi
 
     private static Transform ResolveOverlayRoot(Transform parent)
     {
+        var canvas = parent.GetComponentInParent<Canvas>();
+        if (canvas != null) return canvas.rootCanvas.transform;
         var current = parent;
         while (current != null)
         {

@@ -28,6 +28,7 @@
 - 基础工具扩展已完成：妙妙方案库、MOD 健康检查、大厅状态面板和冒险历程已进入内置目录；实现边界见 [foundation-modules.md](foundation-modules.md)。
 - 阶段 4 已完成：`AuraTooling.Shared` v1 提供 owner-qualified 第三方工具注册协议、revision 快照、注销句柄和兼容校验；AuraToolsExp 可动态投影、更新和移除扩展工具，不要求第三方引用 `AuraToolsExp.Dll`。
 - 一级 UI 改版已完成：妙妙工具页会租借并隐藏原生设置内容，使用不透明工作区、左侧分类栏、紧凑 TMP 模块行、图标按钮与 Switch；二级 Overlay 的标题和关闭入口也已统一。
+- 详细页面使用 `AuraToolsWindowHost`：一级工具箱保留原生设置面板尺寸，内置工具的详细设置与编辑页默认占满游戏根 Canvas，四周保留 12 个物理像素安全边距。尺寸、独立排序、射线和子窗口所有权由公共容器管理；短确认窗显式使用对话框模式。返回恢复原列表焦点和位置，关闭所有者同时清理所属子窗口。
 - HTML + Playwright 快速预览已接入：多分辨率、长文本、异常、空结果、扩展模块与交互路径可在不启动游戏的情况下生成截图和断言报告。
 - 独立 Unity UI Preview Player 已接入：完整设置窗口、五张页面、UGUI 响应式布局、射线归属、底层探针和十二张 Player 离屏截图均可脱离游戏验证。
 

@@ -21,84 +21,102 @@ public static class CustomCardWorkshop
     public static void Show(Transform parent)
     {
         CustomCardWorkshopController? controller=null;
-        var window=AuraToolsUi.CreateOverlay("AuraTools.CustomCards",parent,"自建卡牌",maxWidth:1320f,canClose:()=>controller==null||controller.SaveBeforeClose());
+        var window=CustomCardWorkshopController.Overlay("AuraTools.CustomCards",parent,"卡牌工坊",fullWindow:true,canClose:()=>controller==null||controller.SaveBeforeClose());
         controller=window.AddComponent<CustomCardWorkshopController>();controller.Build(window.transform);
     }
-}
-
-internal sealed class CustomCardEditorScope
-{
-    internal bool Target;
-    internal bool Current;
-    internal readonly Dictionary<string,(string Name,bool Object)> Variables=new();
-    internal CustomCardEditorScope Child() { var copy=new CustomCardEditorScope { Target=Target,Current=Current };foreach(var p in Variables)copy.Variables[p.Key]=p.Value;return copy; }
-    internal Dictionary<string,string> Names => Variables.ToDictionary(p=>p.Key,p=>p.Value.Name);
 }
 
 internal sealed class CustomCardWorkshopController : MonoBehaviour
 {
     private CustomCardDocument doc=new();
     private readonly List<string> undo=new(),redo=new();
-    private readonly HashSet<string> folded=new();
+    private CustomCardGraphEditor? graphEditor;
     private Transform root=null!,content=null!;
-    private TMP_Text status=null!,description=null!;
+    private TMP_Text status=null!;
+    private TMP_Text? documentTitle;
+    private TMP_Text? saveState;
+    private readonly Dictionary<int,Button> workspaceTabs=new();
     private Button craft=null!;
-    private Texture2D? previewTexture;
-    private Texture2D? sideTexture;
+    private Button undoButton=null!,redoButton=null!,previewButton=null!;
+    private Button moreButton=null!;
     private GameObject? sideRoot;
-    private RawImage? sideImage;
-    private TMP_Text? sideTitle,sideDescription;
-    private string sideArtKey="";
+    private CustomCardPreview sidePreview=null!;
+    private TMP_Text previewIssue=null!;
+    private CustomCardCompilation? compilation;
+    private string librarySearch="";
+    private bool libraryTemplates;
+    private Transform workspace=null!;
     private int tab;
     private bool dirty;
     private bool rebuilding;
-    private readonly CardTrialInput trial=new();
-    private string trialResult="设置模拟数据，然后点击试算。";
     private bool viewPending;
     private int renderedTab=-1;
     private readonly Dictionary<int,float> scrollPositions=new();
+    private readonly Dictionary<string,float> innerScrollPositions=new();
+    private bool previewCollapsed;
+    private int editorTab;
+    private string graphDocumentId="";
+    private string[] graphSelection=Array.Empty<string>();
 
     internal void Build(Transform parent)
     {
         root=parent;
-        var actions=Row(parent,"DocumentActions");
-        Button(actions,"作品库",Library,90);Button(actions,"新建",()=>Switch(new()),74);
-        Button(actions,"保存稿件",Save,96);Button(actions,"另存副本",()=>Switch(doc.Duplicate()),96);
-        Button(actions,"导入",Import,74);Button(actions,"导出",Export,74);
-        var tabs=Row(parent,"Tabs");
-        var labels=new[]{"基本属性","效果积木","像素卡面","卡牌预览","试算","生成脚本"};
-        for(int i=0;i<labels.Length;i++){int index=i;Button(tabs,labels[i],()=>{tab=index;Render();},96);}
-        var workspace=AuraToolsUi.CreateLayout("CustomCardWorkspace",parent);workspace.AddComponent<LayoutElement>().flexibleHeight=1;
-        var workspaceLayout=workspace.AddComponent<HorizontalLayoutGroup>();workspaceLayout.spacing=14;workspaceLayout.childControlWidth=true;workspaceLayout.childControlHeight=true;workspaceLayout.childForceExpandWidth=false;workspaceLayout.childForceExpandHeight=false;
-        content=AuraToolsUi.CreateScroll(workspace.transform,"CustomCards");
-        var side=AuraToolsUi.CreateScroll(workspace.transform,"CustomCardSidePreview");sideRoot=side.parent.parent.gameObject;
-        var sideLayout=sideRoot.GetComponent<LayoutElement>();sideLayout.minWidth=280;sideLayout.preferredWidth=280;sideLayout.flexibleWidth=0;
-        sideTitle=AuraToolsUi.AddTmpText(side,"",19,TextAnchor.MiddleLeft,AuraToolsUi.Text,66);
-        var art=AuraToolsUi.CreateLayout("PreviewArt",side);AuraToolsUi.SetFixedHeight(art,256);
-        var sideArt=AuraToolsUi.CreateRect("Image",art.transform,Vector2.zero,Vector2.one,new Vector2(0.5f,0.5f),Vector2.zero);
-        var sideAspect=sideArt.AddComponent<AspectRatioFitter>();sideAspect.aspectMode=AspectRatioFitter.AspectMode.FitInParent;sideAspect.aspectRatio=1;
-        sideImage=sideArt.AddComponent<RawImage>();sideImage.raycastTarget=false;
-        sideDescription=AuraToolsUi.AddTmpText(side,"",15,TextAnchor.UpperLeft,AuraToolsUi.Text,280);
-        UpdateSidebarVisibility();
-        var footer=Row(parent,"Footer");
-        Button(footer,"撤销",()=>History(undo,redo),74);Button(footer,"重做",()=>History(redo,undo),74);
-        craft=Button(footer,"免费制作到仓库",Craft,164);
-        status=AuraToolsUi.AddTmpText(parent,"",14,TextAnchor.MiddleLeft,AuraToolsUi.MutedText,54);
+        var windowLayout=parent.GetComponent<VerticalLayoutGroup>();windowLayout.padding=new(0,0,0,0);windowLayout.spacing=0;
+        var header=parent.Find("Header");var close=header.GetComponentsInChildren<Button>().FirstOrDefault();
+        var headerLayout=header.GetComponent<HorizontalLayoutGroup>();headerLayout.padding=new(20,20,10,10);headerLayout.spacing=8;
+        var title=header.GetComponentInChildren<TMP_Text>();title.GetComponent<LayoutElement>().flexibleWidth=0;title.GetComponent<LayoutElement>().preferredWidth=100;
+        var mark=CustomCardUi.CreateRect("WorkshopMark",header,new(.5f,.5f),new(.5f,.5f),new(.5f,.5f),new(18,18));CustomCardUi.SetFixedSize(mark,20,20);var glyph=mark.AddComponent<CustomCardIcon>();glyph.Icon=CardIcon.Layers;glyph.color=CustomCardVisuals.Gold;glyph.raycastTarget=false;mark.transform.SetAsFirstSibling();
+        title.transform.SetSiblingIndex(1);
+        if(close!=null)Quiet(Button(header,"返回",()=>close.onClick.Invoke(),56)).transform.SetAsFirstSibling();
+        documentTitle=CustomCardUi.AddTmpText(header,"",16,TextAnchor.MiddleLeft,CustomCardVisuals.Ink,36,0,160);
+        documentTitle.textWrappingMode=TextWrappingModes.NoWrap;
+        saveState=CustomCardUi.AddTmpText(header,"",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,36,0,52);
+        Spacer(header);
+        Quiet(Button(header,"作品库",Library,84));Button(header,"保存",Save,56);
+        craft=Button(header,"制作到仓库",Craft,124);CustomCardControls.Style(craft,CardControlKind.Primary);
+        moreButton=CustomCardControls.IconButton(header,CardIcon.More,"更多",DocumentMenu);if(close!=null)close.transform.SetAsLastSibling();
+        CustomCardUi.SetFixedHeight(header.gameObject,60);CustomCardControls.Rule(parent);
+        var tabs=CommandRow(parent,"Tabs");tabs.GetComponent<HorizontalLayoutGroup>().padding=new(20,20,0,0);tabs.GetComponent<HorizontalLayoutGroup>().spacing=8;
+        CustomCardUi.SetFixedHeight(tabs.gameObject,48);
+        foreach(var item in new[]{(0,"效果蓝图"),(1,"卡牌属性"),(2,"卡面")})
+        {int index=item.Item1;workspaceTabs[index]=Button(tabs,item.Item2,()=>Navigate(index),index<2?78:48,48);}
+        Spacer(tabs);
+        Quiet(Button(tabs,"节点指南",()=>Guide(),88));
+        undoButton=CustomCardControls.IconButton(tabs,CardIcon.Undo,"撤销",()=>History(undo,redo));redoButton=CustomCardControls.IconButton(tabs,CardIcon.Redo,"重做",()=>History(redo,undo));
+        CustomCardControls.IconButton(tabs,CardIcon.Panel,"预览侧栏",()=>{previewCollapsed=!previewCollapsed;UpdateSidebarVisibility();});
+        previewButton=CustomCardControls.IconButton(tabs,CardIcon.Expand,"预览",Preview);CustomCardControls.Rule(parent);
+        var body=CustomCardUi.CreateLayout("CustomCardWorkspace",parent);workspace=body.transform;body.AddComponent<LayoutElement>().flexibleHeight=1;
+        var workspaceLayout=body.AddComponent<HorizontalLayoutGroup>();workspaceLayout.spacing=0;workspaceLayout.childControlWidth=true;workspaceLayout.childControlHeight=true;workspaceLayout.childForceExpandWidth=false;workspaceLayout.childForceExpandHeight=true;
+        content=CustomCardUi.CreateScroll(workspace,"CustomCards");
+        var side=Column(workspace,"CustomCardSidePreview");sideRoot=side.gameObject;
+        var sideLayout=sideRoot.AddComponent<LayoutElement>();sideLayout.minWidth=0;sideLayout.preferredWidth=248;sideLayout.flexibleWidth=0;
+        side.GetComponent<VerticalLayoutGroup>().padding=new(16,16,20,20);CustomCardUi.AddImage(sideRoot,CustomCardVisuals.Node);
+        var heading=CommandRow(side,"PreviewHeading");CustomCardUi.AddTmpText(heading,"实时预览",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,36,1);CustomCardControls.IconButton(heading,CardIcon.Expand,"放大",Preview);
+        sidePreview=CustomCardPreview.Create(side,320,Preview);previewIssue=CustomCardUi.AddTmpText(side,"",13,TextAnchor.UpperLeft,CustomCardVisuals.Error,60);
+        CustomCardControls.Rule(parent);status=CustomCardUi.AddTmpText(parent,"",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,24);status.margin=new(20,0,20,0);
         Render();
     }
+    private void Navigate(int page){if(!CustomCardInputFeedback.CommitAll(root))return;CustomCardUiLifetime.ReleaseFocus(root);if(tab<=2)editorTab=tab;tab=page;Render();}
+    private void Guide(CardGraphNode? node=null)=>CustomCardGuide.Show(root,root,node);
     private void Render()
     {
         if(rebuilding || this==null)return;
         rebuilding=true;
         var scroll=content.GetComponentInParent<ScrollRect>();
+        foreach(var inner in content.GetComponentsInChildren<ScrollRect>())innerScrollPositions[renderedTab+"/"+inner.name]=inner.verticalNormalizedPosition;
         if(renderedTab>=0&&scroll!=null)scrollPositions[renderedTab]=scroll.content.rect.height>scroll.viewport.rect.height?scroll.verticalNormalizedPosition:1;
         var position=scrollPositions.TryGetValue(tab,out var savedPosition)?savedPosition:1;renderedTab=tab;
-        AuraToolsUi.ClearChildren(content);
-        description=null!;
-        switch(tab){case 0:Basics();break;case 1:Rules();break;case 2:Artwork();break;case 3:Preview();break;case 4:Trial();break;default:Scripts();break;}
-        RefreshState();
+        if(graphEditor!=null&&graphDocumentId==doc.Id)graphSelection=graphEditor.Selection.ToArray();
+        CustomCardUiLifetime.Clear(content);
+        var contentLayout=content.GetComponent<VerticalLayoutGroup>();contentLayout.childForceExpandWidth=true;contentLayout.childAlignment=TextAnchor.UpperLeft;contentLayout.spacing=16;contentLayout.padding=tab==0?new RectOffset():new(24,14,20,20);
+        graphEditor=null;
+        foreach(var item in workspaceTabs)CustomCardControls.Style(item.Value,item.Key==tab?CardControlKind.ActiveTab:CardControlKind.Tab);
+        UpdateSidebarVisibility();
+        switch(tab){case 0:Rules();break;case 1:Basics();break;case 2:Artwork();break;case 6:LibraryPage();break;default:Scripts();break;}
+        UpdateSidebarVisibility();RefreshState();
         rebuilding=false;
         Canvas.ForceUpdateCanvases();if(scroll!=null)scroll.verticalNormalizedPosition=position;
+        foreach(var inner in content.GetComponentsInChildren<ScrollRect>())if(innerScrollPositions.TryGetValue(tab+"/"+inner.name,out var innerPosition))inner.verticalNormalizedPosition=innerPosition;
     }
     private void QueueRender()
     {
@@ -107,6 +125,7 @@ internal sealed class CustomCardWorkshopController : MonoBehaviour
     private IEnumerator NextRender(){yield return null;viewPending=false;Render();}
     internal void Change(Action action,bool render=true)
     {
+        if(!CustomCardInputFeedback.CommitAll(root))return;
         Record();action();dirty=true;
         if(render)QueueRender();else RefreshState();
     }
@@ -122,40 +141,47 @@ internal sealed class CustomCardWorkshopController : MonoBehaviour
     }
     private void RefreshState()
     {
-        var validation=CustomCardCompiler.Compile(doc);
+        if(documentTitle!=null){documentTitle.text=doc.Name;documentTitle.GetComponent<LayoutElement>().preferredWidth=Mathf.Min(documentTitle.GetPreferredValues(doc.Name).x+4,Mathf.Max(60,Mathf.Min(320,((RectTransform)root).rect.width-760)));}
+        if(saveState!=null)saveState.text=dirty?"未保存":doc.Revision>0?"已保存":"新作品";
+        var validation=compilation=CustomCardCompiler.Compile(doc,CustomCardNative.BuffName);
         craft.interactable=validation.Success;
-        status.text=validation.Success ? (dirty?"有修改，关闭时自动保存草稿。":doc.Revision>0?"设计稿已保存。":"新作品，开始编辑后可保存草稿。")+" 制作不消耗货币。" : string.Join("\n",validation.Issues.Take(2).Select(i=>i.Message));
-        status.color=validation.Success ? AuraToolsUi.MutedText : AuraToolsUi.ErrorText;
-        if(sideTitle!=null)sideTitle.text=doc.Name+"\n费用 "+doc.Cost+" · "+(doc.Targeted?"攻击牌":"技能牌");
-        if(sideDescription!=null)
-        {
-            sideDescription.text=CustomCardDescription.Describe(doc);
-            AuraToolsUi.SetFixedHeight(sideDescription.gameObject,Math.Max(220,sideDescription.text.Length/16*22+sideDescription.text.Count(c=>c=='\n')*22));
-        }
-        var artKey=JsonConvert.SerializeObject(doc.Artwork);
-        if(sideImage!=null&&sideArtKey!=artKey)
-        {
-            sideArtKey=artKey;if(sideTexture!=null)Destroy(sideTexture);sideTexture=null;
-            try
-            {
-                if(doc.Artwork.UsePixels){sideTexture=CustomCardArtworkRuntime.Texture(doc.Artwork);sideImage.texture=sideTexture;}
-                else sideImage.texture=AuraToolsResourceCache.Load<Texture>(doc.Artwork.TemplateIcon,true);
-            }
-            catch(Exception){sideImage.texture=null;}
-        }
+        status.text=validation.Success?"":validation.Issues.FirstOrDefault()?.Message??"无法制作";
+        status.color=CustomCardVisuals.Error;
+        undoButton.interactable=undo.Count>0;redoButton.interactable=redo.Count>0;
+        previewIssue.text=validation.Success?"":validation.Issues.FirstOrDefault()?.Message??"";
+        previewIssue.gameObject.SetActive(!validation.Success);
+        sidePreview.Bind(doc,validation);
     }
-    private void Report(string message,bool error=false){status.text=message;status.color=error?AuraToolsUi.ErrorText:AuraToolsUi.SuccessText;}
+    private void Report(string message,bool error=false){status.text=message;status.color=error?CustomCardUi.ErrorText:CustomCardUi.SuccessText;}
+    internal void InputStateChanged()
+    {
+        if(rebuilding||root==null)return;
+        bool invalid=root.GetComponentsInChildren<CustomCardInputFeedback>().Any(f=>f.HasError);
+        if(craft!=null)craft.interactable=compilation?.Success==true&&!invalid;
+        if(graphEditor!=null)graphEditor.SetInputError(invalid);
+    }
     private void Do(Action action){try{action();}catch(Exception ex){Report(ex.Message,true);}}
-    private void Save(){Do(()=>{CustomCardLibrary.Save(doc);dirty=false;RefreshState();});}
+    private void Save()=>SaveCurrent();
+    private bool SaveCurrent()
+    {
+        if(!CustomCardInputFeedback.CommitAll(root))return false;CustomCardUiLifetime.ReleaseFocus(root);
+        try{CustomCardLibrary.Save(doc);dirty=false;RefreshState();return true;}
+        catch(Exception ex){Report("保存失败："+ex.Message,true);return false;}
+    }
     internal bool SaveBeforeClose()
     {
+        if(!CustomCardInputFeedback.CommitAll(root))return false;
+        CustomCardUiLifetime.ReleaseFocus(root);
+        if(graphEditor!=null&&graphEditor.CancelInteraction())return false;
         if(!dirty)return true;
         try{CustomCardLibrary.Save(doc);dirty=false;return true;}
         catch(Exception ex){Report("草稿保存失败，窗口保持打开："+ex.Message,true);return false;}
     }
     private void Craft()
     {
-        Do(()=>{var card=CustomCardNative.Craft(doc);Report("已制作「"+doc.Name+"」并存入账号仓库。费用为 0。" );});
+        if(!CustomCardInputFeedback.CommitAll(root))return;
+        CustomCardUiLifetime.ReleaseFocus(root);
+        Do(()=>{CustomCardNative.Craft(doc);Report("已将「"+doc.Name+"」制作到仓库。");});
     }
     private void Export(){Do(()=>{var path=CustomCardLibrary.Export(doc);GUIUtility.systemCopyBuffer=path;Report("已导出含像素卡面的作品，路径已复制："+path);});}
     private void Import()
@@ -165,348 +191,224 @@ internal sealed class CustomCardWorkshopController : MonoBehaviour
     }
     private void Switch(CustomCardDocument next)
     {
-        void Apply(){doc=next;undo.Clear();redo.Clear();folded.Clear();dirty=next.Revision==0;Render();}
-        if(dirty)AuraToolsUi.ShowConfirmation(root,"CustomCards.Switch","切换作品","当前修改尚未保存。切换后会丢弃这些修改。","丢弃并切换",Apply);
-        else Apply();
+        void Apply(){doc=next;undo.Clear();redo.Clear();graphSelection=Array.Empty<string>();tab=editorTab=0;dirty=next.Revision==0;Render();}
+        if(!dirty){Apply();return;}
+        var window=Overlay("CustomCards.Switch",root,"切换作品",maxWidth:620,preferredHeight:250);
+        Hint(window.transform,"「"+doc.Name+"」有未保存的修改。");var row=Row(window.transform,"SwitchActions");
+        void Close()=>CustomCardUiLifetime.Destroy(window.transform.parent.gameObject);
+        Button(row,"保存并切换",()=>{if(SaveCurrent()){Close();Apply();}},140);
+        Quiet(Button(row,"丢弃并切换",()=>{Close();Apply();},130));Quiet(Button(row,"取消",Close,70));
     }
     private void Library()
     {
-        Do(()=>
+        Navigate(6);
+    }
+    private void LibraryPage()
+    {
+        var toolbar=Row(content,"LibraryToolbar");
+        Quiet(Button(toolbar,"返回编辑",()=>Navigate(editorTab),94));
+        CustomCardControls.Segments(toolbar,new[]{"我的作品","内置模板"},libraryTemplates?1:0,i=>{libraryTemplates=i==1;QueueRender();},110,false);
+        Button(toolbar,"新建卡牌",()=>Switch(new()),110);Quiet(Button(toolbar,"导入作品",Import,96));
+        var input=CustomCardUi.AddTmpInput(content,librarySearch,"搜索作品",_=>{},320);CustomCardFormStyle.Input(input);
+        var list=Column(content,"LibraryItems");
+        void Fill()
         {
-            var window=AuraToolsUi.CreateOverlay("CustomCards.Library",root,"自建卡牌 · 设计稿库");
-            var search="";
-            var input=AuraToolsUi.AddTmpInput(window.transform,"","搜索作品名称",_=>{},420);
-            var list=AuraToolsUi.CreateScroll(window.transform,"CustomCardLibrary");
-            void Fill()
+            CustomCardUiLifetime.Clear(list);
+            var documents=libraryTemplates?Enumerable.Range(0,CardBlueprintTemplates.Names.Length).Select(CardBlueprintTemplates.Create):CustomCardLibrary.List();
+            var matches=documents.Where(i=>i.Name.IndexOf(librarySearch,StringComparison.OrdinalIgnoreCase)>=0).ToArray();
+            if(matches.Length==0){Hint(list,librarySearch.Length>0?"没有匹配的作品。":"还没有作品，从新建卡牌或内置模板开始。");return;}
+            foreach(var item in matches)
             {
-                AuraToolsUi.ClearChildren(list);
-                foreach(var item in CustomCardLibrary.List().Where(i=>i.Name.IndexOf(search,StringComparison.OrdinalIgnoreCase)>=0))
-                {
-                    var row=Row(list,"LibraryItem");Label(row,item.Name,240);
-                    Button(row,"编辑",()=>{Switch(item);Destroy(window.transform.parent.gameObject);},80);
-                    Button(row,"复制",()=>{Switch(item.Duplicate());Destroy(window.transform.parent.gameObject);},80);
-                    Button(row,"删除",()=>AuraToolsUi.ShowConfirmation(window.transform,"CustomCards.Delete","删除设计稿","只删除设计稿，已制作卡牌不受影响。","删除设计稿",()=>Do(()=>{CustomCardLibrary.Delete(item);if(doc.Id==item.Id){doc=new();dirty=false;undo.Clear();redo.Clear();QueueRender();}Fill();})),80);
-                }
+                var entry=CustomCardUi.CreateLayout("LibraryItem",list);var layout=entry.AddComponent<HorizontalLayoutGroup>();layout.spacing=20;layout.padding=new(16,16,12,12);layout.childControlWidth=layout.childControlHeight=true;layout.childForceExpandWidth=false;layout.childForceExpandHeight=false;
+                CustomCardUi.AddImage(entry,CustomCardVisuals.Node);
+                var preview=CustomCardPreview.Create(entry.transform,190,()=>PreviewDocument(item));var previewSize=preview.GetComponent<LayoutElement>();previewSize.minWidth=previewSize.preferredWidth=140;previewSize.flexibleWidth=0;
+                var compiled=CustomCardCompiler.Compile(item,CustomCardNative.BuffName);preview.Bind(item,compiled);
+                var details=Column(entry.transform,"Details");details.gameObject.AddComponent<LayoutElement>().flexibleWidth=1;
+                CustomCardUi.AddTmpText(details,item.Name,18,TextAnchor.MiddleLeft,CustomCardVisuals.Ink,32);
+                Hint(details,item.Cost+" 能量 · "+(item.Targeted?"攻击牌":"技能牌"));
+                var summary=CustomCardUi.AddTmpText(details,compiled.Success?compiled.Description:compiled.Issues.FirstOrDefault()?.Message??"效果尚未完成",14,TextAnchor.UpperLeft,CustomCardVisuals.Muted,64);summary.overflowMode=TextOverflowModes.Ellipsis;
+                var actions=Row(details,"LibraryActions");
+                Button(actions,libraryTemplates?"从模板新建":"编辑",()=>Switch(item),libraryTemplates?132:72);
+                if(!libraryTemplates)
+                {Quiet(Button(actions,"复制",()=>Switch(item.Duplicate()),64));Quiet(Button(actions,"删除",()=>Confirm(root,"CustomCards.Delete","删除设计稿","已制作的卡牌会保留。","删除",()=>Do(()=>{CustomCardLibrary.Delete(item);if(doc.Id==item.Id){doc=new();dirty=false;undo.Clear();redo.Clear();}QueueRender();})),64));}
             }
-            input.onValueChanged.RemoveAllListeners();input.onValueChanged.AddListener(v=>{search=v;Fill();});Fill();
-        });
+        }
+        input.onValueChanged.RemoveAllListeners();input.onValueChanged.AddListener(v=>{librarySearch=v;Fill();});Do(Fill);
     }
     private void Basics()
     {
-        TextInput(content,"卡牌名称",doc.Name,v=>Change(()=>doc.Name=v,false),420);
-        var row=Row(content,"Properties");Label(row,"使用费用",90);NumberInput(row,doc.Cost,v=>Change(()=>doc.Cost=double.IsNaN(v)?-1:(int)v,false));
-        Select(row,new[]{"普通","稀有","传奇"},doc.Rarity-1,i=>Change(()=>doc.Rarity=i+1),130);
-        Select(row,new[]{"技能牌 · 无需选中","攻击牌 · 需要选中"},doc.Targeted?1:0,i=>Change(()=>doc.Targeted=i==1),230);
-        row=Row(content,"Tags");Label(row,"焚毁",70);AuraToolsUi.AddToggle(row,doc.Burnout,v=>Change(()=>doc.Burnout=v,false));Label(row,"保留",70);AuraToolsUi.AddToggle(row,doc.Retain,v=>Change(()=>doc.Retain=v,false));
-        TextInput(content,"风味文字",doc.Note,v=>Change(()=>doc.Note=v,false),500);
-        Hint(content,"制作免费。属性不决定效果点数；规则只校验对象、数据、执行范围和游戏可用性。");
+        var layout=content.GetComponent<VerticalLayoutGroup>();layout.childForceExpandWidth=false;layout.childAlignment=TextAnchor.UpperCenter;
+        var basic=Section(content,"基础属性");
+        basic.gameObject.AddComponent<LayoutElement>().preferredWidth=780;
+        Field(basic,"卡牌名称",doc.Name,v=>Change(()=>doc.Name=v,false));
+        var row=TwoColumns(basic,"CostAndRarity");
+        var cost=FlexibleColumn(row,"Cost");CustomCardUi.AddTmpText(cost,"能量费用",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,18);
+        var stepper=CommandRow(cost,"CostStepper");CustomCardUi.AddImage(stepper.gameObject,CustomCardVisuals.Well);CustomCardControls.Border(stepper.gameObject,CustomCardVisuals.Border);
+        Quiet(Button(stepper,"−",()=>Change(()=>doc.Cost=Math.Max(0,doc.Cost-1)),32));
+        var costInput=NumberInput(stepper,doc.Cost,v=>Change(()=>doc.Cost=double.IsNaN(v)?-1:(int)v,false),70);
+        CustomCardFormStyle.Input(costInput);costInput.textComponent.alignment=TextAlignmentOptions.Center;costInput.targetGraphic.color=Color.clear;costInput.transform.Find("ControlBorder").gameObject.SetActive(false);
+        CustomCardInputFeedback.Attach(costInput).SetSurface(stepper.gameObject);
+        CustomCardInputFeedback.BindNumber(costInput,CardNumber.Plain(doc.Cost),v=>Change(()=>doc.Cost=(int)v,false),true,0,99);
+        Quiet(Button(stepper,"＋",()=>Change(()=>doc.Cost++),32));
+        var rarity=FlexibleColumn(row,"Rarity");CustomCardUi.AddTmpText(rarity,"稀有度",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,18);
+        Select(rarity,new[]{"普通","稀有","传奇"},doc.Rarity-1,i=>Change(()=>doc.Rarity=i+1),160).GetComponent<LayoutElement>().flexibleWidth=1;
+        CustomCardUi.AddTmpText(basic,"卡牌类型",12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,18);CustomCardControls.Segments(basic,new[]{"攻击牌","技能牌"},doc.Targeted?0:1,i=>Change(()=>doc.Targeted=i==0),140);
+        CustomCardControls.Rule(content);
+        var traits=Section(content,"特性与风味");
+        traits.gameObject.AddComponent<LayoutElement>().preferredWidth=780;
+        row=Row(traits,"Tags");CustomCardControls.Check(row,"焚毁",doc.Burnout,v=>Change(()=>doc.Burnout=v,false));CustomCardControls.Check(row,"保留",doc.Retain,v=>Change(()=>doc.Retain=v,false));
+        Field(traits,"风味文字 · 可选",doc.Note,v=>Change(()=>doc.Note=v,false),80);
     }
     private void Rules()
     {
-        Hint(content,"点击积木设置参数；拖动同组的 ≡ 手柄调整顺序。数值按钮可切换为战斗数据或公式。");
-        foreach(var rule in doc.Rules.ToArray())
+        if(doc.MigrationReview.Count>0)
         {
-            var header=Row(content,"Rule."+rule.Id);AuraUiStableId.Assign(header.gameObject,rule.Id);
-            Select(header,CustomCardNames.Triggers,(int)rule.Trigger,i=>Change(()=>rule.Trigger=(CardRuleTrigger)i),250);
-            if(rule.Trigger>=CardRuleTrigger.AfterUseRoundStart){Label(header,"本场最多次数",112);NumberInput(header,rule.MaximumTriggers,v=>Change(()=>rule.MaximumTriggers=double.IsNaN(v)?-1:(int)v,false));}
-            if(rule.Trigger>=CardRuleTrigger.AfterUseRoundStart){Label(header,"每回合最多",100);NumberInput(header,rule.MaximumTriggersPerRound,v=>Change(()=>rule.MaximumTriggersPerRound=double.IsNaN(v)?-1:(int)v,false));}
-            Button(header,"删除规则",()=>Change(()=>doc.Rules.Remove(rule)),100);
-            if(rule.Trigger>=CardRuleTrigger.AfterUseRoundStart)Hint(content,"每次使用分别建立一组监听；0 次表示本场不限次数。战斗结束自动清理。");
-            if(rule.Trigger==CardRuleTrigger.AfterUseHurt)Hint(content,"扣除生命后检查条件；护盾完全挡住的伤害不会触发。");
-            ExpressionButton(content,"触发条件",rule.Condition,true,new CustomCardEditorScope { Target=doc.Targeted&&rule.Trigger==CardRuleTrigger.Use },v=>rule.Condition=v,QueueRender);
-            RenderBlocks(content,rule.Blocks,new CustomCardEditorScope { Target=doc.Targeted&&rule.Trigger==CardRuleTrigger.Use },0);
+            Hint(content,"迁移待修订："+string.Join("；",doc.MigrationReview),CustomCardUi.ErrorText);
+            Button(content,"已检查，采用蓝图中的明确顺序",()=>Change(()=>doc.MigrationReview.Clear()),330);
         }
-        Button(content,"＋ 添加触发规则",()=>Change(()=>doc.Rules.Add(new())),200);
-        var validation=CustomCardCompiler.Compile(doc);
-        foreach(var issue in validation.Issues)
+        var host=CustomCardUi.CreateLayout("BlueprintEditor",content);
+        graphEditor=host.AddComponent<CustomCardGraphEditor>();
+        graphEditor.Build(doc,Record,change=>
         {
-            Button(content,"⚠ "+issue.Message,()=>OpenIssue(issue.NodeId),Math.Max(300,(content as RectTransform)?.rect.width??600),46);
-        }
+            // Fitting, zooming and locating only change the viewport. They must not
+            // enroll the untouched starting document in close/interruption autosave.
+            if(change==CustomCardGraphChange.View)return;
+            if(change==CustomCardGraphChange.Content){dirty=true;RefreshState();}
+            else {dirty=true;if(saveState!=null)saveState.text="未保存";undoButton.interactable=undo.Count>0;redoButton.interactable=redo.Count>0;}
+        },(parent,current,picked)=>Do(()=>CustomCardStatePicker.Show(parent,current,picked)),message=>Report(message),Guide);
+        if(graphDocumentId==doc.Id&&graphSelection.Length>0)graphEditor.RestoreSelection(graphSelection);
+        graphDocumentId=doc.Id;
     }
     private void OpenIssue(string id)
     {
-        bool Find(List<CardRuleBlock> list,CustomCardEditorScope scope)
-        {
-            foreach(var b in list)
-            {
-                if(b.Id==id){BlockEditor(b,scope);return true;}
-                var child=scope.Child();if(b.Kind==CardBlockKind.ForEach)child.Current=true;
-                if(Find(b.Then,child)||Find(b.Else,scope.Child()))return true;
-                if(b.Kind==CardBlockKind.RememberNumber||b.Kind==CardBlockKind.RememberObject)scope.Variables[b.Id]=(b.VariableName,b.Kind==CardBlockKind.RememberObject);
-            }
-            return false;
-        }
-        foreach(var r in doc.Rules)if(Find(r.Blocks,new(){Target=doc.Targeted&&r.Trigger==CardRuleTrigger.Use}))return;
-        Report("请检查本组触发条件或卡牌基本属性。",true);
+        if(tab!=0){tab=0;Render();}
+        graphEditor?.FocusNode(id);
     }
-    private void RenderBlocks(Transform parent,List<CardRuleBlock> blocks,CustomCardEditorScope scope,int depth)
+    private void DocumentMenu()
     {
-        if(depth>CustomCardCompiler.MaximumDepth){Hint(parent,"嵌套过深",AuraToolsUi.ErrorText);return;}
-        foreach(var block in blocks.ToArray())
-        {
-            var section=Column(parent,"Block."+block.Id);AuraUiStableId.Assign(section.gameObject,block.Id);
-            section.GetComponent<VerticalLayoutGroup>().padding=new RectOffset(10+depth*3,6,5,5);
-            AuraToolsUi.AddImage(section.gameObject,depth%2==0?AuraToolsUi.Row:AuraToolsUi.Panel).raycastTarget=false;
-            var row=Row(section,"BlockActions");
-            var captured=scope.Child();
-            var handle=Button(row,"≡",()=>{},36);var drag=handle.gameObject.AddComponent<CustomCardBlockDrag>();drag.Owner=this;drag.Blocks=blocks;drag.Block=block;
-            var drop=row.gameObject.AddComponent<CustomCardBlockDrag>();drop.Owner=this;drop.Blocks=blocks;drop.Block=block;
-            Button(row,folded.Contains(block.Id)?"展开":"折叠",()=>{if(!folded.Add(block.Id))folded.Remove(block.Id);Render();},66);
-            Button(row,"设置",()=>BlockEditor(block,captured),66);
-            Button(row,"↑",()=>Move(blocks,block,-1),36);Button(row,"↓",()=>Move(blocks,block,1),36);
-            Button(row,"复制",()=>Change(()=>{var copy=CopyBlock(block);blocks.Insert(blocks.IndexOf(block)+1,copy);}),66);
-            Button(row,"删除",()=>Change(()=>blocks.Remove(block)),66);
-            var summary=CustomCardDescription.Block(block,scope.Names);
-            Hint(section,summary);
-            if(!folded.Contains(block.Id))
-            {
-                if(block.Kind==CardBlockKind.If||block.Kind==CardBlockKind.ForEach||block.Kind==CardBlockKind.Repeat)
-                {
-                    var child=scope.Child();if(block.Kind==CardBlockKind.ForEach)child.Current=true;
-                    RenderBlocks(section,block.Then,child,depth+1);
-                    if(block.Kind==CardBlockKind.If){Hint(section,"否则");RenderBlocks(section,block.Else,scope.Child(),depth+1);}
-                }
-            }
-            if(block.Kind==CardBlockKind.RememberNumber||block.Kind==CardBlockKind.RememberObject)scope.Variables[block.Id]=(block.VariableName,block.Kind==CardBlockKind.RememberObject);
-        }
-        Select(parent,new[]{"＋ 添加积木"}.Concat(CustomCardNames.Blocks).ToArray(),0,index=>
-        {
-            if(index==0)return;
-            Change(()=>
-            {
-                var block=new CardRuleBlock { Kind=(CardBlockKind)(index-1),Object=new(){Kind=scope.Target?CardObjectKind.Target:CardObjectKind.Self} };
-                if(block.Kind==CardBlockKind.ForEach){block.Object.Kind=CardObjectKind.Enemies;block.Condition=new(){Kind=CardValueKind.Exists,Object=new(){Kind=CardObjectKind.Current}};}
-                if(block.Kind==CardBlockKind.Repeat)block.Value=CardValue.Constant(2);
-                blocks.Add(block);
-            });
-        },230);
-    }
-    private void Move(List<CardRuleBlock> blocks,CardRuleBlock block,int delta)
-    {
-        int i=blocks.IndexOf(block),j=i+delta;if(i<0||j<0||j>=blocks.Count)return;
-        Change(()=>{blocks.RemoveAt(i);blocks.Insert(j,block);});
-    }
-    internal void DropBlock(List<CardRuleBlock> blocks,CardRuleBlock source,CardRuleBlock target)
-    {
-        if(source==target||!blocks.Contains(source)||!blocks.Contains(target))return;
-        Change(()=>{int i=blocks.IndexOf(target);blocks.Remove(source);blocks.Insert(Math.Min(i,blocks.Count),source);});
-    }
-    private static CardRuleBlock CopyBlock(CardRuleBlock source)
-    {
-        var copy=JsonConvert.DeserializeObject<CardRuleBlock>(JsonConvert.SerializeObject(source))!;
-        var ids=new Dictionary<string,string>();
-        void Ids(CardRuleBlock b){var id=Guid.NewGuid().ToString("N");ids[b.Id]=id;b.Id=id;foreach(var x in b.Then.Concat(b.Else))Ids(x);}
-        void Ref(CardObjectReference o){if(ids.TryGetValue(o.VariableId,out var id))o.VariableId=id;}
-        void Value(CardValue v){if(ids.TryGetValue(v.VariableId,out var id))v.VariableId=id;Ref(v.Object);foreach(var x in v.Inputs)Value(x);}
-        void Fix(CardRuleBlock b){Ref(b.Object);Value(b.Value);Value(b.Condition);foreach(var x in b.Then.Concat(b.Else))Fix(x);}
-        Ids(copy);Fix(copy);return copy;
-    }
-    private void BlockEditor(CardRuleBlock block,CustomCardEditorScope scope)
-    {
-        var window=AuraToolsUi.CreateOverlay("CustomCards.BlockEditor",root,"积木参数 · "+CustomCardNames.Name(block.Kind,CustomCardNames.Blocks),()=>QueueRender(),maxWidth:1000);
-        var panel=AuraToolsUi.CreateScroll(window.transform,"CardBlockParameters");
-        void Fill()
-        {
-            AuraToolsUi.ClearChildren(panel);
-            if(block.Kind==CardBlockKind.Effect)
-            {
-                Select(panel,CustomCardNames.Effects,(int)block.Effect,i=>{Change(()=>{block.Effect=(CardEffectKind)i;if(CustomCardNames.PlayerEffect(block.Effect))block.Object=new(){Kind=CardObjectKind.Self};},false);Fill();},350);
-                ObjectChoice(panel,block.Object,scope,false,()=>Fill(),o=>block.Object=o);
-                if(CustomCardNames.HasAmount(block.Effect))ExpressionButton(panel,"数量",block.Value,false,scope,v=>block.Value=v,Fill);
-                if(CustomCardNames.NeedsBuff(block.Effect))Button(panel,"状态："+(string.IsNullOrEmpty(block.ResourceId)?"点击选择":block.ResourceId),()=>BuffPicker(window.transform,id=>{Change(()=>block.ResourceId=id,false);Fill();}),450);
-            }
-            else if(block.Kind==CardBlockKind.If)ExpressionButton(panel,"条件",block.Condition,true,scope,v=>block.Condition=v,Fill);
-            else if(block.Kind==CardBlockKind.Repeat)ExpressionButton(panel,"重复次数",block.Value,false,scope,v=>block.Value=v,Fill);
-            else if(block.Kind==CardBlockKind.ForEach)
-            {
-                ObjectChoice(panel,block.Object,scope,false,Fill,o=>block.Object=o);var child=scope.Child();child.Current=true;
-                ExpressionButton(panel,"对象筛选条件",block.Condition,true,child,v=>block.Condition=v,Fill);
-            }
-            else
-            {
-                TextInput(panel,"变量名称",block.VariableName,v=>Change(()=>block.VariableName=v,false),380);
-                if(block.Kind==CardBlockKind.RememberNumber)ExpressionButton(panel,"记住数值",block.Value,false,scope,v=>block.Value=v,Fill);
-                else ObjectChoice(panel,block.Object,scope,true,Fill,o=>block.Object=o);
-                Hint(panel,"变量可用于后续步骤及其子分支；本次触发结束后清除。");
-            }
-            Hint(panel,CustomCardDescription.Block(block,scope.Names));
-        }
-        Fill();
-    }
-    private void ExpressionButton(Transform parent,string label,CardValue value,bool boolean,CustomCardEditorScope scope,Action<CardValue> set,Action refresh)
-    {
-        Hint(parent,label+"：");
-        Button(parent,CustomCardDescription.Value(value,scope.Names),()=>ExpressionEditor(parent,value,boolean,scope,set,refresh),Math.Min(620,Math.Max(300,(parent as RectTransform)?.rect.width??500)),48);
-    }
-    private void ExpressionEditor(Transform parent,CardValue value,bool boolean,CustomCardEditorScope scope,Action<CardValue> set,Action refresh)
-    {
-        var window=AuraToolsUi.CreateOverlay("CustomCards.Expression."+Guid.NewGuid().ToString("N"),parent,boolean?"条件表达式":"数值表达式",()=>{refresh();QueueRender();},singleInstance:false,maxWidth:970);
-        var panel=AuraToolsUi.CreateScroll(window.transform,"CardExpression");
-        void Fill()
-        {
-            AuraToolsUi.ClearChildren(panel);
-            var kinds=Enum.GetValues(typeof(CardValueKind)).Cast<CardValueKind>().Where(k=>CustomCardNames.Boolean(k)==boolean).ToArray();
-            Select(panel,kinds.Select(k=>CustomCardNames.Name(k,CustomCardNames.Values)).ToArray(),Array.IndexOf(kinds,value.Kind),i=>
-            {
-                Change(()=>
-                {
-                    value=new(){Kind=kinds[i],Object=new(){Kind=CardObjectKind.Self}};
-                    bool conditions=value.Kind==CardValueKind.And||value.Kind==CardValueKind.Or||value.Kind==CardValueKind.Not;
-                    for(int n=0;n<CustomCardNames.Arity(value.Kind);n++)value.Inputs.Add(conditions?new(){Kind=CardValueKind.Exists}:CardValue.Constant(n==1?1:0));
-                    set(value);
-                },false);Fill();
-            },280);
-            if(value.Kind==CardValueKind.Number)NumberInput(panel,value.Number,v=>Change(()=>value.Number=v,false),240);
-            if(value.Kind==CardValueKind.Read)
-            {
-                Select(panel,CustomCardNames.Fields,(int)value.Field,i=>{Change(()=>{value.Field=(CardDataField)i;if(value.Field>=CardDataField.Energy)value.Object=new();},false);Fill();},280);
-                ObjectChoice(panel,value.Object,scope,true,Fill,o=>value.Object=o);
-                if(value.Field==CardDataField.BuffStacks)Button(panel,"选择状态："+value.ResourceId,()=>BuffPicker(window.transform,id=>{Change(()=>value.ResourceId=id,false);Fill();}),450);
-            }
-            if(value.Kind==CardValueKind.Exists)ObjectChoice(panel,value.Object,scope,true,Fill,o=>value.Object=o);
-            if(value.Kind==CardValueKind.Variable)VariableChoice(panel,scope,false,value.VariableId,id=>{Change(()=>value.VariableId=id,false);Fill();});
-            for(int i=0;i<value.Inputs.Count;i++)
-            {
-                int index=i;bool childBoolean=value.Kind==CardValueKind.And||value.Kind==CardValueKind.Or||value.Kind==CardValueKind.Not;
-                ExpressionButton(panel,"参数 "+(i+1),value.Inputs[i],childBoolean,scope,v=>value.Inputs[index]=v,Fill);
-            }
-            Hint(panel,CustomCardDescription.Value(value,scope.Names));
-        }
-        Fill();
-    }
-    private void ObjectChoice(Transform parent,CardObjectReference value,CustomCardEditorScope scope,bool single,Action refresh,Action<CardObjectReference> set)
-    {
-        var options=Enum.GetValues(typeof(CardObjectKind)).Cast<CardObjectKind>()
-            .Where(k=>(!single||CustomCardNames.Single(k))&&(k!=CardObjectKind.Target||scope.Target)&&(k!=CardObjectKind.Current||scope.Current)).ToArray();
-        Select(parent,options.Select(k=>CustomCardNames.Name(k,CustomCardNames.Objects)).ToArray(),Array.IndexOf(options,value.Kind),i=>{Change(()=>set(new(){Kind=options[i]}),false);refresh();},310);
-        if(value.Kind==CardObjectKind.Saved)VariableChoice(parent,scope,true,value.VariableId,id=>{Change(()=>value.VariableId=id,false);refresh();});
-    }
-    private static void VariableChoice(Transform parent,CustomCardEditorScope scope,bool objects,string selected,Action<string> set)
-    {
-        var items=scope.Variables.Where(p=>p.Value.Object==objects).ToArray();
-        if(items.Length==0){Hint(parent,"当前没有可引用的变量，请先添加“记住”积木。");return;}
-        Select(parent,new[]{"请选择变量"}.Concat(items.Select(p=>p.Value.Name)).ToArray(),Array.FindIndex(items,p=>p.Key==selected)+1,i=>{if(i>0)set(items[i-1].Key);},310);
-    }
-    private void BuffPicker(Transform parent,Action<string> picked)
-    {
-        Do(()=>
-        {
-            var entries=CustomCardNative.Buffs();var window=AuraToolsUi.CreateOverlay("CustomCards.Buffs",parent,"选择状态");
-            var input=AuraToolsUi.AddTmpInput(window.transform,"","搜索名称或标识",_=>{},420);var list=AuraToolsUi.CreateScroll(window.transform,"CardBuffs");
-            void Fill(string query)
-            {
-                AuraToolsUi.ClearChildren(list);
-                foreach(var p in entries.Where(p=>p.Key.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0||p.Value.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0).Take(80))
-                    Button(list,p.Value+" · "+p.Key,()=>{picked(p.Key);Destroy(window.transform.parent.gameObject);},560);
-                Hint(list,"最多显示 80 个结果，输入名称缩小范围。");
-            }
-            input.onValueChanged.RemoveAllListeners();input.onValueChanged.AddListener(Fill);Fill("");
-        });
+        var anchor=moreButton.transform;
+        Action[] actions={ ()=>Switch(new()),()=>Switch(doc.Duplicate()),Import,Export,()=>Navigate(5),()=>Guide() };
+        CustomCardPopover.Show(anchor,new[]{"新建卡牌","另存副本","导入作品","导出作品","查看生成脚本","节点指南"},-1,i=>actions[i]());
     }
     private void Artwork()
     {
-        Hint(content,"像素卡面随作品和成品保存。模板可以直接应用，修改模板不会改变已有成品。");
-        Button(content,"打开像素画板",()=>CardPixelEditor.Show(root,doc.Artwork,Record,()=>{dirty=true;QueueRender();}),230);
-        var row=Row(content,"ArtMode");Select(row,new[]{"固定游戏卡面","自绘像素卡面"},doc.Artwork.UsePixels?1:0,i=>Change(()=>doc.Artwork.UsePixels=i==1),230);
-        Select(content,new[]{"元素升华","双刃剑盾","禁果"},Array.IndexOf(new[]{"Icon/Card/元素升华","Icon/Card/双刃剑盾","Icon/Card/禁果"},doc.Artwork.TemplateIcon),i=>Change(()=>doc.Artwork.TemplateIcon=new[]{"Icon/Card/元素升华","Icon/Card/双刃剑盾","Icon/Card/禁果"}[i]),230);
-        ArtPreview(content,280);
-    }
-    private void ArtPreview(Transform parent,int size)
-    {
-        if(previewTexture!=null){Destroy(previewTexture);previewTexture=null;}
-        var panel=AuraToolsUi.CreateLayout("CardArtPreview",parent);AuraToolsUi.SetFixedHeight(panel,size);
-        var picture=AuraToolsUi.CreateRect("Image",panel.transform,Vector2.zero,Vector2.one,new Vector2(0.5f,0.5f),Vector2.zero);
-        var aspect=picture.AddComponent<AspectRatioFitter>();aspect.aspectMode=AspectRatioFitter.AspectMode.FitInParent;aspect.aspectRatio=1;
-        var image=picture.AddComponent<RawImage>();image.raycastTarget=false;
-        try
+        CustomCardControls.Segments(content,new[]{"自绘卡面","游戏卡面"},doc.Artwork.UsePixels?0:1,i=>Change(()=>doc.Artwork.UsePixels=i==0),140);
+        if(!doc.Artwork.UsePixels)
         {
-            if(doc.Artwork.UsePixels){previewTexture=CustomCardArtworkRuntime.Texture(doc.Artwork);image.texture=previewTexture;}
-            else image.texture=AuraToolsResourceCache.Load<Texture>(doc.Artwork.TemplateIcon,true);
+            var source=Section(content,"选择游戏卡面");
+            Select(source,new[]{"元素升华","双刃剑盾","禁果"},Array.IndexOf(new[]{"Icon/Card/元素升华","Icon/Card/双刃剑盾","Icon/Card/禁果"},doc.Artwork.TemplateIcon),i=>Change(()=>doc.Artwork.TemplateIcon=new[]{"Icon/Card/元素升华","Icon/Card/双刃剑盾","Icon/Card/禁果"}[i]),270);
+            return;
         }
-        catch(Exception ex){Hint(parent,"卡面预览暂不可用："+ex.Message);}
+        var host=Column(content,"EmbeddedPixelEditor");
+        host.gameObject.AddComponent<CustomCardFillAvailable>().Configure(content.GetComponentInParent<ScrollRect>().viewport,96,320);
+        host.gameObject.AddComponent<CardPixelEditorController>().Build(host,doc.Artwork,Record,()=>{dirty=true;RefreshState();});
     }
     private void Preview()
     {
-        var row=Row(content,"CardTitle");Label(row,doc.Name,300);Label(row,"费用 "+doc.Cost+" · "+(doc.Targeted?"攻击牌":"技能牌"),250);
-        ArtPreview(content,256);
-        description=AuraToolsUi.AddTmpText(content,CustomCardDescription.Describe(doc),17,TextAnchor.UpperLeft,AuraToolsUi.Text,Math.Max(140,CustomCardDescription.Describe(doc).Split('\n').Length*25));
-        Hint(content,(doc.Burnout?"焚毁  ":"")+(doc.Retain?"保留":""));Hint(content,doc.Note);
+        CustomCardUiLifetime.ReleaseFocus(root);PreviewDocument(doc);
     }
-    private void Trial()
+    private void PreviewDocument(CustomCardDocument document)
     {
-        Hint(content,"基础数值试算不触碰当前对局；不计算原生状态修正、伤害乘区和联机结算。");
-        var self=Row(content,"TrialSelf");Label(self,"自己生命 / 上限 / 护盾",205);
-        NumberInput(self,trial.Self.Health,v=>trial.Self.Health=v);NumberInput(self,trial.Self.MaximumHealth,v=>trial.Self.MaximumHealth=v);NumberInput(self,trial.Self.Shield,v=>trial.Self.Shield=v);
-        var enemy=Row(content,"TrialEnemy");Label(enemy,"敌人生命 / 上限 / 护盾",205);
-        NumberInput(enemy,trial.Enemies[0].Health,v=>trial.Enemies[0].Health=v);NumberInput(enemy,trial.Enemies[0].MaximumHealth,v=>trial.Enemies[0].MaximumHealth=v);NumberInput(enemy,trial.Enemies[0].Shield,v=>trial.Enemies[0].Shield=v);
-        var cardRow=Row(content,"TrialCards");Label(cardRow,"能量 / 手牌 / 抽牌 / 弃牌",205);
-        NumberInput(cardRow,trial.Energy,v=>trial.Energy=(int)v);NumberInput(cardRow,trial.HandCount,v=>trial.HandCount=(int)v);NumberInput(cardRow,trial.DeckCount,v=>trial.DeckCount=(int)v);NumberInput(cardRow,trial.DiscardCount,v=>trial.DiscardCount=(int)v);
-        foreach(var buff in CustomCardCompiler.Compile(doc).BuffReferences)
-        {
-            var row=Row(content,"TrialBuff");Label(row,buff.Value+"（自己 / 敌人）",300);
-            NumberInput(row,trial.Self.Buffs.TryGetValue(buff.Key,out var own)?own:0,v=>trial.Self.Buffs[buff.Key]=v);
-            NumberInput(row,trial.Enemies[0].Buffs.TryGetValue(buff.Key,out var other)?other:0,v=>trial.Enemies[0].Buffs[buff.Key]=v);
-        }
-        Select(content,new[]{"选择要试算的触发时机"}.Concat(CustomCardNames.Triggers).ToArray(),0,i=>{if(i>0){trialResult=string.Join("\n",CustomCardTrial.Run(doc,trial,(CardRuleTrigger)(i-1)));Render();}},330);
-        AuraToolsUi.AddTmpText(content,trialResult,16,TextAnchor.UpperLeft,AuraToolsUi.Text,Math.Max(180,trialResult.Split('\n').Length*25));
+        var window=Overlay("CustomCards.Preview",root,document.Name,maxWidth:520,preferredHeight:720);
+        var preview=CustomCardPreview.Create(window.transform,560);preview.GetComponent<LayoutElement>().flexibleHeight=1;preview.GetComponent<LayoutElement>().minHeight=240;
+        var result=CustomCardCompiler.Compile(document,CustomCardNative.BuffName);preview.Bind(document,result);
+        if(!result.Success)Hint(window.transform,result.Issues.FirstOrDefault()?.Message??"效果尚未完成",CustomCardVisuals.Error);
     }
     private void Scripts()
     {
+        Quiet(Button(content,"返回编辑",()=>Navigate(editorTab),94));
         var compilation=CustomCardCompiler.Compile(doc);
-        if(!compilation.Success){foreach(var issue in compilation.Issues)Hint(content,issue.Message,AuraToolsUi.ErrorText);return;}
+        if(!compilation.Success){foreach(var issue in compilation.Issues)Hint(content,issue.Message,CustomCardUi.ErrorText);return;}
         var row=Row(content,"ScriptActions");Button(row,"检查游戏 Lua 语法",()=>Do(()=>{CustomCardNative.CheckLua(compilation);Report("所有生成脚本的 Lua 语法检查通过；未执行战斗效果。");}),230);
         Button(row,"复制全部脚本",()=>{GUIUtility.systemCopyBuffer=string.Join("\n\n",compilation.Scripts.Select(p=>"-- "+p.Key+"\n"+p.Value));Report("生成脚本已复制。");},190);
         foreach(var pair in compilation.Scripts)
         {
             Hint(content,pair.Key);
-            var text=AuraToolsUi.AddTmpText(content,pair.Value,13,TextAnchor.UpperLeft,AuraToolsUi.Text,Math.Max(70,pair.Value.Split('\n').Length*18));text.richText=false;
+            var text=CustomCardUi.AddTmpText(content,pair.Value,13,TextAnchor.UpperLeft,CustomCardUi.Text,Math.Max(70,pair.Value.Split('\n').Length*18));text.richText=false;
         }
     }
     private void OnDestroy()
     {
-        if(previewTexture!=null)Destroy(previewTexture);
-        if(sideTexture!=null)Destroy(sideTexture);
         if(dirty)try{CustomCardLibrary.Save(doc);}catch(Exception ex){AuraToolsLog.Warn("[CustomCard] interrupted draft save failed: "+ex.Message);}
     }
     private void OnRectTransformDimensionsChange()=>UpdateSidebarVisibility();
     private void UpdateSidebarVisibility()
     {
-        if(sideRoot==null||root==null)return;bool visible=(root as RectTransform)?.rect.width>=1100;
+        if(sideRoot==null||root==null)return;float width=(root as RectTransform)?.rect.width??0;
+        bool visible=(tab==1||tab==2)&&width>=680&&!previewCollapsed;
+        var layout=sideRoot.GetComponent<LayoutElement>();layout.preferredWidth=width>=1200?300:width>=920?248:216;
         if(sideRoot.activeSelf!=visible)sideRoot.SetActive(visible);
+        if(previewButton!=null)previewButton.gameObject.SetActive(!visible);
     }
     internal static Transform Row(Transform parent,string name)
     {
-        var row=AuraToolsUi.CreateLayout(name,parent);row.AddComponent<CustomCardFlowLayout>();return row.transform;
+        var row=CustomCardUi.CreateLayout(name,parent);row.AddComponent<CustomCardFlowLayout>();return row.transform;
     }
     internal static Transform Column(Transform parent,string name)
     {
-        var col=AuraToolsUi.CreateLayout(name,parent);var layout=col.AddComponent<VerticalLayoutGroup>();layout.spacing=5;layout.childControlHeight=true;layout.childControlWidth=true;layout.childForceExpandHeight=false;return col.transform;
+        var col=CustomCardUi.CreateLayout(name,parent);var layout=col.AddComponent<VerticalLayoutGroup>();layout.spacing=5;layout.childControlHeight=true;layout.childControlWidth=true;layout.childForceExpandHeight=false;return col.transform;
     }
-    internal static Button Button(Transform parent,string name,Action action,float width=120,float height=40)=>AuraToolsUi.AddButton(parent,name,action,width,height);
-    internal static void Hint(Transform parent,string text,Color? color=null)=>AuraToolsUi.AddTmpText(parent,text,15,TextAnchor.MiddleLeft,color??AuraToolsUi.MutedText,Math.Max(36,(text.Length/65+1)*24));
-    internal static void Label(Transform parent,string text,float width=130)=>AuraToolsUi.AddTmpText(parent,text,16,TextAnchor.MiddleLeft,AuraToolsUi.Text,40,0,width);
-    internal static void Select(Transform parent,IReadOnlyList<string> labels,int selected,Action<int> change,float width=230)=>AuraToolsUi.AddSelectButton(parent,labels,Math.Max(0,selected),change,width,40);
-    internal static void NumberInput(Transform parent,double value,Action<double> change,float width=92)
+    internal static Button Button(Transform parent,string name,Action action,float width=120,float height=36)
     {
-        var input=AuraToolsUi.AddTmpInput(parent,value.ToString("0.###",CultureInfo.InvariantCulture),"数字",_=>{},width,40);
-        input.onValueChanged.RemoveAllListeners();input.onEndEdit.AddListener(v=>change(double.TryParse(v,NumberStyles.Float,CultureInfo.InvariantCulture,out var number)?number:double.NaN));
+        // The workshop owns this skin and its feedback; the shared toolbox button has a separate theme state machine.
+        var root=CustomCardUi.CreateLayout("CardAction."+name,parent);CustomCardUi.SetFixedSize(root,Math.Min(width,Math.Max(180,Screen.width-112)),height);
+        var background=CustomCardUi.AddImage(root,Color.white);var button=root.AddComponent<Button>();button.targetGraphic=background;
+        button.onClick.AddListener(()=>CustomCardUi.RunConfigAction(action));root.AddComponent<AuraUiButtonSoundRelay>().Configure(button,AuraUiButtonSoundStyle.Pure);
+        var label=CustomCardUi.AddTmpText(root.transform,name,15,TextAnchor.MiddleCenter,CustomCardVisuals.Ink,height);label.alignment=TextAlignmentOptions.Center;label.raycastTarget=false;
+        label.rectTransform.anchorMin=Vector2.zero;label.rectTransform.anchorMax=Vector2.one;label.rectTransform.offsetMin=new(6,2);label.rectTransform.offsetMax=new(-6,-2);
+        CustomCardVisuals.Button(button);return button;
+    }
+    internal static Button Quiet(Button button){CustomCardControls.Style(button,CardControlKind.Quiet);return button;}
+    internal static GameObject Overlay(string name,Transform parent,string title,Action? close=null,float maxWidth=1180,Func<bool>? canClose=null,float preferredHeight=0,bool fullWindow=false)
+    {
+        var window=CustomCardUi.CreateOverlay(name,parent,title,close,maxWidth:maxWidth,canClose:canClose,fullWindow:fullWindow,preferredHeight:preferredHeight);window.transform.parent.gameObject.AddComponent<CustomCardFocusOwner>();CustomCardWindowStyle.Skin(window);return window;
+    }
+    internal static Transform Section(Transform parent,string title,string subtitle="")
+    {
+        var panel=Column(parent,"Section."+title);var layout=panel.GetComponent<VerticalLayoutGroup>();layout.padding=new RectOffset();layout.spacing=8;layout.childForceExpandWidth=true;
+        var heading=CustomCardUi.AddTmpText(panel,title,16,TextAnchor.MiddleLeft,CustomCardVisuals.Ink,24);
+        if(subtitle.Length>0)CustomCardUi.AddTmpText(panel,subtitle,12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,22);
+        return panel;
+    }
+    private static void Field(Transform parent,string title,string value,Action<string> change,float height=40)
+    {
+        CustomCardUi.AddTmpText(parent,title,12,TextAnchor.MiddleLeft,CustomCardVisuals.Muted,18);
+        var input=CustomCardUi.AddTmpInput(parent,value,height>40?"为这张卡留下一句话…":title,_=>{},300,height);CustomCardFormStyle.Input(input);if(height>40){input.lineType=TMP_InputField.LineType.MultiLineNewline;input.textComponent.textWrappingMode=TextWrappingModes.Normal;input.textComponent.alignment=TextAlignmentOptions.TopLeft;}
+        input.characterLimit=height>40?300:40;
+        CustomCardInputFeedback.Bind(input,change,height>40?null:v=>string.IsNullOrWhiteSpace(v)?"请填写卡牌名称。":null);
+    }
+    internal static Transform CommandRow(Transform parent,string name)
+    {
+        var row=CustomCardUi.CreateLayout(name,parent);CustomCardUi.SetFixedHeight(row,40);var layout=row.AddComponent<HorizontalLayoutGroup>();layout.spacing=8;layout.childControlHeight=true;layout.childControlWidth=true;layout.childForceExpandWidth=false;layout.childForceExpandHeight=true;return row.transform;
+    }
+    internal static void Spacer(Transform parent){var go=CustomCardUi.CreateLayout("Spacer",parent);var e=go.AddComponent<LayoutElement>();e.minWidth=0;e.flexibleWidth=1;}
+    internal static Transform TwoColumns(Transform parent,string name)
+    {
+        var row=CustomCardUi.CreateLayout(name,parent);var layout=row.AddComponent<HorizontalLayoutGroup>();layout.spacing=16;layout.childControlWidth=layout.childControlHeight=true;layout.childForceExpandWidth=true;layout.childForceExpandHeight=false;return row.transform;
+    }
+    internal static Transform FlexibleColumn(Transform parent,string name)
+    {var result=Column(parent,name);var e=result.gameObject.AddComponent<LayoutElement>();e.minWidth=0;e.preferredWidth=0;e.flexibleWidth=1;return result;}
+    private static void Confirm(Transform parent,string name,string title,string explanation,string confirm,Action action)
+    {
+        var window=Overlay(name,parent,title,maxWidth:560,preferredHeight:250);Hint(window.transform,explanation);var row=Row(window.transform,"ConfirmationActions");Button(row,"取消",()=>CustomCardUiLifetime.Destroy(window.transform.parent.gameObject),80);Button(row,confirm,()=>{action();CustomCardUiLifetime.Destroy(window.transform.parent.gameObject);},160);
+    }
+    internal static void Hint(Transform parent,string text,Color? color=null)
+    {
+        var label=CustomCardUi.AddTmpText(parent,text,15,TextAnchor.MiddleLeft,color??CustomCardVisuals.Muted,36);
+        var layout=label.GetComponent<LayoutElement>();layout.minHeight=24;layout.preferredHeight=-1;layout.flexibleHeight=0;label.textWrappingMode=TextWrappingModes.Normal;
+    }
+    internal static void Label(Transform parent,string text,float width=130)=>CustomCardUi.AddTmpText(parent,text,16,TextAnchor.MiddleLeft,CustomCardVisuals.Ink,40,0,width);
+    internal static Button Select(Transform parent,IReadOnlyList<string> labels,int selected,Action<int> change,float width=230)=>CustomCardControls.Select(parent,labels,selected,change,width);
+    internal static TMP_InputField NumberInput(Transform parent,double value,Action<double> change,float width=92)
+    {
+        var input=CustomCardUi.AddTmpInput(parent,value.ToString("R",CultureInfo.InvariantCulture),"数字",_=>{},width,40);
+        CustomCardFormStyle.Input(input,false);
+        CustomCardInputFeedback.BindNumber(input,CardNumber.Plain(value),change);
+        return input;
     }
     private static void TextInput(Transform parent,string name,string value,Action<string> change,float width)
     {
-        var row=Row(parent,name);Label(row,name,110);var input=AuraToolsUi.AddTmpInput(row,value,name,_=>{},width,40);
-        input.onValueChanged.RemoveAllListeners();input.onEndEdit.AddListener(v=>change(v));
+        var row=Row(parent,name);Label(row,name,110);var input=CustomCardUi.AddTmpInput(row,value,name,_=>{},width,40);
+        CustomCardInputFeedback.Bind(input,change);
     }
-}
-
-internal sealed class CustomCardBlockDrag : MonoBehaviour,IBeginDragHandler,IDragHandler,IEndDragHandler,IDropHandler
-{
-    private static CustomCardBlockDrag? dragging;
-    internal CustomCardWorkshopController Owner=null!;
-    internal List<CardRuleBlock> Blocks=null!;
-    internal CardRuleBlock Block=null!;
-    public void OnBeginDrag(PointerEventData eventData){dragging=this;}
-    public void OnDrag(PointerEventData eventData){ }
-    public void OnEndDrag(PointerEventData eventData){dragging=null;}
-    public void OnDrop(PointerEventData eventData){if(dragging!=null&&dragging.Owner==Owner&&ReferenceEquals(dragging.Blocks,Blocks))Owner.DropBlock(Blocks,dragging.Block,Block);}
-    private void OnDestroy(){if(dragging==this)dragging=null;}
 }

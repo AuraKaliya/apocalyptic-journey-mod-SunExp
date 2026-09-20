@@ -27,10 +27,41 @@ namespace Witch.UI
 }
 namespace AuraUi.Shared
 {
+    public static class AuraUiNativeBridge
+    {
+        private static TMP_FontAsset font;
+        public static void Apply(TMP_Text text)
+        {if(font==null)font=TMP_FontAsset.CreateFontAsset(Resources.Load<Font>("PreviewFont"));text.font=font;}
+    }
+    public enum AuraUiButtonSoundStyle { Pure }
+    public class AuraUiButtonSoundRelay:MonoBehaviour { public void Configure(Button b,AuraUiButtonSoundStyle s){} }
     public class AuraUiStableId:MonoBehaviour {public string Value;public static void Assign(GameObject o,string id){var c=o.GetComponent<AuraUiStableId>()??o.AddComponent<AuraUiStableId>();c.Value=id;}}
 }
 namespace AuraToolsExp.Dll.Features.CustomCards
 {
+    // The isolated Unity player has no game prefabs. This explicitly marked slot
+    // proves placement/lifecycle only, never native DictionaryShowItem rendering.
+    internal static class CustomCardPreviewHost
+    {
+        internal static int LiveViews,Bindings;
+        internal static ICustomCardPreviewContent Create(RectTransform parent,Action clicked)=>new Content(parent,clicked);
+        private sealed class Content:ICustomCardPreviewContent
+        {
+            private GameObject root;private TMP_Text label;private bool disposed;
+            internal Content(RectTransform parent,Action clicked)
+            {
+                LiveViews++;
+                root=AuraToolsExp.Dll.Features.Settings.AuraToolsUi.CreateRect("NativePreviewSlot",parent,new(.5f,.5f),new(.5f,.5f),new(.5f,.5f),new(220,310));
+                AuraToolsExp.Dll.Features.Settings.AuraToolsUi.AddImage(root,CustomCardVisuals.Well);
+                CustomCardControls.Border(root,CustomCardVisuals.Border);
+                label=AuraToolsExp.Dll.Features.Settings.AuraToolsUi.AddTmpText(root.transform,"",14,TextAnchor.MiddleCenter,CustomCardVisuals.Muted,310);label.alignment=TextAlignmentOptions.Center;
+                var b=root.AddComponent<Button>();b.targetGraphic=root.GetComponent<Image>();b.onClick.AddListener(()=>clicked?.Invoke());
+            }
+            public void Bind(CustomCardDocument d,CustomCardCompilation c){Bindings++;label.text="原生图鉴卡牌\n\n隔离预览占位\n\n"+d.Name+"\n"+d.Cost+" 能量";}
+            public void Fit(Vector2 size){if(root!=null)root.transform.localScale=Vector3.one*Mathf.Min(size.x/220,size.y/310);}
+            public void Dispose(){if(disposed)return;disposed=true;LiveViews--;if(root!=null){root.SetActive(false);UnityEngine.Object.Destroy(root);}}
+        }
+    }
     internal static class CustomCardLibrary
     {
         private static readonly List<CustomCardDocument> Items=new();
@@ -42,9 +73,13 @@ namespace AuraToolsExp.Dll.Features.CustomCards
     }
     internal static class CustomCardNative
     {
-        public static IReadOnlyList<KeyValuePair<string,string>> Buffs()=>new[]{new KeyValuePair<string,string>("poison","中毒"),new KeyValuePair<string,string>("strength","力量")};
+        internal static int LastCraftedCost;
+        public static IReadOnlyList<CardStateOption> States()=>new[]{new CardStateOption{Id="poison",Name="中毒",Description="示例状态：在回合结束时结算。",Source="BaseGame"},new CardStateOption{Id="strength",Name="力量",Description="示例状态说明。",Source="BaseGame"},new CardStateOption{Id="mod_poison",Name="中毒",Source="测试 MOD",Description="同名状态，标识与来源不同。"}}
+            .Concat(Enumerable.Range(1,95).Select(i=>new CardStateOption{Id="preview_"+i,Name="示例状态 "+i.ToString("D2"),Source="测试 MOD",Description="用于验证分页和长说明。"})).ToArray();
+        public static CardStateOption State(string id)=>States().FirstOrDefault(p=>p.Id==id);
+        public static string BuffName(string id)=>State(id)?.Name;
         public static void CheckLua(CustomCardCompilation c){}
-        public static object Craft(CustomCardDocument d)=>new object();
+        public static object Craft(CustomCardDocument d){LastCraftedCost=d.Cost;return new object();}
     }
     internal static class CustomCardArtworkRuntime
     {
@@ -59,7 +94,9 @@ namespace AuraToolsExp.Dll.Features.Settings
 {
     internal static class AuraToolsUi
     {
-        public static readonly Color Text=new(.93f,.91f,.88f),MutedText=new(.65f,.67f,.77f),SuccessText=new(.5f,.85f,.6f),ErrorText=new(1f,.45f,.4f),Row=new(.1f,.1f,.2f),Panel=new(.065f,.065f,.14f);
+        internal static void SetButtonLabel(Button button,string label){var text=button.GetComponentInChildren<TMP_Text>();if(text!=null)text.text=label;}
+        internal static bool RunConfigAction(Action action){action();return true;}
+        public static readonly Color Text=new(.93f,.91f,.88f),MutedText=new(.65f,.67f,.77f),SuccessText=new(.5f,.85f,.6f),ErrorText=new(1f,.45f,.4f),Row=new(.1f,.1f,.2f),Panel=new(.1f,.1f,.2f);
         private static TMP_FontAsset font;
         private static TMP_FontAsset Font { get { if(font==null)font=TMP_FontAsset.CreateFontAsset(Resources.Load<UnityEngine.Font>("PreviewFont"));return font;} }
         public static GameObject CreateRect(string n,Transform p,Vector2 amin,Vector2 amax,Vector2 pivot,Vector2 size)
@@ -88,7 +125,7 @@ namespace AuraToolsExp.Dll.Features.Settings
         {var o=CreateLayout("Toggle",p);SetFixedSize(o,size,size);var i=AddImage(o,v?SuccessText:MutedText);var t=o.AddComponent<Toggle>();t.targetGraphic=i;t.graphic=i;t.isOn=v;t.onValueChanged.AddListener(x=>change(x));return t;}
         public static Button AddSelectButton(Transform p,IReadOnlyList<string> labels,int selected,Action<int> change,float width=220,float height=40)
         {
-            return AddButton(p,labels[Math.Max(0,selected)]+" ▾",()=>
+            return AddButton(p,labels[Math.Max(0,selected)]+" v",()=>
             {
                 var w=CreateOverlay("Selector",p,"选择");var s=CreateScroll(w.transform,"Options");for(int i=0;i<labels.Count;i++){int n=i;AddButton(s,labels[i],()=>{change(n);UnityEngine.Object.Destroy(w.transform.parent.gameObject);},Math.Min(width,600));}
             },width,height);
@@ -99,10 +136,11 @@ namespace AuraToolsExp.Dll.Features.Settings
             var c=CreateRect("Content",view.transform,new(0,1),new(1,1),new(0,1),Vector2.zero);var l=c.AddComponent<VerticalLayoutGroup>();l.spacing=8;l.childControlHeight=true;l.childControlWidth=true;l.childForceExpandHeight=false;var f=c.AddComponent<ContentSizeFitter>();f.verticalFit=ContentSizeFitter.FitMode.PreferredSize;
             var scroll=o.AddComponent<ScrollRect>();scroll.viewport=view.GetComponent<RectTransform>();scroll.content=c.GetComponent<RectTransform>();scroll.horizontal=false;return c.transform;
         }
-        public static GameObject CreateOverlay(string n,Transform p,string title,Action onClose=null,bool singleInstance=true,float maxWidth=1180,Func<bool> canClose=null)
+        public static GameObject CreateOverlay(string n,Transform p,string title,Action onClose=null,bool singleInstance=true,float maxWidth=1180,Func<bool> canClose=null,bool fullWindow=true,float preferredHeight=0)
         {
-            var owner=p.GetComponentInParent<Canvas>().transform;var backdrop=CreateRect(n,owner,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero);AddImage(backdrop,new Color(0,0,0,.8f));
-            var window=CreateRect("Window",backdrop.transform,Vector2.zero,Vector2.one,new(.5f,.5f),Vector2.zero);var r=window.GetComponent<RectTransform>();r.offsetMin=new(24,20);r.offsetMax=new(-24,-20);AddImage(window,Panel);
+            var owner=p.GetComponentInParent<Canvas>().rootCanvas.transform;var backdrop=CreateRect(n,owner,Vector2.zero,Vector2.one,new(.5f,.5f),Vector2.zero);AddImage(backdrop,new Color(0,0,0,fullWindow?1:.8f));
+            var window=CreateRect("Window",backdrop.transform,Vector2.zero,Vector2.one,new(.5f,.5f),Vector2.zero);AddImage(window,Panel);
+            AuraToolsWindowHost.Attach(window,p,fullWindow,maxWidth,preferredHeight);
             var l=window.AddComponent<VerticalLayoutGroup>();l.padding=new RectOffset(16,16,12,12);l.spacing=8;l.childControlHeight=true;l.childControlWidth=true;l.childForceExpandHeight=false;
             var head=CreateLayout("Header",window.transform);SetFixedHeight(head,50);var h=head.AddComponent<HorizontalLayoutGroup>();h.childForceExpandWidth=false;AddTmpText(head.transform,title,24,TextAnchor.MiddleLeft,Text,45,1);AddButton(head.transform,"关闭",()=>{if(canClose!=null&&!canClose())return;onClose?.Invoke();UnityEngine.Object.Destroy(backdrop);},70);
             return window;

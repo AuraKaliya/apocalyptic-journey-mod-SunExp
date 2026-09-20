@@ -9,10 +9,11 @@
 
   <ItemGroup>
     <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardDocument.cs" Link="CustomCards\CustomCardDocument.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CardBlueprint*.cs" Link="CustomCards\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardCompiler.cs" Link="CustomCards\CustomCardCompiler.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardLuaSupport.cs" Link="CustomCards\CustomCardLuaSupport.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardDescription.cs" Link="CustomCards\CustomCardDescription.cs" />
-    <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardTrial.cs" Link="CustomCards\CustomCardTrial.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CustomCardPresentationData.cs" Link="CustomCards\CustomCardPresentationData.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\CustomCards\CardPixelCanvas.cs" Link="CustomCards\CardPixelCanvas.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\PixelEmoji\IndexedPixelCanvas.cs" Link="PixelEmoji\IndexedPixelCanvas.cs" />
     <Compile Include="..\AuraSharedCore\AuraNetworkIdentityState.cs" Link="Shared\AuraNetworkIdentityState.cs" />

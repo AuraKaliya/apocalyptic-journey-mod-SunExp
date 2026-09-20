@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net472</TargetFramework><LangVersion>latest</LangVersion><Nullable>enable</Nullable><AssemblyName>AuraWorkshopUiProbe</AssemblyName><EnableDefaultCompileItems>true</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Witch"><HintPath>../../Managed/Witch.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Witch.Core"><HintPath>../../Managed/Witch.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Plugins"><HintPath>../../Managed/Plugins.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="AuraToolsExp.Aura"><HintPath>../../AuraToolsExp/Scripts/Entry.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Aura.Shared"><HintPath>../../AuraToolsExp/Scripts/Aura.Shared.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>../../Managed/UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>../../Managed/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UIModule"><HintPath>../../Managed/UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>../../Managed/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule"><HintPath>../../Managed/UnityEngine.ScreenCaptureModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>../../Managed/UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>../../Managed/Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>../../Managed/UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime"><HintPath>../../Managed/Unity.RenderPipelines.Universal.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>../../Managed/Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="netstandard"><HintPath>../../Managed/netstandard.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

@@ -22,6 +22,14 @@ function Invoke-Check([string]$Name, [scriptblock]$Run){
     $checks.Add([pscustomobject]@{name=$Name;success=$true;elapsedSeconds=([DateTime]::UtcNow-$started).TotalSeconds})
 }
 Invoke-Check 'AuraTools behavior and content' { & (Join-Path $PSScriptRoot 'Test-AuraToolsExp.ps1') -Configuration $Configuration -SkipBuild -SkipModelIntegration }
+Invoke-Check 'Custom card generated Lua and migration' {
+    & dotnet run --project (Join-Path $repoRoot 'AuraToolsExp-Dev.Tests/AuraToolsExp-Dev.Tests.csproj') -c $Configuration --no-build -- --suite custom-cards
+    if($LASTEXITCODE -ne 0){throw 'Custom card Lua behavior failed.'}
+}
+Invoke-Check 'Custom card production UI' { & (Join-Path $PSScriptRoot 'Test-CustomCardUnity.ps1') -GameDataDirectory $GameDataDirectory }
+if(-not [string]::IsNullOrWhiteSpace($GameDataDirectory)){
+    Invoke-Check 'Custom card installed XLua binding' { & (Join-Path $PSScriptRoot 'Test-CustomCardXLua.ps1') -UnityPath $UnityPath -GameDataDirectory $GameDataDirectory }
+}
 Invoke-Check 'Terrias behavior' { & (Join-Path $PSScriptRoot 'Test-TerriasCSharp.ps1') -Configuration $Configuration -SkipBuild }
 Invoke-Check 'Spirit behavior' { & (Join-Path $PSScriptRoot 'Test-SpiritRuntime.ps1') -Configuration $Configuration }
 Invoke-Check 'Elemental behavior and content' { & (Join-Path $PSScriptRoot 'Test-TerriasElemental.ps1') -Configuration $Configuration }

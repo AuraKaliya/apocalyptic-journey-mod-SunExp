@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using TMPro;
 using AuraToolsExp.Dll.Features.PixelEmoji;
 using AuraToolsExp.Dll.Features.Settings;
 using AuraToolsExp.Dll.Infrastructure;
@@ -11,15 +12,6 @@ using static AuraToolsExp.Dll.Features.CustomCards.CustomCardWorkshopController;
 
 namespace AuraToolsExp.Dll.Features.CustomCards;
 
-internal static class CardPixelEditor
-{
-    internal static void Show(Transform parent,CustomCardArtwork artwork,Action record,Action changed)
-    {
-        var window=AuraToolsUi.CreateOverlay("CustomCards.PixelEditor",parent,"像素卡面",changed,maxWidth:1000);
-        window.AddComponent<CardPixelEditorController>().Build(window.transform,artwork,record);
-    }
-}
-
 internal sealed class CardPixelEditorController : MonoBehaviour
 {
     private CustomCardArtwork art=null!;
@@ -27,57 +19,86 @@ internal sealed class CardPixelEditorController : MonoBehaviour
     private Texture2D texture=null!;
     private RawImage image=null!;
     private byte[] pixels=Array.Empty<byte>();
-    private readonly List<(int Size,string Pixels,bool UsePixels)> undo=new(),redo=new();
+    private Action changed=null!;
+    private bool notifyPending;
     private int mode;
     private byte color=2;
     private Vector2Int last;
     private bool drawing;
     private RectTransform canvas=null!;
     private CardPixelGrid grid=null!;
-    internal void Build(Transform parent,CustomCardArtwork artwork,Action beforeChange)
+    private RectTransform viewport=null!;
+    private readonly List<Button> swatches=new(),toolButtons=new();
+    private TMP_Text zoomLabel=null!;
+    private Button sizeButton=null!;
+    private float zoom=1;
+    private Vector2 lastView,panOrigin,panPointer;
+    private bool panning;
+    internal void Build(Transform parent,CustomCardArtwork artwork,Action beforeChange,Action afterChange)
     {
-        art=artwork;record=beforeChange;pixels=Convert.FromBase64String(art.Pixels);
-        var actions=Row(parent,"PixelActions");
-        Select(actions,new[]{"32 × 32","64 × 64","128 × 128"},Array.IndexOf(CardPixelCanvas.Sizes,art.Size),i=>
-        {BeginChange();pixels=IndexedPixelCanvas.Resize(pixels,art.Size,CardPixelCanvas.Sizes[i]);art.Size=CardPixelCanvas.Sizes[i];Refresh();},150);
-        Select(actions,CardPixelCanvas.Templates,0,i=>{BeginChange();pixels=CardPixelCanvas.Template(art.Size,i);Refresh();},140);
-        Button(actions,"撤销",()=>History(undo,redo),66);Button(actions,"重做",()=>History(redo,undo),66);
-        Button(actions,"导入底图",Import,100);
-        var tools=Row(parent,"PixelTools");
-        Select(tools,new[]{"画笔","橡皮","填充","吸色"},0,i=>mode=i,130);
-        Select(tools,new[]{"100%","200%","300%"},0,i=>{canvas.sizeDelta=Vector2.one*320*(i+1);},130);
-        Button(tools,"网格",()=>{grid.Visible=!grid.Visible;grid.SetVerticesDirty();},70);
-        Hint(parent,"32 色像素绘制。导入底图会转换为当前色板；模板、尺寸变化和绘画均可撤销。右键可擦除。");
-        var palette=AuraToolsUi.CreateLayout("PixelPalette",parent);AuraToolsUi.SetFixedHeight(palette,74);
-        var layout=palette.AddComponent<GridLayoutGroup>();layout.cellSize=new Vector2(32,32);layout.spacing=new Vector2(4,4);layout.constraint=GridLayoutGroup.Constraint.FixedColumnCount;layout.constraintCount=16;
+        art=artwork;record=beforeChange;changed=afterChange;pixels=Convert.FromBase64String(art.Pixels);
+        parent.GetComponent<VerticalLayoutGroup>().spacing=12;
+        var toolsRow=CommandRow(parent,"PaintTools");
+        string[] names={"画笔","橡皮","填充","吸色"};
+        for(int i=0;i<names.Length;i++){int selected=i;toolButtons.Add(Button(toolsRow,names[i],()=>{mode=selected;RefreshTools();},60,36));}
+        Spacer(toolsRow);CustomCardControls.IconButton(toolsRow,CardIcon.Help,"画板帮助",()=>ReportHelp(toolsRow));
+        var actions=CommandRow(parent,"PixelActions");
+        sizeButton=Select(actions,new[]{"32 × 32","64 × 64","128 × 128"},Array.IndexOf(CardPixelCanvas.Sizes,art.Size),i=>
+        {BeginChange();pixels=IndexedPixelCanvas.Resize(pixels,art.Size,CardPixelCanvas.Sizes[i]);art.Size=CardPixelCanvas.Sizes[i];Refresh();},116);
+        Quiet(Button(actions,"导入底图",Import,92));
+        Button templates=null!;
+        templates=Quiet(Button(actions,"模板",()=>CustomCardPopover.Show(templates.transform,CardPixelCanvas.Templates,-1,i=>{BeginChange();pixels=CardPixelCanvas.Template(art.Size,i);Refresh();}),60));
+        var body=CustomCardUi.CreateLayout("PixelWorkspace",parent);var bodySize=body.AddComponent<LayoutElement>();bodySize.flexibleHeight=1;bodySize.minHeight=160;
+        var bodyLayout=body.AddComponent<HorizontalLayoutGroup>();bodyLayout.spacing=16;bodyLayout.childControlWidth=bodyLayout.childControlHeight=true;bodyLayout.childForceExpandWidth=false;bodyLayout.childForceExpandHeight=true;
+        var palette=CustomCardUi.CreateLayout("PixelPalette",body.transform);var shelf=palette.AddComponent<LayoutElement>();shelf.minWidth=0;shelf.preferredWidth=92;
+        var layout=palette.AddComponent<GridLayoutGroup>();layout.cellSize=new(20,20);layout.spacing=new(4,4);layout.constraint=GridLayoutGroup.Constraint.FixedColumnCount;layout.constraintCount=4;
+        var responsive=palette.AddComponent<CardPixelPaletteLayout>();responsive.Layout=layout;responsive.Shelf=shelf;responsive.Count=PixelEmojiCodec.PaletteRgba.Length;
         for(byte i=0;i<PixelEmojiCodec.PaletteRgba.Length;i++)
         {
-            byte index=i;var button=Button(palette.transform,i==0?"×":"",()=>color=index,32,32);
-            var p=PixelEmojiCodec.PaletteRgba[i];button.targetGraphic.color=i==0?new Color(0.25f,0.25f,0.25f):new Color32((byte)(p>>24),(byte)(p>>16),(byte)(p>>8),255);
+            byte index=i;var button=Button(palette.transform,i==0?"×":"",()=>{color=index;RefreshTools();},20,20);swatches.Add(button);
+            button.GetComponent<CustomCardControlFeedback>().enabled=false;button.transform.Find("ControlBorder").gameObject.SetActive(false);button.transition=Selectable.Transition.ColorTint;
+            var p=PixelEmojiCodec.PaletteRgba[i];var value=i==0?new Color(.14f,.12f,.2f):(Color)new Color32((byte)(p>>24),(byte)(p>>16),(byte)(p>>8),255);
+            var tint=button.colors;tint.normalColor=value;tint.highlightedColor=tint.selectedColor=Color.Lerp(value,Color.white,.2f);tint.pressedColor=Color.Lerp(value,Color.black,.15f);button.colors=tint;button.targetGraphic.color=Color.white;button.targetGraphic.CrossFadeColor(value,0,true,true);
+            var border=button.gameObject.AddComponent<Outline>();border.effectColor=CustomCardVisuals.Gold;border.effectDistance=new(2,2);border.enabled=false;
         }
-        var view=AuraToolsUi.CreateLayout("PixelViewport",parent);var el=view.AddComponent<LayoutElement>();el.flexibleHeight=1;el.minHeight=200;
-        AuraToolsUi.AddImage(view,new Color(0.13f,0.13f,0.17f));view.AddComponent<RectMask2D>();
-        var go=AuraToolsUi.CreateRect("Canvas",view.transform,new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),new Vector2(0.5f,0.5f),Vector2.one*320);
-        canvas=go.GetComponent<RectTransform>();image=go.AddComponent<RawImage>();
+        var view=CustomCardUi.CreateLayout("PixelViewport",body.transform);var el=view.AddComponent<LayoutElement>();el.flexibleHeight=el.flexibleWidth=1;el.minWidth=140;viewport=(RectTransform)view.transform;
+        CustomCardUi.AddImage(view,CustomCardVisuals.Well);view.AddComponent<RectMask2D>();
+        var go=CustomCardUi.CreateRect("Canvas",view.transform,new(.5f,.5f),new(.5f,.5f),new(.5f,.5f),Vector2.one*320);
+        canvas=(RectTransform)go.transform;go.AddComponent<CardPixelBackdrop>();
+        var paint=CustomCardUi.CreateRect("Pixels",go.transform,Vector2.zero,Vector2.one,new(.5f,.5f),Vector2.zero);image=paint.AddComponent<RawImage>();image.raycastTarget=false;
         var input=go.AddComponent<CardPixelInput>();input.Owner=this;
-        var overlay=AuraToolsUi.CreateRect("Grid",go.transform,Vector2.zero,Vector2.one,Vector2.zero,Vector2.zero);
-        grid=overlay.AddComponent<CardPixelGrid>();grid.raycastTarget=false;
-        var scroll=view.AddComponent<ScrollRect>();scroll.viewport=view.GetComponent<RectTransform>();scroll.content=canvas;scroll.horizontal=true;scroll.vertical=true;scroll.scrollSensitivity=28;
+        var overlay=CustomCardUi.CreateRect("Grid",go.transform,Vector2.zero,Vector2.one,new(.5f,.5f),Vector2.zero);
+        grid=overlay.AddComponent<CardPixelGrid>();grid.raycastTarget=false;CustomCardControls.Border(go,CustomCardVisuals.Border);
+        var viewTools=CommandRow(parent,"PixelViewTools");Spacer(viewTools);
+        Quiet(Button(viewTools,"适合画布",()=>{zoom=1;FitCanvas(true);},92));
+        Quiet(Button(viewTools,"−",()=>Zoom(-1),28));zoomLabel=CustomCardUi.AddTmpText(viewTools,"1.0×",12,TextAnchor.MiddleCenter,CustomCardVisuals.Muted,32,0,40);Quiet(Button(viewTools,"＋",()=>Zoom(1),28));
+        CustomCardControls.Check(viewTools,"网格",true,v=>{grid.Visible=v;grid.SetVerticesDirty();},84);
         Refresh(false);
     }
+    private void RefreshTools()
+    {
+        for(int i=0;i<swatches.Count;i++)swatches[i].GetComponent<Outline>().enabled=i==color;
+        for(int i=0;i<toolButtons.Count;i++)CustomCardVisuals.Button(toolButtons[i],i==mode);
+        CustomCardUi.SetButtonLabel(sizeButton,art.Size+" × "+art.Size);
+    }
+    private void FitCanvas(bool center=false)
+    {
+        if(viewport==null||canvas==null||viewport.rect.width<=0)return;
+        canvas.sizeDelta=Vector2.one*Math.Max(96,Math.Min(viewport.rect.width,viewport.rect.height)-24)*zoom;
+        if(center)canvas.anchoredPosition=Vector2.zero;
+        if(zoomLabel!=null)zoomLabel.text=zoom.ToString("0.0")+"×";grid.SetVerticesDirty();
+    }
+    internal void Zoom(float amount){zoom=Mathf.Clamp(zoom*Mathf.Pow(1.2f,amount),.5f,8);FitCanvas();}
+    private void LateUpdate(){if(viewport!=null&&lastView!=viewport.rect.size){lastView=viewport.rect.size;FitCanvas(true);}if(notifyPending&&!drawing){notifyPending=false;changed();}}
     private void BeginChange()
     {
-        record();undo.Add((art.Size,Convert.ToBase64String(pixels),art.UsePixels));if(undo.Count>40)undo.RemoveAt(0);redo.Clear();
-    }
-    private void History(List<(int Size,string Pixels,bool UsePixels)> from,List<(int Size,string Pixels,bool UsePixels)> to)
-    {
-        if(from.Count==0)return;record();to.Add((art.Size,Convert.ToBase64String(pixels),art.UsePixels));var value=from[from.Count-1];from.RemoveAt(from.Count-1);
-        art.Size=value.Size;art.UsePixels=value.UsePixels;pixels=Convert.FromBase64String(value.Pixels);Refresh(false);
+        record();
     }
     internal void Begin(PointerEventData e)
     {
+        if(e.button==PointerEventData.InputButton.Middle){panning=true;panPointer=e.position;panOrigin=canvas.anchoredPosition;return;}
         if(!Position(e,out var point))return;
-        if(mode==3){color=pixels[point.y*art.Size+point.x];return;}
+        if(mode==3){color=pixels[point.y*art.Size+point.x];RefreshTools();return;}
         BeginChange();last=point;drawing=true;
         byte ink=e.button==PointerEventData.InputButton.Right||mode==1?(byte)0:color;
         if(mode==2){IndexedPixelCanvas.Fill(pixels,art.Size,point.x,point.y,ink);drawing=false;}
@@ -86,10 +107,11 @@ internal sealed class CardPixelEditorController : MonoBehaviour
     }
     internal void Drag(PointerEventData e)
     {
+        if(panning){var root=GetComponentInParent<Canvas>();canvas.anchoredPosition=panOrigin+(e.position-panPointer)/(root!=null?root.scaleFactor:1);return;}
         if(!drawing||!Position(e,out var point))return;
         IndexedPixelCanvas.DrawLine(pixels,art.Size,last.x,last.y,point.x,point.y,e.button==PointerEventData.InputButton.Right||mode==1?(byte)0:color);last=point;Refresh();
     }
-    internal void End()=>drawing=false;
+    internal void End(){drawing=false;panning=false;}
     private bool Position(PointerEventData e,out Vector2Int point)
     {
         point=default;
@@ -103,6 +125,7 @@ internal sealed class CardPixelEditorController : MonoBehaviour
         if(texture==null||texture.width!=art.Size){if(texture!=null)Destroy(texture);texture=CustomCardArtworkRuntime.Texture(art);image.texture=texture;}
         else CustomCardArtworkRuntime.Refresh(texture,pixels);
         grid.Size=art.Size;grid.SetVerticesDirty();
+        RefreshTools();if(edited)notifyPending=true;
     }
     private void Import()
     {
@@ -132,33 +155,69 @@ internal sealed class CardPixelEditorController : MonoBehaviour
             finally{if(source!=null)Destroy(source);}
         });
     }
+    private void ReportHelp(Transform parent)
+    {
+        var window=Overlay("CustomCards.PaintHelp",parent,"画板操作",maxWidth:520,preferredHeight:260);
+        Hint(window.transform,"右键擦除 · 中键移动 · 滚轮缩放");Hint(window.transform,"底图会转换为当前色板。撤销可恢复导入前的卡面。");
+    }
+    private void OnDisable(){End();notifyPending=false;}
     private void OnDestroy(){if(texture!=null)Destroy(texture);}
 }
 
-internal sealed class CardPixelInput : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IDragHandler
+internal sealed class CardPixelInput : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IDragHandler,IScrollHandler
 {
     internal CardPixelEditorController Owner=null!;
     public void OnPointerDown(PointerEventData e)=>Owner.Begin(e);
     public void OnPointerUp(PointerEventData e)=>Owner.End();
     public void OnDrag(PointerEventData e)=>Owner.Drag(e);
+    public void OnScroll(PointerEventData e)=>Owner.Zoom(e.scrollDelta.y);
 }
 
-internal sealed class CardPixelGrid : MaskableGraphic
+internal sealed class CardPixelPaletteLayout : MonoBehaviour
+{
+    internal GridLayoutGroup Layout=null!;
+    internal LayoutElement Shelf=null!;
+    internal int Count;
+    private void LateUpdate()
+    {
+        if(Layout==null)return;float height=((RectTransform)transform).rect.height;
+        int rows=Mathf.Max(1,Mathf.FloorToInt((height+4)/24));int columns=Mathf.Clamp(Mathf.CeilToInt(Count/(float)rows),2,8);
+        if(columns>2&&columns<4)columns=4;
+        if(Layout.constraintCount==columns)return;Layout.constraintCount=columns;Shelf.preferredWidth=columns*24-4;
+    }
+}
+
+internal sealed class CardPixelBackdrop : RawImage
+{
+    private Texture2D? owned;
+    protected override void Awake()
+    {
+        base.Awake();owned=new Texture2D(16,16,TextureFormat.RGBA32,false){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Repeat};
+        var values=new Color32[256];for(int y=0;y<16;y++)for(int x=0;x<16;x++)values[y*16+x]=(x/8+y/8)%2==0?new Color32(32,27,45,255):new Color32(45,38,58,255);
+        owned.SetPixels32(values);owned.Apply();texture=owned;raycastTarget=true;
+    }
+    protected override void OnRectTransformDimensionsChange(){base.OnRectTransformDimensionsChange();uvRect=new(0,0,rectTransform.rect.width/16,rectTransform.rect.height/16);}
+    protected override void OnDestroy(){if(owned!=null)Destroy(owned);base.OnDestroy();}
+}
+
+internal sealed class CardPixelGrid : RawImage
 {
     internal int Size=64;
     internal bool Visible=true;
-    protected override void OnPopulateMesh(VertexHelper vh)
+    private Texture2D? owned;
+    private int textureSize;
+    private void LateUpdate()=>EnsureTexture();
+    private void EnsureTexture()
     {
-        vh.Clear();if(!Visible)return;var rect=rectTransform.rect;
-        for(int i=0;i<=Size;i++)
+        if(owned==null||textureSize!=Size)
         {
-            float x=rect.xMin+rect.width*i/Size,y=rect.yMin+rect.height*i/Size;
-            Add(vh,new Rect(x-0.3f,rect.yMin,0.6f,rect.height));Add(vh,new Rect(rect.xMin,y-0.3f,rect.width,0.6f));
+            if(owned!=null)Destroy(owned);textureSize=Size;int side=Size*8;
+            owned=new Texture2D(side,side,TextureFormat.RGBA32,false){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
+            var colors=new Color32[side*side];var line=new Color32(180,170,200,42);
+            for(int y=0;y<side;y++)for(int x=0;x<side;x++)if(x%8==0||y%8==0||x==side-1||y==side-1)colors[y*side+x]=line;
+            owned.SetPixels32(colors);owned.Apply();texture=owned;
         }
     }
-    private static void Add(VertexHelper vh,Rect r)
-    {
-        int i=vh.currentVertCount;var c=new Color32(180,180,200,45);
-        vh.AddVert(new Vector3(r.xMin,r.yMin),c,Vector2.zero);vh.AddVert(new Vector3(r.xMax,r.yMin),c,Vector2.zero);vh.AddVert(new Vector3(r.xMax,r.yMax),c,Vector2.zero);vh.AddVert(new Vector3(r.xMin,r.yMax),c,Vector2.zero);vh.AddTriangle(i,i+1,i+2);vh.AddTriangle(i,i+2,i+3);
-    }
+    protected override void OnPopulateMesh(VertexHelper vh){if(!Visible||rectTransform.rect.width/Size<5){vh.Clear();return;}base.OnPopulateMesh(vh);}
+    protected override void OnDestroy(){if(owned!=null)Destroy(owned);base.OnDestroy();}
 }
